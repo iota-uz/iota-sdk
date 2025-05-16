@@ -8,12 +8,19 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 )
 
-// ---- Interface ----
-
+type Type string
 type Option func(g *group)
+
+const (
+	TypeUser   Type = "user"
+	TypeSystem Type = "system"
+)
+
+// ---- Interface ----
 
 type Group interface {
 	ID() uuid.UUID
+	Type() Type
 	TenantID() uuid.UUID
 	Name() string
 	Description() string
@@ -21,6 +28,9 @@ type Group interface {
 	Roles() []role.Role
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+
+	CanUpdate() bool
+	CanDelete() bool
 
 	AddUser(u user.User) Group
 	RemoveUser(u user.User) Group
@@ -37,6 +47,12 @@ type Group interface {
 func WithID(id uuid.UUID) Option {
 	return func(g *group) {
 		g.id = id
+	}
+}
+
+func WithType(_type Type) Option {
+	return func(g *group) {
+		g.type_ = _type
 	}
 }
 
@@ -79,6 +95,7 @@ func WithUpdatedAt(t time.Time) Option {
 func New(name string, opts ...Option) Group {
 	g := &group{
 		id:        uuid.New(),
+		type_:     TypeUser,
 		tenantID:  uuid.Nil,
 		name:      name,
 		createdAt: time.Now(),
@@ -93,6 +110,7 @@ func New(name string, opts ...Option) Group {
 
 type group struct {
 	id          uuid.UUID
+	type_       Type
 	tenantID    uuid.UUID
 	name        string
 	description string
@@ -105,6 +123,8 @@ type group struct {
 func (g *group) ID() uuid.UUID {
 	return g.id
 }
+
+func (g *group) Type() Type { return g.type_ }
 
 func (g *group) TenantID() uuid.UUID {
 	return g.tenantID
@@ -132,6 +152,14 @@ func (g *group) CreatedAt() time.Time {
 
 func (g *group) UpdatedAt() time.Time {
 	return g.updatedAt
+}
+
+func (g *group) CanUpdate() bool {
+	return g.type_ != TypeSystem
+}
+
+func (g *group) CanDelete() bool {
+	return g.type_ != TypeSystem
 }
 
 func (g *group) SetName(name string) Group {

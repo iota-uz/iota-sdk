@@ -2,10 +2,11 @@ package controllers
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"log"
 	"net/http"
 	"path/filepath"
+
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -42,7 +43,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	router.Use(
 		middleware.Authorize(),
 		middleware.ProvideUser(),
-		middleware.WithLocalizer(g.app.Bundle()),
+		middleware.ProvideLocalizer(g.app.Bundle()),
 	)
 
 	router.Handle("/query", srv)
@@ -54,7 +55,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		}
 		router.Handle(filepath.Join(fmt.Sprintf("/query/%s", schema.BasePath)), graphql.NewHandler(exec))
 	}
-	log.Printf("connect to http://localhost:%d/playground for GraphQL playground", configuration.Use().ServerPort)
+	log.Printf("See %s/playground for GraphQL playground", configuration.Use().Address())
 }
 
 func NewGraphQLController(app application.Application) application.Controller {

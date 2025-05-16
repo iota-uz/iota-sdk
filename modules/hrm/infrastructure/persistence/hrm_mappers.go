@@ -5,12 +5,12 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/entities/position"
 	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) (employee.Employee, error) {
@@ -46,7 +46,7 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 		dbEmployee.MiddleName.String,
 		dbEmployee.Phone.String,
 		mail,
-		money.New(dbEmployee.Salary, currencyCode),
+		money.NewFromFloat(dbEmployee.Salary, string(currencyCode)),
 		tin,
 		pin,
 		employee.NewLanguage(dbMeta.PrimaryLanguage.String, dbMeta.SecondaryLanguage.String),
@@ -67,8 +67,8 @@ func toDBEmployee(entity employee.Employee) (*models.Employee, *models.EmployeeM
 		FirstName:        entity.FirstName(),
 		LastName:         entity.LastName(),
 		MiddleName:       mapping.ValueToSQLNullString(entity.MiddleName()),
-		Salary:           salary.Value(),
-		SalaryCurrencyID: mapping.ValueToSQLNullString(string(salary.Currency())),
+		Salary:           float64(salary.Amount()) / 100,
+		SalaryCurrencyID: mapping.ValueToSQLNullString(salary.Currency().Code),
 		Email:            entity.Email().Value(),
 		Phone:            mapping.ValueToSQLNullString(entity.Phone()),
 		CreatedAt:        entity.CreatedAt(),

@@ -54,7 +54,7 @@ func AccountsTable(props *IndexPageProps) templ.Component {
 		if len(props.Accounts) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Accounts.List.NoAccounts.Title"),
-				Description: pageCtx.T("Accounts.List.NoAccounts.Description"),
+				Description: pageCtx.T("Accounts.List.NoAccounts._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

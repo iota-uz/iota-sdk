@@ -2,73 +2,59 @@
 package spotlight
 
 import (
-	"github.com/a-h/templ"
-	"github.com/lithammer/fuzzysearch/fuzzy"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"sort"
+	"context"
+	"sync"
 )
 
+// DataSource provides external items for Spotlight.
+type DataSource interface {
+	Find(ctx context.Context, q string) []Item
+}
+
+// Spotlight streams items matching a query over a channel.
 type Spotlight interface {
-	Find(localizer *i18n.Localizer, q string) []Item
-	Register(...Item)
-}
-
-type Item interface {
-	Icon() templ.Component
-	Localized(localizer *i18n.Localizer) string
-	Link() string
-}
-
-func NewItem(icon templ.Component, trKey, link string) Item {
-	return &item{
-		trKey: trKey,
-		icon:  icon,
-		link:  link,
-	}
-}
-
-type item struct {
-	trKey string
-	icon  templ.Component
-	link  string
-}
-
-func (i *item) Icon() templ.Component {
-	return i.icon
-}
-
-func (i *item) Localized(localizer *i18n.Localizer) string {
-	return localizer.MustLocalize(&i18n.LocalizeConfig{
-		MessageID: i.trKey,
-	})
-}
-
-func (i *item) Link() string {
-	return i.link
+	Find(ctx context.Context, q string) <-chan Item
+	Register(ds DataSource)
 }
 
 func New() Spotlight {
-	return &spotlight{}
+	return &spotlight{
+		dataSources: []DataSource{},
+	}
 }
 
 type spotlight struct {
-	items []Item
+	dataSources []DataSource
 }
 
-func (s *spotlight) Register(i ...Item) {
-	s.items = append(s.items, i...)
+func (s *spotlight) Register(ds DataSource) {
+	s.dataSources = append(s.dataSources, ds)
 }
 
-func (s *spotlight) Find(localizer *i18n.Localizer, q string) []Item {
-	words := make([]string, len(s.items))
-	for i, it := range s.items {
-		words[i] = it.Localized(localizer)
+func (s *spotlight) Find(ctx context.Context, q string) <-chan Item {
+	in := make(chan Item)
+
+	var wg sync.WaitGroup
+
+	wg.Add(len(s.dataSources))
+	for _, ds := range s.dataSources {
+		go func() {
+			defer wg.Done()
+			items := ds.Find(ctx, q)
+			for _, item := range items {
+				select {
+				case <-ctx.Done():
+					return
+				case in <- item:
+				}
+			}
+		}()
 	}
-	ranks := fuzzy.RankFindNormalizedFold(q, words)
-	sort.Sort(ranks)
-	filteredItems := make([]Item, 0, len(ranks))
-	for _, rank := range ranks {
-		filteredItems = append(filteredItems, s.items[rank.OriginalIndex])
-	}
-	return filteredItems
+
+	go func() {
+		wg.Wait()
+		close(in)
+	}()
+
+	return in
 }

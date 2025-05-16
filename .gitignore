@@ -16,3 +16,4 @@ logs/
 
 go.work*
 
+**/.claude/settings.local.json

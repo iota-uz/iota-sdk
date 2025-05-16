@@ -23,7 +23,7 @@ templ AccountsTable(props *IndexPageProps) {
 		if len(props.Accounts) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Accounts.List.NoAccounts.Title"),
-				Description: pageCtx.T("Accounts.List.NoAccounts.Description"),
+				Description: pageCtx.T("Accounts.List.NoAccounts._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

@@ -1,11 +1,16 @@
 {
   "Errors": {
-    "Internal": "Internal server error"
+    "Internal": "An internal server error occurred: {{.Error}}",
+    "BadRequest": "Bad request: {{.Error}}",
+    "NotFound": "Resource not found: {{.Error}}",
+    "Unauthorized": "Unauthorized: {{.Error}}",
+    "Forbidden": "Forbidden: {{.Error}}"
   },
   "ValidationErrors": {
     "required": "This field is required",
     "emptySelect": "Select value",
     "email": "Invalid email format",
+    "lte": "{{.Field}} must be less than or equal to the specified value",
     "custom": "{{.Field}}: {{.Error}}"
   },
   "Filters": {
@@ -22,10 +27,12 @@
   "Scaffold": {
     "Table": {
       "NoDataTitle": "No data available",
-      "NoDataDescription": "There is no data available for this table."
+      "NoDataDescription": "There is no data available for this table.",
+      "NothingFound": "Nothing found"
     },
     "Filters": {
-      "Title": "Filters"
+      "Title": "Filters",
+      "SelectAll": "Select All"
     }
   },
   "Spotlight": {
@@ -225,6 +232,10 @@
       "Delete": "Delete user",
       "DeleteConfirmation": "Are you sure you want to delete this user?",
       "Permissions": "User Permissions"
+    },
+    "Errors": {
+      "PhoneUnique": "Phone number is already used",
+      "EmailUnique": "Email is already used"
     }
   },
   "Roles": {
@@ -249,7 +260,7 @@
         "Label": "Role name",
         "Placeholder": "Enter the name of the role"
       },
-      "Description": {
+      "_Description": {
         "Label": "Description",
         "Placeholder": "Enter description for the role"
       },
@@ -276,17 +287,17 @@
     "List": {
       "New": "New group",
       "Name": "Name",
-      "Description": "Description",
+      "_Description": "Description",
       "Roles": "Roles",
       "Users": "Users",
       "NoGroups": {
         "Title": "No groups found",
-        "Description": "Create your first group by clicking the 'New group' button"
+        "_Description": "Create your first group by clicking the 'New group' button"
       }
     },
     "Single": {
       "Name": "Name",
-      "Description": "Description",
+      "_Description": "Description",
       "RoleIDs": "Roles",
       "UserIDs": "Users",
       "SelectRole": "Select roles",
@@ -313,13 +324,13 @@
     },
     "List": {
       "New": "Add Project",
-      "Description": "Description",
+      "_Description": "Description",
       "Name": "Name"
     },
     "Single": {
       "Edit": "Edit project",
       "Name": "Name",
-      "Description": "Description",
+      "_Description": "Description",
       "Delete": "Delete project",
       "DeleteConfirmation": "Are you sure you want to delete this project?"
     }
@@ -508,7 +519,7 @@
     "GY": "Guyana",
     "HT": "Haiti",
     "IN": "India",
-    "ID": "Indonesia",
+    "IDN": "Indonesia",
     "IR": "Iran",
     "IQ": "Iraq",
     "IL": "Israel",
@@ -599,4 +610,3 @@
     "TR": "Turkey"
   }
 }
-

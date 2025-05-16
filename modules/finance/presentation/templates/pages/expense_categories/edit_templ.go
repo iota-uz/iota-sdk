@@ -117,7 +117,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label: pageCtx.T("ExpenseCategories.Single.Description"),
+				Label: pageCtx.T("ExpenseCategories.Single._Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",

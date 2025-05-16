@@ -1,19 +1,54 @@
 {
-	"NavigationLinks": {
-		"Website": "Сайт",
-		"AIChatbot": "ИИ Чатбот"
-	},
-	"AIChatBot": {
-		"Meta": {
-			"Title": "ИИ Чатбот"
-		},
-		"Title": {
-			"Label": "Заголовок",
-			"Placeholder": "Введите заголовок"
-		},
-		"Description": {
-			"Label": "Описание",
-			"Placeholder": "Введите описание"
-		}
-	}
+  "NavigationLinks": {
+    "Website": "Сайт",
+    "AIChatbot": "ИИ Чатбот"
+  },
+  "AIChatBot": {
+    "Meta": {
+      "Title": "ИИ Чатбот"
+    },
+    "ModelName": {
+      "Label": "Название модели",
+      "Placeholder": "Введите название модели (напр. gpt-4)"
+    },
+    "ModelType": {
+      "Label": "Тип модели",
+      "Placeholder": "Выберите тип модели"
+    },
+    "SystemPrompt": {
+      "Label": "Системный промпт",
+      "Placeholder": "Введите системный промпт для ИИ"
+    },
+    "Temperature": {
+      "Label": "Температура",
+      "Placeholder": "Введите значение от 0.0 до 2.0"
+    },
+    "MaxTokens": {
+      "Label": "Максимум токенов",
+      "Placeholder": "Введите максимальное количество токенов"
+    },
+    "BaseURL": {
+      "Label": "Базовый URL API",
+      "Placeholder": "Введите базовый URL API (напр. https://api.openai.com/v1)"
+    },
+    "AccessToken": {
+      "Label": "Токен доступа API",
+      "Placeholder": "Введите ваш токен доступа к API"
+    },
+    "Errors": {
+      "ConfigNotFound": "Конфигурация ИИ чата не найдена",
+      "FailedToGetConfig": "Не удалось получить конфигурацию ИИ чата",
+      "InvalidFormData": "Предоставлены недопустимые данные формы",
+      "FailedToSaveConfig": "Не удалось сохранить конфигурацию ИИ чата",
+      "InvalidRequestBody": "Недопустимое тело запроса",
+      "InvalidThreadIDFormat": "Недопустимый формат ID треда",
+      "ThreadNotFound": "Тред не найден",
+      "FailedToCreateThread": "Не удалось создать тред чата",
+      "InvalidPhoneFormat": "Неверный формат номера телефона. Ожидаемый формат: +998XXXXXXXXX (с кодом страны)",
+      "UnknownCountryCode": "Неизвестный код страны в номере телефона. Пожалуйста, укажите действительный код страны",
+      "FailedToSendMessage": "Не удалось отправить сообщение в тред чата",
+      "FailedToGetAIResponse": "Не удалось получить ответ от ИИ",
+      "FailedToEncodeResponse": "Не удалось закодировать ответ"
+    }
+  }
 }

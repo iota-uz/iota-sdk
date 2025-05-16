@@ -45,6 +45,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 
 	options := []user.Option{
 		user.WithID(dbUser.ID),
+		user.WithType(user.Type(dbUser.Type)),
 		user.WithTenantID(uuid.MustParse(dbUser.TenantID)),
 		user.WithMiddleName(dbUser.MiddleName.String),
 		user.WithPassword(dbUser.Password.String),
@@ -97,6 +98,7 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 
 	return &models.User{
 		ID:         entity.ID(),
+		Type:       string(entity.Type()),
 		TenantID:   entity.TenantID().String(),
 		FirstName:  entity.FirstName(),
 		LastName:   entity.LastName(),
@@ -131,6 +133,7 @@ func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.R
 
 	options := []role.Option{
 		role.WithID(dbRole.ID),
+		role.WithType(role.Type(dbRole.Type)),
 		role.WithDescription(dbRole.Description.String),
 		role.WithPermissions(domainPermissions),
 		role.WithCreatedAt(dbRole.CreatedAt),
@@ -147,6 +150,7 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 	}
 	return &models.Role{
 		ID:          entity.ID(),
+		Type:        string(entity.Type()),
 		TenantID:    entity.TenantID().String(),
 		Name:        entity.Name(),
 		Description: mapping.ValueToSQLNullString(entity.Description()),
@@ -508,6 +512,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 
 	opts := []group.Option{
 		group.WithID(groupID),
+		group.WithType(group.Type(dbGroup.Type)),
 		group.WithTenantID(tenantID),
 		group.WithDescription(dbGroup.Description.String),
 		group.WithUsers(users),
@@ -522,6 +527,7 @@ func ToDomainGroup(dbGroup *models.Group, users []user.User, roles []role.Role) 
 func ToDBGroup(g group.Group) *models.Group {
 	return &models.Group{
 		ID:          g.ID().String(),
+		Type:        string(g.Type()),
 		TenantID:    g.TenantID().String(),
 		Name:        g.Name(),
 		Description: mapping.ValueToSQLNullString(g.Description()),

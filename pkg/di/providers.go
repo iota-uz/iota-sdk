@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -49,7 +50,7 @@ func (p *localizerProvider) Ok(t reflect.Type) bool {
 }
 
 func (p *localizerProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	localizer, ok := composables.UseLocalizer(ctx)
+	localizer, ok := intl.UseLocalizer(ctx)
 	if !ok {
 		return reflect.Value{}, fmt.Errorf("localizer not found in context")
 	}
@@ -113,7 +114,11 @@ func (p *localeProvider) Ok(t reflect.Type) bool {
 }
 
 func (p *localeProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	return reflect.ValueOf(composables.UseLocale(ctx, language.English)), nil
+	l, ok := intl.UseLocale(ctx)
+	if !ok {
+		return reflect.Value{}, fmt.Errorf("locale not found in context")
+	}
+	return reflect.ValueOf(l), nil
 }
 
 // BuiltinProviders returns the list of built-in providers

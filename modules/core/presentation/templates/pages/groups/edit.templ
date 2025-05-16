@@ -30,7 +30,7 @@ templ EditForm(props *EditFormProps) {
 					},
 				})
 				@input.TextArea(&input.TextAreaProps{
-					Label:       pageCtx.T("Groups.Single.Description"),
+					Label:       pageCtx.T("Groups.Single._Description"),
 					Placeholder: pageCtx.T("Groups.Single.EnterDescription"),
 					Error:       props.Errors["Description"],
 					Value:       props.Group.Description,
@@ -59,8 +59,9 @@ templ EditForm(props *EditFormProps) {
 				hx-indicator="#delete-group-btn"
 			>
 				@button.Danger(button.Props{
-					Size:  button.SizeMD,
-					Class: "justify-center",
+					Disabled: !props.Group.CanDelete,
+					Size:     button.SizeMD,
+					Class:    "justify-center",
 					Attrs: templ.Attributes{
 						"type": "submit",
 						"id":   "delete-group-btn",
@@ -78,8 +79,9 @@ templ EditForm(props *EditFormProps) {
 				hx-swap="outerHTML"
 			>
 				@button.Primary(button.Props{
-					Size:  button.SizeMD,
-					Class: "bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
+					Disabled: !props.Group.CanUpdate,
+					Size:     button.SizeMD,
+					Class:    "bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
 					Attrs: templ.Attributes{
 						"name":  "_action",
 						"value": "save",

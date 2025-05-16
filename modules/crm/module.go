@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
@@ -12,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/twilio/twilio-go"
 )
 
@@ -30,28 +32,31 @@ type Module struct {
 
 func (m *Module) Register(app application.Application) error {
 	conf := configuration.Use()
-	twilioProvider := cpassproviders.NewTwilioProvider(
-		twilio.ClientParams{
-			Username: conf.Twilio.AccountSID,
-			Password: conf.Twilio.AuthToken,
-		},
-		conf.Twilio.WebhookURL,
-	)
 
 	passportRepo := corepersistence.NewPassportRepository()
 	chatRepo := persistence.NewChatRepository()
 	clientRepo := persistence.NewClientRepository(passportRepo)
+	twilioProvider := cpassproviders.NewTwilioProvider(
+		cpassproviders.Config{
+			Params: twilio.ClientParams{
+				Username: conf.Twilio.AccountSID,
+				Password: conf.Twilio.AuthToken,
+			},
+			WebhookURL: conf.Twilio.WebhookURL,
+		},
+		clientRepo,
+		chatRepo,
+	)
 	chatsService := services.NewChatService(
 		chatRepo,
 		clientRepo,
-		twilioProvider,
+		[]chat.Provider{twilioProvider},
 		app.EventPublisher(),
 	)
 	app.RegisterServices(
 		chatsService,
 		services.NewClientService(
 			clientRepo,
-			chatsService,
 			app.EventPublisher(),
 		),
 		services.NewMessageTemplateService(
@@ -59,6 +64,11 @@ func (m *Module) Register(app application.Application) error {
 			app.EventPublisher(),
 		),
 	)
+
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(ClientsLink.Icon, ClientsLink.Name, ClientsLink.Href),
+	)
+	app.Spotlight().Register(&ClientDataSource{})
 
 	// Configure client controller with explicit tabs
 	basePath := "/crm/clients"
@@ -76,6 +86,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewTwilioController(app, twilioProvider),
 	)
 
+	handlers.RegisterClientHandler(app)
 	handlers.RegisterSMSHandlers(app)
 	if botToken := conf.TelegramBotToken; botToken != "" {
 		handlers.RegisterNotificationHandler(app, botToken)

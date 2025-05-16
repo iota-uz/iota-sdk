@@ -1,33 +1,13 @@
 package filters
 
 import (
+	"github.com/Oudwins/tailwind-merge-go"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/utils/random"
 )
-
-type TableFilter struct {
-	Name        string
-	formatter   func(o OptionItem) string
-	placeholder string
-	options     []OptionItem
-	multiple    bool
-}
-
-func NewFilter(name string, opts ...Option) *TableFilter {
-	f := &TableFilter{
-		Name: name,
-	}
-	for _, opt := range opts {
-		opt(f)
-	}
-	return f
-}
-
-func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
-	t.options = append(t.options, opts...)
-	return t
-}
 
 type DropdownProps struct {
 	Label string
@@ -36,18 +16,7 @@ type DropdownProps struct {
 
 templ Dropdown(props DropdownProps) {
 	<div
-		x-data="{
-				open: false,
-				selected: [],
-				toggleValue(val) {
-					const index = this.selected.indexOf(val);
-					if (index === -1) {
-						this.selected.push(val);
-					} else {
-						this.selected.splice(index, 1);
-					}
-				}
-			}"
+		x-data="filtersDropdown"
 		class="relative w-32"
 	>
 		<!-- Trigger -->
@@ -94,7 +63,10 @@ templ Dropdown(props DropdownProps) {
 			x-show="open"
 			@click.away="open = false"
 			x-transition
-			class="absolute z-20 mt-2 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-y-auto"
+			class={
+				"absolute z-20 mt-2 bg-white max-h-80 overflow-y-auto min-w-fit",
+				"border border-gray-200 rounded-md shadow-lg",
+			}
 		>
 			{ children... }
 		</ul>
@@ -102,21 +74,26 @@ templ Dropdown(props DropdownProps) {
 }
 
 type DropdownItemProps struct {
-	Class templ.CSSClasses
-	Label string
-	Value string
-	Name  string
+	Class   templ.CSSClasses
+	Label   string
+	Value   string
+	Name    string
+	Checked bool
 }
 
 templ DropdownItem(props DropdownItemProps) {
 	<li
 		class={
-			"hover:bg-gray-100 p-2",
-			props.Class.String(),
+			twmerge.Merge(
+				"hover:bg-gray-100",
+				props.Class.String(),
+			),
 		}
 	>
 		@input.Checkbox(&input.CheckboxProps{
-			Label: props.Label,
+			Label:   props.Label,
+			Checked: props.Checked,
+			Class:   templ.Classes("p-2"),
 			Attrs: templ.Attributes{
 				"value":    props.Value,
 				"name":     props.Name,
@@ -135,9 +112,10 @@ templ (t *TableFilter) Component() {
 		}) {
 			for _, opt := range t.options {
 				@DropdownItem(DropdownItemProps{
-					Label: opt.Label,
-					Value: opt.Value,
-					Name:  t.Name,
+					Label:   opt.Label,
+					Value:   opt.Value,
+					Name:    t.Name,
+					Checked: isOptionChecked(ctx, t.Name, opt),
 				})
 			}
 		}
@@ -149,10 +127,53 @@ templ (t *TableFilter) Component() {
 			},
 		}) {
 			for _, opt := range t.options {
-				<option value={ opt.Value }>
+				<option
+					selected?={ isOptionChecked(ctx, t.Name, opt) }
+					value={ opt.Value }
+				>
 					{ opt.Label }
 				</option>
 			}
 		}
 	}
+}
+
+templ (t *TableFilter) AsSideFilter() {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		id := random.String(12, random.LowerCharSet)
+	}}
+	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+		<div
+			class="space-y-3"
+			x-data="checkboxes"
+			x-init="init"
+		>
+			<div>
+				@input.Checkbox(&input.CheckboxProps{
+					Label: pageCtx.T("Scaffold.Filters.SelectAll"),
+					ID:    id,
+					Attrs: templ.Attributes{
+						"class":   "parent",
+						"x-ref":   "parent",
+						"@change": "onParentChange",
+					},
+				})
+			</div>
+			<hr class="my-3 border-t border-surface-400"/>
+			<div class="space-y-3">
+				for _, opt := range t.options {
+					@input.Checkbox(&input.CheckboxProps{
+						Label:   opt.Label,
+						Checked: isOptionChecked(ctx, t.Name, opt),
+						Attrs: templ.Attributes{
+							"name":    t.Name,
+							"value":   opt.Value,
+							"@change": "onChange",
+						},
+					})
+				}
+			</div>
+		</div>
+	</div>
 }

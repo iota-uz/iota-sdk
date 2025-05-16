@@ -10,9 +10,9 @@ import (
 type Field = int
 
 const (
-	CreatedAt Field = iota
-	UpdatedAt
-	TenantID
+	CreatedAtField Field = iota
+	UpdatedAtField
+	TenantIDField
 )
 
 type SortBy repo.SortBy[Field]

@@ -1,6 +1,7 @@
 package input
 
 import (
+	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/utils/random"
 )
@@ -85,7 +86,7 @@ type CheckboxProps struct {
 	Error     string
 	Checked   bool
 	Attrs     templ.Attributes
-	Class     string
+	Class     templ.CSSClasses
 	ID        string
 }
 
@@ -97,16 +98,24 @@ func newCheckbox(p *CheckboxProps) *CheckboxProps {
 }
 
 templ (p *CheckboxProps) render() {
-	<div class="flex items-center gap-3">
+	<label
+		for={ p.ID }
+		class={
+			twmerge.Merge(
+				"form-control-label flex items-center cursor-pointer gap-3",
+				p.Class.String(),
+			),
+		}
+	>
 		<input
 			type="checkbox"
 			id={ p.ID }
-			class={ "peer appearance-none sr-only", p.Class }
+			class="peer appearance-none sr-only"
 			checked?={ p.Checked }
 			{ p.Attrs... }
 		/>
-		<label
-			for={ p.ID }
+		<!-- Visual checkbox box -->
+		<div
 			class="w-5 h-5 rounded-[5px] border border-gray-500 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
 		>
 			@icons.Check(icons.Props{
@@ -117,14 +126,13 @@ templ (p *CheckboxProps) render() {
 				Size:  "16",
 				Class: "scale-0 hidden peer-indeterminate:group-[]:inline peer-indeterminate:group-[]:scale-100",
 			})
-		</label>
+		</div>
+		<!-- Optional label text -->
 		if len(p.Label) > 0 {
-			<label for={ p.ID }>
-				{ p.Label }
-			</label>
+			<span>{ p.Label }</span>
 		}
 		{ children... }
-	</div>
+	</label>
 }
 
 templ Checkbox(p *CheckboxProps) {

@@ -1,0 +1,145 @@
+package aichat
+
+import (
+	"fmt"
+
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/slider"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/website/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type ConfigureProps struct {
+	Config     *viewmodels.AIConfig
+	FormAction string
+	Errors     map[string]string
+}
+
+templ Configure(props ConfigureProps) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pgCtx.T("AIChatBot.Meta.Title")},
+	}) {
+		<div id="configure-content" class="h-full">
+			@ConfigureForm(props)
+		</div>
+	}
+}
+
+templ ConfigureForm(props ConfigureProps) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col h-full">
+		<div class="grid grid-cols-12 gap-4 flex-1 p-6">
+			@card.Card(card.Props{
+				WrapperClass: "col-span-8 h-full",
+				Class:        "h-full",
+			}) {
+				@input.TextArea(&input.TextAreaProps{
+					Label:        pgCtx.T("AIChatBot.SystemPrompt.Label"),
+					Placeholder:  pgCtx.T("AIChatBot.SystemPrompt.Placeholder"),
+					Value:        props.Config.SystemPrompt,
+					Error:        props.Errors["SystemPrompt"],
+					Class:        "h-full resize-none",
+					WrapperClass: "h-full",
+					Attrs: templ.Attributes{
+						"form": "save-form",
+						"name": "SystemPrompt",
+					},
+				})
+			}
+			@card.Card(card.Props{
+				WrapperClass: "col-span-4",
+			}) {
+				<input type="hidden" name="id" value={ props.Config.ID }/>
+				// AI Chat Configuration fields
+				<div class="mb-4">
+					@input.Text(&input.Props{
+						Label:       pgCtx.T("AIChatBot.BaseURL.Label"),
+						Placeholder: pgCtx.T("AIChatBot.BaseURL.Placeholder"),
+						Error:       props.Errors["BaseURL"],
+						Attrs: templ.Attributes{
+							"name":  "BaseURL",
+							"form":  "save-form",
+							"value": props.Config.BaseURL,
+						},
+					})
+				</div>
+				<div class="mb-4">
+					@input.Text(&input.Props{
+						Label:       pgCtx.T("AIChatBot.AccessToken.Label"),
+						Placeholder: pgCtx.T("AIChatBot.AccessToken.Placeholder"),
+						Error:       props.Errors["AccessToken"],
+						Attrs: templ.Attributes{
+							"name": "AccessToken",
+							"type": "password",
+							"form": "save-form",
+						},
+					})
+				</div>
+				<div class="mb-4">
+					@input.Text(&input.Props{
+						Label:       pgCtx.T("AIChatBot.ModelName.Label"),
+						Placeholder: pgCtx.T("AIChatBot.ModelName.Placeholder"),
+						Error:       props.Errors["ModelName"],
+						Attrs: templ.Attributes{
+							"name":  "ModelName",
+							"form":  "save-form",
+							"value": props.Config.ModelName,
+						},
+					})
+				</div>
+				<div class="mb-4">
+					@slider.Slider(slider.SliderProps{
+						Label:    pgCtx.T("AIChatBot.Temperature.Label"),
+						Error:    props.Errors["Temperature"],
+						Min:      0,
+						Max:      2,
+						Step:     0.1,
+						Value:    float64(props.Config.Temperature),
+						HelpText: pgCtx.T("AIChatBot.Temperature.Placeholder"),
+						Attrs: templ.Attributes{
+							"name": "Temperature",
+							"form": "save-form",
+						},
+					})
+				</div>
+				<div class="mb-4">
+					@input.Number(&input.Props{
+						Label:       pgCtx.T("AIChatBot.MaxTokens.Label"),
+						Placeholder: pgCtx.T("AIChatBot.MaxTokens.Placeholder"),
+						Error:       props.Errors["MaxTokens"],
+						Attrs: templ.Attributes{
+							"value": fmt.Sprintf("%d", props.Config.MaxTokens),
+							"name":  "MaxTokens",
+							"min":   "1",
+						},
+					})
+				</div>
+			}
+		</div>
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="save-form"
+				hx-post={ props.FormAction }
+				hx-target="#configure-content"
+				hx-swap="innerHTML"
+				hx-indicator="#save-btn"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"id": "save-btn",
+					},
+				}) {
+					{ pgCtx.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}

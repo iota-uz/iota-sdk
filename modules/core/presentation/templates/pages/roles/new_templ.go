@@ -79,8 +79,8 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label:       pageCtx.T("Roles.Single.Description.Label"),
-				Placeholder: pageCtx.T("Roles.Single.Description.Placeholder"),
+				Label:       pageCtx.T("Roles.Single._Description.Label"),
+				Placeholder: pageCtx.T("Roles.Single._Description.Placeholder"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"rows": "4",

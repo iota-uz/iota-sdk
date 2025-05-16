@@ -26,7 +26,7 @@ func EmployeeToViewModel(entity employee.Employee) *viewmodels.Employee {
 		LastName:        entity.LastName(),
 		MiddleName:      entity.MiddleName(),
 		Email:           email,
-		Salary:          strconv.FormatFloat(entity.Salary().Value(), 'f', 2, 64),
+		Salary:          strconv.FormatFloat(entity.Salary().AsMajorUnits(), 'f', 2, 64),
 		Phone:           entity.Phone(),
 		Pin:             pin,
 		Tin:             tin,

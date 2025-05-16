@@ -1,8 +1,9 @@
 package counterparty
 
 import (
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 )
 
 func NewWithID(

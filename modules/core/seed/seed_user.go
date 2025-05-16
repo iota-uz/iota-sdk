@@ -6,6 +6,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -15,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
 const (
@@ -58,7 +58,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	matches, err := roleRepository.GetPaginated(ctx, &role.FindParams{
 		Filters: []role.Filter{
 			{
-				Column: role.Name,
+				Column: role.NameField,
 				Filter: repo.Eq(adminRoleName),
 			},
 		},
@@ -77,10 +77,13 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 		return nil, errors.Wrapf(err, "failed to get tenant from context")
 	}
 
-	newRole := role.New(adminRoleName,
+	newRole := role.New(
+		adminRoleName,
 		role.WithDescription(adminRoleDesc),
 		role.WithPermissions(app.RBAC().Permissions()),
-		role.WithTenantID(tenant.ID))
+		role.WithType(role.TypeSystem),
+		role.WithTenantID(tenant.ID),
+	)
 	logger.Infof("Creating role %s", adminRoleName)
 	return roleRepository.Create(ctx, newRole)
 }

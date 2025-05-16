@@ -91,7 +91,7 @@ templ GroupsTable(props *IndexPageProps) {
 	if len(props.Groups) == 0 {
 		@base.TableEmptyState(base.TableEmptyStateProps{
 			Title:       pageCtx.T("Groups.List.NoGroups.Title"),
-			Description: pageCtx.T("Groups.List.NoGroups.Description"),
+			Description: pageCtx.T("Groups.List.NoGroups._Description"),
 		})
 	} else {
 		@base.Table(base.TableProps{

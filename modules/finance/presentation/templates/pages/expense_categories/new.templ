@@ -50,7 +50,7 @@ templ CreateForm(props *CreatePageProps) {
 				Attrs:       templ.Attributes{"name": "CurrencyCode"},
 			})
 			@input.TextArea(&input.TextAreaProps{
-				Label:        pageCtx.T("ExpenseCategories.Single.Description"),
+				Label:        pageCtx.T("ExpenseCategories.Single._Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Category.Description,

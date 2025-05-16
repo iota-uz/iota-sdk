@@ -21,7 +21,7 @@ templ EmployeesTable(props *IndexPageProps) {
 	if len(props.Employees) == 0 {
 		@base.TableEmptyState(base.TableEmptyStateProps{
 			Title:       pageCtx.T("Employees.List.NoEmployees.Title"),
-			Description: pageCtx.T("Employees.List.NoEmployees.Description"),
+			Description: pageCtx.T("Employees.List.NoEmployees._Description"),
 		})
 	} else {
 		@base.Table(base.TableProps{

@@ -1,18 +1,18 @@
 package order
 
 import (
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 )
 
-type ErrOrderIsComplete struct {
+type OrderIsCompleteError struct {
 	serrors.BaseError
 	Current Status
 }
 
-func NewErrOrderIsComplete(current Status) *ErrOrderIsComplete {
-	return &ErrOrderIsComplete{
+func NewErrOrderIsComplete(current Status) *OrderIsCompleteError {
+	return &OrderIsCompleteError{
 		BaseError: serrors.BaseError{
 			Code:    "ERR_ORDER_IS_ALREADY_COMPLETED",
 			Message: "order is already complete",
@@ -21,7 +21,7 @@ func NewErrOrderIsComplete(current Status) *ErrOrderIsComplete {
 	}
 }
 
-func (e *ErrOrderIsComplete) Localize(l *i18n.Localizer) string {
+func (e *OrderIsCompleteError) Localize(l *i18n.Localizer) string {
 	return l.MustLocalize(&i18n.LocalizeConfig{ //nolint:exhaustruct
 		DefaultMessage: &i18n.Message{ //nolint:exhaustruct
 			ID: "Errors." + e.Code,
@@ -32,13 +32,13 @@ func (e *ErrOrderIsComplete) Localize(l *i18n.Localizer) string {
 	})
 }
 
-type ErrProductIsShipped struct {
+type ProductIsShippedError struct {
 	serrors.BaseError
 	Current product.Status
 }
 
-func NewErrProductIsShipped(current product.Status) *ErrProductIsShipped {
-	return &ErrProductIsShipped{
+func NewErrProductIsShipped(current product.Status) *ProductIsShippedError {
+	return &ProductIsShippedError{
 		BaseError: serrors.BaseError{
 			Code:    "ERR_PRODUCT_IS_SHIPPED",
 			Message: "product is already shipped",
@@ -47,7 +47,7 @@ func NewErrProductIsShipped(current product.Status) *ErrProductIsShipped {
 	}
 }
 
-func (e *ErrProductIsShipped) Localize(l *i18n.Localizer) string {
+func (e *ProductIsShippedError) Localize(l *i18n.Localizer) string {
 	return l.MustLocalize(&i18n.LocalizeConfig{ //nolint:exhaustruct
 		DefaultMessage: &i18n.Message{ //nolint:exhaustruct
 			ID: "Errors." + e.Code,

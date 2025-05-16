@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -40,7 +41,7 @@ templ viewTable(props *ViewPageProps) {
 			if len(items) == 0 {
 				<tr>
 					<td class="p-4 text-center" colspan="5">
-						{ composables.MustT(ctx, "WarehouseOrders.View.NoItems") }
+						{ intl.MustT(ctx, "WarehouseOrders.View.NoItems") }
 					</td>
 				</tr>
 			} else {

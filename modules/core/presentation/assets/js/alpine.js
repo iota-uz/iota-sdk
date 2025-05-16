@@ -19,7 +19,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
+    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -138,12 +138,12 @@ let dialog = (initialState) => ({
       });
     });
   }),
-  lightDismiss({target: dialog}) {
+  lightDismiss({ target: dialog }) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({target: dialog}) {
+  async close({ target: dialog }) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -268,6 +268,21 @@ let combobox = (searchable = false) => ({
       allOptions[this.activeIndex]?.focus();
     }
   },
+  removeSelectedValue(value) {
+    if (!this.selectedValues.has(value)) return;
+    this.selectedValues.delete(value);
+
+    const select = this.$refs.select;
+    if (select) {
+      for (const option of select.options) {
+        if (option.value === value) {
+          select.removeChild(option);
+          break;
+        }
+      }
+    }
+    select?.dispatchEvent(new Event("change"));
+  },
   select: {
     ["x-init"]() {
       this.options = this.$el.querySelectorAll("option");
@@ -296,6 +311,23 @@ let combobox = (searchable = false) => ({
       });
     },
   },
+});
+
+let filtersDropdown = () => ({
+  open: false,
+  selected: [],
+  init() {
+    this.selected = Array.from(this.$el.querySelectorAll('input[type=checkbox]:checked'))
+      .map(el => el.value);
+  },
+  toggleValue(val) {
+    const index = this.selected.indexOf(val);
+    if (index === -1) {
+      this.selected.push(val);
+    } else {
+      this.selected.splice(index, 1);
+    }
+  }
 });
 
 let checkboxes = () => ({
@@ -345,15 +377,30 @@ let spotlight = () => ({
   },
 
   highlightNext() {
-    const itemsCount = document.getElementById(this.$id('spotlight')).childElementCount
-    this.highlightedIndex = (this.highlightedIndex + 1) % itemsCount;
+    const list = document.getElementById(this.$id('spotlight'));
+    const count = list.childElementCount;
+    this.highlightedIndex = (this.highlightedIndex + 1) % count;
+
+    this.$nextTick(() => {
+      const item = list.children[this.highlightedIndex];
+      if (item) {
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
   },
 
   highlightPrevious() {
-    const itemsCount = document.getElementById(this.$id('spotlight')).childElementCount
-    this.highlightedIndex = (this.highlightedIndex - 1 + itemsCount) % itemsCount;
-  },
+    const list = document.getElementById(this.$id('spotlight'));
+    const count = list.childElementCount;
+    this.highlightedIndex = (this.highlightedIndex - 1 + count) % count;
 
+    this.$nextTick(() => {
+      const item = list.children[this.highlightedIndex];
+      if (item) {
+        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+  },
   goToLink() {
     const item = document.getElementById(this.$id('spotlight')).children[this.highlightedIndex];
     if (item) {
@@ -389,25 +436,25 @@ let datePicker = ({
     labelFormat = labelFormat || 'F j, Y';
     dateFormat = dateFormat || 'z';
 
-    let {default: flatpickr} = await import("./lib/flatpickr/index.js");
+    let { default: flatpickr } = await import("./lib/flatpickr/index.js");
     let found = this.localeMap[locale];
     if (found) {
-      let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
+      let { default: localeData } = await import(`./lib/flatpickr/locales/${found.path}`);
       flatpickr.localize(localeData[found.key]);
     }
     let plugins = [];
     if (selectorType === 'month') {
-      let {default: monthSelect} = await import('./lib/flatpickr/plugins/month-select.js');
+      let { default: monthSelect } = await import('./lib/flatpickr/plugins/month-select.js');
       plugins.push(monthSelect({
         altFormat: labelFormat,
         dateFormat: dateFormat,
         shortHand: true,
       }))
     } else if (selectorType === 'week') {
-      let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
+      let { default: weekSelect } = await import('./lib/flatpickr/plugins/week-select.js');
       plugins.push(weekSelect())
     } else if (selectorType === 'year') {
-      let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
+      let { default: yearSelect } = await import('./lib/flatpickr/plugins/year-select.js');
       plugins.push(yearSelect())
     }
     let self = this;
@@ -440,6 +487,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
   Alpine.data("combobox", combobox);
+  Alpine.data("filtersDropdown", filtersDropdown);
   Alpine.data("checkboxes", checkboxes);
   Alpine.data("spotlight", spotlight);
   Alpine.data("dateFns", dateFns);

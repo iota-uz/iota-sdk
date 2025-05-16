@@ -1,162 +1,168 @@
 {
-	"NavigationLinks": {
-		"CRM": "CRM",
-		"Clients": "Клиенты",
-		"Chats": "Чаты"
-	},
-	"Resources": {
-		"client": "Клиенты"
-	},
-	"Permissions": {
-		"Client": {
-			"Create": "Создавать клиентов",
-			"Read": "Просматривать клиентов",
-			"Update": "Редактировать клиентов",
-			"Delete": "Удалять клиентов"
-		}
-	},
-	"Clients": {
-		"List": {
-			"Meta": {
-				"Title": "Клиенты"
-			},
-			"New": "Новый клиент",
-			"FullName": "Полное имя",
-			"Phone": "Телефон",
-			"NoData": {
-				"Title": "Клиенты не найдены",
-				"Description": "Создайте нового клиента для начала работы"
-			}
-		},
-		"New": {
-			"Meta": {
-				"Title": "Новый клиент"
-			}
-		},
-		"Edit": {
-			"Meta": {
-				"Title": "Редактировать клиента"
-			}
-		},
-		"Tabs": {
-			"Profile": "Общее",
-			"Notes": "Заметки",
-			"Chat": "Сообщения",
-			"Personal": "Личные данные",
-			"Documents": "Документы",
-			"Actions": "Действия"
-		},
-		"Notes": {
-			"NoNotes": "Нет доступных заметок"
-		},
-		"Single": {
-			"ViewDrawer": {
-				"Title": "Информация о клиенте"
-			},
-			"SendMessage": "Отправить сообщение",
-			"PersonalInfo": "Личная информация",
-			"PassportInfo": "Паспортные данные",
-			"TaxInfo": "Налоговая информация",
-			"FirstName": {
-				"Label": "Имя",
-				"Placeholder": "Введите имя"
-			},
-			"LastName": {
-				"Label": "Фамилия",
-				"Placeholder": "Введите фамилию"
-			},
-			"MiddleName": {
-				"Label": "Отчество",
-				"Placeholder": "Введите отчество"
-			},
-			"Phone": {
-				"Label": "Телефон",
-				"Placeholder": "Введите номер телефона"
-			},
-			"Email": {
-				"Label": "Электронная почта",
-				"Placeholder": "Введите электронную почту"
-			},
-			"Address": {
-				"Label": "Адрес",
-				"Placeholder": "Введите адрес"
-			},
-			"Gender": {
-				"Label": "Пол",
-				"Placeholder": "Введите пол"
-			},
-			"DateOfBirth": {
-				"Label": "Дата рождения",
-				"Placeholder": "Введите дату рождения"
-			},
-			"PassportSeries": {
-				"Label": "Серия паспорта",
-				"Placeholder": "Введите серию паспорта"
-			},
-			"PassportNumber": {
-				"Label": "Номер паспорта",
-				"Placeholder": "Введите номер паспорта"
-			},
-			"PassportSeriesAndNumber": {
-				"Label": "Серия и номер паспорта",
-				"Placeholder": "Введите серию и номер паспорта"
-			},
-			"Pin": {
-				"Label": "ИНН",
-				"Placeholder": "Введите ИНН"
-			},
-			"CountryCode": {
-				"Label": "Страна",
-				"Placeholder": "Введите код страны"
-			},
-			"Delete": "Удалить клиента",
-			"DeleteConfirmation": "Вы уверены, что хотите удалить этого клиента?"
-		}
-	},
-	"MessageTemplates": {
-		"List": {
-			"Meta": {
-				"Title": "Мгновенные сообщения"
-			},
-			"New": "Новое мгновенное сообщение",
-			"Content": "Содержание"
-		},
-		"New": {
-			"Meta": {
-				"Title": "Новое мгновенное сообщение"
-			}
-		},
-		"Edit": {
-			"Meta": {
-				"Title": "Редактировать мгновенное сообщение"
-			}
-		},
-		"Single": {
-			"Template": {
-				"Label": "Шаблон",
-				"Placeholder": "Введите шаблон"
-			},
-			"Delete": "Удалить мгновенное сообщение",
-			"DeleteConfirmation": "Вы уверены, что хотите удалить это мгновенное сообщение?"
-		},
-		"Dialog": {
-			"Heading": "Выберите шаблон",
-			"Empty": "Шаблоны не найдены",
-			"NewTemplate": "Новый шаблон"
-		}
-	},
-	"Chats": {
-		"Meta": {
-			"Title": "Чаты"
-		},
-		"New": {
-			"Title" : "Новый чат",
-			"Add": "Добавить",
-			"Cancel": "Отмена"
-		},
-		"Back": "Назад",
-		"InstantMessages": "Мгновенные сообщения",
-		"NoSelectedChat": "Выберите чат...",
-		"ChatNotFound": "Чат не найден..."
-	}
+  "NavigationLinks": {
+    "CRM": "CRM",
+    "Clients": "Клиенты",
+    "Chats": "Чаты"
+  },
+  "Resources": {
+    "client": "Клиенты"
+  },
+  "Permissions": {
+    "Client": {
+      "Create": "Создавать клиентов",
+      "Read": "Просматривать клиентов",
+      "Update": "Редактировать клиентов",
+      "Delete": "Удалять клиентов"
+    }
+  },
+  "Clients": {
+    "List": {
+      "Meta": {
+        "Title": "Клиенты"
+      },
+      "New": "Новый клиент",
+      "FullName": "Полное имя",
+      "Phone": "Телефон",
+      "NoData": {
+        "Title": "Клиенты не найдены",
+        "_Description": "Создайте нового клиента для начала работы"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "Новый клиент"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать клиента"
+      }
+    },
+    "Tabs": {
+      "Profile": "Общее",
+      "Notes": "Заметки",
+      "Chat": "Сообщения",
+      "Personal": "Личные данные",
+      "Documents": "Документы",
+      "Actions": "Действия"
+    },
+    "Notes": {
+      "NoNotes": "Нет доступных заметок"
+    },
+    "Single": {
+      "ViewDrawer": {
+        "Title": "Информация о клиенте"
+      },
+      "SendMessage": "Отправить сообщение",
+      "PersonalInfo": "Личная информация",
+      "PassportInfo": "Паспортные данные",
+      "TaxInfo": "Налоговая информация",
+      "NotesInfo": "Примечания",
+      "FirstName": {
+        "Label": "Имя",
+        "Placeholder": "Введите имя"
+      },
+      "LastName": {
+        "Label": "Фамилия",
+        "Placeholder": "Введите фамилию"
+      },
+      "MiddleName": {
+        "Label": "Отчество",
+        "Placeholder": "Введите отчество"
+      },
+      "Phone": {
+        "Label": "Телефон",
+        "Placeholder": "Введите номер телефона"
+      },
+      "Email": {
+        "Label": "Электронная почта",
+        "Placeholder": "Введите электронную почту"
+      },
+      "Address": {
+        "Label": "Адрес",
+        "Placeholder": "Введите адрес"
+      },
+      "Gender": {
+        "Label": "Пол",
+        "Placeholder": "Введите пол"
+      },
+      "DateOfBirth": {
+        "Label": "Дата рождения",
+        "Placeholder": "Введите дату рождения"
+      },
+      "PassportSeries": {
+        "Label": "Серия паспорта",
+        "Placeholder": "Введите серию паспорта"
+      },
+      "PassportNumber": {
+        "Label": "Номер паспорта",
+        "Placeholder": "Введите номер паспорта"
+      },
+      "PassportSeriesAndNumber": {
+        "Label": "Серия и номер паспорта",
+        "Placeholder": "Введите серию и номер паспорта"
+      },
+      "Pin": {
+        "Label": "ИНН",
+        "Placeholder": "Введите ИНН"
+      },
+      "CountryCode": {
+        "Label": "Страна",
+        "Placeholder": "Введите код страны"
+      },
+      "Comments": {
+        "Label": "Комментарии",
+        "Placeholder": "Введите ваши комментарии"
+      },
+      "Delete": "Удалить клиента",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить этого клиента?"
+    }
+  },
+  "MessageTemplates": {
+    "List": {
+      "Meta": {
+        "Title": "Мгновенные сообщения"
+      },
+      "New": "Новое мгновенное сообщение",
+      "Content": "Содержание"
+    },
+    "New": {
+      "Meta": {
+        "Title": "Новое мгновенное сообщение"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "Редактировать мгновенное сообщение"
+      }
+    },
+    "Single": {
+      "Template": {
+        "Label": "Шаблон",
+        "Placeholder": "Введите шаблон"
+      },
+      "Delete": "Удалить мгновенное сообщение",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить это мгновенное сообщение?"
+    },
+    "Dialog": {
+      "Heading": "Выберите шаблон",
+      "Empty": "Шаблоны не найдены",
+      "NewTemplate": "Новый шаблон"
+    }
+  },
+  "Chats": {
+    "Meta": {
+      "Title": "Чаты"
+    },
+    "New": {
+      "Title": "Новый чат",
+      "Add": "Добавить",
+      "Cancel": "Отмена"
+    },
+    "Back": "Назад",
+    "InstantMessages": "Мгновенные сообщения",
+    "NoSelectedChat": "Выберите чат...",
+    "ChatNotFound": "Чат не найден..."
+  }
 }
+

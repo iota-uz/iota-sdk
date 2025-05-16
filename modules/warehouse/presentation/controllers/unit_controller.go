@@ -2,11 +2,13 @@ package controllers
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	units2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/units"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"net/http"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
@@ -49,7 +51,7 @@ func (c *UnitsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -154,7 +156,7 @@ func (c *UnitsController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniTranslator, err := composables.UseUniLocalizer(r.Context())
+	uniTranslator, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -201,7 +203,7 @@ func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uniTranslator, err := composables.UseUniLocalizer(r.Context())
+	uniTranslator, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

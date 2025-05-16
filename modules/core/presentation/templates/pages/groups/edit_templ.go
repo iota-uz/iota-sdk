@@ -62,7 +62,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-			Label:       pageCtx.T("Groups.Single.Description"),
+			Label:       pageCtx.T("Groups.Single._Description"),
 			Placeholder: pageCtx.T("Groups.Single.EnterDescription"),
 			Error:       props.Errors["Description"],
 			Value:       props.Group.Description,
@@ -117,7 +117,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Delete"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/edit.templ`, Line: 69, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/edit.templ`, Line: 70, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -126,8 +126,9 @@ func EditForm(props *EditFormProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = button.Danger(button.Props{
-			Size:  button.SizeMD,
-			Class: "justify-center",
+			Disabled: !props.Group.CanDelete,
+			Size:     button.SizeMD,
+			Class:    "justify-center",
 			Attrs: templ.Attributes{
 				"type": "submit",
 				"id":   "delete-group-btn",
@@ -143,7 +144,7 @@ func EditForm(props *EditFormProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/groups/%s", props.Group.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/edit.templ`, Line: 75, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/edit.templ`, Line: 76, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -168,7 +169,7 @@ func EditForm(props *EditFormProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/edit.templ`, Line: 89, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/groups/edit.templ`, Line: 91, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -177,8 +178,9 @@ func EditForm(props *EditFormProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
-			Size:  button.SizeMD,
-			Class: "bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
+			Disabled: !props.Group.CanUpdate,
+			Size:     button.SizeMD,
+			Class:    "bg-[#695eff] hover:bg-[#544bcc] text-white justify-center",
 			Attrs: templ.Attributes{
 				"name":  "_action",
 				"value": "save",

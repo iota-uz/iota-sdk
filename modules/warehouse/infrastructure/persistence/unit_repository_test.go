@@ -2,10 +2,11 @@ package persistence_test
 
 import (
 	"errors"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 )
 
 func TestGormUnitRepository_CRUD(t *testing.T) {

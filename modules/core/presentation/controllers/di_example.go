@@ -3,15 +3,18 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/filters"
 	sfui "github.com/iota-uz/iota-sdk/components/scaffold"
-	"github.com/iota-uz/iota-sdk/components/scaffold/filters"
+	fbuilder "github.com/iota-uz/iota-sdk/components/scaffold/filters"
 	scaffoldfilters "github.com/iota-uz/iota-sdk/components/scaffold/filters"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -40,11 +43,12 @@ func (c *DIEmployeeController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
 	subRouter.HandleFunc("/scaffold-table", di.H(c.ScaffoldTable))
+	subRouter.HandleFunc("/scaffold-table/{id:[0-9]+}", di.H(c.Details))
 }
 
 func (c *DIEmployeeController) ScaffoldTable(
@@ -53,8 +57,43 @@ func (c *DIEmployeeController) ScaffoldTable(
 	roleService *services.RoleService,
 	logger *logrus.Entry,
 ) {
-	params := &user.FindParams{
-		Search: r.URL.Query().Get("search"),
+	params := &user.FindParams{}
+
+	if v := r.URL.Query().Get("Search"); v != "" {
+		params.Search = v
+	}
+
+	if r.URL.Query().Get("RoleID") != "" {
+		params.Filters = append(params.Filters, user.Filter{
+			Column: user.RoleIDField,
+			Filter: repo.In(r.URL.Query()["RoleID"]),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.WithError(err).Error("failed to parse CreatedAt.From")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		params.Filters = append(params.Filters, user.Filter{
+			Column: user.CreatedAtField,
+			Filter: repo.Gte(t),
+		})
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			logger.WithError(err).Error("failed to parse CreatedAt.To")
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		params.Filters = append(params.Filters, user.Filter{
+			Column: user.CreatedAtField,
+			Filter: repo.Lte(t),
+		})
 	}
 
 	users, err := userService.GetPaginated(r.Context(), params)
@@ -70,18 +109,6 @@ func (c *DIEmployeeController) ScaffoldTable(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	createdAtFilter := scaffoldfilters.NewFilter(
-		"CreatedAt",
-		scaffoldfilters.WithPlaceholder("Created at"),
-	)
-	createdAtFilter.Add(
-		filters.Opt("today", "Today"),
-		filters.Opt("thisWeek", "This Week"),
-		filters.Opt("thisMonth", "This Month"),
-		filters.Opt("thisYear", "This Year"),
-		filters.Opt("lastYear", "Last Year"),
-	)
 	roleFilter := scaffoldfilters.NewFilter(
 		"RoleID",
 		scaffoldfilters.WithPlaceholder("Role"),
@@ -89,27 +116,30 @@ func (c *DIEmployeeController) ScaffoldTable(
 	)
 
 	for _, r := range roles {
-		roleFilter.Add(filters.Opt(fmt.Sprintf("%d", r.ID()), r.Name()))
+		roleFilter.Add(fbuilder.Opt(fmt.Sprintf("%d", r.ID()), r.Name()))
 	}
 
-	tcfg := sfui.NewTableConfig("Users", "/di/scaffold-table")
-	tcfg.AddFilters(
-		roleFilter,
-		createdAtFilter,
+	tcfg := sfui.NewTableConfig(
+		"Users",
+		"/di/scaffold-table",
 	)
-
+	tcfg.AddFilters(
+		filters.CreatedAt(),
+	)
 	tcfg.AddCols(
 		sfui.Column("fullname", "Fullname"),
 		sfui.Column("email", "Email"),
 		sfui.Column("createdAt", "Created At"),
 	)
-	for _, c := range users {
+	tcfg.SetSideFilter(roleFilter.AsSideFilter())
+	for _, u := range users {
+		fetchUrl := fmt.Sprintf("/di/scaffold-table/%d", u.ID())
 		tcfg.AddRows(
 			sfui.Row(
-				templ.Raw(c.FirstName()+" "+c.LastName()),
-				templ.Raw(c.Email().Value()),
-				sfui.DateTime(c.CreatedAt()),
-			),
+				templ.Raw(u.FirstName()+" "+u.LastName()),
+				templ.Raw(u.Email().Value()),
+				sfui.DateTime(u.CreatedAt()),
+			).ApplyOpts(sfui.WithDrawer(fetchUrl)),
 		)
 	}
 
@@ -123,4 +153,14 @@ func (c *DIEmployeeController) ScaffoldTable(
 		logger.WithError(err).Error("failed to render table")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (c *DIEmployeeController) Details(
+	r *http.Request, w http.ResponseWriter,
+) {
+	props := sfui.DefaultDrawerProps{
+		Title:       "User Details",
+		CallbackURL: "/di/scaffold-table",
+	}
+	templ.Handler(sfui.DefaultDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

@@ -3,6 +3,7 @@ package core
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -51,13 +52,16 @@ func (m *Module) Register(app application.Application) error {
 	tenantRepo := persistence.NewTenantRepository()
 	permRepo := persistence.NewPermissionRepository()
 
+	// custom validations
+	userValidator := validators.NewUserValidator(userRepo)
+
 	// Create services
 	tabService := services.NewTabService(persistence.NewTabRepository())
 	tenantService := services.NewTenantService(tenantRepo)
 
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
-		services.NewUserService(userRepo, app.EventPublisher()),
+		services.NewUserService(userRepo, userValidator, app.EventPublisher()),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
 	)
 	app.RegisterServices(
@@ -68,18 +72,19 @@ func (m *Module) Register(app application.Application) error {
 		tenantService,
 		services.NewPermissionService(permRepo, app.EventPublisher()),
 		services.NewTabService(persistence.NewTabRepository()),
-		services.NewTabService(persistence.NewTabRepository()),
 		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
 	)
 
 	tabHandler := handlers.NewTabHandler(
 		app,
-		persistence.NewTabRepository(),
 		configuration.Use().Logger(),
 	)
 	tabHandler.Register(app.EventPublisher())
 
+	handlers.RegisterUserHandler(app)
+
 	app.RegisterControllers(
+		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
 		controllers.NewLoginController(app),
 		controllers.NewSpotlightController(app),
@@ -90,6 +95,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewRolesController(app),
 		controllers.NewGroupsController(app),
 		controllers.NewDIExampleController(app),
+		controllers.NewShowcaseController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
@@ -98,19 +104,15 @@ func (m *Module) Register(app application.Application) error {
 		}),
 		BasePath: "/",
 	})
-	app.Spotlight().Register(
-		spotlight.NewItem(nil, DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewItem(nil, UsersLink.Name, UsersLink.Href),
-		spotlight.NewItem(nil, GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewItem(
+	app.Spotlight().Register(&dataSource{})
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(DashboardLink.Icon, DashboardLink.Name, DashboardLink.Href),
+		spotlight.NewQuickLink(UsersLink.Icon, UsersLink.Name, UsersLink.Href),
+		spotlight.NewQuickLink(GroupsLink.Icon, GroupsLink.Name, GroupsLink.Href),
+		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Users.List.New",
 			"/users/new",
-		),
-		spotlight.NewItem(
-			icons.PlusCircle(icons.Props{Size: "24"}),
-			"Groups.List.New",
-			"/groups/new",
 		),
 	)
 	return nil

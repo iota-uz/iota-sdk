@@ -16,13 +16,25 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
+type Type string
 type Option func(u *user)
+
+const (
+	TypeSystem Type = "system"
+	TypeUser   Type = "user"
+)
 
 // --- Option setters ---
 
 func WithID(id uint) Option {
 	return func(u *user) {
 		u.id = id
+	}
+}
+
+func WithType(type_ Type) Option {
+	return func(u *user) {
+		u.type_ = type_
 	}
 }
 
@@ -117,6 +129,7 @@ func WithPhone(p phone.Phone) Option {
 
 type User interface {
 	ID() uint
+	Type() Type
 	TenantID() uuid.UUID
 	FirstName() string
 	LastName() string
@@ -136,11 +149,17 @@ type User interface {
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
+	Events() []interface{}
+
 	Can(perm *permission.Permission) bool
+	CanUpdate() bool
+	CanDelete() bool
+
 	CheckPassword(password string) bool
 
 	AddRole(r role.Role) User
 	RemoveRole(r role.Role) User
+	SetRoles(roles []role.Role) User
 	AddGroupID(groupID uuid.UUID) User
 	RemoveGroupID(groupID uuid.UUID) User
 	SetGroupIDs(groupIDs []uuid.UUID) User
@@ -167,6 +186,7 @@ func New(
 ) User {
 	u := &user{
 		id:          0,
+		type_:       TypeUser,
 		tenantID:    uuid.Nil,
 		firstName:   firstName,
 		lastName:    lastName,
@@ -195,6 +215,7 @@ func New(
 type user struct {
 	id          uint
 	tenantID    uuid.UUID
+	type_       Type
 	firstName   string
 	lastName    string
 	middleName  string
@@ -212,10 +233,15 @@ type user struct {
 	lastAction  time.Time
 	createdAt   time.Time
 	updatedAt   time.Time
+	events      []interface{}
 }
 
 func (u *user) ID() uint {
 	return u.id
+}
+
+func (u *user) Type() Type {
+	return u.type_
 }
 
 func (u *user) TenantID() uuid.UUID {
@@ -311,6 +337,13 @@ func (u *user) RemoveRole(r role.Role) User {
 	return &result
 }
 
+func (u *user) SetRoles(roles []role.Role) User {
+	result := *u
+	result.roles = roles
+	result.updatedAt = time.Now()
+	return &result
+}
+
 func (u *user) AddGroupID(groupID uuid.UUID) User {
 	result := *u
 	result.groupIDs = append(result.groupIDs, groupID)
@@ -383,6 +416,10 @@ func (u *user) UpdatedAt() time.Time {
 	return u.updatedAt
 }
 
+func (u *user) Events() []interface{} {
+	return u.events
+}
+
 func (u *user) Can(perm *permission.Permission) bool {
 	for _, p := range u.permissions {
 		if p.ID == perm.ID || (p.Resource == perm.Resource && p.Action == perm.Action &&
@@ -397,6 +434,14 @@ func (u *user) Can(perm *permission.Permission) bool {
 		}
 	}
 	return false
+}
+
+func (u *user) CanUpdate() bool {
+	return u.type_ != TypeSystem
+}
+
+func (u *user) CanDelete() bool {
+	return u.type_ != TypeSystem
 }
 
 func (u *user) CheckPassword(password string) bool {
@@ -459,6 +504,11 @@ func (u *user) SetPassword(password string) (User, error) {
 	result := *u
 	result.password = string(hash)
 	result.updatedAt = time.Now()
+
+	result.events = append(result.events, &UpdatedPasswordEvent{
+		UserID: result.id,
+	})
+
 	return &result, nil
 }
 

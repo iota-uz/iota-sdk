@@ -39,8 +39,7 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]Client, error)
 	GetByID(ctx context.Context, id uint) (Client, error)
 	GetByPhone(ctx context.Context, phoneNumber string) (Client, error)
-	Create(ctx context.Context, data Client) (Client, error)
-	Update(ctx context.Context, data Client) (Client, error)
+	GetByContactValue(ctx context.Context, contactType ContactType, value string) (Client, error)
 	Save(ctx context.Context, data Client) (Client, error) // Create or Update
 	Delete(ctx context.Context, id uint) error
 }

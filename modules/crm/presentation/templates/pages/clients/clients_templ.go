@@ -348,7 +348,7 @@ func ClientsTable(props *IndexPageProps) templ.Component {
 				}
 				templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 					Title:       pageCtx.T("Clients.List.NoData.Title"),
-					Description: pageCtx.T("Clients.List.NoData.Description"),
+					Description: pageCtx.T("Clients.List.NoData._Description"),
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

@@ -49,7 +49,7 @@ func EmployeesTable(props *IndexPageProps) templ.Component {
 		if len(props.Employees) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Employees.List.NoEmployees.Title"),
-				Description: pageCtx.T("Employees.List.NoEmployees.Description"),
+				Description: pageCtx.T("Employees.List.NoEmployees._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

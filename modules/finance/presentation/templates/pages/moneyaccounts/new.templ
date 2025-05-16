@@ -55,7 +55,7 @@ templ CreateForm(props *CreatePageProps) {
 				Error: props.Errors["AccountNumber"],
 			})
 			@input.TextArea(&input.TextAreaProps{
-				Label:        pageCtx.T("Accounts.Single.Description"),
+				Label:        pageCtx.T("Accounts.Single._Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Account.Description,
