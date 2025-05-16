@@ -22,6 +22,7 @@ type AreaCode struct {
 
 type Phone interface {
 	Value() string
+	E164() string
 }
 
 func Strip(v string) string {
@@ -79,51 +80,52 @@ func New(v string, c country.Country) (Phone, error) {
 		return phone(""), errors.Wrapf(ErrInvalidPhoneNumber, "phone number %s is invalid", v)
 	}
 
-	return phone(v), nil
+	return phone(stripped), nil
 }
 
-// NewFromE164 creates a new Phone from an E.164 formatted number, automatically detecting the country
-func NewFromE164(v string) (Phone, error) {
+func Parse(v string, c country.Country) (Phone, error) {
 	if v == "" {
 		return phone(""), errors.Wrap(ErrInvalidPhoneNumber, "phone number is empty")
 	}
 
+	e164 := ToE164Format(v, c)
+	if !IsValidPhoneNumber(e164, c) {
+		return phone(""), errors.Wrapf(ErrInvalidPhoneNumber, "phone number %s is invalid", v)
+	}
+	return phone(e164), nil
+}
+
+// NewFromE164 creates a new Phone from an E.164 formatted number, automatically detecting the country
+func NewFromE164(v string) (Phone, error) {
 	stripped := Strip(v)
+	if stripped == "" {
+		return phone(""), errors.Wrap(ErrInvalidPhoneNumber, "phone number is empty")
+	}
 	//	detectedCountry, err := ParseCountry(stripped)
 	//	if err != nil {
 	//		return phone(""), err
 	//	}
 
-	return phone(stripped), nil
+	return phone("+" + stripped), nil
 }
 
 type phone string
 
+// TODO: rewrite this, kept for backward compatibility
 func (p phone) Value() string {
+	return Strip(string(p))
+}
+
+func (p phone) E164() string {
 	return string(p)
 }
 
 func IsValidUSPhoneNumber(v string) bool {
-	if len(v) == 11 && v[0] == '1' {
-		v = v[1:] // Remove country code
-	}
-	if len(v) != 10 {
-		return false
-	}
-	areaCode := v[:3]
-	exchangeCode := v[3:6]
-	// Area code and exchange code must start with 2-9
-	if areaCode[0] < '2' || areaCode[0] > '9' {
-		return false
-	}
-	if exchangeCode[0] < '2' || exchangeCode[0] > '9' {
-		return false
-	}
-	// Prevent reserved/invalid numbers
-	if areaCode == "911" || areaCode == "555" {
-		return false
-	}
-	return true
+	return len(v) == 12 && v[:2] == "+1"
+}
+
+func IsValidUZPhoneNumber(v string) bool {
+	return len(v) == 13 && v[:4] == "+998"
 }
 
 func IsValidGlobalPhoneNumber(v string) bool {
@@ -143,9 +145,43 @@ func IsValidGlobalPhoneNumber(v string) bool {
 
 func IsValidPhoneNumber(v string, c country.Country) bool {
 	switch c {
+	case country.Uzbekistan:
+		return IsValidUZPhoneNumber(v)
 	case country.UnitedStates:
 		return IsValidUSPhoneNumber(v)
 	default:
 		return IsValidGlobalPhoneNumber(v)
 	}
+}
+
+// ToE164Format converts a phone number to E.164 format based on the country
+func ToE164Format(phone string, c country.Country) string {
+	// If already in E.164 format, just return it
+	stripped := Strip(phone)
+
+	switch c {
+	case country.Uzbekistan:
+		if len(stripped) == 9 {
+			// Local format, add country code
+			return "+998" + stripped
+		} else if len(stripped) == 12 && stripped[:3] == "998" {
+			// Already has country code, just add + prefix
+			return "+" + stripped
+		}
+	case country.UnitedStates:
+		if len(stripped) == 10 {
+			// Local format, add country code
+			return "+1" + stripped
+		} else if len(stripped) == 11 && stripped[0] == '1' {
+			// Already has country code, just add + prefix
+			return "+" + stripped
+		}
+	default:
+		// For other countries, use the existing number but ensure E.164 format
+		// This is a simple implementation - in a real system you'd handle more specific cases
+		return "+" + stripped
+	}
+
+	// Default case - just add + prefix to stripped number
+	return "+" + stripped
 }

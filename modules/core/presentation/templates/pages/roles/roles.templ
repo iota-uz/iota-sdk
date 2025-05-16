@@ -34,10 +34,11 @@ templ RoleRow(role *viewmodels.Role) {
 		}
 		@base.TableCell(base.TableCellProps{}) {
 			@button.Secondary(button.Props{
-				Fixed: true,
-				Size:  button.SizeSM,
-				Class: "btn-fixed",
-				Href:  fmt.Sprintf("/roles/%s", role.ID),
+				Disabled: !role.CanUpdate,
+				Fixed:    true,
+				Size:     button.SizeSM,
+				Class:    "btn-fixed",
+				Href:     fmt.Sprintf("/roles/%s", role.ID),
 			}) {
 				@icons.PencilSimple(icons.Props{Size: "20"})
 			}

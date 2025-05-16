@@ -22,6 +22,7 @@ const (
 	groupFindQuery = `
 		SELECT DISTINCT
 			g.id,
+			g.type,
 			g.name,
 			g.description,
 			g.created_at,
@@ -49,8 +50,8 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 		userRepository: userRepo,
 		roleRepository: roleRepo,
 		fieldMap: map[group.Field]string{
-			group.CreatedAt: "g.created_at",
-			group.UpdatedAt: "g.updated_at",
+			group.CreatedAtField: "g.created_at",
+			group.UpdatedAtField: "g.updated_at",
 			group.TenantID:  "g.tenant_id",
 		},
 	}
@@ -58,7 +59,7 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 
 func (g *PgGroupRepository) buildGroupFilters(params *group.FindParams) ([]string, []interface{}, error) {
 	where := []string{"1 = 1"}
-	args := []interface{}{}
+	var args []interface{}
 
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
@@ -209,6 +210,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 
 	fields := []string{
 		"id",
+		"type",
 		"name",
 		"description",
 		"created_at",
@@ -218,6 +220,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 
 	values := []interface{}{
 		dbGroup.ID,
+		dbGroup.Type,
 		dbGroup.Name,
 		dbGroup.Description,
 		dbGroup.CreatedAt,
@@ -331,6 +334,7 @@ func (g *PgGroupRepository) queryGroups(ctx context.Context, query string, args 
 
 		if err := rows.Scan(
 			&dbGroup.ID,
+			&dbGroup.Type,
 			&dbGroup.Name,
 			&dbGroup.Description,
 			&dbGroup.CreatedAt,

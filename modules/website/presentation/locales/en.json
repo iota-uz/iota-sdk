@@ -1,19 +1,54 @@
 {
-	"NavigationLinks": {
-		"Website": "Website",
-		"AIChatbot": "AI Chatbot"
-	},
-	"AIChatBot": {
-		"Meta": {
-			"Title": "AI Chatbot"
-		},
-		"Title": {
-			"Label": "Title",
-			"Placeholder": "Enter the title"
-		},
-		"Description": {
-			"Label": "Description",
-			"Placeholder": "Enter the description"
-		}
-	}
+  "NavigationLinks": {
+    "Website": "Website",
+    "AIChatbot": "AI Chatbot"
+  },
+  "AIChatBot": {
+    "Meta": {
+      "Title": "AI Chatbot"
+    },
+    "ModelName": {
+      "Label": "Model Name",
+      "Placeholder": "Enter the model name (e.g. gpt-4)"
+    },
+    "ModelType": {
+      "Label": "Model Type",
+      "Placeholder": "Select model type"
+    },
+    "SystemPrompt": {
+      "Label": "System Prompt",
+      "Placeholder": "Enter the system prompt for the AI"
+    },
+    "Temperature": {
+      "Label": "Temperature",
+      "Placeholder": "Enter a value between 0.0 and 2.0"
+    },
+    "MaxTokens": {
+      "Label": "Max Tokens",
+      "Placeholder": "Enter the maximum number of tokens"
+    },
+    "BaseURL": {
+      "Label": "API Base URL",
+      "Placeholder": "Enter the API base URL (e.g. https://api.openai.com/v1)"
+    },
+    "AccessToken": {
+      "Label": "API Access Token",
+      "Placeholder": "Enter your API access token"
+    },
+    "Errors": {
+      "ConfigNotFound": "AI chat configuration not found",
+      "FailedToGetConfig": "Failed to get AI chat configuration",
+      "InvalidFormData": "Invalid form data provided",
+      "FailedToSaveConfig": "Failed to save AI chat configuration",
+      "InvalidRequestBody": "Invalid request body",
+      "InvalidThreadIDFormat": "Invalid thread ID format",
+      "ThreadNotFound": "Thread not found",
+      "FailedToCreateThread": "Failed to create chat thread",
+      "InvalidPhoneFormat": "Invalid phone number format. Expected format: +998XXXXXXXXX (with country code)",
+      "UnknownCountryCode": "Unknown country code in phone number. Please provide a valid country code",
+      "FailedToSendMessage": "Failed to send message to chat thread",
+      "FailedToGetAIResponse": "Failed to get AI response",
+      "FailedToEncodeResponse": "Failed to encode response"
+    }
+  }
 }

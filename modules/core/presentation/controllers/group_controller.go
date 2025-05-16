@@ -10,9 +10,11 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/groups"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -22,13 +24,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 )
@@ -55,7 +57,7 @@ func (ru *GroupRealtimeUpdates) Register() {
 
 func (ru *GroupRealtimeUpdates) publisherContext() (context.Context, error) {
 	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
-	ctx := composables.WithLocalizer(
+	ctx := intl.WithLocalizer(
 		context.Background(),
 		localizer,
 	)
@@ -170,7 +172,7 @@ func (c *GroupsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -216,7 +218,7 @@ func (c *GroupsController) Groups(
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
 		findParams.Filters = append(findParams.Filters, group.Filter{
-			Column: group.CreatedAt,
+			Column: group.CreatedAtField,
 			Filter: repo.Lt(v),
 		})
 	}
@@ -317,7 +319,7 @@ func (c *GroupsController) Create(
 	groupService *services.GroupService,
 	roleService *services.RoleService,
 ) {
-	dto, err := composables.UseForm(&group.CreateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.CreateGroupDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -398,7 +400,7 @@ func (c *GroupsController) Update(
 		return
 	}
 
-	dto, err := composables.UseForm(&group.UpdateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.UpdateGroupDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

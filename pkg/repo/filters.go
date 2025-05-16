@@ -11,6 +11,10 @@ type FieldFilter[T any] struct {
 	Filter Filter
 }
 
+type Column interface {
+	ToSQL() string
+}
+
 // SortBy defines sorting criteria for queries with generic field type support.
 // Use with OrderBy function to generate ORDER BY clauses.
 type SortBy[T any] struct {
@@ -19,6 +23,14 @@ type SortBy[T any] struct {
 	// Ascending indicates the sort direction (true for ASC, false for DESC).
 	Ascending bool
 }
+
+//func (s *SortBy[T]) ToSQL() string {
+//	fields := make([]string, len(s.Fields))
+//	for i, field := range s.Fields {
+//		fields[i] = field.ToSQL()
+//	}
+//	return OrderBy(fields, s.Ascending)
+//}
 
 // Filter defines a query filter with a SQL clause generator and bound value.
 type Filter interface {
@@ -154,6 +166,18 @@ func (f *likeFilter) Value() []any {
 	return []any{f.value}
 }
 
+type iLikeFilter struct {
+	value any
+}
+
+func (f *iLikeFilter) String(column string, argIdx int) string {
+	return fmt.Sprintf("%s ILIKE $%d", column, argIdx)
+}
+
+func (f *iLikeFilter) Value() []any {
+	return []any{f.value}
+}
+
 type notLikeFilter struct {
 	value any
 }
@@ -164,6 +188,19 @@ func (f *notLikeFilter) String(column string, argIdx int) string {
 
 func (f *notLikeFilter) Value() []any {
 	return []any{f.value}
+}
+
+type betweenFilter struct {
+	start any
+	end   any
+}
+
+func (f *betweenFilter) String(column string, argIdx int) string {
+	return fmt.Sprintf("%s BETWEEN $%d AND $%d", column, argIdx, argIdx+1)
+}
+
+func (f *betweenFilter) Value() []any {
+	return []any{f.start, f.end}
 }
 
 type orFilter struct {
@@ -230,8 +267,10 @@ func NotIn(value any) Filter {
 	}
 	return &notInFilter{v}
 }
-func Like(value any) Filter    { return &likeFilter{value} }
-func NotLike(value any) Filter { return &notLikeFilter{value} }
+func Like(value any) Filter         { return &likeFilter{value} }
+func ILike(value any) Filter        { return &iLikeFilter{value} }
+func NotLike(value any) Filter      { return &notLikeFilter{value} }
+func Between(start, end any) Filter { return &betweenFilter{start, end} }
 
 // Logic operators
 

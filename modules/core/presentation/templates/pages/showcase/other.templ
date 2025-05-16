@@ -1,0 +1,41 @@
+package showcase
+
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components"
+
+templ OtherContent() {
+	<div class="flex flex-col gap-5 p-5">
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Buttons",
+			Code:  ButtonsComponentSource,
+		}) {
+			@components.Buttons()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Avatar",
+			Code:  AvatarComponentSource,
+		}) {
+			@components.Avatars()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Card",
+			Code:  CardComponentSource,
+		}) {
+			@components.Card()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Table",
+			Code:  TableComponentSource,
+		}) {
+			@components.Table()
+		}
+	</div>
+}
+
+templ OtherPage(props IndexPageProps) {
+	@Layout(LayoutProps{
+		Title:        "Other Components",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@OtherContent()
+	}
+}

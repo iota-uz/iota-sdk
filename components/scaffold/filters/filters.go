@@ -1,8 +1,9 @@
 package filters
 
 import (
-	"fmt"
-	"time"
+	"context"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type Option func(t *TableFilter)
@@ -37,12 +38,38 @@ type OptionItem struct {
 	Label string
 }
 
-// DateFormatter is a simple formatter for date values
-func DateFormatter(value any) string {
-	if ts, ok := value.(time.Time); ok {
-		return fmt.Sprintf(`<div x-data="relativeformat"><span x-text="format('%s')">%s</span></div>`,
-			ts.Format(time.RFC3339),
-			ts.Format("2006-01-02 15:04:05"))
+type TableFilter struct {
+	Name        string
+	placeholder string
+	options     []OptionItem
+	multiple    bool
+}
+
+func NewFilter(name string, opts ...Option) *TableFilter {
+	f := &TableFilter{
+		Name: name,
 	}
-	return fmt.Sprintf("%v", value)
+	for _, opt := range opts {
+		opt(f)
+	}
+	return f
+}
+
+func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
+	t.options = append(t.options, opts...)
+	return t
+}
+
+func isOptionChecked(ctx context.Context, name string, opt OptionItem) bool {
+	pgCtx := composables.UsePageCtx(ctx)
+	query := pgCtx.URL.Query()
+	if v := query.Get(name); v == "" {
+		return false
+	}
+	for _, val := range query[name] {
+		if val == opt.Value {
+			return true
+		}
+	}
+	return false
 }

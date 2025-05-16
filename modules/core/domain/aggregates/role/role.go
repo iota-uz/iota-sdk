@@ -7,11 +7,23 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
 
+type Type string
 type Option func(r *role)
+
+const (
+	TypeUser   Type = "user"
+	TypeSystem Type = "system"
+)
 
 func WithID(id uint) Option {
 	return func(r *role) {
 		r.id = id
+	}
+}
+
+func WithType(type_ Type) Option {
+	return func(r *role) {
+		r.type_ = type_
 	}
 }
 
@@ -36,11 +48,16 @@ func WithUpdatedAt(t time.Time) Option {
 type Role interface {
 	ID() uint
 	TenantID() uuid.UUID
+	Type() Type
 	Name() string
 	Description() string
 	Permissions() []*permission.Permission
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+
+	Can(perm *permission.Permission) bool
+	CanUpdate() bool
+	CanDelete() bool
 
 	SetName(name string) Role
 	SetDescription(description string) Role
@@ -48,7 +65,6 @@ type Role interface {
 
 	AddPermission(p *permission.Permission) Role
 	SetPermissions(permissions []*permission.Permission) Role
-	Can(perm *permission.Permission) bool
 }
 
 func WithDescription(description string) Option {
@@ -69,6 +85,7 @@ func New(
 ) Role {
 	r := &role{
 		id:          0,
+		type_:       TypeUser,
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "",
@@ -84,6 +101,7 @@ func New(
 
 type role struct {
 	id          uint
+	type_       Type
 	tenantID    uuid.UUID
 	name        string
 	description string
@@ -94,6 +112,10 @@ type role struct {
 
 func (r *role) ID() uint {
 	return r.id
+}
+
+func (r *role) Type() Type {
+	return r.type_
 }
 
 func (r *role) TenantID() uuid.UUID {
@@ -118,6 +140,23 @@ func (r *role) CreatedAt() time.Time {
 
 func (r *role) UpdatedAt() time.Time {
 	return r.updatedAt
+}
+
+func (r *role) Can(perm *permission.Permission) bool {
+	for _, p := range r.permissions {
+		if p.Equals(*perm) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *role) CanUpdate() bool {
+	return r.type_ != TypeSystem
+}
+
+func (r *role) CanDelete() bool {
+	return r.type_ != TypeSystem
 }
 
 func (r *role) SetName(name string) Role {
@@ -153,13 +192,4 @@ func (r *role) SetPermissions(permissions []*permission.Permission) Role {
 	result.permissions = permissions
 	result.updatedAt = time.Now()
 	return &result
-}
-
-func (r *role) Can(perm *permission.Permission) bool {
-	for _, p := range r.permissions {
-		if p.Equals(*perm) {
-			return true
-		}
-	}
-	return false
 }

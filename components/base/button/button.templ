@@ -36,28 +36,30 @@ var sizes = map[Size]string{
 }
 
 type Props struct {
-	variant Variant
-	Size    Size
-	Fixed   bool
-	Href    string
-	Rounded bool
-	Loading bool
-	Class   any
-	Icon    templ.Component
-	Attrs   templ.Attributes
+	variant  Variant
+	Size     Size
+	Fixed    bool
+	Href     string
+	Rounded  bool
+	Loading  bool
+	Disabled bool
+	Class    any
+	Icon     templ.Component
+	Attrs    templ.Attributes
 }
 
 templ base(props Props) {
 	if len(props.Href) > 0 {
 		<a
 			href={ templ.SafeURL(props.Href) }
-			class={ "shrink-0 btn", 
-			variants[props.variant], 
-			sizes[props.Size], 
-			templ.KV("btn-fixed", props.Fixed), 
-			templ.KV("btn-rounded", props.Rounded), 
-			templ.KV("btn-with-icon", props.Icon != nil), 
-			templ.KV("btn-loading", props.Loading), 
+			class={ "shrink-0 btn",
+			variants[props.variant],
+			sizes[props.Size],
+			templ.KV("btn-fixed", props.Fixed),
+			templ.KV("btn-rounded", props.Rounded),
+			templ.KV("btn-with-icon", props.Icon != nil),
+			templ.KV("btn-loading", props.Loading),
+			templ.KV("btn-disabled", props.Disabled),
 			props.Class }
 			{ props.Attrs... }
 		>
@@ -69,13 +71,15 @@ templ base(props Props) {
 		</a>
 	} else {
 		<button
-			class={ "shrink-0 btn", 
-				variants[props.variant], 
-				sizes[props.Size], 
+			disabled?={ props.Disabled }
+			class={ "shrink-0 btn",
+				variants[props.variant],
+				sizes[props.Size],
 				templ.KV("btn-fixed", props.Fixed),
 				templ.KV("btn-rounded", props.Rounded),
-				templ.KV("btn-with-icon", props.Icon != nil), 
-				templ.KV("btn-loading", props.Loading), 
+				templ.KV("btn-with-icon", props.Icon != nil),
+				templ.KV("btn-loading", props.Loading),
+			    templ.KV("btn-disabled", props.Disabled),
 				props.Class }
 			{ props.Attrs... }
 		>
@@ -90,15 +94,16 @@ templ base(props Props) {
 
 templ Primary(props Props) {
 	@base(Props{
-		variant: VariantPrimary,
-		Size:    props.Size,
-		Class:   props.Class,
-		Href:    props.Href,
-		Fixed:   props.Fixed,
-		Rounded: props.Rounded,
-		Attrs:   props.Attrs,
-		Icon:    props.Icon,
-		Loading: props.Loading,
+		variant:  VariantPrimary,
+		Size:     props.Size,
+		Class:    props.Class,
+		Href:     props.Href,
+		Fixed:    props.Fixed,
+		Rounded:  props.Rounded,
+		Attrs:    props.Attrs,
+		Icon:     props.Icon,
+		Loading:  props.Loading,
+		Disabled: props.Disabled,
 	}) {
 		{ children... }
 	}
@@ -106,15 +111,16 @@ templ Primary(props Props) {
 
 templ Secondary(props Props) {
 	@base(Props{
-		variant: VariantSecondary,
-		Size:    props.Size,
-		Class:   props.Class,
-		Href:    props.Href,
-		Fixed:   props.Fixed,
-		Rounded: props.Rounded,
-		Attrs:   props.Attrs,
-		Icon:    props.Icon,
-		Loading: props.Loading,
+		variant:  VariantSecondary,
+		Size:     props.Size,
+		Class:    props.Class,
+		Href:     props.Href,
+		Fixed:    props.Fixed,
+		Rounded:  props.Rounded,
+		Attrs:    props.Attrs,
+		Icon:     props.Icon,
+		Loading:  props.Loading,
+		Disabled: props.Disabled,
 	}) {
 		{ children... }
 	}
@@ -122,15 +128,16 @@ templ Secondary(props Props) {
 
 templ PrimaryOutline(props Props) {
 	@base(Props{
-		variant: VariantPrimaryOutline,
-		Size:    props.Size,
-		Class:   props.Class,
-		Href:    props.Href,
-		Fixed:   props.Fixed,
-		Rounded: props.Rounded,
-		Attrs:   props.Attrs,
-		Icon:    props.Icon,
-		Loading: props.Loading,
+		variant:  VariantPrimaryOutline,
+		Size:     props.Size,
+		Class:    props.Class,
+		Href:     props.Href,
+		Fixed:    props.Fixed,
+		Rounded:  props.Rounded,
+		Attrs:    props.Attrs,
+		Icon:     props.Icon,
+		Loading:  props.Loading,
+		Disabled: props.Disabled,
 	}) {
 		{ children... }
 	}
@@ -138,15 +145,16 @@ templ PrimaryOutline(props Props) {
 
 templ Danger(props Props) {
 	@base(Props{
-		variant: VariantDanger,
-		Size:    props.Size,
-		Class:   props.Class,
-		Href:    props.Href,
-		Fixed:   props.Fixed,
-		Rounded: props.Rounded,
-		Attrs:   props.Attrs,
-		Icon:    props.Icon,
-		Loading: props.Loading,
+		variant:  VariantDanger,
+		Size:     props.Size,
+		Class:    props.Class,
+		Href:     props.Href,
+		Fixed:    props.Fixed,
+		Rounded:  props.Rounded,
+		Attrs:    props.Attrs,
+		Icon:     props.Icon,
+		Loading:  props.Loading,
+		Disabled: props.Disabled,
 	}) {
 		{ children... }
 	}
@@ -154,15 +162,16 @@ templ Danger(props Props) {
 
 templ Sidebar(props Props) {
 	@base(Props{
-		variant: VariantSidebar,
-		Size:    props.Size,
-		Class:   props.Class,
-		Href:    props.Href,
-		Fixed:   props.Fixed,
-		Rounded: props.Rounded,
-		Attrs:   props.Attrs,
-		Icon:    props.Icon,
-		Loading: props.Loading,
+		variant:  VariantSidebar,
+		Size:     props.Size,
+		Class:    props.Class,
+		Href:     props.Href,
+		Fixed:    props.Fixed,
+		Rounded:  props.Rounded,
+		Attrs:    props.Attrs,
+		Icon:     props.Icon,
+		Loading:  props.Loading,
+		Disabled: props.Disabled,
 	}) {
 		{ children... }
 	}
@@ -170,15 +179,16 @@ templ Sidebar(props Props) {
 
 templ Ghost(props Props) {
 	@base(Props{
-		variant: VariantGhost,
-		Size:    props.Size,
-		Class:   props.Class,
-		Href:    props.Href,
-		Fixed:   props.Fixed,
-		Rounded: props.Rounded,
-		Attrs:   props.Attrs,
-		Icon:    props.Icon,
-		Loading: props.Loading,
+		variant:  VariantGhost,
+		Size:     props.Size,
+		Class:    props.Class,
+		Href:     props.Href,
+		Fixed:    props.Fixed,
+		Rounded:  props.Rounded,
+		Attrs:    props.Attrs,
+		Icon:     props.Icon,
+		Loading:  props.Loading,
+		Disabled: props.Disabled,
 	}) {
 		{ children... }
 	}

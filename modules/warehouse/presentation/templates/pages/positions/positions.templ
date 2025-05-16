@@ -24,7 +24,7 @@ templ PositionsTable(props *IndexPageProps) {
 		if len(props.Positions) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehousePositions.List.NoPositions.Title"),
-				Description: pageCtx.T("WarehousePositions.List.NoPositions.Description"),
+				Description: pageCtx.T("WarehousePositions.List.NoPositions._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

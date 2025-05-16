@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/mappers"
@@ -20,8 +19,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
@@ -50,7 +51,7 @@ func (c *EmployeeController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -98,7 +99,7 @@ func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
 		"",
 		"",
 		nil,
-		money.New(0, currency.UsdCode),
+		money.NewFromFloat(0, string(currency.UsdCode)),
 		nil,
 		nil,
 		nil,
@@ -170,7 +171,7 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 
 	err = c.employeeService.Create(r.Context(), dto)
 	if err != nil {
-		l, ok := composables.UseLocalizer(r.Context())
+		l, ok := intl.UseLocalizer(r.Context())
 		if !ok {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -238,7 +239,7 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 	if ok {
 		err := c.employeeService.Update(r.Context(), id, dto)
 		if err != nil {
-			l, ok := composables.UseLocalizer(r.Context())
+			l, ok := intl.UseLocalizer(r.Context())
 			if !ok {
 				http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 				return

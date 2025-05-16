@@ -1,0 +1,15 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/input"
+
+templ DateInput() {
+	@input.Date(&input.Props{
+		Label:       "Date of Birth",
+		Placeholder: "Select date of birth",
+		Attrs: templ.Attributes{
+			"value": "1990-01-01",
+			"name":  "DateOfBirth",
+		},
+		Error: "",
+	})
+}

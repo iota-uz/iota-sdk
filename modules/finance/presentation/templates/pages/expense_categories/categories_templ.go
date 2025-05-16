@@ -54,7 +54,7 @@ func CategoriesTable(props *IndexPageProps) templ.Component {
 		if len(props.Categories) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("ExpenseCategories.List.NoCategories.Title"),
-				Description: pageCtx.T("ExpenseCategories.List.NoCategories.Description"),
+				Description: pageCtx.T("ExpenseCategories.List.NoCategories._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

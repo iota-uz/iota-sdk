@@ -11,12 +11,14 @@ import (
 
 type UserService struct {
 	repo      user.Repository
+	validator user.Validator
 	publisher eventbus.EventBus
 }
 
-func NewUserService(repo user.Repository, publisher eventbus.EventBus) *UserService {
+func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus) *UserService {
 	return &UserService{
 		repo:      repo,
+		validator: validator,
 		publisher: publisher,
 	}
 }
@@ -63,38 +65,39 @@ func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.Fi
 }
 
 func (s *UserService) Create(ctx context.Context, data user.User) error {
-	if err := composables.CanUser(ctx, permissions.UserCreate); err != nil {
-		return err
-	}
-	logger := composables.UseLogger(ctx)
-	tx, err := composables.BeginTx(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			logger.WithError(err).Error("failed to rollback transaction")
-		}
-	}()
-	createdEvent, err := user.NewCreatedEvent(ctx, data)
-	if err != nil {
-		return err
-	}
-	data, err = data.SetPassword(data.Password())
-	if err != nil {
-		return err
-	}
-	created, err := s.repo.Create(ctx, data)
+	err := composables.CanUser(ctx, permissions.UserCreate)
 	if err != nil {
 		return err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	createdEvent, err := user.NewCreatedEvent(ctx, data)
+	if err != nil {
 		return err
 	}
-	createdEvent.Result = created
+
+	var createdUser user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err = s.validator.ValidateCreate(txCtx, data); err != nil {
+			return err
+		}
+		if created, err := s.repo.Create(txCtx, data); err != nil {
+			return err
+		} else {
+			createdUser = created
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	createdEvent.Result = createdUser
+
 	s.publisher.Publish(createdEvent)
-	return nil
+	for _, e := range data.Events() {
+		s.publisher.Publish(e)
+	}
+
+	return err
 }
 
 func (s *UserService) UpdateLastAction(ctx context.Context, id uint) error {
@@ -106,69 +109,84 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) error {
-	if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
-		return err
-	}
-	logger := composables.UseLogger(ctx)
-	tx, err := composables.BeginTx(ctx)
+	err := composables.CanUser(ctx, permissions.UserUpdate)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			logger.WithError(err).Error("failed to rollback transaction")
-		}
-	}()
+
+	if !data.CanUpdate() {
+		return composables.ErrForbidden
+	}
+
 	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
 	if err != nil {
 		return err
 	}
-	if data.Password() != "" {
-		data, err = data.SetPassword(data.Password())
-		if err != nil {
+
+	var updatedUser user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err = s.validator.ValidateUpdate(txCtx, data); err != nil {
 			return err
 		}
-	}
-	if err := s.repo.Update(ctx, data); err != nil {
+		if err = s.repo.Update(txCtx, data); err != nil {
+			return err
+		}
+		if userAfterUpdate, err := s.repo.GetByID(txCtx, data.ID()); err != nil {
+			return err
+		} else {
+			updatedUser = userAfterUpdate
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-	updatedEvent.Result = data
+
+	updatedEvent.Result = updatedUser
+
 	s.publisher.Publish(updatedEvent)
+	for _, e := range data.Events() {
+		s.publisher.Publish(e)
+	}
+
 	return nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
-	if err := composables.CanUser(ctx, permissions.UserDelete); err != nil {
-		return nil, err
-	}
-	logger := composables.UseLogger(ctx)
-	tx, err := composables.BeginTx(ctx)
+	err := composables.CanUser(ctx, permissions.UserDelete)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err := tx.Rollback(ctx); err != nil {
-			logger.WithError(err).Error("failed to rollback transaction")
-		}
-	}()
-	deletedEvent, err := user.NewDeletedEvent(ctx)
-	if err != nil {
-		return nil, err
-	}
+
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+
+	if !entity.CanDelete() {
+		return nil, composables.ErrForbidden
+	}
+
+	deletedEvent, err := user.NewDeletedEvent(ctx)
+	if err != nil {
 		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
+
+	var deletedUser user.User
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		} else {
+			deletedUser = entity
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = entity
+	deletedEvent.Result = deletedUser
+
 	s.publisher.Publish(deletedEvent)
-	return entity, nil
+
+	return deletedUser, nil
 }

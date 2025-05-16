@@ -15,6 +15,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// DataToMap converts any data structure to a logrus.Fields map
+func DataToMap(data any) logrus.Fields {
+	b, err := json.Marshal(data)
+	if err != nil {
+		panic(err)
+	}
+	var loggerFields map[string]any
+	err = json.Unmarshal(b, &loggerFields)
+	if err != nil {
+		panic(err)
+	}
+	return loggerFields
+}
+
 func FileLogger(level logrus.Level, logPath string) (*os.File, *logrus.Logger, error) {
 	logger := logrus.New()
 

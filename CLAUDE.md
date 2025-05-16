@@ -12,7 +12,7 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 - Run all tests: `make test` or `go test -v ./...` 
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
-- Linting translation files: `make run-iota-linter`
+- Linting translation files: `make check-tr`
 - Apply migrations: `make migrate up`
 
 ## Code Style Guidelines
@@ -20,7 +20,7 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 - Use Go v1.23.2 and follow standard Go idioms
 - File organization: group related functionality in modules/ or pkg/ directories
 - Naming: use camelCase for variables, PascalCase for exported functions/types
-- Testing: table-driven tests with descriptive names (TestFunctionName_Scenario)
+- Testing: table-driven tests with descriptive names (TestFunctionName_Scenario), use the `require` and `assert` packages from `github.com/stretchr/testify`
 - Error handling: use pkg/serrors for standard error types
 - Type safety: use strong typing and avoid interface{} where possible
 - Follow existing patterns for database operations with jmoiron/sqlx

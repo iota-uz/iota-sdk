@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type IndexPageProps struct {
@@ -23,7 +24,7 @@ templ OrdersTable(props *IndexPageProps) {
 		if len(props.Orders) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehouseOrders.List.NoOrders.Title"),
-				Description: pageCtx.T("WarehouseOrders.List.NoOrders.Description"),
+				Description: pageCtx.T("WarehouseOrders.List.NoOrders._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{
@@ -79,7 +80,7 @@ templ newOrderButton() {
 	<summary class="btn btn-primary btn-normal btn-with-icon shrink-0 cursor-pointer">
 		@icons.PlusCircle(icons.Props{Size: "18"})
 		<p class="break-keep">
-			{ composables.MustT(ctx, "WarehouseOrders.List.New") }
+			{ intl.MustT(ctx, "WarehouseOrders.List.New") }
 		</p>
 	</summary>
 }

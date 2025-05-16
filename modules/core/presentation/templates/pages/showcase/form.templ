@@ -1,0 +1,65 @@
+package showcase
+
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components"
+
+templ FormContent() {
+	<div class="flex flex-col gap-5 p-5">
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Text Input",
+			Code:  InputComponentSource,
+		}) {
+			@components.TextInput()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Text Area",
+			Code:  TextareaComponentSource,
+		}) {
+			@components.TextArea()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Number Input",
+			Code:  NumberComponentSource,
+		}) {
+			@components.NumberInput()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Basic select",
+			Code:  SelectComponentSource,
+		}) {
+			@components.BasicSelect()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Searchable select",
+			Code:  ComboboxComponentSource,
+		}) {
+			@components.SearchableSelect()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Radio Group",
+			Code:  RadioComponentSource,
+		}) {
+			@components.RadioGroup()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Date Input",
+			Code:  DatepickerComponentSource,
+		}) {
+			@components.DateInput()
+		}
+		@ComponentShowcase(ShowcaseProps{
+			Title: "Slider Input",
+			Code:  SliderComponentSource,
+		}) {
+			@components.SliderInput()
+		}
+	</div>
+}
+
+templ FormPage(props IndexPageProps) {
+	@Layout(LayoutProps{
+		Title:        "Form Components",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@FormContent()
+	}
+}

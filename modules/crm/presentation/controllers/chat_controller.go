@@ -11,16 +11,17 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
-	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	chatsui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/chats"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
@@ -73,7 +74,7 @@ func (c *ChatController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -89,7 +90,7 @@ func (c *ChatController) Register(r *mux.Router) {
 
 func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
 	localizer := i18n.NewLocalizer(c.app.Bundle(), "en")
-	ctx := composables.WithLocalizer(
+	ctx := intl.WithLocalizer(
 		context.Background(),
 		localizer,
 	)
@@ -111,7 +112,7 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		locale = "en"
 	}
 	localizer := i18n.NewLocalizer(c.app.Bundle(), locale)
-	ctx := composables.WithLocalizer(
+	ctx := intl.WithLocalizer(
 		context.Background(),
 		localizer,
 	)
@@ -144,7 +145,7 @@ func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 		ctx,
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt},
+				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
 				Ascending: false,
 			},
 		},
@@ -196,7 +197,7 @@ func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
 		&chat.FindParams{
 			Search: searchQ,
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt},
+				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
 				Ascending: false,
 			},
 		},
@@ -213,7 +214,7 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt},
+				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
 				Ascending: false,
 			},
 		},
@@ -263,7 +264,7 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	chatEntity.MarkAllAsRead()
-	chatEntity, err = c.chatService.Update(r.Context(), chatEntity)
+	chatEntity, err = c.chatService.Save(r.Context(), chatEntity)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -307,11 +308,24 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	_, err = c.clientService.Create(r.Context(), &client.CreateDTO{
+
+	clientDto := &dtos.CreateClientDTO{
 		FirstName: "",
 		LastName:  "",
 		Phone:     dto.Phone,
-	})
+	}
+
+	clientEntity, err := clientDto.ToEntity()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err = c.clientService.Create(r.Context(), clientEntity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if errors.Is(err, phone.ErrInvalidPhoneNumber) {
 		templ.Handler(chatsui.NewChatForm(chatsui.NewChatProps{
 			BaseURL:       c.basePath,
@@ -341,10 +355,14 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	chatEntity, err := c.chatService.SendMessage(r.Context(), services.SendMessageDTO{
-		ChatID:  chatID,
-		Message: dto.Message,
-	})
+	chatEntity, err := c.chatService.SendMessage(
+		r.Context(),
+		services.SendMessageCommand{
+			ChatID:    chatID,
+			Message:   dto.Message,
+			Transport: chat.SMSTransport,
+		},
+	)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

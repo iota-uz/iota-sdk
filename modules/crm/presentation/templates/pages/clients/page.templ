@@ -21,6 +21,13 @@ func formatData(s string) string {
 	return s
 }
 
+func formatNotes(comments string, empty string) string {
+	if comments == "" {
+		return empty
+	}
+	return comments
+}
+
 // ---- Utility Components ----
 
 //
@@ -48,7 +55,7 @@ templ ViewDrawer(props ViewDrawerProps) {
 			"@closed":  "document.getElementById('view-drawer').remove()",
 		},
 	}) {
-		<div class="flex flex-col flex-1 overflow-y-auto">
+		<div class="flex flex-col h-full">
 			@tab.Root(tab.Props{DefaultValue: props.SelectedTab}) {
 				@tab.List(tab.ListProps{}) {
 					for _, t := range props.Tabs {
@@ -348,22 +355,38 @@ templ Profile(props ProfileProps) {
 					@PersonalInfoCard(props.Client)
 					@PassportInfoCard(props.Client)
 					@TaxInfoCard(props.Client)
-					@Notes()
+					@NotesInfoCard(props.Client)
 				</div>
 			</div>
 		</div>
 	</div>
 }
 
-templ Notes() {
+templ NotesInfoCard(client *viewmodels.Client) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="flex gap-3 bg-surface-100 rounded-md p-3">
-		<div class="text-gray-400">
-			@icons.Note(icons.Props{Size: "20"})
-		</div>
-		<div class="flex-1 space-y-3">
-			<h3 class="text-gray-400">{ pageCtx.T("Clients.Tabs.Notes") }</h3>
-			<p>{ pageCtx.T("Clients.Notes.NoNotes") }</p>
+	<div id="notes-info-card">
+		<div x-data="{ isEditing: false }">
+			@card.Card(card.Props{
+				Header: CardHeader(CardHeaderProps{
+					Title:   pageCtx.T("Clients.Single.NotesInfo"),
+					EditURL: fmt.Sprintf("/crm/clients/%s/edit/notes", client.ID),
+					FormID:  "notes-info-edit-form",
+					Target:  "#notes-info-edit",
+				}),
+			}) {
+				<div
+					x-show="!isEditing"
+					class="grid grid-cols-2 gap-4"
+				>
+					<div>
+						<div>{ formatNotes(client.Comments, pageCtx.T("Clients.Notes.NoNotes")) }</div>
+					</div>
+				</div>
+				<div
+					x-show="isEditing"
+					id="notes-info-edit"
+				></div>
+			}
 		</div>
 	</div>
 }

@@ -62,7 +62,7 @@ templ SelectedValues() {
 				<button
 					class="text-brand-500 cursor-pointer"
 					type="button"
-					@click="() => selectedValues.delete(item.value)"
+					@click="removeSelectedValue(item.value)"
 				>
 					@icons.XCircle(icons.Props{Size: "20"})
 				</button>

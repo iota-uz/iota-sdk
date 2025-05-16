@@ -298,7 +298,7 @@ func GroupsTable(props *IndexPageProps) templ.Component {
 		if len(props.Groups) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Groups.List.NoGroups.Title"),
-				Description: pageCtx.T("Groups.List.NoGroups.Description"),
+				Description: pageCtx.T("Groups.List.NoGroups._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

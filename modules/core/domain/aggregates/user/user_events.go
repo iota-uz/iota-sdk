@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -67,6 +68,10 @@ type UpdatedEvent struct {
 	Session session.Session
 	Data    User
 	Result  User
+}
+
+type UpdatedPasswordEvent struct {
+	UserID uint
 }
 
 type DeletedEvent struct {

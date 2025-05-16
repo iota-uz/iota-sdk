@@ -50,7 +50,7 @@ func (c *RolesController) Register(r *mux.Router) {
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -237,7 +237,7 @@ func (c *RolesController) Update(
 		return
 	}
 
-	updatedEntity, err := dto.ToEntity(roleEntity, c.app.RBAC())
+	updatedEntity, err := dto.Apply(roleEntity, c.app.RBAC())
 	if err != nil {
 		logger.Errorf("Error updating role entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

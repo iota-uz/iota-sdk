@@ -1,0 +1,16 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/input"
+
+templ TextArea() {
+	@input.TextArea(&input.TextAreaProps{
+		Label:       "Message Template",
+		Placeholder: "Enter your template here",
+		Value:       "",
+		Attrs: templ.Attributes{
+			"name": "Template",
+			"form": "save-form",
+		},
+		Error: "",
+	})
+}

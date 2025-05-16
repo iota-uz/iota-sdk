@@ -4,11 +4,13 @@ go 1.23.2
 
 require (
 	github.com/99designs/gqlgen v0.17.57
-	github.com/BurntSushi/toml v1.4.0
+	github.com/BurntSushi/toml v1.5.0
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/Oudwins/tailwind-merge-go v0.2.1
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
+	github.com/Rhymond/go-money v1.0.15
 	github.com/a-h/templ v0.3.857
+	github.com/alecthomas/chroma/v2 v2.17.0
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/gabriel-vasile/mimetype v1.4.7
@@ -22,6 +24,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
+	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.2
 	github.com/iota-uz/psql-parser v0.0.0-20250308150107-d4e0b094f3a6
 	github.com/iota-uz/utils v0.0.2
@@ -30,7 +33,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/lithammer/fuzzysearch v1.1.8
-	github.com/nicksnyder/go-i18n/v2 v2.4.1
 	github.com/rs/cors v1.11.1
 	github.com/rubenv/sql-migrate v1.7.0
 	github.com/sashabaranov/go-openai v1.36.0
@@ -47,9 +49,7 @@ require (
 	golang.org/x/net v0.37.0
 	golang.org/x/oauth2 v0.26.0
 	golang.org/x/text v0.23.0
-	golang.org/x/tools v0.26.0
 	google.golang.org/api v0.209.0
-	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.25.12
 )
 
@@ -68,6 +68,7 @@ require (
 	github.com/cockroachdb/sentry-go v0.6.1-cockroachdb.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/getsentry/raven-go v0.2.0 // indirect
@@ -122,11 +123,13 @@ require (
 	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/tools v0.26.0 // indirect
 	google.golang.org/genproto v0.0.0-20241113202542-65e8d215514f // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/grpc v1.71.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	nhooyr.io/websocket v1.8.17 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )

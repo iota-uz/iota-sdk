@@ -338,3 +338,26 @@ templ TaxInfoEditForm(props *TaxInfoEditProps) {
 		</div>
 	</div>
 }
+
+type NotesInfoEditProps struct {
+	Client *viewmodels.Client
+	Errors map[string]string
+	Form   string
+}
+
+templ NotesInfoEditForm(props *NotesInfoEditProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div>
+		<input type="hidden" name="section" value="notes"/>
+		@input.TextArea(&input.TextAreaProps{
+			Placeholder: pageCtx.T("Clients.Single.Comments.Placeholder"),
+			Value:       props.Client.Comments,
+			Attrs: templ.Attributes{
+				"name": "Comments",
+				"rows": "3",
+				"form": props.Form,
+			},
+			Error: props.Errors["Comments"],
+		})
+	</div>
+}

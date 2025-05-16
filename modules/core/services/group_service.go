@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
+// GroupService TODO: refactor it
 // GroupService provides operations for managing groups
 type GroupService struct {
 	repo      group.Repository
@@ -91,6 +92,10 @@ func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, 
 		return nil, err
 	}
 
+	if !g.CanUpdate() {
+		return nil, composables.ErrForbidden
+	}
+
 	var oldGroup group.Group
 	var updatedGroup group.Group
 
@@ -119,6 +124,15 @@ func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return err
+	}
+
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if !entity.CanDelete() {
+		return composables.ErrForbidden
 	}
 
 	var g group.Group

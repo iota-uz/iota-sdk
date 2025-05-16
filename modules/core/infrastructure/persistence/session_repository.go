@@ -18,9 +18,9 @@ var (
 )
 
 const (
-	sessionFindQuery   = `SELECT token, user_id, expires_at, ip, user_agent, created_at, tenant_id FROM sessions`
-	sessionCountQuery  = `SELECT COUNT(*) as count FROM sessions`
-	sessionInsertQuery = `
+	selectSessionQuery = `SELECT token, user_id, expires_at, ip, user_agent, created_at, tenant_id FROM sessions`
+	countSessionQuery  = `SELECT COUNT(*) as count FROM sessions`
+	insertSessionQuery = `
         INSERT INTO sessions (
             token,
             user_id,
@@ -31,22 +31,23 @@ const (
             tenant_id
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	sessionUpdateQuery = `
+	updateSessionQuery = `
         UPDATE sessions
         SET expires_at = $1,
             ip = $2,
             user_agent = $3
         WHERE token = $4 AND tenant_id = $5`
-	sessionDeleteQuery = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
+	deleteUserSessionQuery = `DELETE FROM sessions WHERE user_id = $1`
+	deleteSessionQuery     = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
 )
 
-type GormSessionRepository struct{}
+type SessionRepository struct{}
 
 func NewSessionRepository() session.Repository {
-	return &GormSessionRepository{}
+	return &SessionRepository{}
 }
 
-func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
+func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
 	sortFields := []string{}
 	for _, f := range params.SortBy.Fields {
 		switch f {
@@ -77,7 +78,7 @@ func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *sessio
 	return g.querySessions(
 		ctx,
 		repo.Join(
-			sessionFindQuery,
+			selectSessionQuery,
 			repo.JoinWhere(where...),
 			repo.OrderBy(sortFields, params.SortBy.Ascending),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
@@ -86,7 +87,7 @@ func (g *GormSessionRepository) GetPaginated(ctx context.Context, params *sessio
 	)
 }
 
-func (g *GormSessionRepository) Count(ctx context.Context) (int64, error) {
+func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
@@ -113,7 +114,7 @@ func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session.Session,
 	return g.querySessions(ctx, sessionFindQuery+" WHERE tenant_id = $1", tenant.ID)
 }
 
-func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
+func (g *SessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
 	// First try with tenant from context
 	tenant, err := composables.UseTenant(ctx)
 
@@ -126,7 +127,7 @@ func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*
 		}
 
 		// Query without tenant filter during login
-		sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1"), token)
+		sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1"), token)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get session by token")
 		}
@@ -147,7 +148,7 @@ func (g *GormSessionRepository) GetByToken(ctx context.Context, token string) (*
 	return sessions[0], nil
 }
 
-func (g *GormSessionRepository) Create(ctx context.Context, data *session.Session) error {
+func (g *SessionRepository) Create(ctx context.Context, data *session.Session) error {
 	dbSession := ToDBSession(data)
 
 	// First try to get tenant from context
@@ -156,10 +157,9 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 		dbSession.TenantID = tenant.ID.String()
 	}
 	// If tenant is not in context but session has TenantID set (from session.CreateDTO), use that
-
 	return g.execQuery(
 		ctx,
-		sessionInsertQuery,
+		insertSessionQuery,
 		dbSession.Token,
 		dbSession.UserID,
 		dbSession.ExpiresAt,
@@ -170,7 +170,7 @@ func (g *GormSessionRepository) Create(ctx context.Context, data *session.Sessio
 	)
 }
 
-func (g *GormSessionRepository) Update(ctx context.Context, data *session.Session) error {
+func (g *SessionRepository) Update(ctx context.Context, data *session.Session) error {
 	dbSession := ToDBSession(data)
 
 	// First try to get tenant from context
@@ -185,10 +185,9 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 		}
 		dbSession.TenantID = existingSession.TenantID.String()
 	}
-
 	return g.execQuery(
 		ctx,
-		sessionUpdateQuery,
+		updateSessionQuery,
 		dbSession.ExpiresAt,
 		dbSession.IP,
 		dbSession.UserAgent,
@@ -197,16 +196,39 @@ func (g *GormSessionRepository) Update(ctx context.Context, data *session.Sessio
 	)
 }
 
-func (g *GormSessionRepository) Delete(ctx context.Context, token string) error {
+func (g *SessionRepository) Delete(ctx context.Context, token string) error {
 	// First get the session to know its tenant ID
 	session, err := g.GetByToken(ctx, token)
 	if err != nil {
 		return err
 	}
-	return g.execQuery(ctx, sessionDeleteQuery, token, session.TenantID)
+	return g.execQuery(ctx, deleteSessionQuery, token, session.TenantID)
 }
 
-func (g *GormSessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]*session.Session, error) {
+func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]*session.Session, error) {
+	sql := repo.Join(
+		selectSessionQuery,
+		repo.JoinWhere("sessions.user_id = $1"),
+	)
+	sessions, err := g.querySessions(
+		ctx,
+		sql,
+		userId,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(sessions) == 0 {
+		return nil, nil
+	}
+	err = g.execQuery(ctx, deleteUserSessionQuery, userId)
+	if err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+func (g *SessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]*session.Session, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -242,7 +264,7 @@ func (g *GormSessionRepository) querySessions(ctx context.Context, query string,
 	return sessions, nil
 }
 
-func (g *GormSessionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
+func (g *SessionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err

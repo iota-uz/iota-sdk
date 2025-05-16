@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/positionservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -54,7 +55,7 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.Tabs(),
-		middleware.WithLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -168,7 +169,7 @@ func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -262,7 +263,7 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := composables.UseUniLocalizer(r.Context())
+	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -1,0 +1,99 @@
+package slider
+
+import (
+	"fmt"
+	"github.com/iota-uz/utils/random"
+)
+
+// formatValueDisplay returns JavaScript expression for value display
+func formatValueDisplay(format string, step float64) string {
+	switch format {
+	case "float10":
+		return "this.value.toFixed(1)"
+	case "float100":
+		return "this.value.toFixed(2)"
+	case "auto":
+		if step < 0.1 {
+			return "this.value.toFixed(2)"
+		} else if step < 1 {
+			return "this.value.toFixed(1)"
+		}
+		return "this.value"
+	default:
+		return "this.value"
+	}
+}
+
+type SliderProps struct {
+	Min         int
+	Max         int
+	Value       float64
+	Step        float64
+	Label       string
+	HelpText    string
+	Error       string
+	Disabled    bool
+	Class       string
+	Attrs       templ.Attributes
+	ID          string
+	ValueFormat string // Optional format for displaying the value (e.g., "float10" to divide by 10)
+}
+
+func newSlider(p *SliderProps) *SliderProps {
+	if p.ID == "" {
+		p.ID = random.String(12, random.LowerCharSet)
+	}
+	if p.Step == 0 {
+		p.Step = 1
+	}
+	if p.Min == 0 && p.Max == 0 {
+		p.Min = 0
+		p.Max = 100
+	}
+	if p.ValueFormat == "" {
+		p.ValueFormat = "auto"
+	}
+	return p
+}
+
+templ (p *SliderProps) render() {
+	<div
+		x-data={ fmt.Sprintf("{ value: Number(%f), displayValue() { return %s } }", p.Value, formatValueDisplay(p.ValueFormat, p.Step)) }
+		class="flex flex-col w-full"
+	>
+		<div class="flex justify-between mb-2">
+			if len(p.Label) > 0 {
+				<label for={ p.ID } class="form-control-label">{ p.Label }</label>
+			}
+			<span class="text-sm text-gray-700" x-text="displayValue()"></span>
+		</div>
+		<div class="relative h-5 flex items-center">
+			<div class="absolute h-1 w-full bg-gray-200 rounded-full"></div>
+			<div
+				class="absolute h-1 bg-brand-500 rounded-full"
+				x-bind:style={ fmt.Sprintf("'width: calc(((value - %d) / (%d - %d)) * 100%%)'", p.Min, p.Max, p.Min) }
+			></div>
+			<input
+				id={ p.ID }
+				type="range"
+				min={ fmt.Sprintf("%d", p.Min) }
+				max={ fmt.Sprintf("%d", p.Max) }
+				step={ fmt.Sprintf("%f", p.Step) }
+				x-model.number="value"
+				class={ "slider-thumb appearance-none w-full h-1 bg-transparent cursor-pointer", p.Class }
+				disabled?={ p.Disabled }
+				{ p.Attrs... }
+			/>
+		</div>
+		if p.HelpText != "" {
+			<small class="text-xs text-gray-700 mt-1">{ p.HelpText }</small>
+		}
+		if p.Error != "" {
+			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+		}
+	</div>
+}
+
+templ Slider(props SliderProps) {
+	@newSlider(&props).render()
+}

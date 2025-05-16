@@ -1,19 +1,54 @@
 {
-	"NavigationLinks": {
-		"Website": "Veb-sayt",
-		"AIChatbot": "AI Chatbot"
-	},
-	"AIChatBot": {
-		"Meta": {
-			"Title": "AI Chatbot"
-		},
-		"Title": {
-			"Label": "Sarlavha",
-			"Placeholder": "Sarlavhani kiriting"
-		},
-		"Description": {
-			"Label": "Tavsif",
-			"Placeholder": "Tavsifni kiriting"
-		}
-	}
+  "NavigationLinks": {
+    "Website": "Veb-sayt",
+    "AIChatbot": "AI Chatbot"
+  },
+  "AIChatBot": {
+    "Meta": {
+      "Title": "AI Chatbot"
+    },
+    "ModelName": {
+      "Label": "Model nomi",
+      "Placeholder": "Model nomini kiriting (masalan gpt-4)"
+    },
+    "ModelType": {
+      "Label": "Model turi",
+      "Placeholder": "Model turini tanlang"
+    },
+    "SystemPrompt": {
+      "Label": "Tizim promti",
+      "Placeholder": "AI uchun tizim promptini kiriting"
+    },
+    "Temperature": {
+      "Label": "Temperatura",
+      "Placeholder": "0.0 dan 2.0 gacha qiymat kiriting"
+    },
+    "MaxTokens": {
+      "Label": "Maksimal tokenlar",
+      "Placeholder": "Maksimal tokenlar sonini kiriting"
+    },
+    "BaseURL": {
+      "Label": "API baza URL",
+      "Placeholder": "API baza URL manzilini kiriting (masalan https://api.openai.com/v1)"
+    },
+    "AccessToken": {
+      "Label": "API kirish tokeni",
+      "Placeholder": "API kirish tokenini kiriting"
+    },
+    "Errors": {
+      "ConfigNotFound": "AI chat konfiguratsiyasi topilmadi",
+      "FailedToGetConfig": "AI chat konfiguratsiyasini olishda xatolik yuz berdi",
+      "InvalidFormData": "Noto'g'ri shakl ma'lumotlari taqdim etildi",
+      "FailedToSaveConfig": "AI chat konfiguratsiyasini saqlashda xatolik yuz berdi",
+      "InvalidRequestBody": "Noto'g'ri so'rov tanasi",
+      "InvalidThreadIDFormat": "Noto'g'ri suhbat ID formati",
+      "ThreadNotFound": "Suhbat topilmadi",
+      "FailedToCreateThread": "Suhbat yaratishda xatolik yuz berdi",
+      "InvalidPhoneFormat": "Noto'g'ri telefon raqami formati. Kutilgan format: +998XXXXXXXXX (mamlakat kodi bilan)",
+      "UnknownCountryCode": "Telefon raqamida noma'lum mamlakat kodi. Iltimos, to'g'ri mamlakat kodini kiriting",
+      "FailedToSendMessage": "Suhbatga xabar yuborishda xatolik yuz berdi",
+      "FailedToGetAIResponse": "AI javobini olishda xatolik yuz berdi",
+      "FailedToEncodeResponse": "Javobni kodlashda xatolik yuz berdi"
+    }
+  }
 }

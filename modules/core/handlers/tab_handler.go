@@ -3,31 +3,32 @@ package handlers
 import (
 	"context"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/sirupsen/logrus"
 )
 
 type TabHandler struct {
-	app        application.Application
-	tabService tab.Repository
-	logger     *logrus.Logger
+	app     application.Application
+	service *services.TabService
+	logger  *logrus.Logger
 }
 
 func NewTabHandler(
 	app application.Application,
-	tabService tab.Repository,
 	logger *logrus.Logger,
 ) *TabHandler {
 	return &TabHandler{
-		app:        app,
-		tabService: tabService,
-		logger:     logger,
+		app:     app,
+		service: app.Service(services.TabService{}).(*services.TabService),
+		logger:  logger,
 	}
 }
 
@@ -36,7 +37,8 @@ func (h *TabHandler) Register(publisher eventbus.EventBus) {
 }
 
 func (h *TabHandler) HandleUserCreated(event *user.CreatedEvent) {
-	h.createUserTabs(context.Background(), event.Result)
+	ctx := composables.WithPool(context.Background(), h.app.DB())
+	h.createUserTabs(ctx, event.Result)
 }
 
 func (h *TabHandler) createUserTabs(ctx context.Context, user user.User) {
@@ -48,9 +50,9 @@ func (h *TabHandler) createUserTabs(ctx context.Context, user user.User) {
 	items := h.app.NavItems(i18n.NewLocalizer(h.app.Bundle(), string(user.UILanguage())))
 	hrefs := h.getAccessibleNavItems(items, user)
 
-	tabs := make([]*tab.Tab, 0, len(hrefs))
+	tabs := make([]*tab.CreateDTO, 0, len(hrefs))
 	for i, href := range hrefs {
-		tabs = append(tabs, &tab.Tab{
+		tabs = append(tabs, &tab.CreateDTO{
 			UserID:   user.ID(),
 			Href:     href,
 			Position: uint(i),
@@ -59,12 +61,10 @@ func (h *TabHandler) createUserTabs(ctx context.Context, user user.User) {
 
 	if len(tabs) > 0 {
 		ctxWithUser := context.WithValue(ctx, constants.UserKey, user)
-		if err := h.tabService.DeleteUserTabs(ctxWithUser, user.ID()); err != nil {
-			h.logger.Errorf("Failed to delete existing tabs for user %d: %v", user.ID(), err)
+		_, err := h.service.CreateManyUserTabs(ctxWithUser, user.ID(), tabs)
+		if err != nil {
+			h.logger.Errorf("Failed to create tabs for user %d: %v", user.ID(), err)
 			return
-		}
-		if err := h.tabService.CreateMany(ctxWithUser, tabs); err != nil {
-			h.logger.Errorf("Failed to create tab for user %d: %v", user.ID(), err)
 		}
 	}
 }

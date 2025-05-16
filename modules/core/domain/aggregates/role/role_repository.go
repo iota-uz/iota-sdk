@@ -2,17 +2,18 @@ package role
 
 import (
 	"context"
+
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 type Field int
 
 const (
-	Name Field = iota
-	Description
-	CreatedAt
-	PermissionID
-	TenantID
+	NameField Field = iota
+	DescriptionField
+	CreatedAtField
+	PermissionIDField
+	TenantIDField
 )
 
 type SortBy repo.SortBy[Field]

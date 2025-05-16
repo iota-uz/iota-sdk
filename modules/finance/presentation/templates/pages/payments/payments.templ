@@ -25,7 +25,7 @@ templ PaymentsTable(props *IndexPageProps) {
 		if len(props.Payments) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("Payments.List.NoPayments.Title"),
-				Description: pageCtx.T("Payments.List.NoPayments.Description"),
+				Description: pageCtx.T("Payments.List.NoPayments._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

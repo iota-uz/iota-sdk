@@ -23,7 +23,7 @@ templ UnitsTable(props *IndexPageProps) {
 		if len(props.Units) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
 				Title:       pageCtx.T("WarehouseUnits.List.NoUnits.Title"),
-				Description: pageCtx.T("WarehouseUnits.List.NoUnits.Description"),
+				Description: pageCtx.T("WarehouseUnits.List.NoUnits._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{

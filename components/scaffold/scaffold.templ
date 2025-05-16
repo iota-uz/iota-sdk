@@ -2,10 +2,12 @@
 //
 // It simplifies the creation of consistent data tables and other UI elements
 // based on configuration and data, reducing boilerplate code.
-package scaffold
+package table
 
 import (
 	"fmt"
+	"time"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
@@ -14,9 +16,9 @@ import (
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"time"
 )
 
+// DateTime renders a timestamp with Alpine-based relative formatting
 templ DateTime(ts time.Time) {
 	<div x-data="relativeformat">
 		<span x-text={ fmt.Sprintf(`format('%s')`, ts.Format(time.RFC3339)) }>
@@ -26,25 +28,39 @@ templ DateTime(ts time.Time) {
 }
 
 // Rows renders the table rows for a scaffold table
-templ Rows(config *TableConfig) {
+templ Rows(cfg *TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<tr class="hidden">
-		<td colspan={ fmt.Sprintf("%d", len(config.Columns)) }>
+		<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) }>
 			@loaders.Spinner(loaders.SpinnerProps{
-				ContainerClass: templ.Classes(
-					"flex justify-center items-center py-4",
-				),
+				ContainerClass: templ.Classes("flex justify-center items-center py-4"),
 			})
 		</td>
 	</tr>
-	for _, item := range config.Rows {
+	if len(cfg.Rows) == 0 {
 		@base.TableRow(base.TableRowProps{
 			Attrs: templ.Attributes{
 				"class": "hide-on-load",
 			},
 		}) {
-			for _, cell := range item.Cells() {
-				@base.TableCell(base.TableCellProps{}) {
-					@cell
+			@base.TableCell(base.TableCellProps{
+				Classes: templ.Classes("text-center"),
+				Attrs: templ.Attributes{
+					"colspan": fmt.Sprintf("%d", len(cfg.Columns)),
+				},
+			}) {
+				{ pageCtx.T("Scaffold.Table.NothingFound") }
+			}
+		}
+	} else {
+		for _, row := range cfg.Rows {
+			@base.TableRow(base.TableRowProps{
+				Attrs: row.Attrs(),
+			}) {
+				for _, cell := range row.Cells() {
+					@base.TableCell(base.TableCellProps{}) {
+						@cell
+					}
 				}
 			}
 		}
@@ -71,67 +87,66 @@ templ Table(config *TableConfig) {
 	}
 }
 
-// TableContent renders the table with search and filters
-templ TableContent(config *TableConfig) {
+// TableSection combines filters and table into one form to enable unified HTMX update
+templ TableSection(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="bg-surface-600 border border-primary rounded-lg">
-		<form
-			class="p-4 flex items-center gap-3"
-			hx-get={ config.DataURL }
-			hx-trigger="keyup changed delay:300ms from:(form input), change changed from:(form select), change from:(form input[type='checkbox'])"
-			hx-target="#table-body"
-			hx-swap="innerHTML"
-			hx-indicator="#table-body"
-		>
-			<input type="hidden" name="page" value="1"/>
+	<form
+		hx-get={ config.DataURL }
+		hx-push-url="true"
+		hx-trigger="keyup changed delay:300ms from:input, change from:select, change from:input[type='checkbox']"
+		hx-target="#table-body"
+		hx-swap="innerHTML"
+		hx-indicator="#table-body"
+	>
+		<div class="flex gap-5">
+			<!-- Left sidebar with filters -->
+			if config.SideFilter != nil {
+				<div class="hidden md:block w-64 flex-shrink-0">
+					@config.SideFilter
+				</div>
+			}
+			<!-- Main content area with search, filters, and table -->
 			<div class="flex-1">
-				@input.Text(&input.Props{
-					AddonLeft: &input.Addon{
-						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-					},
-					Placeholder: pageCtx.T("Search"),
-					Attrs: templ.Attributes{
-						"name":  "search",
-						"value": "",
-					},
-				})
+				<div class="bg-surface-600 border border-primary rounded-lg">
+					<div class="p-4 flex flex-row md:items-center gap-3">
+						<div class="flex-1">
+							@input.Text(&input.Props{
+								AddonLeft: &input.Addon{
+									Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+								},
+								Placeholder: pageCtx.T("Search"),
+								Attrs: templ.Attributes{
+									"name":  "Search",
+									"value": "",
+								},
+							})
+						</div>
+						<div class="hidden md:flex gap-3 h-full">
+							for _, filter := range config.Filters {
+								@filter
+							}
+						</div>
+					</div>
+					@Table(config)
+				</div>
 			</div>
-			<div class="hidden md:flex gap-3 h-full">
-				for _, filter := range config.Filters {
-					@filter.Component()
-				}
-			</div>
-		</form>
-		@Table(config)
-	</div>
-}
-
-templ SideFilter() {
-	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<form
-			hx-get="/users"
-			hx-target="#table-body"
-			hx-swap="innerHTML"
-			hx-push-url="true"
-			hx-indicator="#table-body"
-			hx-trigger="change"
-		>
-			{ children... }
-		</form>
-	</div>
+		</div>
+		@filters.Drawer(filters.DrawerProps{
+			Heading: pageCtx.T("Scaffold.Filters.Title"),
+			Action:  "open-filters",
+		}) {
+			if config.SideFilter != nil {
+				@config.SideFilter
+			}
+			for _, filter := range config.Filters {
+				@filter
+			}
+		}
+	</form>
 }
 
 // Content renders the complete scaffold page content with filters and table
 templ Content(config *TableConfig) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@filters.Drawer(filters.DrawerProps{
-		Heading: pageCtx.T("Scaffold.Filters.Title"),
-		Action:  "open-filters",
-	}) {
-		for _, filter := range config.Filters {
-			@filter.Component()
-		}
-	}
 	<div class="m-6">
 		<div class="flex justify-between md:justify-start">
 			<h1 class="text-2xl font-medium">
@@ -149,24 +164,11 @@ templ Content(config *TableConfig) {
 				})
 			</div>
 		</div>
-		if config.SideFilter != nil {
-			<div class="mt-5 flex gap-5">
-				<!-- Left sidebar with filters -->
-				<div class="hidden md:block w-64 flex-shrink-0">
-					@SideFilter() {
-						@config.SideFilter
-					}
-				</div>
-				<!-- Main content area with table -->
-				<div class="flex-1">
-					@TableContent(config)
-				</div>
-			</div>
-		} else {
-			<div class="mt-5">
-				@TableContent(config)
-			</div>
-		}
+		<div class="mt-5">
+			@TableSection(config)
+		</div>
+		<!-- Placeholder for the view drawer -->
+		<div id="view-drawer"></div>
 	</div>
 }
 
@@ -179,6 +181,7 @@ templ Page(config *TableConfig) {
 	}
 }
 
+// Helper to convert scaffold columns to base table columns
 func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(columns))
 	for i, col := range columns {

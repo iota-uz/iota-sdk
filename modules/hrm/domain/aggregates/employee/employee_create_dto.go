@@ -9,10 +9,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/money"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
@@ -50,9 +50,9 @@ type CreateDTO struct {
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 
 	// Create validation errors collection
@@ -128,7 +128,7 @@ func (d *CreateDTO) ToEntity() (Employee, error) {
 		d.MiddleName,
 		d.Phone,
 		mail,
-		money.New(d.Salary, currency.UsdCode),
+		money.NewFromFloat(d.Salary, string(currency.UsdCode)),
 		tin,
 		pin,
 		NewLanguage(d.PrimaryLanguage, d.SecondaryLanguage),

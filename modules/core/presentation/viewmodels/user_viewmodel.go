@@ -6,12 +6,13 @@ import (
 
 type User struct {
 	ID          string
+	Type        string
 	FirstName   string
 	LastName    string
 	MiddleName  string
 	Email       string
 	Phone       string
-	UILanguage  string
+	Language    string
 	LastAction  string
 	CreatedAt   string
 	UpdatedAt   string
@@ -20,6 +21,8 @@ type User struct {
 	GroupIDs    []string
 	Permissions []*Permission
 	Avatar      *Upload
+	CanUpdate   bool
+	CanDelete   bool
 }
 
 func (u *User) FullName() string {

@@ -24,7 +24,7 @@
       "Amount": "Miqdori",
       "NoCategories": {
         "Title": "Xarajat kategoriyalari topilmadi",
-        "Description": "Hali xarajat kategoriyalari yo'q. Yangi yaratish uchun 'Yangi kategoriya' tugmasini bosing."
+        "_Description": "Hali xarajat kategoriyalari yo'q. Yangi yaratish uchun 'Yangi kategoriya' tugmasini bosing."
       }
     },
     "Single": {
@@ -35,7 +35,7 @@
         "Label": "Valyuta",
         "Placeholder": "Valyutani tanlang"
       },
-      "Description": "Tavsif",
+      "_Description": "Tavsif",
       "Delete": "Kategoriyani o'chirish",
       "DeleteConfirmation": "Ushbu xarajat kategoriyasini o'chirishni xohlaysizmi?"
     }
@@ -57,7 +57,7 @@
       "Amount": "Miqdori",
       "NoPayments": {
         "Title": "To'lovlar topilmadi",
-        "Description": "Hali to'lovlar yo'q. Yangi yaratish uchun 'To'lov qo'shish' tugmasini bosing."
+        "_Description": "Hali to'lovlar yo'q. Yangi yaratish uchun 'To'lov qo'shish' tugmasini bosing."
       }
     },
     "Single": {
@@ -97,7 +97,7 @@
       "Date": "Sana",
       "NoExpenses": {
         "Title": "Xarajatlar topilmadi",
-        "Description": "Hali xarajatlar yo'q. Yangi yaratish uchun 'Xarajat qo'shish' tugmasini bosing."
+        "_Description": "Hali xarajatlar yo'q. Yangi yaratish uchun 'Xarajat qo'shish' tugmasini bosing."
       }
     },
     "Single": {
@@ -133,7 +133,7 @@
       "Balance": "Balans",
       "NoAccounts": {
         "Title": "Hisoblar topilmadi",
-        "Description": "Hali hisoblar yo'q. Yangi yaratish uchun 'Hisob qo'shish' tugmasini bosing."
+        "_Description": "Hali hisoblar yo'q. Yangi yaratish uchun 'Hisob qo'shish' tugmasini bosing."
       }
     },
     "Single": {
@@ -144,7 +144,7 @@
         "Label": "Valyuta",
         "Placeholder": "Valyutani tanlang"
       },
-      "Description": "Tavsif",
+      "_Description": "Tavsif",
       "AccountNumber": "Hisob raqami",
       "Delete": "Hisobni o'chirish",
       "DeleteConfirmation": "Ushbu hisobni o'chirishni xohlaysizmi?"

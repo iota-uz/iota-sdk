@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type TabService struct {
@@ -46,10 +47,16 @@ func (s *TabService) CreateManyUserTabs(ctx context.Context, userID uint, data [
 		}
 		entities = append(entities, entity)
 	}
-	if err := s.repo.DeleteUserTabs(ctx, userID); err != nil {
-		return nil, err
-	}
-	if err := s.repo.CreateMany(ctx, entities); err != nil {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.repo.DeleteUserTabs(txCtx, userID); err != nil {
+			return err
+		}
+		if err := s.repo.CreateMany(txCtx, entities); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	return entities, nil

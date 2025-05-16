@@ -36,13 +36,14 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 
 	return &viewmodels.User{
 		ID:          strconv.FormatUint(uint64(entity.ID()), 10),
+		Type:        string(entity.Type()),
 		FirstName:   entity.FirstName(),
 		LastName:    entity.LastName(),
 		MiddleName:  entity.MiddleName(),
 		Email:       entity.Email().Value(),
 		Phone:       phone,
 		Avatar:      avatar,
-		UILanguage:  string(entity.UILanguage()),
+		Language:    string(entity.UILanguage()),
 		LastAction:  entity.LastAction().Format(time.RFC3339),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
@@ -50,6 +51,8 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		GroupIDs:    groupIDs,
 		Permissions: mapping.MapViewModels(entity.Permissions(), PermissionToViewModel),
 		AvatarID:    strconv.Itoa(int(entity.AvatarID())),
+		CanUpdate:   entity.CanUpdate(),
+		CanDelete:   entity.CanDelete(),
 	}
 }
 
@@ -83,10 +86,13 @@ func TabToViewModel(entity *tab.Tab) *viewmodels.Tab {
 func RoleToViewModel(entity role.Role) *viewmodels.Role {
 	return &viewmodels.Role{
 		ID:          strconv.FormatUint(uint64(entity.ID()), 10),
+		Type:        string(entity.Type()),
 		Name:        entity.Name(),
 		Description: entity.Description(),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+		CanUpdate:   entity.CanUpdate(),
+		CanDelete:   entity.CanDelete(),
 	}
 }
 
@@ -103,11 +109,14 @@ func PermissionToViewModel(entity *permission.Permission) *viewmodels.Permission
 func GroupToViewModel(entity group.Group) *viewmodels.Group {
 	return &viewmodels.Group{
 		ID:          entity.ID().String(),
+		Type:        string(entity.Type()),
 		Name:        entity.Name(),
 		Description: entity.Description(),
 		Roles:       mapping.MapViewModels(entity.Roles(), RoleToViewModel),
 		Users:       mapping.MapViewModels(entity.Users(), UserToViewModel),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+		CanUpdate:   entity.CanUpdate(),
+		CanDelete:   entity.CanDelete(),
 	}
 }

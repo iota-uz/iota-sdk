@@ -65,6 +65,7 @@ type RolePermission struct {
 
 type Role struct {
 	ID          uint
+	Type        string
 	TenantID    string
 	Name        string
 	Description sql.NullString
@@ -75,6 +76,7 @@ type Role struct {
 type User struct {
 	ID         uint
 	TenantID   string // UUID stored as string
+	Type       string
 	FirstName  string
 	LastName   string
 	MiddleName sql.NullString
@@ -161,6 +163,7 @@ type Passport struct {
 
 type Group struct {
 	ID          string
+	Type        string
 	TenantID    string
 	Name        string
 	Description sql.NullString

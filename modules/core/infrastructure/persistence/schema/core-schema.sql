@@ -70,8 +70,9 @@ CREATE TABLE currencies (
 
 CREATE TABLE roles (
     id serial PRIMARY KEY,
+    type varchar(50) NOT NULL CHECK (type IN ('system', 'user')),
+    name varchar(255) NOT NULL UNIQUE,
     tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
-    name varchar(255) NOT NULL,
     description text,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
@@ -81,6 +82,7 @@ CREATE TABLE roles (
 CREATE TABLE users (
     id serial PRIMARY KEY,
     tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
+    type varchar(50) NOT NULL CHECK (type IN ('system', 'user')),
     first_name varchar(255) NOT NULL,
     last_name varchar(255) NOT NULL,
     middle_name varchar(255),
@@ -107,8 +109,9 @@ CREATE TABLE user_roles (
 
 CREATE TABLE user_groups (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    type varchar(50) NOT NULL CHECK (type IN ('system', 'user')),
+    name varchar(255) UNIQUE NOT NULL,
     tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
-    name varchar(255) NOT NULL,
     description text,
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now(),

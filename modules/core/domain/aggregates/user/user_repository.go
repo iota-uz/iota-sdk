@@ -9,18 +9,18 @@ import (
 type Field = int
 
 const (
-	FirstName Field = iota
-	LastName
-	MiddleName
-	Email
-	Phone
-	GroupID
-	RoleID
-	PermissionID
-	LastLogin
-	CreatedAt
-	UpdatedAt
-	TenantID
+	FirstNameField Field = iota
+	LastNameField
+	MiddleNameField
+	EmailField
+	PhoneField
+	GroupIDField
+	RoleIDField
+	PermissionIDField
+	LastLoginField
+	CreatedAtField
+	UpdatedAtField
+	TenantIDField
 )
 
 type SortBy repo.SortBy[Field]
@@ -41,6 +41,8 @@ type Repository interface {
 	GetByPhone(ctx context.Context, phone string) (User, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]User, error)
 	GetByID(ctx context.Context, id uint) (User, error)
+	PhoneExists(ctx context.Context, phone string) (bool, error)
+	EmailExists(ctx context.Context, email string) (bool, error)
 	Create(ctx context.Context, user User) (User, error)
 	Update(ctx context.Context, user User) error
 	UpdateLastAction(ctx context.Context, id uint) error

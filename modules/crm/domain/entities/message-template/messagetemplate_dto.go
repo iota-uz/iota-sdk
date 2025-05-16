@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type CreateDTO struct {
@@ -16,9 +16,9 @@ type CreateDTO struct {
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
@@ -49,9 +49,9 @@ type UpdateDTO struct {
 }
 
 func (d *UpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := composables.UseLocalizer(ctx)
+	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
-		panic(composables.ErrNoLocalizer)
+		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
 	errs := constants.Validate.Struct(d)
