@@ -10,6 +10,7 @@
     "required": "Bu maydon to'ldirilishi shart",
     "emptySelect": "Qiymatni tanlang",
     "email": "Email formati noto'g'ri",
+    "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
     "custom": "{{.Field}}: {{.Error}}"
   },
   "Filters": {
