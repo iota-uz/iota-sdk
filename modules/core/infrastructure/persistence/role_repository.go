@@ -92,15 +92,6 @@ func (g *GormRoleRepository) buildRoleFilters(params *role.FindParams) ([]string
 }
 
 func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.FindParams) ([]role.Role, error) {
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		if field, ok := g.fieldMap[f]; ok {
-			sortFields = append(sortFields, field)
-		} else {
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	where, args, err := g.buildRoleFilters(params)
 	if err != nil {
 		return nil, err
@@ -118,7 +109,7 @@ func (g *GormRoleRepository) GetPaginated(ctx context.Context, params *role.Find
 	query := repo.Join(
 		baseQuery,
 		repo.JoinWhere(where...),
-		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryRoles(ctx, query, args...)

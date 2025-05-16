@@ -199,7 +199,7 @@ func (c *GroupsController) Groups(
 	findParams := &group.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: group.SortBy{Fields: []group.Field{}},
+		SortBy: group.SortBy{Fields: []repo.SortByField[group.Field]{}},
 		Search: search,
 	}
 

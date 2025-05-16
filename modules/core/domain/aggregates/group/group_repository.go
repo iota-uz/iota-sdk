@@ -14,8 +14,7 @@ const (
 	UpdatedAtField
 )
 
-type SortBy repo.SortBy[Field]
-
+type SortBy = repo.SortBy[Field]
 type Filter = repo.FieldFilter[Field]
 
 type FindParams struct {

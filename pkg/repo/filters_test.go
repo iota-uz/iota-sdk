@@ -197,21 +197,26 @@ func TestSortBy(t *testing.T) {
 
 	t.Run("ascending sort", func(t *testing.T) {
 		sort := SortBy[UserFields]{
-			Fields:    []UserFields{UserName, UserCreatedAt},
-			Ascending: true,
+			Fields: []SortByField[UserFields]{
+				{Field: UserName, Ascending: true},
+				{Field: UserCreatedAt, Ascending: true},
+			},
 		}
 
-		assert.Equal(t, []UserFields{UserName, UserCreatedAt}, sort.Fields)
-		assert.True(t, sort.Ascending)
+		assert.Equal(t, UserName, sort.Fields[0].Field)
+		assert.Equal(t, UserCreatedAt, sort.Fields[1].Field)
+		assert.True(t, sort.Fields[0].Ascending)
+		assert.True(t, sort.Fields[1].Ascending)
 	})
 
 	t.Run("descending sort", func(t *testing.T) {
 		sort := SortBy[UserFields]{
-			Fields:    []UserFields{UserCreatedAt},
-			Ascending: false,
+			Fields: []SortByField[UserFields]{
+				{Field: UserCreatedAt, Ascending: false},
+			},
 		}
 
-		assert.Equal(t, []UserFields{UserCreatedAt}, sort.Fields)
-		assert.False(t, sort.Ascending)
+		assert.Equal(t, UserCreatedAt, sort.Fields[0].Field)
+		assert.False(t, sort.Fields[0].Ascending)
 	})
 }

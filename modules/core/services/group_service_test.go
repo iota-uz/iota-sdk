@@ -10,6 +10,7 @@ import (
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,8 +132,9 @@ func TestGroupService_GetPaginated(t *testing.T) {
 		Limit:  10,
 		Offset: 0,
 		SortBy: group.SortBy{
-			Fields:    []group.Field{group.CreatedAtField},
-			Ascending: true,
+			Fields: []repo.SortByField[group.Field]{
+				{Field: group.CreatedAtField, Ascending: true},
+			},
 		},
 	}
 
@@ -148,7 +150,7 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	assert.Equal(t, "Newer Group", result[1].Name())
 
 	// Test reverse sorting
-	params.SortBy.Ascending = false
+	params.SortBy.Fields[0].Ascending = false
 	result, err = service.GetPaginated(f.ctx, params)
 
 	// Assert
