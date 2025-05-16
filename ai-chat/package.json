@@ -1,6 +1,6 @@
 {
   "name": "@iotauz/ai-chat",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "A customizable React chatbot component for IOTA SDK",
   "private": false,
   "main": "dist/index.js",
