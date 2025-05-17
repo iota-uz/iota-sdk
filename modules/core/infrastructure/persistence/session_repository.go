@@ -59,17 +59,14 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		where = append(where, fmt.Sprintf("token = $%d", len(args)+1))
 		args = append(args, params.Token)
 	}
-
-	return g.querySessions(
-		ctx,
-		repo.Join(
-			selectSessionQuery,
-			repo.JoinWhere(where...),
-			params.SortBy.ToSQL(g.fieldMap),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
+	query := repo.Join(
+		selectSessionQuery,
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
+
+	return g.querySessions(ctx, query, args...)
 }
 
 func (g *SessionRepository) Count(ctx context.Context) (int64, error) {

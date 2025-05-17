@@ -49,25 +49,39 @@ func (r *queryResolver) Uploads(ctx context.Context, filter model.UploadFilter) 
 	// Apply sorting if requested
 	if filter.Sort != nil {
 		sortBy := upload.SortBy{
-			Ascending: filter.Sort.Ascending,
-			Fields:    []upload.Field{},
+			Fields: []upload.SortByField{},
 		}
 
 		// Map GraphQL sort field to domain sort field
 		switch filter.Sort.Field {
 		case model.UploadSortFieldSize:
-			sortBy.Fields = append(sortBy.Fields, upload.FieldSize)
+			sortBy.Fields = append(sortBy.Fields, upload.SortByField{
+				Field:     upload.FieldSize,
+				Ascending: filter.Sort.Ascending,
+			})
 		case model.UploadSortFieldName:
-			sortBy.Fields = append(sortBy.Fields, upload.FieldName)
+			sortBy.Fields = append(sortBy.Fields, upload.SortByField{
+				Field:     upload.FieldName,
+				Ascending: filter.Sort.Ascending,
+			})
 		case model.UploadSortFieldCreatedAt:
-			sortBy.Fields = append(sortBy.Fields, upload.FieldCreatedAt)
+			sortBy.Fields = append(sortBy.Fields, upload.SortByField{
+				Field:     upload.FieldCreatedAt,
+				Ascending: filter.Sort.Ascending,
+			})
 		case model.UploadSortFieldUpdatedAt:
-			sortBy.Fields = append(sortBy.Fields, upload.FieldUpdatedAt)
+			sortBy.Fields = append(sortBy.Fields, upload.SortByField{
+				Field:     upload.FieldUpdatedAt,
+				Ascending: filter.Sort.Ascending,
+			})
 		default:
 			return nil, fmt.Errorf("unknown sort field: %s", filter.Sort.Field)
 		}
 		if len(sortBy.Fields) == 0 {
-			sortBy.Fields = []upload.Field{upload.FieldCreatedAt}
+			sortBy.Fields = []upload.SortByField{{
+				Field:     upload.FieldCreatedAt,
+				Ascending: true,
+			}}
 		}
 		params.SortBy = sortBy
 	}
