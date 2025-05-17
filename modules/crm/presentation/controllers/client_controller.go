@@ -325,8 +325,10 @@ func (c *ClientController) viewModelClients(
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
 		SortBy: client.SortBy{
-			Fields:    []client.Field{client.CreatedAt},
-			Ascending: false,
+			Fields: []client.SortByField{{
+				Field:     client.CreatedAt,
+				Ascending: false,
+			}},
 		},
 	}
 

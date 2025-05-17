@@ -65,11 +65,20 @@ const (
 
 type ClientRepository struct {
 	passportRepo passport.Repository
+	fieldMap     map[client.Field]string
 }
 
 func NewClientRepository(passportRepo passport.Repository) client.Repository {
 	return &ClientRepository{
 		passportRepo: passportRepo,
+		fieldMap: map[client.Field]string{
+			client.FirstName:   "c.first_name",
+			client.LastName:    "c.last_name",
+			client.MiddleName:  "c.middle_name",
+			client.PhoneNumber: "c.phone_number",
+			client.UpdatedAt:   "c.updated_at",
+			client.CreatedAt:   "c.created_at",
+		},
 	}
 }
 
@@ -225,27 +234,10 @@ func (g *ClientRepository) GetPaginated(
 		args = append(args, "%"+params.Search+"%")
 	}
 
-	sortFields := make([]string, 0, len(params.SortBy.Fields))
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case client.FirstName:
-			sortFields = append(sortFields, "c.first_name")
-		case client.LastName:
-			sortFields = append(sortFields, "c.last_name")
-		case client.MiddleName:
-			sortFields = append(sortFields, "c.middle_name")
-		case client.PhoneNumber:
-			sortFields = append(sortFields, "c.phone_number")
-		case client.UpdatedAt:
-			sortFields = append(sortFields, "c.updated_at")
-		case client.CreatedAt:
-			sortFields = append(sortFields, "c.created_at")
-		}
-	}
 	sql := repo.Join(
 		selectClientQuery,
 		repo.JoinWhere(where...),
-		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryClients(

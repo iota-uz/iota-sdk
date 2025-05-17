@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/go-faster/errors"
 	"github.com/jackc/pgx/v5"
@@ -142,10 +141,16 @@ const (
 )
 
 type ChatRepository struct {
+	fieldMap map[chat.Field]string
 }
 
 func NewChatRepository() chat.Repository {
-	return &ChatRepository{}
+	return &ChatRepository{
+		fieldMap: map[chat.Field]string{
+			chat.CreatedAtField:     "c.created_at",
+			chat.LastMessageAtField: "c.last_message_at",
+		},
+	}
 }
 
 func (g *ChatRepository) queryMembers(ctx context.Context, query string, args ...any) ([]chat.Member, error) {
@@ -348,18 +353,6 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 func (g *ChatRepository) GetPaginated(
 	ctx context.Context, params *chat.FindParams,
 ) ([]chat.Chat, error) {
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case chat.LastMessageAt:
-			sortFields = append(sortFields, "c.last_message_at")
-		case chat.CreatedAt:
-			sortFields = append(sortFields, "c.created_at")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	where, args, joins := []string{"1 = 1"}, []interface{}{}, []string{}
 	if params.Search != "" {
 		where = append(
@@ -375,7 +368,7 @@ func (g *ChatRepository) GetPaginated(
 			selectChatQuery,
 			repo.Join(joins...),
 			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			params.SortBy.ToSQL(g.fieldMap),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,

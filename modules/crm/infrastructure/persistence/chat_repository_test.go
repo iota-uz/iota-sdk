@@ -229,7 +229,7 @@ func TestChatRepository_Update(t *testing.T) {
 func TestChatRepository_GetPaginated(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewChatRepository()
+	chatRepo := persistence.NewChatRepository()
 
 	for i := 0; i < 5; i++ {
 		testClient := createClientForTest(t, f)
@@ -247,7 +247,7 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 		))
 		testChat = testChat.AddMessage(message)
 
-		_, err := repo.Save(f.ctx, testChat)
+		_, err := chatRepo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
 	}
 
@@ -256,12 +256,16 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 			Limit:  2,
 			Offset: 1,
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
-				Ascending: true,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: true,
+					},
+				},
 			},
 		}
 
-		chats, err := repo.GetPaginated(f.ctx, params)
+		chats, err := chatRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to get paginated chats")
 		assert.Len(t, chats, 2, "Expected 2 chats")
 	})
@@ -271,12 +275,16 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 			Limit:  5,
 			Offset: 0,
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt},
-				Ascending: false,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.LastMessageAtField,
+						Ascending: false,
+					},
+				},
 			},
 		}
 
-		chats, err := repo.GetPaginated(f.ctx, params)
+		chats, err := chatRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to get paginated chats")
 		require.NotEmpty(t, chats, "Expected at least one chat")
 
@@ -380,12 +388,12 @@ func TestChatRepository_Delete(t *testing.T) {
 func TestChatRepository_Search(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewChatRepository()
+	chatRepo := persistence.NewChatRepository()
 
 	for i := 0; i < 5; i++ {
 		testClient := createClientForTest(t, f)
 		testChat := createTestChat(t, testClient.ID())
-		_, err := repo.Save(f.ctx, testChat)
+		_, err := chatRepo.Save(f.ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat for client %d", i)
 	}
 
@@ -395,12 +403,16 @@ func TestChatRepository_Search(t *testing.T) {
 			Offset: 0,
 			Search: "John",
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
-				Ascending: true,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: true,
+					},
+				},
 			},
 		}
 
-		_, err := repo.GetPaginated(f.ctx, params)
+		_, err := chatRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to search chats by first name")
 	})
 
@@ -410,12 +422,16 @@ func TestChatRepository_Search(t *testing.T) {
 			Offset: 0,
 			Search: "Doe",
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
-				Ascending: true,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: true,
+					},
+				},
 			},
 		}
 
-		_, err := repo.GetPaginated(f.ctx, params)
+		_, err := chatRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to search chats by last name")
 	})
 
@@ -425,12 +441,16 @@ func TestChatRepository_Search(t *testing.T) {
 			Offset: 0,
 			Search: "12345",
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
-				Ascending: true,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: true,
+					},
+				},
 			},
 		}
 
-		_, err := repo.GetPaginated(f.ctx, params)
+		_, err := chatRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to search chats by phone number")
 	})
 
@@ -440,12 +460,14 @@ func TestChatRepository_Search(t *testing.T) {
 			Offset: 0,
 			Search: "NonExistentName",
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.CreatedAt},
-				Ascending: true,
+				Fields: []chat.SortByField{{
+					Field:     chat.CreatedAtField,
+					Ascending: true,
+				}},
 			},
 		}
 
-		chats, err := repo.GetPaginated(f.ctx, params)
+		chats, err := chatRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to execute search with no expected matches")
 		assert.Empty(t, chats, "Expected no chats for non-existent name")
 	})

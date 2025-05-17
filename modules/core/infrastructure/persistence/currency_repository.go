@@ -19,10 +19,19 @@ const (
 	selectCurrenciesQuery = `SELECT code, name, symbol, created_at, updated_at FROM currencies c`
 )
 
-type GormCurrencyRepository struct{}
+type GormCurrencyRepository struct {
+	fieldMap map[currency.Field]string
+}
 
 func NewCurrencyRepository() currency.Repository {
-	return &GormCurrencyRepository{}
+	return &GormCurrencyRepository{
+		fieldMap: map[currency.Field]string{
+			currency.FieldCode:      "c.code",
+			currency.FieldName:      "c.name",
+			currency.FieldSymbol:    "c.symbol",
+			currency.FieldCreatedAt: "c.created_at",
+		},
+	}
 }
 
 func (g *GormCurrencyRepository) queryChats(
@@ -66,22 +75,6 @@ func (g *GormCurrencyRepository) queryChats(
 func (g *GormCurrencyRepository) GetPaginated(
 	ctx context.Context, params *currency.FindParams,
 ) ([]*currency.Currency, error) {
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case currency.FieldCode:
-			sortFields = append(sortFields, "c.name")
-		case currency.FieldName:
-			sortFields = append(sortFields, "c.code")
-		case currency.FieldSymbol:
-			sortFields = append(sortFields, "c.symbol")
-		case currency.FieldCreatedAt:
-			sortFields = append(sortFields, "c.created_at")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	where, args := []string{"1 = 1"}, []interface{}{}
 	if params.Code != "" {
 		where = append(where, "c.code ILIKE $1")
@@ -93,7 +86,7 @@ func (g *GormCurrencyRepository) GetPaginated(
 		repo.Join(
 			selectCurrenciesQuery,
 			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			params.SortBy.ToSQL(g.fieldMap),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,

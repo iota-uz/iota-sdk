@@ -13,10 +13,8 @@ const (
 	FieldCreatedAt
 )
 
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
-}
+type SortByField = repo.SortByField[Field]
+type SortBy = repo.SortBy[Field]
 
 type FindParams struct {
 	Code   string

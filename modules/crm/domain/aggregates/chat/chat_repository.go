@@ -1,18 +1,20 @@
 package chat
 
-import "context"
+import (
+	"context"
+
+	"github.com/iota-uz/iota-sdk/pkg/repo"
+)
 
 type Field int
 
 const (
-	CreatedAt Field = iota
-	LastMessageAt
+	CreatedAtField Field = iota
+	LastMessageAtField
 )
 
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
-}
+type SortByField = repo.SortByField[Field]
+type SortBy = repo.SortBy[Field]
 
 type FindParams struct {
 	Limit  int
