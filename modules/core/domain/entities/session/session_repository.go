@@ -11,10 +11,8 @@ const (
 	CreatedAt
 )
 
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
-}
+type SortByField = repo.SortByField[Field]
+type SortBy = repo.SortBy[Field]
 
 type FindParams struct {
 	Limit  int

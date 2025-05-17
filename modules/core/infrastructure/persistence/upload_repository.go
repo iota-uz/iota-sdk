@@ -37,10 +37,19 @@ const (
 	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1`
 )
 
-type GormUploadRepository struct{}
+type GormUploadRepository struct {
+	fieldMap map[upload.Field]string
+}
 
 func NewUploadRepository() upload.Repository {
-	return &GormUploadRepository{}
+	return &GormUploadRepository{
+		fieldMap: map[upload.Field]string{
+			upload.FieldSize:      "size",
+			upload.FieldName:      "name",
+			upload.FieldCreatedAt: "created_at",
+			upload.FieldUpdatedAt: "updated_at",
+		},
+	}
 }
 
 func (g *GormUploadRepository) queryUploads(
@@ -85,22 +94,6 @@ func (g *GormUploadRepository) queryUploads(
 func (g *GormUploadRepository) GetPaginated(
 	ctx context.Context, params *upload.FindParams,
 ) ([]upload.Upload, error) {
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case upload.FieldSize:
-			sortFields = append(sortFields, "size")
-		case upload.FieldName:
-			sortFields = append(sortFields, "name")
-		case upload.FieldCreatedAt:
-			sortFields = append(sortFields, "created_at")
-		case upload.FieldUpdatedAt:
-			sortFields = append(sortFields, "updated_at")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	where, args := []string{"1 = 1"}, []interface{}{}
 	if params.ID != 0 {
 		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
@@ -120,7 +113,7 @@ func (g *GormUploadRepository) GetPaginated(
 		repo.Join(
 			selectUploadQuery,
 			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			params.SortBy.ToSQL(g.fieldMap),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,

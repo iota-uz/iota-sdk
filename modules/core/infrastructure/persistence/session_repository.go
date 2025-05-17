@@ -38,25 +38,20 @@ const (
 	deleteSessionQuery     = `DELETE FROM sessions WHERE token = $1`
 )
 
-type SessionRepository struct{}
+type SessionRepository struct {
+	fieldMap map[session.Field]string
+}
 
 func NewSessionRepository() session.Repository {
-	return &SessionRepository{}
+	return &SessionRepository{
+		fieldMap: map[session.Field]string{
+			session.ExpiresAt: "sessions.expires_at",
+			session.CreatedAt: "sessions.created_at",
+		},
+	}
 }
 
 func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case session.ExpiresAt:
-			sortFields = append(sortFields, "sessions.expires_at")
-		case session.CreatedAt:
-			sortFields = append(sortFields, "sessions.created_at")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	var args []interface{}
 	where := []string{"1 = 1"}
 
@@ -70,7 +65,7 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		repo.Join(
 			selectSessionQuery,
 			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			params.SortBy.ToSQL(g.fieldMap),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,
