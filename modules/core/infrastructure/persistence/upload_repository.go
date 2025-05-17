@@ -108,16 +108,13 @@ func (g *GormUploadRepository) GetPaginated(
 		where, args = append(where, fmt.Sprintf("mimetype = $%d", len(args)+1)), append(args, params.Mimetype.String())
 	}
 
-	return g.queryUploads(
-		ctx,
-		repo.Join(
-			selectUploadQuery,
-			repo.JoinWhere(where...),
-			params.SortBy.ToSQL(g.fieldMap),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
+	query := repo.Join(
+		selectUploadQuery,
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
+	return g.queryUploads(ctx, query, args...)
 }
 
 func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
@@ -133,9 +130,7 @@ func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *GormUploadRepository) GetAll(ctx context.Context) ([]upload.Upload, error) {
-	return g.GetPaginated(ctx, &upload.FindParams{
-		Limit: 100000,
-	})
+	return g.queryUploads(ctx, selectUploadQuery)
 }
 
 func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (upload.Upload, error) {

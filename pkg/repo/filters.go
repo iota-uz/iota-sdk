@@ -35,6 +35,9 @@ type SortBy[T sortFieldKey] struct {
 }
 
 func (s *SortBy[T]) ToSQL(mapping map[T]string) string {
+	if len(s.Fields) == 0 {
+		return ""
+	}
 	fields := make([]string, len(s.Fields))
 	for i, sort := range s.Fields {
 		field := mapping[sort.Field]
