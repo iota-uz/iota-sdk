@@ -25,5 +25,5 @@ CREATE TABLE billing_transactions
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_billing_transactions_status ON billing_transactions(status);
-CREATE INDEX idx_billing_transactions_gateway ON billing_transactions(gateway);
+CREATE INDEX idx_billing_transactions_status ON billing_transactions (status);
+CREATE INDEX idx_billing_transactions_gateway ON billing_transactions (gateway);

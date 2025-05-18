@@ -1,7 +1,5 @@
 package details
 
-import ()
-
 func NewOctoDetails() OctoDetails {
 	d := &octoDetails{}
 
