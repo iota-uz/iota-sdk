@@ -362,17 +362,14 @@ func (g *ChatRepository) GetPaginated(
 		args = append(args, "%"+params.Search+"%")
 		joins = append(joins, "JOIN clients cl ON c.client_id = cl.id")
 	}
-	return g.queryChats(
-		ctx,
-		repo.Join(
-			selectChatQuery,
-			repo.Join(joins...),
-			repo.JoinWhere(where...),
-			params.SortBy.ToSQL(g.fieldMap),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
+	query := repo.Join(
+		selectChatQuery,
+		repo.Join(joins...),
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
+	return g.queryChats(ctx, query, args...)
 }
 
 func (g *ChatRepository) Count(ctx context.Context) (int64, error) {
@@ -396,7 +393,8 @@ func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
 }
 
 func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
-	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.id = $1", id)
+	q := repo.Join(selectChatQuery, "WHERE c.id = $1")
+	chats, err := g.queryChats(ctx, q, id)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get chat with id %d", id)
 	}
