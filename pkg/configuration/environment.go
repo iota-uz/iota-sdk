@@ -90,12 +90,21 @@ type OpenTelemetryOptions struct {
 	ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
 }
 
+type ClickOptions struct {
+	URL            string `env:"CLICK_URL" envDefault:"https://my.click.uz"`
+	MerchantID     int64  `env:"CLICK_MERCHANT_ID"`
+	MerchantUserID int64  `env:"CLICK_MERCHANT_USER_ID"`
+	ServiceID      int64  `env:"CLICK_SERVICE_ID"`
+	SecretKey      string `env:"CLICK_SECRET_KEY"`
+}
+
 type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
 	Twilio        TwilioOptions
 	Loki          LokiOptions
 	OpenTelemetry OpenTelemetryOptions
+	Click         ClickOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
