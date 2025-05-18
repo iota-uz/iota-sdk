@@ -318,7 +318,6 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 	} else {
 		c.renderChats(w, r.WithContext(templ.WithChildren(ctx, component)))
 	}
-
 }
 
 func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {
