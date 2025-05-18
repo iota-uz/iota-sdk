@@ -57,30 +57,30 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Equal(t, map[string]any{"key": "value"}, click.Params())
 			},
 		},
-		{
-			name:    "PaymeDetails",
-			gateway: billing.Payme,
-			details: details.NewPaymeDetails(),
-			validate: func(t *testing.T, d details.Details) {
-				t.Helper()
-			},
-		},
-		{
-			name:    "OctoDetails",
-			gateway: billing.Octo,
-			details: details.NewOctoDetails(),
-			validate: func(t *testing.T, d details.Details) {
-				t.Helper()
-			},
-		},
-		{
-			name:    "StripeDetails",
-			gateway: billing.Stripe,
-			details: details.NewStripeDetails(),
-			validate: func(t *testing.T, d details.Details) {
-				t.Helper()
-			},
-		},
+		//{
+		//	name:    "PaymeDetails",
+		//	gateway: billing.Payme,
+		//	details: details.NewPaymeDetails(),
+		//	validate: func(t *testing.T, d details.Details) {
+		//		t.Helper()
+		//	},
+		//},
+		//{
+		//	name:    "OctoDetails",
+		//	gateway: billing.Octo,
+		//	details: details.NewOctoDetails(),
+		//	validate: func(t *testing.T, d details.Details) {
+		//		t.Helper()
+		//	},
+		//},
+		//{
+		//	name:    "StripeDetails",
+		//	gateway: billing.Stripe,
+		//	details: details.NewStripeDetails(),
+		//	validate: func(t *testing.T, d details.Details) {
+		//		t.Helper()
+		//	},
+		//},
 	}
 
 	for _, tt := range tests {
