@@ -243,20 +243,18 @@ templ ChatCard(chat *viewmodels.Chat) {
 		class={
 			"flex items-center justify-start gap-2",
 			"cursor-pointer rounded-lg py-2 px-3 text-left w-full",
-			templ.KV("text-white bg-brand-500", active),
 		}
+		:class={ fmt.Sprintf("{ 'text-white bg-brand-500': selectedChatID === \"%s\"}", chat.ID) }
+		@click={ fmt.Sprintf("selectedChatID = \"%s\"", chat.ID) }
 		hx-get={ fmt.Sprintf("/crm/chats?chat_id=%s", chat.ID) }
 		hx-trigger="click"
-		hx-target="#chat"
+		hx-target="#chat-contents"
 		hx-push-url="true"
 	>
 		<div>
 			@avatar.Avatar(avatar.Props{
 				Initials: chat.Client.Initials(),
-				Class: templ.Classes(
-					"w-10 h-10 min-w-10",
-					templ.KV("bg-white text-black", active),
-				),
+				Class:    templ.Classes("w-10 h-10 min-w-10"),
 			})
 		</div>
 		<div class="min-w-0">
@@ -420,6 +418,7 @@ templ ChatList(chats []*viewmodels.Chat) {
 	<ul
 		role="list"
 		id="chats-list"
+		x-data="{ selectedChatID: new URLSearchParams(window.location.search).get('chat_id') }"
 	>
 		for _, chat := range chats {
 			<li
