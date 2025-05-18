@@ -1,14 +1,14 @@
 -- +migrate Up
 -- Change CREATE_TABLE: billing_transactions
 CREATE TABLE billing_transactions (
-                                      id uuid DEFAULT gen_random_uuid () PRIMARY KEY,
-                                      status varchar(50) NOT NULL CHECK (status IN ('created', 'pending', 'completed', 'failed', 'canceled', 'refunded', 'partially-refunded', 'expired')),
-                                      quantity float8 NOT NULL,
-                                      currency varchar(3) NOT NULL CHECK (currency IN ('UZS', 'USD', 'EUR', 'RUB')),
-                                      gateway varchar(50) NOT NULL CHECK (gateway IN ('click', 'payme', 'octo', 'stripe')),
-                                      details jsonb NOT NULL,
-                                      created_at timestamptz DEFAULT NOW() NOT NULL,
-                                      updated_at timestamptz DEFAULT NOW() NOT NULL
+    id uuid DEFAULT gen_random_uuid () PRIMARY KEY,
+    status varchar(50) NOT NULL CHECK (status IN ('created', 'pending', 'completed', 'failed', 'canceled', 'refunded', 'partially-refunded', 'expired')),
+    quantity float8 NOT NULL,
+    currency varchar(3) NOT NULL CHECK (currency IN ('UZS', 'USD', 'EUR', 'RUB')),
+    gateway varchar(50) NOT NULL CHECK (gateway IN ('click', 'payme', 'octo', 'stripe')),
+    details jsonb NOT NULL,
+    created_at timestamptz DEFAULT NOW() NOT NULL,
+    updated_at timestamptz DEFAULT NOW() NOT NULL
 );
 
 -- Change CREATE_INDEX: idx_billing_transactions_gateway
