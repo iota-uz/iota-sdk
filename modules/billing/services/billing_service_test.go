@@ -84,6 +84,7 @@ func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher eventbus.Event
 // --- Test ---
 
 func TestBillingService_CreateTransaction(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 	f := setupTest(t)
 
@@ -106,7 +107,7 @@ func TestBillingService_CreateTransaction(t *testing.T) {
 
 	assert.Equal(t, billing.Created, result.Status())
 	assert.Equal(t, billing.UZS, result.Amount().Currency())
-	assert.Equal(t, float64(1001), result.Amount().Quantity())
+	assert.InDelta(t, float64(1001), result.Amount().Quantity(), 0.0001)
 	assert.NotEqual(t, uuid.Nil, result.ID(), "Expected non-nil transaction ID")
 	assert.WithinDuration(t, time.Now(), result.CreatedAt(), time.Second*2)
 }

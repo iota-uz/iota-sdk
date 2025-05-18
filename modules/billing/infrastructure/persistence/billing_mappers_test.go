@@ -16,6 +16,7 @@ import (
 )
 
 func TestTransactionMapping(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
 	id := uuid.New()
@@ -48,6 +49,7 @@ func TestTransactionMapping(t *testing.T) {
 				details.ClickWithParams(map[string]any{"key": "value"}),
 			),
 			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
 				click := d.(details.ClickDetails)
 				assert.Equal(t, "https://example.com", click.Link())
 				assert.Equal(t, int64(100), click.ServiceID())
@@ -56,22 +58,28 @@ func TestTransactionMapping(t *testing.T) {
 			},
 		},
 		{
-			name:     "PaymeDetails",
-			gateway:  billing.Payme,
-			details:  details.NewPaymeDetails(),
-			validate: func(t *testing.T, d details.Details) {},
+			name:    "PaymeDetails",
+			gateway: billing.Payme,
+			details: details.NewPaymeDetails(),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+			},
 		},
 		{
-			name:     "OctoDetails",
-			gateway:  billing.Octo,
-			details:  details.NewOctoDetails(),
-			validate: func(t *testing.T, d details.Details) {},
+			name:    "OctoDetails",
+			gateway: billing.Octo,
+			details: details.NewOctoDetails(),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+			},
 		},
 		{
-			name:     "StripeDetails",
-			gateway:  billing.Stripe,
-			details:  details.NewStripeDetails(),
-			validate: func(t *testing.T, d details.Details) {},
+			name:    "StripeDetails",
+			gateway: billing.Stripe,
+			details: details.NewStripeDetails(),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+			},
 		},
 	}
 
@@ -104,7 +112,7 @@ func TestTransactionMapping(t *testing.T) {
 
 			assert.Equal(t, original.ID(), parsed.ID())
 			assert.Equal(t, original.Status(), parsed.Status())
-			assert.Equal(t, original.Amount().Quantity(), parsed.Amount().Quantity())
+			assert.InEpsilon(t, original.Amount().Quantity(), parsed.Amount().Quantity(), 0.0001)
 			assert.Equal(t, original.Amount().Currency(), parsed.Amount().Currency())
 			assert.Equal(t, original.Gateway(), parsed.Gateway())
 
@@ -115,6 +123,7 @@ func TestTransactionMapping(t *testing.T) {
 }
 
 func TestToDomainTransaction_InvalidUUID(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
 	dbModel := &models.Transaction{
@@ -134,6 +143,7 @@ func TestToDomainTransaction_InvalidUUID(t *testing.T) {
 }
 
 func TestToDomainTransaction_InvalidJSON(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
 	dbModel := &models.Transaction{

@@ -125,14 +125,14 @@ func toDbDetails(data details.Details) (json.RawMessage, error) {
 			Params:            d.Params(),
 		})
 
-	case details.PaymeDetails:
-		return json.Marshal(&models.PaymeDetails{})
-
-	case details.OctoDetails:
-		return json.Marshal(&models.OctoDetails{})
-
-	case details.StripeDetails:
-		return json.Marshal(&models.StripeDetails{})
+	//case details.PaymeDetails:
+	//	return json.Marshal(&models.PaymeDetails{})
+	//
+	//case details.OctoDetails:
+	//	return json.Marshal(&models.OctoDetails{})
+	//
+	//case details.StripeDetails:
+	//	return json.Marshal(&models.StripeDetails{})
 
 	default:
 		return nil, fmt.Errorf("unsupported details type: %T", d)
