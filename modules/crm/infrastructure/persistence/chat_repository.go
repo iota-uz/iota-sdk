@@ -38,7 +38,7 @@ const (
 		client_id = $1,
 		created_at = $2,
 		last_message_at = $3
-		WHERE id = $4 AND tenant_id = $5`
+		WHERE id = $4`
 
 	deleteChatQuery = `DELETE FROM chats WHERE id = $1 AND tenant_id = $2`
 

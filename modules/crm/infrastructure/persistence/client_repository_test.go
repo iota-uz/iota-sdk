@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -36,7 +37,7 @@ func createTestPassport() passport.Passport {
 	)
 }
 
-func createTestClient(t *testing.T, withPassport bool) client.Client {
+func createTestClient(t *testing.T, tenantID uuid.UUID, withPassport bool) client.Client {
 	t.Helper()
 	// Use a different phone number to avoid duplication
 	phoneNumber := "12345678901"
@@ -91,7 +92,7 @@ func TestClientRepository_Create(t *testing.T) {
 	)
 
 	t.Run("Create client without passport", func(t *testing.T) {
-		testClient := createTestClient(t, false)
+		testClient := createTestClient(t, f.tenant.ID, false)
 
 		created, err := repo.Save(f.ctx, testClient)
 		require.NoError(t, err, "Failed to create client")
@@ -105,7 +106,7 @@ func TestClientRepository_Create(t *testing.T) {
 	})
 
 	t.Run("Create client with passport", func(t *testing.T) {
-		testClient := createTestClient(t, true)
+		testClient := createTestClient(t, f.tenant.ID, true)
 
 		created, err := repo.Save(f.ctx, testClient)
 		require.NoError(t, err, "Failed to create client with passport")
@@ -125,7 +126,7 @@ func TestClientRepository_GetByID(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	testClient := createTestClient(t, true)
+	testClient := createTestClient(t, f.tenant.ID, true)
 	created, err := repo.Save(f.ctx, testClient)
 	require.NoError(t, err, "Failed to create test client for GetByID")
 
@@ -438,7 +439,7 @@ func TestClientRepository_Delete(t *testing.T) {
 		corepersistence.NewPassportRepository(),
 	)
 
-	testClient := createTestClient(t, true)
+	testClient := createTestClient(t, f.tenant.ID, true)
 	created, err := clientRepo.Save(f.ctx, testClient)
 	require.NoError(t, err, "Failed to create test client for delete test")
 
