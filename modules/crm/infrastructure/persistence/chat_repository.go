@@ -72,6 +72,7 @@ const (
 	selectChatMembersQuery = `
 		SELECT 
 			cm.id,
+			cm.tenant_id,
 			cm.chat_id,
 			cm.user_id,
 			cm.client_id,
@@ -86,6 +87,7 @@ const (
 	insertChatMemberQuery = `
 		INSERT INTO chat_members (
 			id,
+			tenant_id,
 			chat_id,
 			user_id,
 			client_id,
@@ -94,19 +96,20 @@ const (
 			transport_meta,
 			created_at,
 			updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	updateChatMemberQuery = `
 		UPDATE chat_members SET
-			chat_id = $1,
-			user_id = $2,
-			client_id = $3,
-			client_contact_id = $4,
-			transport = $5,
-			transport_meta = $6,
-			updated_at = $7
-		WHERE id = $8
+			tenant_id = $1,
+			chat_id = $2,
+			user_id = $3,
+			client_id = $4,
+			client_contact_id = $5,
+			transport = $6,
+			transport_meta = $7,
+			updated_at = $8
+		WHERE id = $9
 	`
 
 	deleteChatMembersQuery = `DELETE FROM chat_members WHERE chat_id = $1`
@@ -165,6 +168,7 @@ func (g *ChatRepository) queryMembers(ctx context.Context, query string, args ..
 		var transportMetaData []byte
 		if err := rows.Scan(
 			&member.ID,
+			&member.TenantID,
 			&member.ChatID,
 			&member.UserID,
 			&member.ClientID,
@@ -439,6 +443,7 @@ func (g *ChatRepository) GetMemberByContact(ctx context.Context, contactType str
 	query := `
 		SELECT 
 			cm.id,
+			cm.tenant_id,
 			cm.chat_id,
 			cm.user_id,
 			cm.client_id,
@@ -542,6 +547,7 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, member *models.Ch
 		ctx,
 		insertChatMemberQuery,
 		member.ID,
+		member.TenantID,
 		member.ChatID,
 		member.UserID,
 		member.ClientID,
@@ -574,6 +580,7 @@ func (g *ChatRepository) updateChatMember(ctx context.Context, member *models.Ch
 	if _, err := tx.Exec(
 		ctx,
 		updateChatMemberQuery,
+		member.TenantID,
 		member.ChatID,
 		member.UserID,
 		member.ClientID,

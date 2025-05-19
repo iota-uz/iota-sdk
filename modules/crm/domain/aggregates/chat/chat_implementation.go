@@ -20,6 +20,12 @@ var (
 
 type ChatOption func(c *chat)
 
+func WithTenantID(tenantID uuid.UUID) ChatOption {
+	return func(c *chat) {
+		c.tenantID = tenantID
+	}
+}
+
 func WithChatID(id uint) ChatOption {
 	return func(c *chat) {
 		c.id = id
@@ -68,6 +74,7 @@ func New(clientID uint, opts ...ChatOption) Chat {
 
 type chat struct {
 	id        uint
+	tenantID  uuid.UUID
 	clientID  uint
 	messages  []Message
 	members   map[uuid.UUID]Member
@@ -100,6 +107,10 @@ func (c *chat) WithID(id uint) Chat {
 
 func (c *chat) ClientID() uint {
 	return c.clientID
+}
+
+func (c *chat) TenantID() uuid.UUID {
+	return c.tenantID
 }
 
 func (c *chat) Messages() []Message {
@@ -221,6 +232,12 @@ func WithMemberUpdatedAt(updatedAt time.Time) MemberOption {
 	}
 }
 
+func WithMemberTenantID(tenantID uuid.UUID) MemberOption {
+	return func(m *member) {
+		m.tenantID = tenantID
+	}
+}
+
 func NewMember(
 	sender Sender,
 	transport Transport,
@@ -231,6 +248,7 @@ func NewMember(
 	}
 	m := &member{
 		id:        uuid.New(),
+		tenantID:  uuid.Nil, // Will be set by WithMemberTenantID option
 		transport: transport,
 		sender:    sender,
 		createdAt: time.Now(),
@@ -244,6 +262,7 @@ func NewMember(
 
 type member struct {
 	id        uuid.UUID
+	tenantID  uuid.UUID
 	transport Transport
 	sender    Sender
 	createdAt time.Time
@@ -251,6 +270,7 @@ type member struct {
 }
 
 func (m *member) ID() uuid.UUID        { return m.id }
+func (m *member) TenantID() uuid.UUID  { return m.tenantID }
 func (m *member) Transport() Transport { return m.transport }
 func (m *member) Sender() Sender       { return m.sender }
 func (m *member) CreatedAt() time.Time { return m.createdAt }

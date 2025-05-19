@@ -93,10 +93,15 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadD
 	if err != nil {
 		return nil, err
 	}
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	chatEntity := chat.New(
 		member.Sender().(chat.ClientSender).ClientID(),
 		chat.WithMembers([]chat.Member{member}),
+		chat.WithTenantID(tenant.ID),
 	)
 
 	var createdChat chat.Chat

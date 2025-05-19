@@ -192,6 +192,7 @@ func ToDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 		ID:            domainEntity.ID(),
 		ClientID:      domainEntity.ClientID(),
 		CreatedAt:     domainEntity.CreatedAt(),
+		TenantID:      domainEntity.TenantID().String(),
 		LastMessageAt: mapping.PointerToSQLNullTime(domainEntity.LastMessageAt()),
 	}, dbMessages
 }
@@ -209,6 +210,7 @@ func ToDomainChat(dbRow *models.Chat, messages []chat.Message, members []chat.Me
 func ToDBChatMember(chatID uint, entity chat.Member) *models.ChatMember {
 	dbRow := &models.ChatMember{
 		ID:        entity.ID().String(),
+		TenantID:  entity.TenantID().String(),
 		ChatID:    chatID,
 		Transport: string(entity.Transport()),
 		CreatedAt: entity.CreatedAt(),
@@ -312,10 +314,17 @@ func ToDomainChatMember(dbMember *models.ChatMember) (chat.Member, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse member ID")
 	}
+
+	tenantID, err := uuid.Parse(dbMember.TenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse tenant ID")
+	}
+
 	return chat.NewMember(
 		sender,
 		transport,
 		chat.WithMemberID(uid),
+		chat.WithMemberTenantID(tenantID),
 		chat.WithMemberCreatedAt(dbMember.CreatedAt),
 		chat.WithMemberUpdatedAt(dbMember.UpdatedAt),
 	), nil

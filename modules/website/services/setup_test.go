@@ -31,6 +31,10 @@ func setupTest(t *testing.T) *testFixtures {
 
 	testutils.CreateDB(t.Name())
 	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := context.Background()
 	tx, err := pool.Begin(ctx)
@@ -53,11 +57,6 @@ func setupTest(t *testing.T) *testFixtures {
 	ctx = composables.WithTenant(ctx, tenant)
 	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
-
-	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	return &testFixtures{
 		ctx:    ctx,
