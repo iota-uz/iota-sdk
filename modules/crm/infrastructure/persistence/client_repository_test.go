@@ -39,23 +39,12 @@ func createTestPassport() passport.Passport {
 
 func createTestClient(t *testing.T, tenantID uuid.UUID, withPassport bool) client.Client {
 	t.Helper()
-	// Use a different phone number to avoid duplication
-	phoneNumber := "12345678901"
-	if withPassport {
-		phoneNumber = "98765432109"
-	}
-	p, err := phone.NewFromE164(phoneNumber)
+	p, err := phone.NewFromE164("12345678901")
 	require.NoError(t, err, "Failed to create phone number")
 
 	birthDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
+	email := internet.MustParseEmail("john.doe@example.com")
 
-	// Use a different email to avoid duplication
-	emailStr := "john.doe@example.com"
-	if withPassport {
-		emailStr = "john.smith@example.com"
-	}
-	email, err := internet.NewEmail(emailStr)
-	require.NoError(t, err, "Failed to create email")
 	pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
 	require.NoError(t, err, "Failed to create tax ID")
 

@@ -288,6 +288,7 @@ func TestToDomainMessage(t *testing.T) {
 				{
 					ID:        1,
 					Path:      "test/file.jpg",
+					TenantID:  uuid.New().String(),
 					CreatedAt: now,
 				},
 			},
