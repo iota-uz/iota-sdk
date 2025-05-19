@@ -26,7 +26,8 @@ const (
 			g.name,
 			g.description,
 			g.created_at,
-			g.updated_at
+			g.updated_at,
+			g.tenant_id
 		FROM user_groups g`
 
 	groupCountQuery = `SELECT COUNT(DISTINCT g.id) FROM user_groups g`
@@ -51,6 +52,7 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 		fieldMap: map[group.Field]string{
 			group.CreatedAtField: "g.created_at",
 			group.UpdatedAtField: "g.updated_at",
+			group.TenantIDField:  "g.tenant_id",
 		},
 	}
 }
@@ -126,7 +128,8 @@ func (g *PgGroupRepository) Count(ctx context.Context, params *group.FindParams)
 }
 
 func (g *PgGroupRepository) GetByID(ctx context.Context, id uuid.UUID) (group.Group, error) {
-	groups, err := g.queryGroups(ctx, groupFindQuery+" WHERE g.id = $1", id.String())
+	q := repo.Join(groupFindQuery, "WHERE g.id = $1")
+	groups, err := g.queryGroups(ctx, q, id.String())
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to query group with id: %s", id.String()))
 	}
@@ -143,7 +146,11 @@ func (g *PgGroupRepository) Exists(ctx context.Context, id uuid.UUID) (bool, err
 	}
 
 	var exists bool
-	err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1)", id.String()).Scan(&exists)
+	err = tx.QueryRow(
+		ctx,
+		"SELECT EXISTS(SELECT 1 FROM user_groups WHERE id = $1)",
+		id.String(),
+	).Scan(&exists)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to check if group exists")
 	}
@@ -182,6 +189,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 	fields := []string{
 		"id",
 		"type",
+		"tenant_id",
 		"name",
 		"description",
 		"created_at",
@@ -191,6 +199,7 @@ func (g *PgGroupRepository) create(ctx context.Context, entity group.Group) (gro
 	values := []interface{}{
 		dbGroup.ID,
 		dbGroup.Type,
+		dbGroup.TenantID,
 		dbGroup.Name,
 		dbGroup.Description,
 		dbGroup.CreatedAt,
@@ -303,6 +312,7 @@ func (g *PgGroupRepository) queryGroups(ctx context.Context, query string, args 
 			&dbGroup.Description,
 			&dbGroup.CreatedAt,
 			&dbGroup.UpdatedAt,
+			&dbGroup.TenantID,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan group row")
 		}

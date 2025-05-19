@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,9 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 	err := permissionRepository.Save(f.ctx, permissions.UserRead)
 	require.NoError(t, err)
 
+	tenant, err := composables.UseTenant(f.ctx)
+	require.NoError(t, err)
+
 	// First role
 	roleData := role.New(
 		"test-role",
@@ -39,6 +43,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
 		}),
+		role.WithTenantID(tenant.ID),
 	)
 
 	roleEntity, err := roleRepository.Create(f.ctx, roleData)
@@ -51,6 +56,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
 		}),
+		role.WithTenantID(tenant.ID),
 	)
 
 	secondRoleEntity, err := roleRepository.Create(f.ctx, secondRoleData)
@@ -65,7 +71,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		"Doe",
 		email,
 		user.UILanguageEN,
-		user.WithMiddleName(""),
+		user.WithTenantID(tenant.ID),
 	)
 
 	createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -79,7 +85,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		"Smith",
 		secondEmail,
 		user.UILanguageEN,
-		user.WithMiddleName(""),
+		user.WithTenantID(tenant.ID),
 	)
 
 	secondCreatedUser, err := userRepository.Create(f.ctx, secondUserEntity)
@@ -95,6 +101,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Test group description"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
+			group.WithTenantID(tenant.ID),
 		)
 
 		// Save the group
@@ -130,6 +137,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Second group description"),
 			group.WithUsers([]user.User{secondCreatedUser}),
 			group.WithRoles([]role.Role{secondRoleEntity}),
+			group.WithTenantID(tenant.ID),
 		)
 
 		secondSavedGroup, err := groupRepository.Save(f.ctx, secondGroupEntity)
@@ -151,6 +159,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for GetByID test"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
+			group.WithTenantID(tenant.ID),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
@@ -183,6 +192,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for update test"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
+			group.WithTenantID(tenant.ID),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
@@ -242,6 +252,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for removal test"),
 			group.WithUsers([]user.User{createdUser, secondCreatedUser}),
 			group.WithRoles([]role.Role{roleEntity, secondRoleEntity}),
+			group.WithTenantID(tenant.ID),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
@@ -330,6 +341,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithCreatedAt(pastTime.Add(-24*time.Hour)), // 2 days ago
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
+			group.WithTenantID(tenant.ID),
 		)
 
 		_, err := groupRepository.Save(f.ctx, customTimeGroupEntity)

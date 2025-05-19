@@ -1,5 +1,6 @@
 CREATE TABLE clients (
     id serial PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255),
     middle_name varchar(255),
@@ -26,6 +27,7 @@ CREATE TABLE client_contacts (
 
 CREATE TABLE chats (
     id serial PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     client_id int NOT NULL UNIQUE REFERENCES clients (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     last_message_at timestamp(3) DEFAULT now(),
     created_at timestamp(3) DEFAULT now() NOT NULL
@@ -33,6 +35,7 @@ CREATE TABLE chats (
 
 CREATE TABLE chat_members (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     chat_id int NOT NULL REFERENCES chats (id) ON DELETE CASCADE,
     -- Whether user_id is not client_id, both can not be set
     user_id int REFERENCES users (id) ON DELETE SET NULL ON UPDATE CASCADE,
@@ -62,6 +65,7 @@ CREATE TABLE message_media (
 
 CREATE TABLE message_templates (
     id serial PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     template TEXT NOT NULL,
     created_at timestamp with time zone DEFAULT now()
 );
@@ -82,5 +86,11 @@ CREATE INDEX idx_clients_phone_number ON clients (phone_number);
 
 CREATE INDEX idx_clients_email ON clients (email);
 
+CREATE INDEX idx_clients_tenant_id ON clients (tenant_id);
+
 CREATE INDEX idx_client_contacts_client_id ON client_contacts (client_id);
+
+CREATE INDEX idx_chats_tenant_id ON chats (tenant_id);
+
+CREATE INDEX idx_message_templates_tenant_id ON message_templates (tenant_id);
 

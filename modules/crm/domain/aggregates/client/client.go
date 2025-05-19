@@ -3,6 +3,7 @@ package client
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
@@ -17,6 +18,12 @@ type Option func(c *client)
 func WithID(id uint) Option {
 	return func(c *client) {
 		c.id = id
+	}
+}
+
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(c *client) {
+		c.tenantID = tenantID
 	}
 }
 
@@ -112,6 +119,7 @@ const (
 
 type Client interface {
 	ID() uint
+	TenantID() uuid.UUID
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -165,6 +173,7 @@ func New(firstName string, opts ...Option) (Client, error) {
 
 type client struct {
 	id          uint
+	tenantID    uuid.UUID
 	firstName   string
 	lastName    string
 	middleName  string
@@ -183,6 +192,10 @@ type client struct {
 
 func (c *client) ID() uint {
 	return c.id
+}
+
+func (c *client) TenantID() uuid.UUID {
+	return c.tenantID
 }
 
 func (c *client) FirstName() string {

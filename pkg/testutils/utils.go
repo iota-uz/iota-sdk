@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -39,6 +40,7 @@ func MockUser(permissions ...*permission.Permission) user.User {
 		role.WithPermissions(permissions),
 		role.WithCreatedAt(time.Now()),
 		role.WithUpdatedAt(time.Now()),
+		role.WithTenantID(uuid.Nil), // tenant_id will be set correctly in repository
 	)
 
 	email, err := internet.NewEmail("test@example.com")
@@ -87,6 +89,34 @@ func DefaultParams() *composables.Params {
 		Request:       nil,
 		Writer:        nil,
 	}
+}
+
+// CreateTestTenant creates a test tenant for testing
+func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Tenant, error) {
+	testTenant := &composables.Tenant{
+		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		Name:   "Test Tenant",
+		Domain: "test.com",
+	}
+
+	_, err := pool.Exec(ctx, "INSERT INTO tenants (id, name, domain, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING",
+		testTenant.ID,
+		testTenant.Name,
+		testTenant.Domain,
+		time.Now(),
+		time.Now(),
+	)
+
+	if err == nil {
+		return testTenant, nil
+	}
+
+	// If the error is not about missing table, return it
+	if !strings.Contains(err.Error(), "relation") && !strings.Contains(err.Error(), "does not exist") {
+		return nil, err
+	}
+
+	return testTenant, nil
 }
 
 // sanitizeDBName replaces special characters in database names with underscores

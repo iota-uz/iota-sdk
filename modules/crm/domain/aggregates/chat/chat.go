@@ -43,6 +43,7 @@ type Chat interface {
 	ID() uint
 	WithID(id uint) Chat
 	ClientID() uint
+	TenantID() uuid.UUID
 	Messages() []Message
 	AddMessage(msg Message) Chat
 	UnreadMessages() int
@@ -70,6 +71,7 @@ type Message interface {
 
 type Member interface {
 	ID() uuid.UUID
+	TenantID() uuid.UUID
 	Transport() Transport
 	Sender() Sender
 	CreatedAt() time.Time

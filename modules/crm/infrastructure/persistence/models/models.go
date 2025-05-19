@@ -10,6 +10,7 @@ import (
 
 type Client struct {
 	ID          uint
+	TenantID    string
 	FirstName   string
 	LastName    sql.NullString
 	MiddleName  sql.NullString
@@ -36,6 +37,7 @@ type ClientContact struct {
 
 type Chat struct {
 	ID            uint
+	TenantID      string
 	ClientID      uint
 	LastMessageAt sql.NullTime
 	CreatedAt     time.Time
@@ -43,6 +45,7 @@ type Chat struct {
 
 type ChatMember struct {
 	ID              string
+	TenantID        string
 	ChatID          uint
 	UserID          sql.NullInt32
 	ClientID        sql.NullInt32
@@ -134,6 +137,7 @@ type WebsiteMeta struct {
 
 type MessageTemplate struct {
 	ID        uint
+	TenantID  string
 	Template  string
 	CreatedAt time.Time
 }

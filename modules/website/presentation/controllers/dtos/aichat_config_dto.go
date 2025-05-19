@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -21,12 +22,13 @@ type AIConfigDTO struct {
 	AccessToken  string  `validate:"omitempty"`
 }
 
-func (dto *AIConfigDTO) Apply(cfg aichatconfig.AIConfig) (aichatconfig.AIConfig, error) {
+func (dto *AIConfigDTO) Apply(cfg aichatconfig.AIConfig, tenantID uuid.UUID) (aichatconfig.AIConfig, error) {
 	if cfg == nil {
 		options := []aichatconfig.Option{
 			aichatconfig.WithTemperature(mapping.Or(dto.Temperature, 0.7)),
 			aichatconfig.WithMaxTokens(mapping.Or(dto.MaxTokens, 1024)),
 			aichatconfig.WithIsDefault(true),
+			aichatconfig.WithTenantID(tenantID),
 		}
 
 		if dto.AccessToken != "" {

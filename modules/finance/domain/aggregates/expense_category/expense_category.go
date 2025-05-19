@@ -3,6 +3,7 @@ package category
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 )
 
@@ -51,9 +52,16 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 	}
 }
 
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(e *expenseCategory) {
+		e.tenantID = tenantID
+	}
+}
+
 // Interface
 type ExpenseCategory interface {
 	ID() uint
+	TenantID() uuid.UUID
 	Name() string
 	Description() string
 	Amount() float64
@@ -73,6 +81,7 @@ func New(
 ) ExpenseCategory {
 	e := &expenseCategory{
 		id:          0,
+		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
 		amount:      amount,
@@ -88,6 +97,7 @@ func New(
 
 type expenseCategory struct {
 	id          uint
+	tenantID    uuid.UUID
 	name        string
 	description string
 	amount      float64
@@ -98,6 +108,10 @@ type expenseCategory struct {
 
 func (e *expenseCategory) ID() uint {
 	return e.id
+}
+
+func (e *expenseCategory) TenantID() uuid.UUID {
+	return e.tenantID
 }
 
 func (e *expenseCategory) Name() string {
@@ -118,6 +132,7 @@ func (e *expenseCategory) UpdateAmount(a float64) ExpenseCategory {
 		a,
 		e.currency,
 		WithID(e.id),
+		WithTenantID(e.tenantID),
 		WithDescription(e.description),
 		WithCreatedAt(e.createdAt),
 		WithUpdatedAt(time.Now()),

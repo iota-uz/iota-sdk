@@ -3,6 +3,7 @@ package role
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 )
 
@@ -46,6 +47,7 @@ func WithUpdatedAt(t time.Time) Option {
 
 type Role interface {
 	ID() uint
+	TenantID() uuid.UUID
 	Type() Type
 	Name() string
 	Description() string
@@ -59,6 +61,7 @@ type Role interface {
 
 	SetName(name string) Role
 	SetDescription(description string) Role
+	SetTenantID(tenantID uuid.UUID) Role
 
 	AddPermission(p *permission.Permission) Role
 	SetPermissions(permissions []*permission.Permission) Role
@@ -70,6 +73,12 @@ func WithDescription(description string) Option {
 	}
 }
 
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(r *role) {
+		r.tenantID = tenantID
+	}
+}
+
 func New(
 	name string,
 	opts ...Option,
@@ -77,6 +86,7 @@ func New(
 	r := &role{
 		id:          0,
 		type_:       TypeUser,
+		tenantID:    uuid.Nil,
 		name:        name,
 		description: "",
 		permissions: []*permission.Permission{},
@@ -92,6 +102,7 @@ func New(
 type role struct {
 	id          uint
 	type_       Type
+	tenantID    uuid.UUID
 	name        string
 	description string
 	permissions []*permission.Permission
@@ -105,6 +116,10 @@ func (r *role) ID() uint {
 
 func (r *role) Type() Type {
 	return r.type_
+}
+
+func (r *role) TenantID() uuid.UUID {
+	return r.tenantID
 }
 
 func (r *role) Name() string {
@@ -154,6 +169,13 @@ func (r *role) SetName(name string) Role {
 func (r *role) SetDescription(description string) Role {
 	result := *r
 	result.description = description
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (r *role) SetTenantID(tenantID uuid.UUID) Role {
+	result := *r
+	result.tenantID = tenantID
 	result.updatedAt = time.Now()
 	return &result
 }

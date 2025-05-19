@@ -21,9 +21,10 @@ func TestMain(m *testing.M) {
 
 // testFixtures contains common test dependencies
 type testFixtures struct {
-	ctx  context.Context
-	pool *pgxpool.Pool
-	app  application.Application
+	ctx    context.Context
+	pool   *pgxpool.Pool
+	app    application.Application
+	tenant *composables.Tenant
 }
 
 // setupTest creates all necessary dependencies for tests
@@ -33,7 +34,19 @@ func setupTest(t *testing.T) *testFixtures {
 	testutils.CreateDB(t.Name())
 	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
 
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx := context.Background()
+
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = composables.WithTenant(ctx, tenant)
+
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -47,14 +60,11 @@ func setupTest(t *testing.T) *testFixtures {
 	})
 
 	ctx = composables.WithTx(ctx, tx)
-	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	return &testFixtures{
-		ctx:  ctx,
-		pool: pool,
-		app:  app,
+		ctx:    ctx,
+		pool:   pool,
+		app:    app,
+		tenant: tenant,
 	}
 }

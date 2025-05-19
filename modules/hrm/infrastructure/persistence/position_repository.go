@@ -25,17 +25,22 @@ func NewPositionRepository() position.Repository {
 func (g *GormPositionRepository) GetPaginated(
 	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
+	where, args := []string{"tenant_id = $1"}, []interface{}{tenant.ID}
 	if params.ID != 0 {
 		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT id, name, description, created_at, updated_at FROM positions
+		SELECT id, tenant_id, name, description, created_at, updated_at FROM positions
 		WHERE `+strings.Join(where, " AND ")+`
 		`+repo.FormatLimitOffset(params.Limit, params.Offset)+`
 	`, args...)
@@ -48,6 +53,7 @@ func (g *GormPositionRepository) GetPaginated(
 		var p models.Position
 		if err := rows.Scan(
 			&p.ID,
+			&p.TenantID,
 			&p.Name,
 			&p.Description,
 			&p.CreatedAt,
@@ -70,14 +76,19 @@ func (g *GormPositionRepository) GetPaginated(
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
 	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM positions
-	`).Scan(&count); err != nil {
+		SELECT COUNT(*) as count FROM positions WHERE tenant_id = $1
+	`, tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -108,10 +119,12 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	if err != nil {
 		return err
 	}
+
 	dbRow := toDBPosition(data)
+
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO positions (name, description) VALUES ($1, $2)
-	`, dbRow.Name, dbRow.Description).Scan(&data.ID); err != nil {
+		INSERT INTO positions (tenant_id, name, description) VALUES ($1, $2, $3) RETURNING id
+	`, dbRow.TenantID, dbRow.Name, dbRow.Description).Scan(&data.ID); err != nil {
 		return err
 	}
 	return nil
@@ -123,11 +136,15 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 		return err
 	}
 	dbRow := toDBPosition(data)
+
 	if _, err := tx.Exec(ctx, `
-		UPDATE positions 
+		UPDATE positions
 		SET name = $1, description = $2
-		WHERE id = $3
-	`, dbRow.Name, dbRow.Description, dbRow.ID); err != nil {
+		WHERE id = $3`,
+		dbRow.Name,
+		dbRow.Description,
+		dbRow.ID,
+	); err != nil {
 		return err
 	}
 	return nil
@@ -138,9 +155,7 @@ func (g *GormPositionRepository) Delete(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM positions WHERE id = $1
-	`, id); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM positions WHERE id = $1`, id); err != nil {
 		return err
 	}
 	return nil

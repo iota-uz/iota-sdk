@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/go-faster/errors"
 	"github.com/jackc/pgx/v5"
@@ -22,8 +23,9 @@ var (
 
 const (
 	selectChatQuery = `
-		SELECT 
+		SELECT
 			c.id,
+			c.tenant_id,
 			c.created_at,
 			c.last_message_at,
 			c.client_id
@@ -31,14 +33,6 @@ const (
 	`
 
 	countChatQuery = `SELECT COUNT(*) as count FROM chats`
-
-	insertChatQuery = `
-		INSERT INTO chats (
-			client_id,
-			last_message_at,
-			created_at
-		) VALUES ($1, $2, $3) RETURNING id
-	`
 
 	updateChatQuery = `UPDATE chats SET
 		client_id = $1,
@@ -49,7 +43,7 @@ const (
 	deleteChatQuery = `DELETE FROM chats WHERE id = $1`
 
 	selectMessagesQuery = `
-		SELECT 
+		SELECT
 			m.id,
 			m.chat_id,
 			m.message,
@@ -61,7 +55,7 @@ const (
 	`
 
 	selectMessageAttachmentsQuery = `
-		SELECT 
+		SELECT
 			u.id AS upload_id,
 			u.hash,
 			u.path,
@@ -78,6 +72,7 @@ const (
 	selectChatMembersQuery = `
 		SELECT 
 			cm.id,
+			cm.tenant_id,
 			cm.chat_id,
 			cm.user_id,
 			cm.client_id,
@@ -92,6 +87,7 @@ const (
 	insertChatMemberQuery = `
 		INSERT INTO chat_members (
 			id,
+			tenant_id,
 			chat_id,
 			user_id,
 			client_id,
@@ -100,19 +96,20 @@ const (
 			transport_meta,
 			created_at,
 			updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	updateChatMemberQuery = `
 		UPDATE chat_members SET
-			chat_id = $1,
-			user_id = $2,
-			client_id = $3,
-			client_contact_id = $4,
-			transport = $5,
-			transport_meta = $6,
-			updated_at = $7
-		WHERE id = $8
+			tenant_id = $1,
+			chat_id = $2,
+			user_id = $3,
+			client_id = $4,
+			client_contact_id = $5,
+			transport = $6,
+			transport_meta = $7,
+			updated_at = $8
+		WHERE id = $9
 	`
 
 	deleteChatMembersQuery = `DELETE FROM chat_members WHERE chat_id = $1`
@@ -134,7 +131,7 @@ const (
 			read_at = $3,
 			sender_id = $4,
 			sent_at = $5
-		WHERE id = $6
+			WHERE id = $6
 	`
 
 	deleteMessageQuery = `DELETE FROM messages WHERE chat_id = $1`
@@ -171,6 +168,7 @@ func (g *ChatRepository) queryMembers(ctx context.Context, query string, args ..
 		var transportMetaData []byte
 		if err := rows.Scan(
 			&member.ID,
+			&member.TenantID,
 			&member.ChatID,
 			&member.UserID,
 			&member.ClientID,
@@ -224,6 +222,7 @@ func (g *ChatRepository) queryChats(ctx context.Context, query string, args ...i
 		var c models.Chat
 		if err := rows.Scan(
 			&c.ID,
+			&c.TenantID,
 			&c.CreatedAt,
 			&c.LastMessageAt,
 			&c.ClientID,
@@ -353,15 +352,23 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 func (g *ChatRepository) GetPaginated(
 	ctx context.Context, params *chat.FindParams,
 ) ([]chat.Chat, error) {
-	where, args, joins := []string{"1 = 1"}, []interface{}{}, []string{}
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	where, args, joins := []string{"c.tenant_id = $1"}, []interface{}{tenant.ID}, []string{}
 	if params.Search != "" {
 		where = append(
 			where,
-			"cl.first_name ILIKE $1 OR cl.last_name ILIKE $1 OR cl.middle_name ILIKE $1 OR cl.phone_number ILIKE $1",
+			fmt.Sprintf(
+				"cl.first_name ILIKE $%d OR cl.last_name ILIKE $%d OR cl.middle_name ILIKE $%d OR cl.phone_number ILIKE $%d",
+				len(args)+1, len(args)+1, len(args)+1, len(args)+1,
+			),
 		)
 		args = append(args, "%"+params.Search+"%")
 		joins = append(joins, "JOIN clients cl ON c.client_id = cl.id")
 	}
+
 	query := repo.Join(
 		selectChatQuery,
 		repo.Join(joins...),
@@ -377,15 +384,26 @@ func (g *ChatRepository) Count(ctx context.Context) (int64, error) {
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	var count int64
-	if err := pool.QueryRow(ctx, countChatQuery).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countChatQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
 		return 0, errors.Wrap(err, "failed to count chats")
 	}
 	return count, nil
 }
 
 func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
-	chats, err := g.queryChats(ctx, selectChatQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.tenant_id = $1", tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get all chats")
 	}
@@ -393,8 +411,13 @@ func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
 }
 
 func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
-	q := repo.Join(selectChatQuery, "WHERE c.id = $1")
-	chats, err := g.queryChats(ctx, q, id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	q := repo.Join(selectChatQuery, "WHERE c.id = $1 AND c.tenant_id = $2")
+	chats, err := g.queryChats(ctx, q, id, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get chat with id %d", id)
 	}
@@ -405,7 +428,12 @@ func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error
 }
 
 func (g *ChatRepository) GetByClientID(ctx context.Context, clientID uint) (chat.Chat, error) {
-	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.client_id = $1", clientID)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.client_id = $1 AND c.tenant_id = $2", clientID, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get chat for client %d", clientID)
 	}
@@ -419,6 +447,7 @@ func (g *ChatRepository) GetMemberByContact(ctx context.Context, contactType str
 	query := `
 		SELECT 
 			cm.id,
+			cm.tenant_id,
 			cm.chat_id,
 			cm.user_id,
 			cm.client_id,
@@ -522,6 +551,7 @@ func (g *ChatRepository) insertChatMember(ctx context.Context, member *models.Ch
 		ctx,
 		insertChatMemberQuery,
 		member.ID,
+		member.TenantID,
 		member.ChatID,
 		member.UserID,
 		member.ClientID,
@@ -554,6 +584,7 @@ func (g *ChatRepository) updateChatMember(ctx context.Context, member *models.Ch
 	if _, err := tx.Exec(
 		ctx,
 		updateChatMemberQuery,
+		member.TenantID,
 		member.ChatID,
 		member.UserID,
 		member.ClientID,
@@ -660,12 +691,24 @@ func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to check for existing chat")
 	}
 
+	q := repo.Insert(
+		"chats",
+		[]string{
+			"client_id",
+			"last_message_at",
+			"tenant_id",
+			"created_at",
+		},
+		"id",
+	)
+
 	if err := tx.QueryRow(
 		ctx,
-		insertChatQuery,
+		q,
 		dbChat.ClientID,
 		dbChat.LastMessageAt,
-		&dbChat.CreatedAt,
+		dbChat.TenantID,
+		dbChat.CreatedAt,
 	).Scan(&dbChat.ID); err != nil {
 		return nil, errors.Wrap(err, "failed to insert chat")
 	}

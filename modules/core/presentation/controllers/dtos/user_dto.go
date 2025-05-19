@@ -95,7 +95,7 @@ func (dto *UpdateUserDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (dto *CreateUserDTO) ToEntity() (user.User, error) {
+func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 	roles := make([]role.Role, len(dto.RoleIDs))
 	for i, rID := range dto.RoleIDs {
 		r := role.New("", role.WithID(rID))
@@ -117,6 +117,7 @@ func (dto *CreateUserDTO) ToEntity() (user.User, error) {
 	}
 
 	options := []user.Option{
+		user.WithTenantID(tenantID),
 		user.WithMiddleName(dto.MiddleName),
 		user.WithPassword(dto.Password),
 		user.WithRoles(roles),

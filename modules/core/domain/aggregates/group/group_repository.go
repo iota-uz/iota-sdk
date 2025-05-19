@@ -12,6 +12,7 @@ type Field = int
 const (
 	CreatedAtField Field = iota
 	UpdatedAtField
+	TenantIDField
 )
 
 type SortBy = repo.SortBy[Field]
@@ -23,6 +24,15 @@ type FindParams struct {
 	SortBy  SortBy
 	Search  string
 	Filters []Filter
+}
+
+func (f *FindParams) FilterBy(field Field, filter repo.Filter) *FindParams {
+	res := *f
+	res.Filters = append(res.Filters, Filter{
+		Column: field,
+		Filter: filter,
+	})
+	return &res
 }
 
 type Repository interface {

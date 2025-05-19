@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -38,6 +39,7 @@ type Size interface {
 
 type Upload interface {
 	ID() uint
+	TenantID() uuid.UUID
 	Type() UploadType
 	Hash() string
 	Path() string
@@ -66,6 +68,7 @@ func New(
 	}
 	return &upload{
 		id:        0,
+		tenantID:  uuid.Nil,
 		hash:      hash,
 		path:      path,
 		name:      name,
@@ -79,6 +82,7 @@ func New(
 
 func NewWithID(
 	id uint,
+	tenantID uuid.UUID,
 	hash, path, name string,
 	size int,
 	mimetype *mimetype.MIME,
@@ -87,6 +91,7 @@ func NewWithID(
 ) Upload {
 	return &upload{
 		id:        id,
+		tenantID:  tenantID,
 		hash:      hash,
 		path:      path,
 		name:      name,
@@ -100,6 +105,7 @@ func NewWithID(
 
 type upload struct {
 	id        uint
+	tenantID  uuid.UUID
 	hash      string
 	path      string
 	name      string
@@ -112,6 +118,10 @@ type upload struct {
 
 func (u *upload) ID() uint {
 	return u.id
+}
+
+func (u *upload) TenantID() uuid.UUID {
+	return u.tenantID
 }
 
 func (u *upload) Type() UploadType {

@@ -157,7 +157,7 @@ func TestToDBClient(t *testing.T) {
 	}{
 		{
 			name:   "complete client with all fields",
-			client: createTestClient(t, true),
+			client: createTestClient(t, uuid.Nil, true),
 			validateFn: func(t *testing.T, dbClient *models.Client) {
 				t.Helper()
 
@@ -177,7 +177,7 @@ func TestToDBClient(t *testing.T) {
 		},
 		{
 			name:   "client without passport",
-			client: createTestClient(t, false),
+			client: createTestClient(t, uuid.Nil, false),
 			validateFn: func(t *testing.T, dbClient *models.Client) {
 				t.Helper()
 				assert.Equal(t, "John", dbClient.FirstName, "FirstName should match")
@@ -288,6 +288,7 @@ func TestToDomainMessage(t *testing.T) {
 				{
 					ID:        1,
 					Path:      "test/file.jpg",
+					TenantID:  uuid.New().String(),
 					CreatedAt: now,
 				},
 			},

@@ -46,6 +46,7 @@ type testFixtures struct {
 	tx      pgx.Tx
 	app     application.Application
 	router  *mux.Router
+	tenant  *composables.Tenant
 	service *services.AIChatConfigService
 }
 
@@ -57,7 +58,16 @@ func setupTest(t *testing.T) *testFixtures {
 	testutils.CreateDB(t.Name())
 	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
 
+	// Setup real application with required modules
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	require.NoError(t, err, "Failed to setup application")
+
 	ctx := context.Background()
+	// Create tenant first before starting transaction
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	require.NoError(t, err, "Failed to create test tenant")
+
+	// Begin transaction after tenant creation
 	tx, err := pool.Begin(ctx)
 	require.NoError(t, err, "Failed to begin transaction")
 
@@ -69,13 +79,10 @@ func setupTest(t *testing.T) *testFixtures {
 		}
 	})
 
-	// Create context with transaction
+	// Create context with transaction and tenant
 	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithTenant(ctx, tenant)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
-
-	// Setup real application with required modules
-	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
-	require.NoError(t, err, "Failed to setup application")
 
 	// Create admin user
 	adminEmail, _ := internet.NewEmail("admin@example.com")
@@ -85,6 +92,7 @@ func setupTest(t *testing.T) *testFixtures {
 		adminEmail,
 		user.UILanguageEN,
 		user.WithID(1),
+		user.WithTenantID(tenant.ID),
 	)
 
 	// Get service from application
@@ -109,6 +117,10 @@ func setupTest(t *testing.T) *testFixtures {
 			reqCtx = context.WithValue(reqCtx, constants.TxKey, tx)
 			reqCtx = composables.WithTx(reqCtx, tx)
 			reqCtx = context.WithValue(reqCtx, constants.AppKey, app)
+
+			// Important: Add tenant to context
+			reqCtx = composables.WithTenant(reqCtx, tenant)
+			reqCtx = context.WithValue(reqCtx, constants.TenantKey, tenant)
 
 			// Add logger to context
 			logger := logrus.New()
@@ -143,13 +155,13 @@ func setupTest(t *testing.T) *testFixtures {
 		})
 	})
 
-	// Register routes
 	controller.Register(router)
 
 	return &testFixtures{
 		ctx:     ctx,
 		tx:      tx,
 		app:     app,
+		tenant:  tenant,
 		router:  router,
 		service: configService,
 	}
@@ -233,6 +245,7 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 		aichatconfig.WithMaxTokens(512),
 		aichatconfig.WithAccessToken("initial-key"),
 		aichatconfig.WithIsDefault(true),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	initialConfig, err := aichatconfig.New(

@@ -3,6 +3,7 @@ package persistence
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/dialogue"
 	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence/models"
@@ -31,6 +32,7 @@ func toDBDialogue(entity dialogue.Dialogue) (*models.Dialogue, error) {
 	}
 	return &models.Dialogue{
 		ID:        entity.ID(),
+		TenantID:  entity.TenantID().String(),
 		UserID:    entity.UserID(),
 		Label:     entity.Label(),
 		Messages:  dbMessages,
@@ -44,8 +46,13 @@ func toDomainDialogue(dbDialogue *models.Dialogue) (dialogue.Dialogue, error) {
 	if err != nil {
 		return nil, err
 	}
+	tenantID, err := uuid.Parse(dbDialogue.TenantID)
+	if err != nil {
+		return nil, err
+	}
 	return dialogue.NewWithID(
 		dbDialogue.ID,
+		tenantID,
 		dbDialogue.UserID,
 		dbDialogue.Label,
 		messages,

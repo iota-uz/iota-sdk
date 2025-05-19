@@ -19,53 +19,56 @@ var (
 
 const (
 	orderFindQuery = `
-		SELECT id, type, status, created_at 
+		SELECT id, tenant_id, type, status, created_at
 		FROM warehouse_orders wo`
 
 	orderCountQuery = `
-		SELECT COUNT(*) as count 
+		SELECT COUNT(*) as count
 		FROM warehouse_orders`
 
 	orderInsertQuery = `
-		INSERT INTO warehouse_orders (type, status, created_at) 
-		VALUES ($1, $2, $3) 
+		INSERT INTO warehouse_orders (tenant_id, type, status, created_at)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 
 	orderItemInsertQuery = `
-		INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id) 
-		VALUES ($1, $2) 
+		INSERT INTO warehouse_order_items (warehouse_order_id, warehouse_product_id)
+		VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`
 
 	orderUpdateQuery = `
-		UPDATE warehouse_orders wo 
-		SET 
+		UPDATE warehouse_orders wo
+		SET
 		type = COALESCE(NULLIF($1, ''), wo.type),
 		status = COALESCE(NULLIF($2, ''), wo.status)
-		WHERE wo.id = $3`
+		WHERE wo.id = $3 AND wo.tenant_id = $4`
 
 	orderItemsDeleteQuery = `
-		DELETE FROM warehouse_order_items 
+		DELETE FROM warehouse_order_items
 		WHERE warehouse_order_id = $1`
 
 	orderDeleteQuery = `
-		DELETE FROM warehouse_orders 
-		WHERE id = $1`
+		DELETE FROM warehouse_orders
+		WHERE id = $1 AND tenant_id = $2`
 
 	selectOrderProductsQuery = `
-		SELECT 
-			wp.id, 
+		SELECT
+			wp.id,
+			wp.tenant_id,
 			wp.position_id,
 			wp.rfid,
 			wp.status,
-			wp.created_at, 
+			wp.created_at,
 			wp.updated_at,
 			p.id,
+			p.tenant_id,
 			p.title,
 			p.barcode,
 			p.unit_id,
 			p.created_at,
 			p.updated_at,
 			wu.id,
+			wu.tenant_id,
 			wu.title,
 			wu.short_title,
 			wu.created_at,
@@ -75,14 +78,14 @@ const (
 		LEFT JOIN warehouse_units wu ON wu.id = p.unit_id`
 
 	insertOrderProductsQuery = `
-		INSERT INTO warehouse_products (position_id, rfid, status, created_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO warehouse_products (tenant_id, position_id, rfid, status, created_at)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id`
 
 	updateOrderProductsQuery = `
-		UPDATE warehouse_products 
+		UPDATE warehouse_products
 		SET position_id = $1, rfid = $2, status = $3
-		WHERE id = $4`
+		WHERE id = $4 AND tenant_id = $5`
 )
 
 type GormOrderRepository struct {
@@ -96,7 +99,12 @@ func NewOrderRepository(productRepo product.Repository) order.Repository {
 }
 
 func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
-	where, args := []string{"1 = 1"}, []interface{}{}
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	where, args := []string{"wo.tenant_id = $1"}, []interface{}{tenant.ID}
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		where, args = append(where, fmt.Sprintf("wo.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
@@ -120,23 +128,36 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 }
 
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, orderCountQuery).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, orderCountQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormOrderRepository) GetAll(ctx context.Context) ([]order.Order, error) {
-	return g.queryOrders(ctx, orderFindQuery)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+	return g.queryOrders(ctx, orderFindQuery+" WHERE wo.tenant_id = $1", tenant.ID)
 }
 
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order, error) {
-	orders, err := g.queryOrders(ctx, orderFindQuery+" WHERE wo.id = $1", id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+	orders, err := g.queryOrders(ctx, orderFindQuery+" WHERE wo.id = $1 AND wo.tenant_id = $2", id, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -147,18 +168,31 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order
 }
 
 func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
+
+	// Set tenant ID in domain entity
+	data.SetTenantID(tenant.ID)
+
 	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
 		return err
 	}
 
+	// Make sure tenant ID is set in DB model
+	dbOrder.TenantID = tenant.ID.String()
+
 	if err := tx.QueryRow(
 		ctx,
 		orderInsertQuery,
+		dbOrder.TenantID,
 		dbOrder.Type,
 		dbOrder.Status,
 		dbOrder.CreatedAt,
@@ -167,9 +201,13 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 	}
 
 	for _, p := range dbProducts {
+		// Set tenant ID in product
+		p.TenantID = tenant.ID.String()
+
 		if err := tx.QueryRow(
 			ctx,
 			insertOrderProductsQuery,
+			p.TenantID,
 			p.PositionID,
 			p.Rfid,
 			p.Status,
@@ -194,14 +232,26 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 }
 
 func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
+
+	// Set tenant ID in domain entity
+	data.SetTenantID(tenant.ID)
+
 	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
 		return err
 	}
+
+	// Make sure tenant ID is set in DB model
+	dbOrder.TenantID = tenant.ID.String()
 
 	if _, err := tx.Exec(
 		ctx,
@@ -209,6 +259,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 		dbOrder.Type,
 		dbOrder.Status,
 		dbOrder.ID,
+		dbOrder.TenantID,
 	); err != nil {
 		return err
 	}
@@ -229,6 +280,9 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 	}
 
 	for _, product := range dbProducts {
+		// Set tenant ID
+		product.TenantID = tenant.ID.String()
+
 		if _, err := tx.Exec(
 			ctx,
 			updateOrderProductsQuery,
@@ -236,6 +290,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 			product.Rfid,
 			product.Status,
 			product.ID,
+			product.TenantID,
 		); err != nil {
 			return err
 		}
@@ -245,11 +300,16 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, orderDeleteQuery, id); err != nil {
+	if _, err := tx.Exec(ctx, orderDeleteQuery, id, tenant.ID); err != nil {
 		return err
 	}
 	return nil
@@ -276,18 +336,21 @@ func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, a
 
 		if err := rows.Scan(
 			&wp.ID,
+			&wp.TenantID,
 			&wp.PositionID,
 			&wp.Rfid,
 			&wp.Status,
 			&wp.CreatedAt,
 			&wp.UpdatedAt,
 			&pos.ID,
+			&pos.TenantID,
 			&pos.Title,
 			&pos.Barcode,
 			&pos.UnitID,
 			&pos.CreatedAt,
 			&pos.UpdatedAt,
 			&wu.ID,
+			&wu.TenantID,
 			&wu.Title,
 			&wu.ShortTitle,
 			&wu.CreatedAt,
@@ -327,6 +390,7 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 		var o models.WarehouseOrder
 		if err := rows.Scan(
 			&o.ID,
+			&o.TenantID,
 			&o.Type,
 			&o.Status,
 			&o.CreatedAt,
