@@ -495,7 +495,7 @@ func (c *UsersController) Create(
 		return
 	}
 
-	userEntity, err := dto.ToEntity()
+	userEntity, err := dto.ToEntity(composables.MustUseUser(r.Context()).TenantID())
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
