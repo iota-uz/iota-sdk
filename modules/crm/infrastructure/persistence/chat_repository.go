@@ -34,15 +34,6 @@ const (
 
 	countChatQuery = `SELECT COUNT(*) as count FROM chats`
 
-	insertChatQuery = `
-		INSERT INTO chats (
-			tenant_id,
-			client_id,
-			last_message_at,
-			created_at
-		) VALUES ($1, $2, $3) RETURNING id
-	`
-
 	updateChatQuery = `UPDATE chats SET
 		client_id = $1,
 		created_at = $2,
@@ -689,12 +680,24 @@ func (g *ChatRepository) create(ctx context.Context, data chat.Chat) (chat.Chat,
 		return nil, errors.Wrap(err, "failed to check for existing chat")
 	}
 
+	q := repo.Insert(
+		"chats",
+		[]string{
+			"client_id",
+			"last_message_at",
+			"tenant_id",
+			"created_at",
+		},
+		"id",
+	)
+
 	if err := tx.QueryRow(
 		ctx,
-		insertChatQuery,
+		q,
 		dbChat.ClientID,
 		dbChat.LastMessageAt,
-		&dbChat.CreatedAt,
+		dbChat.TenantID,
+		dbChat.CreatedAt,
 	).Scan(&dbChat.ID); err != nil {
 		return nil, errors.Wrap(err, "failed to insert chat")
 	}
