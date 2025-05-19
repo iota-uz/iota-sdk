@@ -378,7 +378,6 @@ func (g *ClientRepository) create(ctx context.Context, data client.Client) (clie
 		}
 	}
 	q := repo.Insert("clients", fields, "id")
-	fmt.Printf("query: %s\n", q)
 	if err := tx.QueryRow(ctx, q, values...).Scan(&dbRow.ID); err != nil {
 		return nil, err
 	}
