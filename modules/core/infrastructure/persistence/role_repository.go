@@ -38,7 +38,7 @@ const (
 			rp.role_id
 		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1) AND p.tenant_id = $2`
 	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
-	roleInsertQuery            = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3) RETURNING id`
+	roleInsertQuery            = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
 	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
 	roleDeletePermissionsQuery = `DELETE FROM role_permissions WHERE role_id = $1`
 	roleInsertPermissionQuery  = `
