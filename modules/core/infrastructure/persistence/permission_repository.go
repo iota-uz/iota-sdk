@@ -50,30 +50,13 @@ func NewPermissionRepository() permission.Repository {
 func (g *PgPermissionRepository) GetPaginated(
 	ctx context.Context, params *permission.FindParams,
 ) ([]*permission.Permission, error) {
-	joins, args := []string{}, []interface{}{}
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case permission.FieldName:
-			sortFields = append(sortFields, "permissions.name")
-		case permission.FieldResource:
-			sortFields = append(sortFields, "permissions.resource")
-		case permission.FieldAction:
-			sortFields = append(sortFields, "permissions.action")
-		case permission.FieldModifier:
-			sortFields = append(sortFields, "permissions.modifier")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
-	joins, args := []string{}, []interface{}{tenant.ID}
 	where := []string{"permissions.tenant_id = $1"}
+	joins, args := []string{}, []interface{}{tenant.ID}
 
 	if params.RoleID != 0 {
 		joins = append(joins, fmt.Sprintf("INNER JOIN role_permissions rp ON rp.permission_id = permissions.id and rp.role_id = $%d", len(args)+1))
@@ -86,6 +69,7 @@ func (g *PgPermissionRepository) GetPaginated(
 			permissionsSelectQuery,
 			repo.Join(joins...),
 			params.SortBy.ToSQL(g.fieldMap),
+			repo.JoinWhere(where...),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,

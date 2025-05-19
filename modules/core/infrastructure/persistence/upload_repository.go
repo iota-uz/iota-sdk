@@ -99,7 +99,12 @@ func (g *GormUploadRepository) queryUploads(
 func (g *GormUploadRepository) GetPaginated(
 	ctx context.Context, params *upload.FindParams,
 ) ([]upload.Upload, error) {
-	where, args := []string{"1 = 1"}, []interface{}{}
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	where, args := []string{"tenant_id = $1"}, []interface{}{tenant.ID.String()}
 	if params.ID != 0 {
 		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
 	}
@@ -118,21 +123,6 @@ func (g *GormUploadRepository) GetPaginated(
 		repo.JoinWhere(where...),
 		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, err
-	}
-	where, args = append(where, fmt.Sprintf("tenant_id = $%d", len(args)+1)), append(args, tenant.ID.String())
-
-	return g.queryUploads(
-		ctx,
-		repo.Join(
-			selectUploadQuery,
-			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
 	)
 	return g.queryUploads(ctx, query, args...)
 }
