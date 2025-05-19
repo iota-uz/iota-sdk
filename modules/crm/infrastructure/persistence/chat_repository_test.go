@@ -191,6 +191,7 @@ func TestChatRepository_Update(t *testing.T) {
 			testClient.LastName(),
 		),
 		chat.TelegramTransport,
+		chat.WithMemberTenantID(f.tenant.ID),
 	))
 	updatedChat := created.AddMessage(message)
 
