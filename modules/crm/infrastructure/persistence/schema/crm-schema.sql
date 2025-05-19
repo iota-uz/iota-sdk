@@ -13,9 +13,7 @@ CREATE TABLE clients (
     pin varchar(128), -- Personal Identification Number
     comments text,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    UNIQUE (tenant_id, phone_number),
-    UNIQUE (tenant_id, email)
+    updated_at timestamp with time zone DEFAULT now()
 );
 
 CREATE TABLE client_contacts (
