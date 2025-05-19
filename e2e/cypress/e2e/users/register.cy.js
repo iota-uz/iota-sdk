@@ -6,6 +6,10 @@ describe("user auth and registration flow", () => {
 		cy.task("seedDatabase");
 	});
 
+	beforeEach(() => {
+		cy.viewport(1280, 720);
+	});
+
 	afterEach(() => {
 		cy.logout();
 	});
