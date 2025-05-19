@@ -99,7 +99,6 @@ func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Ten
 		Domain: "test.com",
 	}
 
-	// Try to insert the tenant - if it fails because table doesn't exist, we'll catch it
 	_, err := pool.Exec(ctx, "INSERT INTO tenants (id, name, domain, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING",
 		testTenant.ID,
 		testTenant.Name,
@@ -108,7 +107,6 @@ func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Ten
 		time.Now(),
 	)
 
-	// If there's no error, we're done
 	if err == nil {
 		return testTenant, nil
 	}
@@ -118,8 +116,6 @@ func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Ten
 		return nil, err
 	}
 
-	// We can simply return the tenant object for test context
-	// The actual tenant will be created when migrations run
 	return testTenant, nil
 }
 
