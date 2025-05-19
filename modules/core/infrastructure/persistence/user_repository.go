@@ -105,7 +105,7 @@ func NewUserRepository(uploadRepo upload.Repository) user.Repository {
 			user.LastLoginField:    "u.last_login",
 			user.CreatedAtField:    "u.created_at",
 			user.UpdatedAtField:    "u.updated_at",
-			user.TenantID:     "u.tenant_id",
+			user.TenantIDField:     "u.tenant_id",
 		},
 	}
 }

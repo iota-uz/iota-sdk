@@ -99,19 +99,19 @@ func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
 	}
 
 	var count int64
-	if err := tx.QueryRow(ctx, sessionCountQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, countSessionQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *GormSessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
+func (g *SessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return g.querySessions(ctx, sessionFindQuery+" WHERE tenant_id = $1", tenant.ID)
+	return g.querySessions(ctx, selectSessionQuery+" WHERE tenant_id = $1", tenant.ID)
 }
 
 func (g *SessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
@@ -138,7 +138,7 @@ func (g *SessionRepository) GetByToken(ctx context.Context, token string) (*sess
 	}
 
 	// Normal flow with tenant from context
-	sessions, err := g.querySessions(ctx, repo.Join(sessionFindQuery, "WHERE token = $1 AND tenant_id = $2"), token, tenant.ID)
+	sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1 AND tenant_id = $2"), token, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get session by token")
 	}

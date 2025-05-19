@@ -203,11 +203,6 @@ func (g *ClientRepository) exists(ctx context.Context, id uint) (bool, error) {
 		return false, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	var exists bool
 	if err := pool.QueryRow(ctx, clientExistsQuery, id).Scan(&exists); err != nil {
 		return false, err

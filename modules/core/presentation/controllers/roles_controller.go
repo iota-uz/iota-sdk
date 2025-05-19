@@ -122,7 +122,7 @@ func (c *RolesController) List(
 		Offset: params.Offset,
 		Filters: []role.Filter{
 			{
-				Column: role.TenantID,
+				Column: role.TenantIDField,
 				Filter: repo.Eq(tenant.ID.String()),
 			},
 		},
