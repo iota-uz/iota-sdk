@@ -345,6 +345,10 @@ func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) 
 	if err != nil {
 		return nil, err
 	}
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	return chat.NewMember(
 		chat.NewUserSender(
@@ -353,10 +357,15 @@ func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) 
 			usr.LastName(),
 		),
 		chat.WebsiteTransport,
+		chat.WithMemberTenantID(tenant.ID),
 	), nil
 }
 
 func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber phone.Phone) (chat.Member, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
 	match, err := s.clientRepo.GetByContactValue(ctx, client.ContactTypePhone, phoneNumber.Value())
 	if err == nil {
 		var contactID uint
@@ -374,13 +383,9 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 				match.LastName(),
 			),
 			chat.WebsiteTransport,
+			chat.WithMemberTenantID(tenant.ID),
 		), nil
 	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
-		return nil, err
-	}
-
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
 		return nil, err
 	}
 
@@ -420,6 +425,7 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 			clientEntity.LastName(),
 		),
 		chat.WebsiteTransport,
+		chat.WithMemberTenantID(tenant.ID),
 	)
 	return member, nil
 }
