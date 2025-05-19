@@ -71,5 +71,13 @@ describe("user auth and registration flow", () => {
 		cy.visit("http://localhost:3200/users");
 		cy.url().should("include", "/users");
 	});
+	
+	it("newly created user should see tabs in the sidebar", () => {
+		cy.login("test1@gmail.com", "TestPass123!");
+		cy.visit("http://localhost:3200/");
+		
+		// Check that the sidebar contains at least one tab/link
+		cy.get("#sidebar-navigation li").should("have.length.at.least", 1);
+	});
 });
 
