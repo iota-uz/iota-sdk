@@ -165,15 +165,16 @@ func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	dtos := make([]*tab.CreateDTO, 0, len(hDto.Hrefs))
+	dtos := make([]*tab.Tab, 0, len(hDto.Hrefs))
 	for i, href := range hDto.Hrefs {
-		dtos = append(dtos, &tab.CreateDTO{
+		dtos = append(dtos, &tab.Tab{
 			Href:     href,
 			Position: uint(i),
 			UserID:   u.ID(),
+			TenantID: u.TenantID(),
 		})
 	}
-	if _, err := c.tabService.CreateManyUserTabs(r.Context(), u.ID(), dtos); err != nil {
+	if err := c.tabService.CreateManyUserTabs(r.Context(), u.ID(), dtos); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
