@@ -154,19 +154,10 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 		return nil, fmt.Errorf("failed to build filters: %w", err)
 	}
 
-	sortFields := make([]string, 0, len(params.SortBy.Fields))
-	for _, f := range params.SortBy.Fields {
-		if field, ok := g.fieldMap[f]; ok {
-			sortFields = append(sortFields, field)
-		} else {
-			return nil, fmt.Errorf("invalid sort parameters: unknown sort field: %v", f)
-		}
-	}
-
 	query := repo.Join(
 		selectExpenseCategoryQuery,
 		repo.JoinWhere(where...),
-		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 

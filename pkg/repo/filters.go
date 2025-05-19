@@ -15,22 +15,46 @@ type Column interface {
 	ToSQL() string
 }
 
-// SortBy defines sorting criteria for queries with generic field type support.
-// Use with OrderBy function to generate ORDER BY clauses.
-type SortBy[T any] struct {
-	// Fields represents the list of fields to sort by.
-	Fields []T
-	// Ascending indicates the sort direction (true for ASC, false for DESC).
-	Ascending bool
+type sortFieldKey interface {
+	~int | ~string
 }
 
-//func (s *SortBy[T]) ToSQL() string {
-//	fields := make([]string, len(s.Fields))
-//	for i, field := range s.Fields {
-//		fields[i] = field.ToSQL()
-//	}
-//	return OrderBy(fields, s.Ascending)
-//}
+// SortBy defines sorting criteria for queries with generic field type support.
+// Use with OrderBy function to generate ORDER BY clauses.
+type SortByField[T sortFieldKey] struct {
+	// Field is a generic field type that implements the Column interface.
+	Field T
+	// Ascending indicates the sort direction (true for ASC, false for DESC).
+	Ascending bool
+	// NullsFirst indicates whether NULL values should appear first (true) or last (false).
+	NullsLast bool
+}
+
+type SortBy[T sortFieldKey] struct {
+	Fields []SortByField[T]
+}
+
+func (s *SortBy[T]) ToSQL(mapping map[T]string) string {
+	if len(s.Fields) == 0 {
+		return ""
+	}
+	fields := make([]string, len(s.Fields))
+	for i, sort := range s.Fields {
+		field := mapping[sort.Field]
+		if sort.Ascending {
+			field += " ASC"
+		} else {
+			field += " DESC"
+		}
+		if sort.NullsLast {
+			field += " NULLS LAST"
+		} else {
+			field += " NULLS FIRST"
+		}
+		fields[i] = field
+	}
+	return fmt.Sprintf("ORDER BY %s", strings.Join(fields, ", "))
+}
 
 // Filter defines a query filter with a SQL clause generator and bound value.
 type Filter interface {

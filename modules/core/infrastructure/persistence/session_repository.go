@@ -41,25 +41,20 @@ const (
 	deleteSessionQuery     = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
 )
 
-type SessionRepository struct{}
+type SessionRepository struct {
+	fieldMap map[session.Field]string
+}
 
 func NewSessionRepository() session.Repository {
-	return &SessionRepository{}
+	return &SessionRepository{
+		fieldMap: map[session.Field]string{
+			session.ExpiresAt: "sessions.expires_at",
+			session.CreatedAt: "sessions.created_at",
+		},
+	}
 }
 
 func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case session.ExpiresAt:
-			sortFields = append(sortFields, "sessions.expires_at")
-		case session.CreatedAt:
-			sortFields = append(sortFields, "sessions.created_at")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	var args []interface{}
 	where := []string{"1 = 1"}
 
@@ -67,6 +62,11 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		where = append(where, fmt.Sprintf("token = $%d", len(args)+1))
 		args = append(args, params.Token)
 	}
+	query := repo.Join(
+		selectSessionQuery,
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
 
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
@@ -85,6 +85,8 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 		),
 		args...,
 	)
+
+	return g.querySessions(ctx, query, args...)
 }
 
 func (g *SessionRepository) Count(ctx context.Context) (int64, error) {

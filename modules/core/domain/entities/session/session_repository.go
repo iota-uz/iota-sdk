@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 type Field int
@@ -11,10 +13,8 @@ const (
 	CreatedAt
 )
 
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
-}
+type SortByField = repo.SortByField[Field]
+type SortBy = repo.SortBy[Field]
 
 type FindParams struct {
 	Limit  int

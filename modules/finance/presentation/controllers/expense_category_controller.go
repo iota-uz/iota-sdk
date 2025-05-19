@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -88,10 +89,12 @@ func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
 		SortBy: category.SortBy{
-			Fields: []category.Field{
-				category.CreatedAt,
+			Fields: []repo.SortByField[category.Field]{
+				{
+					Field:     category.CreatedAt,
+					Ascending: false,
+				},
 			},
-			Ascending: false,
 		},
 	}
 

@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/go-faster/errors"
 	"github.com/jackc/pgx/v5"
@@ -144,10 +143,16 @@ const (
 )
 
 type ChatRepository struct {
+	fieldMap map[chat.Field]string
 }
 
 func NewChatRepository() chat.Repository {
-	return &ChatRepository{}
+	return &ChatRepository{
+		fieldMap: map[chat.Field]string{
+			chat.CreatedAtField:     "c.created_at",
+			chat.LastMessageAtField: "c.last_message_at",
+		},
+	}
 }
 
 func (g *ChatRepository) queryMembers(ctx context.Context, query string, args ...any) ([]chat.Member, error) {
@@ -351,20 +356,7 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 func (g *ChatRepository) GetPaginated(
 	ctx context.Context, params *chat.FindParams,
 ) ([]chat.Chat, error) {
-	sortFields := []string{}
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case chat.LastMessageAt:
-			sortFields = append(sortFields, "c.last_message_at")
-		case chat.CreatedAt:
-			sortFields = append(sortFields, "c.created_at")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	where, args, joins := []string{"c.tenant_id = $1"}, []interface{}{}, []string{}
-
 	if params.Search != "" {
 		where = append(
 			where,
@@ -374,17 +366,14 @@ func (g *ChatRepository) GetPaginated(
 		joins = append(joins, "JOIN clients cl ON c.client_id = cl.id")
 	}
 
-	return g.queryChats(
-		ctx,
-		repo.Join(
-			selectChatQuery,
-			repo.Join(joins...),
-			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
+	query := repo.Join(
+		selectChatQuery,
+		repo.Join(joins...),
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
+	return g.queryChats(ctx, query, args...)
 }
 
 func (g *ChatRepository) Count(ctx context.Context) (int64, error) {
@@ -419,6 +408,8 @@ func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
 }
 
 func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
+	q := repo.Join(selectChatQuery, "WHERE c.id = $1")
+	chats, err := g.queryChats(ctx, q, id)
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")

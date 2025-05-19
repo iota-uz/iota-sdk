@@ -175,8 +175,10 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			Limit:  3,
 			Offset: 0,
 			SortBy: upload.SortBy{
-				Fields:    []upload.Field{upload.FieldSize},
-				Ascending: true,
+				Fields: []upload.SortByField{{
+					Field:     upload.FieldSize,
+					Ascending: true,
+				}},
 			},
 		}
 
@@ -190,7 +192,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		}
 
 		// Test with different sort order
-		params.SortBy.Ascending = false
+		params.SortBy.Fields[0].Ascending = false
 		uploadsDesc, err := uploadRepository.GetPaginated(f.ctx, params)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(uploadsDesc), 3)
@@ -205,8 +207,10 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			Mimetype: mimetype.Lookup("image/jpeg"),
 			Limit:    10,
 			SortBy: upload.SortBy{
-				Fields:    []upload.Field{upload.FieldName},
-				Ascending: true,
+				Fields: []upload.SortByField{{
+					Field:     upload.FieldName,
+					Ascending: true,
+				}},
 			},
 		}
 

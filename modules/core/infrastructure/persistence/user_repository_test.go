@@ -300,8 +300,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstNameField},
-				Ascending: true,
+				Fields: []repo.SortByField[user.Field]{{Field: user.FirstNameField, Ascending: true}},
 			},
 			Limit:  10,
 			Offset: 0,
@@ -332,8 +331,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstNameField},
-				Ascending: true,
+				Fields: []repo.SortByField[user.Field]{{Field: user.FirstNameField, Ascending: true}},
 			},
 			Limit:  10,
 			Offset: 0,
@@ -364,8 +362,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstNameField},
-				Ascending: true,
+				Fields: []repo.SortByField[user.Field]{{Field: user.FirstNameField, Ascending: true}},
 			},
 			Limit:  10,
 			Offset: 0,
@@ -396,8 +393,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 				},
 			},
 			SortBy: user.SortBy{
-				Fields:    []user.Field{user.FirstNameField},
-				Ascending: true,
+				Fields: []repo.SortByField[user.Field]{{Field: user.FirstNameField, Ascending: true}},
 			},
 			Limit:  10,
 			Offset: 0,

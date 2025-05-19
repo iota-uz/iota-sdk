@@ -16,8 +16,8 @@ const (
 	TenantIDField
 )
 
-type SortBy repo.SortBy[Field]
 type Filter = repo.FieldFilter[Field]
+type SortBy = repo.SortBy[Field]
 
 type FindParams struct {
 	Search            string
@@ -33,7 +33,7 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]Role, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Role, error)
 	GetByID(ctx context.Context, id uint) (Role, error)
-	Create(ctx context.Context, upload Role) (Role, error)
-	Update(ctx context.Context, upload Role) (Role, error)
+	Create(ctx context.Context, role Role) (Role, error)
+	Update(ctx context.Context, role Role) (Role, error)
 	Delete(ctx context.Context, id uint) error
 }

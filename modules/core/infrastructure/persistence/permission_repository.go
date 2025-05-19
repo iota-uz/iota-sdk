@@ -32,15 +32,25 @@ const (
 	permissionsDeleteQuery = `DELETE FROM permissions WHERE id = $1`
 )
 
-type GormPermissionRepository struct{}
-
-func NewPermissionRepository() permission.Repository {
-	return &GormPermissionRepository{}
+type PgPermissionRepository struct {
+	fieldMap map[permission.Field]string
 }
 
-func (g *GormPermissionRepository) GetPaginated(
+func NewPermissionRepository() permission.Repository {
+	return &PgPermissionRepository{
+		fieldMap: map[permission.Field]string{
+			permission.NameField:     "name",
+			permission.ResourceField: "resource",
+			permission.ActionField:   "action",
+			permission.ModifierField: "modifier",
+		},
+	}
+}
+
+func (g *PgPermissionRepository) GetPaginated(
 	ctx context.Context, params *permission.FindParams,
 ) ([]*permission.Permission, error) {
+	joins, args := []string{}, []interface{}{}
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -75,15 +85,14 @@ func (g *GormPermissionRepository) GetPaginated(
 		repo.Join(
 			permissionsSelectQuery,
 			repo.Join(joins...),
-			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			params.SortBy.ToSQL(g.fieldMap),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,
 	)
 }
 
-func (g *GormPermissionRepository) Count(ctx context.Context) (int64, error) {
+func (g *PgPermissionRepository) Count(ctx context.Context) (int64, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
@@ -105,7 +114,7 @@ func (g *GormPermissionRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormPermissionRepository) GetAll(ctx context.Context) ([]*permission.Permission, error) {
+func (g *PgPermissionRepository) GetAll(ctx context.Context) ([]*permission.Permission, error) {
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -114,7 +123,7 @@ func (g *GormPermissionRepository) GetAll(ctx context.Context) ([]*permission.Pe
 	return g.queryPermissions(ctx, permissionsSelectQuery+" WHERE tenant_id = $1", tenant.ID)
 }
 
-func (g *GormPermissionRepository) GetByID(ctx context.Context, id string) (*permission.Permission, error) {
+func (g *PgPermissionRepository) GetByID(ctx context.Context, id string) (*permission.Permission, error) {
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -130,7 +139,7 @@ func (g *GormPermissionRepository) GetByID(ctx context.Context, id string) (*per
 	return permissions[0], nil
 }
 
-func (g *GormPermissionRepository) Save(ctx context.Context, data *permission.Permission) error {
+func (g *PgPermissionRepository) Save(ctx context.Context, data *permission.Permission) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -160,7 +169,7 @@ func (g *GormPermissionRepository) Save(ctx context.Context, data *permission.Pe
 	return nil
 }
 
-func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error {
+func (g *PgPermissionRepository) Delete(ctx context.Context, id string) error {
 	if err := uuid.Validate(id); err != nil {
 		return err
 	}
@@ -173,7 +182,7 @@ func (g *GormPermissionRepository) Delete(ctx context.Context, id string) error 
 	return g.execQuery(ctx, permissionsDeleteQuery+" AND tenant_id = $2", id, tenant.ID)
 }
 
-func (g *GormPermissionRepository) queryPermissions(
+func (g *PgPermissionRepository) queryPermissions(
 	ctx context.Context,
 	query string,
 	args ...interface{},
@@ -218,7 +227,7 @@ func (g *GormPermissionRepository) queryPermissions(
 	return permissions, nil
 }
 
-func (g *GormPermissionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
+func (g *PgPermissionRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
