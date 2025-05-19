@@ -59,7 +59,7 @@ func NewRoleRepository() role.Repository {
 			role.DescriptionField:  "r.description",
 			role.CreatedAtField:    "r.created_at",
 			role.PermissionIDField: "rp.permission_id",
-			role.TenantID:     "r.tenant_id",
+			role.TenantIDField:     "r.tenant_id",
 		},
 	}
 }

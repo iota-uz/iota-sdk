@@ -52,7 +52,7 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 		fieldMap: map[group.Field]string{
 			group.CreatedAtField: "g.created_at",
 			group.UpdatedAtField: "g.updated_at",
-			group.TenantID:  "g.tenant_id",
+			group.TenantIDField:  "g.tenant_id",
 		},
 	}
 }

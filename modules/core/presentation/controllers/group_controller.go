@@ -210,7 +210,8 @@ func (c *GroupsController) Groups(
 		Search: search,
 		Filters: []group.Filter{
 			{
-				Column: group.TenantID,
+				// TODO: come back to do this
+				Column: group.TenantIDField,
 				Filter: repo.Eq(tenant.ID.String()),
 			},
 		},

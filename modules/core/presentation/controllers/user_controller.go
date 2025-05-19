@@ -5,13 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"net/http"
 	"net/url"
 	"slices"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -269,7 +270,7 @@ func (c *UsersController) Users(
 		Search: r.URL.Query().Get("Search"),
 		Filters: []user.Filter{
 			{
-				Column: user.TenantID,
+				Column: user.TenantIDField,
 				Filter: repo.Eq(tenant.ID.String()),
 			},
 		},
