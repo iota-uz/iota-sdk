@@ -115,34 +115,22 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id int64) (*positi
 }
 
 func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
 
 	dbRow := toDBPosition(data)
-	dbRow.TenantID = tenant.ID.String()
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO positions (tenant_id, name, description) VALUES ($1, $2, $3) RETURNING id
 	`, dbRow.TenantID, dbRow.Name, dbRow.Description).Scan(&data.ID); err != nil {
 		return err
 	}
-	data.TenantID = tenant.ID.String()
 	return nil
 }
 
 func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -152,26 +140,22 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	if _, err := tx.Exec(ctx, `
 		UPDATE positions
 		SET name = $1, description = $2
-		WHERE id = $3 AND tenant_id = $4
-	`, dbRow.Name, dbRow.Description, dbRow.ID, tenant.ID); err != nil {
+		WHERE id = $3`,
+		dbRow.Name,
+		dbRow.Description,
+		dbRow.ID,
+	); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (g *GormPositionRepository) Delete(ctx context.Context, id int64) error {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM positions WHERE id = $1 AND tenant_id = $2
-	`, id, tenant.ID); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM positions WHERE id = $1`, id); err != nil {
 		return err
 	}
 	return nil

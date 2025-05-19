@@ -26,6 +26,15 @@ type FindParams struct {
 	Filters []Filter
 }
 
+func (f *FindParams) FilterBy(field Field, filter repo.Filter) *FindParams {
+	res := *f
+	res.Filters = append(res.Filters, Filter{
+		Column: field,
+		Filter: filter,
+	})
+	return &res
+}
+
 type Repository interface {
 	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Group, error)

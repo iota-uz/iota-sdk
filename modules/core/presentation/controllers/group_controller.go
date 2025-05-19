@@ -210,7 +210,6 @@ func (c *GroupsController) Groups(
 		Search: search,
 		Filters: []group.Filter{
 			{
-				// TODO: come back to do this
 				Column: group.TenantIDField,
 				Filter: repo.Eq(tenant.ID.String()),
 			},
@@ -218,10 +217,11 @@ func (c *GroupsController) Groups(
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
-		findParams.Filters = append(findParams.Filters, group.Filter{
-			Column: group.CreatedAtField,
-			Filter: repo.Lt(v),
-		})
+		findParams = findParams.FilterBy(group.CreatedAtField, repo.Lt(v))
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		findParams = findParams.FilterBy(group.CreatedAtField, repo.Gt(v))
 	}
 
 	groupEntities, total, err := groupService.GetPaginatedWithTotal(r.Context(), findParams)
