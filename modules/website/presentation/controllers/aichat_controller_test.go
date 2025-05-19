@@ -69,8 +69,12 @@ func setupTest(t *testing.T) *testFixtures {
 		}
 	})
 
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	require.NoError(t, err, "Failed to create test tenant")
+
 	// Create context with transaction
 	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithTenant(ctx, tenant)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
 
 	// Setup real application with required modules

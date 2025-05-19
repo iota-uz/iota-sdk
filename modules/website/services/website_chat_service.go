@@ -374,7 +374,16 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 		return nil, err
 	}
 
-	c, err := client.New(phoneNumber.Value(), client.WithPhone(phoneNumber))
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	c, err := client.New(
+		phoneNumber.Value(),
+		client.WithPhone(phoneNumber),
+		client.WithTenantID(tenant.ID),
+	)
 	if err != nil {
 		return nil, err
 	}

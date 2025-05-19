@@ -20,9 +20,10 @@ func TestMain(m *testing.M) {
 }
 
 type testFixtures struct {
-	ctx  context.Context
-	pool *pgxpool.Pool
-	app  application.Application
+	ctx    context.Context
+	pool   *pgxpool.Pool
+	app    application.Application
+	tenant *composables.Tenant
 }
 
 func setupTest(t *testing.T) *testFixtures {
@@ -59,8 +60,9 @@ func setupTest(t *testing.T) *testFixtures {
 	}
 
 	return &testFixtures{
-		ctx:  ctx,
-		pool: pool,
-		app:  app,
+		ctx:    ctx,
+		pool:   pool,
+		app:    app,
+		tenant: tenant,
 	}
 }

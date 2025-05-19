@@ -24,6 +24,7 @@ const (
 
 type AIConfig interface {
 	ID() uuid.UUID
+	TenantID() uuid.UUID
 	ModelName() string
 	ModelType() AIModelType
 	SystemPrompt() string
@@ -54,6 +55,7 @@ type Repository interface {
 
 type aiConfig struct {
 	id           uuid.UUID
+	tenantID     uuid.UUID
 	modelName    string
 	modelType    AIModelType
 	systemPrompt string
@@ -95,6 +97,7 @@ func New(
 
 	cfg := &aiConfig{
 		id:           uuid.New(),
+		tenantID:     uuid.Nil, // Will be set via WithTenantID option
 		modelName:    modelName,
 		modelType:    modelType,
 		systemPrompt: "",
@@ -119,6 +122,14 @@ func WithID(id uuid.UUID) Option {
 	return func(c *aiConfig) {
 		if id != uuid.Nil {
 			c.id = id
+		}
+	}
+}
+
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(c *aiConfig) {
+		if tenantID != uuid.Nil {
+			c.tenantID = tenantID
 		}
 	}
 }
@@ -183,6 +194,10 @@ func WithIsDefault(isDefault bool) Option {
 
 func (c *aiConfig) ID() uuid.UUID {
 	return c.id
+}
+
+func (c *aiConfig) TenantID() uuid.UUID {
+	return c.tenantID
 }
 
 func (c *aiConfig) ModelName() string {
