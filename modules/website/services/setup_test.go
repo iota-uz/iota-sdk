@@ -37,6 +37,11 @@ func setupTest(t *testing.T) *testFixtures {
 		t.Fatal(err)
 	}
 
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Cleanup(func() {
 		if err := tx.Rollback(ctx); err != nil {
 			t.Fatal(err)
@@ -44,6 +49,7 @@ func setupTest(t *testing.T) *testFixtures {
 		pool.Close()
 	})
 
+	ctx = composables.WithTenant(ctx, tenant)
 	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
 
