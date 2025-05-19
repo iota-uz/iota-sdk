@@ -13,6 +13,7 @@ import (
 	crmPersistence "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,12 +82,20 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	chatRepo := crmPersistence.NewChatRepository()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
+	// Get tenant ID for the client
+	tenant, err := composables.UseTenant(fixtures.ctx)
+	require.NoError(t, err)
+
 	// Create an existing client first with phone
 	phoneStr := "+12126647668" // Valid US number format
 	p, err := phone.Parse(phoneStr, country.UnitedStates)
 	require.NoError(t, err)
 
-	existingClient, err := client.New(phoneStr, client.WithPhone(p))
+	existingClient, err := client.New(
+		phoneStr,
+		client.WithPhone(p),
+		client.WithTenantID(tenant.ID),
+	)
 	require.NoError(t, err)
 
 	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
@@ -110,12 +119,19 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	chatRepo := crmPersistence.NewChatRepository()
 	fixtures, sut, clientRepo := setupChatTest(t)
 
+	// Get tenant ID for the client
+	tenant, err := composables.UseTenant(fixtures.ctx)
+	require.NoError(t, err)
+
 	// 1. Create a client and get the client ID
 	phoneStr := "+12126647669" // Valid US number format
 	p, err := phone.Parse(phoneStr, country.UnitedStates)
 	require.NoError(t, err)
 
-	existingClient, err := client.New(phoneStr, client.WithPhone(p))
+	existingClient, err := client.New(phoneStr,
+		client.WithPhone(p),
+		client.WithTenantID(tenant.ID),
+	)
 	require.NoError(t, err)
 
 	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
@@ -297,6 +313,7 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 		"Agent",
 		internet.MustParseEmail("test@gmail.com"),
 		user.UILanguageEN,
+		user.WithTenantID(fixtures.tenant.ID),
 	))
 	require.NoError(t, err)
 

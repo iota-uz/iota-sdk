@@ -21,6 +21,7 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 		aichatconfig.WithSystemPrompt("You are a helpful assistant"),
 		aichatconfig.WithTemperature(0.8),
 		aichatconfig.WithMaxTokens(2048),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config, err := aichatconfig.New(
@@ -59,6 +60,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 		aichatconfig.WithSystemPrompt("Original system prompt"),
 		aichatconfig.WithTemperature(0.7),
 		aichatconfig.WithMaxTokens(1024),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	originalConfig, err := aichatconfig.New(
@@ -107,6 +109,7 @@ func TestAIChatConfigRepository_GetByID(t *testing.T) {
 		aichatconfig.WithSystemPrompt("Test system prompt"),
 		aichatconfig.WithTemperature(0.8),
 		aichatconfig.WithMaxTokens(2048),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config, err := aichatconfig.New(
@@ -159,6 +162,7 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 	// Create and save multiple configs
 	options1 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 1 system prompt"),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config1, err := aichatconfig.New(
@@ -172,6 +176,7 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 	options2 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 2 system prompt"),
 		aichatconfig.WithTemperature(0.9),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config2, err := aichatconfig.New(
@@ -224,6 +229,7 @@ func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 	// Create and save a new config
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config, err := aichatconfig.New(
@@ -263,6 +269,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 	// Create and save two configs
 	options1 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 1 system prompt"),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config1, err := aichatconfig.New(
@@ -275,6 +282,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 
 	options2 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 2 system prompt"),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config2, err := aichatconfig.New(
@@ -334,6 +342,7 @@ func TestAIChatConfigRepository_Delete(t *testing.T) {
 	// Create and save a new config
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config, err := aichatconfig.New(
@@ -367,6 +376,7 @@ func TestAIChatConfigRepository_Delete_DefaultConfig(t *testing.T) {
 	// Create and save a new config
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config, err := aichatconfig.New(
@@ -418,6 +428,7 @@ func TestAIChatConfigRepository_GetDefault_NoDefaultConfig(t *testing.T) {
 	// Create and save a new config without setting it as default
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config, err := aichatconfig.New(
@@ -447,6 +458,7 @@ func TestAIChatConfigRepository_SaveWithIsDefault(t *testing.T) {
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
 		aichatconfig.WithIsDefault(true),
+		aichatconfig.WithTenantID(fixtures.tenant.ID),
 	}
 
 	config, err := aichatconfig.New(
