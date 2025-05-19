@@ -17,7 +17,7 @@ func CreateDefaultTenant(ctx context.Context, app application.Application) error
 	// Create a new tenant with a fixed UUID for the default tenant
 	defaultTenant := tenant.New(
 		"Default",
-		tenant.WithID(uuid.MustParse("00000000-0000-0000-0000-000000000001")), // Use a fixed UUID for default tenant
+		tenant.WithID(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 		tenant.WithDomain("default.localhost"),
 	)
 	existingTenants, err := tenantRepository.List(ctx)

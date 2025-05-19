@@ -352,7 +352,11 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 func (g *ChatRepository) GetPaginated(
 	ctx context.Context, params *chat.FindParams,
 ) ([]chat.Chat, error) {
-	where, args, joins := []string{"c.tenant_id = $1"}, []interface{}{}, []string{}
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+	where, args, joins := []string{"c.tenant_id = $1"}, []interface{}{tenant.ID}, []string{}
 	if params.Search != "" {
 		where = append(
 			where,

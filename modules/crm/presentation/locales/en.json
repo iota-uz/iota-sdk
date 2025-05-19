@@ -124,7 +124,11 @@
 				"Title": "Instant messages"
 			},
 			"New": "New instant message",
-			"Content": "Content"
+			"Content": "Content",
+			"NoData": {
+				"Title": "No message templates found",
+				"_Description": "Create a new message template to get started"
+			}
 		},
 		"New": {
 			"Meta": {

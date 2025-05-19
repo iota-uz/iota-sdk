@@ -71,6 +71,14 @@ func main() {
 	if err != nil {
 		panicWithStack(err)
 	}
+
+	// Add default tenant to context
+	defaultTenant := &composables.Tenant{
+		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		Name:   "Default",
+		Domain: "default.localhost",
+	}
+
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
@@ -81,20 +89,16 @@ func main() {
 			"User",
 			internet.MustParseEmail("ai@llm.com"),
 			user.UILanguageEN,
+			user.WithTenantID(defaultTenant.ID),
 		)),
 		websiteseed.AIChatConfigSeedFunc(aichatconfig.MustNew(
 			"gemma-12b-it",
 			aichatconfig.AIModelTypeOpenAI,
 			"https://llm2.eai.uz/v1",
+			aichatconfig.WithTenantID(defaultTenant.ID),
 		)),
 	)
 
-	// Add default tenant to context
-	defaultTenant := &composables.Tenant{
-		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-		Name:   "Default",
-		Domain: "default.localhost",
-	}
 	ctxWithTenant := context.WithValue(
 		composables.WithTx(ctx, tx),
 		constants.TenantKey,
