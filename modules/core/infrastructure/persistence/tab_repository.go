@@ -133,14 +133,7 @@ func (g *tabRepository) Create(ctx context.Context, data *tab.Tab) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	tab := ToDBTab(data)
-	tab.TenantID = tenant.ID.String()
-	data.TenantID = tenant.ID
 
 	if err := tx.QueryRow(
 		ctx,
@@ -161,15 +154,8 @@ func (g *tabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	for _, data := range tabs {
 		tab := ToDBTab(data)
-		tab.TenantID = tenant.ID.String()
-		data.TenantID = tenant.ID
 
 		if err := tx.QueryRow(
 			ctx,
@@ -186,17 +172,11 @@ func (g *tabRepository) CreateMany(ctx context.Context, tabs []*tab.Tab) error {
 }
 
 func (g *tabRepository) CreateOrUpdate(ctx context.Context, data *tab.Tab) error {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	matches, err := g.queryTabs(
 		ctx,
-		selectTabsQuery+" WHERE user_id = $1 AND href = $2 AND tenant_id = $3",
+		selectTabsQuery+" WHERE user_id = $1 AND href = $2",
 		data.UserID,
 		data.Href,
-		tenant.ID,
 	)
 	if err != nil {
 		return err
@@ -217,19 +197,13 @@ func (g *tabRepository) Update(ctx context.Context, data *tab.Tab) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	tab := ToDBTab(data)
 	if _, err := tx.Exec(
 		ctx,
-		updateTabsQuery+" AND tenant_id = $4",
+		updateTabsQuery,
 		tab.Href,
 		tab.Position,
 		tab.ID,
-		tenant.ID,
 	); err != nil {
 		return err
 	}
@@ -242,12 +216,7 @@ func (g *tabRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
-	if _, err := tx.Exec(ctx, deleteTabsQuery+" AND tenant_id = $2", id, tenant.ID); err != nil {
+	if _, err := tx.Exec(ctx, deleteTabsQuery, id); err != nil {
 		return err
 	}
 	return nil
@@ -259,12 +228,7 @@ func (g *tabRepository) DeleteUserTabs(ctx context.Context, userID uint) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
-	if _, err := tx.Exec(ctx, deleteUserTabsQuery+" AND tenant_id = $2", userID, tenant.ID); err != nil {
+	if _, err := tx.Exec(ctx, deleteUserTabsQuery, userID); err != nil {
 		return err
 	}
 	return nil
