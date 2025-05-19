@@ -20,9 +20,10 @@ func TestMain(m *testing.M) {
 }
 
 type testFixtures struct {
-	ctx  context.Context
-	pool *pgxpool.Pool
-	app  application.Application
+	ctx    context.Context
+	pool   *pgxpool.Pool
+	app    application.Application
+	tenant *composables.Tenant
 }
 
 func setupTest(t *testing.T) *testFixtures {
@@ -30,9 +31,18 @@ func setupTest(t *testing.T) *testFixtures {
 
 	testutils.CreateDB(t.Name())
 	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ctx := context.Background()
 	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,17 +54,14 @@ func setupTest(t *testing.T) *testFixtures {
 		pool.Close()
 	})
 
+	ctx = composables.WithTenant(ctx, tenant)
 	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
 
-	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	return &testFixtures{
-		ctx:  ctx,
-		pool: pool,
-		app:  app,
+		ctx:    ctx,
+		pool:   pool,
+		app:    app,
+		tenant: tenant,
 	}
 }

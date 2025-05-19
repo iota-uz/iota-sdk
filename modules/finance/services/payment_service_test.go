@@ -66,6 +66,18 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	publisher := eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
 	app := setupApplication(t, pool, publisher)
 
+	// Run migrations to ensure all tables are created (including tenants table)
+	if err := app.Migrations().Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test tenant and add it to the context (after migrations have created the table)
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = composables.WithTenant(ctx, tenant)
+
 	return &testFixtures{
 		ctx:             ctx,
 		pool:            pool,
@@ -116,6 +128,7 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) {
 		t.Fatal(err)
 	}
 
+	// Create the counterparty - the repository itself will set the tenant ID
 	_, err = counterpartyRepo.Create(ctx, counterparty.New(
 		tin,
 		"Test",

@@ -41,7 +41,13 @@ func (g *GormInventoryRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	where, args := []string{"ic.tenant_id = $1"}, []interface{}{tenant.ID}
 	if params.ID != 0 {
 		where, args = append(where, fmt.Sprintf("ic.id = $%d", len(args)+1)), append(args, params.ID)
 	}
@@ -59,7 +65,7 @@ func (g *GormInventoryRepository) GetPaginated(
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT ic.id, status, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id
+		SELECT ic.id, ic.tenant_id, status, name, ic.created_at, ic.finished_at, ic.created_by_id, ic.finished_by_id
 		FROM inventory_checks ic
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY id DESC
@@ -77,6 +83,7 @@ func (g *GormInventoryRepository) GetPaginated(
 		var finishedByID sql.NullInt32
 		if err := rows.Scan(
 			&check.ID,
+			&check.TenantID,
 			&check.Status,
 			&check.Name,
 			&check.CreatedAt,
@@ -129,13 +136,21 @@ func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.P
 	if err != nil {
 		return nil, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	var entities []*models.InventoryPosition
 	sql := `
 	SELECT warehouse_positions.id, warehouse_positions.title, COUNT(warehouse_products.id) quantity, array_agg(warehouse_products.rfid) rfid_tags
-	FROM warehouse_positions JOIN warehouse_products ON warehouse_positions.id = warehouse_products.position_id
+	FROM warehouse_positions
+	JOIN warehouse_products ON warehouse_positions.id = warehouse_products.position_id
+	WHERE warehouse_positions.tenant_id = $1
 	GROUP BY warehouse_positions.id;
 	`
-	rows, err := tx.Query(ctx, sql)
+	rows, err := tx.Query(ctx, sql, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,10 +176,16 @@ func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
 	var count uint
 	if err := pool.QueryRow(ctx, `
-		SELECT COUNT(*) as count FROM inventory_checks
-	`).Scan(&count); err != nil {
+		SELECT COUNT(*) as count FROM inventory_checks WHERE tenant_id = $1
+	`, tenant.ID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -215,22 +236,31 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	// Set tenant ID in domain entity
+	data.TenantID = tenant.ID
+
 	dbRow, err := mappers.ToDBInventoryCheck(data)
 	if err != nil {
 		return err
 	}
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO inventory_checks (status, name, created_by_id) 
-		VALUES ($1, $2, $3) RETURNING id
-	`, dbRow.Status, dbRow.Name, dbRow.CreatedByID).Scan(&data.ID); err != nil {
+		INSERT INTO inventory_checks (tenant_id, status, name, created_by_id)
+		VALUES ($1, $2, $3, $4) RETURNING id
+	`, dbRow.TenantID, dbRow.Status, dbRow.Name, dbRow.CreatedByID).Scan(&data.ID); err != nil {
 		return err
 	}
 
 	if results := dbRow.Results; results != nil {
 		for _, result := range results {
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO inventory_check_results (inventory_check_id, position_id, expected_quantity, actual_quantity, difference) VALUES ($1, $2, $3, $4, $5)
-			`, data.ID, result.PositionID, result.ExpectedQuantity, result.ActualQuantity, result.Difference); err != nil {
+				INSERT INTO inventory_check_results (tenant_id, inventory_check_id, position_id, expected_quantity, actual_quantity, difference) VALUES ($1, $2, $3, $4, $5, $6)
+			`, tenant.ID, data.ID, result.PositionID, result.ExpectedQuantity, result.ActualQuantity, result.Difference); err != nil {
 				return err
 			}
 		}
@@ -243,14 +273,23 @@ func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Ch
 	if err != nil {
 		return err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	// Set tenant ID in domain entity
+	data.TenantID = tenant.ID
+
 	dbRow, err := mappers.ToDBInventoryCheck(data)
 	if err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE inventory_checks ic SET name = COALESCE(NULLIF($1, ''), ic.name)
-		WHERE ic.id = $2
-	`, dbRow.Name, dbRow.ID); err != nil {
+		WHERE ic.id = $2 AND ic.tenant_id = $3
+	`, dbRow.Name, dbRow.ID, dbRow.TenantID); err != nil {
 		return err
 	}
 	return nil
@@ -261,7 +300,13 @@ func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM inventory_checks WHERE id = $1`, id); err != nil {
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM inventory_checks WHERE id = $1 AND tenant_id = $2`, id, tenant.ID); err != nil {
 		return err
 	}
 	return nil
@@ -281,7 +326,13 @@ func (g *GormInventoryRepository) getCheckResults(
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"1 = 1"}, []interface{}{}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	where, args := []string{"icr.tenant_id = $1"}, []interface{}{tenant.ID}
 	if params.id != 0 {
 		where, args = append(where, fmt.Sprintf("ic.id = $%d", len(args)+1)), append(args, params.id)
 	}
@@ -295,7 +346,7 @@ func (g *GormInventoryRepository) getCheckResults(
 	}
 
 	rows, err := pool.Query(ctx, `
-		SELECT id, inventory_check_id, position_id, expected_quantity, actual_quantity, difference, created_at
+		SELECT id, tenant_id, inventory_check_id, position_id, expected_quantity, actual_quantity, difference, created_at
 		FROM inventory_check_results icr
 		WHERE `+strings.Join(where, " AND ")+`
 		ORDER BY id DESC`, args...)
@@ -308,6 +359,7 @@ func (g *GormInventoryRepository) getCheckResults(
 		var result models.InventoryCheckResult
 		if err := rows.Scan(
 			&result.ID,
+			&result.TenantID,
 			&result.InventoryCheckID,
 			&result.PositionID,
 			&result.ExpectedQuantity,

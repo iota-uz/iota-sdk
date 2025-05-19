@@ -166,7 +166,12 @@ func (c *AIChatController) saveConfig(
 		return
 	}
 
-	configEntity, err := dto.Apply(config)
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		panic(err)
+	}
+
+	configEntity, err := dto.Apply(config, tenant.ID)
 	if err != nil {
 		logger.WithError(err).Error("failed to convert DTO to entity")
 		w.Header().Set("Content-Type", "application/json")

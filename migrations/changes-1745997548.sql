@@ -8,6 +8,7 @@ CREATE TABLE chat_members (
     client_contact_id int8 UNIQUE REFERENCES client_contacts (id) ON DELETE SET NULL ON UPDATE CASCADE,
     transport varchar(20) NOT NULL,
     transport_meta jsonb,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     created_at timestamp(3) DEFAULT now() NOT NULL,
     updated_at timestamp(3) DEFAULT now() NOT NULL
 );

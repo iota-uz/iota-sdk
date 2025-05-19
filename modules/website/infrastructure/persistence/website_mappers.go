@@ -13,6 +13,7 @@ import (
 func ToDBConfig(config aichatconfig.AIConfig) models.AIChatConfig {
 	return models.AIChatConfig{
 		ID:           config.ID().String(),
+		TenantID:     config.TenantID().String(),
 		ModelName:    config.ModelName(),
 		ModelType:    string(config.ModelType()),
 		SystemPrompt: config.SystemPrompt(),
@@ -33,8 +34,14 @@ func ToDomainConfig(model models.AIChatConfig) (aichatconfig.AIConfig, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to parse UUID from string: %s", model.ID))
 	}
 
+	tenantID, err := uuid.Parse(model.TenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to parse tenant UUID from string: %s", model.TenantID))
+	}
+
 	options := []aichatconfig.Option{
 		aichatconfig.WithID(id),
+		aichatconfig.WithTenantID(tenantID),
 		aichatconfig.WithTemperature(model.Temperature),
 		aichatconfig.WithMaxTokens(model.MaxTokens),
 		aichatconfig.WithAccessToken(model.AccessToken),

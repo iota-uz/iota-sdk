@@ -16,6 +16,7 @@ import (
 const (
 	aiConfigFindQuery = `
 		SELECT id,
+			tenant_id,
 			model_name,
 			model_type,
 			system_prompt,
@@ -32,8 +33,8 @@ const (
 
 	aiConfigInsertQuery = `
 		INSERT INTO ai_chat_configs 
-		(id, model_name, model_type, system_prompt, temperature, max_tokens, base_url, access_token, is_default, created_at, updated_at) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+		(id, tenant_id, model_name, model_type, system_prompt, temperature, max_tokens, base_url, access_token, is_default, created_at, updated_at) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
 		RETURNING id`
 
 	aiConfigUpdateQuery = `
@@ -44,7 +45,7 @@ const (
 
 	aiConfigDeleteQuery = `DELETE FROM ai_chat_configs WHERE id = $1`
 
-	aiConfigClearDefaultQuery = `UPDATE ai_chat_configs SET is_default = false, updated_at = $1 WHERE is_default = true`
+	aiConfigClearDefaultQuery = `UPDATE ai_chat_configs SET is_default = false, updated_at = $1 WHERE is_default = true AND tenant_id = $2`
 
 	aiConfigSetDefaultQuery = `UPDATE ai_chat_configs SET is_default = true, updated_at = $1 WHERE id = $2`
 
@@ -69,7 +70,12 @@ func (r *AIChatConfigRepository) GetByID(ctx context.Context, id uuid.UUID) (aic
 }
 
 func (r *AIChatConfigRepository) GetDefault(ctx context.Context) (aichatconfig.AIConfig, error) {
-	configs, err := r.queryConfigs(ctx, repo.Join(aiConfigFindQuery, "WHERE is_default = true LIMIT 1"))
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	configs, err := r.queryConfigs(ctx, repo.Join(aiConfigFindQuery, "WHERE is_default = true AND tenant_id = $1 LIMIT 1"), tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query default AI chat config")
 	}
@@ -80,7 +86,13 @@ func (r *AIChatConfigRepository) GetDefault(ctx context.Context) (aichatconfig.A
 }
 
 func (r *AIChatConfigRepository) List(ctx context.Context) ([]aichatconfig.AIConfig, error) {
-	configs, err := r.queryConfigs(ctx, aiConfigFindQuery+" ORDER BY is_default DESC, id ASC")
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	q := repo.Join(aiConfigFindQuery, "WHERE tenant_id = $1 ORDER BY is_default DESC, id ASC")
+	configs, err := r.queryConfigs(ctx, q, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list AI chat configs")
 	}
@@ -94,7 +106,6 @@ func (r *AIChatConfigRepository) Save(ctx context.Context, config aichatconfig.A
 	}
 
 	dbConfig := ToDBConfig(config)
-	now := time.Now()
 
 	var exists bool
 	if config.ID() != uuid.Nil {
@@ -103,9 +114,10 @@ func (r *AIChatConfigRepository) Save(ctx context.Context, config aichatconfig.A
 		}
 	}
 
-	var rows error
 	if exists {
-		rows = tx.QueryRow(ctx, aiConfigUpdateQuery,
+		rows := tx.QueryRow(
+			ctx,
+			aiConfigUpdateQuery,
 			dbConfig.ModelName,
 			dbConfig.ModelType,
 			dbConfig.SystemPrompt,
@@ -114,16 +126,18 @@ func (r *AIChatConfigRepository) Save(ctx context.Context, config aichatconfig.A
 			dbConfig.BaseURL,
 			dbConfig.AccessToken,
 			dbConfig.IsDefault,
-			now,
+			dbConfig.UpdatedAt,
 			dbConfig.ID,
 		).Scan(&dbConfig.ID)
 		if rows != nil {
 			return nil, errors.Wrap(rows, fmt.Sprintf("failed to update AI chat config with ID: %s", dbConfig.ID))
 		}
 	} else {
-		configID := uuid.New()
-		rows = tx.QueryRow(ctx, aiConfigInsertQuery,
-			configID.String(),
+		rows := tx.QueryRow(
+			ctx,
+			aiConfigInsertQuery,
+			dbConfig.ID,
+			dbConfig.TenantID,
 			dbConfig.ModelName,
 			dbConfig.ModelType,
 			dbConfig.SystemPrompt,
@@ -132,8 +146,8 @@ func (r *AIChatConfigRepository) Save(ctx context.Context, config aichatconfig.A
 			dbConfig.BaseURL,
 			dbConfig.AccessToken,
 			dbConfig.IsDefault,
-			now,
-			now,
+			dbConfig.CreatedAt,
+			dbConfig.UpdatedAt,
 		).Scan(
 			&dbConfig.ID,
 		)
@@ -163,7 +177,12 @@ func (r *AIChatConfigRepository) SetDefault(ctx context.Context, id uuid.UUID) e
 
 	now := time.Now()
 
-	_, err = tx.Exec(ctx, aiConfigClearDefaultQuery, now)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	_, err = tx.Exec(ctx, aiConfigClearDefaultQuery, now, tenant.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to clear default config")
 	}
@@ -237,6 +256,7 @@ func (r *AIChatConfigRepository) queryConfigs(ctx context.Context, query string,
 
 		if err := rows.Scan(
 			&cfg.ID,
+			&cfg.TenantID,
 			&cfg.ModelName,
 			&cfg.ModelType,
 			&cfg.SystemPrompt,

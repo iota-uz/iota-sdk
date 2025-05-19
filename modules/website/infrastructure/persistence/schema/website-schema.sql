@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_configs (
     base_url varchar(255) NOT NULL,
     access_token varchar(1024),
     is_default boolean NOT NULL DEFAULT FALSE,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     created_at timestamp with time zone NOT NULL DEFAULT NOW(),
     updated_at timestamp with time zone NOT NULL DEFAULT NOW()
 );

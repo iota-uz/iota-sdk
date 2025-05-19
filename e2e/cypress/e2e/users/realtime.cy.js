@@ -6,6 +6,10 @@ describe("user realtime behavior", () => {
         cy.task("seedDatabase");
     });
 
+    beforeEach(() => {
+        cy.viewport(1280, 720);
+    });
+
     afterEach(() => {
         cy.logout();
     });

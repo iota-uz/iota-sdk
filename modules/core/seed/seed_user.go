@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
@@ -11,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -33,12 +35,17 @@ func UserSeedFunc(usr user.User) application.SeedFunc {
 }
 
 func (s *userSeeder) CreateUser(ctx context.Context, app application.Application) error {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get tenant from context")
+	}
+
 	r, err := s.getOrCreateRole(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	usr, err := s.getOrCreateUser(ctx, r)
+	usr, err := s.getOrCreateUser(ctx, r, tenant.ID)
 	if err != nil {
 		return err
 	}
@@ -65,16 +72,23 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 		return matches[0], nil
 	}
 
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get tenant from context")
+	}
+
 	newRole := role.New(
 		adminRoleName,
 		role.WithDescription(adminRoleDesc),
 		role.WithPermissions(app.RBAC().Permissions()),
-		role.WithType(role.TypeSystem))
+		role.WithType(role.TypeSystem),
+		role.WithTenantID(tenant.ID),
+	)
 	logger.Infof("Creating role %s", adminRoleName)
 	return roleRepository.Create(ctx, newRole)
 }
 
-func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.User, error) {
+func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role, tenantID uuid.UUID) (user.User, error) {
 	uploadRepository := persistence.NewUploadRepository()
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	foundUser, err := userRepository.GetByEmail(ctx, s.user.Email().Value())
@@ -88,8 +102,19 @@ func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role) (user.Use
 		return foundUser, nil
 	}
 
+	newUser := user.New(
+		s.user.FirstName(),
+		s.user.LastName(),
+		s.user.Email(),
+		s.user.UILanguage(),
+		user.WithTenantID(tenantID),
+		user.WithPassword(s.user.Password()),
+		user.WithMiddleName(s.user.MiddleName()),
+		user.WithPhone(s.user.Phone()),
+	)
+
 	logger.Infof("Creating user %s", s.user.Email().Value())
-	return userRepository.Create(ctx, s.user.AddRole(r))
+	return userRepository.Create(ctx, newUser.AddRole(r))
 }
 
 func (s *userSeeder) createUserTabs(
@@ -99,7 +124,13 @@ func (s *userSeeder) createUserTabs(
 ) error {
 	tabsRepository := persistence.NewTabRepository()
 	localizer := i18n.NewLocalizer(app.Bundle(), string(s.user.UILanguage()))
-	tabs := buildTabsFromNavItems(app.NavItems(localizer), usr.ID())
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get tenant from context")
+	}
+
+	tabs := buildTabsFromNavItems(app.NavItems(localizer), usr.ID(), tenant.ID)
 
 	for _, t := range tabs {
 		if err := tabsRepository.CreateOrUpdate(ctx, t); err != nil {
@@ -109,7 +140,7 @@ func (s *userSeeder) createUserTabs(
 	return nil
 }
 
-func buildTabsFromNavItems(navItems []types.NavigationItem, userID uint) []*tab.Tab {
+func buildTabsFromNavItems(navItems []types.NavigationItem, userID uint, tenantID uuid.UUID) []*tab.Tab {
 	tabs := make([]*tab.Tab, 0, len(navItems)*4)
 	var position uint = 1
 
@@ -119,6 +150,7 @@ func buildTabsFromNavItems(navItems []types.NavigationItem, userID uint) []*tab.
 			tabs = append(tabs, &tab.Tab{
 				ID:       position,
 				UserID:   userID,
+				TenantID: tenantID,
 				Position: position,
 				Href:     item.Href,
 			})

@@ -6,6 +6,7 @@ import (
 
 type AIChatConfig struct {
 	ID           string
+	TenantID     string
 	ModelName    string
 	ModelType    string
 	SystemPrompt string

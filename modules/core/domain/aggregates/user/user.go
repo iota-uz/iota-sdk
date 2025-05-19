@@ -38,6 +38,12 @@ func WithType(type_ Type) Option {
 	}
 }
 
+func WithTenantID(id uuid.UUID) Option {
+	return func(u *user) {
+		u.tenantID = id
+	}
+}
+
 func WithMiddleName(middleName string) Option {
 	return func(u *user) {
 		u.middleName = middleName
@@ -124,6 +130,7 @@ func WithPhone(p phone.Phone) Option {
 type User interface {
 	ID() uint
 	Type() Type
+	TenantID() uuid.UUID
 	FirstName() string
 	LastName() string
 	MiddleName() string
@@ -180,6 +187,7 @@ func New(
 	u := &user{
 		id:          0,
 		type_:       TypeUser,
+		tenantID:    uuid.Nil,
 		firstName:   firstName,
 		lastName:    lastName,
 		middleName:  "",
@@ -206,6 +214,7 @@ func New(
 
 type user struct {
 	id          uint
+	tenantID    uuid.UUID
 	type_       Type
 	firstName   string
 	lastName    string
@@ -233,6 +242,10 @@ func (u *user) ID() uint {
 
 func (u *user) Type() Type {
 	return u.type_
+}
+
+func (u *user) TenantID() uuid.UUID {
+	return u.tenantID
 }
 
 func (u *user) FirstName() string {

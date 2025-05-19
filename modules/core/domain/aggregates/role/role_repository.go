@@ -13,6 +13,7 @@ const (
 	DescriptionField
 	CreatedAtField
 	PermissionIDField
+	TenantIDField
 )
 
 type Filter = repo.FieldFilter[Field]

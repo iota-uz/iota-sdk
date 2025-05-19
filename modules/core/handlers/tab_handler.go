@@ -50,19 +50,19 @@ func (h *TabHandler) createUserTabs(ctx context.Context, user user.User) {
 	items := h.app.NavItems(i18n.NewLocalizer(h.app.Bundle(), string(user.UILanguage())))
 	hrefs := h.getAccessibleNavItems(items, user)
 
-	tabs := make([]*tab.CreateDTO, 0, len(hrefs))
+	tabs := make([]*tab.Tab, 0, len(hrefs))
 	for i, href := range hrefs {
-		tabs = append(tabs, &tab.CreateDTO{
+		tabs = append(tabs, &tab.Tab{
 			UserID:   user.ID(),
 			Href:     href,
 			Position: uint(i),
+			TenantID: user.TenantID(),
 		})
 	}
 
 	if len(tabs) > 0 {
 		ctxWithUser := context.WithValue(ctx, constants.UserKey, user)
-		_, err := h.service.CreateManyUserTabs(ctxWithUser, user.ID(), tabs)
-		if err != nil {
+		if err := h.service.CreateManyUserTabs(ctxWithUser, user.ID(), tabs); err != nil {
 			h.logger.Errorf("Failed to create tabs for user %d: %v", user.ID(), err)
 			return
 		}

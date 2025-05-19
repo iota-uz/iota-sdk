@@ -76,9 +76,7 @@ func (s *ChatService) GetByClientID(ctx context.Context, clientID uint) (chat.Ch
 	return s.repo.GetByClientID(ctx, clientID)
 }
 
-// GetByClientIDOrCreate retrieves a chat by client ID or creates a new one if it doesn't exist
 func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) (chat.Chat, error) {
-	// First try to get without transaction
 	chatEntity, err := s.repo.GetByClientID(ctx, clientID)
 	if err == nil {
 		return chatEntity, nil
@@ -88,7 +86,6 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 	}
 
 	var createdEntity chat.Chat
-	// Need to create chat, start a transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		client, err := s.clientRepo.GetByID(txCtx, clientID)
 		if err != nil {

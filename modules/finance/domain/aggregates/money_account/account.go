@@ -3,6 +3,7 @@ package moneyaccount
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 
@@ -13,6 +14,7 @@ import (
 
 type Account struct {
 	ID            uint
+	TenantID      uuid.UUID
 	Name          string
 	AccountNumber string
 	Description   string
@@ -64,6 +66,7 @@ func (p *UpdateDTO) ToEntity(id uint) (*Account, error) {
 	}
 	return &Account{
 		ID:            id,
+		TenantID:      uuid.Nil,
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,

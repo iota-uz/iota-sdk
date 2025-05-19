@@ -3,6 +3,7 @@ package order
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 )
@@ -11,6 +12,7 @@ func New(orderType Type, status Status) Order {
 	return &orderImpl{
 		_type:     orderType,
 		status:    status,
+		tenantID:  uuid.Nil, // Will be set in repository
 		items:     make([]Item, 0),
 		createdAt: time.Now(),
 	}
@@ -19,6 +21,7 @@ func New(orderType Type, status Status) Order {
 func NewWithID(id uint, orderType Type, status Status, createdAt time.Time) Order {
 	return &orderImpl{
 		id:        id,
+		tenantID:  uuid.Nil, // Will be set in repository
 		_type:     orderType,
 		status:    status,
 		items:     make([]Item, 0),
@@ -28,6 +31,7 @@ func NewWithID(id uint, orderType Type, status Status, createdAt time.Time) Orde
 
 type orderImpl struct {
 	id        uint
+	tenantID  uuid.UUID
 	_type     Type
 	status    Status
 	items     []Item
@@ -38,8 +42,16 @@ func (o *orderImpl) SetID(id uint) {
 	o.id = id
 }
 
+func (o *orderImpl) SetTenantID(id uuid.UUID) {
+	o.tenantID = id
+}
+
 func (o *orderImpl) ID() uint {
 	return o.id
+}
+
+func (o *orderImpl) TenantID() uuid.UUID {
+	return o.tenantID
 }
 
 func (o *orderImpl) Type() Type {

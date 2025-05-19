@@ -5,6 +5,7 @@ import (
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
@@ -44,6 +45,7 @@ func (p *CreateDTO) ToEntity() (*Account, error) {
 	}
 	return &Account{
 		ID:            0,
+		TenantID:      uuid.Nil,
 		Name:          p.Name,
 		AccountNumber: p.AccountNumber,
 		Balance:       p.Balance,

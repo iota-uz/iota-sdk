@@ -253,6 +253,13 @@ func (c *UsersController) Users(
 	params := composables.UsePaginated(r)
 	groupIDs := r.URL.Query()["groupID"]
 
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant from request: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+		return
+	}
+
 	// Create find params
 	findParams := &user.FindParams{
 		Limit:  params.Limit,
@@ -266,6 +273,12 @@ func (c *UsersController) Users(
 			},
 		},
 		Search: r.URL.Query().Get("Search"),
+		Filters: []user.Filter{
+			{
+				Column: user.TenantIDField,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
 	}
 
 	if len(groupIDs) > 0 {
@@ -482,7 +495,7 @@ func (c *UsersController) Create(
 		return
 	}
 
-	userEntity, err := dto.ToEntity()
+	userEntity, err := dto.ToEntity(composables.MustUseUser(r.Context()).TenantID())
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

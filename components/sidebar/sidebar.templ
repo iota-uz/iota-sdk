@@ -20,6 +20,7 @@ templ Sidebar(props Props) {
 		}
 		<nav class="py-4 flex-1">
 			<ul
+				id="sidebar-navigation"
 				class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar"
 			>
 				for _, item := range props.Items {

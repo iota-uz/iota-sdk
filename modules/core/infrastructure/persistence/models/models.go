@@ -5,8 +5,18 @@ import (
 	"time"
 )
 
+type Tenant struct {
+	ID        string
+	Name      string
+	Domain    sql.NullString
+	IsActive  bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Upload struct {
 	ID        uint
+	TenantID  string
 	Hash      string
 	Path      string
 	Name      string
@@ -27,6 +37,7 @@ type Currency struct {
 
 type Company struct {
 	ID        uint
+	TenantID  string
 	Name      string
 	About     string
 	Address   string
@@ -39,6 +50,7 @@ type Company struct {
 
 type Permission struct {
 	ID          string
+	TenantID    string
 	Name        string
 	Resource    string
 	Action      string
@@ -54,6 +66,7 @@ type RolePermission struct {
 type Role struct {
 	ID          uint
 	Type        string
+	TenantID    string
 	Name        string
 	Description sql.NullString
 	CreatedAt   time.Time
@@ -62,6 +75,7 @@ type Role struct {
 
 type User struct {
 	ID         uint
+	TenantID   string // UUID stored as string
 	Type       string
 	FirstName  string
 	LastName   string
@@ -97,6 +111,7 @@ type UploadedImage struct {
 
 type Session struct {
 	Token     string
+	TenantID  string // UUID stored as string
 	UserID    uint
 	ExpiresAt time.Time
 	IP        string
@@ -106,6 +121,7 @@ type Session struct {
 
 type AuthenticationLog struct {
 	ID        uint
+	TenantID  string // UUID stored as string
 	UserID    uint
 	IP        string
 	UserAgent string
@@ -114,6 +130,7 @@ type AuthenticationLog struct {
 
 type Tab struct {
 	ID       uint
+	TenantID string
 	Href     string
 	Position uint
 	UserID   uint
@@ -121,6 +138,7 @@ type Tab struct {
 
 type Passport struct {
 	ID                  string
+	TenantID            string
 	FirstName           sql.NullString
 	LastName            sql.NullString
 	MiddleName          sql.NullString
@@ -146,6 +164,7 @@ type Passport struct {
 type Group struct {
 	ID          string
 	Type        string
+	TenantID    string
 	Name        string
 	Description sql.NullString
 	CreatedAt   time.Time
