@@ -316,8 +316,10 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			Limit:  2,
 			Offset: 1,
 			SortBy: client.SortBy{
-				Fields:    []client.Field{client.LastName},
-				Ascending: true,
+				Fields: []client.SortByField{{
+					Field:     client.LastName,
+					Ascending: true,
+				}},
 			},
 		}
 
@@ -339,8 +341,10 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			Query:  "D", // Filter by LastName containing "D"
 			Field:  "last_name",
 			SortBy: client.SortBy{
-				Fields:    []client.Field{client.LastName},
-				Ascending: true,
+				Fields: []client.SortByField{{
+					Field:     client.LastName,
+					Ascending: true,
+				}},
 			},
 		}
 

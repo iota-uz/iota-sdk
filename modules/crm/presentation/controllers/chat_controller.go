@@ -145,8 +145,17 @@ func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 		ctx,
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
-				Ascending: false,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.LastMessageAtField,
+						Ascending: false,
+						NullsLast: true,
+					},
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: false,
+					},
+				},
 			},
 		},
 	)
@@ -197,8 +206,17 @@ func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
 		&chat.FindParams{
 			Search: searchQ,
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
-				Ascending: false,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.LastMessageAtField,
+						Ascending: false,
+						NullsLast: true,
+					},
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: false,
+					},
+				},
 			},
 		},
 	)
@@ -214,8 +232,17 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		&chat.FindParams{
 			SortBy: chat.SortBy{
-				Fields:    []chat.Field{chat.LastMessageAt, chat.CreatedAt},
-				Ascending: false,
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.LastMessageAtField,
+						Ascending: false,
+						NullsLast: true,
+					},
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: false,
+					},
+				},
 			},
 		},
 	)
@@ -230,8 +257,7 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 		Chats:      chatViewModels,
 	}
 	var component templ.Component
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	if isHxRequest {
+	if htmx.IsHxRequest(r) {
 		component = chatsui.ChatLayout(props)
 	} else {
 		component = chatsui.Index(props)
@@ -286,7 +312,12 @@ func (c *ChatController) List(w http.ResponseWriter, r *http.Request) {
 		Chat:       mappers.ChatToViewModel(chatEntity, clientEntity),
 		Templates:  messageTemplates,
 	}
-	c.renderChats(w, r.WithContext(templ.WithChildren(ctx, chatsui.SelectedChat(props))))
+	component := chatsui.SelectedChat(props)
+	if htmx.IsHxRequest(r) {
+		templ.Handler(component).ServeHTTP(w, r)
+	} else {
+		c.renderChats(w, r.WithContext(templ.WithChildren(ctx, component)))
+	}
 }
 
 func (c *ChatController) GetNew(w http.ResponseWriter, r *http.Request) {

@@ -144,16 +144,6 @@ func (g *PgUserRepository) buildUserFilters(params *user.FindParams) ([]string, 
 }
 
 func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
-	sortFields := make([]string, 0, len(params.SortBy.Fields))
-
-	for _, f := range params.SortBy.Fields {
-		if field, ok := g.fieldMap[f]; ok {
-			sortFields = append(sortFields, field)
-		} else {
-			return nil, errors.Wrap(fmt.Errorf("unknown sort field: %v", f), "invalid pagination parameters")
-		}
-	}
-
 	where, args, err := g.buildUserFilters(params)
 	if err != nil {
 		return nil, err
@@ -177,7 +167,7 @@ func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindPa
 	query := repo.Join(
 		baseQuery,
 		repo.JoinWhere(where...),
-		repo.OrderBy(sortFields, params.SortBy.Ascending),
+		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	users, err := g.queryUsers(ctx, query, args...)

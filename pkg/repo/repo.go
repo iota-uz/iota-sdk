@@ -78,26 +78,6 @@ func Exists(inner string) string {
 	return "SELECT EXISTS (" + inner + ")"
 }
 
-// OrderBy generates an SQL ORDER BY clause for the given fields and sort direction.
-// Returns an empty string if no fields are provided.
-//
-// Example usage:
-//
-//	query := "SELECT * FROM users " + repo.OrderBy([]string{"created_at", "name"}, false)
-//	// Returns: "SELECT * FROM users ORDER BY created_at, name DESC"
-func OrderBy(fields []string, ascending bool) string {
-	if len(fields) == 0 {
-		return ""
-	}
-	q := "ORDER BY " + strings.Join(fields, ", ")
-	if ascending {
-		q += " ASC"
-	} else {
-		q += " DESC"
-	}
-	return q
-}
-
 // JoinWhere creates an SQL WHERE clause by joining multiple conditions with AND.
 //
 // Example usage:

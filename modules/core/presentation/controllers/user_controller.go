@@ -264,9 +264,14 @@ func (c *UsersController) Users(
 	findParams := &user.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: user.SortBy{Fields: []user.Field{
-			user.CreatedAtField,
-		}},
+		SortBy: user.SortBy{
+			Fields: []repo.SortByField[user.Field]{
+				{
+					Field:     user.CreatedAtField,
+					Ascending: false,
+				},
+			},
+		},
 		Search: r.URL.Query().Get("Search"),
 		Filters: []user.Filter{
 			{

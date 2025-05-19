@@ -2,21 +2,21 @@ package permission
 
 import (
 	"context"
+
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 type Field int
 
 const (
-	FieldName Field = iota
-	FieldResource
-	FieldAction
-	FieldModifier
+	NameField Field = iota
+	ResourceField
+	ActionField
+	ModifierField
 )
 
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
-}
+type SortByField = repo.SortByField[Field]
+type SortBy = repo.SortBy[Field]
 
 type FindParams struct {
 	Limit  int

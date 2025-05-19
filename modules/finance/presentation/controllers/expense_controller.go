@@ -221,10 +221,12 @@ func (c *ExpenseController) List(
 		Offset: params.Offset,
 		Limit:  params.Limit,
 		SortBy: expense.SortBy{
-			Fields: []expense.Field{
-				expense.CreatedAt,
+			Fields: []repo.SortByField[expense.Field]{
+				{
+					Field:     expense.CreatedAt,
+					Ascending: false,
+				},
 			},
-			Ascending: false,
 		},
 		Search: r.URL.Query().Get("Search"),
 	}

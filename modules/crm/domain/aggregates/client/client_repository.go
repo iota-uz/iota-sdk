@@ -1,6 +1,10 @@
 package client
 
-import "context"
+import (
+	"context"
+
+	"github.com/iota-uz/iota-sdk/pkg/repo"
+)
 
 type DateRange struct {
 	From string
@@ -18,10 +22,8 @@ const (
 	UpdatedAt
 )
 
-type SortBy struct {
-	Fields    []Field
-	Ascending bool
-}
+type SortByField = repo.SortByField[Field]
+type SortBy = repo.SortBy[Field]
 
 type FindParams struct {
 	Limit     int
