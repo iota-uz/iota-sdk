@@ -334,40 +334,12 @@ func (g *PgUserRepository) EmailExists(ctx context.Context, email string) (bool,
 }
 
 func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.User, error) {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
-	}
-
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Create a copy of the user with the tenant ID from context
-	updatedData := data
-	if data.TenantID() == uuid.Nil {
-		updatedData = user.New(
-			data.FirstName(),
-			data.LastName(),
-			data.Email(),
-			data.UILanguage(),
-			user.WithID(data.ID()),
-			user.WithTenantID(tenant.ID),
-			user.WithMiddleName(data.MiddleName()),
-			user.WithPassword(data.Password()),
-			user.WithRoles(data.Roles()),
-			user.WithGroupIDs(data.GroupIDs()),
-			user.WithPermissions(data.Permissions()),
-			user.WithCreatedAt(data.CreatedAt()),
-			user.WithUpdatedAt(data.UpdatedAt()),
-		)
-		if data.Phone() != nil {
-			updatedData = updatedData.SetPhone(data.Phone())
-		}
-	}
-
-	dbUser, _ := toDBUser(updatedData)
+	dbUser, _ := toDBUser(data)
 
 	fields := []string{
 		"type",
@@ -405,8 +377,8 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 			values = append(values, efs.Value(f))
 		}
 	}
-
-	err = tx.QueryRow(ctx, repo.Insert("users", fields, "id"), values...).Scan(&dbUser.ID)
+	q := repo.Insert("users", fields, "id")
+	err = tx.QueryRow(ctx, q, values...).Scan(&dbUser.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to insert user")
 	}

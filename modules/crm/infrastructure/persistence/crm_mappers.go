@@ -128,6 +128,7 @@ func ToDBClient(domainEntity client.Client) *models.Client {
 
 	return &models.Client{
 		ID:          domainEntity.ID(),
+		TenantID:    domainEntity.TenantID().String(),
 		FirstName:   domainEntity.FirstName(),
 		LastName:    mapping.ValueToSQLNullString(domainEntity.LastName()),
 		MiddleName:  mapping.ValueToSQLNullString(domainEntity.MiddleName()),
