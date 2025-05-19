@@ -23,8 +23,8 @@ const (
 	userFindQuery = `
         SELECT
             u.id,
-            u.tenant_id,
             u.type,
+            u.tenant_id,
             u.first_name,
             u.last_name,
             u.middle_name,
@@ -239,19 +239,15 @@ func (g *PgUserRepository) GetAll(ctx context.Context) ([]user.User, error) {
 }
 
 func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, error) {
-	// First check if we have a tenant in context
 	tenant, err := composables.UseTenant(ctx)
 
 	var users []user.User
 	if err == nil {
-		// If we have a tenant, use it to filter
 		users, err = g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1 AND u.tenant_id = $2", id, tenant.ID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
 		}
 	} else {
-		// If no tenant in context, get user by ID without tenant filter
-		// This is less secure but needed for some operations
 		users, err = g.queryUsers(ctx, userFindQuery+" WHERE u.id = $1", id)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to query user with id: %d", id))
@@ -266,9 +262,7 @@ func (g *PgUserRepository) GetByID(ctx context.Context, id uint) (user.User, err
 }
 
 func (g *PgUserRepository) GetByEmail(ctx context.Context, email string) (user.User, error) {
-	// First check if we have a tenant in context
 	tenant, err := composables.UseTenant(ctx)
-
 	var users []user.User
 	if err == nil {
 		// If we have a tenant, use it to filter
@@ -376,8 +370,8 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	dbUser, _ := toDBUser(updatedData)
 
 	fields := []string{
-		"tenant_id",
 		"type",
+		"tenant_id",
 		"first_name",
 		"last_name",
 		"middle_name",
