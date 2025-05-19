@@ -242,6 +242,7 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 				testClient.LastName(),
 			),
 			chat.TelegramTransport,
+			chat.WithMemberTenantID(f.tenant.ID),
 		))
 		testChat = testChat.AddMessage(message)
 
