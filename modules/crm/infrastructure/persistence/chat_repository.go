@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/go-faster/errors"
 	"github.com/jackc/pgx/v5"
@@ -360,7 +361,10 @@ func (g *ChatRepository) GetPaginated(
 	if params.Search != "" {
 		where = append(
 			where,
-			fmt.Sprintf("cl.first_name ILIKE $%d OR cl.last_name ILIKE $%d OR cl.middle_name ILIKE $%d OR cl.phone_number ILIKE $%d", len(args)+1, len(args)+1, len(args)+1, len(args)+1),
+			fmt.Sprintf(
+				"cl.first_name ILIKE $%d OR cl.last_name ILIKE $%d OR cl.middle_name ILIKE $%d OR cl.phone_number ILIKE $%d",
+				len(args)+1, len(args)+1, len(args)+1, len(args)+1,
+			),
 		)
 		args = append(args, "%"+params.Search+"%")
 		joins = append(joins, "JOIN clients cl ON c.client_id = cl.id")
@@ -408,14 +412,13 @@ func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
 }
 
 func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
-	q := repo.Join(selectChatQuery, "WHERE c.id = $1")
-	chats, err := g.queryChats(ctx, q, id)
 	tenant, err := composables.UseTenant(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	chats, err := g.queryChats(ctx, selectChatQuery+" WHERE c.id = $1 AND c.tenant_id = $2", id, tenant.ID)
+	q := repo.Join(selectChatQuery, "WHERE c.id = $1 AND c.tenant_id = $2")
+	chats, err := g.queryChats(ctx, q, id, tenant.ID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get chat with id %d", id)
 	}

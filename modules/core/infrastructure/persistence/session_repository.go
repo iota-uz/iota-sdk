@@ -55,35 +55,24 @@ func NewSessionRepository() session.Repository {
 }
 
 func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var args []interface{}
-	where := []string{"1 = 1"}
+	where, args := []string{"tenant_id = $%d"}, []interface{}{tenant.ID}
 
 	if params.Token != "" {
 		where = append(where, fmt.Sprintf("token = $%d", len(args)+1))
 		args = append(args, params.Token)
 	}
+
 	query := repo.Join(
 		selectSessionQuery,
 		repo.JoinWhere(where...),
 		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
-
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, err
-	}
-	where = append(where, fmt.Sprintf("tenant_id = $%d", len(args)+1))
-	args = append(args, tenant.ID)
-
-	return g.querySessions(
-		ctx,
-		repo.Join(
-			selectSessionQuery,
-			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		),
-		args...,
 	)
 
 	return g.querySessions(ctx, query, args...)
@@ -199,7 +188,6 @@ func (g *SessionRepository) Update(ctx context.Context, data *session.Session) e
 }
 
 func (g *SessionRepository) Delete(ctx context.Context, token string) error {
-	// First get the session to know its tenant ID
 	session, err := g.GetByToken(ctx, token)
 	if err != nil {
 		return err
