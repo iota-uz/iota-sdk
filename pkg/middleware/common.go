@@ -2,10 +2,16 @@ package middleware
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +27,24 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
+
+type LoggerOptions struct {
+	LogRequestBody  bool
+	LogResponseBody bool
+	MaxBodyLength   int
+}
+
+func NewLoggerOptions(logRequestBody bool, logResponseBody bool, maxBodyLength int) LoggerOptions {
+	return LoggerOptions{
+		LogRequestBody:  logRequestBody,
+		LogResponseBody: logResponseBody,
+		MaxBodyLength:   maxBodyLength,
+	}
+}
+
+func DefaultLoggerOptions() LoggerOptions {
+	return NewLoggerOptions(true, true, 512)
+}
 
 type statusResponseWriter struct {
 	http.ResponseWriter
@@ -113,9 +137,9 @@ func TracedMiddleware(name string) mux.MiddlewareFunc {
 	}
 }
 
-func getHeaders(r *http.Request) map[string]string {
+func formatHeaders(h http.Header) map[string]string {
 	headers := make(map[string]string)
-	for key, values := range r.Header {
+	for key, values := range h {
 		if len(values) > 0 {
 			headers[key] = values[0]
 		}
@@ -123,7 +147,23 @@ func getHeaders(r *http.Request) map[string]string {
 	return headers
 }
 
-func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
+func formatFormValues(f url.Values) map[string]string {
+	formValues := make(map[string]string)
+	for key, values := range f {
+		formValues[key] = strings.Join(values, ",")
+	}
+	return formValues
+}
+
+func shouldLogBody(contentType string) bool {
+	contentType = strings.ToLower(contentType)
+	return strings.Contains(contentType, "application/json") ||
+		strings.Contains(contentType, "application/x-www-form-urlencoded") ||
+		strings.Contains(contentType, "application/xml") ||
+		strings.Contains(contentType, "text/xml")
+}
+
+func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 	conf := configuration.Use()
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
@@ -138,12 +178,52 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 				})
 
 				fieldsLogger.WithFields(logrus.Fields{
-					"timestamp":  start.UnixNano(),
-					"host":       r.Host,
-					"ip":         getRealIP(r, conf),
-					"user-agent": r.UserAgent(),
-					"headers":    getHeaders(r),
+					"timestamp":       start.UnixNano(),
+					"host":            r.Host,
+					"ip":              getRealIP(r, conf),
+					"user-agent":      r.UserAgent(),
+					"request-headers": formatHeaders(r.Header),
 				}).Info("request started")
+
+				reqContentType := r.Header.Get("Content-Type")
+				logReqBody := opts.LogRequestBody && shouldLogBody(reqContentType)
+				if logReqBody && r.Body != nil {
+					bodyBuf := new(bytes.Buffer)
+					if _, err := io.Copy(bodyBuf, r.Body); err != nil {
+						fieldsLogger.WithError(err).Error("failed to read request-body")
+						http.Error(w, "failed to read request-body", http.StatusInternalServerError)
+						return
+					}
+					r.Body = io.NopCloser(bytes.NewBuffer(bodyBuf.Bytes()))
+					switch {
+					case strings.Contains(reqContentType, "application/json"):
+						var jsonRequestBody interface{}
+						if err := json.Unmarshal(bodyBuf.Bytes(), &jsonRequestBody); err != nil {
+							fieldsLogger.WithError(err).Error("failed to parse JSON request-body")
+							http.Error(w, "failed to parse JSON request-body", http.StatusBadRequest)
+							return
+						}
+						fieldsLogger.WithField("request-body", jsonRequestBody).Info("JSON request-body parsed")
+					case strings.Contains(reqContentType, "application/x-www-form-urlencoded"):
+						if err := r.ParseForm(); err != nil {
+							fieldsLogger.WithError(err).Error("failed to parse form-urlencoded request-body")
+							http.Error(w, "failed to parse form-urlencoded request-body", http.StatusBadRequest)
+							return
+						}
+						fieldsLogger.WithField("request-body", formatFormValues(r.Form)).Info("form-urlencoded request-body parsed")
+					case strings.Contains(reqContentType, "application/xml"), strings.Contains(reqContentType, "text/xml"):
+						var xmlRequestBody interface{}
+						if err := xml.Unmarshal(bodyBuf.Bytes(), &xmlRequestBody); err != nil {
+							fieldsLogger.WithError(err).Error("failed to parse XML request-body")
+							http.Error(w, "failed to parse XML request-body", http.StatusBadRequest)
+							return
+						}
+						fieldsLogger.WithField("request-body", xmlRequestBody).Info("XML request-body parsed")
+					default:
+						rawBody := bodyBuf.String()
+						fieldsLogger.WithField("request-body", rawBody).Info("request-body parsed")
+					}
+				}
 
 				propagator := propagation.TraceContext{}
 				ctx := propagator.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
@@ -190,16 +270,53 @@ func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc {
 				statusCode := wrappedWriter.Status()
 				duration := time.Since(start)
 				fieldsLogger.WithFields(logrus.Fields{
-					"duration":     duration,
-					"completed":    true,
-					"status-code":  statusCode,
-					"status-class": statusCode / 100,
+					"duration":         duration,
+					"completed":        true,
+					"status-code":      statusCode,
+					"status-class":     statusCode / 100,
+					"response-headers": formatHeaders(wrappedWriter.Header()),
 				}).Info("request completed")
 
 				span.SetAttributes(
 					attribute.Int64("http.request_duration_ms", duration.Milliseconds()),
 					attribute.Int("http.status_code", statusCode),
 				)
+
+				respContentType := wrappedWriter.Header().Get("Content-Type")
+				logRespBody := opts.LogResponseBody && shouldLogBody(respContentType)
+				if logRespBody {
+					bodyBuf := new(bytes.Buffer)
+					wrappedWriter.Flush()
+
+					// Check if the underlying ResponseWriter implements io.Reader
+					if reader, ok := wrappedWriter.ResponseWriter.(io.Reader); ok {
+						if _, err := io.Copy(bodyBuf, reader); err != nil {
+							fieldsLogger.WithError(err).Error("failed to read response-body")
+							return
+						}
+						switch {
+						case strings.Contains(respContentType, "application/json"):
+							var jsonResponseBody interface{}
+							if err := json.Unmarshal(bodyBuf.Bytes(), &jsonResponseBody); err != nil {
+								fieldsLogger.WithError(err).Error("failed to parse JSON response-body")
+								return
+							}
+							fieldsLogger.WithField("response-body", jsonResponseBody).Info("JSON response-body parsed")
+						case strings.Contains(respContentType, "application/xml"), strings.Contains(respContentType, "text/xml"):
+							var xmlResponseBody interface{}
+							if err := xml.Unmarshal(bodyBuf.Bytes(), &xmlResponseBody); err != nil {
+								fieldsLogger.WithError(err).Error("failed to parse XML response-body")
+								return
+							}
+							fieldsLogger.WithField("response-body", xmlResponseBody).Info("XML response-body parsed")
+						default:
+							rawBody := bodyBuf.String()
+							fieldsLogger.WithField("response-body", rawBody).Info("response-body parsed")
+						}
+					} else {
+						fieldsLogger.Error("underlying ResponseWriter does not implement io.Reader")
+					}
+				}
 			},
 		)
 	}
