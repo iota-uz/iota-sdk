@@ -1,0 +1,40 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/charts"
+
+templ PieChart() {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: charts.ChartOptions{
+			Chart: charts.ChartConfig{
+				Type:   charts.PieChart,
+				Height: "380px",
+				Toolbar: charts.Toolbar{
+					Show: false,
+				},
+			},
+			Series: []charts.Series{
+				{
+					Name: "Market Share",
+					Data: []interface{}{44.0, 55.0, 13.0, 43.0, 22.0},
+				},
+			},
+			// Include empty categories for XAxis to avoid null reference
+			XAxis: charts.XAxisConfig{
+				Categories: []string{"Team A", "Team B", "Team C", "Team D", "Team E"},
+			},
+			Colors: []string{"#3b82f6", "#10b981", "#6366f1", "#f59e0b", "#ef4444"},
+			DataLabels: &charts.DataLabels{
+				Enabled: true,
+				DropShadow: &charts.DropShadow{
+					Enabled: false,
+				},
+			},
+			YAxis: []charts.YAxisConfig{
+				{
+					// Default YAxis config
+				},
+			},
+		},
+	})
+}
