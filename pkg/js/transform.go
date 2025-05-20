@@ -16,7 +16,6 @@ func ToJS(v interface{}) (string, error) {
 
 // toJSInternal handles the actual transformation
 func toJSInternal(v reflect.Value, indent int) (string, error) {
-
 	// Handle nil values
 	if !v.IsValid() || (v.Kind() == reflect.Ptr && v.IsNil()) {
 		return "null", nil
@@ -30,10 +29,13 @@ func toJSInternal(v reflect.Value, indent int) (string, error) {
 	// Check if the value is a templ.JSExpression
 	if v.Type().String() == "templ.JSExpression" {
 		// Return JSExpression as-is without encoding
-		return string(v.String()), nil
+		return v.String(), nil
 	}
 
 	switch v.Kind() {
+	case reflect.Invalid:
+		return "null", nil
+
 	case reflect.Bool:
 		return fmt.Sprintf("%v", v.Bool()), nil
 
@@ -45,6 +47,9 @@ func toJSInternal(v reflect.Value, indent int) (string, error) {
 
 	case reflect.Float32, reflect.Float64:
 		return fmt.Sprintf("%v", v.Float()), nil
+
+	case reflect.Complex64, reflect.Complex128:
+		return fmt.Sprintf("'%v'", v.Complex()), nil
 
 	case reflect.String:
 		// Escape quotes and special characters for JS
@@ -59,6 +64,14 @@ func toJSInternal(v reflect.Value, indent int) (string, error) {
 		// For function types, we create a placeholder that can be filled in
 		// with a real function reference later
 		return fmt.Sprintf("/* function reference: %s */", v.Type()), nil
+
+	case reflect.Chan, reflect.Interface, reflect.Ptr, reflect.UnsafePointer, reflect.Uintptr:
+		// For these types, try to marshal to JSON if possible
+		js, err := json.Marshal(v.Interface())
+		if err != nil {
+			return "", err
+		}
+		return string(js), nil
 
 	case reflect.Slice, reflect.Array:
 		if v.Len() == 0 {
@@ -163,6 +176,8 @@ func toJSInternal(v reflect.Value, indent int) (string, error) {
 				isZero := false
 
 				switch fieldValue.Kind() {
+				case reflect.Invalid:
+					isZero = true
 				case reflect.Bool:
 					isZero = !fieldValue.Bool()
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -171,11 +186,17 @@ func toJSInternal(v reflect.Value, indent int) (string, error) {
 					isZero = fieldValue.Uint() == 0
 				case reflect.Float32, reflect.Float64:
 					isZero = fieldValue.Float() == 0
+				case reflect.Complex64, reflect.Complex128:
+					isZero = fieldValue.Complex() == complex(0, 0)
 				case reflect.String:
 					isZero = fieldValue.String() == ""
+				case reflect.Uintptr, reflect.UnsafePointer:
+					isZero = fieldValue.Pointer() == 0
 				case reflect.Map, reflect.Slice, reflect.Array:
 					isZero = fieldValue.Len() == 0
-				case reflect.Ptr, reflect.Interface:
+				case reflect.Struct:
+					isZero = false // Can't easily determine if struct is zero
+				case reflect.Chan, reflect.Func, reflect.Ptr, reflect.Interface:
 					isZero = fieldValue.IsNil()
 				}
 
