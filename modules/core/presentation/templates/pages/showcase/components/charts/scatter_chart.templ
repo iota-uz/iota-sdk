@@ -1,0 +1,40 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/charts"
+
+templ ScatterChart() {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: charts.ChartOptions{
+			Chart: charts.ChartConfig{
+				Type:   charts.ScatterChart,
+				Height: "100%",
+				Toolbar: charts.Toolbar{
+					Show: false,
+				},
+			},
+			Series: []charts.Series{
+				{
+					Name: "Series A",
+					Data: []interface{}{10.0, 40.0, 30.0, 50.0, 25.0, 70.0},
+				},
+				{
+					Name: "Series B",
+					Data: []interface{}{30.0, 60.0, 40.0, 45.0, 55.0, 20.0},
+				},
+			},
+			XAxis: charts.XAxisConfig{
+				Categories: []string{"10", "20", "30", "40", "50", "60"},
+			},
+			Colors: []string{"#3b82f6", "#10b981"},
+			DataLabels: &charts.DataLabels{
+				Enabled: false,
+			},
+			YAxis: []charts.YAxisConfig{
+				{
+					// Default YAxis config
+				},
+			},
+		},
+	})
+}

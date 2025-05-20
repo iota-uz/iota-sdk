@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 type IndexPageProps struct {
@@ -41,39 +42,42 @@ func Sales() templ.Component {
 
 		chartOptions := charts.ChartOptions{
 			Chart: charts.ChartConfig{
-				Type:    "bar",
+				Type:    charts.BarChart,
 				Height:  "100%",
 				Toolbar: charts.Toolbar{Show: false},
 			},
 			Series: []charts.Series{
-				{Name: "Expenses", Data: []float64{10, 50, 40, 98.654, 80, 90, 70, 85, 95, 88, 60, 45}},
+				{Name: "Expenses", Data: []interface{}{10.0, 50.0, 40.0, 98.654, 80.0, 90.0, 70.0, 85.0, 95.0, 88.0, 60.0, 45.0}},
 			},
 			XAxis: charts.XAxisConfig{
 				Categories: []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
-				Labels: charts.LabelFormatter{
-					Style: charts.LabelStyle{
+				Labels: &charts.XAxisLabelsConfig{
+					Style: &charts.XAxisLabelStyleConfig{
 						Colors:   "#6B7280",
-						FontSize: "12px",
+						FontSize: mapping.Pointer("12px"),
 					},
 				},
 			},
-			YAxis: charts.YAxisConfig{
-				Labels: charts.LabelFormatter{
-					Style: charts.LabelStyle{
-						Colors:   "#6B7280",
-						FontSize: "12px",
+			YAxis: []charts.YAxisConfig{
+				{
+					Labels: &charts.YAxisLabelsConfig{
+						Style: &charts.YAxisLabelStyleConfig{
+							Colors:   "#6B7280",
+							FontSize: mapping.Pointer("12px"),
+						},
 					},
 				},
 			},
 			Colors: []string{"#DB2777"},
-			DataLabels: charts.DataLabels{
+			DataLabels: &charts.DataLabels{
 				Enabled: true,
-				Style: charts.DataLabelStyle{
-					Colors:   []string{"#FFFFFF"},
-					FontSize: "12px",
+				OffsetY: 10,
+				Style: &charts.DataLabelStyle{
+					Colors:     []string{"#000000"},
+					FontSize:   "12px",
+					FontWeight: "500",
 				},
-				OffsetY: -10,
-				DropShadow: charts.DropShadow{
+				DropShadow: &charts.DropShadow{
 					Enabled: true,
 					Top:     1,
 					Left:    1,
@@ -82,11 +86,11 @@ func Sales() templ.Component {
 					Opacity: 0.25,
 				},
 			},
-			Grid: charts.GridConfig{
+			Grid: &charts.GridConfig{
 				BorderColor: "#E5E7EB",
 			},
-			PlotOptions: charts.PlotOptions{
-				Bar: charts.BarConfig{
+			PlotOptions: &charts.PlotOptions{
+				Bar: &charts.BarConfig{
 					BorderRadius: 6,
 					ColumnWidth:  "50%",
 					DataLabels: charts.BarLabels{
@@ -135,39 +139,42 @@ func Revenue() templ.Component {
 
 		chartOptions := charts.ChartOptions{
 			Chart: charts.ChartConfig{
-				Type:    "bar",
+				Type:    charts.BarChart,
 				Height:  "100%",
 				Toolbar: charts.Toolbar{Show: false},
 			},
 			Series: []charts.Series{
-				{Name: "Expenses", Data: []float64{10, 50, 40, 98.654, 80, 90, 70, 85, 95, 88, 60, 45}},
+				{Name: "Expenses", Data: []interface{}{10.0, 50.0, 40.0, 98.654, 80.0, 90.0, 70.0, 85.0, 95.0, 88.0, 60.0, 45.0}},
 			},
 			XAxis: charts.XAxisConfig{
 				Categories: []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"},
-				Labels: charts.LabelFormatter{
-					Style: charts.LabelStyle{
+				Labels: &charts.XAxisLabelsConfig{
+					Style: &charts.XAxisLabelStyleConfig{
 						Colors:   "#6B7280",
-						FontSize: "12px",
+						FontSize: mapping.Pointer("12px"),
 					},
 				},
 			},
-			YAxis: charts.YAxisConfig{
-				Labels: charts.LabelFormatter{
-					Style: charts.LabelStyle{
-						Colors:   "#6B7280",
-						FontSize: "12px",
+			YAxis: []charts.YAxisConfig{
+				{
+					Labels: &charts.YAxisLabelsConfig{
+						Style: &charts.YAxisLabelStyleConfig{
+							Colors:   "#6B7280",
+							FontSize: mapping.Pointer("12px"),
+						},
 					},
 				},
 			},
 			Colors: []string{"#DB2777"},
-			DataLabels: charts.DataLabels{
+			DataLabels: &charts.DataLabels{
 				Enabled: true,
-				Style: charts.DataLabelStyle{
-					Colors:   []string{"#FFFFFF"},
-					FontSize: "12px",
+				OffsetY: 10,
+				Style: &charts.DataLabelStyle{
+					Colors:     []string{"#000000"},
+					FontSize:   "12px",
+					FontWeight: "500",
 				},
-				OffsetY: -10,
-				DropShadow: charts.DropShadow{
+				DropShadow: &charts.DropShadow{
 					Enabled: true,
 					Top:     1,
 					Left:    1,
@@ -176,11 +183,11 @@ func Revenue() templ.Component {
 					Opacity: 0.25,
 				},
 			},
-			Grid: charts.GridConfig{
+			Grid: &charts.GridConfig{
 				BorderColor: "#E5E7EB",
 			},
-			PlotOptions: charts.PlotOptions{
-				Bar: charts.BarConfig{
+			PlotOptions: &charts.PlotOptions{
+				Bar: &charts.BarConfig{
 					BorderRadius: 6,
 					ColumnWidth:  "50%",
 					DataLabels: charts.BarLabels{
