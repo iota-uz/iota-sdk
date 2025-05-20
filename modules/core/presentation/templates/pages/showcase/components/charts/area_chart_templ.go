@@ -35,7 +35,7 @@ func AreaChart() templ.Component {
 			Class: "h-64",
 			Options: charts.ChartOptions{
 				Chart: charts.ChartConfig{
-					Type:   charts.AreaChart,
+					Type:   charts.AreaChartType,
 					Height: "100%",
 					Toolbar: charts.Toolbar{
 						Show: false,

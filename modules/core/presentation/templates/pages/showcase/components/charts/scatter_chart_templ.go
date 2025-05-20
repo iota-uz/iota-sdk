@@ -35,7 +35,7 @@ func ScatterChart() templ.Component {
 			Class: "h-64",
 			Options: charts.ChartOptions{
 				Chart: charts.ChartConfig{
-					Type:   charts.ScatterChart,
+					Type:   charts.ScatterChartType,
 					Height: "100%",
 					Toolbar: charts.Toolbar{
 						Show: false,
