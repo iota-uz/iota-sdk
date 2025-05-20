@@ -1,0 +1,44 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/charts"
+import "github.com/iota-uz/iota-sdk/pkg/mapping"
+
+templ LineChart() {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: charts.ChartOptions{
+			Chart: charts.ChartConfig{
+				Type:   charts.LineChart,
+				Height: "100%",
+				Toolbar: charts.Toolbar{
+					Show: false,
+				},
+			},
+			Series: []charts.Series{
+				{
+					Name: "Revenue",
+					Data: []interface{}{10.0, 41.0, 35.0, 51.0, 49.0, 62.0, 69.0, 91.0, 148.0},
+				},
+			},
+			XAxis: charts.XAxisConfig{
+				Categories: []string{
+					"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+				},
+			},
+			YAxis: []charts.YAxisConfig{
+				{
+					Labels: &charts.YAxisLabelsConfig{
+						Style: &charts.YAxisLabelStyleConfig{
+							Colors:   "#64748b",
+							FontSize: mapping.Pointer("12px"),
+						},
+					},
+				},
+			},
+			Colors: []string{"#10b981"},
+			DataLabels: &charts.DataLabels{
+				Enabled: false,
+			},
+		},
+	})
+}

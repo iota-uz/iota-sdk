@@ -30,7 +30,7 @@ func OverviewContent() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-4 p-5\"><h1 class=\"text-2xl font-bold\">Component Showcase</h1><p>This is a showcase of the components available in the IOTA SDK.</p><p>Use the sidebar to navigate between different component categories.</p><div class=\"mt-4\"><h2 class=\"text-xl font-semibold mb-2\">Component Categories</h2><ul class=\"list-disc pl-5 space-y-1\"><li><strong>Form Components</strong> - Inputs, selects, and other form elements</li><li><strong>Other Components</strong> - Avatar, cards, tables, and other UI elements</li></ul></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col gap-4 p-5\"><h1 class=\"text-2xl font-bold\">Component Showcase</h1><p>This is a showcase of the components available in the IOTA SDK.</p><p>Use the sidebar to navigate between different component categories.</p><div class=\"mt-4\"><h2 class=\"text-xl font-semibold mb-2\">Component Categories</h2><ul class=\"list-disc pl-5 space-y-1\"><li><strong>Form Components</strong> - Inputs, selects, and other form elements</li><li><strong>Other Components</strong> - Avatar, cards, tables, and other UI elements</li><li><strong>Charts</strong> - Bar charts, line charts, area charts, and other data visualization components</li></ul></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

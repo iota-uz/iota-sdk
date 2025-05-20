@@ -1,0 +1,44 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/charts"
+
+templ HeatmapChart() {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: charts.ChartOptions{
+			Chart: charts.ChartConfig{
+				Type:   charts.HeatmapChart,
+				Height: "100%",
+				Toolbar: charts.Toolbar{
+					Show: false,
+				},
+			},
+			Series: []charts.Series{
+				{
+					Name: "Metric 1",
+					Data: []interface{}{20.0, 50.0, 30.0, 80.0, 40.0, 60.0},
+				},
+				{
+					Name: "Metric 2",
+					Data: []interface{}{80.0, 30.0, 60.0, 40.0, 10.0, 50.0},
+				},
+				{
+					Name: "Metric 3",
+					Data: []interface{}{30.0, 70.0, 20.0, 50.0, 80.0, 30.0},
+				},
+			},
+			XAxis: charts.XAxisConfig{
+				Categories: []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun"},
+			},
+			Colors: []string{"#3b82f6"},
+			DataLabels: &charts.DataLabels{
+				Enabled: false,
+			},
+			YAxis: []charts.YAxisConfig{
+				{
+					// Default YAxis config
+				},
+			},
+		},
+	})
+}

@@ -37,3 +37,35 @@ var ButtonsComponentSource string
 
 //go:embed components/slider.templ
 var SliderComponentSource string
+
+// Chart components
+//
+//go:embed components/charts/bar_chart.templ
+var BarChartSource string
+
+//go:embed components/charts/line_chart.templ
+var LineChartSource string
+
+//go:embed components/charts/area_chart.templ
+var AreaChartSource string
+
+//go:embed components/charts/pie_chart.templ
+var PieChartSource string
+
+//go:embed components/charts/donut_chart.templ
+var DonutChartSource string
+
+//go:embed components/charts/radial_bar_chart.templ
+var RadialBarChartSource string
+
+//go:embed components/charts/scatter_chart.templ
+var ScatterChartSource string
+
+//go:embed components/charts/heatmap_chart.templ
+var HeatmapChartSource string
+
+//go:embed components/charts/radar_chart.templ
+var RadarChartSource string
+
+//go:embed components/charts/polar_area_chart.templ
+var PolarAreaChartSource string

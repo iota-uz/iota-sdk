@@ -48,6 +48,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Overview)).Methods(http.MethodGet)
 	router.HandleFunc("/components/form", di.H(c.Form)).Methods(http.MethodGet)
 	router.HandleFunc("/components/other", di.H(c.Other)).Methods(http.MethodGet)
+	router.HandleFunc("/components/charts", di.H(c.Charts)).Methods(http.MethodGet)
 
 	log.Printf(
 		"See %s%s for docs\n",
@@ -66,6 +67,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 				[]sidebar.Item{
 					sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
 					sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
+					sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
 				},
 			),
 		},
@@ -103,4 +105,15 @@ func (c *ShowcaseController) Other(
 		SidebarProps: c.getSidebarProps(),
 	}
 	templ.Handler(showcaseui.OtherPage(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Charts(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcaseui.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcaseui.ChartsPage(props)).ServeHTTP(w, r)
 }

@@ -1,0 +1,35 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/charts"
+
+templ DonutChart() {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: charts.ChartOptions{
+			Chart: charts.ChartConfig{
+				Type:   charts.DonutChart,
+				Height: "100%",
+				Toolbar: charts.Toolbar{
+					Show: false,
+				},
+			},
+			Series: []charts.Series{
+				{
+					Data: []interface{}{44.0, 55.0, 41.0, 17.0, 15.0},
+				},
+			},
+			XAxis: charts.XAxisConfig{
+				Categories: []string{"Product A", "Product B", "Product C", "Product D", "Product E"},
+			},
+			Colors: []string{"#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"},
+			DataLabels: &charts.DataLabels{
+				Enabled: true,
+			},
+			YAxis: []charts.YAxisConfig{
+				{
+					// Default YAxis config
+				},
+			},
+		},
+	})
+}
