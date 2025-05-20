@@ -1,26 +1,28 @@
 package charts
 
-import "github.com/a-h/templ"
+import (
+	"github.com/a-h/templ"
+)
 
 type ChartType string
 
 const (
-	LineChart        ChartType = "line"
-	AreaChart        ChartType = "area"
-	BarChart         ChartType = "bar"
-	PieChart         ChartType = "pie"
-	DonutChart       ChartType = "donut"
-	RadialBarChart   ChartType = "radialBar"
-	ScatterChart     ChartType = "scatter"
-	BubbleChart      ChartType = "bubble"
-	HeatmapChart     ChartType = "heatmap"
-	CandlestickChart ChartType = "candlestick"
-	BoxPlotChart     ChartType = "boxPlot"
-	RadarChart       ChartType = "radar"
-	PolarAreaChart   ChartType = "polarArea"
-	RangeBarChart    ChartType = "rangeBar"
-	RangeAreaChart   ChartType = "rangeArea"
-	TreemapChart     ChartType = "treemap"
+	LineChartType        ChartType = "line"
+	AreaChartType        ChartType = "area"
+	BarChartType         ChartType = "bar"
+	PieChartType         ChartType = "pie"
+	DonutChartType       ChartType = "donut"
+	RadialBarChartType   ChartType = "radialBar"
+	ScatterChartType     ChartType = "scatter"
+	BubbleChartType      ChartType = "bubble"
+	HeatmapChartType     ChartType = "heatmap"
+	CandlestickChartType ChartType = "candlestick"
+	BoxPlotChartType     ChartType = "boxPlot"
+	RadarChartType       ChartType = "radar"
+	PolarAreaChartType   ChartType = "polarArea"
+	RangeBarChartType    ChartType = "rangeBar"
+	RangeAreaChartType   ChartType = "rangeArea"
+	TreemapChartType     ChartType = "treemap"
 )
 
 type ChartOptions struct {

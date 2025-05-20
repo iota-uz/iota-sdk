@@ -4,9 +4,12 @@
 // to configure various chart types like line, bar, and area charts.
 package charts
 
-import "github.com/iota-uz/utils/random"
+import (
+	"github.com/iota-uz/iota-sdk/pkg/js"
+	"github.com/iota-uz/utils/random"
+)
 
-script graph(id string, options ChartOptions) {
+script graph(id string, options templ.JSExpression) {
   document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById(id);
     const chart = new ApexCharts(container, options);
@@ -25,11 +28,15 @@ type Props struct {
 // the ApexCharts library to render the chart on the client side.
 templ Chart(props Props) {
 	{{
-	id := random.String(10, random.AlphaNumericSet)
+		id := random.String(10, random.AlphaNumericSet)
+		opts, err := js.ToJS(props.Options)
+		if err != nil {
+			panic(err)
+		}
 	}}
 	<div
 		id={ id }
 		class={ props.Class }
 	></div>
-	@graph(id, props.Options)
+	@graph(id, templ.JSExpression(opts))
 }

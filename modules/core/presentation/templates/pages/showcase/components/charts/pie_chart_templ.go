@@ -35,7 +35,7 @@ func PieChart() templ.Component {
 			Class: "h-64",
 			Options: charts.ChartOptions{
 				Chart: charts.ChartConfig{
-					Type:   charts.PieChart,
+					Type:   charts.PieChartType,
 					Height: "380px",
 					Toolbar: charts.Toolbar{
 						Show: false,
