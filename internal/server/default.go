@@ -24,7 +24,7 @@ func Default(options *DefaultOptions) (*server.HTTPServer, error) {
 
 	// Core middleware stack with tracing capabilities
 	app.RegisterMiddleware(
-		middleware.WithLogger(options.Logger), // This now creates the root span for each request
+		middleware.WithLogger(options.Logger, middleware.DefaultLoggerOptions()), // This now creates the root span for each request
 
 		// Add traced middleware for each of your key middleware functions
 		middleware.TracedMiddleware("database"),
