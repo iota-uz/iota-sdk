@@ -8,9 +8,7 @@ package showcase
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import (
-	components "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components/charts"
-)
+import components "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components/charts"
 
 func ChartsContent() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

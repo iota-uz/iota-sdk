@@ -1,77 +1,65 @@
 package showcase
 
-import (
-	components "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components/charts"
-)
+import components "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components/charts"
 
 templ ChartsContent() {
 	<div class="flex flex-col gap-5 p-5">
 		<h1 class="text-2xl font-bold">Charts</h1>
 		<p class="text-gray-600">Data visualization components powered by ApexCharts.js</p>
-		
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Bar Chart",
 			Code:  BarChartSource,
 		}) {
 			@components.BarChart()
 		}
-		
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Line Chart",
 			Code:  LineChartSource,
 		}) {
 			@components.LineChart()
 		}
-		
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Area Chart",
 			Code:  AreaChartSource,
 		}) {
 			@components.AreaChart()
 		}
-
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Pie Chart",
 			Code:  PieChartSource,
 		}) {
 			@components.PieChart()
 		}
-
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Donut Chart",
 			Code:  DonutChartSource,
 		}) {
 			@components.DonutChart()
 		}
-
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Radial Bar Chart",
 			Code:  RadialBarChartSource,
 		}) {
 			@components.RadialBarChart()
 		}
-
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Scatter Chart",
 			Code:  ScatterChartSource,
 		}) {
 			@components.ScatterChart()
 		}
-
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Heatmap Chart",
 			Code:  HeatmapChartSource,
 		}) {
 			@components.HeatmapChart()
 		}
-
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Radar Chart",
 			Code:  RadarChartSource,
 		}) {
 			@components.RadarChart()
 		}
-
 		@ComponentShowcase(ShowcaseProps{
 			Title: "Polar Area Chart",
 			Code:  PolarAreaChartSource,
