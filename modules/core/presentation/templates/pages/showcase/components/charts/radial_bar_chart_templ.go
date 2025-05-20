@@ -35,7 +35,7 @@ func RadialBarChart() templ.Component {
 			Class: "h-64",
 			Options: charts.ChartOptions{
 				Chart: charts.ChartConfig{
-					Type:   charts.RadialBarChart,
+					Type:   charts.RadialBarChartType,
 					Height: "100%",
 					Toolbar: charts.Toolbar{
 						Show: false,

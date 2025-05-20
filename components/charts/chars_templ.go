@@ -16,9 +16,12 @@ package charts
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/iota-uz/utils/random"
+import (
+	"github.com/iota-uz/iota-sdk/pkg/js"
+	"github.com/iota-uz/utils/random"
+)
 
-func graph(id string, options ChartOptions) templ.ComponentScript {
+func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
 		Name: `__templ_graph_737b`,
 		Function: `function __templ_graph_737b(id, options){document.addEventListener('DOMContentLoaded', () => {
@@ -64,6 +67,10 @@ func Chart(props Props) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 
 		id := random.String(10, random.AlphaNumericSet)
+		opts, err := js.ToJS(props.Options)
+		if err != nil {
+			panic(err)
+		}
 		var templ_7745c5c3_Var2 = []any{props.Class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
@@ -76,7 +83,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 31, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 38, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -99,7 +106,7 @@ func Chart(props Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = graph(id, props.Options).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = graph(id, templ.JSExpression(opts)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
