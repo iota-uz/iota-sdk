@@ -35,7 +35,7 @@ func HeatmapChart() templ.Component {
 			Class: "h-64",
 			Options: charts.ChartOptions{
 				Chart: charts.ChartConfig{
-					Type:   charts.HeatmapChart,
+					Type:   charts.HeatmapChartType,
 					Height: "100%",
 					Toolbar: charts.Toolbar{
 						Show: false,

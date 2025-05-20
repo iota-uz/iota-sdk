@@ -35,7 +35,7 @@ func RadarChart() templ.Component {
 			Class: "h-64",
 			Options: charts.ChartOptions{
 				Chart: charts.ChartConfig{
-					Type:   charts.RadarChart,
+					Type:   charts.RadarChartType,
 					Height: "100%",
 					Toolbar: charts.Toolbar{
 						Show: false,

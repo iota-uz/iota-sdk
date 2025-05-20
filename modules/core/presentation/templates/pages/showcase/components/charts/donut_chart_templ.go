@@ -35,7 +35,7 @@ func DonutChart() templ.Component {
 			Class: "h-64",
 			Options: charts.ChartOptions{
 				Chart: charts.ChartConfig{
-					Type:   charts.DonutChart,
+					Type:   charts.DonutChartType,
 					Height: "100%",
 					Toolbar: charts.Toolbar{
 						Show: false,
