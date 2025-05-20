@@ -1,0 +1,40 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/charts"
+
+templ RadarChart() {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: charts.ChartOptions{
+			Chart: charts.ChartConfig{
+				Type:   charts.RadarChart,
+				Height: "100%",
+				Toolbar: charts.Toolbar{
+					Show: false,
+				},
+			},
+			Series: []charts.Series{
+				{
+					Name: "Product A",
+					Data: []interface{}{80.0, 50.0, 30.0, 40.0, 100.0, 20.0},
+				},
+				{
+					Name: "Product B",
+					Data: []interface{}{20.0, 30.0, 40.0, 80.0, 20.0, 80.0},
+				},
+			},
+			XAxis: charts.XAxisConfig{
+				Categories: []string{"Quality", "Reliability", "Speed", "Design", "Comfort", "Price"},
+			},
+			Colors: []string{"#3b82f6", "#10b981"},
+			DataLabels: &charts.DataLabels{
+				Enabled: false,
+			},
+			YAxis: []charts.YAxisConfig{
+				{
+					// Default YAxis config
+				},
+			},
+		},
+	})
+}

@@ -18,91 +18,6 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/iota-uz/utils/random"
 
-type ChartOptions struct {
-	Chart       ChartConfig `json:"chart"`
-	Series      []Series    `json:"series"`
-	XAxis       XAxisConfig `json:"xaxis"`
-	YAxis       YAxisConfig `json:"yaxis"`
-	Colors      []string    `json:"colors"`
-	DataLabels  DataLabels  `json:"dataLabels"`
-	Grid        GridConfig  `json:"grid"`
-	PlotOptions PlotOptions `json:"plotOptions"`
-}
-
-type ChartConfig struct {
-	Type    string  `json:"type"`
-	Height  string  `json:"height"`
-	Toolbar Toolbar `json:"toolbar"`
-}
-
-type Toolbar struct {
-	Show bool `json:"show"`
-}
-
-type Series struct {
-	Name string    `json:"name"`
-	Data []float64 `json:"data"`
-}
-
-type XAxisConfig struct {
-	Categories []string       `json:"categories"`
-	Labels     LabelFormatter `json:"labels"`
-}
-
-type YAxisConfig struct {
-	Labels LabelFormatter `json:"labels"`
-}
-
-type LabelFormatter struct {
-	Style LabelStyle `json:"style"`
-}
-
-type LabelStyle struct {
-	Colors   string `json:"colors"`
-	FontSize string `json:"fontSize"`
-}
-
-type DataLabelStyle struct {
-	Colors     []string `json:"colors"`
-	FontSize   string   `json:"fontSize"`
-	FontWeight string   `json:"fontWeight"`
-}
-
-type DataLabels struct {
-	Enabled    bool               `json:"enabled"`
-	Formatter  templ.JSExpression `json:"formatter,omitempty"`
-	Style      DataLabelStyle     `json:"style"`
-	OffsetY    int                `json:"offsetY"`
-	DropShadow DropShadow         `json:"dropShadow"`
-}
-
-type DropShadow struct {
-	Enabled bool    `json:"enabled"`
-	Top     int     `json:"top"`
-	Left    int     `json:"left"`
-	Blur    int     `json:"blur"`
-	Color   string  `json:"color"`
-	Opacity float64 `json:"opacity"`
-}
-
-type GridConfig struct {
-	BorderColor string `json:"borderColor"`
-}
-
-type PlotOptions struct {
-	Bar BarConfig `json:"bar"`
-}
-
-type BarConfig struct {
-	BorderRadius int       `json:"borderRadius"`
-	ColumnWidth  string    `json:"columnWidth"`
-	DataLabels   BarLabels `json:"dataLabels"`
-}
-
-type BarLabels struct {
-	Position string `json:"position"`
-}
-
 func graph(id string, options ChartOptions) templ.ComponentScript {
 	return templ.ComponentScript{
 		Name: `__templ_graph_737b`,
@@ -161,7 +76,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 116, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 31, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

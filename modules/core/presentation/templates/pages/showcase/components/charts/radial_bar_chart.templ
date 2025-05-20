@@ -1,0 +1,37 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/charts"
+
+templ RadialBarChart() {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: charts.ChartOptions{
+			Chart: charts.ChartConfig{
+				Type:   charts.RadialBarChart,
+				Height: "100%",
+				Toolbar: charts.Toolbar{
+					Show: false,
+				},
+			},
+			Series: []charts.Series{
+				{
+					Data: []interface{}{70.0, 85.0, 60.0, 45.0, 90.0},
+				},
+			},
+			XAxis: charts.XAxisConfig{
+				Categories: []string{
+					"Metric A", "Metric B", "Metric C", "Metric D", "Metric E",
+				},
+			},
+			Colors: []string{"#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"},
+			DataLabels: &charts.DataLabels{
+				Enabled: false,
+			},
+			YAxis: []charts.YAxisConfig{
+				{
+					// Default YAxis config
+				},
+			},
+		},
+	})
+}
