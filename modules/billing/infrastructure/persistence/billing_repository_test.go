@@ -177,8 +177,7 @@ func TestBillingRepository_GetPaginated(t *testing.T) {
 			Limit:  2,
 			Offset: 1,
 			SortBy: billing.SortBy{
-				Fields:    []billing.Field{billing.CreatedAt},
-				Ascending: true,
+				Fields: []billing.SortByField{{Field: billing.CreatedAt, Ascending: true}},
 			},
 		}
 

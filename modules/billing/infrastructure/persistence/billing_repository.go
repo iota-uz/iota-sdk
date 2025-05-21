@@ -54,10 +54,16 @@ const (
 	deleteTransactionQuery = `DELETE FROM billing_transactions WHERE id = $1`
 )
 
-type BillingRepository struct{}
+type BillingRepository struct {
+	fieldMap map[billing.Field]string
+}
 
 func NewBillingRepository() *BillingRepository {
-	return &BillingRepository{}
+	return &BillingRepository{
+		fieldMap: map[billing.Field]string{
+			billing.CreatedAt: "bt.created_at",
+		},
+	}
 }
 
 func (r *BillingRepository) Count(ctx context.Context) (int64, error) {
@@ -73,16 +79,6 @@ func (r *BillingRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (r *BillingRepository) GetPaginated(ctx context.Context, params *billing.FindParams) ([]billing.Transaction, error) {
-	var sortFields []string
-	for _, f := range params.SortBy.Fields {
-		switch f {
-		case billing.CreatedAt:
-			sortFields = append(sortFields, "bt.created_at")
-		default:
-			return nil, fmt.Errorf("unknown sort field: %v", f)
-		}
-	}
-
 	var args []interface{}
 	where := []string{"1 = 1"}
 
@@ -91,7 +87,7 @@ func (r *BillingRepository) GetPaginated(ctx context.Context, params *billing.Fi
 		repo.Join(
 			selectTransactionQuery,
 			repo.JoinWhere(where...),
-			repo.OrderBy(sortFields, params.SortBy.Ascending),
+			params.SortBy.ToSQL(r.fieldMap),
 			repo.FormatLimitOffset(params.Limit, params.Offset),
 		),
 		args...,
