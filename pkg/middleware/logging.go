@@ -44,39 +44,49 @@ func DefaultLoggerOptions() LoggerOptions {
 	return NewLoggerOptions(true, true, 512)
 }
 
-type statusResponseWriter struct {
+type responseCaptureWriter struct {
 	http.ResponseWriter
 	statusCode int
+	body       *bytes.Buffer
 }
 
-func (w *statusResponseWriter) WriteHeader(code int) {
+func (w *responseCaptureWriter) WriteHeader(code int) {
 	w.statusCode = code
 	w.ResponseWriter.WriteHeader(code)
 }
 
 // Status returns the HTTP status code
-func (w *statusResponseWriter) Status() int {
+func (w *responseCaptureWriter) Status() int {
 	if w.statusCode == 0 {
 		return http.StatusOK
 	}
 	return w.statusCode
 }
 
-func (w *statusResponseWriter) Flush() {
+func (w *responseCaptureWriter) Write(b []byte) (int, error) {
+	w.body.Write(b)
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *responseCaptureWriter) Flush() {
 	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
 		flusher.Flush()
 	}
 }
 
-func (w *statusResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *responseCaptureWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hijacker, ok := w.ResponseWriter.(http.Hijacker); ok {
 		return hijacker.Hijack()
 	}
 	return nil, nil, fmt.Errorf("underlying ResponseWriter does not implement http.Hijacker")
 }
 
-func wrapResponseWriter(w http.ResponseWriter) *statusResponseWriter {
-	return &statusResponseWriter{ResponseWriter: w, statusCode: 0}
+func wrapResponseWriter(w http.ResponseWriter) *responseCaptureWriter {
+	return &responseCaptureWriter{
+		ResponseWriter: w,
+		statusCode:     0,
+		body:           &bytes.Buffer{},
+	}
 }
 
 func getRealIP(r *http.Request, conf *configuration.Configuration) string {
@@ -266,38 +276,21 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 				)
 
 				respContentType := wrappedWriter.Header().Get("Content-Type")
-				logRespBody := opts.LogResponseBody && shouldLogBody(respContentType)
-				if logRespBody {
-					bodyBuf := new(bytes.Buffer)
-					wrappedWriter.Flush()
-
-					// Check if the underlying ResponseWriter implements io.Reader
-					if reader, ok := wrappedWriter.ResponseWriter.(io.Reader); ok {
-						if _, err := io.Copy(bodyBuf, reader); err != nil {
-							fieldsLogger.WithError(err).Error("failed to read response-body")
-							return
+				if opts.LogResponseBody && shouldLogBody(respContentType) {
+					body := wrappedWriter.body.Bytes()
+					switch {
+					case strings.Contains(respContentType, "application/json"):
+						var parsed interface{}
+						if err := json.Unmarshal(body, &parsed); err == nil {
+							fieldsLogger.WithField("response-body", parsed).Info("JSON response-body parsed")
 						}
-						switch {
-						case strings.Contains(respContentType, "application/json"):
-							var jsonResponseBody interface{}
-							if err := json.Unmarshal(bodyBuf.Bytes(), &jsonResponseBody); err != nil {
-								fieldsLogger.WithError(err).Error("failed to parse JSON response-body")
-								return
-							}
-							fieldsLogger.WithField("response-body", jsonResponseBody).Info("JSON response-body parsed")
-						case strings.Contains(respContentType, "application/xml"), strings.Contains(respContentType, "text/xml"):
-							var xmlResponseBody interface{}
-							if err := xml.Unmarshal(bodyBuf.Bytes(), &xmlResponseBody); err != nil {
-								fieldsLogger.WithError(err).Error("failed to parse XML response-body")
-								return
-							}
-							fieldsLogger.WithField("response-body", xmlResponseBody).Info("XML response-body parsed")
-						default:
-							rawBody := bodyBuf.String()
-							fieldsLogger.WithField("response-body", rawBody).Info("response-body parsed")
+					case strings.Contains(respContentType, "application/xml"), strings.Contains(respContentType, "text/xml"):
+						var parsed interface{}
+						if err := xml.Unmarshal(body, &parsed); err == nil {
+							fieldsLogger.WithField("response-body", parsed).Info("XML response-body parsed")
 						}
-					} else {
-						fieldsLogger.Error("underlying ResponseWriter does not implement io.Reader")
+					default:
+						fieldsLogger.WithField("response-body", string(body)).Info("response-body captured")
 					}
 				}
 			},
