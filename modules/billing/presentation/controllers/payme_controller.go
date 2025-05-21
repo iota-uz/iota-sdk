@@ -428,16 +428,9 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 				SetAccount(r.Account),
 		)
 
-	entity, err = c.billingService.Update(ctx, entity)
+	_, err = c.billingService.Update(ctx, entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
-		errRPC := paymeapi.InternalSystemError()
-		return nil, &errRPC
-	}
-
-	paymeDetails, ok = entity.Details().(details.PaymeDetails)
-	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}

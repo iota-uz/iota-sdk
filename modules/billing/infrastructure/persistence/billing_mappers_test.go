@@ -94,7 +94,7 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Equal(t, "https://payme.uz/paylink", payme.Link())
 				assert.Len(t, payme.Receivers(), 2)
 				assert.Equal(t, "receiver-1", payme.Receivers()[0].ID())
-				assert.Equal(t, 100.0, payme.Receivers()[0].Amount())
+				assert.InEpsilon(t, 100.0, payme.Receivers()[0].Amount(), 0.0001)
 			},
 		},
 		//},
