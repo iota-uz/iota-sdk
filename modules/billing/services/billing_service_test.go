@@ -116,7 +116,6 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 	f := setupTest(t)
 
 	for i := 1; i <= 40; i++ {
-		i := i
 		t.Run(fmt.Sprintf("Payme_Transaction_%d", i), func(t *testing.T) {
 			t.Parallel()
 
