@@ -814,6 +814,42 @@ type Value struct {
 
 ---
 
+## Package `slider` (components/base/slider)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### SliderProps
+
+```go
+type SliderProps struct {
+    Min int
+    Max int
+    Value float64
+    Step float64
+    Label string
+    HelpText string
+    Error string
+    Disabled bool
+    Class string
+    Attrs templ.Attributes
+    ID string
+    ValueFormat string
+}
+```
+
+##### Methods
+
+### Functions
+
+#### `func Slider(props SliderProps) templ.Component`
+
+### Variables and Constants
+
+---
+
 ## Package `tab` (components/base/tab)
 
 templ: version: v0.3.857
@@ -920,13 +956,65 @@ type ToggleProps struct {
 
 ### Types
 
+#### AnnotationLabel
+
+```go
+type AnnotationLabel struct {
+    BorderColor *string `json:"borderColor,omitempty"`
+    BorderWidth *int `json:"borderWidth,omitempty"`
+    BorderRadius *int `json:"borderRadius,omitempty"`
+    Text *string `json:"text,omitempty"`
+    TextAnchor *string `json:"textAnchor,omitempty"`
+    Position *string `json:"position,omitempty"`
+    Orientation *string `json:"orientation,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Style *AnnotationLabelStyle `json:"style,omitempty"`
+}
+```
+
+#### AnnotationLabelStyle
+
+```go
+type AnnotationLabelStyle struct {
+    Background *string `json:"background,omitempty"`
+    Color *string `json:"color,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontWeight *string `json:"fontWeight,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    CSSClass *string `json:"cssClass,omitempty"`
+    Padding *Padding `json:"padding,omitempty"`
+}
+```
+
+#### Annotations
+
+```go
+type Annotations struct {
+    YAxis []YAxisAnnotation `json:"yaxis,omitempty"`
+    XAxis []XAxisAnnotation `json:"xaxis,omitempty"`
+    Points []PointAnnotation `json:"points,omitempty"`
+    Texts []TextAnnotation `json:"texts,omitempty"`
+    Images []ImageAnnotation `json:"images,omitempty"`
+}
+```
+
+#### AxisTitle
+
+```go
+type AxisTitle struct {
+    Text string `json:"text"`
+    Style TextStyle `json:"style"`
+}
+```
+
 #### BarConfig
 
 ```go
 type BarConfig struct {
-    BorderRadius int `json:"borderRadius"`
-    ColumnWidth string `json:"columnWidth"`
-    DataLabels BarLabels `json:"dataLabels"`
+    BorderRadius int `json:"borderRadius,omitempty"`
+    ColumnWidth string `json:"columnWidth,omitempty"`
+    DataLabels BarLabels `json:"dataLabels,omitempty"`
 }
 ```
 
@@ -934,7 +1022,7 @@ type BarConfig struct {
 
 ```go
 type BarLabels struct {
-    Position string `json:"position"`
+    Position string `json:"position,omitempty"`
 }
 ```
 
@@ -942,9 +1030,10 @@ type BarLabels struct {
 
 ```go
 type ChartConfig struct {
-    Type string `json:"type"`
-    Height string `json:"height"`
-    Toolbar Toolbar `json:"toolbar"`
+    Type ChartType `json:"type"`
+    Height string `json:"height,omitempty"`
+    Toolbar Toolbar `json:"toolbar,omitempty"`
+    Stacked bool `json:"stacked,omitempty"`
 }
 ```
 
@@ -955,11 +1044,33 @@ type ChartOptions struct {
     Chart ChartConfig `json:"chart"`
     Series []Series `json:"series"`
     XAxis XAxisConfig `json:"xaxis"`
-    YAxis YAxisConfig `json:"yaxis"`
-    Colors []string `json:"colors"`
-    DataLabels DataLabels `json:"dataLabels"`
-    Grid GridConfig `json:"grid"`
-    PlotOptions PlotOptions `json:"plotOptions"`
+    YAxis []YAxisConfig `json:"yaxis"`
+    Colors []string `json:"colors,omitempty"`
+    DataLabels *DataLabels `json:"dataLabels,omitempty"`
+    Grid *GridConfig `json:"grid,omitempty"`
+    PlotOptions *PlotOptions `json:"plotOptions,omitempty"`
+    Tooltip *TooltipConfig `json:"tooltip,omitempty"`
+    Title *TitleConfig `json:"title,omitempty"`
+    Theme *ThemeConfig `json:"theme,omitempty"`
+    Stroke *StrokeConfig `json:"stroke,omitempty"`
+    Markers *MarkersConfig `json:"markers,omitempty"`
+    Legend *LegendConfig `json:"legend,omitempty"`
+    NoData *NoDataConfig `json:"noData,omitempty"`
+    States *StatesConfig `json:"states,omitempty"`
+    Fill *FillConfig `json:"fill,omitempty"`
+    Annotations *Annotations `json:"annotations,omitempty"`
+}
+```
+
+#### ChartType
+
+#### ColorStop
+
+```go
+type ColorStop struct {
+    Offset *int `json:"offset,omitempty"`
+    Color *string `json:"color,omitempty"`
+    Opacity *float64 `json:"opacity,omitempty"`
 }
 ```
 
@@ -967,9 +1078,9 @@ type ChartOptions struct {
 
 ```go
 type DataLabelStyle struct {
-    Colors []string `json:"colors"`
-    FontSize string `json:"fontSize"`
-    FontWeight string `json:"fontWeight"`
+    Colors []string `json:"colors,omitempty"`
+    FontSize string `json:"fontSize,omitempty"`
+    FontWeight string `json:"fontWeight,omitempty"`
 }
 ```
 
@@ -979,9 +1090,18 @@ type DataLabelStyle struct {
 type DataLabels struct {
     Enabled bool `json:"enabled"`
     Formatter templ.JSExpression `json:"formatter,omitempty"`
-    Style DataLabelStyle `json:"style"`
-    OffsetY int `json:"offsetY"`
-    DropShadow DropShadow `json:"dropShadow"`
+    Style *DataLabelStyle `json:"style,omitempty"`
+    OffsetY int `json:"offsetY,omitempty"`
+    DropShadow *DropShadow `json:"dropShadow,omitempty"`
+}
+```
+
+#### DonutSpecifics
+
+```go
+type DonutSpecifics struct {
+    Size *string `json:"size,omitempty"`
+    Labels *Labels `json:"labels,omitempty"`
 }
 ```
 
@@ -990,19 +1110,130 @@ type DataLabels struct {
 ```go
 type DropShadow struct {
     Enabled bool `json:"enabled"`
-    Top int `json:"top"`
-    Left int `json:"left"`
-    Blur int `json:"blur"`
-    Color string `json:"color"`
-    Opacity float64 `json:"opacity"`
+    Top int `json:"top,omitempty"`
+    Left int `json:"left,omitempty"`
+    Blur int `json:"blur,omitempty"`
+    Color string `json:"color,omitempty"`
+    Opacity float64 `json:"opacity,omitempty"`
 }
 ```
+
+#### FillConfig
+
+```go
+type FillConfig struct {
+    Colors []string `json:"colors,omitempty"`
+    Opacity interface{} `json:"opacity,omitempty"`
+    Type interface{} `json:"type,omitempty"`
+    Gradient *FillGradient `json:"gradient,omitempty"`
+    Image *FillImage `json:"image,omitempty"`
+    Pattern *FillPattern `json:"pattern,omitempty"`
+}
+```
+
+#### FillGradient
+
+```go
+type FillGradient struct {
+    Shade *string `json:"shade,omitempty"`
+    Type *string `json:"type,omitempty"`
+    ShadeIntensity *float64 `json:"shadeIntensity,omitempty"`
+    GradientToColors []string `json:"gradientToColors,omitempty"`
+    InverseColors *bool `json:"inverseColors,omitempty"`
+    OpacityFrom *float64 `json:"opacityFrom,omitempty"`
+    OpacityTo *float64 `json:"opacityTo,omitempty"`
+    Stops []float64 `json:"stops,omitempty"`
+    ColorStops []ColorStop `json:"colorStops,omitempty"`
+}
+```
+
+#### FillImage
+
+```go
+type FillImage struct {
+    Src interface{} `json:"src,omitempty"`
+    Width *int `json:"width,omitempty"`
+    Height *int `json:"height,omitempty"`
+}
+```
+
+#### FillPattern
+
+```go
+type FillPattern struct {
+    Style interface{} `json:"style,omitempty"`
+    Width *int `json:"width,omitempty"`
+    Height *int `json:"height,omitempty"`
+    StrokeWidth *int `json:"strokeWidth,omitempty"`
+}
+```
+
+#### FillType
 
 #### GridConfig
 
 ```go
 type GridConfig struct {
-    BorderColor string `json:"borderColor"`
+    BorderColor string `json:"borderColor,omitempty"`
+    Row *GridRowColumn `json:"row,omitempty"`
+    Column *GridRowColumn `json:"column,omitempty"`
+    Padding *Padding `json:"padding,omitempty"`
+}
+```
+
+#### GridRowColumn
+
+```go
+type GridRowColumn struct {
+    Colors []string `json:"colors,omitempty"`
+    Opacity *float64 `json:"opacity,omitempty"`
+}
+```
+
+#### HeatmapColorScale
+
+```go
+type HeatmapColorScale struct {
+    Ranges []HeatmapRange `json:"ranges,omitempty"`
+    Inverse *bool `json:"inverse,omitempty"`
+    Min *float64 `json:"min,omitempty"`
+    Max *float64 `json:"max,omitempty"`
+}
+```
+
+#### HeatmapConfig
+
+```go
+type HeatmapConfig struct {
+    Radius *int `json:"radius,omitempty"`
+    EnableShades *bool `json:"enableShades,omitempty"`
+    ShadeIntensity *float64 `json:"shadeIntensity,omitempty"`
+    ReverseNegative *bool `json:"reverseNegative,omitempty"`
+    Distributed *bool `json:"distributed,omitempty"`
+    ColorScale *HeatmapColorScale `json:"colorScale,omitempty"`
+}
+```
+
+#### HeatmapRange
+
+```go
+type HeatmapRange struct {
+    From *float64 `json:"from,omitempty"`
+    To *float64 `json:"to,omitempty"`
+    Color *string `json:"color,omitempty"`
+    Name *string `json:"name,omitempty"`
+}
+```
+
+#### ImageAnnotation
+
+```go
+type ImageAnnotation struct {
+    Path *string `json:"path,omitempty"`
+    X *float64 `json:"x,omitempty"`
+    Y *float64 `json:"y,omitempty"`
+    Width *int `json:"width,omitempty"`
+    Height *int `json:"height,omitempty"`
 }
 ```
 
@@ -1014,12 +1245,239 @@ type LabelFormatter struct {
 }
 ```
 
+#### LabelNameValue
+
+```go
+type LabelNameValue struct {
+    Show *bool `json:"show,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight *string `json:"fontWeight,omitempty"`
+    Color *string `json:"color,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+}
+```
+
 #### LabelStyle
 
 ```go
 type LabelStyle struct {
-    Colors string `json:"colors"`
-    FontSize string `json:"fontSize"`
+    Colors string `json:"colors,omitempty"`
+    FontSize string `json:"fontSize,omitempty"`
+}
+```
+
+#### LabelTotal
+
+```go
+type LabelTotal struct {
+    Show *bool `json:"show,omitempty"`
+    ShowAlways *bool `json:"showAlways,omitempty"`
+    Label *string `json:"label,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight *string `json:"fontWeight,omitempty"`
+    Color *string `json:"color,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+}
+```
+
+#### Labels
+
+```go
+type Labels struct {
+    Show *bool `json:"show,omitempty"`
+    Name *LabelNameValue `json:"name,omitempty"`
+    Value *LabelNameValue `json:"value,omitempty"`
+    Total *LabelTotal `json:"total,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+}
+```
+
+#### LegendConfig
+
+```go
+type LegendConfig struct {
+    Show *bool `json:"show,omitempty"`
+    ShowForSingleSeries *bool `json:"showForSingleSeries,omitempty"`
+    ShowForNullSeries *bool `json:"showForNullSeries,omitempty"`
+    ShowForZeroSeries *bool `json:"showForZeroSeries,omitempty"`
+    Position *LegendPosition `json:"position,omitempty"`
+    HorizontalAlign *LegendHorizontalAlign `json:"horizontalAlign,omitempty"`
+    Floating *bool `json:"floating,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight interface{} `json:"fontWeight,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+    InverseOrder *bool `json:"inverseOrder,omitempty"`
+    Width *int `json:"width,omitempty"`
+    Height *int `json:"height,omitempty"`
+    TooltipHoverFormatter templ.JSExpression `json:"tooltipHoverFormatter,omitempty"`
+    CustomLegendItems []string `json:"customLegendItems,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Labels *LegendLabelsConfig `json:"labels,omitempty"`
+    Markers *LegendMarkersConfig `json:"markers,omitempty"`
+    ItemMargin *LegendItemMargin `json:"itemMargin,omitempty"`
+    OnItemClick *LegendOnItemClick `json:"onItemClick,omitempty"`
+    OnItemHover *LegendOnItemHover `json:"onItemHover,omitempty"`
+    ContainerMargin *Padding `json:"containerMargin,omitempty"`
+}
+```
+
+#### LegendHorizontalAlign
+
+#### LegendItemMargin
+
+```go
+type LegendItemMargin struct {
+    Horizontal *int `json:"horizontal,omitempty"`
+    Vertical *int `json:"vertical,omitempty"`
+}
+```
+
+#### LegendLabelsConfig
+
+```go
+type LegendLabelsConfig struct {
+    Colors interface{} `json:"colors,omitempty"`
+    UseSeriesColors *bool `json:"useSeriesColors,omitempty"`
+}
+```
+
+#### LegendMarkersConfig
+
+```go
+type LegendMarkersConfig struct {
+    Width *int `json:"width,omitempty"`
+    Height *int `json:"height,omitempty"`
+    StrokeWidth *int `json:"strokeWidth,omitempty"`
+    StrokeColor *string `json:"strokeColor,omitempty"`
+    FillColors []string `json:"fillColors,omitempty"`
+    Radius *int `json:"radius,omitempty"`
+    CustomHTML templ.JSExpression `json:"customHTML,omitempty"`
+    OnClick templ.JSExpression `json:"onClick,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+}
+```
+
+#### LegendOnItemClick
+
+```go
+type LegendOnItemClick struct {
+    ToggleDataSeries *bool `json:"toggleDataSeries,omitempty"`
+}
+```
+
+#### LegendOnItemHover
+
+```go
+type LegendOnItemHover struct {
+    HighlightDataSeries *bool `json:"highlightDataSeries,omitempty"`
+}
+```
+
+#### LegendPosition
+
+#### MarkerDiscrete
+
+```go
+type MarkerDiscrete struct {
+    SeriesIndex *int `json:"seriesIndex,omitempty"`
+    DataPointIndex *int `json:"dataPointIndex,omitempty"`
+    FillColor *string `json:"fillColor,omitempty"`
+    StrokeColor *string `json:"strokeColor,omitempty"`
+    Size *int `json:"size,omitempty"`
+    Shape *string `json:"shape,omitempty"`
+}
+```
+
+#### MarkerHover
+
+```go
+type MarkerHover struct {
+    Size *int `json:"size,omitempty"`
+    SizeOffset *int `json:"sizeOffset,omitempty"`
+}
+```
+
+#### MarkersConfig
+
+```go
+type MarkersConfig struct {
+    Size interface{} `json:"size,omitempty"`
+    Colors []string `json:"colors,omitempty"`
+    StrokeColor interface{} `json:"strokeColor,omitempty"`
+    StrokeWidth interface{} `json:"strokeWidth,omitempty"`
+    StrokeOpacity interface{} `json:"strokeOpacity,omitempty"`
+    StrokeDashArray interface{} `json:"strokeDashArray,omitempty"`
+    FillOpacity interface{} `json:"fillOpacity,omitempty"`
+    Discrete []MarkerDiscrete `json:"discrete,omitempty"`
+    Shape interface{} `json:"shape,omitempty"`
+    Radius *int `json:"radius,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    OnClick templ.JSExpression `json:"onClick,omitempty"`
+    OnDblClick templ.JSExpression `json:"onDblClick,omitempty"`
+    ShowNullDataPoints *bool `json:"showNullDataPoints,omitempty"`
+    Hover *MarkerHover `json:"hover,omitempty"`
+}
+```
+
+#### NoDataConfig
+
+```go
+type NoDataConfig struct {
+    Text *string `json:"text,omitempty"`
+    Align *TitleAlign `json:"align,omitempty"`
+    VerticalAlign *string `json:"verticalAlign,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Style *NoDataStyleConfig `json:"style,omitempty"`
+}
+```
+
+#### NoDataStyleConfig
+
+```go
+type NoDataStyleConfig struct {
+    Color *string `json:"color,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+}
+```
+
+#### Padding
+
+```go
+type Padding struct {
+    Top *int `json:"top,omitempty"`
+    Right *int `json:"right,omitempty"`
+    Bottom *int `json:"bottom,omitempty"`
+    Left *int `json:"left,omitempty"`
+}
+```
+
+#### PieDataLabels
+
+```go
+type PieDataLabels struct {
+    Offset *int `json:"offset,omitempty"`
+}
+```
+
+#### PieDonutConfig
+
+```go
+type PieDonutConfig struct {
+    Size *string `json:"size,omitempty"`
+    Donut *DonutSpecifics `json:"donut,omitempty"`
+    CustomScale *float64 `json:"customScale,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    DataLabels *PieDataLabels `json:"dataLabels,omitempty"`
 }
 ```
 
@@ -1027,7 +1485,53 @@ type LabelStyle struct {
 
 ```go
 type PlotOptions struct {
-    Bar BarConfig `json:"bar"`
+    Bar *BarConfig `json:"bar,omitempty"`
+    Pie *PieDonutConfig `json:"pie,omitempty"`
+    Donut *PieDonutConfig `json:"donut,omitempty"`
+    RadialBar *RadialBarConfig `json:"radialBar,omitempty"`
+    Heatmap *HeatmapConfig `json:"heatmap,omitempty"`
+}
+```
+
+#### PointAnnotation
+
+```go
+type PointAnnotation struct {
+    X interface{} `json:"x,omitempty"`
+    Y *float64 `json:"y,omitempty"`
+    YAxisIndex *int `json:"yAxisIndex,omitempty"`
+    SeriesIndex *int `json:"seriesIndex,omitempty"`
+    Marker *PointMarker `json:"marker,omitempty"`
+    Label *AnnotationLabel `json:"label,omitempty"`
+    Image *PointImage `json:"image,omitempty"`
+}
+```
+
+#### PointImage
+
+```go
+type PointImage struct {
+    Path *string `json:"path,omitempty"`
+    Width *int `json:"width,omitempty"`
+    Height *int `json:"height,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+}
+```
+
+#### PointMarker
+
+```go
+type PointMarker struct {
+    Size *int `json:"size,omitempty"`
+    FillColor *string `json:"fillColor,omitempty"`
+    StrokeColor *string `json:"strokeColor,omitempty"`
+    StrokeWidth *int `json:"strokeWidth,omitempty"`
+    Shape *string `json:"shape,omitempty"`
+    Radius *int `json:"radius,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    CSSClass *string `json:"cssClass,omitempty"`
 }
 ```
 
@@ -1043,12 +1547,212 @@ type Props struct {
 }
 ```
 
+#### RadialBarConfig
+
+```go
+type RadialBarConfig struct {
+    Size *string `json:"size,omitempty"`
+    InverseOrder *bool `json:"inverseOrder,omitempty"`
+    StartAngle *int `json:"startAngle,omitempty"`
+    EndAngle *int `json:"endAngle,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Hollow *RadialBarHollow `json:"hollow,omitempty"`
+    Track *RadialBarTrack `json:"track,omitempty"`
+    DataLabels *RadialBarDataLabels `json:"dataLabels,omitempty"`
+}
+```
+
+#### RadialBarDataLabels
+
+```go
+type RadialBarDataLabels struct {
+    Show *bool `json:"show,omitempty"`
+    Name *LabelNameValue `json:"name,omitempty"`
+    Value *LabelNameValue `json:"value,omitempty"`
+    Total *LabelTotal `json:"total,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+}
+```
+
+#### RadialBarHollow
+
+```go
+type RadialBarHollow struct {
+    Margin *int `json:"margin,omitempty"`
+    Size *string `json:"size,omitempty"`
+    Background *string `json:"background,omitempty"`
+    Image *string `json:"image,omitempty"`
+    ImageWidth *int `json:"imageWidth,omitempty"`
+    ImageHeight *int `json:"imageHeight,omitempty"`
+    ImageOffsetX *int `json:"imageOffsetX,omitempty"`
+    ImageOffsetY *int `json:"imageOffsetY,omitempty"`
+    ImageClipped *bool `json:"imageClipped,omitempty"`
+    Position *string `json:"position,omitempty"`
+    DropShadow *DropShadow `json:"dropShadow,omitempty"`
+}
+```
+
+#### RadialBarTrack
+
+```go
+type RadialBarTrack struct {
+    Show *bool `json:"show,omitempty"`
+    Background *string `json:"background,omitempty"`
+    StrokeWidth *string `json:"strokeWidth,omitempty"`
+    Opacity *float64 `json:"opacity,omitempty"`
+    Margin *int `json:"margin,omitempty"`
+    DropShadow *DropShadow `json:"dropShadow,omitempty"`
+}
+```
+
 #### Series
 
 ```go
 type Series struct {
     Name string `json:"name"`
-    Data []float64 `json:"data"`
+    Type *ChartType `json:"type,omitempty"`
+    Data []interface{} `json:"data"`
+}
+```
+
+#### StateActiveConfig
+
+```go
+type StateActiveConfig struct {
+    AllowMultipleDataPointsSelection *bool `json:"allowMultipleDataPointsSelection,omitempty"`
+    Filter *StateFilter `json:"filter,omitempty"`
+}
+```
+
+#### StateFilter
+
+```go
+type StateFilter struct {
+    Type *string `json:"type,omitempty"`
+    Value *float64 `json:"value,omitempty"`
+}
+```
+
+#### StateFilterConfig
+
+```go
+type StateFilterConfig struct {
+    Filter *StateFilter `json:"filter,omitempty"`
+}
+```
+
+#### StatesConfig
+
+```go
+type StatesConfig struct {
+    Normal *StateFilterConfig `json:"normal,omitempty"`
+    Hover *StateFilterConfig `json:"hover,omitempty"`
+    Active *StateActiveConfig `json:"active,omitempty"`
+}
+```
+
+#### StrokeConfig
+
+```go
+type StrokeConfig struct {
+    Show *bool `json:"show,omitempty"`
+    Curve interface{} `json:"curve,omitempty"`
+    LineCap StrokeLineCap `json:"lineCap,omitempty"`
+    Colors []string `json:"colors,omitempty"`
+    Width interface{} `json:"width,omitempty"`
+    DashArray interface{} `json:"dashArray,omitempty"`
+}
+```
+
+#### StrokeCurve
+
+#### StrokeLineCap
+
+#### TextAnnotation
+
+```go
+type TextAnnotation struct {
+    X *float64 `json:"x,omitempty"`
+    Y *float64 `json:"y,omitempty"`
+    Text *string `json:"text,omitempty"`
+    TextAnchor *string `json:"textAnchor,omitempty"`
+    ForeColor *string `json:"foreColor,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight *string `json:"fontWeight,omitempty"`
+    BackgroundColor *string `json:"backgroundColor,omitempty"`
+    BorderColor *string `json:"borderColor,omitempty"`
+    BorderRadius *int `json:"borderRadius,omitempty"`
+    BorderWidth *int `json:"borderWidth,omitempty"`
+    PaddingLeft *int `json:"paddingLeft,omitempty"`
+    PaddingRight *int `json:"paddingRight,omitempty"`
+    PaddingTop *int `json:"paddingTop,omitempty"`
+    PaddingBottom *int `json:"paddingBottom,omitempty"`
+}
+```
+
+#### TextStyle
+
+```go
+type TextStyle struct {
+    FontWeight string `json:"fontWeight,omitempty"`
+    FontSize string `json:"fontSize,omitempty"`
+    Color string `json:"color,omitempty"`
+}
+```
+
+#### ThemeConfig
+
+```go
+type ThemeConfig struct {
+    Mode *ThemeMode `json:"mode,omitempty"`
+    Palette *ThemePalette `json:"palette,omitempty"`
+    Monochrome *ThemeMonochromeConfig `json:"monochrome,omitempty"`
+}
+```
+
+#### ThemeMode
+
+#### ThemeMonochromeConfig
+
+```go
+type ThemeMonochromeConfig struct {
+    Enabled *bool `json:"enabled,omitempty"`
+    Color *string `json:"color,omitempty"`
+    ShadeTo *ThemeMonochromeShadeTo `json:"shadeTo,omitempty"`
+    ShadeIntensity *float64 `json:"shadeIntensity,omitempty"`
+}
+```
+
+#### ThemeMonochromeShadeTo
+
+#### ThemePalette
+
+#### TitleAlign
+
+#### TitleConfig
+
+```go
+type TitleConfig struct {
+    Text *string `json:"text,omitempty"`
+    Align *TitleAlign `json:"align,omitempty"`
+    Margin *int `json:"margin,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Floating *bool `json:"floating,omitempty"`
+    Style *TitleStyleConfig `json:"style,omitempty"`
+}
+```
+
+#### TitleStyleConfig
+
+```go
+type TitleStyleConfig struct {
+    FontSize *string `json:"fontSize,omitempty"`
+    FontWeight interface{} `json:"fontWeight,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    Color *string `json:"color,omitempty"`
 }
 ```
 
@@ -1060,12 +1764,386 @@ type Toolbar struct {
 }
 ```
 
+#### TooltipConfig
+
+```go
+type TooltipConfig struct {
+    Enabled *bool `json:"enabled,omitempty"`
+    EnabledOnSeries []int `json:"enabledOnSeries,omitempty"`
+    Shared *bool `json:"shared,omitempty"`
+    FollowCursor *bool `json:"followCursor,omitempty"`
+    Intersect *bool `json:"intersect,omitempty"`
+    InverseOrder *bool `json:"inverseOrder,omitempty"`
+    Custom interface{} `json:"custom,omitempty"`
+    HideEmptySeries *bool `json:"hideEmptySeries,omitempty"`
+    FillSeriesColor *bool `json:"fillSeriesColor,omitempty"`
+    Theme *string `json:"theme,omitempty"`
+    Style *TooltipStyleConfig `json:"style,omitempty"`
+    OnDatasetHover *TooltipOnDatasetHoverConfig `json:"onDatasetHover,omitempty"`
+    X *TooltipXConfig `json:"x,omitempty"`
+    Y interface{} `json:"y,omitempty"`
+    Z *TooltipZConfig `json:"z,omitempty"`
+    Marker *TooltipMarkerConfig `json:"marker,omitempty"`
+    Items *TooltipItemsConfig `json:"items,omitempty"`
+    Fixed *TooltipFixedConfig `json:"fixed,omitempty"`
+}
+```
+
+#### TooltipFixedConfig
+
+```go
+type TooltipFixedConfig struct {
+    Enabled *bool `json:"enabled,omitempty"`
+    Position *TooltipFixedPosition `json:"position,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+}
+```
+
+#### TooltipFixedPosition
+
+#### TooltipItemsConfig
+
+```go
+type TooltipItemsConfig struct {
+    Display *string `json:"display,omitempty"`
+}
+```
+
+#### TooltipMarkerConfig
+
+```go
+type TooltipMarkerConfig struct {
+    Show *bool `json:"show,omitempty"`
+}
+```
+
+#### TooltipOnDatasetHoverConfig
+
+```go
+type TooltipOnDatasetHoverConfig struct {
+    HighlightDataSeries *bool `json:"highlightDataSeries,omitempty"`
+}
+```
+
+#### TooltipStyleConfig
+
+```go
+type TooltipStyleConfig struct {
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+}
+```
+
+#### TooltipXConfig
+
+```go
+type TooltipXConfig struct {
+    Show *bool `json:"show,omitempty"`
+    Format *string `json:"format,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+}
+```
+
+#### TooltipYConfig
+
+```go
+type TooltipYConfig struct {
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+    Title *TooltipYTitleConfig `json:"title,omitempty"`
+}
+```
+
+#### TooltipYTitleConfig
+
+```go
+type TooltipYTitleConfig struct {
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+}
+```
+
+#### TooltipZConfig
+
+```go
+type TooltipZConfig struct {
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+    Title *string `json:"title,omitempty"`
+}
+```
+
+#### XAxisAnnotation
+
+```go
+type XAxisAnnotation struct {
+    X *float64 `json:"x,omitempty"`
+    X2 *float64 `json:"x2,omitempty"`
+    StrokeDashArray *int `json:"strokeDashArray,omitempty"`
+    FillColor *string `json:"fillColor,omitempty"`
+    BorderColor *string `json:"borderColor,omitempty"`
+    BorderWidth *int `json:"borderWidth,omitempty"`
+    Opacity *float64 `json:"opacity,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Label *AnnotationLabel `json:"label,omitempty"`
+}
+```
+
+#### XAxisBorderConfig
+
+```go
+type XAxisBorderConfig struct {
+    Show *bool `json:"show,omitempty"`
+    Color *string `json:"color,omitempty"`
+    Height *int `json:"height,omitempty"`
+    Width interface{} `json:"width,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+}
+```
+
+#### XAxisBorderType
+
 #### XAxisConfig
 
 ```go
 type XAxisConfig struct {
-    Categories []string `json:"categories"`
-    Labels LabelFormatter `json:"labels"`
+    Type *XAxisType `json:"type,omitempty"`
+    Categories []string `json:"categories,omitempty"`
+    TickAmount interface{} `json:"tickAmount,omitempty"`
+    TickPlacement *XAxisTickPlacement `json:"tickPlacement,omitempty"`
+    Min *float64 `json:"min,omitempty"`
+    Max *float64 `json:"max,omitempty"`
+    StepSize *float64 `json:"stepSize,omitempty"`
+    Range *float64 `json:"range,omitempty"`
+    Floating *bool `json:"floating,omitempty"`
+    DecimalsInFloat *int `json:"decimalsInFloat,omitempty"`
+    OverwriteCategories []string `json:"overwriteCategories,omitempty"`
+    Position *XAxisPosition `json:"position,omitempty"`
+    Labels *XAxisLabelsConfig `json:"labels,omitempty"`
+    Group *XAxisGroupConfig `json:"group,omitempty"`
+    AxisBorder *XAxisBorderConfig `json:"axisBorder,omitempty"`
+    AxisTicks *XAxisTicksConfig `json:"axisTicks,omitempty"`
+    Title *XAxisTitleConfig `json:"title,omitempty"`
+    Crosshairs *XAxisCrosshairsConfig `json:"crosshairs,omitempty"`
+    Tooltip *XAxisTooltipConfig `json:"tooltip,omitempty"`
+}
+```
+
+#### XAxisCrosshairFillType
+
+#### XAxisCrosshairPosition
+
+#### XAxisCrosshairsConfig
+
+```go
+type XAxisCrosshairsConfig struct {
+    Show *bool `json:"show,omitempty"`
+    Width interface{} `json:"width,omitempty"`
+    Position *XAxisCrosshairPosition `json:"position,omitempty"`
+    Opacity *float64 `json:"opacity,omitempty"`
+    Stroke *XAxisCrosshairsStrokeConfig `json:"stroke,omitempty"`
+    Fill *XAxisCrosshairsFillConfig `json:"fill,omitempty"`
+    DropShadow *DropShadow `json:"dropShadow,omitempty"`
+}
+```
+
+#### XAxisCrosshairsFillConfig
+
+```go
+type XAxisCrosshairsFillConfig struct {
+    Type *XAxisCrosshairFillType `json:"type,omitempty"`
+    Color *string `json:"color,omitempty"`
+    Gradient *XAxisCrosshairsGradientConfig `json:"gradient,omitempty"`
+}
+```
+
+#### XAxisCrosshairsGradientConfig
+
+```go
+type XAxisCrosshairsGradientConfig struct {
+    ColorFrom *string `json:"colorFrom,omitempty"`
+    ColorTo *string `json:"colorTo,omitempty"`
+    Stops []float64 `json:"stops,omitempty"`
+    OpacityFrom *float64 `json:"opacityFrom,omitempty"`
+    OpacityTo *float64 `json:"opacityTo,omitempty"`
+}
+```
+
+#### XAxisCrosshairsStrokeConfig
+
+```go
+type XAxisCrosshairsStrokeConfig struct {
+    Color *string `json:"color,omitempty"`
+    Width *int `json:"width,omitempty"`
+    DashArray *int `json:"dashArray,omitempty"`
+}
+```
+
+#### XAxisDateTimeFormatterConfig
+
+```go
+type XAxisDateTimeFormatterConfig struct {
+    Year *string `json:"year,omitempty"`
+    Month *string `json:"month,omitempty"`
+    Day *string `json:"day,omitempty"`
+    Hour *string `json:"hour,omitempty"`
+    Minute *string `json:"minute,omitempty"`
+    Second *string `json:"second,omitempty"`
+}
+```
+
+#### XAxisGroupConfig
+
+```go
+type XAxisGroupConfig struct {
+    Groups []XAxisGroupItemConfig `json:"groups,omitempty"`
+    Style *XAxisGroupStyleConfig `json:"style,omitempty"`
+}
+```
+
+#### XAxisGroupItemConfig
+
+```go
+type XAxisGroupItemConfig struct {
+    Title string `json:"title"`
+    Cols int `json:"cols"`
+}
+```
+
+#### XAxisGroupStyleConfig
+
+```go
+type XAxisGroupStyleConfig struct {
+    Colors interface{} `json:"colors,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontWeight interface{} `json:"fontWeight,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    CSSClass *string `json:"cssClass,omitempty"`
+}
+```
+
+#### XAxisLabelStyleConfig
+
+```go
+type XAxisLabelStyleConfig struct {
+    Colors interface{} `json:"colors,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight interface{} `json:"fontWeight,omitempty"`
+    CSSClass *string `json:"cssClass,omitempty"`
+}
+```
+
+#### XAxisLabelsConfig
+
+```go
+type XAxisLabelsConfig struct {
+    Show *bool `json:"show,omitempty"`
+    Rotate *int `json:"rotate,omitempty"`
+    RotateAlways *bool `json:"rotateAlways,omitempty"`
+    HideOverlappingLabels *bool `json:"hideOverlappingLabels,omitempty"`
+    ShowDuplicates *bool `json:"showDuplicates,omitempty"`
+    Trim *bool `json:"trim,omitempty"`
+    MinHeight *int `json:"minHeight,omitempty"`
+    MaxHeight *int `json:"maxHeight,omitempty"`
+    Style *XAxisLabelStyleConfig `json:"style,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Format *string `json:"format,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+    DatetimeUTC *bool `json:"datetimeUTC,omitempty"`
+    DatetimeFormatter *XAxisDateTimeFormatterConfig `json:"datetimeFormatter,omitempty"`
+}
+```
+
+#### XAxisPosition
+
+#### XAxisTickPlacement
+
+#### XAxisTicksConfig
+
+```go
+type XAxisTicksConfig struct {
+    Show *bool `json:"show,omitempty"`
+    BorderType *XAxisBorderType `json:"borderType,omitempty"`
+    Color *string `json:"color,omitempty"`
+    Height *int `json:"height,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+}
+```
+
+#### XAxisTitleConfig
+
+```go
+type XAxisTitleConfig struct {
+    Text *string `json:"text,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Style *XAxisTitleStyleConfig `json:"style,omitempty"`
+}
+```
+
+#### XAxisTitleStyleConfig
+
+```go
+type XAxisTitleStyleConfig struct {
+    Color *string `json:"color,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight interface{} `json:"fontWeight,omitempty"`
+    CSSClass *string `json:"cssClass,omitempty"`
+}
+```
+
+#### XAxisTooltipConfig
+
+```go
+type XAxisTooltipConfig struct {
+    Enabled *bool `json:"enabled,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Style *XAxisTooltipStyleConfig `json:"style,omitempty"`
+}
+```
+
+#### XAxisTooltipStyleConfig
+
+```go
+type XAxisTooltipStyleConfig struct {
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+}
+```
+
+#### XAxisType
+
+#### YAxisAnnotation
+
+```go
+type YAxisAnnotation struct {
+    Y *float64 `json:"y,omitempty"`
+    Y2 *float64 `json:"y2,omitempty"`
+    StrokeDashArray *int `json:"strokeDashArray,omitempty"`
+    FillColor *string `json:"fillColor,omitempty"`
+    BorderColor *string `json:"borderColor,omitempty"`
+    BorderWidth *int `json:"borderWidth,omitempty"`
+    Opacity *float64 `json:"opacity,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    YAxisIndex *int `json:"yAxisIndex,omitempty"`
+    Label *AnnotationLabel `json:"label,omitempty"`
+}
+```
+
+#### YAxisBorderConfig
+
+```go
+type YAxisBorderConfig struct {
+    Show *bool `json:"show,omitempty"`
+    Color *string `json:"color,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
 }
 ```
 
@@ -1073,7 +2151,124 @@ type XAxisConfig struct {
 
 ```go
 type YAxisConfig struct {
-    Labels LabelFormatter `json:"labels"`
+    Show *bool `json:"show,omitempty"`
+    ShowAlways *bool `json:"showAlways,omitempty"`
+    ShowForNullSeries *bool `json:"showForNullSeries,omitempty"`
+    SeriesName interface{} `json:"seriesName,omitempty"`
+    Opposite *bool `json:"opposite,omitempty"`
+    Reversed *bool `json:"reversed,omitempty"`
+    Logarithmic *bool `json:"logarithmic,omitempty"`
+    LogBase *int `json:"logBase,omitempty"`
+    TickAmount *int `json:"tickAmount,omitempty"`
+    Min interface{} `json:"min,omitempty"`
+    Max interface{} `json:"max,omitempty"`
+    StepSize *float64 `json:"stepSize,omitempty"`
+    ForceNiceScale *bool `json:"forceNiceScale,omitempty"`
+    Floating *bool `json:"floating,omitempty"`
+    DecimalsInFloat *int `json:"decimalsInFloat,omitempty"`
+    Labels *YAxisLabelsConfig `json:"labels,omitempty"`
+    AxisBorder *YAxisBorderConfig `json:"axisBorder,omitempty"`
+    AxisTicks *YAxisTicksConfig `json:"axisTicks,omitempty"`
+    Title *YAxisTitleConfig `json:"title,omitempty"`
+    Crosshairs *YAxisCrosshairsConfig `json:"crosshairs,omitempty"`
+    Tooltip *YAxisTooltipConfig `json:"tooltip,omitempty"`
+}
+```
+
+#### YAxisCrosshairsConfig
+
+```go
+type YAxisCrosshairsConfig struct {
+    Show *bool `json:"show,omitempty"`
+    Position *XAxisCrosshairPosition `json:"position,omitempty"`
+    Stroke *YAxisCrosshairsStrokeConfig `json:"stroke,omitempty"`
+}
+```
+
+#### YAxisCrosshairsStrokeConfig
+
+```go
+type YAxisCrosshairsStrokeConfig struct {
+    Color *string `json:"color,omitempty"`
+    Width *int `json:"width,omitempty"`
+    DashArray *int `json:"dashArray,omitempty"`
+}
+```
+
+#### YAxisLabelAlign
+
+#### YAxisLabelStyleConfig
+
+```go
+type YAxisLabelStyleConfig struct {
+    Colors interface{} `json:"colors,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight interface{} `json:"fontWeight,omitempty"`
+    CSSClass *string `json:"cssClass,omitempty"`
+}
+```
+
+#### YAxisLabelsConfig
+
+```go
+type YAxisLabelsConfig struct {
+    Show *bool `json:"show,omitempty"`
+    ShowDuplicates *bool `json:"showDuplicates,omitempty"`
+    Align *YAxisLabelAlign `json:"align,omitempty"`
+    MinWidth *int `json:"minWidth,omitempty"`
+    MaxWidth *int `json:"maxWidth,omitempty"`
+    Style *YAxisLabelStyleConfig `json:"style,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Rotate *int `json:"rotate,omitempty"`
+    Formatter templ.JSExpression `json:"formatter,omitempty"`
+}
+```
+
+#### YAxisTicksConfig
+
+```go
+type YAxisTicksConfig struct {
+    Show *bool `json:"show,omitempty"`
+    BorderType *XAxisBorderType `json:"borderType,omitempty"`
+    Color *string `json:"color,omitempty"`
+    Width *int `json:"width,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+}
+```
+
+#### YAxisTitleConfig
+
+```go
+type YAxisTitleConfig struct {
+    Text *string `json:"text,omitempty"`
+    Rotate *int `json:"rotate,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
+    OffsetY *int `json:"offsetY,omitempty"`
+    Style *YAxisTitleStyleConfig `json:"style,omitempty"`
+}
+```
+
+#### YAxisTitleStyleConfig
+
+```go
+type YAxisTitleStyleConfig struct {
+    Color *string `json:"color,omitempty"`
+    FontSize *string `json:"fontSize,omitempty"`
+    FontFamily *string `json:"fontFamily,omitempty"`
+    FontWeight interface{} `json:"fontWeight,omitempty"`
+    CSSClass *string `json:"cssClass,omitempty"`
+}
+```
+
+#### YAxisTooltipConfig
+
+```go
+type YAxisTooltipConfig struct {
+    Enabled *bool `json:"enabled,omitempty"`
+    OffsetX *int `json:"offsetX,omitempty"`
 }
 ```
 
@@ -1682,11 +2877,78 @@ MigrationManager is an interface for handling database migrations
 
 ## Package `commands` (pkg/commands)
 
+### Types
+
+#### LogCollector
+
+```go
+type LogCollector struct {
+    LokiURL string
+    AppName string
+    LogPath string
+    BatchSize int
+    Timeout time.Duration
+    Labels []string
+}
+```
+
+##### Methods
+
+- `func (LogCollector) Process(ctx context.Context) error`
+  Process continuously monitors the log file and sends batches to Loki
+  
+
+- `func (LogCollector) SendBatch(ctx context.Context, client *http.Client, batch []map[string]interface{}) error`
+  SendBatch sends a batch of log entries to Loki
+  
+
+#### LokiPush
+
+```go
+type LokiPush struct {
+    Streams []LokiStream `json:"streams"`
+}
+```
+
+#### LokiStream
+
+```go
+type LokiStream struct {
+    Stream map[string]string `json:"stream"`
+    Values [][2]string `json:"values"`
+}
+```
+
 ### Functions
 
 #### `func CheckTrKeys(mods ...application.Module) error`
 
+#### `func CollectLogs(ctx context.Context, options ...func(*LogCollector)) error`
+
+CollectLogs initializes and runs a log collector that forwards logs to Loki
+
+
 #### `func Migrate(mods ...application.Module) error`
+
+#### `func WithBatchSize(batchSize int) func(*LogCollector)`
+
+WithBatchSize allows customizing the batch size for sending logs
+
+
+#### `func WithLabels(labels []string) func(*LogCollector)`
+
+WithLabels allows customizing the labels to extract from log entries
+
+
+#### `func WithLogPath(logPath string) func(*LogCollector)`
+
+WithLogPath allows customizing the log file path
+
+
+#### `func WithTimeout(timeout time.Duration) func(*LogCollector)`
+
+WithTimeout allows customizing the timeout for HTTP requests
+
 
 ### Variables and Constants
 
@@ -2826,6 +4088,19 @@ If the localizer is not found, the second return value will be false.
 
 ---
 
+## Package `js` (pkg/js)
+
+### Functions
+
+#### `func ToJS(v interface{}) (string, error)`
+
+ToJS transforms a Go struct into a JavaScript object representation.
+It supports basic types, nested structs, maps, slices, and can include
+function references.
+
+
+---
+
 ## Package `llm` (pkg/llm)
 
 ---
@@ -2982,6 +4257,11 @@ type LokiStream struct {
 
 #### `func ConsoleLogger(level logrus.Level) *logrus.Logger`
 
+#### `func DataToMap(data any) logrus.Fields`
+
+DataToMap converts any data structure to a logrus.Fields map
+
+
 #### `func FileLogger(level logrus.Level, logPath string) (*os.File, *logrus.Logger, error)`
 
 #### `func SetupTracing(ctx context.Context, serviceName string, tempoURL string) func()`
@@ -3053,6 +4333,16 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 
 #### GenericConstructor
 
+#### LoggerOptions
+
+```go
+type LoggerOptions struct {
+    LogRequestBody bool
+    LogResponseBody bool
+    MaxBodyLength int
+}
+```
+
 ### Functions
 
 #### `func Authorize() mux.MiddlewareFunc`
@@ -3079,7 +4369,7 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 
 #### `func TracedMiddleware(name string) mux.MiddlewareFunc`
 
-#### `func WithLogger(logger *logrus.Logger) mux.MiddlewareFunc`
+#### `func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc`
 
 #### `func WithPageContext() mux.MiddlewareFunc`
 
@@ -3088,6 +4378,229 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 ### Variables and Constants
 
 - Var: `[AllowMethods]`
+
+---
+
+## Package `money` (pkg/money)
+
+### Types
+
+#### Amount
+
+Amount is a data structure that stores the amount being used for calculations.
+
+
+#### Currencies
+
+##### Methods
+
+- `func (Currencies) Add(currency *Currency) Currencies`
+  Add updates currencies list by adding a given Currency to it.
+  
+
+- `func (Currencies) CurrencyByCode(code string) *Currency`
+  CurrencyByCode returns the currency given the currency code defined as a constant.
+  
+
+- `func (Currencies) CurrencyByNumericCode(code string) *Currency`
+  CurrencyByNumericCode returns the currency given the numeric code defined in ISO-4271.
+  
+
+#### Currency
+
+Currency represents money currency information required for formatting.
+
+
+```go
+type Currency struct {
+    Code string
+    NumericCode string
+    Fraction int
+    Grapheme string
+    Template string
+    Decimal string
+    Thousand string
+}
+```
+
+##### Methods
+
+- `func (Currency) Formatter() *Formatter`
+  Formatter returns currency formatter representing
+  used currency structure.
+  
+
+#### Formatter
+
+Formatter stores Money formatting information.
+
+
+```go
+type Formatter struct {
+    Fraction int
+    Decimal string
+    Thousand string
+    Grapheme string
+    Template string
+}
+```
+
+##### Methods
+
+- `func (Formatter) Format(amount int64) string`
+  Format returns string of formatted integer using given currency template.
+  
+
+- `func (Formatter) FormatCompact(amount int64, decimals int) string`
+  FormatCompact returns a compactly formatted string for large monetary values
+  with the specified number of decimal places.
+  For example:
+  - 1,234,567 -> 1.2M (decimals=1)
+  - 1,234,567 -> 1.23M (decimals=2)
+  - 22,524,232 -> 22.52M (decimals=2)
+  - 1,234 -> 1.23K (decimals=2)
+  If decimals is not specified (0), defaults to 1 decimal place.
+  
+
+- `func (Formatter) ToMajorUnits(amount int64) float64`
+  ToMajorUnits returns float64 representing the value in sub units using the currency data
+  
+
+#### Money
+
+Money represents monetary value information, stores
+currency and amount value.
+
+
+##### Methods
+
+- `func (Money) Absolute() *Money`
+  Absolute returns new Money struct from given Money using absolute monetary value.
+  
+
+- `func (Money) Add(ms ...*Money) (*Money, error)`
+  Add returns new Money struct with value representing sum of Self and Other Money.
+  
+
+- `func (Money) Allocate(rs ...int) ([]*Money, error)`
+  Allocate returns slice of Money structs with split Self value in given ratios.
+  It lets split money by given ratios without losing pennies and as Split operations distributes
+  leftover pennies amongst the parties with round-robin principle.
+  
+
+- `func (Money) Amount() int64`
+  Amount returns a copy of the internal monetary value as an int64.
+  
+
+- `func (Money) AsMajorUnits() float64`
+  AsMajorUnits lets represent Money struct as subunits (float64) in given Currency value
+  
+
+- `func (Money) Compare(om *Money) (int, error)`
+  Compare function compares two money of the same type
+  
+  	if m.amount > om.amount returns (1, nil)
+  	if m.amount == om.amount returns (0, nil
+  	if m.amount < om.amount returns (-1, nil)
+  
+  If compare moneys from distinct currency, return (m.amount, ErrCurrencyMismatch)
+  
+
+- `func (Money) Currency() *Currency`
+  Currency returns the currency used by Money.
+  
+
+- `func (Money) Display() string`
+  Display lets represent Money struct as string in given Currency value.
+  
+
+- `func (Money) DisplayCompact(decimals ...int) string`
+  DisplayCompact lets represent Money struct as a compact string for large values
+  with the specified number of decimal places (e.g., 22.5M UZS with decimals=1, 22.52M UZS with decimals=2).
+  If decimals is not specified (0), defaults to 1 decimal place.
+  
+
+- `func (Money) Equals(om *Money) (bool, error)`
+  Equals checks equality between two Money types.
+  
+
+- `func (Money) GreaterThan(om *Money) (bool, error)`
+  GreaterThan checks whether the value of Money is greater than the other.
+  
+
+- `func (Money) GreaterThanOrEqual(om *Money) (bool, error)`
+  GreaterThanOrEqual checks whether the value of Money is greater or equal than the other.
+  
+
+- `func (Money) IsNegative() bool`
+  IsNegative returns boolean of whether the value of Money is negative.
+  
+
+- `func (Money) IsPositive() bool`
+  IsPositive returns boolean of whether the value of Money is positive.
+  
+
+- `func (Money) IsZero() bool`
+  IsZero returns boolean of whether the value of Money is equals to zero.
+  
+
+- `func (Money) LessThan(om *Money) (bool, error)`
+  LessThan checks whether the value of Money is less than the other.
+  
+
+- `func (Money) LessThanOrEqual(om *Money) (bool, error)`
+  LessThanOrEqual checks whether the value of Money is less or equal than the other.
+  
+
+- `func (Money) MarshalJSON() ([]byte, error)`
+  MarshalJSON is implementation of json.Marshaller
+  
+
+- `func (Money) Multiply(muls ...int64) *Money`
+  Multiply returns new Money struct with value representing Self multiplied value by multiplier.
+  
+
+- `func (Money) Negative() *Money`
+  Negative returns new Money struct from given Money using negative monetary value.
+  
+
+- `func (Money) Round() *Money`
+  Round returns new Money struct with value rounded to nearest zero.
+  
+
+- `func (Money) SameCurrency(om *Money) bool`
+  SameCurrency check if given Money is equals by currency.
+  
+
+- `func (Money) Split(n int) ([]*Money, error)`
+  Split returns slice of Money structs with split Self value in given number.
+  After division leftover pennies will be distributed round-robin amongst the parties.
+  This means that parties listed first will likely receive more pennies than ones that are listed later.
+  
+
+- `func (Money) Subtract(ms ...*Money) (*Money, error)`
+  Subtract returns new Money struct with value representing difference of Self and Other Money.
+  
+
+- `func (Money) UnmarshalJSON(b []byte) error`
+  UnmarshalJSON is implementation of json.Unmarshaller
+  
+
+### Functions
+
+### Variables and Constants
+
+- Var: `[UnmarshalJSON MarshalJSON ErrCurrencyMismatch ErrInvalidJSONUnmarshal]`
+  Injection points for backward compatibility.
+  If you need to keep your JSON marshal/unmarshal way, overwrite them like below.
+  
+  	money.UnmarshalJSON = func (m *Money, b []byte) error { ... }
+  	money.MarshalJSON = func (m Money) ([]byte, error) { ... }
+  
+
+- Const: `[AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BYR BZD CAD CDF CHF CLF CLP CNY COP CRC CUC CUP CVE CZK DJF DKK DOP DZD EEK EGP ERN ETB EUR FJD FKP GBP GEL GGP GHC GHS GIP GMD GNF GTQ GYD HKD HNL HRK HTG HUF IDR ILS IMP INR IQD IRR ISK JEP JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LTL LVL LYD MAD MDL MGA MKD MMK MNT MOP MUR MRU MVR MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RUR RWF SAR SBD SCR SDG SEK SGD SHP SKK SLE SLL SOS SRD SSP STD STN SVC SYP SZL THB TJS TMT TND TOP TRL TRY TTD TWD TZS UAH UGX USD UYU UZS VEF VES VND VUV WST XAF XAG XAU XCD XCG XDR XOF XPF YER ZAR ZMW ZWD ZWL]`
+  Constants for active currency codes according to the ISO 4217 standard.
+  
 
 ---
 
@@ -3140,6 +4653,15 @@ Package repo provides database utility functions and interfaces for working with
 
 ### Types
 
+#### Cache
+
+##### Interface Methods
+
+- `Get(key string) (any, bool)`
+- `Set(key string, value any) error`
+- `Delete(key string)`
+- `Clear()`
+
 #### Column
 
 ##### Interface Methods
@@ -3176,16 +4698,41 @@ Filter defines a query filter with a SQL clause generator and bound value.
 - `Value() []any`
 - `String(column string, argIdx int) string`
 
+#### InMemoryCache
+
+##### Methods
+
+- `func (InMemoryCache) Clear()`
+
+- `func (InMemoryCache) Delete(key string)`
+
+- `func (InMemoryCache) Get(key string) (any, bool)`
+
+- `func (InMemoryCache) Set(key string, value any) error`
+
 #### SortBy
+
+```go
+type SortBy struct {
+    Fields []<?>
+}
+```
+
+##### Methods
+
+- `func (SortBy) ToSQL(mapping map[T]string) string`
+
+#### SortByField
 
 SortBy defines sorting criteria for queries with generic field type support.
 Use with OrderBy function to generate ORDER BY clauses.
 
 
 ```go
-type SortBy struct {
-    Fields []T
+type SortByField struct {
+    Field T
     Ascending bool
+    NullsLast bool
 }
 ```
 
@@ -3226,6 +4773,8 @@ Example usage:
 If rows is empty, it returns the baseQuery unchanged and nil for args.
 Panics if rows have inconsistent lengths.
 
+
+#### `func CacheKey(keys ...interface{}) string`
 
 #### `func Exists(inner string) string`
 
@@ -3284,17 +4833,6 @@ Example usage:
 	// Returns: "SELECT * FROM orders WHERE status = $1 AND created_at > $2"
 
 
-#### `func OrderBy(fields []string, ascending bool) string`
-
-OrderBy generates an SQL ORDER BY clause for the given fields and sort direction.
-Returns an empty string if no fields are provided.
-
-Example usage:
-
-	query := "SELECT * FROM users " + repo.OrderBy([]string{"created_at", "name"}, false)
-	// Returns: "SELECT * FROM users ORDER BY created_at, name DESC"
-
-
 #### `func Update(tableName string, fields []string, where ...string) string`
 
 Update creates a parameterized SQL query for updating rows in a table.
@@ -3313,6 +4851,8 @@ Example usage:
 	query := repo.Update("settings", []string{"value", "updated_at"})
 	// Returns: "UPDATE settings SET value = $1, updated_at = $2"
 
+
+#### `func WithCache(ctx context.Context, cache Cache) context.Context`
 
 ---
 
