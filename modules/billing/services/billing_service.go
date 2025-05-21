@@ -56,8 +56,12 @@ func (s *BillingService) GetByID(ctx context.Context, id uuid.UUID) (billing.Tra
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *BillingService) GetByDetailsField(ctx context.Context, field billing.DetailsField, value any) (billing.Transaction, error) {
-	return s.repo.GetByDetailsField(ctx, field, value)
+func (s *BillingService) GetByDetailsFields(
+	ctx context.Context,
+	gateway billing.Gateway,
+	filters []billing.DetailsFieldFilter,
+) ([]billing.Transaction, error) {
+	return s.repo.GetByDetailsFields(ctx, gateway, filters)
 }
 
 func (s *BillingService) GetPaginated(ctx context.Context, params *billing.FindParams) ([]billing.Transaction, error) {

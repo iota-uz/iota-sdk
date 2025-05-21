@@ -98,6 +98,13 @@ type ClickOptions struct {
 	SecretKey      string `env:"CLICK_SECRET_KEY"`
 }
 
+type PaymeOptions struct {
+	URL        string `env:"PAYME_URL" envDefault:"https://checkout.test.paycom.uz"`
+	MerchantID string `env:"PAYME_MERCHANT_ID"`
+	User       string `env:"PAYME_USER" envDefault:"Paycom"`
+	SecretKey  string `env:"PAYME_SECRET_KEY"`
+}
+
 type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
@@ -105,6 +112,7 @@ type Configuration struct {
 	Loki          LokiOptions
 	OpenTelemetry OpenTelemetryOptions
 	Click         ClickOptions
+	Payme         PaymeOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`

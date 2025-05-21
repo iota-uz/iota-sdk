@@ -20,20 +20,20 @@ type ClickConfig struct {
 func NewClickProvider(
 	config ClickConfig,
 ) billing.Provider {
-	return &ClickProvider{
+	return &clickProvider{
 		config: config,
 	}
 }
 
-type ClickProvider struct {
+type clickProvider struct {
 	config ClickConfig
 }
 
-func (p *ClickProvider) Gateway() billing.Gateway {
+func (p *clickProvider) Gateway() billing.Gateway {
 	return billing.Click
 }
 
-func (p *ClickProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
+func (p *clickProvider) Create(_ context.Context, t billing.Transaction) (billing.Transaction, error) {
 	if t.Amount().Currency() != billing.UZS {
 		return nil, fmt.Errorf("click can work only with UZS currency, provided: %s", t.Amount().Currency())
 	}
@@ -72,12 +72,12 @@ func (p *ClickProvider) Create(_ context.Context, t billing.Transaction) (billin
 	return t, nil
 }
 
-func (p *ClickProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
+func (p *clickProvider) Cancel(ctx context.Context, t billing.Transaction) (billing.Transaction, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (p *ClickProvider) Refund(ctx context.Context, t billing.Transaction, quantity float64) (billing.Transaction, error) {
+func (p *clickProvider) Refund(ctx context.Context, t billing.Transaction, quantity float64) (billing.Transaction, error) {
 	//TODO implement me
 	panic("implement me")
 }

@@ -83,7 +83,30 @@ func fromDbDetails(gateway billing.Gateway, data json.RawMessage) (details.Detai
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
-		return details.NewPaymeDetails(), nil
+		receivers := make([]details.PaymeReceiver, len(d.Receivers))
+		for i, r := range d.Receivers {
+			receivers[i] = details.NewPaymeReceiver(
+				r.ID,
+				r.Amount,
+			)
+		}
+		return details.NewPaymeDetails(
+			d.Transaction,
+			details.PaymeWithMerchantID(d.MerchantID),
+			details.PaymeWithID(d.ID),
+			details.PaymeWithState(d.State),
+			details.PaymeWithTime(d.Time),
+			details.PaymeWithCreatedTime(d.CreatedTime),
+			details.PaymeWithPerformTime(d.PerformTime),
+			details.PaymeWithCancelTime(d.CancelTime),
+			details.PaymeWithAccount(d.Account),
+			details.PaymeWithReceivers(receivers),
+			details.PaymeWithAdditional(d.Additional),
+			details.PaymeWithReason(d.Reason),
+			details.PaymeWithErrorCode(d.ErrorCode),
+			details.PaymeWithLink(d.Link),
+			details.PaymeWithParams(d.Params),
+		), nil
 
 	case billing.Octo:
 		var d models.OctoDetails
@@ -125,8 +148,31 @@ func toDbDetails(data details.Details) (json.RawMessage, error) {
 			Params:            d.Params(),
 		})
 
-	//case details.PaymeDetails:
-	//	return json.Marshal(&models.PaymeDetails{})
+	case details.PaymeDetails:
+		receivers := make([]models.PaymeReceiver, len(d.Receivers()))
+		for i, r := range d.Receivers() {
+			receivers[i] = models.PaymeReceiver{
+				ID:     r.ID(),
+				Amount: r.Amount(),
+			}
+		}
+		return json.Marshal(&models.PaymeDetails{
+			MerchantID:  d.MerchantID(),
+			ID:          d.ID(),
+			Transaction: d.Transaction(),
+			State:       d.State(),
+			Time:        d.Time(),
+			CreatedTime: d.CreatedTime(),
+			PerformTime: d.PerformTime(),
+			CancelTime:  d.CancelTime(),
+			Account:     d.Account(),
+			Receivers:   receivers,
+			Additional:  d.Additional(),
+			Reason:      d.Reason(),
+			ErrorCode:   d.ErrorCode(),
+			Link:        d.Link(),
+			Params:      d.Params(),
+		})
 	//
 	//case details.OctoDetails:
 	//	return json.Marshal(&models.OctoDetails{})

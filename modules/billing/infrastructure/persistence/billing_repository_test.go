@@ -76,10 +76,21 @@ func TestBillingRepository_GetByDetailsField(t *testing.T) {
 	created, err := repo.Save(f.ctx, tx)
 	require.NoError(t, err)
 
-	found, err := repo.GetByDetailsField(f.ctx, "merchant_trans_id", "click-merchant-3")
-	require.NoError(t, err)
+	filters := []billing.DetailsFieldFilter{
+		{
+			Path:     []string{"merchant_trans_id"},
+			Operator: billing.OpEqual,
+			Value:    "click-merchant-3",
+		},
+	}
 
+	foundList, err := repo.GetByDetailsFields(f.ctx, billing.Click, filters)
+	require.NoError(t, err)
+	require.Len(t, foundList, 1)
+
+	found := foundList[0]
 	assert.Equal(t, created.ID(), found.ID())
+
 	click := found.Details().(details.ClickDetails)
 	assert.Equal(t, "click-merchant-3", click.MerchantTransID())
 }
