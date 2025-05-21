@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/pkg/errors"
+	"strings"
 )
 
 var (
@@ -108,19 +109,63 @@ func (r *BillingRepository) GetByID(ctx context.Context, id uuid.UUID) (billing.
 	return transactions[0], nil
 }
 
-func (r *BillingRepository) GetByDetailsField(ctx context.Context, field billing.DetailsField, value any) (billing.Transaction, error) {
+func (r *BillingRepository) GetByDetailsFields(
+	ctx context.Context,
+	gateway billing.Gateway,
+	filters []billing.DetailsFieldFilter,
+) ([]billing.Transaction, error) {
+	if len(filters) == 0 {
+		return nil, fmt.Errorf("at least one filter is required")
+	}
+
+	clauses := make([]string, 0, len(filters)+1)
+	args := make([]any, 0, len(filters)+1)
+
+	// gateway filter
+	clauses = append(clauses, fmt.Sprintf("bt.gateway = $%d", len(args)+1))
+	args = append(args, gateway)
+
+	for _, f := range filters {
+		if len(f.Path) == 0 {
+			return nil, fmt.Errorf("filter path cannot be empty")
+		}
+		jsonPath := "bt.details"
+		for _, segment := range f.Path[:len(f.Path)-1] {
+			jsonPath += fmt.Sprintf(" -> '%s'", segment)
+		}
+		last := f.Path[len(f.Path)-1]
+		jsonField := fmt.Sprintf("%s ->> '%s'", jsonPath, last)
+
+		switch f.Operator {
+		case billing.OpEqual, billing.OpGreater, billing.OpLess, billing.OpGTE, billing.OpLTE:
+			clauses = append(clauses, fmt.Sprintf("%s %s $%d", jsonField, f.Operator, len(args)+1))
+			args = append(args, fmt.Sprintf("%v", f.Value))
+
+		case billing.OpBetween:
+			rangeVals, ok := f.Value.([2]any)
+			if !ok {
+				return nil, fmt.Errorf("value for 'between' must be [2]any")
+			}
+			clauses = append(clauses, fmt.Sprintf("(%s)::bigint BETWEEN $%d AND $%d", jsonField, len(args)+1, len(args)+2))
+			args = append(args, rangeVals[0], rangeVals[1])
+
+		default:
+			return nil, fmt.Errorf("unsupported operator: %s", f.Operator)
+		}
+	}
+
+	whereClause := "WHERE " + strings.Join(clauses, " AND ")
+
 	query := repo.Join(
 		selectTransactionQuery,
-		fmt.Sprintf("WHERE bt.details ->> '%s' = $1", field),
+		whereClause,
 	)
-	transactions, err := r.queryTransactions(ctx, query, value)
+
+	transactions, err := r.queryTransactions(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get transactions with details field %s and value %v", field, value)
+		return nil, errors.Wrapf(err, "failed to get transactions with gateway %s and filters: %+v", gateway, filters)
 	}
-	if len(transactions) == 0 {
-		return nil, ErrTransactionNotFound
-	}
-	return transactions[0], nil
+	return transactions, nil
 }
 
 func (r *BillingRepository) GetAll(ctx context.Context) ([]billing.Transaction, error) {

@@ -2,6 +2,7 @@ package services_test
 
 import (
 	"context"
+	"fmt"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -83,7 +84,7 @@ func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher eventbus.Event
 
 // --- Test ---
 
-func TestBillingService_CreateTransaction(t *testing.T) {
+func TestBillingService_CreateTransaction_Click(t *testing.T) {
 	t.Helper()
 	t.Parallel()
 	f := setupTest(t)
@@ -93,11 +94,8 @@ func TestBillingService_CreateTransaction(t *testing.T) {
 		Currency: billing.UZS,
 		Gateway:  billing.Click,
 		Details: details.NewClickDetails(
-			"super_test_3",
-			details.ClickWithParams(map[string]any{
-				"additional_param3": "test123",
-				"communal_param":    "1",
-			}),
+			"granit_test",
+			details.ClickWithParams(map[string]any{}),
 		),
 	}
 
@@ -110,4 +108,45 @@ func TestBillingService_CreateTransaction(t *testing.T) {
 	assert.InDelta(t, float64(1001), result.Amount().Quantity(), 0.0001)
 	assert.NotEqual(t, uuid.Nil, result.ID(), "Expected non-nil transaction ID")
 	assert.WithinDuration(t, time.Now(), result.CreatedAt(), time.Second*2)
+}
+
+func TestBillingService_CreateTransaction_Payme(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+	f := setupTest(t)
+
+	for i := 1; i <= 40; i++ {
+		i := i
+		t.Run(fmt.Sprintf("Payme_Transaction_%d", i), func(t *testing.T) {
+			t.Parallel()
+
+			orderID := fmt.Sprintf("%d", i)
+			amount := float64(1000 + i)
+
+			cmd := &services.CreateTransactionCommand{
+				Quantity: amount,
+				Currency: billing.UZS,
+				Gateway:  billing.Payme,
+				Details: details.NewPaymeDetails(
+					uuid.New().String(),
+					details.PaymeWithAccount(map[string]any{
+						"order_id": orderID,
+					}),
+				),
+			}
+
+			result, err := f.billingService.Create(f.ctx, cmd)
+			require.NoError(t, err, "Create should succeed")
+			require.NotNil(t, result, "Transaction should not be nil")
+
+			assert.Equal(t, billing.Created, result.Status())
+			assert.Equal(t, billing.UZS, result.Amount().Currency())
+			assert.InDelta(t, amount, result.Amount().Quantity(), 0.0001)
+			assert.NotEqual(t, uuid.Nil, result.ID(), "Expected non-nil transaction ID")
+			assert.WithinDuration(t, time.Now(), result.CreatedAt(), time.Second*2)
+
+			payme := result.Details().(details.PaymeDetails)
+			assert.Equal(t, orderID, payme.Account()["order_id"])
+		})
+	}
 }

@@ -34,7 +34,27 @@ type ClickDetails struct {
 	Params            map[string]any `json:"params"`
 }
 
+type PaymeReceiver struct {
+	ID     string  `json:"id"`
+	Amount float64 `json:"amount"`
+}
+
 type PaymeDetails struct {
+	MerchantID  string          `json:"merchant_id"`
+	ID          string          `json:"id"`
+	Transaction string          `json:"transaction"`
+	State       int32           `json:"state"`
+	Time        int64           `json:"time"`
+	CreatedTime int64           `json:"created_time"`
+	PerformTime int64           `json:"perform_time"`
+	CancelTime  int64           `json:"cancel_time"`
+	Account     map[string]any  `json:"account"`
+	Receivers   []PaymeReceiver `json:"receivers"`
+	Additional  map[string]any  `json:"additional"`
+	Reason      int32           `json:"reason"`
+	ErrorCode   int32           `json:"error_code"`
+	Link        string          `json:"link"`
+	Params      map[string]any  `json:"params"`
 }
 
 type OctoDetails struct {

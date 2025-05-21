@@ -57,13 +57,46 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Equal(t, map[string]any{"key": "value"}, click.Params())
 			},
 		},
-		//{
-		//	name:    "PaymeDetails",
-		//	gateway: billing.Payme,
-		//	details: details.NewPaymeDetails(),
-		//	validate: func(t *testing.T, d details.Details) {
-		//		t.Helper()
-		//	},
+		{
+			name:    "PaymeDetails",
+			gateway: billing.Payme,
+			details: details.NewPaymeDetails(
+				"trans-001",
+				details.PaymeWithMerchantID("merchant-xyz"),
+				details.PaymeWithID("internal-id-001"),
+				details.PaymeWithState(1),
+				details.PaymeWithTime(1747834339199),
+				details.PaymeWithCreatedTime(1747834339199),
+				details.PaymeWithPerformTime(1747834339200),
+				details.PaymeWithCancelTime(0),
+				details.PaymeWithAccount(map[string]any{"order_id": "123"}),
+				details.PaymeWithReceivers([]details.PaymeReceiver{
+					details.NewPaymeReceiver("receiver-1", 100.0),
+					details.NewPaymeReceiver("receiver-2", 200.0),
+				}),
+				details.PaymeWithAdditional(map[string]any{"extra": "info"}),
+				details.PaymeWithReason(0),
+				details.PaymeWithErrorCode(0),
+				details.PaymeWithLink("https://payme.uz/paylink"),
+				details.PaymeWithParams(map[string]any{"param": "value"}),
+			),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+				payme := d.(details.PaymeDetails)
+				assert.Equal(t, "merchant-xyz", payme.MerchantID())
+				assert.Equal(t, "internal-id-001", payme.ID())
+				assert.Equal(t, "trans-001", payme.Transaction())
+				assert.Equal(t, int32(1), payme.State())
+				assert.Equal(t, int64(1747834339199), payme.Time())
+				assert.Equal(t, map[string]any{"order_id": "123"}, payme.Account())
+				assert.Equal(t, map[string]any{"param": "value"}, payme.Params())
+				assert.Equal(t, map[string]any{"extra": "info"}, payme.Additional())
+				assert.Equal(t, "https://payme.uz/paylink", payme.Link())
+				assert.Len(t, payme.Receivers(), 2)
+				assert.Equal(t, "receiver-1", payme.Receivers()[0].ID())
+				assert.Equal(t, 100.0, payme.Receivers()[0].Amount())
+			},
+		},
 		//},
 		//{
 		//	name:    "OctoDetails",

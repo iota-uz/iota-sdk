@@ -38,8 +38,18 @@ func (m *Module) Register(app application.Application) error {
 		},
 	)
 
+	paymeProvider := providers.NewPaymeProvider(
+		providers.PaymeConfig{
+			URL:        conf.Payme.URL,
+			SecretKey:  conf.Payme.SecretKey,
+			MerchantID: conf.Payme.MerchantID,
+			User:       conf.Payme.User,
+		},
+	)
+
 	billingProviders := []billing.Provider{
 		clickProvider,
+		paymeProvider,
 	}
 
 	billingRepo := persistence.NewBillingRepository()
@@ -60,6 +70,11 @@ func (m *Module) Register(app application.Application) error {
 			app,
 			conf.Click,
 			basePath+"/click",
+		),
+		controllers.NewPaymeController(
+			app,
+			conf.Payme,
+			basePath+"/payme",
 		),
 	)
 

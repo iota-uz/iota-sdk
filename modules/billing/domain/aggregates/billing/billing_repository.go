@@ -6,14 +6,19 @@ import (
 )
 
 type Field int
-type DetailsField string
+type ComparisonOperator string
 
 const (
 	CreatedAt Field = iota
 )
 
 const (
-	MerchantTransID DetailsField = "merchant_trans_id"
+	OpEqual   ComparisonOperator = "="
+	OpGreater ComparisonOperator = ">"
+	OpLess    ComparisonOperator = "<"
+	OpGTE     ComparisonOperator = ">="
+	OpLTE     ComparisonOperator = "<="
+	OpBetween ComparisonOperator = "between"
 )
 
 type SortBy struct {
@@ -27,11 +32,17 @@ type FindParams struct {
 	SortBy SortBy
 }
 
+type DetailsFieldFilter struct {
+	Path     []string
+	Operator ComparisonOperator
+	Value    any
+}
+
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Transaction, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Transaction, error)
-	GetByDetailsField(ctx context.Context, field DetailsField, value any) (Transaction, error)
+	GetByDetailsFields(ctx context.Context, gateway Gateway, filters []DetailsFieldFilter) ([]Transaction, error)
 	GetAll(ctx context.Context) ([]Transaction, error)
 	Save(ctx context.Context, data Transaction) (Transaction, error)
 	Delete(ctx context.Context, id uuid.UUID) error

@@ -49,16 +49,29 @@ func (c *ClickController) Prepare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entity, err := c.billingService.GetByDetailsField(
+	entities, err := c.billingService.GetByDetailsFields(
 		r.Context(),
-		billing.MerchantTransID,
-		dto.MerchantTransId,
+		billing.Click,
+		[]billing.DetailsFieldFilter{
+			{
+				Path:     []string{"merchant_trans_id"},
+				Operator: billing.OpEqual,
+				Value:    dto.MerchantTransId,
+			},
+		},
 	)
 	if err != nil {
 		log.Printf("Failed to get transaction: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	if len(entities) != 1 {
+		log.Printf("Unexpected number of transactions found: %v", len(entities))
+		http.Error(w, "Transaction not found or ambiguous", http.StatusBadRequest)
+		return
+	}
+
+	entity := entities[0]
 
 	if entity.Gateway() != billing.Click {
 		log.Printf("Invalid gateway: %v", entity.Gateway())
@@ -141,16 +154,29 @@ func (c *ClickController) Complete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entity, err := c.billingService.GetByDetailsField(
+	entities, err := c.billingService.GetByDetailsFields(
 		r.Context(),
-		billing.MerchantTransID,
-		dto.MerchantTransId,
+		billing.Click,
+		[]billing.DetailsFieldFilter{
+			{
+				Path:     []string{"merchant_trans_id"},
+				Operator: billing.OpEqual,
+				Value:    dto.MerchantTransId,
+			},
+		},
 	)
 	if err != nil {
 		log.Printf("Failed to get transaction: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	if len(entities) != 1 {
+		log.Printf("Unexpected number of transactions found: %v", len(entities))
+		http.Error(w, "Transaction not found or ambiguous", http.StatusBadRequest)
+		return
+	}
+
+	entity := entities[0]
 
 	if entity.Gateway() != billing.Click {
 		log.Printf("Invalid gateway: %v", entity.Gateway())
