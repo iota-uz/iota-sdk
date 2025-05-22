@@ -180,7 +180,12 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 
 				reqContentType := r.Header.Get("Content-Type")
 				logReqBody := opts.LogRequestBody && shouldLogBody(reqContentType)
-				if logReqBody && r.Body != nil {
+				isMutatingMethod := r.Method == http.MethodPost ||
+					r.Method == http.MethodPut ||
+					r.Method == http.MethodPatch ||
+					r.Method == http.MethodDelete
+
+				if isMutatingMethod && logReqBody && r.Body != nil {
 					bodyBuf := new(bytes.Buffer)
 					if _, err := io.Copy(bodyBuf, r.Body); err != nil {
 						fieldsLogger.WithError(err).Error("failed to read request-body")
