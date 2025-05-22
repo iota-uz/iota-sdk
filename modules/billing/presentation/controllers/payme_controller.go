@@ -509,8 +509,8 @@ func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetState
 			},
 		},
 	)
-	if err != nil || len(entities) != 1 {
-		errRPC := paymeapi.PerformTransactionTransactionNotFoundError()
+	if err != nil {
+		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
