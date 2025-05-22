@@ -52,7 +52,11 @@ func main() {
 	conf := configuration.Use()
 	ctx := context.Background()
 	pool := pgxPool()
-	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
+	app := application.New(&application.ApplicationOptions{
+		Pool:     pool,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	})
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panicWithStack(err)
 	}

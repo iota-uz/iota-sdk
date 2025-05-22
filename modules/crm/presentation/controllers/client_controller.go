@@ -194,7 +194,7 @@ var (
 				crmPermissions.ClientRead,
 			},
 			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := composables.UseApp(r.Context())
+				app, err := application.UseApp(r.Context())
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving app")
 				}
@@ -221,7 +221,7 @@ var (
 				crmPermissions.ClientRead,
 			},
 			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := composables.UseApp(r.Context())
+				app, err := application.UseApp(r.Context())
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving app")
 				}
