@@ -10,7 +10,6 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/iota-uz/iota-sdk/components/base/input"
 
-// Note: We need to use simpler datepicker examples to ensure they work correctly with Alpine.js
 func AdvancedDatePicker() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
