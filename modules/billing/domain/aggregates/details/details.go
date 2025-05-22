@@ -1,0 +1,109 @@
+package details
+
+type Details interface {
+}
+
+type ClickDetails interface {
+	Details
+
+	ServiceID() int64
+
+	MerchantID() int64
+	MerchantUserID() int64
+	MerchantTransID() string
+	MerchantPrepareID() int64
+	MerchantConfirmID() int64
+
+	PayDocId() int64
+	PaymentID() int64
+	PaymentStatus() int32
+
+	SignTime() string
+	SignString() string
+
+	ErrorCode() int32
+	ErrorNote() string
+
+	Link() string
+	Params() map[string]any
+
+	SetServiceID(serviceID int64) ClickDetails
+	SetMerchantID(merchantID int64) ClickDetails
+	SetMerchantUserID(merchantUserID int64) ClickDetails
+	SetMerchantPrepareID(merchantPrepareID int64) ClickDetails
+	SetMerchantConfirmID(merchantConfirmID int64) ClickDetails
+
+	SetPayDocId(payDocId int64) ClickDetails
+	SetPaymentID(paymentID int64) ClickDetails
+	SetPaymentStatus(paymentStatus int32) ClickDetails
+
+	SetSignTime(signTime string) ClickDetails
+	SetSignString(signString string) ClickDetails
+
+	SetErrorCode(errorCode int32) ClickDetails
+	SetErrorNote(errorNote string) ClickDetails
+
+	SetLink(link string) ClickDetails
+	SetParams(params map[string]any) ClickDetails
+}
+
+type PaymeReceiver interface {
+	ID() string
+	Amount() float64
+}
+
+type PaymeDetails interface {
+	Details
+
+	MerchantID() string
+
+	ID() string
+
+	Transaction() string
+
+	State() int32
+
+	Time() int64
+	CreatedTime() int64
+	PerformTime() int64
+	CancelTime() int64
+
+	Account() map[string]any
+
+	Receivers() []PaymeReceiver
+
+	Additional() map[string]any
+
+	Reason() int32
+
+	ErrorCode() int32
+
+	Link() string
+
+	Params() map[string]any
+
+	SetMerchantID(merchantID string) PaymeDetails
+	SetID(id string) PaymeDetails
+	SetTransaction(transaction string) PaymeDetails
+	SetState(state int32) PaymeDetails
+	SetTime(time int64) PaymeDetails
+	SetCreatedTime(createdTime int64) PaymeDetails
+	SetPerformTime(performTime int64) PaymeDetails
+	SetCancelTime(cancelTime int64) PaymeDetails
+	SetAccount(account map[string]any) PaymeDetails
+	SetReceivers(receivers []PaymeReceiver) PaymeDetails
+	SetAdditional(additional map[string]any) PaymeDetails
+	SetReason(reason int32) PaymeDetails
+	SetErrorCode(errorCode int32) PaymeDetails
+	SetLink(link string) PaymeDetails
+
+	SetParams(params map[string]any) PaymeDetails
+}
+
+type OctoDetails interface {
+	Details
+}
+
+type StripeDetails interface {
+	Details
+}
