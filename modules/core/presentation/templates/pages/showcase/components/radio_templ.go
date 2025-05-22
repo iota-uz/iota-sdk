@@ -66,9 +66,6 @@ func RadioGroup() templ.Component {
 				Value:        "company",
 				WrapperClass: templ.Classes("w-full"),
 				Checked:      false,
-				Attrs: templ.Attributes{
-					"x-model": "driverType",
-				},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -100,9 +97,6 @@ func RadioGroup() templ.Component {
 				Value:        "owner",
 				WrapperClass: templ.Classes("w-full"),
 				Checked:      false,
-				Attrs: templ.Attributes{
-					"x-model": "driverType",
-				},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -134,9 +128,6 @@ func RadioGroup() templ.Component {
 				Value:        "lease",
 				WrapperClass: templ.Classes("w-full"),
 				Checked:      false,
-				Attrs: templ.Attributes{
-					"x-model": "driverType",
-				},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
