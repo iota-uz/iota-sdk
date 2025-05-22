@@ -32,6 +32,8 @@ const (
 type Transaction interface {
 	ID() uuid.UUID
 
+	TenantID() uuid.UUID
+
 	Status() Status
 	Amount() Amount
 
@@ -43,6 +45,7 @@ type Transaction interface {
 
 	Events() []interface{}
 
+	SetTenantID(tenantID uuid.UUID) Transaction
 	SetStatus(status Status) Transaction
 	SetAmount(quantity float64, currency Currency) Transaction
 	SetDetails(details details.Details) Transaction

@@ -51,6 +51,14 @@ func setupTest(t *testing.T) *testFixtures {
 		t.Fatal(err)
 	}
 
+	// Create a test tenant outside transaction
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx = composables.WithTenant(ctx, tenant)
+
 	return &testFixtures{
 		ctx:  ctx,
 		pool: pool,

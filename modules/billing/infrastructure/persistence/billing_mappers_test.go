@@ -2,6 +2,7 @@ package persistence_test
 
 import (
 	"encoding/json"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"testing"
 	"time"
 
@@ -18,9 +19,13 @@ import (
 func TestTransactionMapping(t *testing.T) {
 	t.Helper()
 	t.Parallel()
+	f := setupTest(t)
 
 	id := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
+
+	tenant, err := composables.UseTenant(f.ctx)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name     string
@@ -120,9 +125,10 @@ func TestTransactionMapping(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			original := billing.New(
 				99.9,
-				billing.USD,
+				billing.UZS,
 				tt.gateway,
 				tt.details,
+				billing.WithTenantID(tenant.ID),
 				billing.WithID(id),
 				billing.WithStatus(billing.Completed),
 				billing.WithCreatedAt(now),
@@ -133,8 +139,9 @@ func TestTransactionMapping(t *testing.T) {
 			dbModel, err := persistence.ToDBTransaction(original)
 			require.NoError(t, err)
 			require.Equal(t, id.String(), dbModel.ID)
+			require.Equal(t, tenant.ID.String(), dbModel.TenantID)
 			require.Equal(t, "completed", dbModel.Status)
-			require.Equal(t, "USD", dbModel.Currency)
+			require.Equal(t, "UZS", dbModel.Currency)
 			require.Equal(t, string(tt.gateway), dbModel.Gateway)
 			require.WithinDuration(t, now, dbModel.CreatedAt, time.Second)
 			require.WithinDuration(t, now, dbModel.UpdatedAt, time.Second)
@@ -144,6 +151,7 @@ func TestTransactionMapping(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, original.ID(), parsed.ID())
+			assert.Equal(t, original.TenantID(), parsed.TenantID())
 			assert.Equal(t, original.Status(), parsed.Status())
 			assert.InEpsilon(t, original.Amount().Quantity(), parsed.Amount().Quantity(), 0.0001)
 			assert.Equal(t, original.Amount().Currency(), parsed.Amount().Currency())
@@ -181,6 +189,7 @@ func TestToDomainTransaction_InvalidJSON(t *testing.T) {
 
 	dbModel := &models.Transaction{
 		ID:        uuid.New().String(),
+		TenantID:  uuid.New().String(),
 		Status:    "created",
 		Quantity:  10,
 		Currency:  "USD",

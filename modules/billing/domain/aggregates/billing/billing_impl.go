@@ -16,6 +16,12 @@ func WithID(id uuid.UUID) Option {
 	}
 }
 
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(t *transaction) {
+		t.tenantID = tenantID
+	}
+}
+
 func WithStatus(status Status) Option {
 	return func(t *transaction) {
 		t.status = status
@@ -94,6 +100,7 @@ func New(
 
 type transaction struct {
 	id        uuid.UUID
+	tenantID  uuid.UUID
 	status    Status
 	amount    Amount
 	gateway   Gateway
@@ -105,6 +112,10 @@ type transaction struct {
 
 func (t *transaction) ID() uuid.UUID {
 	return t.id
+}
+
+func (t *transaction) TenantID() uuid.UUID {
+	return t.tenantID
 }
 
 func (t *transaction) Status() Status {
@@ -133,6 +144,14 @@ func (t *transaction) UpdatedAt() time.Time {
 
 func (t *transaction) Events() []interface{} {
 	return t.events
+}
+
+func (t *transaction) SetTenantID(tenantID uuid.UUID) Transaction {
+	result := *t
+	result.tenantID = tenantID
+	result.updatedAt = time.Now()
+
+	return &result
 }
 
 func (t *transaction) SetStatus(status Status) Transaction {

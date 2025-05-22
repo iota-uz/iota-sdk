@@ -62,6 +62,14 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	publisher := eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
 	app := setupApplication(t, pool, publisher)
 
+	// Create a test tenant outside transaction
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx = composables.WithTenant(ctx, tenant)
+
 	return &testFixtures{
 		ctx:            ctx,
 		pool:           pool,
@@ -89,7 +97,11 @@ func TestBillingService_CreateTransaction_Click(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
+	tenant, err := composables.UseTenant(f.ctx)
+	require.NoError(t, err)
+
 	cmd := &services.CreateTransactionCommand{
+		TenantID: tenant.ID,
 		Quantity: 1001,
 		Currency: billing.UZS,
 		Gateway:  billing.Click,
@@ -115,6 +127,9 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
+	tenant, err := composables.UseTenant(f.ctx)
+	require.NoError(t, err)
+
 	for i := 1; i <= 40; i++ {
 		t.Run(fmt.Sprintf("Payme_Transaction_%d", i), func(t *testing.T) {
 			t.Parallel()
@@ -123,6 +138,7 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 			amount := float64(1000 + i)
 
 			cmd := &services.CreateTransactionCommand{
+				TenantID: tenant.ID,
 				Quantity: amount,
 				Currency: billing.UZS,
 				Gateway:  billing.Payme,

@@ -10,6 +10,7 @@ import (
 )
 
 type CreateTransactionCommand struct {
+	TenantID uuid.UUID
 	Quantity float64
 	Currency billing.Currency
 	Gateway  billing.Gateway
@@ -48,8 +49,8 @@ func NewBillingService(
 	}
 }
 
-func (s *BillingService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *BillingService) Count(ctx context.Context, params *billing.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }
 
 func (s *BillingService) GetByID(ctx context.Context, id uuid.UUID) (billing.Transaction, error) {
@@ -74,6 +75,7 @@ func (s *BillingService) Create(ctx context.Context, cmd *CreateTransactionComma
 		cmd.Currency,
 		cmd.Gateway,
 		cmd.Details,
+		billing.WithTenantID(cmd.TenantID),
 	)
 
 	provider := s.providers[entity.Gateway()]
