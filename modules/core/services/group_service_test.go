@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"testing"
 	"time"
 
@@ -27,13 +28,16 @@ func TestGroupService_GetByID(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
+	tenant, err := composables.UseTenant(f.ctx)
+	require.NoError(t, err)
+
 	// Create test permission
-	err := permissionRepository.Save(f.ctx, permissions.UserRead)
+	err = permissionRepository.Save(f.ctx, permissions.UserRead)
 	require.NoError(t, err)
 
 	// Create test data
 	groupID := uuid.New()
-	testGroup := group.New("Test Group", group.WithID(groupID))
+	testGroup := group.New("Test Group", group.WithID(groupID), group.WithTenantID(tenant.ID))
 
 	// Setup service
 	bus := eventbus.NewEventPublisher(logrus.New())
@@ -63,8 +67,11 @@ func TestGroupService_Count(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
+	tenant, err := composables.UseTenant(f.ctx)
+	require.NoError(t, err)
+
 	// Create test permission
-	err := permissionRepository.Save(f.ctx, permissions.UserRead)
+	err = permissionRepository.Save(f.ctx, permissions.UserRead)
 	require.NoError(t, err)
 
 	// Setup service
@@ -74,7 +81,7 @@ func TestGroupService_Count(t *testing.T) {
 	// Add some test groups
 	for i := 1; i <= 5; i++ {
 		groupName := "Group " + string(rune(i+64)) // A, B, C, D, E
-		groupEntity := group.New(groupName, group.WithID(uuid.New()))
+		groupEntity := group.New(groupName, group.WithID(uuid.New()), group.WithTenantID(tenant.ID))
 		_, err := groupRepository.Save(f.ctx, groupEntity)
 		require.NoError(t, err)
 	}
@@ -98,8 +105,11 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
+	tenant, err := composables.UseTenant(f.ctx)
+	require.NoError(t, err)
+
 	// Create test permission
-	err := permissionRepository.Save(f.ctx, permissions.UserRead)
+	err = permissionRepository.Save(f.ctx, permissions.UserRead)
 	require.NoError(t, err)
 
 	// Setup service
@@ -115,11 +125,13 @@ func TestGroupService_GetPaginated(t *testing.T) {
 		"Older Group",
 		group.WithID(uuid.New()),
 		group.WithCreatedAt(yesterday),
+		group.WithTenantID(tenant.ID),
 	)
 	groupNewer := group.New(
 		"Newer Group",
 		group.WithID(uuid.New()),
 		group.WithCreatedAt(now),
+		group.WithTenantID(tenant.ID),
 	)
 
 	_, err = groupRepository.Save(f.ctx, groupOlder)
