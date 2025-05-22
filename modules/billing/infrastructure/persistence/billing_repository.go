@@ -345,11 +345,5 @@ func (r *BillingRepository) buildBillingFilters(params *billing.FindParams) ([]s
 		args = append(args, filter.Filter.Value()...)
 	}
 
-	if params.Search != "" {
-		index := len(args) + 1
-		where = append(where, fmt.Sprintf("(g.name ILIKE $%d OR g.description ILIKE $%d)", index, index))
-		args = append(args, "%"+params.Search+"%")
-	}
-
 	return where, args, nil
 }
