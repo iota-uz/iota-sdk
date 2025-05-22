@@ -50,6 +50,7 @@ type ChartConfig struct {
 	Type    ChartType `json:"type"`
 	Height  string    `json:"height,omitempty"`
 	Toolbar Toolbar   `json:"toolbar,omitempty"`
+	Stacked bool      `json:"stacked,omitempty"`
 }
 
 type Toolbar struct {
