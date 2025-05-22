@@ -15,6 +15,11 @@ func ToDomainTransaction(dbRow *models.Transaction) (billing.Transaction, error)
 		return nil, fmt.Errorf("invalid UUID: %w", err)
 	}
 
+	tenantID, err := uuid.Parse(dbRow.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid UUID: %w", err)
+	}
+
 	gateway := billing.Gateway(dbRow.Gateway)
 
 	d, err := fromDbDetails(gateway, dbRow.Details)
@@ -27,6 +32,7 @@ func ToDomainTransaction(dbRow *models.Transaction) (billing.Transaction, error)
 		billing.Currency(dbRow.Currency),
 		billing.Gateway(dbRow.Gateway),
 		d,
+		billing.WithTenantID(tenantID),
 		billing.WithID(transactionID),
 		billing.WithStatus(billing.Status(dbRow.Status)),
 		billing.WithCreatedAt(dbRow.CreatedAt),
@@ -42,6 +48,7 @@ func ToDBTransaction(entity billing.Transaction) (*models.Transaction, error) {
 
 	return &models.Transaction{
 		ID:        entity.ID().String(),
+		TenantID:  entity.TenantID().String(),
 		Status:    string(entity.Status()),
 		Quantity:  entity.Amount().Quantity(),
 		Currency:  string(entity.Amount().Currency()),

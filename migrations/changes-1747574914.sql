@@ -2,6 +2,7 @@
 -- Change CREATE_TABLE: billing_transactions
 CREATE TABLE billing_transactions (
     id uuid DEFAULT gen_random_uuid () PRIMARY KEY,
+    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     status varchar(50) NOT NULL CHECK (status IN ('created', 'pending', 'completed', 'failed', 'canceled', 'refunded', 'partially-refunded', 'expired')),
     quantity float8 NOT NULL,
     currency varchar(3) NOT NULL CHECK (currency IN ('UZS', 'USD', 'EUR', 'RUB')),
@@ -16,6 +17,9 @@ CREATE INDEX idx_billing_transactions_gateway ON billing_transactions (gateway);
 
 -- Change CREATE_INDEX: idx_billing_transactions_status
 CREATE INDEX idx_billing_transactions_status ON billing_transactions (status);
+
+-- Change CREATE_INDEX: idx_billing_transactions_tenant_id
+CREATE INDEX idx_billing_transactions_tenant_id ON user_groups (tenant_id);
 
 -- +migrate Down
 -- Undo CREATE_INDEX: idx_billing_transactions_status

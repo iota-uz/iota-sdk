@@ -7,6 +7,7 @@ import (
 
 type Transaction struct {
 	ID        string
+	TenantID  string
 	Status    string
 	Quantity  float64
 	Currency  string
