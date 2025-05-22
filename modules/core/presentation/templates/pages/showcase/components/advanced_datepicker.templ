@@ -1,0 +1,53 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/input"
+
+templ AdvancedDatePicker() {
+	<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Single Date Selection</h3>
+			@input.DatePicker(input.DatePickerProps{
+				Label:        "Select Date",
+				Placeholder:  "Choose a date",
+				Mode:         input.DatePickerModeSingle,
+				SelectorType: input.DateSelectorTypeDay,
+				DateFormat:   "Y-m-d",
+				Name:         "single_date",
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Date Range Selection</h3>
+			@input.DatePicker(input.DatePickerProps{
+				Label:        "Select Date Range",
+				Placeholder:  "Choose start and end dates",
+				Mode:         input.DatePickerModeRange,
+				SelectorType: input.DateSelectorTypeDay,
+				DateFormat:   "Y-m-d",
+				StartName:    "range_start",
+				EndName:      "range_end",
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Multiple Date Selection</h3>
+			@input.DatePicker(input.DatePickerProps{
+				Label:        "Select Multiple Dates",
+				Placeholder:  "Choose multiple dates",
+				Mode:         input.DatePickerModeMultiple,
+				SelectorType: input.DateSelectorTypeDay,
+				DateFormat:   "Y-m-d",
+				Name:         "multiple_dates",
+			})
+		</div>
+		<div>
+			<h3 class="text-lg font-semibold mb-2">Month Selection</h3>
+			@input.DatePicker(input.DatePickerProps{
+				Label:        "Select Month",
+				Placeholder:  "Choose a month",
+				Mode:         input.DatePickerModeSingle,
+				SelectorType: input.DateSelectorTypeMonth,
+				DateFormat:   "Y-m",
+				Name:         "month_select",
+			})
+		</div>
+	</div>
+}
