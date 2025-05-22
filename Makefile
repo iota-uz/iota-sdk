@@ -67,6 +67,7 @@ css:
 
 # Run linter
 lint:
+	make fmt
 	golangci-lint run ./...
 
 # Release - assume Alpine Linux as target
