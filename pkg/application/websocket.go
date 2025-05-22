@@ -1,0 +1,141 @@
+package application
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/iota-uz/iota-sdk/pkg/ws"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/text/language"
+)
+
+const (
+	ChannelAuthenticated string = "authenticated"
+)
+
+type HuberOptions struct {
+	Pool           *pgxpool.Pool
+	Logger         *logrus.Logger
+	CheckOrigin    func(r *http.Request) bool
+	UserRepository user.Repository
+}
+
+type Connection interface {
+	ws.Connectioner
+	User() user.User
+}
+
+type WsCallback func(ctx context.Context, conn Connection) error
+
+type Huber interface {
+	ForEach(channel string, f WsCallback) error
+}
+
+func NewHub(opts *HuberOptions) Huber {
+	hub := ws.NewHub(&ws.HubOptions{
+		Logger:      opts.Logger,
+		CheckOrigin: opts.CheckOrigin,
+	})
+	appHub := &huber{
+		hub:      hub,
+		pool:     opts.Pool,
+		logger:   opts.Logger,
+		userRepo: opts.UserRepository,
+	}
+	hub.OnConnect = appHub.onConnect
+	return appHub
+}
+
+type MetaInfo struct {
+	UserID uint
+}
+
+type huber struct {
+	hub             ws.Huber
+	app             Application
+	pool            *pgxpool.Pool
+	logger          *logrus.Logger
+	connectionsMeta map[*ws.Connection]*MetaInfo
+	userRepo        user.Repository
+}
+
+func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) error {
+	meta := &MetaInfo{}
+	usr, err := composables.UseUser(r.Context())
+	if err != nil {
+		h.connectionsMeta[conn] = meta
+		return nil
+	}
+	meta.UserID = usr.ID()
+	h.hub.JoinChannel(ChannelAuthenticated, conn)
+	h.hub.JoinChannel(fmt.Sprintf("user/%d", usr.ID()), conn)
+	h.connectionsMeta[conn] = meta
+	return nil
+}
+
+func (h *huber) buildContext() context.Context {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, constants.LoggerKey, h.logger)
+	ctx = composables.WithPool(ctx, h.pool)
+	return ctx
+}
+
+func (h *huber) ForEach(cannel string, f WsCallback) error {
+	ctx := h.buildContext()
+
+	for _, conn := range h.hub.ConnectionsAll() {
+		meta, ok := h.connectionsMeta[conn]
+		if !ok {
+			h.logger.Error("connection meta not found")
+			continue
+		}
+		usr, err := h.userRepo.GetByID(ctx, meta.UserID)
+		if err != nil {
+			h.logger.WithError(err).Error("failed to get user by ID")
+			continue
+		}
+		localizer := i18n.NewLocalizer(h.app.Bundle(), string(usr.UILanguage()))
+		ctx = intl.WithLocalizer(ctx, localizer)
+		ctx = composables.WithPageCtx(ctx, &types.PageContext{
+			URL:       nil,
+			Locale:    language.English,
+			Localizer: localizer,
+		})
+		if err := f(ctx, &connection{
+			user: usr,
+			conn: conn,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type connection struct {
+	user user.User
+	conn ws.Connectioner
+}
+
+func (c *connection) SendMessage(message []byte) error {
+	return c.conn.SendMessage(message)
+}
+
+func (c *connection) Close() error {
+	return c.conn.Close()
+}
+
+func (c *connection) User() user.User {
+	return c.user
+}
+
+func (c *connection) Connectioner() ws.Connectioner {
+	return c.conn
+}

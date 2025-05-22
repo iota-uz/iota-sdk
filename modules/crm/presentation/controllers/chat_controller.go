@@ -4,19 +4,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/sirupsen/logrus"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/go-i18n/v2/i18n"
-	"golang.org/x/text/language"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -30,9 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type CreateChatDTO struct {
@@ -49,12 +44,14 @@ type ChatController struct {
 	templateService *services.MessageTemplateService
 	clientService   *services.ClientService
 	chatService     *services.ChatService
+	logger          *logrus.Logger
 	basePath        string
 }
 
 func NewChatController(app application.Application, basePath string) application.Controller {
 	return &ChatController{
 		app:             app,
+		logger:          configuration.Use().Logger(),
 		userService:     app.Service(coreservices.UserService{}).(*coreservices.UserService),
 		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
 		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
@@ -89,60 +86,9 @@ func (c *ChatController) Register(r *mux.Router) {
 }
 
 func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
-	localizer := i18n.NewLocalizer(c.app.Bundle(), "en")
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
-	)
-	ctx = composables.WithPool(ctx, c.app.DB())
-	_url, _ := url.Parse(c.basePath)
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-	c.broadcastChatsListUpdate(ctx)
-}
-
-func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
-	var locale string
-	if event.User != nil {
-		locale = string(event.User.UILanguage())
-	} else {
-		locale = "en"
-	}
-	localizer := i18n.NewLocalizer(c.app.Bundle(), locale)
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
-	)
-	ctx = composables.WithPool(ctx, c.app.DB())
-	_url, _ := url.Parse(c.basePath)
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-
-	clientEntity, err := c.clientService.GetByID(ctx, event.Result.ClientID())
-	if err != nil {
-		log.Printf("Error getting client: %v", err)
-		return
-	}
-	chatViewModel := mappers.ChatToViewModel(event.Result, clientEntity)
-	var buf bytes.Buffer
-	if err := chatsui.ChatMessages(chatViewModel).Render(ctx, &buf); err != nil {
-		log.Printf("Error rendering chat messages: %v", err)
-		return
-	}
-	hub := server.WsHub()
-	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
-	c.broadcastChatsListUpdate(ctx)
-}
-
-func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
+	ctxWithDb := composables.WithPool(context.Background(), c.app.DB())
 	chatViewModels, err := c.chatViewModels(
-		ctx,
+		ctxWithDb,
 		&chat.FindParams{
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
@@ -160,17 +106,77 @@ func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 		},
 	)
 	if err != nil {
-		log.Printf("Error rendering chat list: %v", err)
+		c.logger.WithError(err).Error("failed to get chat view models")
+		return
+	}
+	err = c.app.Websocket().ForEach(application.ChannelAuthenticated, func(ctx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := chatsui.ChatList(chatViewModels).Render(ctx, &buf); err != nil {
+			return err
+		}
+		return conn.SendMessage(buf.Bytes())
+	})
+	if err != nil {
+		c.logger.WithError(err).Error("failed to send chat list to websocket")
+		return
+	}
+}
+
+func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
+	ctxWithDb := composables.WithPool(context.Background(), c.app.DB())
+	clientEntity, err := c.clientService.GetByID(
+		ctxWithDb,
+		event.Result.ClientID(),
+	)
+	if err != nil {
+		c.logger.WithError(err).Error("failed to get client by ID")
+		return
+	}
+	chatViewModels, err := c.chatViewModels(
+		ctxWithDb,
+		&chat.FindParams{
+			SortBy: chat.SortBy{
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.LastMessageAtField,
+						Ascending: false,
+						NullsLast: true,
+					},
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: false,
+					},
+				},
+			},
+		},
+	)
+	if err != nil {
+		c.logger.WithError(err).Error("failed to get chat view models")
 		return
 	}
 
-	var buf bytes.Buffer
-	if err := chatsui.ChatList(chatViewModels).Render(ctx, &buf); err != nil {
-		log.Printf("Error rendering chat list: %v", err)
+	chatViewModel := mappers.ChatToViewModel(event.Result, clientEntity)
+	err = c.app.Websocket().ForEach(
+		application.ChannelAuthenticated,
+		func(ctx context.Context, conn application.Connection) error {
+			var buf1 bytes.Buffer
+			if err := chatsui.ChatList(chatViewModels).Render(ctx, &buf1); err != nil {
+				return err
+			}
+			if err := conn.SendMessage(buf1.Bytes()); err != nil {
+				return err
+			}
+			var buf2 bytes.Buffer
+			if err := chatsui.ChatMessages(chatViewModel).Render(ctx, &buf2); err != nil {
+				return err
+			}
+			return conn.SendMessage(buf2.Bytes())
+		},
+	)
+	if err != nil {
+		c.logger.WithError(err).Error("failed to send chat messages to websocket")
 		return
 	}
-	hub := server.WsHub()
-	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
 }
 
 func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.MessageTemplate, error) {
@@ -200,11 +206,10 @@ func (c *ChatController) chatViewModels(
 }
 
 func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
-	searchQ := r.URL.Query().Get("Query")
 	chatViewModels, err := c.chatViewModels(
 		r.Context(),
 		&chat.FindParams{
-			Search: searchQ,
+			Search: r.URL.Query().Get("Query"),
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
 					{

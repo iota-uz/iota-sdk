@@ -51,7 +51,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(pool, eventbus.NewEventPublisher(logger))
+	app := application.New(&application.ApplicationOptions{
+		Pool:     pool,
+		EventBus: eventbus.NewEventPublisher(logger),
+		Logger:   logger,
+	})
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}

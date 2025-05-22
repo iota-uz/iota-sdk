@@ -76,7 +76,7 @@ func (p *appProvider) Ok(t reflect.Type) bool {
 }
 
 func (p *appProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	app, err := composables.UseApp(ctx)
+	app, err := application.UseApp(ctx)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -89,7 +89,7 @@ func (p *serviceProvider) Ok(t reflect.Type) bool {
 }
 
 func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
-	app, err := composables.UseApp(ctx)
+	app, err := application.UseApp(ctx)
 	if err != nil {
 		return reflect.Value{}, err
 	}
