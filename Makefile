@@ -6,6 +6,9 @@ TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 deps:
 	go get ./...
 
+fmt:
+	go fmt ./... && templ fmt . && go mod tidy
+
 # Seed database
 seed:
 	go run cmd/seed/main.go
