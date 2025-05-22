@@ -22,7 +22,7 @@ func ToDomainTransaction(dbRow *models.Transaction) (billing.Transaction, error)
 
 	gateway := billing.Gateway(dbRow.Gateway)
 
-	d, err := fromDbDetails(gateway, dbRow.Details)
+	d, err := ToDomainDetails(gateway, dbRow.Details)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse details: %w", err)
 	}
@@ -41,7 +41,7 @@ func ToDomainTransaction(dbRow *models.Transaction) (billing.Transaction, error)
 }
 
 func ToDBTransaction(entity billing.Transaction) (*models.Transaction, error) {
-	d, err := toDbDetails(entity.Details())
+	d, err := ToDbDetails(entity.Details())
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize details: %w", err)
 	}
@@ -59,7 +59,7 @@ func ToDBTransaction(entity billing.Transaction) (*models.Transaction, error) {
 	}, nil
 }
 
-func fromDbDetails(gateway billing.Gateway, data json.RawMessage) (details.Details, error) {
+func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Details, error) {
 	switch gateway {
 	case billing.Click:
 		var d models.ClickDetails
@@ -134,7 +134,7 @@ func fromDbDetails(gateway billing.Gateway, data json.RawMessage) (details.Detai
 	}
 }
 
-func toDbDetails(data details.Details) (json.RawMessage, error) {
+func ToDbDetails(data details.Details) (json.RawMessage, error) {
 	switch d := data.(type) {
 	case details.ClickDetails:
 		return json.Marshal(&models.ClickDetails{
