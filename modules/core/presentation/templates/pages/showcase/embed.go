@@ -29,6 +29,9 @@ var CardComponentSource string
 //go:embed components/datepicker.templ
 var DatepickerComponentSource string
 
+//go:embed components/advanced_datepicker.templ
+var AdvancedDatepickerComponentSource string
+
 //go:embed components/table.templ
 var TableComponentSource string
 
