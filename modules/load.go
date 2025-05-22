@@ -1,6 +1,7 @@
 package modules
 
 import (
+	"github.com/iota-uz/iota-sdk/modules/billing"
 	"slices"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat"
@@ -24,6 +25,7 @@ var (
 		warehouse.NewModule(),
 		crm.NewModule(),
 		website.NewModule(),
+		billing.NewModule(),
 	}
 
 	NavLinks = slices.Concat(
