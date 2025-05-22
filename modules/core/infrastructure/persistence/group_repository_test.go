@@ -514,6 +514,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 				group.WithDescription("Group for pagination test"),
 				group.WithUsers([]user.User{createdUser}),
 				group.WithRoles([]role.Role{roleEntity}),
+				group.WithTenantID(tenant.ID),
 			)
 
 			_, err := groupRepository.Save(f.ctx, groupEntity)
@@ -564,6 +565,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for delete test"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
+			group.WithTenantID(tenant.ID),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
