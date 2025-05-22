@@ -91,6 +91,9 @@ build-docker-base:
 build-docker-prod:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:$v --target production .
 
+tunnel:
+	cloudflared tunnel --url http://localhost:3200 --loglevel debug
+
 # Prevents make from treating the argument as an undefined target
 %:
 	@:
