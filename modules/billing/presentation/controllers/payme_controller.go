@@ -14,6 +14,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
 	"time"
 )
 
@@ -509,8 +510,8 @@ func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetState
 			},
 		},
 	)
-	if err != nil || len(entities) != 1 {
-		errRPC := paymeapi.PerformTransactionTransactionNotFoundError()
+	if err != nil {
+		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
@@ -552,6 +553,10 @@ func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetState
 
 		sts = append(sts, st)
 	}
+
+	sort.Slice(sts, func(i, j int) bool {
+		return sts[i].Time < sts[j].Time
+	})
 
 	return &paymeapi.GetStatementResponse{
 		Transactions: sts,
