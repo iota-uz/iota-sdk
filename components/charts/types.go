@@ -49,6 +49,8 @@ type ChartOptions struct {
 type ChartConfig struct {
 	Type    ChartType `json:"type"`
 	Height  string    `json:"height,omitempty"`
+	OffsetX int       `json:"offsetX,omitempty"`
+	OffsetY int       `json:"offsetY,omitempty"`
 	Toolbar Toolbar   `json:"toolbar,omitempty"`
 	Stacked bool      `json:"stacked,omitempty"`
 }
