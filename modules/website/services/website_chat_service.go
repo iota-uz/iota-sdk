@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,8 +17,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
+	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/rag"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/sashabaranov/go-openai"
+	"github.com/sirupsen/logrus"
 )
 
 type CreateThreadDTO struct {
@@ -42,6 +45,7 @@ type WebsiteChatServiceConfig struct {
 	ClientRepo   client.Repository
 	ChatRepo     chat.Repository
 	AIUserEmail  internet.Email
+	RAGProvider  rag.Provider
 }
 
 type WebsiteChatService struct {
@@ -50,6 +54,7 @@ type WebsiteChatService struct {
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
 	aiUserEmail  internet.Email
+	ragProvider  rag.Provider
 	threadsMap   ThreadsMap
 }
 
@@ -62,6 +67,7 @@ func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService 
 		clientRepo:   config.ClientRepo,
 		chatRepo:     config.ChatRepo,
 		aiUserEmail:  config.AIUserEmail,
+		ragProvider:  config.RAGProvider,
 		threadsMap:   make(ThreadsMap),
 	}
 }
@@ -267,6 +273,7 @@ func (s *WebsiteChatService) ReplyToThread(
 }
 
 func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
+	logger := composables.UseLogger(ctx)
 	thread, err := s.GetThreadByID(ctx, threadID)
 	if err != nil {
 		return nil, err
@@ -277,7 +284,7 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 		return nil, chat.ErrNoMessages
 	}
 
-	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages)+1) // +1 for system prompt
+	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages)+2) // +2 for system prompt and potential RAG context
 
 	config, err := s.aiconfigRepo.GetDefault(ctx)
 	if err != nil {
@@ -289,6 +296,27 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 			Role:    openai.ChatMessageRoleSystem,
 			Content: config.SystemPrompt(),
 		})
+	}
+
+	if s.ragProvider != nil && len(messages) > 0 {
+		lastMessage := messages[len(messages)-1]
+		chunks, err := s.ragProvider.SearchRelevantContext(ctx, lastMessage.Message())
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve context: %w", err)
+		}
+		if len(chunks) > 0 {
+			docsText := strings.Join(chunks, "\n---\n")
+			logger.WithFields(logrus.Fields{
+				"thread_id":    threadID,
+				"chunks":       len(chunks),
+				"context":      docsText,
+				"user_message": lastMessage.Message(),
+			}).Info("Retrieved context for AI response")
+			openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
+				Role:    openai.ChatMessageRoleAssistant,
+				Content: "Retrieved context:\n" + docsText,
+			})
+		}
 	}
 
 	for _, msg := range messages {
