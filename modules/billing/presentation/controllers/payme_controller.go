@@ -254,7 +254,8 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 
 	entity := entities[0]
 
-	if math.Abs(entity.Amount().Quantity()-r.Amount) >= 1e-9 {
+	amount := r.Amount / 100
+	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
 		errRPC := paymeapi.InvalidAmountError()
 		return nil, &errRPC
 	}
@@ -402,7 +403,8 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 
 	entity := entities[0]
 
-	if math.Abs(entity.Amount().Quantity()-r.Amount) >= 1e-9 {
+	amount := r.Amount / 100
+	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
 		errRPC := paymeapi.CheckPerformTransactionInvalidAmountError()
 		return nil, &errRPC
 	}
