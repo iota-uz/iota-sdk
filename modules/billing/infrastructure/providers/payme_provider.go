@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	paymeapi "github.com/iota-uz/payme"
+	"math"
 )
 
 type PaymeConfig struct {
@@ -43,7 +44,7 @@ func (p *paymeProvider) Create(_ context.Context, t billing.Transaction) (billin
 	for k, v := range paymeDetails.Account() {
 		params["ac."+k] = v
 	}
-	params["a"] = t.Amount().Quantity()
+	params["a"] = int64(math.Ceil(t.Amount().Quantity() * 100))
 	params["cr"] = t.Amount().Currency()
 
 	var linkData string
