@@ -12,7 +12,6 @@ import (
 	formui "github.com/iota-uz/iota-sdk/components/scaffold/form"
 	sfui "github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 // parseFormToMap extracts form values into a map
@@ -38,15 +37,15 @@ func (s *Schema[T, ID]) listHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	var params FindParams
 	// sort (format: column:asc|desc)
-	if v := r.URL.Query().Get("sort"); v != "" {
-		parts := strings.Split(v, ":")
-		if len(parts) == 2 {
-			params.SortBy = repo.SortBy[string]{
-				Fields:    []string{parts[0]},
-				Ascending: parts[1] == "asc",
-			}
-		}
-	}
+	//if v := r.URL.Query().Get("sort"); v != "" {
+	//	parts := strings.Split(v, ":")
+	//	if len(parts) == 2 {
+	//		params.SortBy = repo.SortBy[string]{
+	//			Fields:    []string{parts[0]},
+	//			Ascending: parts[1] == "asc",
+	//		}
+	//	}
+	//}
 	// search
 	params.Search = r.URL.Query().Get("search")
 	// (Additional Filters could be appended here...)
