@@ -104,6 +104,43 @@ type OctoDetails interface {
 	Details
 }
 
+type StripeItem interface {
+	PriceID() string
+	Quantity() int64
+}
+
 type StripeDetails interface {
 	Details
+
+	Mode() string
+	BillingReason() string
+
+	SessionID() string
+	ClientReferenceID() string
+
+	InvoiceID() string
+	SubscriptionID() string
+	CustomerID() string
+
+	Items() []StripeItem
+
+	SuccessURL() string
+	CancelURL() string
+	URL() string
+
+	SetMode(mode string) StripeDetails
+	SetBillingReason(billingReason string) StripeDetails
+
+	SetSessionID(sessionID string) StripeDetails
+	SetClientReferenceID(clientReferenceID string) StripeDetails
+
+	SetInvoiceID(invoiceID string) StripeDetails
+	SetSubscriptionID(subscriptionID string) StripeDetails
+	SetCustomerID(customerID string) StripeDetails
+
+	SetItems(items []StripeItem) StripeDetails
+
+	SetSuccessURL(successURL string) StripeDetails
+	SetCancelURL(cancelURL string) StripeDetails
+	SetURL(url string) StripeDetails
 }

@@ -61,5 +61,21 @@ type PaymeDetails struct {
 type OctoDetails struct {
 }
 
+type StripeItem struct {
+	PriceID  string `json:"price_id"`
+	Quantity int64  `json:"quantity"`
+}
+
 type StripeDetails struct {
+	Mode              string       `json:"mode"`
+	BillingReason     string       `json:"billing_reason"`
+	SessionID         string       `json:"session_id"`
+	ClientReferenceID string       `json:"client_reference_id"`
+	InvoiceID         string       `json:"invoice_id"`
+	SubscriptionID    string       `json:"subscription_id"`
+	CustomerID        string       `json:"customer_id"`
+	Items             []StripeItem `json:"items"`
+	SuccessURL        string       `json:"success_url"`
+	CancelURL         string       `json:"cancel_url"`
+	URL               string       `json:"url"`
 }
