@@ -115,7 +115,7 @@ func (c *ClickController) Prepare(w http.ResponseWriter, r *http.Request) {
 				SetSignString(dto.SignString),
 		)
 
-	entity, err = c.billingService.Update(r.Context(), entity)
+	entity, err = c.billingService.Save(r.Context(), entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -219,7 +219,7 @@ func (c *ClickController) Complete(w http.ResponseWriter, r *http.Request) {
 				SetSignString(dto.SignString),
 		)
 
-	entity, err = c.billingService.Update(r.Context(), entity)
+	entity, err = c.billingService.Save(r.Context(), entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
