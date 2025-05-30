@@ -136,7 +136,7 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 		SetStatus(billing.Completed).
 		SetDetails(stripeDetails)
 
-	if _, err := c.billingService.Update(ctx, entity); err != nil {
+	if _, err := c.billingService.Save(ctx, entity); err != nil {
 		log.Printf("Failed to update transaction after checkout completed: %v", err)
 		return
 	}
@@ -219,8 +219,8 @@ func (c *StripeController) handleInvoiceCreated(ctx context.Context, event strip
 		billing.WithTenantID(prevEntity.TenantID()),
 	)
 
-	if _, err := c.billingService.Update(ctx, entity); err != nil {
-		log.Printf("Failed to update transaction after checkout completed: %v", err)
+	if _, err := c.billingService.Save(ctx, entity); err != nil {
+		log.Printf("Failed to create transaction: %v", err)
 		return
 	}
 }
@@ -269,7 +269,7 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 		SetStatus(billing.Completed).
 		SetDetails(stripeDetails)
 
-	if _, err := c.billingService.Update(ctx, entity); err != nil {
+	if _, err := c.billingService.Save(ctx, entity); err != nil {
 		log.Printf("Failed to update transaction on invoice.payment_succeeded: %v", err)
 		return
 	}
@@ -321,7 +321,7 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 		SetStatus(billing.Failed).
 		SetDetails(stripeDetails)
 
-	if _, err := c.billingService.Update(ctx, entity); err != nil {
+	if _, err := c.billingService.Save(ctx, entity); err != nil {
 		log.Printf("Failed to update transaction on invoice.payment_failed: %v", err)
 		return
 	}

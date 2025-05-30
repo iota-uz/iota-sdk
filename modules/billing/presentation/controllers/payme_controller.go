@@ -284,7 +284,7 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 	entity = entity.
 		SetDetails(paymeDetails)
 
-	entity, err = c.billingService.Update(ctx, entity)
+	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
 		errRPC := paymeapi.InternalSystemError()
@@ -361,7 +361,7 @@ func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransact
 
 	entity = entity.SetDetails(paymeDetails)
 
-	entity, err = c.billingService.Update(ctx, entity)
+	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
 		errRPC := paymeapi.InternalSystemError()
@@ -431,7 +431,7 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 				SetAccount(r.Account),
 		)
 
-	_, err = c.billingService.Update(ctx, entity)
+	_, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
 		errRPC := paymeapi.InternalSystemError()
@@ -479,7 +479,7 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 		SetStatus(billing.Completed).
 		SetDetails(paymeDetails)
 
-	entity, err = c.billingService.Update(ctx, entity)
+	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
 		errRPC := paymeapi.InternalSystemError()

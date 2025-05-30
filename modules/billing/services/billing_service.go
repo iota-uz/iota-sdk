@@ -104,31 +104,48 @@ func (s *BillingService) Create(ctx context.Context, cmd *CreateTransactionComma
 	return createdTransaction, nil
 }
 
-func (s *BillingService) Update(ctx context.Context, entity billing.Transaction) (billing.Transaction, error) {
-	updatedEvent, err := billing.NewUpdatedEvent(ctx, entity)
-	if err != nil {
-		return nil, err
-	}
+func (s *BillingService) Save(ctx context.Context, entity billing.Transaction) (billing.Transaction, error) {
+	var (
+		createdEvent *billing.CreatedEvent
+		updatedEvent *billing.UpdatedEvent
+		err          error
+	)
 
-	var updatedTransaction billing.Transaction
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
+	isCreate := entity.ID() == uuid.Nil
+
+	if isCreate {
+		createdEvent, err = billing.NewCreatedEvent(ctx, entity)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		updatedTransaction, err = s.repo.Save(txCtx, entity)
+	} else {
+		updatedEvent, err = billing.NewUpdatedEvent(ctx, entity)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var savedTransaction billing.Transaction
+	if err := composables.InTx(ctx, func(txCtx context.Context) error {
+		savedTransaction, err = s.repo.Save(txCtx, entity)
 		return err
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
-	updatedEvent.Result = updatedTransaction
-	s.publisher.Publish(updatedEvent)
-	for _, e := range updatedTransaction.Events() {
+	if isCreate {
+		createdEvent.Result = savedTransaction
+		s.publisher.Publish(createdEvent)
+	} else {
+		updatedEvent.Result = savedTransaction
+		s.publisher.Publish(updatedEvent)
+	}
+
+	for _, e := range savedTransaction.Events() {
 		s.publisher.Publish(e)
 	}
 
-	return updatedTransaction, nil
+	return savedTransaction, nil
 }
 
 func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionCommand) (billing.Transaction, error) {
