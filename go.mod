@@ -41,6 +41,7 @@ require (
 	github.com/sashabaranov/go-openai v1.36.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
+	github.com/stripe/stripe-go/v82 v82.1.0
 	github.com/twilio/twilio-go v1.23.11
 	github.com/vektah/gqlparser/v2 v2.5.20
 	github.com/xuri/excelize/v2 v2.9.0

@@ -47,9 +47,16 @@ func (m *Module) Register(app application.Application) error {
 		},
 	)
 
+	stripeProvider := providers.NewStripeProvider(
+		providers.StripeConfig{
+			SecretKey: conf.Stripe.SecretKey,
+		},
+	)
+
 	billingProviders := []billing.Provider{
 		clickProvider,
 		paymeProvider,
+		stripeProvider,
 	}
 
 	billingRepo := persistence.NewBillingRepository()
@@ -75,6 +82,11 @@ func (m *Module) Register(app application.Application) error {
 			app,
 			conf.Payme,
 			basePath+"/payme",
+		),
+		controllers.NewStripeController(
+			app,
+			conf.Stripe,
+			basePath+"/stripe",
 		),
 	)
 
