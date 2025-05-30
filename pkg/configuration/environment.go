@@ -105,6 +105,11 @@ type PaymeOptions struct {
 	SecretKey  string `env:"PAYME_SECRET_KEY"`
 }
 
+type StripeOptions struct {
+	SecretKey     string `env:"STRIPE_SECRET_KEY"`
+	SigningSecret string `env:"STRIPE_SIGNING_SECRET"`
+}
+
 type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
@@ -113,6 +118,7 @@ type Configuration struct {
 	OpenTelemetry OpenTelemetryOptions
 	Click         ClickOptions
 	Payme         PaymeOptions
+	Stripe        StripeOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
