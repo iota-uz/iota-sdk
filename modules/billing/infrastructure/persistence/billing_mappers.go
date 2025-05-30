@@ -127,8 +127,25 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
-		return details.NewStripeDetails(), nil
 
+		items := make([]details.StripeItem, len(d.Items))
+		for i, item := range d.Items {
+			items[i] = details.NewStripeItem(item.PriceID, item.Quantity)
+		}
+
+		return details.NewStripeDetails(
+			d.ClientReferenceID,
+			details.StripeWithMode(d.Mode),
+			details.StripeWithBillingReason(d.BillingReason),
+			details.StripeWithSessionID(d.SessionID),
+			details.StripeWithInvoiceID(d.InvoiceID),
+			details.StripeWithSubscriptionID(d.SubscriptionID),
+			details.StripeWithCustomerID(d.CustomerID),
+			details.StripeWithItems(items),
+			details.StripeWithSuccessURL(d.SuccessURL),
+			details.StripeWithCancelURL(d.CancelURL),
+			details.StripeWithURL(d.URL),
+		), nil
 	default:
 		return nil, fmt.Errorf("unsupported gateway: %s", gateway)
 	}
@@ -184,8 +201,28 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 	//case details.OctoDetails:
 	//	return json.Marshal(&models.OctoDetails{})
 	//
-	//case details.StripeDetails:
-	//	return json.Marshal(&models.StripeDetails{})
+	case details.StripeDetails:
+		items := make([]models.StripeItem, len(d.Items()))
+		for i, item := range d.Items() {
+			items[i] = models.StripeItem{
+				PriceID:  item.PriceID(),
+				Quantity: item.Quantity(),
+			}
+		}
+
+		return json.Marshal(&models.StripeDetails{
+			Mode:              d.Mode(),
+			BillingReason:     d.BillingReason(),
+			SessionID:         d.SessionID(),
+			ClientReferenceID: d.ClientReferenceID(),
+			InvoiceID:         d.InvoiceID(),
+			SubscriptionID:    d.SubscriptionID(),
+			CustomerID:        d.CustomerID(),
+			Items:             items,
+			SuccessURL:        d.SuccessURL(),
+			CancelURL:         d.CancelURL(),
+			URL:               d.URL(),
+		})
 
 	default:
 		return nil, fmt.Errorf("unsupported details type: %T", d)

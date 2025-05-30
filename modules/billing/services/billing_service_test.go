@@ -165,3 +165,38 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 		})
 	}
 }
+
+//func TestBillingService_CreateTransaction_Stripe(t *testing.T) {
+//	t.Helper()
+//	t.Parallel()
+//	f := setupTest(t)
+//
+//	tenant, err := composables.UseTenant(f.ctx)
+//	require.NoError(t, err)
+//
+//	cmd := &services.CreateTransactionCommand{
+//		TenantID: tenant.ID,
+//		Quantity: 10,
+//		Currency: billing.USD,
+//		Gateway:  billing.Stripe,
+//		Details: details.NewStripeDetails(
+//			uuid.New().String(),
+//			details.StripeWithMode("subscription"),
+//			details.StripeWithSuccessURL("https://iota-sdk-staging.up.railway.app/success"),
+//			details.StripeWithCancelURL("https://iota-sdk-staging.up.railway.app/cancel"),
+//			details.StripeWithItems([]details.StripeItem{
+//				details.NewStripeItem("price_1RThAKFds3jHiGEnoRBQBBmr", 1),
+//			}),
+//		),
+//	}
+//
+//	result, err := f.billingService.Create(f.ctx, cmd)
+//	require.NoError(t, err, "Create should succeed")
+//	require.NotNil(t, result, "Transaction should not be nil")
+//
+//	assert.Equal(t, billing.Created, result.Status())
+//	assert.Equal(t, billing.USD, result.Amount().Currency())
+//	assert.InDelta(t, float64(10), result.Amount().Quantity(), 0.0001)
+//	assert.NotEqual(t, uuid.Nil, result.ID(), "Expected non-nil transaction ID")
+//	assert.WithinDuration(t, time.Now(), result.CreatedAt(), time.Second*2)
+//}
