@@ -266,7 +266,8 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 	}
 
 	entity = entity.
-		SetStatus(billing.Completed)
+		SetStatus(billing.Completed).
+		SetDetails(stripeDetails)
 
 	if _, err := c.billingService.Update(ctx, entity); err != nil {
 		log.Printf("Failed to update transaction on invoice.payment_succeeded: %v", err)
@@ -316,7 +317,9 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 		stripeDetails = stripeDetails.SetCustomerID(invoice.Customer.ID)
 	}
 
-	entity = entity.SetStatus(billing.Failed)
+	entity = entity.
+		SetStatus(billing.Failed).
+		SetDetails(stripeDetails)
 
 	if _, err := c.billingService.Update(ctx, entity); err != nil {
 		log.Printf("Failed to update transaction on invoice.payment_failed: %v", err)
