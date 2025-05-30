@@ -72,7 +72,7 @@ func (c *StripeController) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	switch event.Type {
+	switch string(event.Type) {
 	case "checkout.session.completed":
 		c.handleCheckoutCompleted(ctx, event)
 	case "invoice.created":
