@@ -79,22 +79,38 @@ func WithClass(classes string) ColumnOpt {
 
 type TableConfigOpt func(c *TableConfig)
 
+func WithInfiniteScroll(hasMore bool, page, perPage int) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Infinite.HasMore = hasMore
+		c.Infinite.Page = page
+		c.Infinite.PerPage = perPage
+	}
+}
+
+type InfiniteScrollConfig struct {
+	HasMore bool
+	Page    int
+	PerPage int
+}
+
 type TableConfig struct {
 	Title      string
 	DataURL    string
 	Filters    []templ.Component
 	Columns    []TableColumn
 	Rows       []TableRow
+	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
 }
 
 func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig {
 	t := &TableConfig{
-		Title:   title,
-		DataURL: dataURL,
-		Columns: []TableColumn{},
-		Filters: []templ.Component{},
-		Rows:    []TableRow{},
+		Title:    title,
+		DataURL:  dataURL,
+		Infinite: &InfiniteScrollConfig{},
+		Columns:  []TableColumn{},
+		Filters:  []templ.Component{},
+		Rows:     []TableRow{},
 	}
 	for _, o := range opts {
 		o(t)
