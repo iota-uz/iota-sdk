@@ -120,7 +120,23 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
-		return details.NewOctoDetails(), nil
+		return details.NewOctoDetails(
+			d.ShopTransactionId,
+			details.OctoWithOctoShopId(d.OctoShopID),
+			details.OctoWithShopTransactionId(d.ShopTransactionId),
+			details.OctoWithOctoPaymentUUID(d.OctoPaymentUUID),
+			details.OctoWithInitTime(d.InitTime),
+			details.OctoWithAutoCapture(d.AutoCapture),
+			details.OctoWithTest(d.Test),
+			details.OctoWithStatus(d.Status),
+			details.OctoWithDescription(d.Description),
+			details.OctoWithRefundedSum(d.RefundedSum),
+			details.OctoWithReturnUrl(d.ReturnUrl),
+			details.OctoWithNotifyUrl(d.NotifyUrl),
+			details.OctoWithOctoPayUrl(d.OctoPayUrl),
+			details.OctoWithError(d.Error),
+			details.OctoWithErrMessage(d.ErrMessage),
+		), nil
 
 	case billing.Stripe:
 		var d models.StripeDetails
@@ -197,10 +213,25 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			Link:        d.Link(),
 			Params:      d.Params(),
 		})
-	//
-	//case details.OctoDetails:
-	//	return json.Marshal(&models.OctoDetails{})
-	//
+		
+	case details.OctoDetails:
+		return json.Marshal(&models.OctoDetails{
+			OctoShopID:        d.OctoShopId(),
+			ShopTransactionId: d.ShopTransactionId(),
+			OctoPaymentUUID:   d.OctoPaymentUUID(),
+			InitTime:          d.InitTime(),
+			AutoCapture:       d.AutoCapture(),
+			Test:              d.Test(),
+			Status:            d.Status(),
+			Description:       d.Description(),
+			RefundedSum:       d.RefundedSum(),
+			ReturnUrl:         d.ReturnUrl(),
+			NotifyUrl:         d.NotifyUrl(),
+			OctoPayUrl:        d.OctoPayUrl(),
+			Error:             d.Error(),
+			ErrMessage:        d.ErrMessage(),
+		})
+
 	case details.StripeDetails:
 		items := make([]models.StripeItem, len(d.Items()))
 		for i, item := range d.Items() {

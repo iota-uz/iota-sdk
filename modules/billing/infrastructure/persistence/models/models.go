@@ -59,6 +59,20 @@ type PaymeDetails struct {
 }
 
 type OctoDetails struct {
+	OctoShopID        int32   `json:"octo_shop_id"`
+	ShopTransactionId string  `json:"shop_transaction_id"`
+	OctoPaymentUUID   string  `json:"octo_payment_uuid"`
+	InitTime          string  `json:"init_time"`
+	AutoCapture       bool    `json:"auto_capture"`
+	Test              bool    `json:"test"`
+	Status            string  `json:"status"`
+	Description       string  `json:"description"`
+	RefundedSum       float64 `json:"refunded_sum"`
+	ReturnUrl         string  `json:"return_url"`
+	NotifyUrl         string  `json:"notify_url"`
+	OctoPayUrl        string  `json:"octo_pay_url"`
+	Error             int32   `json:"error"`
+	ErrMessage        string  `json:"err_message"`
 }
 
 type StripeItem struct {

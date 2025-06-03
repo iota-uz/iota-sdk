@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type Module struct {
@@ -47,6 +48,19 @@ func (m *Module) Register(app application.Application) error {
 		},
 	)
 
+	octoProvider := providers.NewOctoProvider(
+		providers.OctoConfig{
+			OctoShopID: conf.Octo.OctoShopID,
+			OctoSecret: conf.Octo.OctoSecret,
+			NotifyURL:  conf.Octo.NotifyUrl,
+		},
+		middleware.NewLogTransport(
+			conf.Logger(),
+			true,
+			true,
+		),
+	)
+
 	stripeProvider := providers.NewStripeProvider(
 		providers.StripeConfig{
 			SecretKey: conf.Stripe.SecretKey,
@@ -56,6 +70,7 @@ func (m *Module) Register(app application.Application) error {
 	billingProviders := []billing.Provider{
 		clickProvider,
 		paymeProvider,
+		octoProvider,
 		stripeProvider,
 	}
 
@@ -82,6 +97,11 @@ func (m *Module) Register(app application.Application) error {
 			app,
 			conf.Payme,
 			basePath+"/payme",
+		),
+		controllers.NewOctoController(
+			app,
+			conf.Octo,
+			basePath+"/octo",
 		),
 		controllers.NewStripeController(
 			app,

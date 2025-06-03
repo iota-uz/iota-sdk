@@ -15,7 +15,7 @@ const (
 
 type Provider interface {
 	Gateway() Gateway
-	Create(ctx context.Context, tx Transaction) (Transaction, error)
-	Cancel(ctx context.Context, tx Transaction) (Transaction, error)
-	Refund(ctx context.Context, tx Transaction, quantity float64) (Transaction, error)
+	Create(ctx context.Context, t Transaction) (Transaction, error)
+	Cancel(ctx context.Context, t Transaction) (Transaction, error)
+	Refund(ctx context.Context, t Transaction, quantity float64) (Transaction, error)
 }
