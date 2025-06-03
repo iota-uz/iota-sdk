@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -54,53 +53,26 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 
-				// Now that we have the session, let's ensure we have the tenant in the context
-				// First check if we already have a tenant
-				_, tenantErr := composables.UseTenant(ctx)
-				if tenantErr != nil {
-					// First try to get tenant from session (already loaded from DB)
-					if sess.TenantID != uuid.Nil {
-						// Get tenant info directly
-						tx, txErr := composables.UseTx(ctx)
-						if txErr == nil {
-							var name string
-							var domain string
-							err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", sess.TenantID.String()).Scan(&name, &domain)
-							if err == nil {
-								// Add tenant to context from session
-								t := &composables.Tenant{
-									ID:     sess.TenantID,
-									Name:   name,
-									Domain: domain,
-								}
-								ctx = context.WithValue(ctx, constants.TenantKey, t)
-							}
+				if _, err := composables.UseTenant(ctx); err != nil {
+					// Get tenant info directly
+					tx, txErr := composables.UseTx(ctx)
+					if txErr == nil {
+						var name string
+						var domain string
+						err := tx.QueryRow(
+							ctx,
+							"SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1",
+							sess.TenantID.String(),
+						).Scan(&name, &domain)
+						if err != nil {
+							panic(fmt.Errorf("failed to get tenant info: %w", err))
 						}
-					} else {
-						// Fallback: use direct database query to get the tenant ID for the user
-						tx, txErr := composables.UseTx(ctx)
-						if txErr == nil {
-							var tenantIDStr string
-							err := tx.QueryRow(ctx, "SELECT tenant_id FROM users WHERE id = $1 LIMIT 1", sess.UserID).Scan(&tenantIDStr)
-							if err == nil && tenantIDStr != "" {
-								tenantID, uuidErr := uuid.Parse(tenantIDStr)
-								if uuidErr == nil {
-									// Now query for the tenant info
-									var name string
-									var domain string
-									err := tx.QueryRow(ctx, "SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1", tenantIDStr).Scan(&name, &domain)
-									if err == nil {
-										// Add tenant to context
-										t := &composables.Tenant{
-											ID:     tenantID,
-											Name:   name,
-											Domain: domain,
-										}
-										ctx = context.WithValue(ctx, constants.TenantKey, t)
-									}
-								}
-							}
+						t := &composables.Tenant{
+							ID:     sess.TenantID,
+							Name:   name,
+							Domain: domain,
 						}
+						ctx = context.WithValue(ctx, constants.TenantKey, t)
 					}
 				}
 
