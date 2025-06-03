@@ -56,8 +56,9 @@ func Authorize() mux.MiddlewareFunc {
 				if _, err := composables.UseTenant(ctx); err != nil {
 					// Get tenant info directly
 					tx, txErr := composables.UseTx(ctx)
-					if txErr == nil {
-						panic(fmt.Errorf("transaction already exists in context: %w", txErr))
+					if txErr != nil {
+						http.Error(w, "Database transaction not found", http.StatusInternalServerError)
+						return
 					}
 					var name string
 					var domain string
