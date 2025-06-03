@@ -72,7 +72,7 @@ func Authorize() mux.MiddlewareFunc {
 							Name:   name,
 							Domain: domain,
 						}
-						ctx = context.WithValue(ctx, constants.TenantKey, t)
+						ctx = composables.WithTenant(ctx, t)
 					}
 				}
 
