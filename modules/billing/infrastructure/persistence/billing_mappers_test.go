@@ -102,15 +102,44 @@ func TestTransactionMapping(t *testing.T) {
 				assert.InEpsilon(t, 100.0, payme.Receivers()[0].Amount(), 0.0001)
 			},
 		},
-		//},
-		//{
-		//	name:    "OctoDetails",
-		//	gateway: billing.Octo,
-		//	details: details.NewOctoDetails(),
-		//	validate: func(t *testing.T, d details.Details) {
-		//		t.Helper()
-		//	},
-		//},
+		{
+			name:    "OctoDetails",
+			gateway: billing.Octo,
+			details: details.NewOctoDetails(
+				"test-1",
+				details.OctoWithOctoShopId(12345),
+				details.OctoWithOctoPaymentUUID("uuid-abc-123"),
+				details.OctoWithInitTime("2025-06-02T10:00:00Z"),
+				details.OctoWithAutoCapture(true),
+				details.OctoWithTest(false),
+				details.OctoWithStatus("pending"),
+				details.OctoWithDescription("Test transaction"),
+				details.OctoWithRefundedSum(1.0),
+				details.OctoWithReturnUrl("https://example.com/return"),
+				details.OctoWithNotifyUrl("https://example.com/notify"),
+				details.OctoWithOctoPayUrl("https://octo.uz/pay/uuid-abc-123"),
+				details.OctoWithError(0),
+				details.OctoWithErrMessage(""),
+			),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+				octo := d.(details.OctoDetails)
+				assert.Equal(t, int32(12345), octo.OctoShopId())
+				assert.Equal(t, "test-1", octo.ShopTransactionId())
+				assert.Equal(t, "uuid-abc-123", octo.OctoPaymentUUID())
+				assert.Equal(t, "2025-06-02T10:00:00Z", octo.InitTime())
+				assert.Equal(t, true, octo.AutoCapture())
+				assert.Equal(t, false, octo.Test())
+				assert.Equal(t, "pending", octo.Status())
+				assert.Equal(t, "Test transaction", octo.Description())
+				assert.InEpsilon(t, 1.0, octo.RefundedSum(), 0.0001)
+				assert.Equal(t, "https://example.com/return", octo.ReturnUrl())
+				assert.Equal(t, "https://example.com/notify", octo.NotifyUrl())
+				assert.Equal(t, "https://octo.uz/pay/uuid-abc-123", octo.OctoPayUrl())
+				assert.Equal(t, int32(0), octo.Error())
+				assert.Equal(t, "", octo.ErrMessage())
+			},
+		},
 		//{
 		//	name:    "StripeDetails",
 		//	gateway: billing.Stripe,

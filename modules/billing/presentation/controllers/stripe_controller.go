@@ -30,7 +30,7 @@ func NewStripeController(
 	app application.Application,
 	stripe configuration.StripeOptions,
 	basePath string,
-) *StripeController {
+) application.Controller {
 	return &StripeController{
 		app:            app,
 		billingService: app.Service(services.BillingService{}).(*services.BillingService),

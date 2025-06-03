@@ -102,6 +102,48 @@ type PaymeDetails interface {
 
 type OctoDetails interface {
 	Details
+
+	OctoShopId() int32
+	ShopTransactionId() string
+	OctoPaymentUUID() string
+
+	InitTime() string
+	AutoCapture() bool
+	Test() bool
+
+	Status() string
+
+	Description() string
+
+	RefundedSum() float64
+
+	ReturnUrl() string
+	NotifyUrl() string
+	OctoPayUrl() string
+
+	Error() int32
+	ErrMessage() string
+
+	SetOctoShopId(octoShopId int32) OctoDetails
+	SetShopTransactionId(shopTransactionId string) OctoDetails
+	SetOctoPaymentUUID(octoPaymentUUID string) OctoDetails
+
+	SetInitTime(initTime string) OctoDetails
+	SetAutoCapture(autoCapture bool) OctoDetails
+	SetTest(test bool) OctoDetails
+
+	SetStatus(status string) OctoDetails
+
+	SetDescription(description string) OctoDetails
+
+	SetRefundedSum(refundedSum float64) OctoDetails
+
+	SetReturnUrl(returnUrl string) OctoDetails
+	SetNotifyUrl(notifyUrl string) OctoDetails
+	SetOctoPayUrl(octoPayUrl string) OctoDetails
+
+	SetError(error int32) OctoDetails
+	SetErrMessage(errMessage string) OctoDetails
 }
 
 type StripeItem interface {
