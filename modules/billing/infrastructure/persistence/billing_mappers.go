@@ -213,7 +213,7 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			Link:        d.Link(),
 			Params:      d.Params(),
 		})
-		
+
 	case details.OctoDetails:
 		return json.Marshal(&models.OctoDetails{
 			OctoShopID:        d.OctoShopId(),

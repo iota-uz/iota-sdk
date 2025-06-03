@@ -259,9 +259,9 @@ func (d *octoDetails) SetOctoPayUrl(octoPayUrl string) OctoDetails {
 	return &result
 }
 
-func (d *octoDetails) SetError(error int32) OctoDetails {
+func (d *octoDetails) SetError(errCode int32) OctoDetails {
 	result := *d
-	result.error = error
+	result.error = errCode
 	return &result
 }
 

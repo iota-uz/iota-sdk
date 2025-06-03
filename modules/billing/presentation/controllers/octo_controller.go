@@ -33,7 +33,6 @@ func NewOctoController(
 func (c *OctoController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.HandleFunc("", c.Handle).Methods(http.MethodPost)
-
 }
 
 func (c *OctoController) Key() string {
@@ -51,5 +50,7 @@ func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received JSON: %+v\n", body)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		log.Printf("failed to write response: %v", err)
+	}
 }

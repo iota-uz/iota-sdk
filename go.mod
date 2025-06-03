@@ -27,6 +27,7 @@ require (
 	github.com/iota-uz/click v1.0.4
 	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.2
+	github.com/iota-uz/octo v1.0.0
 	github.com/iota-uz/payme v1.4.1
 	github.com/iota-uz/psql-parser v0.0.0-20250308150107-d4e0b094f3a6
 	github.com/iota-uz/utils v0.0.2
@@ -92,7 +93,6 @@ require (
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
-	github.com/iota-uz/octo v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
