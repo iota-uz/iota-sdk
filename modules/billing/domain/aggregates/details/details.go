@@ -142,7 +142,7 @@ type OctoDetails interface {
 	SetNotifyUrl(notifyUrl string) OctoDetails
 	SetOctoPayUrl(octoPayUrl string) OctoDetails
 
-	SetError(error int32) OctoDetails
+	SetError(errCode int32) OctoDetails
 	SetErrMessage(errMessage string) OctoDetails
 }
 

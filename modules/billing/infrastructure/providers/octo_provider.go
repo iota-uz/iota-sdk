@@ -60,10 +60,16 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 		NotifyUrl:         o.config.NotifyURL,
 	}
 
-	resp, _, err := apiClient.PaymentsAPI.
+	resp, httpResp, err := apiClient.PaymentsAPI.
 		PreparePaymentPost(ctx).
 		PreparePaymentRequest(req).
 		Execute()
+
+	if httpResp != nil {
+		if hErr := httpResp.Body.Close(); hErr != nil {
+			log.Printf("failed to close http response body: %v", hErr)
+		}
+	}
 
 	if err != nil {
 		return nil, err
