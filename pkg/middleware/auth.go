@@ -57,23 +57,24 @@ func Authorize() mux.MiddlewareFunc {
 					// Get tenant info directly
 					tx, txErr := composables.UseTx(ctx)
 					if txErr == nil {
-						var name string
-						var domain string
-						err := tx.QueryRow(
-							ctx,
-							"SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1",
-							sess.TenantID.String(),
-						).Scan(&name, &domain)
-						if err != nil {
-							panic(fmt.Errorf("failed to get tenant info: %w", err))
-						}
-						t := &composables.Tenant{
-							ID:     sess.TenantID,
-							Name:   name,
-							Domain: domain,
-						}
-						ctx = composables.WithTenant(ctx, t)
+						panic(fmt.Errorf("transaction already exists in context: %w", txErr))
 					}
+					var name string
+					var domain string
+					err := tx.QueryRow(
+						ctx,
+						"SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1",
+						sess.TenantID.String(),
+					).Scan(&name, &domain)
+					if err != nil {
+						panic(fmt.Errorf("failed to get tenant info: %w", err))
+					}
+					t := &composables.Tenant{
+						ID:     sess.TenantID,
+						Name:   name,
+						Domain: domain,
+					}
+					ctx = composables.WithTenant(ctx, t)
 				}
 
 				params, ok := composables.UseParams(ctx)
