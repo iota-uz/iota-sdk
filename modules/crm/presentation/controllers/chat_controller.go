@@ -195,24 +195,6 @@ func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.Me
 	return mapping.MapViewModels(templates, mappers.MessageTemplateToViewModel), nil
 }
 
-func (c *ChatController) chatViewModels(
-	ctx context.Context, params *chat.FindParams,
-) ([]*viewmodels.Chat, error) {
-	chatEntities, err := c.chatService.GetPaginated(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-	viewModels := make([]*viewmodels.Chat, 0, len(chatEntities))
-	for _, chatEntity := range chatEntities {
-		clientEntity, err := c.clientService.GetByID(ctx, chatEntity.ClientID())
-		if err != nil {
-			return nil, err
-		}
-		viewModels = append(viewModels, mappers.ChatToViewModel(chatEntity, clientEntity))
-	}
-	return viewModels, nil
-}
-
 func (c *ChatController) chatViewModelsWithTotal(
 	ctx context.Context, params *chat.FindParams,
 ) ([]*viewmodels.Chat, int64, error) {
