@@ -59,6 +59,30 @@ type PaymeDetails struct {
 }
 
 type OctoDetails struct {
+	OctoShopID        int32   `json:"octo_shop_id"`
+	ShopTransactionId string  `json:"shop_transaction_id"`
+	OctoPaymentUUID   string  `json:"octo_payment_uuid"`
+	InitTime          string  `json:"init_time"`
+	AutoCapture       bool    `json:"auto_capture"`
+	Test              bool    `json:"test"`
+	Status            string  `json:"status"`
+	Description       string  `json:"description"`
+	CardType          string  `json:"card_type"`
+	CardCountry       string  `json:"card_country"`
+	CardIsPhysical    bool    `json:"card_is_physical"`
+	CardMaskedPan     string  `json:"card_masked_pan"`
+	Rrn               string  `json:"rrn"`
+	RiskLevel         int32   `json:"risk_level"`
+	RefundedSum       float64 `json:"refunded_sum"`
+	TransferSum       float64 `json:"transfer_sum"`
+	ReturnUrl         string  `json:"return_url"`
+	NotifyUrl         string  `json:"notify_url"`
+	OctoPayUrl        string  `json:"octo_pay_url"`
+	Signature         string  `json:"signature"`
+	HashKey           string  `json:"hash_key"`
+	PayedTime         string  `json:"payed_time"` //nolint:misspell // is used intentionally to match external API
+	Error             int32   `json:"error"`
+	ErrMessage        string  `json:"err_message"`
 }
 
 type StripeItem struct {
