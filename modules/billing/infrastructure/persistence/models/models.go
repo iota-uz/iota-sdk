@@ -67,10 +67,20 @@ type OctoDetails struct {
 	Test              bool    `json:"test"`
 	Status            string  `json:"status"`
 	Description       string  `json:"description"`
+	CardType          string  `json:"card_type"`
+	CardCountry       string  `json:"card_country"`
+	CardIsPhysical    bool    `json:"card_is_physical"`
+	CardMaskedPan     string  `json:"card_masked_pan"`
+	Rrn               string  `json:"rrn"`
+	RiskLevel         int32   `json:"risk_level"`
 	RefundedSum       float64 `json:"refunded_sum"`
+	TransferSum       float64 `json:"transfer_sum"`
 	ReturnUrl         string  `json:"return_url"`
 	NotifyUrl         string  `json:"notify_url"`
 	OctoPayUrl        string  `json:"octo_pay_url"`
+	Signature         string  `json:"signature"`
+	HashKey           string  `json:"hash_key"`
+	PayedTime         string  `json:"payed_time"`
 	Error             int32   `json:"error"`
 	ErrMessage        string  `json:"err_message"`
 }

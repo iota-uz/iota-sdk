@@ -115,11 +115,25 @@ type OctoDetails interface {
 
 	Description() string
 
+	CardType() string
+	CardCountry() string
+	CardIsPhysical() bool
+	CardMaskedPan() string
+
+	Rrn() string
+	RiskLevel() int32
+
 	RefundedSum() float64
+	TransferSum() float64
 
 	ReturnUrl() string
 	NotifyUrl() string
 	OctoPayUrl() string
+
+	Signature() string
+	HashKey() string
+
+	PayedTime() string
 
 	Error() int32
 	ErrMessage() string
@@ -136,11 +150,25 @@ type OctoDetails interface {
 
 	SetDescription(description string) OctoDetails
 
+	SetCardType(cardType string) OctoDetails
+	SetCardCountry(cardCountry string) OctoDetails
+	SetCardIsPhysical(cardIsPhysical bool) OctoDetails
+	SetCardMaskedPan(cardMaskedPan string) OctoDetails
+
+	SetRrn(rrn string) OctoDetails
+	SetRiskLevel(riskLevel int32) OctoDetails
+
 	SetRefundedSum(refundedSum float64) OctoDetails
+	SetTransferSum(transferSum float64) OctoDetails
 
 	SetReturnUrl(returnUrl string) OctoDetails
 	SetNotifyUrl(notifyUrl string) OctoDetails
 	SetOctoPayUrl(octoPayUrl string) OctoDetails
+
+	SetSignature(signature string) OctoDetails
+	SetHashKey(hashKey string) OctoDetails
+
+	SetPayedTime(payedTime string) OctoDetails
 
 	SetError(errCode int32) OctoDetails
 	SetErrMessage(errMessage string) OctoDetails
