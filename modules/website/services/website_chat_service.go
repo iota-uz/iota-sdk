@@ -24,7 +24,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var thinkTagRegex = regexp.MustCompile(`<think>.*?</think>`)
+var thinkTagRegex = regexp.MustCompile(`(?s)<think>.*?</think>`)
 
 type CreateThreadDTO struct {
 	Phone   string
