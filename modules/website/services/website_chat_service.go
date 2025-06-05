@@ -360,8 +360,7 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 		"raw_ai_response": rawAIResponse,
 	}).Info("Complete AI model output received")
 
-	aiResponse := thinkTagRegex.ReplaceAllString(rawAIResponse, "")
-	aiResponse = strings.TrimSpace(aiResponse)
+	aiResponse := strings.TrimSpace(thinkTagRegex.ReplaceAllString(rawAIResponse, ""))
 
 	aiUser, err := s.userRepo.GetByEmail(ctx, s.aiUserEmail.Value())
 	if err != nil {
