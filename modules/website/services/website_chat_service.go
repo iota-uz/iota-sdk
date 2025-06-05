@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 )
+
+var thinkTagRegex = regexp.MustCompile(`<think>.*?</think>`)
 
 type CreateThreadDTO struct {
 	Phone   string
@@ -349,7 +352,16 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 	if len(response.Choices) == 0 {
 		return nil, fmt.Errorf("no response from AI")
 	}
-	aiResponse := response.Choices[0].Message.Content
+
+	rawAIResponse := response.Choices[0].Message.Content
+
+	logger.WithFields(logrus.Fields{
+		"thread_id":       threadID,
+		"raw_ai_response": rawAIResponse,
+	}).Info("Complete AI model output received")
+
+	aiResponse := thinkTagRegex.ReplaceAllString(rawAIResponse, "")
+	aiResponse = strings.TrimSpace(aiResponse)
 
 	aiUser, err := s.userRepo.GetByEmail(ctx, s.aiUserEmail.Value())
 	if err != nil {
