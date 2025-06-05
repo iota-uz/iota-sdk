@@ -80,7 +80,7 @@ type OctoDetails struct {
 	OctoPayUrl        string  `json:"octo_pay_url"`
 	Signature         string  `json:"signature"`
 	HashKey           string  `json:"hash_key"`
-	PayedTime         string  `json:"payed_time"`
+	PayedTime         string  `json:"payed_time"` //nolint:misspell // is used intentionally to match external API
 	Error             int32   `json:"error"`
 	ErrMessage        string  `json:"err_message"`
 }
