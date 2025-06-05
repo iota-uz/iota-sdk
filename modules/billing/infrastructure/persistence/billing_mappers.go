@@ -120,7 +120,33 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 		if err := json.Unmarshal(data, &d); err != nil {
 			return nil, err
 		}
-		return details.NewOctoDetails(), nil
+		return details.NewOctoDetails(
+			d.ShopTransactionId,
+			details.OctoWithOctoShopId(d.OctoShopID),
+			details.OctoWithShopTransactionId(d.ShopTransactionId),
+			details.OctoWithOctoPaymentUUID(d.OctoPaymentUUID),
+			details.OctoWithInitTime(d.InitTime),
+			details.OctoWithAutoCapture(d.AutoCapture),
+			details.OctoWithTest(d.Test),
+			details.OctoWithStatus(d.Status),
+			details.OctoWithDescription(d.Description),
+			details.OctoWithCardType(d.CardType),
+			details.OctoWithCardCountry(d.CardCountry),
+			details.OctoWithCardIsPhysical(d.CardIsPhysical),
+			details.OctoWithCardMaskedPan(d.CardMaskedPan),
+			details.OctoWithRrn(d.Rrn),
+			details.OctoWithRiskLevel(d.RiskLevel),
+			details.OctoWithRefundedSum(d.RefundedSum),
+			details.OctoWithTransferSum(d.TransferSum),
+			details.OctoWithReturnUrl(d.ReturnUrl),
+			details.OctoWithNotifyUrl(d.NotifyUrl),
+			details.OctoWithOctoPayUrl(d.OctoPayUrl),
+			details.OctoWithSignature(d.Signature),
+			details.OctoWithHashKey(d.HashKey),
+			details.OctoWithPayedTime(d.PayedTime),
+			details.OctoWithError(d.Error),
+			details.OctoWithErrMessage(d.ErrMessage),
+		), nil
 
 	case billing.Stripe:
 		var d models.StripeDetails
@@ -197,10 +223,35 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			Link:        d.Link(),
 			Params:      d.Params(),
 		})
-	//
-	//case details.OctoDetails:
-	//	return json.Marshal(&models.OctoDetails{})
-	//
+
+	case details.OctoDetails:
+		return json.Marshal(&models.OctoDetails{
+			OctoShopID:        d.OctoShopId(),
+			ShopTransactionId: d.ShopTransactionId(),
+			OctoPaymentUUID:   d.OctoPaymentUUID(),
+			InitTime:          d.InitTime(),
+			AutoCapture:       d.AutoCapture(),
+			Test:              d.Test(),
+			Status:            d.Status(),
+			Description:       d.Description(),
+			CardType:          d.CardType(),
+			CardCountry:       d.CardCountry(),
+			CardIsPhysical:    d.CardIsPhysical(),
+			CardMaskedPan:     d.CardMaskedPan(),
+			Rrn:               d.Rrn(),
+			RiskLevel:         d.RiskLevel(),
+			RefundedSum:       d.RefundedSum(),
+			TransferSum:       d.TransferSum(),
+			ReturnUrl:         d.ReturnUrl(),
+			NotifyUrl:         d.NotifyUrl(),
+			OctoPayUrl:        d.OctoPayUrl(),
+			Signature:         d.Signature(),
+			HashKey:           d.HashKey(),
+			PayedTime:         d.PayedTime(),
+			Error:             d.Error(),
+			ErrMessage:        d.ErrMessage(),
+		})
+
 	case details.StripeDetails:
 		items := make([]models.StripeItem, len(d.Items()))
 		for i, item := range d.Items() {

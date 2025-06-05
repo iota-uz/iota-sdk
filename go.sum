@@ -229,6 +229,8 @@ github.com/iota-uz/go-i18n/v2 v2.6.1 h1:TqeZQAjlc7jSOuCgvulH9HvNXjeaKrbEXxXicx9S
 github.com/iota-uz/go-i18n/v2 v2.6.1/go.mod h1:Qt4UWzI9Hh93eRZyRWEi4A8RZ5i1kZpltEazsn61Y4s=
 github.com/iota-uz/icons v0.0.2 h1:vJuYL5/f1rkfG2KKDKju9VGpWq1ABI7bhDpFOkxheXo=
 github.com/iota-uz/icons v0.0.2/go.mod h1:AhMPovyQQuLj784o96EG0XKsct9izI1q6lMgcJL9Kqo=
+github.com/iota-uz/octo v1.2.1 h1:/jqr7B8PViW2Bc6mnjea1O369B7kOp1T/eW9XnXHctE=
+github.com/iota-uz/octo v1.2.1/go.mod h1:l13UZIkLupqFcR1WhqoWhvkcrSxEhubA6dgUXw3D1/s=
 github.com/iota-uz/payme v1.4.1 h1:KDiCHQyXw/Z6tziVitgj0S9al9Wow+fJV0dLM1Jwvjc=
 github.com/iota-uz/payme v1.4.1/go.mod h1:8m0ZGmqCQ2Jf/menWZM/eEBhMKnEBEfj0kgcHAfzvjo=
 github.com/iota-uz/psql-parser v0.0.0-20250308150107-d4e0b094f3a6 h1:SbG6MAyiDibpsc1qhe66XiYOO6ArNeX0Rubd9z+H0AA=

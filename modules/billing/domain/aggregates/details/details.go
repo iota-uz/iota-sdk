@@ -102,6 +102,76 @@ type PaymeDetails interface {
 
 type OctoDetails interface {
 	Details
+
+	OctoShopId() int32
+	ShopTransactionId() string
+	OctoPaymentUUID() string
+
+	InitTime() string
+	AutoCapture() bool
+	Test() bool
+
+	Status() string
+
+	Description() string
+
+	CardType() string
+	CardCountry() string
+	CardIsPhysical() bool
+	CardMaskedPan() string
+
+	Rrn() string
+	RiskLevel() int32
+
+	RefundedSum() float64
+	TransferSum() float64
+
+	ReturnUrl() string
+	NotifyUrl() string
+	OctoPayUrl() string
+
+	Signature() string
+	HashKey() string
+
+	PayedTime() string
+
+	Error() int32
+	ErrMessage() string
+
+	SetOctoShopId(octoShopId int32) OctoDetails
+	SetShopTransactionId(shopTransactionId string) OctoDetails
+	SetOctoPaymentUUID(octoPaymentUUID string) OctoDetails
+
+	SetInitTime(initTime string) OctoDetails
+	SetAutoCapture(autoCapture bool) OctoDetails
+	SetTest(test bool) OctoDetails
+
+	SetStatus(status string) OctoDetails
+
+	SetDescription(description string) OctoDetails
+
+	SetCardType(cardType string) OctoDetails
+	SetCardCountry(cardCountry string) OctoDetails
+	SetCardIsPhysical(cardIsPhysical bool) OctoDetails
+	SetCardMaskedPan(cardMaskedPan string) OctoDetails
+
+	SetRrn(rrn string) OctoDetails
+	SetRiskLevel(riskLevel int32) OctoDetails
+
+	SetRefundedSum(refundedSum float64) OctoDetails
+	SetTransferSum(transferSum float64) OctoDetails
+
+	SetReturnUrl(returnUrl string) OctoDetails
+	SetNotifyUrl(notifyUrl string) OctoDetails
+	SetOctoPayUrl(octoPayUrl string) OctoDetails
+
+	SetSignature(signature string) OctoDetails
+	SetHashKey(hashKey string) OctoDetails
+
+	SetPayedTime(payedTime string) OctoDetails
+
+	SetError(errCode int32) OctoDetails
+	SetErrMessage(errMessage string) OctoDetails
 }
 
 type StripeItem interface {
