@@ -50,9 +50,51 @@ func OctoWithDescription(description string) OctoOption {
 	}
 }
 
+func OctoWithCardType(cardType string) OctoOption {
+	return func(d *octoDetails) {
+		d.cardType = cardType
+	}
+}
+
+func OctoWithCardCountry(cardCountry string) OctoOption {
+	return func(d *octoDetails) {
+		d.cardCountry = cardCountry
+	}
+}
+
+func OctoWithCardIsPhysical(cardIsPhysical bool) OctoOption {
+	return func(d *octoDetails) {
+		d.cardIsPhysical = cardIsPhysical
+	}
+}
+
+func OctoWithCardMaskedPan(cardMaskedPan string) OctoOption {
+	return func(d *octoDetails) {
+		d.cardMaskedPan = cardMaskedPan
+	}
+}
+
+func OctoWithRrn(rrn string) OctoOption {
+	return func(d *octoDetails) {
+		d.rrn = rrn
+	}
+}
+
+func OctoWithRiskLevel(riskLevel int32) OctoOption {
+	return func(d *octoDetails) {
+		d.riskLevel = riskLevel
+	}
+}
+
 func OctoWithRefundedSum(sum float64) OctoOption {
 	return func(d *octoDetails) {
 		d.refundedSum = sum
+	}
+}
+
+func OctoWithTransferSum(sum float64) OctoOption {
+	return func(d *octoDetails) {
+		d.transferSum = sum
 	}
 }
 
@@ -71,6 +113,24 @@ func OctoWithNotifyUrl(url string) OctoOption {
 func OctoWithOctoPayUrl(url string) OctoOption {
 	return func(d *octoDetails) {
 		d.octoPayUrl = url
+	}
+}
+
+func OctoWithSignature(signature string) OctoOption {
+	return func(d *octoDetails) {
+		d.signature = signature
+	}
+}
+
+func OctoWithHashKey(hashKey string) OctoOption {
+	return func(d *octoDetails) {
+		d.hashKey = hashKey
+	}
+}
+
+func OctoWithPayedTime(time string) OctoOption {
+	return func(d *octoDetails) {
+		d.payedTime = time
 	}
 }
 
@@ -99,10 +159,20 @@ func NewOctoDetails(
 		test:              false,
 		status:            "",
 		description:       "",
+		cardType:          "",
+		cardCountry:       "",
+		cardIsPhysical:    false,
+		cardMaskedPan:     "",
+		rrn:               "",
+		riskLevel:         0,
 		refundedSum:       0.0,
+		transferSum:       0.0,
 		returnUrl:         "",
 		notifyUrl:         "",
 		octoPayUrl:        "",
+		signature:         "",
+		hashKey:           "",
+		payedTime:         "",
 		error:             0,
 		errMessage:        "",
 	}
@@ -123,10 +193,20 @@ type octoDetails struct {
 	test              bool
 	status            string
 	description       string
+	cardType          string
+	cardCountry       string
+	cardIsPhysical    bool
+	cardMaskedPan     string
+	rrn               string
+	riskLevel         int32
 	refundedSum       float64
+	transferSum       float64
 	returnUrl         string
 	notifyUrl         string
 	octoPayUrl        string
+	signature         string
+	hashKey           string
+	payedTime         string
 	error             int32
 	errMessage        string
 }
@@ -163,8 +243,36 @@ func (d *octoDetails) Description() string {
 	return d.description
 }
 
+func (d *octoDetails) CardType() string {
+	return d.cardType
+}
+
+func (d *octoDetails) CardCountry() string {
+	return d.cardCountry
+}
+
+func (d *octoDetails) CardIsPhysical() bool {
+	return d.cardIsPhysical
+}
+
+func (d *octoDetails) CardMaskedPan() string {
+	return d.cardMaskedPan
+}
+
+func (d *octoDetails) Rrn() string {
+	return d.rrn
+}
+
+func (d *octoDetails) RiskLevel() int32 {
+	return d.riskLevel
+}
+
 func (d *octoDetails) RefundedSum() float64 {
 	return d.refundedSum
+}
+
+func (d *octoDetails) TransferSum() float64 {
+	return d.transferSum
 }
 
 func (d *octoDetails) ReturnUrl() string {
@@ -177,6 +285,18 @@ func (d *octoDetails) NotifyUrl() string {
 
 func (d *octoDetails) OctoPayUrl() string {
 	return d.octoPayUrl
+}
+
+func (d *octoDetails) Signature() string {
+	return d.signature
+}
+
+func (d *octoDetails) HashKey() string {
+	return d.hashKey
+}
+
+func (d *octoDetails) PayedTime() string {
+	return d.payedTime
 }
 
 func (d *octoDetails) Error() int32 {
@@ -235,9 +355,51 @@ func (d *octoDetails) SetDescription(description string) OctoDetails {
 	return &result
 }
 
+func (d *octoDetails) SetCardType(cardType string) OctoDetails {
+	result := *d
+	result.cardType = cardType
+	return &result
+}
+
+func (d *octoDetails) SetCardCountry(cardCountry string) OctoDetails {
+	result := *d
+	result.cardCountry = cardCountry
+	return &result
+}
+
+func (d *octoDetails) SetCardIsPhysical(cardIsPhysical bool) OctoDetails {
+	result := *d
+	result.cardIsPhysical = cardIsPhysical
+	return &result
+}
+
+func (d *octoDetails) SetCardMaskedPan(cardMaskedPan string) OctoDetails {
+	result := *d
+	result.cardMaskedPan = cardMaskedPan
+	return &result
+}
+
+func (d *octoDetails) SetRrn(rrn string) OctoDetails {
+	result := *d
+	result.rrn = rrn
+	return &result
+}
+
+func (d *octoDetails) SetRiskLevel(riskLevel int32) OctoDetails {
+	result := *d
+	result.riskLevel = riskLevel
+	return &result
+}
+
 func (d *octoDetails) SetRefundedSum(refundedSum float64) OctoDetails {
 	result := *d
 	result.refundedSum = refundedSum
+	return &result
+}
+
+func (d *octoDetails) SetTransferSum(transferSum float64) OctoDetails {
+	result := *d
+	result.transferSum = transferSum
 	return &result
 }
 
@@ -256,6 +418,24 @@ func (d *octoDetails) SetNotifyUrl(notifyUrl string) OctoDetails {
 func (d *octoDetails) SetOctoPayUrl(octoPayUrl string) OctoDetails {
 	result := *d
 	result.octoPayUrl = octoPayUrl
+	return &result
+}
+
+func (d *octoDetails) SetSignature(signature string) OctoDetails {
+	result := *d
+	result.signature = signature
+	return &result
+}
+
+func (d *octoDetails) SetHashKey(hashKey string) OctoDetails {
+	result := *d
+	result.hashKey = hashKey
+	return &result
+}
+
+func (d *octoDetails) SetPayedTime(payedTime string) OctoDetails {
+	result := *d
+	result.payedTime = payedTime
 	return &result
 }
 

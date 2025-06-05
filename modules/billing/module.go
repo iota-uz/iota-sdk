@@ -29,6 +29,12 @@ func NewModule() application.Module {
 func (m *Module) Register(app application.Application) error {
 	conf := configuration.Use()
 
+	logTransport := middleware.NewLogTransport(
+		conf.Logger(),
+		true,
+		true,
+	)
+
 	clickProvider := providers.NewClickProvider(
 		providers.ClickConfig{
 			URL:            conf.Click.URL,
@@ -54,11 +60,7 @@ func (m *Module) Register(app application.Application) error {
 			OctoSecret: conf.Octo.OctoSecret,
 			NotifyURL:  conf.Octo.NotifyUrl,
 		},
-		middleware.NewLogTransport(
-			conf.Logger(),
-			true,
-			true,
-		),
+		logTransport,
 	)
 
 	stripeProvider := providers.NewStripeProvider(
@@ -102,6 +104,7 @@ func (m *Module) Register(app application.Application) error {
 			app,
 			conf.Octo,
 			basePath+"/octo",
+			logTransport,
 		),
 		controllers.NewStripeController(
 			app,

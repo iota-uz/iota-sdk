@@ -106,9 +106,10 @@ type PaymeOptions struct {
 }
 
 type OctoOptions struct {
-	OctoShopID int32  `env:"OCTO_SHOP_ID"`
-	OctoSecret string `env:"OCTO_SECRET"`
-	NotifyUrl  string `env:"OCTO_NOTIFY_URL"`
+	OctoShopID     int32  `env:"OCTO_SHOP_ID"`
+	OctoSecret     string `env:"OCTO_SECRET"`
+	OctoSecretHash string `env:"OCTO_SECRET_HASH"`
+	NotifyUrl      string `env:"OCTO_NOTIFY_URL"`
 }
 
 type StripeOptions struct {

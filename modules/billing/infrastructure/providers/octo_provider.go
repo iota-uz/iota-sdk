@@ -84,16 +84,16 @@ func (o *octoProvider) Create(ctx context.Context, t billing.Transaction) (billi
 		SetOctoShopId(o.config.OctoShopID).
 		SetNotifyUrl(o.config.NotifyURL)
 
-	if *resp.Error != 0 {
+	if resp.GetError() != 0 {
 		octoDetails = octoDetails.
-			SetError(*resp.Error).
-			SetErrMessage(*resp.ErrMessage)
+			SetError(resp.GetError()).
+			SetErrMessage(resp.GetErrMessage())
 	} else {
 		octoDetails = octoDetails.
-			SetOctoPaymentUUID(*resp.OctoPaymentUUID).
-			SetStatus(*resp.Status).
-			SetOctoPayUrl(*resp.OctoPayUrl).
-			SetRefundedSum(*resp.RefundedSum)
+			SetOctoPaymentUUID(resp.Data.GetOctoPaymentUUID()).
+			SetStatus(resp.Data.GetStatus()).
+			SetOctoPayUrl(resp.Data.GetOctoPayUrl()).
+			SetRefundedSum(resp.Data.GetRefundedSum())
 	}
 
 	t = t.SetDetails(octoDetails)

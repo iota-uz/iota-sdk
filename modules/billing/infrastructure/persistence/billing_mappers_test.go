@@ -114,10 +114,20 @@ func TestTransactionMapping(t *testing.T) {
 				details.OctoWithTest(false),
 				details.OctoWithStatus("pending"),
 				details.OctoWithDescription("Test transaction"),
+				details.OctoWithCardType("VISA"),
+				details.OctoWithCardCountry("US"),
+				details.OctoWithCardIsPhysical(true),
+				details.OctoWithCardMaskedPan("403200** **** 0000"),
+				details.OctoWithRrn("rrn-xyz-987"),
+				details.OctoWithRiskLevel(2),
 				details.OctoWithRefundedSum(1.0),
+				details.OctoWithTransferSum(965.0),
 				details.OctoWithReturnUrl("https://example.com/return"),
 				details.OctoWithNotifyUrl("https://example.com/notify"),
 				details.OctoWithOctoPayUrl("https://octo.uz/pay/uuid-abc-123"),
+				details.OctoWithSignature("F70F089D6EB66E34C8540149E32D0AC7C8A9500A"),
+				details.OctoWithHashKey("2135b7e1-15bc-4a3c-930d-85b5493053b4"),
+				details.OctoWithPayedTime("2025-06-02T10:01:00Z"),
 				details.OctoWithError(0),
 				details.OctoWithErrMessage(""),
 			),
@@ -132,10 +142,20 @@ func TestTransactionMapping(t *testing.T) {
 				assert.False(t, octo.Test())
 				assert.Equal(t, "pending", octo.Status())
 				assert.Equal(t, "Test transaction", octo.Description())
+				assert.Equal(t, "VISA", octo.CardType())
+				assert.Equal(t, "US", octo.CardCountry())
+				assert.True(t, octo.CardIsPhysical())
+				assert.Equal(t, "403200** **** 0000", octo.CardMaskedPan())
+				assert.Equal(t, "rrn-xyz-987", octo.Rrn())
+				assert.Equal(t, int32(2), octo.RiskLevel())
 				assert.InEpsilon(t, 1.0, octo.RefundedSum(), 0.0001)
+				assert.InEpsilon(t, 965.0, octo.TransferSum(), 0.0001)
 				assert.Equal(t, "https://example.com/return", octo.ReturnUrl())
 				assert.Equal(t, "https://example.com/notify", octo.NotifyUrl())
 				assert.Equal(t, "https://octo.uz/pay/uuid-abc-123", octo.OctoPayUrl())
+				assert.Equal(t, "F70F089D6EB66E34C8540149E32D0AC7C8A9500A", octo.Signature())
+				assert.Equal(t, "2135b7e1-15bc-4a3c-930d-85b5493053b4", octo.HashKey())
+				assert.Equal(t, "2025-06-02T10:01:00Z", octo.PayedTime())
 				assert.Equal(t, int32(0), octo.Error())
 				assert.Equal(t, "", octo.ErrMessage())
 			},
