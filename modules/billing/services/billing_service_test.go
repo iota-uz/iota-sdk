@@ -166,6 +166,44 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 	}
 }
 
+//func TestBillingService_CreateTransaction_Octo(t *testing.T) {
+//	t.Helper()
+//	t.Parallel()
+//	f := setupTest(t)
+//
+//	tenant, err := composables.UseTenant(f.ctx)
+//	require.NoError(t, err)
+//
+//	shopTransactionId := uuid.New().String()
+//
+//	cmd := &services.CreateTransactionCommand{
+//		TenantID: tenant.ID,
+//		Quantity: 1000,
+//		Currency: billing.UZS,
+//		Gateway:  billing.Octo,
+//		Details: details.NewOctoDetails(
+//			shopTransactionId,
+//			details.OctoWithAutoCapture(false),
+//			details.OctoWithTest(true),
+//			details.OctoWithDescription("Test"),
+//			details.OctoWithReturnUrl("https://octo.uz"),
+//		),
+//	}
+//
+//	result, err := f.billingService.Create(f.ctx, cmd)
+//
+//	require.NoError(t, err, "Create should succeed")
+//	require.NotNil(t, result, "Transaction should not be nil")
+//
+//	assert.Equal(t, billing.Created, result.Status())
+//	assert.Equal(t, billing.UZS, result.Amount().Currency())
+//	assert.InDelta(t, 1000, result.Amount().Quantity(), 0.0001)
+//	assert.NotEqual(t, uuid.Nil, result.ID(), "Expected non-nil transaction ID")
+//
+//	octo := result.Details().(details.OctoDetails)
+//	assert.Equal(t, shopTransactionId, octo.ShopTransactionId())
+//}
+
 //func TestBillingService_CreateTransaction_Stripe(t *testing.T) {
 //	t.Helper()
 //	t.Parallel()
