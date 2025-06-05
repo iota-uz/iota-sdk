@@ -8,9 +8,12 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"net/url"
+	"strconv"
 )
 
 type NewChatProps struct {
@@ -329,9 +332,25 @@ type IndexPageProps struct {
 	SearchURL  string
 	NewChatURL string
 	Chats      []*viewmodels.Chat
+	Page       int
+	PerPage    int
+	HasMore    bool
 }
 
-templ Index(props IndexPageProps) {
+func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(props.Page+1))
+	params.Set("limit", strconv.Itoa(props.PerPage))
+
+	return templ.Attributes{
+		"hx-get":     "/crm/chats?" + params.Encode(),
+		"hx-trigger": "intersect once",
+		"hx-swap":    "afterend",
+		"hx-target":  "this",
+	}
+}
+
+templ Index(props *IndexPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
@@ -354,7 +373,7 @@ templ Index(props IndexPageProps) {
 	}
 }
 
-templ ChatLayout(props IndexPageProps) {
+templ ChatLayout(props *IndexPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		isSelectedChat := pageCtx.URL.Query().Get("chat_id") != ""
@@ -399,7 +418,7 @@ templ ChatLayout(props IndexPageProps) {
 				</div>
 			</div>
 			<div class="grow flex flex-col gap-2 overflow-auto">
-				@ChatList(props.Chats)
+				@ChatList(props)
 			</div>
 		</div>
 	</div>
@@ -414,19 +433,39 @@ templ ChatLayout(props IndexPageProps) {
 	</div>
 }
 
-templ ChatList(chats []*viewmodels.Chat) {
+templ ChatList(props *IndexPageProps) {
 	<ul
 		role="list"
 		id="chats-list"
 		x-data="{ selectedChatID: new URLSearchParams(window.location.search).get('chat_id') }"
 	>
-		for _, chat := range chats {
-			<li
-				role="listitem"
-				class="cursor-pointer"
-			>
-				@ChatCard(chat)
-			</li>
-		}
+		@ChatItems(props)
 	</ul>
+}
+
+templ ChatItems(props *IndexPageProps) {
+	<li class="hidden">
+		@loaders.Spinner(loaders.SpinnerProps{
+			ContainerClass: templ.Classes(
+				"flex justify-center items-center py-4",
+			),
+		})
+	</li>
+	for ix, chat := range props.Chats {
+		{{
+			isLastItem := ix == len(props.Chats)-1
+			liAttrs := templ.Attributes{
+				"role":  "listitem",
+				"class": "cursor-pointer",
+			}
+			if isLastItem && props.HasMore {
+				for k, v := range mkInfiniteAttrs(props) {
+					liAttrs[k] = v
+				}
+			}
+		}}
+		<li { liAttrs... }>
+			@ChatCard(chat)
+		</li>
+	}
 }
