@@ -105,6 +105,13 @@ type PaymeOptions struct {
 	SecretKey  string `env:"PAYME_SECRET_KEY"`
 }
 
+type OctoOptions struct {
+	OctoShopID     int32  `env:"OCTO_SHOP_ID"`
+	OctoSecret     string `env:"OCTO_SECRET"`
+	OctoSecretHash string `env:"OCTO_SECRET_HASH"`
+	NotifyUrl      string `env:"OCTO_NOTIFY_URL"`
+}
+
 type StripeOptions struct {
 	SecretKey     string `env:"STRIPE_SECRET_KEY"`
 	SigningSecret string `env:"STRIPE_SIGNING_SECRET"`
@@ -118,6 +125,7 @@ type Configuration struct {
 	OpenTelemetry OpenTelemetryOptions
 	Click         ClickOptions
 	Payme         PaymeOptions
+	Octo          OctoOptions
 	Stripe        StripeOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
