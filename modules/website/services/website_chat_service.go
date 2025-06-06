@@ -22,9 +22,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/rag"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/text/language"
 )
 
 var thinkTagRegex = regexp.MustCompile(`(?s)<think>.*?</think>`)
@@ -346,7 +348,9 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 		}
 
 		var buf bytes.Buffer
-		templateData := map[string]interface{}{}
+		templateData := map[string]interface{}{
+			"locale": getLocaleString(ctx),
+		}
 		err = tmpl.Execute(&buf, templateData)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute system prompt template: %w", err)
@@ -523,4 +527,11 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 		chat.WithMemberTenantID(tenant.ID),
 	)
 	return member, nil
+}
+
+func getLocaleString(ctx context.Context) string {
+	if locale, ok := intl.UseLocale(ctx); ok {
+		return locale.String()
+	}
+	return language.English.String()
 }
