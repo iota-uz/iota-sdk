@@ -1,11 +1,13 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,8 +22,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/rag"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/sashabaranov/go-openai"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/option"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/text/language"
 )
 
 var thinkTagRegex = regexp.MustCompile(`(?s)<think>.*?</think>`)
@@ -275,6 +280,48 @@ func (s *WebsiteChatService) ReplyToThread(
 	return updatedThread, nil
 }
 
+func (s *WebsiteChatService) GetAvailableModels(ctx context.Context) ([]string, error) {
+	config, err := s.aiconfigRepo.GetDefault(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AI configuration: %w", err)
+	}
+
+	return s.getModelsWithConfig(ctx, config.BaseURL(), config.AccessToken())
+}
+
+func (s *WebsiteChatService) GetAvailableModelsWithConfig(ctx context.Context, baseURL, accessToken string) ([]string, error) {
+	if baseURL == "" || accessToken == "" {
+		return nil, fmt.Errorf("baseURL and accessToken are required")
+	}
+	return s.getModelsWithConfig(ctx, baseURL, accessToken)
+}
+
+func (s *WebsiteChatService) getModelsWithConfig(ctx context.Context, baseURL, accessToken string) ([]string, error) {
+	var openaiClient openai.Client
+	if baseURL != "" {
+		openaiClient = openai.NewClient(
+			option.WithAPIKey(accessToken),
+			option.WithBaseURL(baseURL),
+		)
+	} else {
+		openaiClient = openai.NewClient(
+			option.WithAPIKey(accessToken),
+		)
+	}
+
+	response, err := openaiClient.Models.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch models: %w", err)
+	}
+
+	models := make([]string, 0, len(response.Data))
+	for _, model := range response.Data {
+		models = append(models, model.ID)
+	}
+
+	return models, nil
+}
+
 func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
 	logger := composables.UseLogger(ctx)
 	thread, err := s.GetThreadByID(ctx, threadID)
@@ -287,7 +334,7 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 		return nil, chat.ErrNoMessages
 	}
 
-	openaiMessages := make([]openai.ChatCompletionMessage, 0, len(messages)+2) // +2 for system prompt and potential RAG context
+	openaiMessages := []openai.ChatCompletionMessageParamUnion{}
 
 	config, err := s.aiconfigRepo.GetDefault(ctx)
 	if err != nil {
@@ -295,10 +342,21 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 	}
 
 	if config.SystemPrompt() != "" {
-		openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
-			Role:    openai.ChatMessageRoleSystem,
-			Content: config.SystemPrompt(),
-		})
+		tmpl, err := template.New("system_prompt").Parse(config.SystemPrompt())
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse system prompt template: %w", err)
+		}
+
+		var buf bytes.Buffer
+		templateData := map[string]interface{}{
+			"locale": getLocaleString(ctx),
+		}
+		err = tmpl.Execute(&buf, templateData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute system prompt template: %w", err)
+		}
+
+		openaiMessages = append(openaiMessages, openai.SystemMessage(buf.String()))
 	}
 
 	if s.ragProvider != nil && len(messages) > 0 {
@@ -315,36 +373,38 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 				"context":      docsText,
 				"user_message": lastMessage.Message(),
 			}).Info("Retrieved context for AI response")
-			openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
-				Role:    openai.ChatMessageRoleAssistant,
-				Content: "Retrieved context:\n" + docsText,
-			})
+			openaiMessages = append(openaiMessages, openai.AssistantMessage("Retrieved context:\n"+docsText))
 		}
 	}
 
 	for _, msg := range messages {
-		role := openai.ChatMessageRoleUser
 		if msg.Sender().Sender().Type() == chat.UserSenderType {
-			role = openai.ChatMessageRoleAssistant
+			openaiMessages = append(openaiMessages, openai.AssistantMessage(msg.Message()))
+		} else {
+			openaiMessages = append(openaiMessages, openai.UserMessage(msg.Message()))
 		}
-
-		openaiMessages = append(openaiMessages, openai.ChatCompletionMessage{
-			Role:    role,
-			Content: msg.Message(),
-		})
 	}
 
-	completionReq := openai.ChatCompletionRequest{
+	var openaiClient openai.Client
+	if config.BaseURL() != "" {
+		openaiClient = openai.NewClient(
+			option.WithAPIKey(config.AccessToken()),
+			option.WithBaseURL(config.BaseURL()),
+		)
+	} else {
+		openaiClient = openai.NewClient(
+			option.WithAPIKey(config.AccessToken()),
+		)
+	}
+
+	maxTokens := int64(config.MaxTokens())
+	temperature := float64(config.Temperature())
+	response, err := openaiClient.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model:       config.ModelName(),
 		Messages:    openaiMessages,
-		Temperature: float32(config.Temperature()),
-		MaxTokens:   config.MaxTokens(),
-	}
-	openaiConfig := openai.DefaultConfig(config.AccessToken())
-	openaiConfig.BaseURL = config.BaseURL()
-	openaiClient := openai.NewClientWithConfig(openaiConfig)
-
-	response, err := openaiClient.CreateChatCompletion(ctx, completionReq)
+		Temperature: openai.Float(temperature),
+		MaxTokens:   openai.Int(maxTokens),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AI response: %w", err)
 	}
@@ -467,4 +527,11 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 		chat.WithMemberTenantID(tenant.ID),
 	)
 	return member, nil
+}
+
+func getLocaleString(ctx context.Context) string {
+	if locale, ok := intl.UseLocale(ctx); ok {
+		return locale.String()
+	}
+	return language.English.String()
 }
