@@ -72,12 +72,13 @@ export default function ChatbotInterface({
   const { playSubmitSound, playOperatorSound } = useSoundEffects(soundOptions);
   const { toast } = useToast();
 
-  // Set API endpoint
+  // Set API endpoint and locale
   useEffect(() => {
     if (apiEndpoint) {
       chatApi.setApiEndpoint(apiEndpoint);
     }
-  }, [apiEndpoint]);
+    chatApi.setLocale(locale);
+  }, [apiEndpoint, locale]);
 
   const [phoneSubmitted, setPhoneSubmitted] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
