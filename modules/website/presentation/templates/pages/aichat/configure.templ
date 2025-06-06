@@ -3,11 +3,13 @@ package aichat
 import (
 	"fmt"
 
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/slider"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -16,8 +18,15 @@ import (
 type ConfigureProps struct {
 	Config       *viewmodels.AIConfig
 	FormAction   string
+	BasePath     string
 	Errors       map[string]string
 	ModelOptions []string
+}
+
+type ModelSelectProps struct {
+	ModelOptions  []string
+	SelectedModel string
+	Error         string
 }
 
 templ Configure(props ConfigureProps) {
@@ -28,6 +37,28 @@ templ Configure(props ConfigureProps) {
 		<div id="configure-content" class="h-full">
 			@ConfigureForm(props)
 		</div>
+	}
+}
+
+templ ModelSelectOptions(props ModelSelectProps) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	@base.Select(&base.SelectProps{
+		Label:       pgCtx.T("AIChatBot.ModelName.Label"),
+		Placeholder: pgCtx.T("AIChatBot.ModelName.Placeholder"),
+		Error:       props.Error,
+		Attrs: templ.Attributes{
+			"name": "ModelName",
+			"form": "save-form",
+			"id":   "model-select",
+		},
+	}) {
+		if len(props.ModelOptions) == 0 {
+			<option value="">{ pgCtx.T("AIChatBot.ModelName.NoModelsAvailable") }</option>
+		} else {
+			for _, option := range props.ModelOptions {
+				<option value={ option } selected?={ option == props.SelectedModel }>{ option }</option>
+			}
+		}
 	}
 }
 
@@ -55,73 +86,108 @@ templ ConfigureForm(props ConfigureProps) {
 			@card.Card(card.Props{
 				WrapperClass: "col-span-4",
 			}) {
-				<input type="hidden" name="id" value={ props.Config.ID }/>
-				// AI Chat Configuration fields
-				<div class="mb-4">
-					@input.Text(&input.Props{
-						Label:       pgCtx.T("AIChatBot.BaseURL.Label"),
-						Placeholder: pgCtx.T("AIChatBot.BaseURL.Placeholder"),
-						Error:       props.Errors["BaseURL"],
-						Attrs: templ.Attributes{
-							"name":  "BaseURL",
-							"form":  "save-form",
-							"value": props.Config.BaseURL,
-						},
-					})
-				</div>
-				<div class="mb-4">
-					@input.Text(&input.Props{
-						Label:       pgCtx.T("AIChatBot.AccessToken.Label"),
-						Placeholder: pgCtx.T("AIChatBot.AccessToken.Placeholder"),
-						Error:       props.Errors["AccessToken"],
-						Attrs: templ.Attributes{
-							"name": "AccessToken",
-							"type": "password",
-							"form": "save-form",
-						},
-					})
-				</div>
-				<div class="mb-4">
-					@base.Select(&base.SelectProps{
-						Label:       pgCtx.T("AIChatBot.ModelName.Label"),
-						Placeholder: pgCtx.T("AIChatBot.ModelName.Placeholder"),
-						Error:       props.Errors["ModelName"],
-						Attrs: templ.Attributes{
-							"name": "ModelName",
-							"form": "save-form",
-						},
-					}) {
-						for _, option := range props.ModelOptions {
-							<option value={ option } selected?={ option == props.Config.ModelName }>{ option }</option>
-						}
-					}
-				</div>
-				<div class="mb-4">
-					@slider.Slider(slider.SliderProps{
-						Label:    pgCtx.T("AIChatBot.Temperature.Label"),
-						Error:    props.Errors["Temperature"],
-						Min:      0,
-						Max:      2,
-						Step:     0.1,
-						Value:    float64(props.Config.Temperature),
-						HelpText: pgCtx.T("AIChatBot.Temperature.Placeholder"),
-						Attrs: templ.Attributes{
-							"name": "Temperature",
-							"form": "save-form",
-						},
-					})
-				</div>
-				<div class="mb-4">
-					@input.Number(&input.Props{
-						Label:       pgCtx.T("AIChatBot.MaxTokens.Label"),
-						Placeholder: pgCtx.T("AIChatBot.MaxTokens.Placeholder"),
-						Error:       props.Errors["MaxTokens"],
-						Attrs: templ.Attributes{
-							"value": fmt.Sprintf("%d", props.Config.MaxTokens),
-							"name":  "MaxTokens",
-							"min":   "1",
-						},
-					})
+				<div
+					x-data="{ loading: false }"
+					@htmx:before-request.window="if($event.detail.target.id === 'model-select-container') loading = true"
+					@htmx:after-request.window="if($event.detail.target.id === 'model-select-container') loading = false"
+				>
+					<input type="hidden" name="id" value={ props.Config.ID }/>
+					// AI Chat Configuration fields
+					<div class="mb-4">
+						@input.Text(&input.Props{
+							Label:       pgCtx.T("AIChatBot.BaseURL.Label"),
+							Placeholder: pgCtx.T("AIChatBot.BaseURL.Placeholder"),
+							Error:       props.Errors["BaseURL"],
+							Attrs: templ.Attributes{
+								"name":       "BaseURL",
+								"form":       "save-form",
+								"value":      props.Config.BaseURL,
+								"hx-post":    props.BasePath + "/models",
+								"hx-target":  "#model-select-container",
+								"hx-trigger": "input changed delay:500ms",
+								"hx-include": "[name='AccessToken']",
+							},
+						})
+					</div>
+					<div class="mb-4">
+						@input.Text(&input.Props{
+							Label:       pgCtx.T("AIChatBot.AccessToken.Label"),
+							Placeholder: pgCtx.T("AIChatBot.AccessToken.Placeholder"),
+							Error:       props.Errors["AccessToken"],
+							Attrs: templ.Attributes{
+								"name":       "AccessToken",
+								"type":       "password",
+								"form":       "save-form",
+								"hx-post":    props.BasePath + "/models",
+								"hx-target":  "#model-select-container",
+								"hx-trigger": "input changed delay:500ms",
+								"hx-include": "[name='BaseURL']",
+							},
+						})
+					</div>
+					<div class="mb-4">
+						<div class="flex gap-2 items-end">
+							<div class="flex-1">
+								<div x-show="!loading" id="model-select-container">
+									@ModelSelectOptions(ModelSelectProps{
+										ModelOptions:  props.ModelOptions,
+										SelectedModel: props.Config.ModelName,
+										Error:         props.Errors["ModelName"],
+									})
+								</div>
+								<div x-show="loading" x-cloak>
+									<div class="flex flex-col shrink-0">
+										@loaders.Skeleton(loaders.SkeletonProps{
+											ContainerClass: templ.Classes("mb-2"),
+											SkeletonClass:  templ.Classes("h-[21px] w-20"),
+											Lines:          1,
+										})
+										@loaders.Skeleton(loaders.SkeletonProps{
+											ContainerClass: templ.Classes(""),
+											SkeletonClass:  templ.Classes("h-[43px]"),
+											Lines:          1,
+										})
+									</div>
+								</div>
+							</div>
+							<button
+								type="button"
+								class="h-10 w-10 flex items-center justify-center rounded-md border border-gray-300 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+								hx-post={ props.BasePath + "/models" }
+								hx-target="#model-select-container"
+								hx-include="[name='BaseURL'], [name='AccessToken']"
+							>
+								@icons.ArrowClockwise(icons.Props{Size: "16", Class: "transition-transform duration-200 htmx-request:animate-spin"})
+							</button>
+						</div>
+					</div>
+					<div class="mb-4">
+						@slider.Slider(slider.SliderProps{
+							Label:    pgCtx.T("AIChatBot.Temperature.Label"),
+							Error:    props.Errors["Temperature"],
+							Min:      0,
+							Max:      2,
+							Step:     0.01,
+							Value:    float64(props.Config.Temperature),
+							HelpText: pgCtx.T("AIChatBot.Temperature.Placeholder"),
+							Attrs: templ.Attributes{
+								"name": "Temperature",
+								"form": "save-form",
+							},
+						})
+					</div>
+					<div class="mb-4">
+						@input.Number(&input.Props{
+							Label:       pgCtx.T("AIChatBot.MaxTokens.Label"),
+							Placeholder: pgCtx.T("AIChatBot.MaxTokens.Placeholder"),
+							Error:       props.Errors["MaxTokens"],
+							Attrs: templ.Attributes{
+								"value": fmt.Sprintf("%d", props.Config.MaxTokens),
+								"name":  "MaxTokens",
+								"min":   "1",
+							},
+						})
+					</div>
 				</div>
 			}
 		</div>

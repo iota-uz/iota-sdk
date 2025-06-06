@@ -9,7 +9,8 @@
     },
     "ModelName": {
       "Label": "Название модели",
-      "Placeholder": "Введите название модели (напр. gpt-4)"
+      "Placeholder": "Введите название модели (напр. gpt-4)",
+      "NoModelsAvailable": "Модели недоступны"
     },
     "ModelType": {
       "Label": "Тип модели",

@@ -9,7 +9,8 @@
     },
     "ModelName": {
       "Label": "Model nomi",
-      "Placeholder": "Model nomini kiriting (masalan gpt-4)"
+      "Placeholder": "Model nomini kiriting (masalan gpt-4)",
+      "NoModelsAvailable": "Modellar mavjud emas"
     },
     "ModelType": {
       "Label": "Model turi",
