@@ -48,7 +48,8 @@
       "UnknownCountryCode": "Неизвестный код страны в номере телефона. Пожалуйста, укажите действительный код страны",
       "FailedToSendMessage": "Не удалось отправить сообщение в тред чата",
       "FailedToGetAIResponse": "Не удалось получить ответ от ИИ",
-      "FailedToEncodeResponse": "Не удалось закодировать ответ"
+      "FailedToEncodeResponse": "Не удалось закодировать ответ",
+      "FailedToGetModels": "Не удалось получить список моделей"
     }
   }
 }

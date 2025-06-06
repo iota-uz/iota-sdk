@@ -48,7 +48,8 @@
       "UnknownCountryCode": "Unknown country code in phone number. Please provide a valid country code",
       "FailedToSendMessage": "Failed to send message to chat thread",
       "FailedToGetAIResponse": "Failed to get AI response",
-      "FailedToEncodeResponse": "Failed to encode response"
+      "FailedToEncodeResponse": "Failed to encode response",
+      "FailedToGetModels": "Failed to get models list"
     }
   }
 }

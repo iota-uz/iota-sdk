@@ -3,6 +3,7 @@ package aichat
 import (
 	"fmt"
 
+	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
@@ -13,9 +14,10 @@ import (
 )
 
 type ConfigureProps struct {
-	Config     *viewmodels.AIConfig
-	FormAction string
-	Errors     map[string]string
+	Config       *viewmodels.AIConfig
+	FormAction   string
+	Errors       map[string]string
+	ModelOptions []string
 }
 
 templ Configure(props ConfigureProps) {
@@ -80,16 +82,19 @@ templ ConfigureForm(props ConfigureProps) {
 					})
 				</div>
 				<div class="mb-4">
-					@input.Text(&input.Props{
+					@base.Select(&base.SelectProps{
 						Label:       pgCtx.T("AIChatBot.ModelName.Label"),
 						Placeholder: pgCtx.T("AIChatBot.ModelName.Placeholder"),
 						Error:       props.Errors["ModelName"],
 						Attrs: templ.Attributes{
-							"name":  "ModelName",
-							"form":  "save-form",
-							"value": props.Config.ModelName,
+							"name": "ModelName",
+							"form": "save-form",
 						},
-					})
+					}) {
+						for _, option := range props.ModelOptions {
+							<option value={ option } selected?={ option == props.Config.ModelName }>{ option }</option>
+						}
+					}
 				</div>
 				<div class="mb-4">
 					@slider.Slider(slider.SliderProps{

@@ -278,6 +278,37 @@ func (s *WebsiteChatService) ReplyToThread(
 	return updatedThread, nil
 }
 
+func (s *WebsiteChatService) GetAvailableModels(ctx context.Context) ([]string, error) {
+	config, err := s.aiconfigRepo.GetDefault(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get AI configuration: %w", err)
+	}
+
+	var openaiClient openai.Client
+	if config.BaseURL() != "" {
+		openaiClient = openai.NewClient(
+			option.WithAPIKey(config.AccessToken()),
+			option.WithBaseURL(config.BaseURL()),
+		)
+	} else {
+		openaiClient = openai.NewClient(
+			option.WithAPIKey(config.AccessToken()),
+		)
+	}
+
+	response, err := openaiClient.Models.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch models: %w", err)
+	}
+
+	models := make([]string, 0, len(response.Data))
+	for _, model := range response.Data {
+		models = append(models, model.ID)
+	}
+
+	return models, nil
+}
+
 func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
 	logger := composables.UseLogger(ctx)
 	thread, err := s.GetThreadByID(ctx, threadID)

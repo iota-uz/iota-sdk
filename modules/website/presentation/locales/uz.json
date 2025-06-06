@@ -48,7 +48,8 @@
       "UnknownCountryCode": "Telefon raqamida noma'lum mamlakat kodi. Iltimos, to'g'ri mamlakat kodini kiriting",
       "FailedToSendMessage": "Suhbatga xabar yuborishda xatolik yuz berdi",
       "FailedToGetAIResponse": "AI javobini olishda xatolik yuz berdi",
-      "FailedToEncodeResponse": "Javobni kodlashda xatolik yuz berdi"
+      "FailedToEncodeResponse": "Javobni kodlashda xatolik yuz berdi",
+      "FailedToGetModels": "Modellar ro'yxatini olishda xatolik yuz berdi"
     }
   }
 }
