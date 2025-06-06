@@ -1,0 +1,15 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/loaders"
+
+templ Spinners() {
+	<div class="space-y-4">
+		<h3 class="text-lg font-semibold">Spinner</h3>
+		<div class="p-4 border rounded-md bg-white">
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes("flex justify-center items-center py-4"),
+				SpinnerClass:   templ.Classes("w-8 h-8"),
+			})
+		</div>
+	</div>
+}
