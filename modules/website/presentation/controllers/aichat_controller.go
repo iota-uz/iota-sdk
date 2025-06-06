@@ -3,6 +3,7 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -55,6 +56,7 @@ func (c *AIChatController) Register(r *mux.Router) {
 	)
 	router.HandleFunc("", di.H(c.configureAIChat)).Methods(http.MethodGet)
 	router.HandleFunc("/config", di.H(c.saveConfig)).Methods(http.MethodPost)
+	router.HandleFunc("/models", di.H(c.fetchModels)).Methods(http.MethodPost)
 }
 
 func (c *AIChatController) configureAIChat(
@@ -74,9 +76,13 @@ func (c *AIChatController) configureAIChat(
 		return
 	}
 
-	modelOptions, err := c.fetchModelOptions(r, logger, chatService, config, localizer, w)
-	if err != nil {
-		return
+	var modelOptions []string
+	if config != nil && config.BaseURL() != "" && config.AccessToken() != "" {
+		var err error
+		modelOptions, err = c.fetchModelOptions(r, logger, chatService, config, localizer, w)
+		if err != nil {
+			logger.WithError(err).Warn("Failed to fetch models for initial page load")
+		}
 	}
 
 	props := buildConfigureProps(c.basePath, config, modelOptions)
@@ -92,16 +98,13 @@ func (c *AIChatController) fetchModelOptions(
 	w http.ResponseWriter,
 ) ([]string, error) {
 	if config == nil {
-		return nil, nil
+		return []string{}, nil
 	}
 
 	models, err := chatService.GetAvailableModels(r.Context())
 	if err != nil {
-		logger.WithError(err).Error("failed to get available models")
-		writeJSONError(w, http.StatusInternalServerError,
-			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToGetModels"}),
-			dtos.ErrorCodeInternalServer)
-		return nil, err
+		logger.WithError(err).Warn("failed to get available models, continuing with empty list")
+		return []string{}, nil
 	}
 	return models, nil
 }
@@ -109,6 +112,7 @@ func (c *AIChatController) fetchModelOptions(
 func buildConfigureProps(basePath string, config aichatconfig.AIConfig, modelOptions []string) aichat.ConfigureProps {
 	props := aichat.ConfigureProps{
 		FormAction:   basePath + "/config",
+		BasePath:     basePath,
 		ModelOptions: modelOptions,
 	}
 
@@ -186,6 +190,7 @@ func buildValidationErrorProps(
 ) aichat.ConfigureProps {
 	props := aichat.ConfigureProps{
 		FormAction:   basePath + "/config",
+		BasePath:     basePath,
 		ModelOptions: modelOptions,
 		Config: &viewmodels.AIConfig{
 			ModelName:    dto.ModelName,
@@ -243,4 +248,75 @@ func (c *AIChatController) persistConfig(
 	}
 
 	return nil
+}
+
+func (c *AIChatController) fetchModels(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	chatService *websiteServices.WebsiteChatService,
+	configService *websiteServices.AIChatConfigService,
+	localizer *i18n.Localizer,
+) {
+	time.Sleep(1000 * time.Millisecond) // Simulate delay for demonstration purposes
+	var formData struct {
+		BaseURL     string `json:"BaseURL"`
+		AccessToken string `json:"AccessToken"`
+	}
+
+	if err := r.ParseForm(); err != nil {
+		logger.WithError(err).Error("failed to parse form")
+		writeJSONError(w, http.StatusBadRequest,
+			localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.InvalidFormData"}),
+			dtos.ErrorCodeInvalidRequest)
+		return
+	}
+
+	formData.BaseURL = r.FormValue("BaseURL")
+	formData.AccessToken = r.FormValue("AccessToken")
+
+	// If form values are empty, try to use saved configuration
+	if formData.BaseURL == "" || formData.AccessToken == "" {
+		config, err := configService.GetDefault(r.Context())
+		if err != nil || config == nil {
+			templ.Handler(aichat.ModelSelectOptions(aichat.ModelSelectProps{
+				ModelOptions:  []string{},
+				SelectedModel: "",
+			})).ServeHTTP(w, r)
+			return
+		}
+
+		// Use saved config if form values are empty
+		if formData.BaseURL == "" {
+			formData.BaseURL = config.BaseURL()
+		}
+		if formData.AccessToken == "" {
+			formData.AccessToken = config.AccessToken()
+		}
+
+		// If still empty after using saved config, return empty options
+		if formData.BaseURL == "" || formData.AccessToken == "" {
+			templ.Handler(aichat.ModelSelectOptions(aichat.ModelSelectProps{
+				ModelOptions:  []string{},
+				SelectedModel: "",
+			})).ServeHTTP(w, r)
+			return
+		}
+	}
+
+	models, err := chatService.GetAvailableModelsWithConfig(r.Context(), formData.BaseURL, formData.AccessToken)
+	if err != nil {
+		logger.WithError(err).Error("failed to get available models with custom config")
+		templ.Handler(aichat.ModelSelectOptions(aichat.ModelSelectProps{
+			ModelOptions:  []string{},
+			SelectedModel: "",
+			Error:         localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AIChatBot.Errors.FailedToGetModels"}),
+		})).ServeHTTP(w, r)
+		return
+	}
+
+	templ.Handler(aichat.ModelSelectOptions(aichat.ModelSelectProps{
+		ModelOptions:  models,
+		SelectedModel: "",
+	})).ServeHTTP(w, r)
 }

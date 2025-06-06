@@ -9,7 +9,8 @@
     },
     "ModelName": {
       "Label": "Model Name",
-      "Placeholder": "Enter the model name (e.g. gpt-4)"
+      "Placeholder": "Enter the model name (e.g. gpt-4)",
+      "NoModelsAvailable": "No models available"
     },
     "ModelType": {
       "Label": "Model Type",

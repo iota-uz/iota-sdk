@@ -1,0 +1,89 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/loaders"
+
+templ Skeletons() {
+	<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+		<!-- Basic Skeleton -->
+		<div class="space-y-4">
+			<h3 class="text-lg font-semibold">Basic Skeleton</h3>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">3 lines (default):</p>
+				@loaders.Skeleton(loaders.SkeletonProps{
+					Lines: 3,
+				})
+			</div>
+		</div>
+		<!-- Custom Skeleton -->
+		<div class="space-y-4">
+			<h3 class="text-lg font-semibold">Custom Skeleton</h3>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">5 lines, taller:</p>
+				@loaders.Skeleton(loaders.SkeletonProps{
+					Lines:          5,
+					ContainerClass: templ.Classes("space-y-3"),
+					SkeletonClass:  templ.Classes("h-3"),
+				})
+			</div>
+		</div>
+		<!-- Skeleton Text -->
+		<div class="space-y-4">
+			<h3 class="text-lg font-semibold">Text Skeleton</h3>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">Paragraph style:</p>
+				@loaders.SkeletonText(loaders.SkeletonProps{
+					Lines: 2,
+				})
+			</div>
+		</div>
+		<!-- Multi-line Text -->
+		<div class="space-y-4">
+			<h3 class="text-lg font-semibold">Multi-line Text</h3>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">4 lines:</p>
+				@loaders.SkeletonText(loaders.SkeletonProps{
+					Lines:          4,
+					ContainerClass: templ.Classes("space-y-2"),
+				})
+			</div>
+		</div>
+		<!-- Skeleton Card -->
+		<div class="space-y-4">
+			<h3 class="text-lg font-semibold">Card Skeleton</h3>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">With avatar:</p>
+				@loaders.SkeletonCard(loaders.SkeletonProps{
+					ContainerClass: templ.Classes("p-4"),
+				})
+			</div>
+		</div>
+		<!-- Custom Card -->
+		<div class="space-y-4">
+			<h3 class="text-lg font-semibold">Custom Card</h3>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">Styled:</p>
+				@loaders.SkeletonCard(loaders.SkeletonProps{
+					ContainerClass: templ.Classes("p-4 bg-gray-50 rounded"),
+					SkeletonClass:  templ.Classes("bg-gray-300"),
+				})
+			</div>
+		</div>
+		<!-- Skeleton Table -->
+		<div class="space-y-4 md:col-span-2">
+			<h3 class="text-lg font-semibold">Table Skeleton</h3>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">3 rows (default):</p>
+				@loaders.SkeletonTable(loaders.SkeletonProps{
+					Lines: 3,
+				})
+			</div>
+			<div class="p-4 border rounded-md bg-white">
+				<p class="text-sm text-gray-600 mb-2">7 rows with custom blue color:</p>
+				@loaders.SkeletonTable(loaders.SkeletonProps{
+					Lines:         7,
+					SkeletonClass: templ.Classes("!bg-blue-300"),
+				})
+			</div>
+		</div>
+	</div>
+}

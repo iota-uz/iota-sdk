@@ -41,6 +41,12 @@ var ButtonsComponentSource string
 //go:embed components/slider.templ
 var SliderComponentSource string
 
+//go:embed components/spinners.templ
+var SpinnersComponentSource string
+
+//go:embed components/skeletons.templ
+var SkeletonsComponentSource string
+
 // Chart components
 //
 //go:embed components/charts/bar_chart.templ

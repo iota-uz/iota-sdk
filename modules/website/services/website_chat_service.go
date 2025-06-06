@@ -284,15 +284,26 @@ func (s *WebsiteChatService) GetAvailableModels(ctx context.Context) ([]string, 
 		return nil, fmt.Errorf("failed to get AI configuration: %w", err)
 	}
 
+	return s.getModelsWithConfig(ctx, config.BaseURL(), config.AccessToken())
+}
+
+func (s *WebsiteChatService) GetAvailableModelsWithConfig(ctx context.Context, baseURL, accessToken string) ([]string, error) {
+	if baseURL == "" || accessToken == "" {
+		return nil, fmt.Errorf("baseURL and accessToken are required")
+	}
+	return s.getModelsWithConfig(ctx, baseURL, accessToken)
+}
+
+func (s *WebsiteChatService) getModelsWithConfig(ctx context.Context, baseURL, accessToken string) ([]string, error) {
 	var openaiClient openai.Client
-	if config.BaseURL() != "" {
+	if baseURL != "" {
 		openaiClient = openai.NewClient(
-			option.WithAPIKey(config.AccessToken()),
-			option.WithBaseURL(config.BaseURL()),
+			option.WithAPIKey(accessToken),
+			option.WithBaseURL(baseURL),
 		)
 	} else {
 		openaiClient = openai.NewClient(
-			option.WithAPIKey(config.AccessToken()),
+			option.WithAPIKey(accessToken),
 		)
 	}
 
