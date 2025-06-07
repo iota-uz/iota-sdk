@@ -482,6 +482,44 @@ let datePicker = ({
   }
 })
 
+let navTabs = (defaultValue = '') => ({
+  activeTab: defaultValue,
+  backgroundStyle: { left: 0, width: 0, opacity: 0 },
+
+  init() {
+    this.$nextTick(() => this.updateBackground());
+  },
+
+  setActiveTab(tabValue) {
+    this.activeTab = tabValue;
+    this.$nextTick(() => this.updateBackground());
+  },
+
+  updateBackground() {
+    const tabsContainer = this.$refs.tabsContainer;
+    if (!tabsContainer) return;
+    
+    const activeButton = tabsContainer.querySelector(`button[data-tab-value="${this.activeTab}"]`);
+    if (activeButton) {
+      this.backgroundStyle = {
+        left: activeButton.offsetLeft,
+        width: activeButton.offsetWidth,
+        opacity: 1
+      };
+    }
+  },
+
+  isActive(tabValue) {
+    return this.activeTab === tabValue;
+  },
+
+  getTabClasses(tabValue) {
+    return this.isActive(tabValue) 
+      ? 'text-slate-900' 
+      : 'text-slate-400 hover:text-slate-300';
+  }
+})
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -492,4 +530,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("spotlight", spotlight);
   Alpine.data("dateFns", dateFns);
   Alpine.data("datePicker", datePicker);
+  Alpine.data("navTabs", navTabs);
 });

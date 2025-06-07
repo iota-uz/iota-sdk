@@ -1,0 +1,34 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/navtabs"
+
+templ NavTabs() {
+	<div class="space-y-6">
+		<div class="space-y-2">
+			<h3 class="text-sm font-medium text-100">Default NavTabs</h3>
+			@navtabs.NavTabs(navtabs.Props{
+				DefaultValue: "EAI",
+				Tabs:         []string{"EAI", "CRM", "BI Chat"},
+				Class:        "max-w-sm",
+			})
+		</div>
+		<div class="space-y-2">
+			<h3 class="text-sm font-medium text-100">Custom Tabs</h3>
+			<p class="text-200 text-xs">With different tab options</p>
+			@navtabs.NavTabs(navtabs.Props{
+				DefaultValue: "Overview",
+				Tabs:         []string{"Overview", "Analytics", "Settings"},
+				Class:        "max-w-md",
+			})
+		</div>
+		<div class="space-y-2">
+			<h3 class="text-sm font-medium text-100">Two Tabs</h3>
+			<p class="text-200 text-xs">Simple two-tab configuration</p>
+			@navtabs.NavTabs(navtabs.Props{
+				DefaultValue: "Login",
+				Tabs:         []string{"Login", "Register"},
+				Class:        "max-w-xs",
+			})
+		</div>
+	</div>
+}
