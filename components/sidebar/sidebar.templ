@@ -12,16 +12,34 @@ type Props struct {
 }
 
 templ Sidebar(props Props) {
-	<div class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0">
-		if props.Header != nil {
-			<div class="px-6">
-				@props.Header
+	<div
+		x-data="sidebar()"
+		:class="{ 'sidebar-collapsed': isCollapsed }"
+		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0 transition-all duration-300 overflow-visible"
+	>
+		<div class="flex items-center justify-between px-6 mb-4 relative">
+			<div x-show="!isCollapsed" x-transition>
+				if props.Header != nil {
+					@props.Header
+				}
 			</div>
-		}
+			<button
+				@click="toggle(); $dispatch('sidebar-toggle')"
+				class="btn btn-ghost btn-sm btn-fixed btn-rounded absolute -right-3 top-1/2 -translate-y-1/2 z-10"
+			>
+				<div x-show="!isCollapsed">
+					@icons.CaretLeft(icons.Props{Size: "16"})
+				</div>
+				<div x-show="isCollapsed">
+					@icons.CaretRight(icons.Props{Size: "16"})
+				</div>
+			</button>
+		</div>
 		<nav class="py-4 flex-1">
 			<ul
 				id="sidebar-navigation"
-				class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] px-6 hide-scrollbar"
+				:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
+				class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] hide-scrollbar transition-all duration-300"
 			>
 				for _, item := range props.Items {
 					if item.IsLink() {
@@ -33,7 +51,7 @@ templ Sidebar(props Props) {
 			</ul>
 		</nav>
 		if props.Footer != nil {
-			<div class="px-6">
+			<div x-show="!isCollapsed" x-transition class="px-6">
 				@props.Footer
 			</div>
 		}
@@ -41,24 +59,33 @@ templ Sidebar(props Props) {
 }
 
 templ AccordionGroup(group Group) {
-	<details class="group" open?={ group.IsActive(ctx) }>
-		<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
+	<div>
+		<!-- Collapsed view: only icon -->
+		<div x-show="isCollapsed" class="accordion-group-collapsed w-full">
 			if group.Icon() != nil {
 				@group.Icon()
 			}
-			{ group.Text() }
-			@icons.CaretDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
-		</summary>
-		<ul class="ml-4 mt-2 flex flex-col gap-2">
-			for _, child := range group.Children() {
-				if child.IsLink() {
-					@AccordionLink(asLink(child))
-				} else {
-					@AccordionGroup(asGroup(child))
+		</div>
+		<!-- Expanded view: full accordion -->
+		<details x-show="!isCollapsed" class="group" open?={ group.IsActive(ctx) }>
+			<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
+				if group.Icon() != nil {
+					@group.Icon()
 				}
-			}
-		</ul>
-	</details>
+				{ group.Text() }
+				@icons.CaretDown(icons.Props{Size: "16", Class: "ml-auto duration-200 group-open:rotate-180"})
+			</summary>
+			<ul class="ml-4 mt-2 flex flex-col gap-2">
+				for _, child := range group.Children() {
+					if child.IsLink() {
+						@AccordionLink(asLink(child))
+					} else {
+						@AccordionGroup(asGroup(child))
+					}
+				}
+			</ul>
+		</details>
+	</div>
 }
 
 templ AccordionLink(link Link) {
@@ -69,15 +96,32 @@ templ AccordionLink(link Link) {
 	}
 	}}
 	<li>
-		@button.Sidebar(button.Props{
-			Size:  button.SizeMD,
-			Href:  link.Href(),
-			Class: className,
-		}) {
-			if link.Icon() != nil {
-				@link.Icon()
+		<!-- Collapsed view: icon only -->
+		<div x-show="isCollapsed">
+			@button.Sidebar(button.Props{
+				Size:  button.SizeMD,
+				Href:  link.Href(),
+				Class: "p-2 w-auto flex justify-center",
+			}) {
+				if link.Icon() != nil {
+					<div class="w-6 h-6 flex items-center justify-center">
+						@link.Icon()
+					</div>
+				}
 			}
-			{ link.Text() }
-		}
+		</div>
+		<!-- Expanded view: icon + text -->
+		<div x-show="!isCollapsed">
+			@button.Sidebar(button.Props{
+				Size:  button.SizeMD,
+				Href:  link.Href(),
+				Class: className,
+			}) {
+				if link.Icon() != nil {
+					@link.Icon()
+				}
+				{ link.Text() }
+			}
+		</div>
 	</li>
 }

@@ -606,7 +606,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, " <div class=\"grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto\"><div class=\"hidden lg:block\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, " <div x-data=\"{ \n\t\t\t\tsidebarCollapsed: localStorage.getItem(&#39;sidebar-collapsed&#39;) === &#39;true&#39;,\n\t\t\t\tinit() {\n\t\t\t\t\tthis.$nextTick(() =&gt; {\n\t\t\t\t\t\t// Listen for storage changes from other tabs\n\t\t\t\t\t\twindow.addEventListener(&#39;storage&#39;, (e) =&gt; {\n\t\t\t\t\t\t\tif (e.key === &#39;sidebar-collapsed&#39;) {\n\t\t\t\t\t\t\t\tthis.sidebarCollapsed = e.newValue === &#39;true&#39;;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t}\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" :class=\"{ &#39;lg:grid-cols-[4rem_1fr]&#39;: sidebarCollapsed, &#39;lg:grid-cols-[280px_1fr]&#39;: !sidebarCollapsed }\" class=\"grid min-h-screen w-full overflow-y-auto\"><div class=\"hidden lg:block\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

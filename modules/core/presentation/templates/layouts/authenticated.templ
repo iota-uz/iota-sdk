@@ -217,7 +217,24 @@ templ Authenticated(props AuthenticatedProps) {
 	}
 	@Base(&props.BaseProps) {
 		@MobileSidebar(sidebarProps)
-		<div class="grid min-h-screen w-full lg:grid-cols-[280px_1fr] overflow-y-auto">
+		<div
+			x-data="{ 
+				sidebarCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+				init() {
+					this.$nextTick(() => {
+						// Listen for storage changes from other tabs
+						window.addEventListener('storage', (e) => {
+							if (e.key === 'sidebar-collapsed') {
+								this.sidebarCollapsed = e.newValue === 'true';
+							}
+						});
+					});
+				}
+			}"
+			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
+			:class="{ 'lg:grid-cols-[4rem_1fr]': sidebarCollapsed, 'lg:grid-cols-[280px_1fr]': !sidebarCollapsed }"
+			class="grid min-h-screen w-full overflow-y-auto"
+		>
 			<div class="hidden lg:block">
 				@sidebar.Sidebar(sidebarProps)
 			</div>

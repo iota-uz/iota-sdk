@@ -856,6 +856,63 @@
   .accent-color-card {
     --color: oklch(var(--primary-500));
   }
+
+  /* Sidebar collapsed styles */
+  .sidebar-collapsed {
+    width: 4rem !important;
+    min-height: 100vh !important;
+  }
+
+  .sidebar-collapsed .btn-sidebar {
+    justify-content: center;
+    min-width: 2.5rem;
+    --text-color: var(--gray-100);
+  }
+
+  .sidebar-collapsed .btn-sidebar:hover {
+    --text-color: var(--white);
+    --bg-color: var(--clr-sidebar-btn-bg-hover);
+  }
+
+  /* Collapsed accordion group styling */
+  .sidebar-collapsed .accordion-group-collapsed {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 2.5rem;
+    height: 3rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    color: oklch(var(--gray-100));
+  }
+
+  .sidebar-collapsed .accordion-group-collapsed:hover {
+    background-color: oklch(var(--clr-sidebar-btn-bg-hover));
+    color: oklch(var(--white));
+  }
+
+  /* Toggle button styling */
+  .btn-ghost {
+    --text-color: var(--gray-600);
+    --bg-color: var(--white);
+  }
+
+  .btn-ghost:hover {
+    --text-color: var(--gray-400);
+    --bg-color: var(--gray-200);
+  }
+
+  /* Toggle button in collapsed state */
+  .sidebar-collapsed .btn-ghost {
+    --text-color: var(--gray-600);
+    --bg-color: var(--white);
+  }
+
+  .sidebar-collapsed .btn-ghost:hover {
+    --text-color: var(--gray-400);
+    --bg-color: var(--gray-200);
+  }
 }
 
 @layer utilities {

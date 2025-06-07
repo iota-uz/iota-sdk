@@ -520,6 +520,24 @@ let navTabs = (defaultValue = '') => ({
   }
 })
 
+let sidebar = () => ({
+  isCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+  
+  toggle() {
+    this.isCollapsed = !this.isCollapsed;
+    localStorage.setItem('sidebar-collapsed', this.isCollapsed.toString());
+  },
+  
+  init() {
+    // Apply initial state class to prevent flash
+    this.$nextTick(() => {
+      if (this.isCollapsed) {
+        this.$el.classList.add('sidebar-collapsed');
+      }
+    });
+  }
+})
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -531,4 +549,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("dateFns", dateFns);
   Alpine.data("datePicker", datePicker);
   Alpine.data("navTabs", navTabs);
+  Alpine.data("sidebar", sidebar);
 });
