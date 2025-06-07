@@ -1,0 +1,65 @@
+// Package navtabs provides a tab navigation component with smooth animations.
+// It implements a tab switcher with an animated background that slides between tabs.
+package navtabs
+
+import (
+	"fmt"
+	"slices"
+)
+
+type Props struct {
+	DefaultValue string
+	Tabs         []string
+	Class        string
+}
+
+// Validate checks if the Props are valid and returns an error if not
+func (p Props) Validate() error {
+	if len(p.Tabs) == 0 {
+		return fmt.Errorf("tabs cannot be empty")
+	}
+	if p.DefaultValue == "" {
+		return fmt.Errorf("defaultValue cannot be empty")
+	}
+	if !slices.Contains(p.Tabs, p.DefaultValue) {
+		return fmt.Errorf("defaultValue '%s' must be one of the provided tabs", p.DefaultValue)
+	}
+	return nil
+}
+
+templ NavTabs(props Props) {
+	// Validate props (in production, you might want to handle this differently)
+	if err := props.Validate(); err != nil {
+		<div class="text-red-500 text-sm p-2 border border-red-300 rounded">Error: { err.Error() }</div>
+		return
+	}
+	<div
+		role="tablist"
+		aria-label="Tab navigation"
+		x-data={ "navTabs('" + props.DefaultValue + "')" }
+		x-init="init()"
+		@resize.window="updateBackground()"
+		x-ref="tabsContainer"
+		class={ "relative bg-slate-800 rounded-2xl p-1.5 flex items-center gap-1", props.Class }
+	>
+		<!-- Animated background -->
+		<div
+			class="absolute bg-white rounded-xl top-1.5 h-[calc(100%-0.75rem)] transition-all duration-300 ease-out border-0"
+			x-bind:style="`left: ${backgroundStyle.left}px; width: ${backgroundStyle.width}px; opacity: ${backgroundStyle.opacity};`"
+		></div>
+		<!-- Tab buttons -->
+		for _, tab := range props.Tabs {
+			<button
+				role="tab"
+				data-tab-value={ tab }
+				x-bind:aria-selected={ "isActive('" + tab + "') ? 'true' : 'false'" }
+				x-bind:tabindex={ "isActive('" + tab + "') ? '0' : '-1'" }
+				@click={ "setActiveTab('" + tab + "')" }
+				class="relative z-10 py-2.5 px-6 text-sm font-medium rounded-xl transition-colors duration-200 flex-1 text-center !cursor-pointer"
+				x-bind:class={ "getTabClasses('" + tab + "')" }
+			>
+				{ tab }
+			</button>
+		}
+	</div>
+}

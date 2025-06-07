@@ -38,6 +38,9 @@ var TableComponentSource string
 //go:embed components/buttons.templ
 var ButtonsComponentSource string
 
+//go:embed components/navtabs.templ
+var NavTabsComponentSource string
+
 //go:embed components/slider.templ
 var SliderComponentSource string
 
