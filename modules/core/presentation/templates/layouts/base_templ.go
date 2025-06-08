@@ -257,7 +257,7 @@ func Base(props *BaseProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = composables.MustUseHead(ctx).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = MustUseHead(ctx).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

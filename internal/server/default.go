@@ -31,7 +31,6 @@ func Default(options *DefaultOptions) (*server.HTTPServer, error) {
 		middleware.Provide(constants.AppKey, app),
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
 		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
-		middleware.Provide(constants.SidebarHeaderKey, layouts.DefaultSidebarHeader()),
 		middleware.Provide(constants.PoolKey, options.Pool),
 
 		middleware.TracedMiddleware("cors"),

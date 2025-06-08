@@ -7,6 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/iota-uz/iota-sdk/components/base/navtabs"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/utils/random"
 )
@@ -161,4 +162,47 @@ func (l *link) Text() string {
 
 func (l *link) Href() string {
 	return l.href
+}
+
+// TabGroup represents a group of sidebar items organized under a tab
+type TabGroup struct {
+	Tab   navtabs.Tab
+	Items []Item
+}
+
+// TabGroupCollection holds multiple tab groups for the sidebar
+type TabGroupCollection struct {
+	Groups       []TabGroup
+	DefaultValue string
+}
+
+// HasMultipleGroups returns true if there are multiple tab groups
+func (tgc *TabGroupCollection) HasMultipleGroups() bool {
+	return len(tgc.Groups) > 1
+}
+
+// GetActiveGroupItems returns the items for the currently active tab group
+func (tgc *TabGroupCollection) GetActiveGroupItems() []Item {
+	for _, group := range tgc.Groups {
+		if group.Tab.Value == tgc.DefaultValue {
+			return group.Items
+		}
+	}
+	if len(tgc.Groups) > 0 {
+		return tgc.Groups[0].Items
+	}
+	return []Item{}
+}
+
+// GetNavTabsProps returns the navtabs.Props for rendering the tab navigation
+func (tgc *TabGroupCollection) GetNavTabsProps() navtabs.Props {
+	var tabs []navtabs.Tab
+	for _, group := range tgc.Groups {
+		tabs = append(tabs, group.Tab)
+	}
+	return navtabs.Props{
+		DefaultValue: tgc.DefaultValue,
+		Tabs:         tabs,
+		Class:        "w-full",
+	}
 }

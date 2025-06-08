@@ -516,7 +516,7 @@ let navTabs = (defaultValue = '') => ({
   getTabClasses(tabValue) {
     return this.isActive(tabValue) 
       ? 'text-slate-900' 
-      : 'text-slate-400 hover:text-slate-300';
+      : 'text-gray-500 hover:text-slate-300';
   }
 })
 

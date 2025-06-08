@@ -165,17 +165,41 @@ templ Navbar(pageCtx *types.PageContext) {
 	</section>
 }
 
+templ DefaultSidebarFooter() {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	@SidebarFooter(pageCtx)
+}
+
 templ SidebarFooter(pageCtx *types.PageContext) {
-	@button.Sidebar(button.Props{
-		Size:  button.SizeMD,
-		Class: "w-full justify-center gap-2 text-red-500",
-		Href:  "/logout",
-	}) {
-		@icons.SignOut(icons.Props{
-			Size: "20",
-		})
-		{ pageCtx.T("SignOut") }
-	}
+	<!-- Collapsed view: icon only -->
+	<div x-show="isCollapsed">
+		@button.Sidebar(button.Props{
+			Size:  button.SizeMD,
+			Class: "p-2 w-auto flex justify-center text-red-500",
+			Href:  "/logout",
+		}) {
+			<div class="w-6 h-6 flex items-center justify-center">
+				@icons.SignOut(icons.Props{
+					Size: "20",
+				})
+			</div>
+		}
+	</div>
+	<!-- Expanded view: icon + text -->
+	<div x-show="!isCollapsed">
+		@button.Sidebar(button.Props{
+			Size:  button.SizeMD,
+			Class: "w-full justify-center gap-2 text-red-500",
+			Href:  "/logout",
+		}) {
+			@icons.SignOut(icons.Props{
+				Size: "20",
+			})
+			{ pageCtx.T("SignOut") }
+		}
+	</div>
 	{ children... }
 }
 
@@ -191,15 +215,11 @@ templ MobileSidebar(props sidebar.Props) {
 }
 
 templ DefaultSidebarHeader() {
-	<div class="flex h-16 items-center justify-center px-6">
+	<div class="flex flex-col items-center justify-center space-y-4">
 		<a href="/" class="flex items-center gap-2">
-			@composables.MustUseLogo(ctx)
+			@MustUseLogo(ctx)
 		</a>
 	</div>
-}
-
-templ SidebarHeader() {
-	@composables.MustUseSidebarHeader(ctx)
 }
 
 type AuthenticatedProps struct {
@@ -208,13 +228,8 @@ type AuthenticatedProps struct {
 
 templ Authenticated(props AuthenticatedProps) {
 	{{
-	pageCtx := composables.UsePageCtx(ctx)
-	navItems := composables.UseNavItems(ctx)
-	sidebarProps := sidebar.Props{
-		Header: SidebarHeader(),
-		Items:  MapNavItemsToSidebar(navItems),
-		Footer: SidebarFooter(pageCtx),
-	}
+		pageCtx := composables.UsePageCtx(ctx)
+		sidebarProps := MustUseSidebarProps(ctx)
 	}}
 	if props.WebsocketURL == "" {
 		{{ props.WebsocketURL = "/ws" }}

@@ -7,9 +7,14 @@ import (
 	"slices"
 )
 
+type Tab struct {
+	Label string
+	Value string
+}
+
 type Props struct {
 	DefaultValue string
-	Tabs         []string
+	Tabs         []Tab
 	Class        string
 }
 
@@ -21,8 +26,14 @@ func (p Props) Validate() error {
 	if p.DefaultValue == "" {
 		return fmt.Errorf("defaultValue cannot be empty")
 	}
-	if !slices.Contains(p.Tabs, p.DefaultValue) {
-		return fmt.Errorf("defaultValue '%s' must be one of the provided tabs", p.DefaultValue)
+
+	// Check if defaultValue exists in tab values
+	var tabValues []string
+	for _, tab := range p.Tabs {
+		tabValues = append(tabValues, tab.Value)
+	}
+	if !slices.Contains(tabValues, p.DefaultValue) {
+		return fmt.Errorf("defaultValue '%s' must be one of the provided tab values", p.DefaultValue)
 	}
 	return nil
 }
@@ -36,7 +47,7 @@ templ NavTabs(props Props) {
 	<div
 		role="tablist"
 		aria-label="Tab navigation"
-		x-data={ "navTabs('" + props.DefaultValue + "')" }
+		x-data={ fmt.Sprintf("navTabs('%s')", props.DefaultValue) }
 		x-init="init()"
 		@resize.window="updateBackground()"
 		x-ref="tabsContainer"
@@ -51,15 +62,66 @@ templ NavTabs(props Props) {
 		for _, tab := range props.Tabs {
 			<button
 				role="tab"
-				data-tab-value={ tab }
-				x-bind:aria-selected={ "isActive('" + tab + "') ? 'true' : 'false'" }
-				x-bind:tabindex={ "isActive('" + tab + "') ? '0' : '-1'" }
-				@click={ "setActiveTab('" + tab + "')" }
-				class="relative z-10 py-2.5 px-6 text-sm font-medium rounded-xl transition-colors duration-200 flex-1 text-center !cursor-pointer"
-				x-bind:class={ "getTabClasses('" + tab + "')" }
+				data-tab-value={ tab.Value }
+				x-bind:aria-selected={ fmt.Sprintf("isActive('%s') ? 'true' : 'false'", tab.Value) }
+				x-bind:tabindex={ fmt.Sprintf("isActive('%s') ? '0' : '-1'", tab.Value) }
+				@click={ fmt.Sprintf("setActiveTab('%s')", tab.Value) }
+				class="relative z-10 py-2 px-3 text-sm font-medium rounded-xl transition-colors duration-200 flex-1 text-center !cursor-pointer"
+				x-bind:class={ fmt.Sprintf("getTabClasses('%s')", tab.Value) }
 			>
-				{ tab }
+				{ tab.Label }
 			</button>
 		}
+	</div>
+}
+
+// Root provides a container for navtabs with content switching functionality
+templ Root(props Props) {
+	if err := props.Validate(); err != nil {
+		<div class="text-red-500 text-sm p-2 border border-red-300 rounded">Error: { err.Error() }</div>
+		return
+	}
+	<div x-data={ fmt.Sprintf("navTabs('%s')", props.DefaultValue) } x-init="init()" class={ props.Class }>
+		{ children... }
+	</div>
+}
+
+// List renders the tab navigation buttons
+templ List(class string) {
+	<div
+		role="tablist"
+		aria-label="Tab navigation"
+		@resize.window="updateBackground()"
+		x-ref="tabsContainer"
+		class={ "relative bg-slate-800 rounded-2xl p-1.5 flex items-center gap-1", class }
+	>
+		<!-- Animated background -->
+		<div
+			class="absolute bg-white rounded-xl top-1.5 h-[calc(100%-0.75rem)] transition-all duration-300 ease-out border-0"
+			x-bind:style="`left: ${backgroundStyle.left}px; width: ${backgroundStyle.width}px; opacity: ${backgroundStyle.opacity};`"
+		></div>
+		{ children... }
+	</div>
+}
+
+// Button renders an individual tab button
+templ Button(value string) {
+	<button
+		role="tab"
+		data-tab-value={ value }
+		x-bind:aria-selected={ fmt.Sprintf("isActive('%s') ? 'true' : 'false'", value) }
+		x-bind:tabindex={ fmt.Sprintf("isActive('%s') ? '0' : '-1'", value) }
+		@click={ fmt.Sprintf("setActiveTab('%s')", value) }
+		class="relative z-10 py-2 px-3 text-sm font-medium rounded-xl transition-colors duration-200 flex-1 text-center !cursor-pointer"
+		x-bind:class={ fmt.Sprintf("getTabClasses('%s')", value) }
+	>
+		{ children... }
+	</button>
+}
+
+// Content renders tab content that shows/hides based on active tab
+templ Content(value string) {
+	<div x-show={ fmt.Sprintf("isActive('%s')", value) }>
+		{ children... }
 	</div>
 }

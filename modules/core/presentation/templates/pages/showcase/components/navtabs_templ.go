@@ -36,9 +36,13 @@ func NavTabs() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = navtabs.NavTabs(navtabs.Props{
-			DefaultValue: "EAI",
-			Tabs:         []string{"EAI", "CRM", "BI Chat"},
-			Class:        "max-w-sm",
+			DefaultValue: "eai",
+			Tabs: []navtabs.Tab{
+				{Label: "EAI", Value: "eai"},
+				{Label: "CRM", Value: "crm"},
+				{Label: "BI Chat", Value: "bi-chat"},
+			},
+			Class: "max-w-sm",
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -48,9 +52,13 @@ func NavTabs() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = navtabs.NavTabs(navtabs.Props{
-			DefaultValue: "Overview",
-			Tabs:         []string{"Overview", "Analytics", "Settings"},
-			Class:        "max-w-md",
+			DefaultValue: "overview",
+			Tabs: []navtabs.Tab{
+				{Label: "Overview", Value: "overview"},
+				{Label: "Analytics", Value: "analytics"},
+				{Label: "Settings", Value: "settings"},
+			},
+			Class: "max-w-md",
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -60,9 +68,12 @@ func NavTabs() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = navtabs.NavTabs(navtabs.Props{
-			DefaultValue: "Login",
-			Tabs:         []string{"Login", "Register"},
-			Class:        "max-w-xs",
+			DefaultValue: "login",
+			Tabs: []navtabs.Tab{
+				{Label: "Login", Value: "login"},
+				{Label: "Register", Value: "register"},
+			},
+			Class: "max-w-xs",
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

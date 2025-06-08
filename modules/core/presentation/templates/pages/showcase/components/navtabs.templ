@@ -7,27 +7,38 @@ templ NavTabs() {
 		<div class="space-y-2">
 			<h3 class="text-sm font-medium text-100">Default NavTabs</h3>
 			@navtabs.NavTabs(navtabs.Props{
-				DefaultValue: "EAI",
-				Tabs:         []string{"EAI", "CRM", "BI Chat"},
-				Class:        "max-w-sm",
+				DefaultValue: "eai",
+				Tabs: []navtabs.Tab{
+					{Label: "EAI", Value: "eai"},
+					{Label: "CRM", Value: "crm"},
+					{Label: "BI Chat", Value: "bi-chat"},
+				},
+				Class: "max-w-sm",
 			})
 		</div>
 		<div class="space-y-2">
 			<h3 class="text-sm font-medium text-100">Custom Tabs</h3>
 			<p class="text-200 text-xs">With different tab options</p>
 			@navtabs.NavTabs(navtabs.Props{
-				DefaultValue: "Overview",
-				Tabs:         []string{"Overview", "Analytics", "Settings"},
-				Class:        "max-w-md",
+				DefaultValue: "overview",
+				Tabs: []navtabs.Tab{
+					{Label: "Overview", Value: "overview"},
+					{Label: "Analytics", Value: "analytics"},
+					{Label: "Settings", Value: "settings"},
+				},
+				Class: "max-w-md",
 			})
 		</div>
 		<div class="space-y-2">
 			<h3 class="text-sm font-medium text-100">Two Tabs</h3>
 			<p class="text-200 text-xs">Simple two-tab configuration</p>
 			@navtabs.NavTabs(navtabs.Props{
-				DefaultValue: "Login",
-				Tabs:         []string{"Login", "Register"},
-				Class:        "max-w-xs",
+				DefaultValue: "login",
+				Tabs: []navtabs.Tab{
+					{Label: "Login", Value: "login"},
+					{Label: "Register", Value: "register"},
+				},
+				Class: "max-w-xs",
 			})
 		</div>
 	</div>
