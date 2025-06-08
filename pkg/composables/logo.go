@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	ErrNoLogoFound = errors.New("no logo found")
-	ErrNoHeadFound = errors.New("no head found")
+	ErrNoLogoFound          = errors.New("no logo found")
+	ErrNoHeadFound          = errors.New("no head found")
+	ErrNoSidebarHeaderFound = errors.New("no sidebar header found")
 )
 
 // UseLogo returns the logo component from the context
@@ -46,4 +47,22 @@ func MustUseHead(ctx context.Context) templ.Component {
 		panic(err)
 	}
 	return head
+}
+
+// UseSidebarHeader returns the sidebar header component from the context
+func UseSidebarHeader(ctx context.Context) (templ.Component, error) {
+	sidebarHeader, ok := ctx.Value(constants.SidebarHeaderKey).(templ.Component)
+	if !ok {
+		return nil, ErrNoSidebarHeaderFound
+	}
+	return sidebarHeader, nil
+}
+
+// MustUseSidebarHeader returns the sidebar header component from the context or panics
+func MustUseSidebarHeader(ctx context.Context) templ.Component {
+	sidebarHeader, err := UseSidebarHeader(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return sidebarHeader
 }

@@ -28,8 +28,6 @@ type SortBy = repo.SortBy[Field]
 type FindParams struct {
 	Limit     int
 	Offset    int
-	Query     string
-	Field     string
 	Search    string
 	SortBy    SortBy
 	CreatedAt DateRange
