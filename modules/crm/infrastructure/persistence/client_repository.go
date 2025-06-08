@@ -233,12 +233,10 @@ func (g *ClientRepository) GetPaginated(
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		where, args = append(where, fmt.Sprintf("c.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
-	if params.Query != "" && params.Field != "" {
-		where, args = append(where, fmt.Sprintf("c.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1)), append(args, "%"+params.Query+"%")
-	}
 
 	if params.Search != "" {
-		where = append(where, "c.first_name ILIKE $1 OR c.last_name ILIKE $1 OR c.middle_name ILIKE $1 OR c.phone_number ILIKE $1")
+		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
+		where = append(where, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
 		args = append(args, "%"+params.Search+"%")
 	}
 

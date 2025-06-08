@@ -190,12 +190,16 @@ templ MobileSidebar(props sidebar.Props) {
 	}
 }
 
-templ SidebarHeader() {
+templ DefaultSidebarHeader() {
 	<div class="flex h-16 items-center justify-center px-6">
 		<a href="/" class="flex items-center gap-2">
 			@composables.MustUseLogo(ctx)
 		</a>
 	</div>
+}
+
+templ SidebarHeader() {
+	@composables.MustUseSidebarHeader(ctx)
 }
 
 type AuthenticatedProps struct {
