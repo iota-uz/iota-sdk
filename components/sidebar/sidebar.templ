@@ -3,30 +3,46 @@ package sidebar
 import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/navtabs"
 )
 
 type Props struct {
-	Header templ.Component
-	Items  []Item
-	Footer templ.Component
+	Header    templ.Component
+	TabGroups TabGroupCollection
+	Footer    templ.Component
 }
 
 templ Sidebar(props Props) {
+	{{
+		var xDataValue string
+		if props.TabGroups.HasMultipleGroups() {
+			xDataValue = "{ ...sidebar(), ...navTabs('" + props.TabGroups.DefaultValue + "') }"
+		} else {
+			xDataValue = "sidebar()"
+		}
+	}}
 	<div
-		x-data="sidebar()"
+		x-data={ xDataValue }
 		x-cloak
 		:class="{ 'sidebar-collapsed': isCollapsed }"
-		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0 transition-all duration-300 overflow-visible"
+		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
 	>
-		<div class="flex items-center justify-between px-6 mb-4 relative">
+		<div class="px-6 mb-4">
 			<div x-show="!isCollapsed" x-transition>
 				if props.Header != nil {
 					@props.Header
 				}
+				if props.TabGroups.HasMultipleGroups() {
+					<div class="mt-4">
+						@navtabs.NavTabs(props.TabGroups.GetNavTabsProps())
+					</div>
+				}
 			</div>
+		</div>
+		<div class="relative mb-4">
 			<button
 				@click="toggle(); $dispatch('sidebar-toggle')"
-				class="btn btn-ghost btn-sm btn-fixed btn-rounded absolute -right-3 top-1/2 -translate-y-1/2 z-10"
+				class="btn btn-ghost btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex"
 			>
 				<div x-show="!isCollapsed">
 					@icons.CaretLeft(icons.Props{Size: "16"})
@@ -37,22 +53,44 @@ templ Sidebar(props Props) {
 			</button>
 		</div>
 		<nav class="py-4 flex-1">
-			<ul
-				id="sidebar-navigation"
-				:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
-				class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-12rem)] hide-scrollbar transition-all duration-300"
-			>
-				for _, item := range props.Items {
-					if item.IsLink() {
-						@AccordionLink(asLink(item))
-					} else {
-						@AccordionGroup(asGroup(item))
-					}
+			if props.TabGroups.HasMultipleGroups() {
+				// Render items with tab groups
+				for _, tabGroup := range props.TabGroups.Groups {
+					<div x-show={ "activeTab === '" + tabGroup.Tab.Value + "'" }>
+						<ul
+							id="sidebar-navigation"
+							:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
+							class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-17rem)] hide-scrollbar transition-all duration-300"
+						>
+							for _, item := range tabGroup.Items {
+								if item.IsLink() {
+									@AccordionLink(asLink(item))
+								} else {
+									@AccordionGroup(asGroup(item))
+								}
+							}
+						</ul>
+					</div>
 				}
-			</ul>
+			} else {
+				// Single group - render items directly
+				<ul
+					id="sidebar-navigation"
+					:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
+					class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-17rem)] hide-scrollbar transition-all duration-300"
+				>
+					for _, item := range props.TabGroups.GetActiveGroupItems() {
+						if item.IsLink() {
+							@AccordionLink(asLink(item))
+						} else {
+							@AccordionGroup(asGroup(item))
+						}
+					}
+				</ul>
+			}
 		</nav>
 		if props.Footer != nil {
-			<div x-show="!isCollapsed" x-transition class="px-6">
+			<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="transition-all duration-300">
 				@props.Footer
 			</div>
 		}
