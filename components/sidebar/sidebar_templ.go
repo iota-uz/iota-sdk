@@ -40,7 +40,7 @@ func Sidebar(props Props) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"sidebar()\" :class=\"{ &#39;sidebar-collapsed&#39;: isCollapsed }\" class=\"flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0 transition-all duration-300 overflow-visible\"><div class=\"flex items-center justify-between px-6 mb-4 relative\"><div x-show=\"!isCollapsed\" x-transition>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"sidebar()\" x-cloak :class=\"{ &#39;sidebar-collapsed&#39;: isCollapsed }\" class=\"flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0 transition-all duration-300 overflow-visible\"><div class=\"flex items-center justify-between px-6 mb-4 relative\"><div x-show=\"!isCollapsed\" x-transition>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -163,7 +163,7 @@ func AccordionGroup(group Group) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(group.Text())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 75, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 76, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -293,7 +293,7 @@ func AccordionLink(link Link) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(link.Text())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 123, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 124, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {

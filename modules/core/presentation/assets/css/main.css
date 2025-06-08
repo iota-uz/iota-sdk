@@ -857,6 +857,11 @@
     --color: oklch(var(--primary-500));
   }
 
+  /* Prevent Alpine.js transition flicker on initial load */
+  [x-cloak] {
+    display: none !important;
+  }
+
   /* Sidebar collapsed styles */
   .sidebar-collapsed {
     width: 4rem !important;
@@ -922,6 +927,10 @@
 
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+
+  .no-transition {
+    transition: none !important;
   }
 
   /* Slider styles */

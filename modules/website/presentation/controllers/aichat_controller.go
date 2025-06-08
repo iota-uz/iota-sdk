@@ -3,7 +3,6 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -258,7 +257,6 @@ func (c *AIChatController) fetchModels(
 	configService *websiteServices.AIChatConfigService,
 	localizer *i18n.Localizer,
 ) {
-	time.Sleep(1000 * time.Millisecond) // Simulate delay for demonstration purposes
 	var formData struct {
 		BaseURL     string `json:"BaseURL"`
 		AccessToken string `json:"AccessToken"`
