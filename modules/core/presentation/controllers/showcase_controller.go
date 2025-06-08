@@ -59,20 +59,33 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 }
 
 func (c *ShowcaseController) getSidebarProps() sidebar.Props {
-	return sidebar.Props{
-		Items: []sidebar.Item{
-			sidebar.NewLink(c.basePath, "Overview", nil),
-			sidebar.NewGroup(
-				"Components",
-				icons.PuzzlePiece(icons.Props{Size: "20"}),
-				[]sidebar.Item{
-					sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
-					sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
-					sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
-					sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
-				},
-			),
+	items := []sidebar.Item{
+		sidebar.NewLink(c.basePath, "Overview", nil),
+		sidebar.NewGroup(
+			"Components",
+			icons.PuzzlePiece(icons.Props{Size: "20"}),
+			[]sidebar.Item{
+				sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
+			},
+		),
+	}
+
+	tabGroups := sidebar.TabGroupCollection{
+		Groups: []sidebar.TabGroup{
+			{
+				Label: "Showcase",
+				Value: "showcase",
+				Items: items,
+			},
 		},
+		DefaultValue: "showcase",
+	}
+
+	return sidebar.Props{
+		TabGroups: tabGroups,
 	}
 }
 

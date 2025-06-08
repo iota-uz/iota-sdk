@@ -6,29 +6,83 @@ templ NavTabs() {
 	<div class="space-y-6">
 		<div class="space-y-2">
 			<h3 class="text-sm font-medium text-100">Default NavTabs</h3>
-			@navtabs.NavTabs(navtabs.Props{
-				DefaultValue: "EAI",
-				Tabs:         []string{"EAI", "CRM", "BI Chat"},
+			@navtabs.Root(navtabs.Props{
+				DefaultValue: "eai",
 				Class:        "max-w-sm",
-			})
+			}) {
+				@navtabs.List("") {
+					@navtabs.Button("eai") {
+						EAI 
+					}
+					@navtabs.Button("crm") {
+						CRM 
+					}
+					@navtabs.Button("bi-chat") {
+						BI Chat 
+					}
+				}
+				@navtabs.Content("eai") {
+					<div class="p-4 text-sm">EAI content goes here</div>
+				}
+				@navtabs.Content("crm") {
+					<div class="p-4 text-sm">CRM content goes here</div>
+				}
+				@navtabs.Content("bi-chat") {
+					<div class="p-4 text-sm">BI Chat content goes here</div>
+				}
+			}
 		</div>
 		<div class="space-y-2">
 			<h3 class="text-sm font-medium text-100">Custom Tabs</h3>
 			<p class="text-200 text-xs">With different tab options</p>
-			@navtabs.NavTabs(navtabs.Props{
-				DefaultValue: "Overview",
-				Tabs:         []string{"Overview", "Analytics", "Settings"},
+			@navtabs.Root(navtabs.Props{
+				DefaultValue: "overview",
 				Class:        "max-w-md",
-			})
+			}) {
+				@navtabs.List("") {
+					@navtabs.Button("overview") {
+						Overview 
+					}
+					@navtabs.Button("analytics") {
+						Analytics 
+					}
+					@navtabs.Button("settings") {
+						Settings 
+					}
+				}
+				@navtabs.Content("overview") {
+					<div class="p-4 text-sm">Overview dashboard content</div>
+				}
+				@navtabs.Content("analytics") {
+					<div class="p-4 text-sm">Analytics and metrics</div>
+				}
+				@navtabs.Content("settings") {
+					<div class="p-4 text-sm">Configuration settings</div>
+				}
+			}
 		</div>
 		<div class="space-y-2">
 			<h3 class="text-sm font-medium text-100">Two Tabs</h3>
 			<p class="text-200 text-xs">Simple two-tab configuration</p>
-			@navtabs.NavTabs(navtabs.Props{
-				DefaultValue: "Login",
-				Tabs:         []string{"Login", "Register"},
+			@navtabs.Root(navtabs.Props{
+				DefaultValue: "login",
 				Class:        "max-w-xs",
-			})
+			}) {
+				@navtabs.List("") {
+					@navtabs.Button("login") {
+						Login 
+					}
+					@navtabs.Button("register") {
+						Register 
+					}
+				}
+				@navtabs.Content("login") {
+					<div class="p-4 text-sm">Login form here</div>
+				}
+				@navtabs.Content("register") {
+					<div class="p-4 text-sm">Registration form here</div>
+				}
+			}
 		</div>
 	</div>
 }

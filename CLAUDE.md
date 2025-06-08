@@ -7,7 +7,7 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 - DO NOT USE `sed` for file manipulation
 
 ## Build/Lint/Test Commands
-- After changes to css or .templ files: `make generate && make css`
+- After changes to css or .templ files: `templ generate && make css`
 - After changes to Go code: `go vet ./...`
 - Run all tests: `make test` or `go test -v ./...` 
 - Run single test: `go test -v ./path/to/package -run TestName`

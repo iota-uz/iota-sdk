@@ -228,7 +228,7 @@ func Search(fields []SearchField) templ.Component {
 			},
 			Placeholder: pageCtx.T("Search"),
 			Attrs: templ.Attributes{
-				"name": "Query",
+				"name": "Search",
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

@@ -25,7 +25,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/base"
-	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	userdomain "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -150,8 +149,10 @@ type ClientController struct {
 }
 
 type ClientsPaginatedResponse struct {
-	Clients         []*viewmodels.Client
-	PaginationState *pagination.State
+	Clients []*viewmodels.Client
+	Page    int
+	PerPage int
+	HasMore bool
 }
 
 func NewClientController(app application.Application, config ...ClientControllerConfig) application.Controller {
@@ -340,23 +341,25 @@ func (c *ClientController) viewModelClients(
 		params.CreatedAt.To = v
 	}
 
-	if q := r.URL.Query().Get("Query"); q != "" {
+	if q := r.URL.Query().Get("Search"); q != "" {
 		params.Search = q
 	}
 
 	clientEntities, err := clientService.GetPaginated(r.Context(), params)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving expenses")
+		return nil, errors.Wrap(err, "Error retrieving clients")
 	}
 
 	total, err := clientService.Count(r.Context())
 	if err != nil {
-		return nil, errors.Wrap(err, "Error counting expenses")
+		return nil, errors.Wrap(err, "Error counting clients")
 	}
 
 	return &ClientsPaginatedResponse{
-		Clients:         mapping.MapViewModels(clientEntities, mappers.ClientToViewModel),
-		PaginationState: pagination.New(c.config.BasePath, paginationParams.Page, int(total), params.Limit),
+		Clients: mapping.MapViewModels(clientEntities, mappers.ClientToViewModel),
+		Page:    paginationParams.Page,
+		PerPage: params.Limit,
+		HasMore: int64(paginationParams.Page*params.Limit) < total,
 	}, nil
 }
 
@@ -384,12 +387,27 @@ func (c *ClientController) List(
 		return
 	}
 	props := &clients.IndexPageProps{
-		NewURL:          fmt.Sprintf("%s/new", c.config.BasePath),
-		Clients:         paginated.Clients,
-		PaginationState: paginated.PaginationState,
+		NewURL:  fmt.Sprintf("%s/new", c.config.BasePath),
+		Clients: paginated.Clients,
+		Page:    paginated.Page,
+		PerPage: paginated.PerPage,
+		HasMore: paginated.HasMore,
 	}
 	if isHxRequest {
-		templ.Handler(clients.ClientsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		// For infinite scroll pagination (page > 1), return only rows
+		if r.URL.Query().Get("page") != "" && r.URL.Query().Get("page") != "1" {
+			templ.Handler(clients.ClientRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			// For search requests and initial page load, check the HX-Target header
+			target := htmx.Target(r)
+			if target == "clients-table-body" {
+				// Search request targeting table body - return only rows
+				templ.Handler(clients.ClientRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+			} else {
+				// Other HTMX requests - return full table
+				templ.Handler(clients.ClientsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+			}
+		}
 	} else {
 		templ.Handler(clients.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
@@ -541,7 +559,7 @@ func (c *ClientController) View(
 		return
 	}
 
-	hxCurrentURL, err := url.Parse(r.Header.Get("Hx-Current-Url"))
+	hxCurrentURL, err := url.Parse(htmx.CurrentUrl(r))
 	if err != nil {
 		logger.Errorf("Error parsing Hx-Current-URL: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
