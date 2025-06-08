@@ -493,6 +493,8 @@ let navTabs = (defaultValue = '') => ({
   setActiveTab(tabValue) {
     this.activeTab = tabValue;
     this.$nextTick(() => this.updateBackground());
+    // Emit event for parent components to handle
+    this.$dispatch('tab-changed', { value: tabValue });
   },
 
   updateBackground() {
@@ -528,11 +530,36 @@ let sidebar = () => ({
     localStorage.setItem('sidebar-collapsed', this.isCollapsed.toString());
   },
   
-  init() {
+  handleTabChange(event) {
+    // Save the selected tab to localStorage
+    if (event.detail && event.detail.value) {
+      localStorage.setItem('sidebar-active-tab', event.detail.value);
+    }
+  },
+  
+  getStoredTab() {
+    return localStorage.getItem('sidebar-active-tab');
+  },
+  
+  initSidebar() {
     // Apply initial state class to prevent flash
     this.$nextTick(() => {
       if (this.isCollapsed) {
         this.$el.classList.add('sidebar-collapsed');
+      }
+      
+      // Restore saved tab
+      const storedTab = this.getStoredTab();
+      if (storedTab) {
+        // Find navTabs component and update its state
+        const navTabsEl = this.$el.querySelector('[x-data*="navTabs"]');
+        if (navTabsEl && navTabsEl.__x) {
+          navTabsEl.__x.$data.activeTab = storedTab;
+          // Use requestAnimationFrame to ensure DOM is ready
+          requestAnimationFrame(() => {
+            navTabsEl.__x.$data.updateBackground();
+          });
+        }
       }
     });
   }

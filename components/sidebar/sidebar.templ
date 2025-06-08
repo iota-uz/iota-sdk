@@ -13,18 +13,22 @@ type Props struct {
 }
 
 templ Sidebar(props Props) {
-	{{
-		navTabsProps := navtabs.Props{
-			DefaultValue: props.TabGroups.DefaultValue,
-		}
-	}}
-	@navtabs.Root(navTabsProps) {
-		<div
-			x-data="sidebar()"
-			x-cloak
-			:class="{ 'sidebar-collapsed': isCollapsed }"
-			class="flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
-		>
+	<div
+		x-data="sidebar()"
+		x-cloak
+		:class="{ 'sidebar-collapsed': isCollapsed }"
+		x-init="initSidebar()"
+		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
+	>
+		{{
+			navTabsProps := navtabs.Props{
+				DefaultValue: props.TabGroups.DefaultValue,
+				Attrs: templ.Attributes{
+					"@tab-changed": "handleTabChange($event)",
+				},
+			}
+		}}
+		@navtabs.Root(navTabsProps) {
 			<div class="px-6 mb-4">
 				<div x-show="!isCollapsed" x-transition>
 					if props.Header != nil {
@@ -42,8 +46,8 @@ templ Sidebar(props Props) {
 				</div>
 			</div>
 			@SidebarContent(props)
-		</div>
-	}
+		}
+	</div>
 }
 
 templ SidebarContent(props Props) {
