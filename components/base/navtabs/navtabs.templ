@@ -7,11 +7,17 @@ import "fmt"
 type Props struct {
 	DefaultValue string
 	Class        string
+	Attrs        templ.Attributes
 }
 
 // Root provides a container for navtabs with content switching functionality
 templ Root(props Props) {
-	<div x-data={ fmt.Sprintf("navTabs('%s')", props.DefaultValue) } x-init="init()" class={ props.Class }>
+	<div
+		x-data={ fmt.Sprintf("navTabs('%s')", props.DefaultValue) }
+		x-init="init()"
+		class={ props.Class }
+		{ props.Attrs... }
+	>
 		{ children... }
 	</div>
 }
@@ -23,6 +29,7 @@ templ List(class string) {
 		aria-label="Tab navigation"
 		@resize.window="updateBackground()"
 		x-ref="tabsContainer"
+		x-init="$nextTick(() => updateBackground())"
 		class={ "relative bg-slate-800 rounded-2xl p-1.5 flex items-center gap-1", class }
 	>
 		<!-- Animated background -->
