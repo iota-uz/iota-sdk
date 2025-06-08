@@ -10,7 +10,6 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/sirupsen/logrus"
 
-	"github.com/iota-uz/iota-sdk/components/base/navtabs"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	showcaseui "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -77,10 +76,8 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 	tabGroups := sidebar.TabGroupCollection{
 		Groups: []sidebar.TabGroup{
 			{
-				Tab: navtabs.Tab{
-					Label: "Showcase",
-					Value: "showcase",
-				},
+				Label: "Showcase",
+				Value: "showcase",
 				Items: items,
 			},
 		},

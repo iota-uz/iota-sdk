@@ -14,72 +14,61 @@ type Props struct {
 
 templ Sidebar(props Props) {
 	{{
-		var xDataValue string
-		if props.TabGroups.HasMultipleGroups() {
-			xDataValue = "{ ...sidebar(), ...navTabs('" + props.TabGroups.DefaultValue + "') }"
-		} else {
-			xDataValue = "sidebar()"
+		navTabsProps := navtabs.Props{
+			DefaultValue: props.TabGroups.DefaultValue,
 		}
 	}}
-	<div
-		x-data={ xDataValue }
-		x-cloak
-		:class="{ 'sidebar-collapsed': isCollapsed }"
-		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
-	>
-		<div class="px-6 mb-4">
-			<div x-show="!isCollapsed" x-transition>
-				if props.Header != nil {
-					@props.Header
-				}
-				if props.TabGroups.HasMultipleGroups() {
+	@navtabs.Root(navTabsProps) {
+		<div
+			x-data="sidebar()"
+			x-cloak
+			:class="{ 'sidebar-collapsed': isCollapsed }"
+			class="flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
+		>
+			<div class="px-6 mb-4">
+				<div x-show="!isCollapsed" x-transition>
+					if props.Header != nil {
+						@props.Header
+					}
 					<div class="mt-4">
-						@navtabs.NavTabs(props.TabGroups.GetNavTabsProps())
-					</div>
-				}
-			</div>
-		</div>
-		<div class="relative mb-4">
-			<button
-				@click="toggle(); $dispatch('sidebar-toggle')"
-				class="btn btn-ghost btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex"
-			>
-				<div x-show="!isCollapsed">
-					@icons.CaretLeft(icons.Props{Size: "16"})
-				</div>
-				<div x-show="isCollapsed">
-					@icons.CaretRight(icons.Props{Size: "16"})
-				</div>
-			</button>
-		</div>
-		<nav class="py-4 flex-1">
-			if props.TabGroups.HasMultipleGroups() {
-				// Render items with tab groups
-				for _, tabGroup := range props.TabGroups.Groups {
-					<div x-show={ "activeTab === '" + tabGroup.Tab.Value + "'" }>
-						<ul
-							id="sidebar-navigation"
-							:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
-							class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-17rem)] hide-scrollbar transition-all duration-300"
-						>
-							for _, item := range tabGroup.Items {
-								if item.IsLink() {
-									@AccordionLink(asLink(item))
-								} else {
-									@AccordionGroup(asGroup(item))
+						@navtabs.List("w-full") {
+							for _, group := range props.TabGroups.Groups {
+								@navtabs.Button(group.Value) {
+									{ group.Label }
 								}
 							}
-						</ul>
+						}
 					</div>
-				}
-			} else {
-				// Single group - render items directly
+				</div>
+			</div>
+			@SidebarContent(props)
+		</div>
+	}
+}
+
+templ SidebarContent(props Props) {
+	<div class="relative mb-4">
+		<button
+			@click="toggle(); $dispatch('sidebar-toggle')"
+			class="btn btn-ghost btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex"
+		>
+			<div x-show="!isCollapsed">
+				@icons.CaretLeft(icons.Props{Size: "16"})
+			</div>
+			<div x-show="isCollapsed">
+				@icons.CaretRight(icons.Props{Size: "16"})
+			</div>
+		</button>
+	</div>
+	<nav class="py-4 flex-1">
+		for _, tabGroup := range props.TabGroups.Groups {
+			@navtabs.Content(tabGroup.Value) {
 				<ul
 					id="sidebar-navigation"
 					:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
 					class="flex flex-col gap-2 overflow-y-auto h-[calc(100vh-17rem)] hide-scrollbar transition-all duration-300"
 				>
-					for _, item := range props.TabGroups.GetActiveGroupItems() {
+					for _, item := range tabGroup.Items {
 						if item.IsLink() {
 							@AccordionLink(asLink(item))
 						} else {
@@ -88,13 +77,13 @@ templ Sidebar(props Props) {
 					}
 				</ul>
 			}
-		</nav>
-		if props.Footer != nil {
-			<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="transition-all duration-300">
-				@props.Footer
-			</div>
 		}
-	</div>
+	</nav>
+	if props.Footer != nil {
+		<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="transition-all duration-300">
+			@props.Footer
+		</div>
+	}
 }
 
 templ AccordionGroup(group Group) {

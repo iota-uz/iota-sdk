@@ -6,7 +6,6 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/iota-uz/iota-sdk/components/base/navtabs"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
@@ -16,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	pkgsidebar "github.com/iota-uz/iota-sdk/pkg/sidebar"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -92,20 +92,8 @@ func NavItems() mux.MiddlewareFunc {
 				filtered := filterItems(app.NavItems(localizer), u)
 				enabledNavItems := getEnabledNavItems(filtered, tabs)
 
-				// Build sidebar props with tab groups
-				items := layouts.MapNavItemsToSidebar(enabledNavItems)
-				tabGroups := sidebar.TabGroupCollection{
-					Groups: []sidebar.TabGroup{
-						{
-							Tab: navtabs.Tab{
-								Label: "Core",
-								Value: "core",
-							},
-							Items: items,
-						},
-					},
-					DefaultValue: "core",
-				}
+				// Build sidebar props with configurable tab groups
+				tabGroups := pkgsidebar.BuildTabGroups(enabledNavItems, localizer)
 
 				sidebarProps := sidebar.Props{
 					Header:    layouts.DefaultSidebarHeader(),
