@@ -485,9 +485,26 @@ let datePicker = ({
 let navTabs = (defaultValue = '') => ({
   activeTab: defaultValue,
   backgroundStyle: { left: 0, width: 0, opacity: 0 },
+  restoreHandler: null,
 
   init() {
     this.$nextTick(() => this.updateBackground());
+    
+    // Listen for restore-tab event on document since it bubbles up
+    this.restoreHandler = (event) => {
+      if (event.detail && event.detail.value) {
+        this.activeTab = event.detail.value;
+        this.$nextTick(() => this.updateBackground());
+      }
+    };
+    
+    document.addEventListener('restore-tab', this.restoreHandler);
+  },
+  
+  destroy() {
+    if (this.restoreHandler) {
+      document.removeEventListener('restore-tab', this.restoreHandler);
+    }
   },
 
   setActiveTab(tabValue) {
@@ -524,6 +541,7 @@ let navTabs = (defaultValue = '') => ({
 
 let sidebar = () => ({
   isCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+  storedTab: localStorage.getItem('sidebar-active-tab') || null,
   
   toggle() {
     this.isCollapsed = !this.isCollapsed;
@@ -534,11 +552,12 @@ let sidebar = () => ({
     // Save the selected tab to localStorage
     if (event.detail && event.detail.value) {
       localStorage.setItem('sidebar-active-tab', event.detail.value);
+      this.storedTab = event.detail.value;
     }
   },
   
   getStoredTab() {
-    return localStorage.getItem('sidebar-active-tab');
+    return this.storedTab;
   },
   
   initSidebar() {
@@ -548,18 +567,12 @@ let sidebar = () => ({
         this.$el.classList.add('sidebar-collapsed');
       }
       
-      // Restore saved tab
-      const storedTab = this.getStoredTab();
-      if (storedTab) {
-        // Find navTabs component and update its state
-        const navTabsEl = this.$el.querySelector('[x-data*="navTabs"]');
-        if (navTabsEl && navTabsEl.__x) {
-          navTabsEl.__x.$data.activeTab = storedTab;
-          // Use requestAnimationFrame to ensure DOM is ready
-          requestAnimationFrame(() => {
-            navTabsEl.__x.$data.updateBackground();
-          });
-        }
+      // Dispatch event to restore tab if stored
+      if (this.storedTab) {
+        // Wait a bit for navTabs to initialize
+        setTimeout(() => {
+          this.$dispatch('restore-tab', { value: this.storedTab });
+        }, 100);
       }
     });
   }
