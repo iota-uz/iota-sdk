@@ -6,13 +6,16 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	pkgsidebar "github.com/iota-uz/iota-sdk/pkg/sidebar"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -87,8 +90,20 @@ func NavItems() mux.MiddlewareFunc {
 					return
 				}
 				filtered := filterItems(app.NavItems(localizer), u)
+				enabledNavItems := getEnabledNavItems(filtered, tabs)
+
+				// Build sidebar props with configurable tab groups
+				tabGroups := pkgsidebar.BuildTabGroups(enabledNavItems, localizer)
+
+				sidebarProps := sidebar.Props{
+					Header:    layouts.DefaultSidebarHeader(),
+					TabGroups: tabGroups,
+					Footer:    layouts.DefaultSidebarFooter(),
+				}
+
 				ctx := context.WithValue(r.Context(), constants.AllNavItemsKey, filtered)
-				ctx = context.WithValue(ctx, constants.NavItemsKey, getEnabledNavItems(filtered, tabs))
+				ctx = context.WithValue(ctx, constants.NavItemsKey, enabledNavItems)
+				ctx = context.WithValue(ctx, constants.SidebarPropsKey, sidebarProps)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)

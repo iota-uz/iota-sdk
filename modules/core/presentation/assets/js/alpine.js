@@ -493,6 +493,8 @@ let navTabs = (defaultValue = '') => ({
   setActiveTab(tabValue) {
     this.activeTab = tabValue;
     this.$nextTick(() => this.updateBackground());
+    // Emit event for parent components to handle
+    this.$dispatch('tab-changed', { value: tabValue });
   },
 
   updateBackground() {
@@ -516,7 +518,50 @@ let navTabs = (defaultValue = '') => ({
   getTabClasses(tabValue) {
     return this.isActive(tabValue) 
       ? 'text-slate-900' 
-      : 'text-slate-400 hover:text-slate-300';
+      : 'text-gray-500 hover:text-slate-300';
+  }
+})
+
+let sidebar = () => ({
+  isCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+  
+  toggle() {
+    this.isCollapsed = !this.isCollapsed;
+    localStorage.setItem('sidebar-collapsed', this.isCollapsed.toString());
+  },
+  
+  handleTabChange(event) {
+    // Save the selected tab to localStorage
+    if (event.detail && event.detail.value) {
+      localStorage.setItem('sidebar-active-tab', event.detail.value);
+    }
+  },
+  
+  getStoredTab() {
+    return localStorage.getItem('sidebar-active-tab');
+  },
+  
+  initSidebar() {
+    // Apply initial state class to prevent flash
+    this.$nextTick(() => {
+      if (this.isCollapsed) {
+        this.$el.classList.add('sidebar-collapsed');
+      }
+      
+      // Restore saved tab
+      const storedTab = this.getStoredTab();
+      if (storedTab) {
+        // Find navTabs component and update its state
+        const navTabsEl = this.$el.querySelector('[x-data*="navTabs"]');
+        if (navTabsEl && navTabsEl.__x) {
+          navTabsEl.__x.$data.activeTab = storedTab;
+          // Use requestAnimationFrame to ensure DOM is ready
+          requestAnimationFrame(() => {
+            navTabsEl.__x.$data.updateBackground();
+          });
+        }
+      }
+    });
   }
 })
 
@@ -531,4 +576,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("dateFns", dateFns);
   Alpine.data("datePicker", datePicker);
   Alpine.data("navTabs", navTabs);
+  Alpine.data("sidebar", sidebar);
 });

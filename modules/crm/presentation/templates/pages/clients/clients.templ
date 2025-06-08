@@ -5,17 +5,34 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"net/url"
+	"strconv"
 )
 
 type IndexPageProps struct {
-	Clients         []*viewmodels.Client
-	PaginationState *pagination.State
-	NewURL          string
+	Clients []*viewmodels.Client
+	Page    int
+	PerPage int
+	HasMore bool
+	NewURL  string
+}
+
+func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(props.Page+1))
+	params.Set("limit", strconv.Itoa(props.PerPage))
+
+	return templ.Attributes{
+		"hx-get":     "/crm/clients?" + params.Encode(),
+		"hx-trigger": "intersect once",
+		"hx-swap":    "afterend",
+		"hx-target":  "this",
+	}
 }
 
 templ ClientRow(client *viewmodels.Client, rowProps *base.TableRowProps) {
@@ -66,91 +83,107 @@ templ ClientCreatedEvent(client *viewmodels.Client, rowProps *base.TableRowProps
 	</tbody>
 }
 
-templ ClientRows(clients []*viewmodels.Client) {
-	for _, client := range clients {
-		@ClientRow(client, &base.TableRowProps{})
+templ ClientRows(props *IndexPageProps) {
+	<tr class="hidden">
+		<td colspan="3">
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes(
+					"flex justify-center items-center py-4",
+				),
+			})
+		</td>
+	</tr>
+	for ix, client := range props.Clients {
+		{{
+			isLastRow := ix == len(props.Clients)-1
+			rowProps := &base.TableRowProps{
+				Attrs: templ.Attributes{},
+			}
+			if isLastRow && props.HasMore {
+				rowProps.Attrs = mkInfiniteAttrs(props)
+			}
+		}}
+		@ClientRow(client, rowProps)
 	}
 }
 
 templ ClientsTable(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@NewClientDrawer()
-	<div class="flex flex-col gap-4 table-wrapper">
-		@base.Table(base.TableProps{
-			Columns: []*base.TableColumn{
-				{Label: pageCtx.T("Clients.List.FullName"), Key: "fullName"},
-				{Label: pageCtx.T("Clients.List.Phone"), Key: "phone"},
-				{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
-			},
-		}) {
-			<tbody id="clients-table-body">
-				if len(props.Clients) == 0 {
-					<tr>
-						<td colspan="3">
-							@base.TableEmptyState(base.TableEmptyStateProps{
-								Title:       pageCtx.T("Clients.List.NoData.Title"),
-								Description: pageCtx.T("Clients.List.NoData._Description"),
-							})
-						</td>
-					</tr>
-				} else {
-					@ClientRows(props.Clients)
-				}
-			</tbody>
+	@base.Table(base.TableProps{
+		Columns: []*base.TableColumn{
+			{Label: pageCtx.T("Clients.List.FullName"), Key: "fullName"},
+			{Label: pageCtx.T("Clients.List.Phone"), Key: "phone"},
+			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+		},
+		TBodyAttrs: templ.Attributes{
+			"id": "clients-table-body",
+		},
+	}) {
+		if len(props.Clients) == 0 {
+			<tr>
+				<td colspan="3">
+					@base.TableEmptyState(base.TableEmptyStateProps{
+						Title:       pageCtx.T("Clients.List.NoData.Title"),
+						Description: pageCtx.T("Clients.List.NoData._Description"),
+					})
+				</td>
+			</tr>
+		} else {
+			@ClientRows(props)
 		}
-		if len(props.PaginationState.Pages()) > 1 {
-			@pagination.Pagination(props.PaginationState)
-		}
-	</div>
+	}
 }
 
 templ ClientsContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ pageCtx.T("NavigationLinks.Clients") }
-		</h1>
-		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
-			<form
-				class="p-4 flex items-center gap-3"
-				hx-get="/crm/clients"
-				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
-				hx-target=".table-wrapper"
-				hx-swap="outerHTML"
-			>
-				@filters.Search([]filters.SearchField{
-					{
-						Label: pageCtx.T("Clients.List.FullName"),
-						Key:   "full_name",
-					},
-				})
-				@filters.PageSize()
-				@filters.CreatedAt()
-				@button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					Attrs: templ.Attributes{
-						"type":   "button",
-						"x-data": "",
-						"@click": "$dispatch('new-client')",
-					},
-				}) {
-					{ pageCtx.T("Clients.List.New") }
-				}
-			</form>
-			@ClientsTable(props)
-		</div>
+	<div class="bg-surface-600 border border-primary rounded-lg">
+		<form
+			class="p-4 flex items-center gap-3"
+			hx-get="/crm/clients"
+			hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+			hx-target="#clients-table-body"
+			hx-swap="innerHTML"
+			hx-indicator="#clients-table-body"
+		>
+			<input type="hidden" name="page" value="1"/>
+			@filters.Search([]filters.SearchField{
+				{
+					Label: pageCtx.T("Clients.List.FullName"),
+					Key:   "full_name",
+				},
+			})
+			@filters.PageSize()
+			@filters.CreatedAt()
+			@button.Primary(button.Props{
+				Size: button.SizeNormal,
+				Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				Attrs: templ.Attributes{
+					"type":   "button",
+					"x-data": "",
+					"@click": "$dispatch('new-client')",
+				},
+			}) {
+				{ pageCtx.T("Clients.List.New") }
+			}
+		</form>
+		@ClientsTable(props)
 	</div>
 }
 
 templ Index(props *IndexPageProps) {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Clients.List.Meta.Title")},
 	}) {
-		@ClientsContent(props)
+		@NewClientDrawer()
+		<div class="m-6">
+			<h1 class="text-2xl font-medium">
+				{ pageCtx.T("NavigationLinks.Clients") }
+			</h1>
+			<div class="mt-5" id="clients-table-wrapper">
+				@ClientsContent(props)
+			</div>
+		</div>
 		<template
 			x-data="{ showDialog: new URLSearchParams(window.location.search).has('view') }"
 			x-if="showDialog"
