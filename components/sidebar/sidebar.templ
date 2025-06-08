@@ -14,6 +14,7 @@ type Props struct {
 templ Sidebar(props Props) {
 	<div
 		x-data="sidebar()"
+		x-cloak
 		:class="{ 'sidebar-collapsed': isCollapsed }"
 		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 max-h-screen sticky top-0 transition-all duration-300 overflow-visible"
 	>
