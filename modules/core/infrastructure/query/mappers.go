@@ -20,6 +20,8 @@ func mapToUserViewModel(dbUser models.User, hasAvatar bool, avatar *models.Uploa
 		Language:   dbUser.UILanguage,
 		CreatedAt:  dbUser.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:  dbUser.UpdatedAt.Format(time.RFC3339),
+		CanUpdate:  dbUser.Type != "system",
+		CanDelete:  dbUser.Type != "system",
 	}
 
 	if dbUser.Phone.Valid {
