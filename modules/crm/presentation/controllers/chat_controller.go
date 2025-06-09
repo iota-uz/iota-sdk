@@ -25,7 +25,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -88,7 +87,7 @@ func (c *ChatController) Register(r *mux.Router) {
 
 func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
 	ctxWithDb := composables.WithPool(context.Background(), c.app.DB())
-	chatViewModels, err := c.chatViewModels(
+	chatViewModels, _, err := c.chatViewModelsWithTotal(
 		ctxWithDb,
 		&chat.FindParams{
 			SortBy: chat.SortBy{
@@ -110,9 +109,17 @@ func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
 		c.logger.WithError(err).Error("failed to get chat view models")
 		return
 	}
+	props := &chatsui.IndexPageProps{
+		SearchURL:  c.basePath + "/search",
+		NewChatURL: "/crm/chats/new",
+		Chats:      chatViewModels,
+		Page:       1,
+		PerPage:    len(chatViewModels),
+		HasMore:    false,
+	}
 	err = c.app.Websocket().ForEach(application.ChannelAuthenticated, func(ctx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
-		if err := chatsui.ChatList(chatViewModels).Render(ctx, &buf); err != nil {
+		if err := chatsui.ChatList(props).Render(ctx, &buf); err != nil {
 			return err
 		}
 		return conn.SendMessage(buf.Bytes())
@@ -133,7 +140,8 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		c.logger.WithError(err).Error("failed to get client by ID")
 		return
 	}
-	chatViewModels, err := c.chatViewModels(
+	config := configuration.Use()
+	chatViewModels, _, err := c.chatViewModelsWithTotal(
 		ctxWithDb,
 		&chat.FindParams{
 			Offset: 0,
@@ -162,8 +170,16 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 	err = c.app.Websocket().ForEach(
 		application.ChannelAuthenticated,
 		func(ctx context.Context, conn application.Connection) error {
+			props := &chatsui.IndexPageProps{
+				SearchURL:  c.basePath + "/search",
+				NewChatURL: "/crm/chats/new",
+				Chats:      chatViewModels,
+				Page:       1,
+				PerPage:    len(chatViewModels),
+				HasMore:    false,
+			}
 			var buf1 bytes.Buffer
-			if err := chatsui.ChatList(chatViewModels).Render(ctx, &buf1); err != nil {
+			if err := chatsui.ChatList(props).Render(ctx, &buf1); err != nil {
 				return err
 			}
 			if err := conn.SendMessage(buf1.Bytes()); err != nil {
@@ -215,7 +231,8 @@ func (c *ChatController) chatViewModelsWithTotal(
 }
 
 func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
-	chatViewModels, err := c.chatViewModels(
+	params := composables.UsePaginated(r)
+	chatViewModels, total, err := c.chatViewModelsWithTotal(
 		r.Context(),
 		&chat.FindParams{
 			Limit:  params.Limit,
