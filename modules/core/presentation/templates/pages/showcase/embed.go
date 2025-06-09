@@ -29,14 +29,26 @@ var CardComponentSource string
 //go:embed components/datepicker.templ
 var DatepickerComponentSource string
 
+//go:embed components/advanced_datepicker.templ
+var AdvancedDatepickerComponentSource string
+
 //go:embed components/table.templ
 var TableComponentSource string
 
 //go:embed components/buttons.templ
 var ButtonsComponentSource string
 
+//go:embed components/navtabs.templ
+var NavTabsComponentSource string
+
 //go:embed components/slider.templ
 var SliderComponentSource string
+
+//go:embed components/spinners.templ
+var SpinnersComponentSource string
+
+//go:embed components/skeletons.templ
+var SkeletonsComponentSource string
 
 // Chart components
 //

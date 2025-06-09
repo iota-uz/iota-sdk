@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -135,6 +136,8 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 	chatViewModels, err := c.chatViewModels(
 		ctxWithDb,
 		&chat.FindParams{
+			Offset: 0,
+			Limit:  config.PageSize,
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
 					{
@@ -187,28 +190,36 @@ func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.Me
 	return mapping.MapViewModels(templates, mappers.MessageTemplateToViewModel), nil
 }
 
-func (c *ChatController) chatViewModels(
+func (c *ChatController) chatViewModelsWithTotal(
 	ctx context.Context, params *chat.FindParams,
-) ([]*viewmodels.Chat, error) {
+) ([]*viewmodels.Chat, int64, error) {
 	chatEntities, err := c.chatService.GetPaginated(ctx, params)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+
+	total, err := c.chatService.Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	viewModels := make([]*viewmodels.Chat, 0, len(chatEntities))
 	for _, chatEntity := range chatEntities {
 		clientEntity, err := c.clientService.GetByID(ctx, chatEntity.ClientID())
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		viewModels = append(viewModels, mappers.ChatToViewModel(chatEntity, clientEntity))
 	}
-	return viewModels, nil
+	return viewModels, total, nil
 }
 
 func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
 	chatViewModels, err := c.chatViewModels(
 		r.Context(),
 		&chat.FindParams{
+			Limit:  params.Limit,
+			Offset: params.Offset,
 			Search: r.URL.Query().Get("Query"),
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
@@ -229,13 +240,26 @@ func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	templ.Handler(chatsui.ChatList(chatViewModels)).ServeHTTP(w, r)
+
+	props := &chatsui.IndexPageProps{
+		SearchURL:  c.basePath + "/search",
+		NewChatURL: "/crm/chats/new",
+		Chats:      chatViewModels,
+		Page:       params.Page,
+		PerPage:    params.Limit,
+		HasMore:    total > int64(params.Page*params.Limit),
+	}
+	templ.Handler(chatsui.ChatList(props)).ServeHTTP(w, r)
 }
 
 func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
-	chatViewModels, err := c.chatViewModels(
+	params := composables.UsePaginated(r)
+
+	chatViewModels, total, err := c.chatViewModelsWithTotal(
 		r.Context(),
 		&chat.FindParams{
+			Limit:  params.Limit,
+			Offset: params.Offset,
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
 					{
@@ -256,14 +280,21 @@ func (c *ChatController) renderChats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := chatsui.IndexPageProps{
+	props := &chatsui.IndexPageProps{
 		SearchURL:  c.basePath + "/search",
 		NewChatURL: "/crm/chats/new",
 		Chats:      chatViewModels,
+		Page:       params.Page,
+		PerPage:    params.Limit,
+		HasMore:    total > int64(params.Page*params.Limit),
 	}
 	var component templ.Component
 	if htmx.IsHxRequest(r) {
-		component = chatsui.ChatLayout(props)
+		if params.Page > 1 {
+			component = chatsui.ChatItems(props)
+		} else {
+			component = chatsui.ChatLayout(props)
+		}
 	} else {
 		component = chatsui.Index(props)
 	}

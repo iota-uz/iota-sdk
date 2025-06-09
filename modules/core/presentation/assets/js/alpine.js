@@ -482,6 +482,102 @@ let datePicker = ({
   }
 })
 
+let navTabs = (defaultValue = '') => ({
+  activeTab: defaultValue,
+  backgroundStyle: { left: 0, width: 0, opacity: 0 },
+  restoreHandler: null,
+
+  init() {
+    this.$nextTick(() => this.updateBackground());
+    
+    // Listen for restore-tab event on document since it bubbles up
+    this.restoreHandler = (event) => {
+      if (event.detail && event.detail.value) {
+        this.activeTab = event.detail.value;
+        this.$nextTick(() => this.updateBackground());
+      }
+    };
+    
+    document.addEventListener('restore-tab', this.restoreHandler);
+  },
+  
+  destroy() {
+    if (this.restoreHandler) {
+      document.removeEventListener('restore-tab', this.restoreHandler);
+    }
+  },
+
+  setActiveTab(tabValue) {
+    this.activeTab = tabValue;
+    this.$nextTick(() => this.updateBackground());
+    // Emit event for parent components to handle
+    this.$dispatch('tab-changed', { value: tabValue });
+  },
+
+  updateBackground() {
+    const tabsContainer = this.$refs.tabsContainer;
+    if (!tabsContainer) return;
+    
+    const activeButton = tabsContainer.querySelector(`button[data-tab-value="${this.activeTab}"]`);
+    if (activeButton) {
+      this.backgroundStyle = {
+        left: activeButton.offsetLeft,
+        width: activeButton.offsetWidth,
+        opacity: 1
+      };
+    }
+  },
+
+  isActive(tabValue) {
+    return this.activeTab === tabValue;
+  },
+
+  getTabClasses(tabValue) {
+    return this.isActive(tabValue) 
+      ? 'text-slate-900' 
+      : 'text-gray-500 hover:text-slate-300';
+  }
+})
+
+let sidebar = () => ({
+  isCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+  storedTab: localStorage.getItem('sidebar-active-tab') || null,
+  
+  toggle() {
+    this.isCollapsed = !this.isCollapsed;
+    localStorage.setItem('sidebar-collapsed', this.isCollapsed.toString());
+  },
+  
+  handleTabChange(event) {
+    // Save the selected tab to localStorage
+    if (event.detail && event.detail.value) {
+      localStorage.setItem('sidebar-active-tab', event.detail.value);
+      this.storedTab = event.detail.value;
+    }
+  },
+  
+  getStoredTab() {
+    return this.storedTab;
+  },
+  
+  initSidebar() {
+    // Apply initial state class to prevent flash
+    this.$nextTick(() => {
+      if (this.isCollapsed) {
+        this.$el.classList.add('sidebar-collapsed');
+      }
+      
+      // Dispatch event to restore tab if stored
+      if (this.storedTab) {
+        // Wait a bit for navTabs to initialize
+        setTimeout(() => {
+          this.$dispatch('restore-tab', { value: this.storedTab });
+        }, 100);
+      }
+    });
+  }
+})
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -492,4 +588,6 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("spotlight", spotlight);
   Alpine.data("dateFns", dateFns);
   Alpine.data("datePicker", datePicker);
+  Alpine.data("navTabs", navTabs);
+  Alpine.data("sidebar", sidebar);
 });

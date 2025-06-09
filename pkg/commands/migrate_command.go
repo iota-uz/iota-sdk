@@ -66,7 +66,7 @@ func Migrate(mods ...application.Module) error {
 	case "collect":
 		return handleSchemaCommands(ctx, command, app, conf.Logger().Level)
 	default:
-		return handleMigrationCommands(ctx, command, app)
+		return handleMigrationCommands(ctx, command, app.Migrations())
 	}
 }
 
@@ -99,25 +99,22 @@ func handleSchemaCommands(
 func handleMigrationCommands(
 	_ context.Context,
 	command string,
-	app application.Application,
+	migrationManager application.MigrationManager,
 ) error {
-	// Get the migration manager from the application
-	migrations := app.Migrations()
-
 	switch command {
 	case "up":
-		if err := migrations.Run(); err != nil {
+		if err := migrationManager.Run(); err != nil {
 			return fmt.Errorf("failed to run migrations: %w", err)
 		}
 	case "down":
-		if err := migrations.Rollback(); err != nil {
+		if err := migrationManager.Rollback(); err != nil {
 			return fmt.Errorf("failed to rollback migrations: %w", err)
 		}
 	case "redo":
-		if err := migrations.Rollback(); err != nil {
+		if err := migrationManager.Rollback(); err != nil {
 			return errors.Join(err, errors.New("failed to rollback migrations"))
 		}
-		if err := migrations.Run(); err != nil {
+		if err := migrationManager.Run(); err != nil {
 			return errors.Join(err, errors.New("failed to run migrations"))
 		}
 

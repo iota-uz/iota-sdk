@@ -10,11 +10,19 @@ import (
 )
 
 script graph(id string, options templ.JSExpression) {
-  document.addEventListener('DOMContentLoaded', () => {
-    const container = document.getElementById(id);
-    const chart = new ApexCharts(container, options);
-    chart.render();
-  });
+	const renderChart = () => {
+		const container = document.getElementById(id);
+		if (!container) {
+			console.error(`Chart container with ID ${id} not found.`);
+			return;
+		}
+		const chart = new ApexCharts(container, options);
+		chart.render();
+	}
+	document.addEventListener('DOMContentLoaded', () => {
+		renderChart();
+	});
+	document.addEventListener('sdk:rerenderCharts', () => renderChart());
 }
 
 // Props defines the configuration options for a Chart component.

@@ -90,12 +90,43 @@ type OpenTelemetryOptions struct {
 	ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
 }
 
+type ClickOptions struct {
+	URL            string `env:"CLICK_URL" envDefault:"https://my.click.uz"`
+	MerchantID     int64  `env:"CLICK_MERCHANT_ID"`
+	MerchantUserID int64  `env:"CLICK_MERCHANT_USER_ID"`
+	ServiceID      int64  `env:"CLICK_SERVICE_ID"`
+	SecretKey      string `env:"CLICK_SECRET_KEY"`
+}
+
+type PaymeOptions struct {
+	URL        string `env:"PAYME_URL" envDefault:"https://checkout.test.paycom.uz"`
+	MerchantID string `env:"PAYME_MERCHANT_ID"`
+	User       string `env:"PAYME_USER" envDefault:"Paycom"`
+	SecretKey  string `env:"PAYME_SECRET_KEY"`
+}
+
+type OctoOptions struct {
+	OctoShopID     int32  `env:"OCTO_SHOP_ID"`
+	OctoSecret     string `env:"OCTO_SECRET"`
+	OctoSecretHash string `env:"OCTO_SECRET_HASH"`
+	NotifyUrl      string `env:"OCTO_NOTIFY_URL"`
+}
+
+type StripeOptions struct {
+	SecretKey     string `env:"STRIPE_SECRET_KEY"`
+	SigningSecret string `env:"STRIPE_SIGNING_SECRET"`
+}
+
 type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
 	Twilio        TwilioOptions
 	Loki          LokiOptions
 	OpenTelemetry OpenTelemetryOptions
+	Click         ClickOptions
+	Payme         PaymeOptions
+	Octo          OctoOptions
+	Stripe        StripeOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`

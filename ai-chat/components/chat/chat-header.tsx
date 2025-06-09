@@ -23,7 +23,7 @@ export const ChatHeader = ({ title, subtitle, chatIcon, onClose, isMobile }: Cha
         )}
       </div>
       <div>
-        <h1 className="text-xl font-medium">{title}</h1>
+        <h4 className="text-xl font-medium">{title}</h4>
         <p className="text-sm opacity-90">{subtitle}</p>
       </div>
       <div
