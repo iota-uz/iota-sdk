@@ -1,0 +1,64 @@
+// Package navtabs provides a tab navigation component with smooth animations.
+// It implements a tab switcher with an animated background that slides between tabs.
+package navtabs
+
+import "fmt"
+
+type Props struct {
+	DefaultValue string
+	Class        string
+	Attrs        templ.Attributes
+}
+
+// Root provides a container for navtabs with content switching functionality
+templ Root(props Props) {
+	<div
+		x-data={ fmt.Sprintf("navTabs('%s')", props.DefaultValue) }
+		x-init="init()"
+		class={ props.Class }
+		{ props.Attrs... }
+	>
+		{ children... }
+	</div>
+}
+
+// List renders the tab navigation buttons
+templ List(class string) {
+	<div
+		role="tablist"
+		aria-label="Tab navigation"
+		@resize.window="updateBackground()"
+		x-ref="tabsContainer"
+		x-init="$nextTick(() => updateBackground())"
+		class={ "relative bg-slate-800 rounded-2xl p-1.5 flex items-center gap-1", class }
+	>
+		<!-- Animated background -->
+		<div
+			class="absolute bg-white rounded-xl top-1.5 h-[calc(100%-0.75rem)] transition-all duration-300 ease-out border-0"
+			x-bind:style="`left: ${backgroundStyle.left}px; width: ${backgroundStyle.width}px; opacity: ${backgroundStyle.opacity};`"
+		></div>
+		{ children... }
+	</div>
+}
+
+// Button renders an individual tab button
+templ Button(value string) {
+	<button
+		role="tab"
+		data-tab-value={ value }
+		x-bind:aria-selected={ fmt.Sprintf("isActive('%s') ? 'true' : 'false'", value) }
+		x-bind:tabindex={ fmt.Sprintf("isActive('%s') ? '0' : '-1'", value) }
+		@click={ fmt.Sprintf("setActiveTab('%s')", value) }
+		class="relative z-10 py-2 px-3 text-sm font-medium rounded-xl transition-colors duration-200 flex-1 text-center !cursor-pointer"
+		x-bind:class={ fmt.Sprintf("getTabClasses('%s')", value) }
+	>
+		{ children... }
+	</button>
+}
+
+// Content renders tab content that shows/hides based on active tab
+templ Content(value string) {
+	<div x-show={ fmt.Sprintf("isActive('%s')", value) }>
+		{ children... }
+	</div>
+}

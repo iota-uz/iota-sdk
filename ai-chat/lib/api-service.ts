@@ -27,17 +27,27 @@ export interface AddMessageRequest {
 // API service for chat functionality
 class ChatApiService {
   private apiEndpoint = '';
+  private locale = 'ru';
 
   setApiEndpoint(endpoint: string) {
     this.apiEndpoint = endpoint;
   }
 
+  setLocale(locale: string) {
+    this.locale = locale;
+  }
+
+  private getHeaders(): HeadersInit {
+    return {
+      'Content-Type': 'application/json',
+      'Accept-Language': this.locale,
+    };
+  }
+
   async createThread(data: CreateThreadRequest): Promise<ThreadResponse> {
     const response = await fetch(`${this.apiEndpoint}/messages`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders(),
       body: JSON.stringify(data),
     });
 
@@ -58,9 +68,7 @@ class ChatApiService {
   async getMessages(threadId: string): Promise<MessagesResponse> {
     const response = await fetch(`${this.apiEndpoint}/messages/${threadId}`, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders(),
     });
 
     if (!response.ok) {
@@ -80,9 +88,7 @@ class ChatApiService {
   async addMessage(threadId: string, data: AddMessageRequest): Promise<ThreadResponse> {
     const response = await fetch(`${this.apiEndpoint}/messages/${threadId}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: this.getHeaders(),
       body: JSON.stringify(data),
     });
 

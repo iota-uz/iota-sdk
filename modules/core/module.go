@@ -9,6 +9,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/handlers"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
@@ -52,6 +53,10 @@ func (m *Module) Register(app application.Application) error {
 	tenantRepo := persistence.NewTenantRepository()
 	permRepo := persistence.NewPermissionRepository()
 
+	// Create query repositories
+	userQueryRepo := query.NewPgUserQueryRepository()
+	groupQueryRepo := query.NewPgGroupQueryRepository()
+
 	// custom validations
 	userValidator := validators.NewUserValidator(userRepo)
 
@@ -62,6 +67,8 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterServices(
 		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
 		services.NewUserService(userRepo, userValidator, app.EventPublisher()),
+		services.NewUserQueryService(userQueryRepo),
+		services.NewGroupQueryService(groupQueryRepo),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
 	)
 	app.RegisterServices(

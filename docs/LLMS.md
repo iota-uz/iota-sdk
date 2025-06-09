@@ -629,6 +629,8 @@ type TextAreaProps struct {
 
 #### `func Checkbox(p *CheckboxProps) templ.Component`
 
+#### `func Color(props *Props) templ.Component`
+
 #### `func Date(props *Props) templ.Component`
 
 #### `func DatePicker(props DatePickerProps) templ.Component`
@@ -641,6 +643,8 @@ type TextAreaProps struct {
 
 #### `func Switch(p *SwitchProps) templ.Component`
 
+#### `func Tel(props *Props) templ.Component`
+
 #### `func Text(props *Props) templ.Component`
 
 #### `func TextArea(props *TextAreaProps) templ.Component`
@@ -650,6 +654,34 @@ type TextAreaProps struct {
 - Const: `[DatePickerModeSingle DatePickerModeMultiple DatePickerModeRange]`
 
 - Const: `[DateSelectorTypeDay DateSelectorTypeMonth DateSelectorTypeWeek DateSelectorTypeYear]`
+
+---
+
+## Package `navtabs` (components/base/navtabs)
+
+### Types
+
+#### Props
+
+```go
+type Props struct {
+    DefaultValue string
+    Tabs []string
+    Class string
+}
+```
+
+##### Methods
+
+- `func (Props) Validate() error`
+  Validate checks if the Props are valid and returns an error if not
+  
+
+### Functions
+
+#### `func NavTabs(props Props) templ.Component`
+
+### Variables and Constants
 
 ---
 
@@ -1032,6 +1064,8 @@ type BarLabels struct {
 type ChartConfig struct {
     Type ChartType `json:"type"`
     Height string `json:"height,omitempty"`
+    OffsetX int `json:"offsetX,omitempty"`
+    OffsetY int `json:"offsetY,omitempty"`
     Toolbar Toolbar `json:"toolbar,omitempty"`
     Stacked bool `json:"stacked,omitempty"`
 }
@@ -2392,8 +2426,20 @@ type EmptyTableProps struct {
 
 templ: version: v0.3.857
 
+templ: version: v0.3.857
+
 
 ### Types
+
+#### SkeletonProps
+
+```go
+type SkeletonProps struct {
+    ContainerClass templ.CSSClasses
+    SkeletonClass templ.CSSClasses
+    Lines int
+}
+```
 
 #### SpinnerProps
 
@@ -2413,107 +2459,15 @@ It's a stylized animation for use during loading states, providing
 visual feedback to users while content or data is being processed.
 
 
+#### `func Skeleton(props SkeletonProps) templ.Component`
+
+#### `func SkeletonCard(props SkeletonProps) templ.Component`
+
+#### `func SkeletonTable(props SkeletonProps) templ.Component`
+
+#### `func SkeletonText(props SkeletonProps) templ.Component`
+
 #### `func Spinner(props SpinnerProps) templ.Component`
-
-### Variables and Constants
-
----
-
-## Package `table` (components/scaffold)
-
-templ: version: v0.3.857
-
-
-### Types
-
-#### ColumnOpt
-
-#### DefaultDrawerProps
-
-```go
-type DefaultDrawerProps struct {
-    Title string
-    CallbackURL string
-}
-```
-
-#### RowOpt
-
-#### TableColumn
-
-##### Interface Methods
-
-- `Key() string`
-- `Label() string`
-- `Class() string`
-- `Width() string`
-
-#### TableConfig
-
-```go
-type TableConfig struct {
-    Title string
-    DataURL string
-    Filters []templ.Component
-    Columns []TableColumn
-    Rows []TableRow
-    SideFilter templ.Component
-}
-```
-
-##### Methods
-
-- `func (TableConfig) AddCols(cols ...TableColumn) *TableConfig`
-
-- `func (TableConfig) AddFilters(filters ...templ.Component) *TableConfig`
-
-- `func (TableConfig) AddRows(rows ...TableRow) *TableConfig`
-
-- `func (TableConfig) SetSideFilter(filter templ.Component) *TableConfig`
-
-#### TableConfigOpt
-
-#### TableRow
-
-##### Interface Methods
-
-- `Cells() []templ.Component`
-- `Attrs() templ.Attributes`
-- `ApplyOpts(opts ...RowOpt) TableRow`
-
-### Functions
-
-#### `func Content(config *TableConfig) templ.Component`
-
-Content renders the complete scaffold page content with filters and table
-
-
-#### `func DateTime(ts time.Time) templ.Component`
-
-DateTime renders a timestamp with Alpine-based relative formatting
-
-
-#### `func DefaultDrawer(props DefaultDrawerProps) templ.Component`
-
-#### `func Page(config *TableConfig) templ.Component`
-
-Page renders a complete authenticated page with the scaffolded content
-
-
-#### `func Rows(cfg *TableConfig) templ.Component`
-
-Rows renders the table rows for a scaffold table
-
-
-#### `func Table(config *TableConfig) templ.Component`
-
-Table renders a dynamic table based on configuration and data
-
-
-#### `func TableSection(config *TableConfig) templ.Component`
-
-TableSection combines filters and table into one form to enable unified HTMX update
-
 
 ### Variables and Constants
 
@@ -2579,6 +2533,634 @@ type TableFilter struct {
 #### `func Dropdown(props DropdownProps) templ.Component`
 
 #### `func DropdownItem(props DropdownItemProps) templ.Component`
+
+### Variables and Constants
+
+---
+
+## Package `form` (components/scaffold/form)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### CheckboxField
+
+CheckboxField for boolean inputs
+
+
+##### Interface Methods
+
+- `<?>`
+
+#### CheckboxFieldBuilder
+
+CheckboxFieldBuilder builds a CheckboxField
+
+
+##### Methods
+
+- `func (CheckboxFieldBuilder) Attrs(a templ.Attributes) *CheckboxFieldBuilder`
+
+- `func (CheckboxFieldBuilder) Build() CheckboxField`
+
+- `func (CheckboxFieldBuilder) Default(val bool) *CheckboxFieldBuilder`
+
+- `func (CheckboxFieldBuilder) Required() *CheckboxFieldBuilder`
+
+- `func (CheckboxFieldBuilder) Validators(v []Validator) *CheckboxFieldBuilder`
+
+#### ColorField
+
+ColorField for color inputs
+
+
+##### Interface Methods
+
+- `<?>`
+
+#### ColorFieldBuilder
+
+##### Methods
+
+- `func (ColorFieldBuilder) Attrs(a templ.Attributes) *ColorFieldBuilder`
+
+- `func (ColorFieldBuilder) Build() ColorField`
+
+- `func (ColorFieldBuilder) Default(val string) *ColorFieldBuilder`
+
+- `func (ColorFieldBuilder) Required() *ColorFieldBuilder`
+
+- `func (ColorFieldBuilder) Validators(v []Validator) *ColorFieldBuilder`
+
+#### DateField
+
+DateField for date inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `Min() time.Time`
+- `Max() time.Time`
+
+#### DateFieldBuilder
+
+DateFieldBuilder builds a DateField
+
+
+##### Methods
+
+- `func (DateFieldBuilder) Attrs(a templ.Attributes) *DateFieldBuilder`
+
+- `func (DateFieldBuilder) Build() DateField`
+
+- `func (DateFieldBuilder) Default(val time.Time) *DateFieldBuilder`
+
+- `func (DateFieldBuilder) Max(val time.Time) *DateFieldBuilder`
+
+- `func (DateFieldBuilder) Min(val time.Time) *DateFieldBuilder`
+
+- `func (DateFieldBuilder) Required() *DateFieldBuilder`
+
+- `func (DateFieldBuilder) Validators(v []Validator) *DateFieldBuilder`
+
+#### DateTimeLocalField
+
+DateTimeLocalField for datetime-local inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `Min() time.Time`
+- `Max() time.Time`
+
+#### DateTimeLocalFieldBuilder
+
+DateTimeLocalFieldBuilder builds a DateTimeLocalField
+
+
+##### Methods
+
+- `func (DateTimeLocalFieldBuilder) Attrs(a templ.Attributes) *DateTimeLocalFieldBuilder`
+
+- `func (DateTimeLocalFieldBuilder) Build() DateTimeLocalField`
+
+- `func (DateTimeLocalFieldBuilder) Default(val time.Time) *DateTimeLocalFieldBuilder`
+
+- `func (DateTimeLocalFieldBuilder) Max(val time.Time) *DateTimeLocalFieldBuilder`
+
+- `func (DateTimeLocalFieldBuilder) Min(val time.Time) *DateTimeLocalFieldBuilder`
+
+- `func (DateTimeLocalFieldBuilder) Required() *DateTimeLocalFieldBuilder`
+
+- `func (DateTimeLocalFieldBuilder) Validators(v []Validator) *DateTimeLocalFieldBuilder`
+
+#### EmailField
+
+EmailField for email inputs
+
+
+##### Interface Methods
+
+- `<?>`
+
+#### EmailFieldBuilder
+
+EmailFieldBuilder builds an EmailField
+
+
+##### Methods
+
+- `func (EmailFieldBuilder) Attrs(a templ.Attributes) *EmailFieldBuilder`
+
+- `func (EmailFieldBuilder) Build() EmailField`
+
+- `func (EmailFieldBuilder) Default(val string) *EmailFieldBuilder`
+
+- `func (EmailFieldBuilder) Required() *EmailFieldBuilder`
+
+- `func (EmailFieldBuilder) Validators(v []Validator) *EmailFieldBuilder`
+
+#### Field
+
+Field defines minimal metadata for form inputs and rendering
+
+
+##### Interface Methods
+
+- `Component() templ.Component`
+- `Type() FieldType`
+- `Key() string`
+- `Label() string`
+- `Required() bool`
+- `Attrs() templ.Attributes`
+- `Validators() []Validator`
+
+#### FieldType
+
+--- FieldType enumerates supported input types ---
+
+
+#### FormConfig
+
+FormConfig holds the configuration for a dynamic form
+
+
+```go
+type FormConfig struct {
+    Title string
+    SaveURL string
+    DeleteURL string
+    SubmitLabel string
+    Fields []Field
+}
+```
+
+##### Methods
+
+- `func (FormConfig) Add(fields ...Field) *FormConfig`
+  Add appends one or more Field implementations to the form and returns the config
+  
+
+- `func (FormConfig) WithMethod(method string) *FormConfig`
+  WithMethod sets the HTTP method for the form
+  
+
+#### GenericField
+
+GenericField defines minimal metadata for form inputs and rendering
+
+
+##### Interface Methods
+
+- `Field`
+- `Default() T`
+- `WithValue(value T) <?>`
+- `Value() T`
+
+#### MonthField
+
+MonthField for month inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `Min() string`
+- `Max() string`
+
+#### MonthFieldBuilder
+
+MonthFieldBuilder builds a MonthField
+
+
+##### Methods
+
+- `func (MonthFieldBuilder) Attrs(a templ.Attributes) *MonthFieldBuilder`
+
+- `func (MonthFieldBuilder) Build() MonthField`
+
+- `func (MonthFieldBuilder) Default(val string) *MonthFieldBuilder`
+
+- `func (MonthFieldBuilder) Max(val string) *MonthFieldBuilder`
+
+- `func (MonthFieldBuilder) Min(val string) *MonthFieldBuilder`
+
+- `func (MonthFieldBuilder) Required() *MonthFieldBuilder`
+
+- `func (MonthFieldBuilder) Validators(v []Validator) *MonthFieldBuilder`
+
+#### NumberField
+
+NumberField for numeric inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `Min() float64`
+- `Max() float64`
+
+#### NumberFieldBuilder
+
+NumberFieldBuilder builds a NumberField
+
+
+##### Methods
+
+- `func (NumberFieldBuilder) Attrs(a templ.Attributes) *NumberFieldBuilder`
+
+- `func (NumberFieldBuilder) Build() NumberField`
+
+- `func (NumberFieldBuilder) Default(val float64) *NumberFieldBuilder`
+
+- `func (NumberFieldBuilder) Max(val float64) *NumberFieldBuilder`
+
+- `func (NumberFieldBuilder) Min(val float64) *NumberFieldBuilder`
+
+- `func (NumberFieldBuilder) Required() *NumberFieldBuilder`
+
+- `func (NumberFieldBuilder) Validators(v []Validator) *NumberFieldBuilder`
+
+#### Option
+
+Option for SelectField and RadioField choices
+
+
+```go
+type Option struct {
+    Value string
+    Label string
+}
+```
+
+#### RadioField
+
+RadioField for radio button inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `Options() []Option`
+
+#### RadioFieldBuilder
+
+RadioFieldBuilder builds a RadioField
+
+
+##### Methods
+
+- `func (RadioFieldBuilder) Attrs(a templ.Attributes) *RadioFieldBuilder`
+
+- `func (RadioFieldBuilder) Build() RadioField`
+
+- `func (RadioFieldBuilder) Default(val string) *RadioFieldBuilder`
+
+- `func (RadioFieldBuilder) Options(opts []Option) *RadioFieldBuilder`
+
+- `func (RadioFieldBuilder) Required() *RadioFieldBuilder`
+
+- `func (RadioFieldBuilder) Validators(v []Validator) *RadioFieldBuilder`
+
+#### SelectField
+
+SelectField for dropdowns
+
+
+##### Interface Methods
+
+- `<?>`
+- `Options() []Option`
+
+#### SelectFieldBuilder
+
+SelectFieldBuilder builds a SelectField
+
+
+##### Methods
+
+- `func (SelectFieldBuilder) Attrs(a templ.Attributes) *SelectFieldBuilder`
+
+- `func (SelectFieldBuilder) Build() SelectField`
+
+- `func (SelectFieldBuilder) Default(val string) *SelectFieldBuilder`
+
+- `func (SelectFieldBuilder) Options(opts []Option) *SelectFieldBuilder`
+
+- `func (SelectFieldBuilder) Required() *SelectFieldBuilder`
+
+- `func (SelectFieldBuilder) Validators(v []Validator) *SelectFieldBuilder`
+
+#### TelField
+
+TelField for telephone inputs
+
+
+##### Interface Methods
+
+- `<?>`
+
+#### TelFieldBuilder
+
+TelFieldBuilder builds a TelField
+
+
+##### Methods
+
+- `func (TelFieldBuilder) Attrs(a templ.Attributes) *TelFieldBuilder`
+
+- `func (TelFieldBuilder) Build() TelField`
+
+- `func (TelFieldBuilder) Default(val string) *TelFieldBuilder`
+
+- `func (TelFieldBuilder) Required() *TelFieldBuilder`
+
+- `func (TelFieldBuilder) Validators(v []Validator) *TelFieldBuilder`
+
+#### TextField
+
+TextField for single-line text inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `MinLength() int`
+- `MaxLength() int`
+
+#### TextFieldBuilder
+
+TextFieldBuilder builds a TextField
+
+
+##### Methods
+
+- `func (TextFieldBuilder) Attrs(a templ.Attributes) *TextFieldBuilder`
+
+- `func (TextFieldBuilder) Build() TextField`
+
+- `func (TextFieldBuilder) Default(val string) *TextFieldBuilder`
+
+- `func (TextFieldBuilder) MaxLen(v int) *TextFieldBuilder`
+
+- `func (TextFieldBuilder) MinLen(v int) *TextFieldBuilder`
+
+- `func (TextFieldBuilder) Required() *TextFieldBuilder`
+
+- `func (TextFieldBuilder) Validators(v []Validator) *TextFieldBuilder`
+
+#### TextareaField
+
+TextareaField for multi-line text inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `MinLength() int`
+- `MaxLength() int`
+
+#### TextareaFieldBuilder
+
+TextareaFieldBuilder builds a TextareaField
+
+
+##### Methods
+
+- `func (TextareaFieldBuilder) Attrs(a templ.Attributes) *TextareaFieldBuilder`
+
+- `func (TextareaFieldBuilder) Build() TextareaField`
+
+- `func (TextareaFieldBuilder) Default(val string) *TextareaFieldBuilder`
+
+- `func (TextareaFieldBuilder) MaxLen(v int) *TextareaFieldBuilder`
+
+- `func (TextareaFieldBuilder) MinLen(v int) *TextareaFieldBuilder`
+
+- `func (TextareaFieldBuilder) Required() *TextareaFieldBuilder`
+
+- `func (TextareaFieldBuilder) Validators(v []Validator) *TextareaFieldBuilder`
+
+#### TimeField
+
+TimeField for time inputs
+
+
+##### Interface Methods
+
+- `<?>`
+- `Min() string`
+- `Max() string`
+
+#### TimeFieldBuilder
+
+TimeFieldBuilder builds a TimeField
+
+
+##### Methods
+
+- `func (TimeFieldBuilder) Attrs(a templ.Attributes) *TimeFieldBuilder`
+
+- `func (TimeFieldBuilder) Build() TimeField`
+
+- `func (TimeFieldBuilder) Default(val string) *TimeFieldBuilder`
+
+- `func (TimeFieldBuilder) Max(val string) *TimeFieldBuilder`
+
+- `func (TimeFieldBuilder) Min(val string) *TimeFieldBuilder`
+
+- `func (TimeFieldBuilder) Required() *TimeFieldBuilder`
+
+- `func (TimeFieldBuilder) Validators(v []Validator) *TimeFieldBuilder`
+
+#### URLField
+
+URLField for URL inputs
+
+
+##### Interface Methods
+
+- `<?>`
+
+#### URLFieldBuilder
+
+URLFieldBuilder builds a URLField
+
+
+##### Methods
+
+- `func (URLFieldBuilder) Attrs(a templ.Attributes) *URLFieldBuilder`
+
+- `func (URLFieldBuilder) Build() URLField`
+
+- `func (URLFieldBuilder) Default(val string) *URLFieldBuilder`
+
+- `func (URLFieldBuilder) Required() *URLFieldBuilder`
+
+- `func (URLFieldBuilder) Validators(v []Validator) *URLFieldBuilder`
+
+#### Validator
+
+Validator for custom field-level checks
+
+
+##### Interface Methods
+
+- `Validate(ctx context.Context, value any) error`
+
+### Functions
+
+#### `func Form(cfg *FormConfig) templ.Component`
+
+Form renders a dynamic form using a slice of scaffold.Field
+
+
+#### `func FormFields(cfg *FormConfig) templ.Component`
+
+FormFields renders all fields in the form
+
+
+#### `func Page(cfg *FormConfig) templ.Component`
+
+Page wraps Form in authenticated layout
+
+
+### Variables and Constants
+
+---
+
+## Package `table` (components/scaffold/table)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### ColumnOpt
+
+#### DefaultDrawerProps
+
+```go
+type DefaultDrawerProps struct {
+    Title string
+    CallbackURL string
+}
+```
+
+#### InfiniteScrollConfig
+
+```go
+type InfiniteScrollConfig struct {
+    HasMore bool
+    Page int
+    PerPage int
+}
+```
+
+#### RowOpt
+
+#### TableColumn
+
+##### Interface Methods
+
+- `Key() string`
+- `Label() string`
+- `Class() string`
+- `Width() string`
+
+#### TableConfig
+
+```go
+type TableConfig struct {
+    Title string
+    DataURL string
+    Filters []templ.Component
+    Columns []TableColumn
+    Rows []TableRow
+    Infinite *InfiniteScrollConfig
+    SideFilter templ.Component
+}
+```
+
+##### Methods
+
+- `func (TableConfig) AddCols(cols ...TableColumn) *TableConfig`
+
+- `func (TableConfig) AddFilters(filters ...templ.Component) *TableConfig`
+
+- `func (TableConfig) AddRows(rows ...TableRow) *TableConfig`
+
+- `func (TableConfig) SetSideFilter(filter templ.Component) *TableConfig`
+
+#### TableConfigOpt
+
+#### TableRow
+
+##### Interface Methods
+
+- `Cells() []templ.Component`
+- `Attrs() templ.Attributes`
+- `ApplyOpts(opts ...RowOpt) TableRow`
+
+### Functions
+
+#### `func Content(config *TableConfig) templ.Component`
+
+Content renders the complete scaffold page content with filters and table
+
+
+#### `func DateTime(ts time.Time) templ.Component`
+
+DateTime renders a timestamp with Alpine-based relative formatting
+
+
+#### `func DefaultDrawer(props DefaultDrawerProps) templ.Component`
+
+#### `func InfiniteScrollSpinner(cfg *TableConfig) templ.Component`
+
+#### `func Page(config *TableConfig) templ.Component`
+
+Page renders a complete authenticated page with the scaffolded content
+
+
+#### `func Rows(cfg *TableConfig) templ.Component`
+
+Rows renders the table rows for a scaffold table
+
+
+#### `func Table(config *TableConfig) templ.Component`
+
+Table renders a dynamic table based on configuration and data
+
+
+#### `func TableSection(config *TableConfig) templ.Component`
+
+TableSection combines filters and table into one form to enable unified HTMX update
+
 
 ### Variables and Constants
 
@@ -2982,6 +3564,16 @@ type Params struct {
 }
 ```
 
+#### Tenant
+
+```go
+type Tenant struct {
+    ID uuid.UUID
+    Name string
+    Domain string
+}
+```
+
 ### Functions
 
 #### `func BeginTx(ctx context.Context) (pgx.Tx, error)`
@@ -3108,6 +3700,8 @@ WithParams returns a new context with the request parameters.
 WithSession returns a new context with the session.
 
 
+#### `func WithTenant(ctx context.Context, tenant *Tenant) context.Context`
+
 #### `func WithTx(ctx context.Context, tx pgx.Tx) context.Context`
 
 #### `func WithUser(ctx context.Context, u user.User) context.Context`
@@ -3129,6 +3723,8 @@ WithUser returns a new context with the user.
 
 - Var: `[ErrNoLogger]`
 
+- Var: `[ErrNoTenantFound]`
+
 - Var: `[ErrTabsNotFound]`
 
 ---
@@ -3136,6 +3732,18 @@ WithUser returns a new context with the user.
 ## Package `configuration` (pkg/configuration)
 
 ### Types
+
+#### ClickOptions
+
+```go
+type ClickOptions struct {
+    URL string `env:"CLICK_URL" envDefault:"https://my.click.uz"`
+    MerchantID int64 `env:"CLICK_MERCHANT_ID"`
+    MerchantUserID int64 `env:"CLICK_MERCHANT_USER_ID"`
+    ServiceID int64 `env:"CLICK_SERVICE_ID"`
+    SecretKey string `env:"CLICK_SECRET_KEY"`
+}
+```
 
 #### Configuration
 
@@ -3146,6 +3754,10 @@ type Configuration struct {
     Twilio TwilioOptions
     Loki LokiOptions
     OpenTelemetry OpenTelemetryOptions
+    Click ClickOptions
+    Payme PaymeOptions
+    Octo OctoOptions
+    Stripe StripeOptions
     MigrationsDir string `env:"MIGRATIONS_DIR" envDefault:"migrations"`
     ServerPort int `env:"PORT" envDefault:"3200"`
     SessionDuration time.Duration `env:"SESSION_DURATION" envDefault:"720h"`
@@ -3217,6 +3829,17 @@ type LokiOptions struct {
 }
 ```
 
+#### OctoOptions
+
+```go
+type OctoOptions struct {
+    OctoShopID int32 `env:"OCTO_SHOP_ID"`
+    OctoSecret string `env:"OCTO_SECRET"`
+    OctoSecretHash string `env:"OCTO_SECRET_HASH"`
+    NotifyUrl string `env:"OCTO_NOTIFY_URL"`
+}
+```
+
 #### OpenTelemetryOptions
 
 ```go
@@ -3224,6 +3847,26 @@ type OpenTelemetryOptions struct {
     Enabled bool `env:"OTEL_ENABLED" envDefault:"false"`
     TempoURL string `env:"OTEL_TEMPO_URL" envDefault:"localhost:4318"`
     ServiceName string `env:"OTEL_SERVICE_NAME" envDefault:"sdk"`
+}
+```
+
+#### PaymeOptions
+
+```go
+type PaymeOptions struct {
+    URL string `env:"PAYME_URL" envDefault:"https://checkout.test.paycom.uz"`
+    MerchantID string `env:"PAYME_MERCHANT_ID"`
+    User string `env:"PAYME_USER" envDefault:"Paycom"`
+    SecretKey string `env:"PAYME_SECRET_KEY"`
+}
+```
+
+#### StripeOptions
+
+```go
+type StripeOptions struct {
+    SecretKey string `env:"STRIPE_SECRET_KEY"`
+    SigningSecret string `env:"STRIPE_SIGNING_SECRET"`
 }
 ```
 
@@ -3257,6 +3900,221 @@ type TwilioOptions struct {
 ### Variables and Constants
 
 - Var: `[Validate]`
+
+---
+
+## Package `crud` (pkg/crud)
+
+### Types
+
+#### DataStore
+
+DataStore abstracts CRUD operations for type T with ID type ID
+
+
+##### Interface Methods
+
+- `List(ctx context.Context, params FindParams) ([]T, error)`
+- `Get(ctx context.Context, id ID) (T, error)`
+- `Create(ctx context.Context, entity T) (ID, error)`
+- `Update(ctx context.Context, id ID, entity T) error`
+- `Delete(ctx context.Context, id ID) error`
+
+#### DefaultEntityFactory
+
+DefaultEntityFactory is the default implementation of EntityFactory
+
+
+##### Methods
+
+- `func (DefaultEntityFactory) Create() T`
+  Create instantiates a new entity of type T
+  
+
+#### DefaultEntityPatcher
+
+DefaultEntityPatcher is the default implementation of EntityPatcher
+
+
+##### Methods
+
+- `func (DefaultEntityPatcher) Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationError)`
+  Patch applies form values to the entity
+  
+
+#### EntityFactory
+
+EntityFactory creates new instances of entity type T
+
+
+##### Interface Methods
+
+- `Create() T`
+
+#### EntityPatcher
+
+EntityPatcher applies form values to an entity
+
+
+##### Interface Methods
+
+- `Patch(entity T, formData map[string]string, fields []formui.Field) (T, ValidationError)`
+
+#### FieldError
+
+FieldError represents a single field validation error
+
+
+```go
+type FieldError struct {
+    Field string
+    Message string
+}
+```
+
+#### Filter
+
+#### FindParams
+
+FindParams defines pagination, sorting, searching, and filtering parameters
+
+
+```go
+type FindParams struct {
+    Limit int
+    Offset int
+    Search string
+    SortBy SortBy
+    Filters []Filter
+}
+```
+
+#### ModelLevelValidator
+
+ModelLevelValidator for full-model checks
+
+
+##### Interface Methods
+
+- `ValidateModel(ctx context.Context, model T) error`
+
+#### RenderFunc
+
+RenderFunc abstracts the rendering logic to make it testable
+
+
+#### Schema
+
+Schema defines a runtime-driven CRUD resource for entity type T with identifier type ID.
+
+
+```go
+type Schema struct {
+    Service *<?>
+    Renderer RenderFunc
+}
+```
+
+##### Methods
+
+- `func (Schema) Key() string`
+  Key returns the base path for routing identification
+  
+
+- `func (Schema) Register(r *mux.Router)`
+  Register mounts CRUD HTTP handlers on the provided router
+  
+
+#### SchemaOpt
+
+SchemaOpt configures optional settings on a Schema
+
+
+#### Service
+
+Service encapsulates the business logic of the CRUD operations
+
+
+```go
+type Service struct {
+    Name string
+    Path string
+    IDField string
+    Fields []formui.Field
+    Store <?>
+    EntityFactory <?>
+    EntityPatcher <?>
+    ModelValidators []<?>
+}
+```
+
+##### Methods
+
+- `func (Service) CreateEntity(ctx context.Context, formData map[string]string) (ID, error)`
+  CreateEntity creates a new entity from form data
+  
+
+- `func (Service) DeleteEntity(ctx context.Context, id ID) error`
+  DeleteEntity deletes an entity by ID
+  
+
+- `func (Service) Extract(entity T) map[string]string`
+  Extract returns entity field values as map for UI rendering
+  
+
+- `func (Service) Get(ctx context.Context, id ID) (T, error)`
+  Get retrieves a single entity by ID
+  
+
+- `func (Service) List(ctx context.Context, params FindParams) ([]T, error)`
+  List retrieves entities based on the provided parameters
+  
+
+- `func (Service) UpdateEntity(ctx context.Context, id ID, formData map[string]string) error`
+  UpdateEntity updates an existing entity from form data
+  
+
+#### SortBy
+
+SortBy and Filter are generic aliases using Field
+
+
+#### ValidationError
+
+ValidationError collects field-level validation errors
+
+
+```go
+type ValidationError struct {
+    Errors []FieldError
+}
+```
+
+##### Methods
+
+- `func (ValidationError) Error() string`
+
+### Functions
+
+#### `func DefaultGetPrimaryKey() (func() string)`
+
+DefaultGetPrimaryKey returns a function that gets the primary key
+
+
+#### `func DefaultRenderFunc(w http.ResponseWriter, r *http.Request, component templ.Component, options ...func(*templ.ComponentHandler))`
+
+DefaultRenderFunc provides the default rendering implementation
+
+
+### Variables and Constants
+
+- Var: `[ErrNotFound]`
+  ErrNotFound is returned when an entity is not found
+  
+
+- Var: `[ErrValidation]`
+  ErrValidation is returned for validation errors
+  
 
 ---
 
@@ -4333,6 +5191,26 @@ ValueSlice is a utility function that returns a slice of values from a slice of 
 
 #### GenericConstructor
 
+#### LogTransport
+
+LogTransport is a http.RoundTripper middleware for logging outgoing HTTP requests/responses.
+
+
+```go
+type LogTransport struct {
+    Base http.RoundTripper
+    Logger *logrus.Logger
+    LogRequestBody bool
+    LogResponseBody bool
+}
+```
+
+##### Methods
+
+- `func (LogTransport) RoundTrip(req *http.Request) (*http.Response, error)`
+  RoundTrip implements http.RoundTripper.
+  
+
 #### LoggerOptions
 
 ```go
@@ -5169,6 +6047,11 @@ type TestFixtures struct {
 ### Functions
 
 #### `func CreateDB(name string)`
+
+#### `func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Tenant, error)`
+
+CreateTestTenant creates a test tenant for testing
+
 
 #### `func DbOpts(name string) string`
 

@@ -6,6 +6,9 @@ TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 deps:
 	go get ./...
 
+fmt:
+	go fmt ./... && templ fmt . && go mod tidy
+
 # Seed database
 seed:
 	go run cmd/seed/main.go
@@ -64,6 +67,7 @@ css:
 
 # Run linter
 lint:
+	make fmt
 	golangci-lint run ./...
 
 # Release - assume Alpine Linux as target
@@ -86,6 +90,9 @@ build-docker-base:
 
 build-docker-prod:
 	docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:$v --target production .
+
+tunnel:
+	cloudflared tunnel --url http://localhost:3200 --loglevel debug
 
 # Prevents make from treating the argument as an undefined target
 %:

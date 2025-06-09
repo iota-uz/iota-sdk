@@ -1,0 +1,128 @@
+package loaders
+
+import twmerge "github.com/Oudwins/tailwind-merge-go"
+
+type SkeletonProps struct {
+	ContainerClass templ.CSSClasses
+	SkeletonClass  templ.CSSClasses
+	Lines          int
+}
+
+templ Skeleton(props SkeletonProps) {
+	<div
+		role="status"
+		class={ twmerge.Merge("animate-pulse", props.ContainerClass.String()) }
+		aria-label="Loading content"
+	>
+		if props.Lines > 0 {
+			for i := 0; i < props.Lines; i++ {
+				<div
+					class={ twmerge.Merge(
+						"h-2.5 bg-gray-200 rounded-full mb-2.5 last:mb-0",
+						props.SkeletonClass.String(),
+					) }
+				></div>
+			}
+		} else {
+			for i := 0; i < 3; i++ {
+				<div
+					class={ twmerge.Merge(
+						"h-2.5 bg-gray-200 rounded-full mb-2.5 last:mb-0",
+						props.SkeletonClass.String(),
+					) }
+				></div>
+			}
+		}
+		<span class="sr-only">Loading...</span>
+	</div>
+}
+
+templ SkeletonText(props SkeletonProps) {
+	<div
+		role="status"
+		class={ twmerge.Merge("animate-pulse space-y-2.5", props.ContainerClass.String()) }
+		aria-label="Loading text"
+	>
+		if props.Lines > 0 {
+			for i := 0; i < props.Lines; i++ {
+				if i == props.Lines - 1 {
+					<div
+						class={ twmerge.Merge(
+							"h-2 bg-gray-200 rounded w-3/4",
+							props.SkeletonClass.String(),
+						) }
+					></div>
+				} else {
+					<div
+						class={ twmerge.Merge(
+							"h-2 bg-gray-200 rounded w-full",
+							props.SkeletonClass.String(),
+						) }
+					></div>
+				}
+			}
+		} else {
+			<div
+				class={ twmerge.Merge(
+					"h-2 bg-gray-200 rounded w-full",
+					props.SkeletonClass.String(),
+				) }
+			></div>
+			<div
+				class={ twmerge.Merge(
+					"h-2 bg-gray-200 rounded w-3/4",
+					props.SkeletonClass.String(),
+				) }
+			></div>
+		}
+		<span class="sr-only">Loading...</span>
+	</div>
+}
+
+templ SkeletonCard(props SkeletonProps) {
+	<div
+		role="status"
+		class={ twmerge.Merge("animate-pulse", props.ContainerClass.String()) }
+		aria-label="Loading card"
+	>
+		<div class="flex items-center space-x-3">
+			<svg class="w-10 h-10 text-gray-200" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
+				<path d="M10 0a10 10 0 1 0 10 10A10.011 10.011 0 0 0 10 0Zm0 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6Zm0 13a8.949 8.949 0 0 1-4.951-1.488A3.987 3.987 0 0 1 9 13h2a3.987 3.987 0 0 1 3.951 3.512A8.949 8.949 0 0 1 10 18Z"></path>
+			</svg>
+			<div class="flex-1">
+				<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded-full w-32 mb-2", props.SkeletonClass.String()) }></div>
+				<div class={ twmerge.Merge("h-2 bg-gray-200 rounded-full w-48", props.SkeletonClass.String()) }></div>
+			</div>
+		</div>
+		<span class="sr-only">Loading...</span>
+	</div>
+}
+
+templ SkeletonTable(props SkeletonProps) {
+	<div
+		role="status"
+		class={ twmerge.Merge("animate-pulse", props.ContainerClass.String()) }
+		aria-label="Loading table"
+	>
+		if props.Lines > 0 {
+			for i := 0; i < props.Lines; i++ {
+				<div class="flex items-center space-x-4 mb-4 last:mb-0">
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded w-16", props.SkeletonClass.String()) }></div>
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded flex-1", props.SkeletonClass.String()) }></div>
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded w-20", props.SkeletonClass.String()) }></div>
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded w-12", props.SkeletonClass.String()) }></div>
+				</div>
+			}
+		} else {
+			for i := 0; i < 5; i++ {
+				<div class="flex items-center space-x-4 mb-4 last:mb-0">
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded w-16", props.SkeletonClass.String()) }></div>
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded flex-1", props.SkeletonClass.String()) }></div>
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded w-20", props.SkeletonClass.String()) }></div>
+					<div class={ twmerge.Merge("h-2.5 bg-gray-200 rounded w-12", props.SkeletonClass.String()) }></div>
+				</div>
+			}
+		}
+		<span class="sr-only">Loading...</span>
+	</div>
+}

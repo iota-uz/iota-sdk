@@ -10,6 +10,7 @@ Ensure these tools are installed before you begin:
 - [Templ v0.3.857](https://templ.guide/) - Templating
 - [TailwindCSS v3.4.13](https://tailwindcss.com/docs/installation) - Styling
 - [golangci-lint 1.64.8](https://golangci-lint.run/welcome/install/) - Linting
+- [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) - Tunnel (Optional)
 
 ### Windows Setup
 
@@ -42,6 +43,12 @@ Ensure these tools are installed before you begin:
    ```cmd
    curl.exe -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.ps1 | powershell -Command -
    ```
+
+7. **cloudflared**
+   ```cmd
+   winget install --id Cloudflare.cloudflared
+   ```
+
 ## 🛠️ Development Setup
 
 1. **Clone the repository**:
@@ -192,6 +199,15 @@ go mod tidy
    - Ensure Docker is running
    - Check container status: `docker ps`
    - Verify database credentials in `.env`
+
+### Start cloudflare tunnel
+
+To intercept incoming traffic from third-party systems, such as payment gateways, you can use a Cloudflare Tunnel.
+
+Try running:
+```bash
+make tunnel
+```
 
 ## 🤝 Communication Guidelines
 

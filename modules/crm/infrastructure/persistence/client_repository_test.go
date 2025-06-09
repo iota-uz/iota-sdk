@@ -324,12 +324,11 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		assert.Equal(t, "C", clients[1].LastName(), "Second client LastName mismatch")
 	})
 
-	t.Run("Get clients with query filter", func(t *testing.T) {
+	t.Run("Get clients with search filter", func(t *testing.T) {
 		params := &client.FindParams{
 			Limit:  10,
 			Offset: 0,
-			Query:  "D", // Filter by LastName containing "D"
-			Field:  "last_name",
+			Search: "D", // Search across multiple fields containing "D"
 			SortBy: client.SortBy{
 				Fields: []client.SortByField{{
 					Field:     client.LastName,
@@ -339,7 +338,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		}
 
 		clients, err := repo.GetPaginated(f.ctx, params)
-		require.NoError(t, err, "Failed to get clients with query filter") // Use require
+		require.NoError(t, err, "Failed to get clients with search filter") // Use require
 
 		require.Len(t, clients, 1, "Expected 1 client") // Use require for length check
 

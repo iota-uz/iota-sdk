@@ -45,6 +45,7 @@ interface ChatbotInterfaceProps {
   title?: string
   subtitle?: string
   chatIcon?: React.ReactNode // Custom chat icon for the chat button
+  customButton?: (props: { onClick: () => void; isMobile: boolean; messageCount: number; chatIcon?: React.ReactNode }) => React.ReactNode // Custom button function to trigger chat opening
   soundOptions?: {
     enabled?: boolean
     volume?: number
@@ -61,6 +62,7 @@ export default function ChatbotInterface({
   title,
   subtitle,
   chatIcon,
+  customButton,
   soundOptions,
   onMessageSubmit,
 }: ChatbotInterfaceProps) {
@@ -70,12 +72,13 @@ export default function ChatbotInterface({
   const { playSubmitSound, playOperatorSound } = useSoundEffects(soundOptions);
   const { toast } = useToast();
 
-  // Set API endpoint
+  // Set API endpoint and locale
   useEffect(() => {
     if (apiEndpoint) {
       chatApi.setApiEndpoint(apiEndpoint);
     }
-  }, [apiEndpoint]);
+    chatApi.setLocale(locale);
+  }, [apiEndpoint, locale]);
 
   const [phoneSubmitted, setPhoneSubmitted] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -575,12 +578,21 @@ export default function ChatbotInterface({
   return (
     <div className={`fixed ${isMobile && isOpen ? 'inset-0' : 'bottom-4 right-4'} z-50 flex flex-col items-end ${isMobile && !isOpen ? 'pointer-events-none' : ''}`}>
       {!isOpen && (
-        <ChatFloatingButton
-          onClick={() => setIsOpen(true)}
-          isMobile={isMobile}
-          messageCount={messageCount}
-          chatIcon={chatIcon}
-        />
+        customButton ? 
+          customButton({
+            onClick: () => setIsOpen(true),
+            isMobile,
+            messageCount,
+            chatIcon
+          })
+        : (
+          <ChatFloatingButton
+            onClick={() => setIsOpen(true)}
+            isMobile={isMobile}
+            messageCount={messageCount}
+            chatIcon={chatIcon}
+          />
+        )
       )}
       <div
         className={`overflow-hidden bg-white transition-all duration-300 ${isMobile ? '' : 'rounded-lg shadow-lg'} ${isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-0'

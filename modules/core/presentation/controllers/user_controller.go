@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -248,7 +249,8 @@ func (c *UsersController) Users(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	userService *services.UserService,
-	groupService *services.GroupService,
+	userQueryService *services.UserQueryService,
+	groupQueryService *services.GroupQueryService,
 ) {
 	params := composables.UsePaginated(r)
 	groupIDs := r.URL.Query()["groupID"]
@@ -260,30 +262,31 @@ func (c *UsersController) Users(
 		return
 	}
 
-	// Create find params
-	findParams := &user.FindParams{
+	// Create find params using the query service types
+	findParams := &query.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: user.SortBy{
-			Fields: []repo.SortByField[user.Field]{
+		SortBy: query.SortBy{
+			Fields: []repo.SortByField[query.Field]{
 				{
-					Field:     user.CreatedAtField,
+					Field:     "created_at",
 					Ascending: false,
 				},
 			},
 		},
 		Search: r.URL.Query().Get("Search"),
-		Filters: []user.Filter{
+		Filters: []query.Filter{
 			{
-				Column: user.TenantIDField,
+				Column: query.FieldTenantID,
 				Filter: repo.Eq(tenant.ID.String()),
 			},
 		},
 	}
 
+	// Add group filter if specified
 	if len(groupIDs) > 0 {
-		findParams.Filters = append(findParams.Filters, user.Filter{
-			Column: user.GroupIDField,
+		findParams.Filters = append(findParams.Filters, query.Filter{
+			Column: query.FieldGroupID,
 			Filter: repo.In(groupIDs),
 		})
 	}
@@ -295,8 +298,8 @@ func (c *UsersController) Users(
 			http.Error(w, "Invalid date format", http.StatusBadRequest)
 			return
 		}
-		findParams.Filters = append(findParams.Filters, user.Filter{
-			Column: user.CreatedAtField,
+		findParams.Filters = append(findParams.Filters, query.Filter{
+			Column: query.FieldCreatedAt,
 			Filter: repo.Lt(t),
 		})
 	}
@@ -308,22 +311,37 @@ func (c *UsersController) Users(
 			http.Error(w, "Invalid date format", http.StatusBadRequest)
 			return
 		}
-		findParams.Filters = append(findParams.Filters, user.Filter{
-			Column: user.CreatedAtField,
+		findParams.Filters = append(findParams.Filters, query.Filter{
+			Column: query.FieldCreatedAt,
 			Filter: repo.Gt(t),
 		})
 	}
 
-	// Get users based on filters
-	us, total, err := userService.GetPaginatedWithTotal(r.Context(), findParams)
+	// Get users using the query service
+	us, total, err := userQueryService.FindUsers(r.Context(), findParams)
 	if err != nil {
 		logger.Errorf("Error retrieving users: %v", err)
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 
-	// Get all groups for the sidebar
-	groups, err := groupService.GetAll(r.Context())
+	// Get all groups for the sidebar using query service
+	groupParams := &query.GroupFindParams{
+		Limit:  100, // Get a reasonable number for sidebar display
+		Offset: 0,
+		SortBy: query.SortBy{
+			Fields: []repo.SortByField[query.Field]{
+				{Field: query.GroupFieldName, Ascending: true},
+			},
+		},
+		Filters: []query.GroupFilter{
+			{
+				Column: query.GroupFieldTenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
+	}
+	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
 		logger.Errorf("Error retrieving groups: %v", err)
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -331,11 +349,11 @@ func (c *UsersController) Users(
 	}
 
 	props := &users.IndexPageProps{
-		Users:   mapping.MapViewModels(us, mappers.UserToViewModel),
-		Groups:  mapping.MapViewModels(groups, mappers.GroupToViewModel),
+		Users:   us,     // Already viewmodels from query service
+		Groups:  groups, // Already viewmodels from query service
 		Page:    params.Page,
 		PerPage: params.Limit,
-		HasMore: total > int64(params.Page*params.Limit),
+		HasMore: total > params.Page*params.Limit,
 	}
 
 	if htmx.IsHxRequest(r) {
@@ -359,12 +377,19 @@ func (c *UsersController) GetEdit(
 	logger *logrus.Entry,
 	userService *services.UserService,
 	roleService *services.RoleService,
-	groupService *services.GroupService,
+	groupQueryService *services.GroupQueryService,
 ) {
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing user ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant from request: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
 		return
 	}
 
@@ -375,7 +400,18 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	groups, err := groupService.GetAll(r.Context())
+	// Use GroupQueryService to fetch all groups
+	groupParams := &query.GroupFindParams{
+		Limit:  1000, // Large limit to fetch all groups
+		Offset: 0,
+		Filters: []query.GroupFilter{
+			{
+				Column: query.GroupFieldTenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
+	}
+	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
 		logger.Errorf("Error retrieving groups: %v", err)
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -392,7 +428,7 @@ func (c *UsersController) GetEdit(
 	props := &users.EditFormProps{
 		User:             mappers.UserToViewModel(us),
 		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
+		Groups:           groups, // Already viewmodels from query service
 		PermissionGroups: c.permissionGroups(c.app.RBAC(), us.Permissions()...),
 		Errors:           map[string]string{},
 	}
@@ -404,8 +440,15 @@ func (c *UsersController) GetNew(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	roleService *services.RoleService,
-	groupService *services.GroupService,
+	groupQueryService *services.GroupQueryService,
 ) {
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant from request: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+		return
+	}
+
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -413,7 +456,18 @@ func (c *UsersController) GetNew(
 		return
 	}
 
-	groups, err := groupService.GetAll(r.Context())
+	// Use GroupQueryService to fetch all groups
+	groupParams := &query.GroupFindParams{
+		Limit:  1000, // Large limit to fetch all groups
+		Offset: 0,
+		Filters: []query.GroupFilter{
+			{
+				Column: query.GroupFieldTenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+		},
+	}
+	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
 		logger.Errorf("Error retrieving groups: %v", err)
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -423,7 +477,7 @@ func (c *UsersController) GetNew(
 	props := &users.CreateFormProps{
 		User:             viewmodels.User{},
 		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
+		Groups:           groups, // Already viewmodels from query service
 		PermissionGroups: c.permissionGroups(c.app.RBAC()),
 		Errors:           map[string]string{},
 	}
@@ -436,10 +490,17 @@ func (c *UsersController) Create(
 	logger *logrus.Entry,
 	userService *services.UserService,
 	roleService *services.RoleService,
-	groupService *services.GroupService,
+	groupQueryService *services.GroupQueryService,
 ) {
 	respondWithForm := func(errors map[string]string, dto *dtos.CreateUserDTO) {
 		ctx := r.Context()
+
+		tenant, err := composables.UseTenant(ctx)
+		if err != nil {
+			logger.Errorf("Error retrieving tenant from request: %v", err)
+			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+			return
+		}
 
 		roles, err := roleService.GetAll(ctx)
 		if err != nil {
@@ -448,7 +509,18 @@ func (c *UsersController) Create(
 			return
 		}
 
-		groups, err := groupService.GetAll(ctx)
+		// Use GroupQueryService to fetch all groups
+		groupParams := &query.GroupFindParams{
+			Limit:  1000, // Large limit to fetch all groups
+			Offset: 0,
+			Filters: []query.GroupFilter{
+				{
+					Column: query.GroupFieldTenantID,
+					Filter: repo.Eq(tenant.ID.String()),
+				},
+			},
+		}
+		groups, _, err := groupQueryService.FindGroups(ctx, groupParams)
 		if err != nil {
 			logger.Errorf("Error retrieving groups: %v", err)
 			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -475,7 +547,7 @@ func (c *UsersController) Create(
 				AvatarID:   fmt.Sprint(dto.AvatarID),
 			},
 			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
+			Groups:           groups, // Already viewmodels from query service
 			PermissionGroups: c.permissionGroups(c.app.RBAC()),
 			Errors:           errors,
 		}
@@ -523,7 +595,7 @@ func (c *UsersController) Update(
 	logger *logrus.Entry,
 	userService *services.UserService,
 	roleService *services.RoleService,
-	groupService *services.GroupService,
+	groupQueryService *services.GroupQueryService,
 	permissionService *services.PermissionService,
 ) {
 	ctx := r.Context()
@@ -549,6 +621,13 @@ func (c *UsersController) Update(
 	}
 
 	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
+		tenant, err := composables.UseTenant(ctx)
+		if err != nil {
+			logger.Errorf("Error retrieving tenant from request: %v", err)
+			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
+			return
+		}
+
 		us, err := userService.GetByID(ctx, id)
 		if err != nil {
 			logger.Errorf("Error retrieving user: %v", err)
@@ -570,7 +649,18 @@ func (c *UsersController) Update(
 			}
 		}
 
-		groups, err := groupService.GetAll(ctx)
+		// Use GroupQueryService to fetch all groups
+		groupParams := &query.GroupFindParams{
+			Limit:  1000, // Large limit to fetch all groups
+			Offset: 0,
+			Filters: []query.GroupFilter{
+				{
+					Column: query.GroupFieldTenantID,
+					Filter: repo.Eq(tenant.ID.String()),
+				},
+			},
+		}
+		groups, _, err := groupQueryService.FindGroups(ctx, groupParams)
 		if err != nil {
 			logger.Errorf("Error retrieving groups: %v", err)
 			http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
@@ -600,7 +690,7 @@ func (c *UsersController) Update(
 				AvatarID:    strconv.FormatUint(uint64(dto.AvatarID), 10),
 			},
 			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Groups:           mapping.MapViewModels(groups, mappers.GroupToViewModel),
+			Groups:           groups, // Already viewmodels from query service
 			PermissionGroups: c.permissionGroups(c.app.RBAC(), us.Permissions()...),
 			Errors:           errors,
 		}

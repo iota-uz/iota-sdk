@@ -6,6 +6,8 @@ package table
 
 import (
 	"fmt"
+	"net/url"
+	"strconv"
 	"time"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -27,16 +29,25 @@ templ DateTime(ts time.Time) {
 	</div>
 }
 
+func nextChunkURL(dataURL string, page, perPage int) string {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(page+1))
+	params.Set("limit", strconv.Itoa(perPage))
+	return fmt.Sprintf("%s?%s", dataURL, params.Encode())
+}
+
 // Rows renders the table rows for a scaffold table
 templ Rows(cfg *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<tr class="hidden">
-		<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) }>
-			@loaders.Spinner(loaders.SpinnerProps{
-				ContainerClass: templ.Classes("flex justify-center items-center py-4"),
-			})
-		</td>
-	</tr>
+	if cfg.Infinite.Page == 1 {
+		<tr class="hidden">
+			<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) }>
+				@loaders.Spinner(loaders.SpinnerProps{
+					ContainerClass: templ.Classes("flex justify-center items-center py-4"),
+				})
+			</td>
+		</tr>
+	}
 	if len(cfg.Rows) == 0 {
 		@base.TableRow(base.TableRowProps{
 			Attrs: templ.Attributes{
@@ -53,9 +64,23 @@ templ Rows(cfg *TableConfig) {
 			}
 		}
 	} else {
-		for _, row := range cfg.Rows {
+		for i, row := range cfg.Rows {
+			{{
+				isLastRow := i == len(cfg.Rows)-1
+				rowAttrs := templ.Attributes{}
+				for k, v := range row.Attrs() {
+					rowAttrs[k] = v
+				}
+				if isLastRow && cfg.Infinite.HasMore {
+					rowAttrs["hx-get"] = nextChunkURL(cfg.DataURL, cfg.Infinite.Page, cfg.Infinite.PerPage)
+					rowAttrs["hx-indicator"] = "#infinite-scroll-spinner"
+					rowAttrs["hx-trigger"] = "intersect once"
+					rowAttrs["hx-swap"] = "afterend"
+					rowAttrs["hx-target"] = "this"
+				}
+			}}
 			@base.TableRow(base.TableRowProps{
-				Attrs: row.Attrs(),
+				Attrs: rowAttrs,
 			}) {
 				for _, cell := range row.Cells() {
 					@base.TableCell(base.TableCellProps{}) {
@@ -65,6 +90,16 @@ templ Rows(cfg *TableConfig) {
 			}
 		}
 	}
+}
+
+templ InfiniteScrollSpinner(cfg *TableConfig) {
+	<tr id="infinite-scroll-spinner" class="hidden">
+		<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) }>
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes("flex justify-center items-center py-4"),
+			})
+		</td>
+	</tr>
 }
 
 // Table renders a dynamic table based on configuration and data
@@ -79,10 +114,14 @@ templ Table(config *TableConfig) {
 		@base.Table(base.TableProps{
 			Columns: toBaseTableColumns(config.Columns),
 			TBodyAttrs: templ.Attributes{
-				"id": "table-body",
+				"id":          "table-body",
+				"hx-push-url": "false",
 			},
 		}) {
 			@Rows(config)
+			if config.Infinite.HasMore {
+				@InfiniteScrollSpinner(config)
+			}
 		}
 	}
 }
