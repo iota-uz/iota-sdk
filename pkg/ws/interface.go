@@ -1,6 +1,9 @@
 package ws
 
-import "io"
+import (
+	"io"
+	"net/http"
+)
 
 type Set[A comparable] map[A]struct{}
 type EventType int
@@ -18,6 +21,8 @@ type Connectioner interface {
 }
 
 type Huber interface {
+	http.Handler
+
 	BroadcastToAll(message []byte)
 	BroadcastToChannel(channel string, message []byte)
 
