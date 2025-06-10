@@ -71,7 +71,7 @@ templ ClientRow(client *viewmodels.Client, rowProps *base.TableRowProps) {
 		}
 		@base.TableCell(base.TableCellProps{}) {
 			<div x-data="relativeformat">
-				<span x-text={ fmt.Sprintf("format('%s')", client.UpdatedAt) }></span>
+				<span x-text={ fmt.Sprintf("format('%s')", client.CreatedAt) }></span>
 			</div>
 		}
 	}
@@ -113,7 +113,7 @@ templ ClientsTable(props *IndexPageProps) {
 		Columns: []*base.TableColumn{
 			{Label: pageCtx.T("Clients.List.FullName"), Key: "fullName"},
 			{Label: pageCtx.T("Clients.List.Phone"), Key: "phone"},
-			{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+			{Label: pageCtx.T("CreatedAt"), Key: "createdAt"},
 		},
 		TBodyAttrs: templ.Attributes{
 			"id": "clients-table-body",
