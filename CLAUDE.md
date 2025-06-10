@@ -34,4 +34,4 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 - Use `htmx.SetTrigger(w, "eventName", payload)` for setting HTMX response triggers
 
 ## Architectural Guidelines
-- Do not introduce UseTenant calls in repository layer, this is application layer concert
+- Do not introduce UseTenant calls in repository layer, this is application layer concern
