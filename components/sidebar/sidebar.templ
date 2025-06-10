@@ -29,11 +29,11 @@ templ Sidebar(props Props) {
 			}
 		}}
 		@navtabs.Root(navTabsProps) {
-			<div class="px-6 mb-4">
+			<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="mb-4 transition-all duration-300">
+				if props.Header != nil {
+					@props.Header
+				}
 				<div x-show="!isCollapsed" x-transition>
-					if props.Header != nil {
-						@props.Header
-					}
 					<div class="mt-4">
 						@navtabs.List("w-full") {
 							for _, group := range props.TabGroups.Groups {
