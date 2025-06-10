@@ -99,12 +99,12 @@ func NewOrderRepository(productRepo product.Repository) order.Repository {
 }
 
 func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	where, args := []string{"wo.tenant_id = $1"}, []interface{}{tenant.ID}
+	where, args := []string{"wo.tenant_id = $1"}, []interface{}{tenantID}
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		where, args = append(where, fmt.Sprintf("wo.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
@@ -128,7 +128,7 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 }
 
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -138,26 +138,26 @@ func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, orderCountQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, orderCountQuery+" WHERE tenant_id = $1", tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormOrderRepository) GetAll(ctx context.Context) ([]order.Order, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
-	return g.queryOrders(ctx, orderFindQuery+" WHERE wo.tenant_id = $1", tenant.ID)
+	return g.queryOrders(ctx, orderFindQuery+" WHERE wo.tenant_id = $1", tenantID)
 }
 
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
-	orders, err := g.queryOrders(ctx, orderFindQuery+" WHERE wo.id = $1 AND wo.tenant_id = $2", id, tenant.ID)
+	orders, err := g.queryOrders(ctx, orderFindQuery+" WHERE wo.id = $1 AND wo.tenant_id = $2", id, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +300,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -309,7 +309,7 @@ func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
 	if err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, orderDeleteQuery, id, tenant.ID); err != nil {
+	if _, err := tx.Exec(ctx, orderDeleteQuery, id, tenantID); err != nil {
 		return err
 	}
 	return nil

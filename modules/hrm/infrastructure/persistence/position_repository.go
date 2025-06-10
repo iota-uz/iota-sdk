@@ -25,7 +25,7 @@ func NewPositionRepository() position.Repository {
 func (g *GormPositionRepository) GetPaginated(
 	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -34,7 +34,7 @@ func (g *GormPositionRepository) GetPaginated(
 	if err != nil {
 		return nil, err
 	}
-	where, args := []string{"tenant_id = $1"}, []interface{}{tenant.ID}
+	where, args := []string{"tenant_id = $1"}, []interface{}{tenantID}
 	if params.ID != 0 {
 		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
 	}
@@ -76,7 +76,7 @@ func (g *GormPositionRepository) GetPaginated(
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -88,7 +88,7 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
 	if err := pool.QueryRow(ctx, `
 		SELECT COUNT(*) as count FROM positions WHERE tenant_id = $1
-	`, tenant.ID).Scan(&count); err != nil {
+	`, tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil

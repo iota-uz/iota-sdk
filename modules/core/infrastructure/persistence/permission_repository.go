@@ -108,12 +108,12 @@ func (g *PgPermissionRepository) GetAll(ctx context.Context) ([]*permission.Perm
 }
 
 func (g *PgPermissionRepository) GetByID(ctx context.Context, id string) (*permission.Permission, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	permissions, err := g.queryPermissions(ctx, permissionsSelectQuery+" WHERE id = $1 AND tenant_id = $2", id, tenant.ID)
+	permissions, err := g.queryPermissions(ctx, permissionsSelectQuery+" WHERE id = $1 AND tenant_id = $2", id, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -158,12 +158,12 @@ func (g *PgPermissionRepository) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	return g.execQuery(ctx, permissionsDeleteQuery+" AND tenant_id = $2", id, tenant.ID)
+	return g.execQuery(ctx, permissionsDeleteQuery+" AND tenant_id = $2", id, tenantID)
 }
 
 func (g *PgPermissionRepository) queryPermissions(
