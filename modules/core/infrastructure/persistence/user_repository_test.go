@@ -32,7 +32,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	err := permissionRepository.Save(f.ctx, permissions.UserRead)
 	require.NoError(t, err)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	// First role
@@ -42,7 +42,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
 		}),
-		role.WithTenantID(tenant.ID),
+		role.WithTenantID(tenant),
 	)
 	require.NoError(t, err)
 
@@ -56,7 +56,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
 		}),
-		role.WithTenantID(tenant.ID),
+		role.WithTenantID(tenant),
 	)
 
 	secondRoleEntity, err := roleRepository.Create(f.ctx, secondRoleData)
@@ -68,7 +68,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		"Test Group",
 		group.WithID(groupID),
 		group.WithDescription("Test group description"),
-		group.WithTenantID(tenant.ID),
+		group.WithTenantID(tenant),
 	)
 	_, err = groupRepository.Save(f.ctx, groupEntity)
 	require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		"Second Group",
 		group.WithID(secondGroupID),
 		group.WithDescription("Second group description"),
-		group.WithTenantID(tenant.ID),
+		group.WithTenantID(tenant),
 	)
 	_, err = groupRepository.Save(f.ctx, secondGroupEntity)
 	require.NoError(t, err)
@@ -95,7 +95,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			email,
 			user.UILanguageEN,
 			user.WithMiddleName("Middle"),
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -126,7 +126,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			secondEmail,
 			user.UILanguageEN,
 			user.WithRoles([]role.Role{roleEntity}),
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUserWithRoles, err := userRepository.Create(f.ctx, userWithRoles)
@@ -144,7 +144,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			thirdEmail,
 			user.UILanguageEN,
 			user.WithGroupIDs([]uuid.UUID{groupID}),
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUserWithGroup, err := userRepository.Create(f.ctx, userWithGroup)
@@ -162,7 +162,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			"ByID",
 			email,
 			user.UILanguageEN,
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -186,7 +186,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			"ByEmail",
 			email,
 			user.UILanguageEN,
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		_, err = userRepository.Create(f.ctx, userEntity)
@@ -208,7 +208,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			"Update",
 			email,
 			user.UILanguageEN,
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -233,7 +233,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			"Roles",
 			email,
 			user.UILanguageEN,
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -279,7 +279,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			"Groups",
 			email,
 			user.UILanguageEN,
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -440,7 +440,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			"User",
 			email,
 			user.UILanguageEN,
-			user.WithTenantID(tenant.ID),
+			user.WithTenantID(tenant),
 		)
 
 		createdUser, err := userRepository.Create(f.ctx, userEntity)

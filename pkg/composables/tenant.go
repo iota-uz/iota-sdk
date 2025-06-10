@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrNoTenantFound = errors.New("no tenant found in context")
+	ErrNoTenantIDFound = errors.New("no tenant id found in context")
 )
 
 type Tenant struct {
@@ -18,22 +18,14 @@ type Tenant struct {
 	Domain string
 }
 
-func UseTenant(ctx context.Context) (*Tenant, error) {
-	t, ok := ctx.Value(constants.TenantKey).(*Tenant)
+func UseTenantID(ctx context.Context) (uuid.UUID, error) {
+	t, ok := ctx.Value(constants.TenantIDKey).(uuid.UUID)
 	if !ok {
-		return nil, ErrNoTenantFound
+		return uuid.Nil, ErrNoTenantIDFound
 	}
 	return t, nil
 }
 
-func MustUseTenant(ctx context.Context) *Tenant {
-	t, err := UseTenant(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
-func WithTenant(ctx context.Context, tenant *Tenant) context.Context {
-	return context.WithValue(ctx, constants.TenantKey, tenant)
+func WithTenantID(ctx context.Context, tenantID uuid.UUID) context.Context {
+	return context.WithValue(ctx, constants.TenantIDKey, tenantID)
 }

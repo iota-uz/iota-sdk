@@ -28,7 +28,7 @@ func TestGroupService_GetByID(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	// Create test permission
@@ -37,7 +37,7 @@ func TestGroupService_GetByID(t *testing.T) {
 
 	// Create test data
 	groupID := uuid.New()
-	testGroup := group.New("Test Group", group.WithID(groupID), group.WithTenantID(tenant.ID))
+	testGroup := group.New("Test Group", group.WithID(groupID), group.WithTenantID(tenant))
 
 	// Setup service
 	bus := eventbus.NewEventPublisher(logrus.New())
@@ -67,7 +67,7 @@ func TestGroupService_Count(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	// Create test permission
@@ -81,7 +81,7 @@ func TestGroupService_Count(t *testing.T) {
 	// Add some test groups
 	for i := 1; i <= 5; i++ {
 		groupName := "Group " + string(rune(i+64)) // A, B, C, D, E
-		groupEntity := group.New(groupName, group.WithID(uuid.New()), group.WithTenantID(tenant.ID))
+		groupEntity := group.New(groupName, group.WithID(uuid.New()), group.WithTenantID(tenant))
 		_, err := groupRepository.Save(f.ctx, groupEntity)
 		require.NoError(t, err)
 	}
@@ -105,7 +105,7 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	// Create test permission
@@ -125,13 +125,13 @@ func TestGroupService_GetPaginated(t *testing.T) {
 		"Older Group",
 		group.WithID(uuid.New()),
 		group.WithCreatedAt(yesterday),
-		group.WithTenantID(tenant.ID),
+		group.WithTenantID(tenant),
 	)
 	groupNewer := group.New(
 		"Newer Group",
 		group.WithID(uuid.New()),
 		group.WithCreatedAt(now),
-		group.WithTenantID(tenant.ID),
+		group.WithTenantID(tenant),
 	)
 
 	_, err = groupRepository.Save(f.ctx, groupOlder)

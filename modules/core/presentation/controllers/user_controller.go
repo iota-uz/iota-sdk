@@ -60,11 +60,13 @@ func (ru *UserRealtimeUpdates) Register() {
 func (ru *UserRealtimeUpdates) onUserCreated(event *user.CreatedEvent) {
 	logger := configuration.Use().Logger()
 
+	fmt.Printf("UserRealtimeUpdates.onUserCreated: %d\n", event.Result.ID())
 	component := users.UserCreatedEvent(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		fmt.Printf("UserRealtimeUpdates.onUserCreated: broadcasting to connection %d\n", conn.User().ID())
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			logger.WithError(err).Error("failed to render user created event for websocket")
@@ -225,7 +227,7 @@ func (c *UsersController) Users(
 	params := composables.UsePaginated(r)
 	groupIDs := r.URL.Query()["groupID"]
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving tenant from request: %v", err)
 		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -248,7 +250,7 @@ func (c *UsersController) Users(
 		Filters: []query.Filter{
 			{
 				Column: query.FieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
+				Filter: repo.Eq(tenantID.String()),
 			},
 		},
 	}
@@ -307,7 +309,7 @@ func (c *UsersController) Users(
 		Filters: []query.GroupFilter{
 			{
 				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
+				Filter: repo.Eq(tenantID.String()),
 			},
 		},
 	}
@@ -356,7 +358,7 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving tenant from request: %v", err)
 		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -377,7 +379,7 @@ func (c *UsersController) GetEdit(
 		Filters: []query.GroupFilter{
 			{
 				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
+				Filter: repo.Eq(tenantID.String()),
 			},
 		},
 	}
@@ -412,7 +414,7 @@ func (c *UsersController) GetNew(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) {
-	tenant, err := composables.UseTenant(r.Context())
+	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving tenant from request: %v", err)
 		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -433,7 +435,7 @@ func (c *UsersController) GetNew(
 		Filters: []query.GroupFilter{
 			{
 				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
+				Filter: repo.Eq(tenantID.String()),
 			},
 		},
 	}
@@ -465,7 +467,7 @@ func (c *UsersController) Create(
 	respondWithForm := func(errors map[string]string, dto *dtos.CreateUserDTO) {
 		ctx := r.Context()
 
-		tenant, err := composables.UseTenant(ctx)
+		tenantID, err := composables.UseTenantID(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving tenant from request: %v", err)
 			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -486,7 +488,7 @@ func (c *UsersController) Create(
 			Filters: []query.GroupFilter{
 				{
 					Column: query.GroupFieldTenantID,
-					Filter: repo.Eq(tenant.ID.String()),
+					Filter: repo.Eq(tenantID.String()),
 				},
 			},
 		}
@@ -591,7 +593,7 @@ func (c *UsersController) Update(
 	}
 
 	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
-		tenant, err := composables.UseTenant(ctx)
+		tenantID, err := composables.UseTenantID(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving tenant from request: %v", err)
 			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -626,7 +628,7 @@ func (c *UsersController) Update(
 			Filters: []query.GroupFilter{
 				{
 					Column: query.GroupFieldTenantID,
-					Filter: repo.Eq(tenant.ID.String()),
+					Filter: repo.Eq(tenantID.String()),
 				},
 			},
 		}

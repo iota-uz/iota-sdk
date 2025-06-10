@@ -57,7 +57,7 @@ func setupTest(t *testing.T) *testFixtures {
 		t.Fatal(err)
 	}
 
-	ctx = composables.WithTenant(ctx, tenant)
+	ctx = composables.WithTenantID(ctx, tenant.ID)
 
 	return &testFixtures{
 		ctx:  ctx,

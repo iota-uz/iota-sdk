@@ -68,7 +68,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 		t.Fatal(err)
 	}
 
-	ctx = composables.WithTenant(ctx, tenant)
+	ctx = composables.WithTenantID(ctx, tenant.ID)
 
 	return &testFixtures{
 		ctx:            ctx,
@@ -101,11 +101,11 @@ func TestBillingService_CreateTransaction_Click(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	cmd := &services.CreateTransactionCommand{
-		TenantID: tenant.ID,
+		TenantID: tenant,
 		Quantity: 1001,
 		Currency: billing.UZS,
 		Gateway:  billing.Click,
@@ -131,7 +131,7 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	for i := 1; i <= 40; i++ {
@@ -142,7 +142,7 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 			amount := float64(1000 + i)
 
 			cmd := &services.CreateTransactionCommand{
-				TenantID: tenant.ID,
+				TenantID: tenant,
 				Quantity: amount,
 				Currency: billing.UZS,
 				Gateway:  billing.Payme,
@@ -175,13 +175,13 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 //	t.Parallel()
 //	f := setupTest(t)
 //
-//	tenant, err := composables.UseTenant(f.ctx)
+//	tenant, err := composables.UseTenantID(f.ctx)
 //	require.NoError(t, err)
 //
 //	shopTransactionId := uuid.New().String()
 //
 //	cmd := &services.CreateTransactionCommand{
-//		TenantID: tenant.ID,
+//		TenantID: tenant,
 //		Quantity: 1000,
 //		Currency: billing.UZS,
 //		Gateway:  billing.Octo,
@@ -213,11 +213,11 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 //	t.Parallel()
 //	f := setupTest(t)
 //
-//	tenant, err := composables.UseTenant(f.ctx)
+//	tenant, err := composables.UseTenantID(f.ctx)
 //	require.NoError(t, err)
 //
 //	cmd := &services.CreateTransactionCommand{
-//		TenantID: tenant.ID,
+//		TenantID: tenant,
 //		Quantity: 10,
 //		Currency: billing.USD,
 //		Gateway:  billing.Stripe,

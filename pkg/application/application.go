@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"path/filepath"
 	"reflect"
 
@@ -91,6 +90,7 @@ type ApplicationOptions struct {
 	Pool     *pgxpool.Pool
 	EventBus eventbus.EventBus
 	Logger   *logrus.Logger
+	Huber    Huber
 }
 
 func New(opts *ApplicationOptions) Application {
@@ -106,18 +106,13 @@ func New(opts *ApplicationOptions) Application {
 		pool:           opts.Pool,
 		eventPublisher: opts.EventBus,
 		rbac:           rbac.NewRbac(),
-		websocket: NewHub(&HuberOptions{
-			Logger: opts.Logger,
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		}),
-		controllers: make(map[string]Controller),
-		services:    make(map[reflect.Type]interface{}),
-		quickLinks:  quickLinks,
-		spotlight:   sl,
-		bundle:      bundle,
-		migrations:  NewMigrationManager(opts.Pool),
+		websocket:      opts.Huber,
+		controllers:    make(map[string]Controller),
+		services:       make(map[reflect.Type]interface{}),
+		quickLinks:     quickLinks,
+		spotlight:      sl,
+		bundle:         bundle,
+		migrations:     NewMigrationManager(opts.Pool),
 	}
 }
 

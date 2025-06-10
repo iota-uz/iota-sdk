@@ -335,7 +335,7 @@ func (c *ClientController) viewModelClients(
 		return nil, errors.Wrap(err, "Error retrieving clients")
 	}
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving tenant")
 	}
@@ -343,7 +343,7 @@ func (c *ClientController) viewModelClients(
 		Filters: []client.Filter{
 			{
 				Column: client.TenantID,
-				Filter: repo.Eq(tenant.ID),
+				Filter: repo.Eq(tenant),
 			},
 		},
 	})
@@ -451,16 +451,16 @@ func (c *ClientController) Create(
 		return
 	}
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error getting tenant: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	logger.Infof("Creating client with tenant ID: %s (name: %s)", tenant.ID, tenant.Name)
+	logger.Infof("Creating client with tenant ID: %s", tenant)
 
-	clientEntity, err := dto.ToEntity(tenant.ID)
+	clientEntity, err := dto.ToEntity(tenant)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

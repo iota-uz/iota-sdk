@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -58,7 +59,8 @@ func NewHub(opts *HuberOptions) Huber {
 }
 
 type MetaInfo struct {
-	UserID uint
+	UserID   uint
+	TenantID uuid.UUID
 }
 
 type huber struct {
@@ -80,9 +82,11 @@ func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) err
 	if err != nil {
 		// Allow unauthenticated connections - they can still receive public broadcasts
 		h.connectionsMeta[conn] = meta
+		fmt.Println("Unauthenticated connection, allowing public access")
 		return nil //nolint:nilerr // Intentionally ignore auth error for public connections
 	}
 	meta.UserID = usr.ID()
+	meta.TenantID = usr.TenantID()
 	h.hub.JoinChannel(ChannelAuthenticated, conn)
 	h.hub.JoinChannel(fmt.Sprintf("user/%d", usr.ID()), conn)
 	h.connectionsMeta[conn] = meta
@@ -94,10 +98,12 @@ func (h *huber) onDisconnect(conn *ws.Connection) {
 }
 
 func (h *huber) buildContext() context.Context {
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, constants.LoggerKey, h.logger)
-	ctx = composables.WithPool(ctx, h.pool)
-	return ctx
+	ctx := context.WithValue(
+		context.Background(),
+		constants.LoggerKey,
+		h.logger,
+	)
+	return composables.WithPool(ctx, h.pool)
 }
 
 func (h *huber) ForEach(channel string, f WsCallback) error {

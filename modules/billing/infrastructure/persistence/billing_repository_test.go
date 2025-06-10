@@ -35,10 +35,10 @@ func TestBillingRepository_Create(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
-	tx := createTestClickTransaction("click-merchant-1", tenant.ID)
+	tx := createTestClickTransaction("click-merchant-1", tenant)
 
 	created, err := repo.Save(f.ctx, tx)
 	require.NoError(t, err)
@@ -57,10 +57,10 @@ func TestBillingRepository_GetByID(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
-	tx := createTestClickTransaction("click-merchant-2", tenant.ID)
+	tx := createTestClickTransaction("click-merchant-2", tenant)
 	created, err := repo.Save(f.ctx, tx)
 	require.NoError(t, err)
 
@@ -81,10 +81,10 @@ func TestBillingRepository_GetByDetailsField(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
-	tx := createTestClickTransaction("click-merchant-3", tenant.ID)
+	tx := createTestClickTransaction("click-merchant-3", tenant)
 	created, err := repo.Save(f.ctx, tx)
 	require.NoError(t, err)
 
@@ -112,10 +112,10 @@ func TestBillingRepository_Update(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
-	tx := createTestClickTransaction("click-merchant-4", tenant.ID)
+	tx := createTestClickTransaction("click-merchant-4", tenant)
 	created, err := repo.Save(f.ctx, tx)
 	require.NoError(t, err)
 
@@ -133,10 +133,10 @@ func TestBillingRepository_Delete(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
-	tx := createTestClickTransaction("click-merchant-5", tenant.ID)
+	tx := createTestClickTransaction("click-merchant-5", tenant)
 	created, err := repo.Save(f.ctx, tx)
 	require.NoError(t, err)
 
@@ -152,20 +152,20 @@ func TestBillingRepository_Count(t *testing.T) {
 	f := setupTest(t)
 	bRepo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	initial, err := bRepo.Count(f.ctx, &billing.FindParams{
 		Filters: []billing.Filter{
 			{
 				Column: billing.TenantIDField,
-				Filter: repo.Eq(tenant.ID),
+				Filter: repo.Eq(tenant),
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	_, err = bRepo.Save(f.ctx, createTestClickTransaction("click-merchant-6", tenant.ID))
+	_, err = bRepo.Save(f.ctx, createTestClickTransaction("click-merchant-6", tenant))
 	require.NoError(t, err)
 
 	after, err := bRepo.Count(f.ctx, &billing.FindParams{})
@@ -179,10 +179,10 @@ func TestBillingRepository_GetAll(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
-	_, err = repo.Save(f.ctx, createTestClickTransaction("click-merchant-7", tenant.ID))
+	_, err = repo.Save(f.ctx, createTestClickTransaction("click-merchant-7", tenant))
 	require.NoError(t, err)
 
 	all, err := repo.GetAll(f.ctx)
@@ -196,12 +196,12 @@ func TestBillingRepository_GetPaginated(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	for i := 0; i < 4; i++ {
 		id := "click-merchant-" + uuid.New().String()
-		_, err := repo.Save(f.ctx, createTestClickTransaction(id, tenant.ID))
+		_, err := repo.Save(f.ctx, createTestClickTransaction(id, tenant))
 		require.NoError(t, err)
 		time.Sleep(10 * time.Millisecond)
 	}

@@ -179,7 +179,7 @@ func (c *GroupsController) Groups(
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving tenant from request: %v", err)
 		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -199,7 +199,7 @@ func (c *GroupsController) Groups(
 		Filters: []query.GroupFilter{
 			{
 				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
+				Filter: repo.Eq(tenantID.String()),
 			},
 		},
 	}
@@ -264,7 +264,7 @@ func (c *GroupsController) GetEdit(
 ) {
 	idStr := mux.Vars(r)["id"]
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving tenant from request: %v", err)
 		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -286,7 +286,7 @@ func (c *GroupsController) GetEdit(
 		Filters: []query.GroupFilter{
 			{
 				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
+				Filter: repo.Eq(tenantID.String()),
 			},
 			{
 				Column: query.GroupFieldID,
@@ -383,13 +383,13 @@ func (c *GroupsController) Create(
 	}
 
 	// Get tenant from context and set it on the group
-	tenant, err := composables.UseTenant(r.Context())
+	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error getting tenant: %v", err)
 		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
 		return
 	}
-	groupEntity = groupEntity.SetTenantID(tenant.ID)
+	groupEntity = groupEntity.SetTenantID(tenantID)
 
 	// Process role assignments
 	for _, roleIDStr := range dto.RoleIDs {

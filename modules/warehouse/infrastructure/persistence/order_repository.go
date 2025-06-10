@@ -99,7 +99,7 @@ func NewOrderRepository(productRepo product.Repository) order.Repository {
 }
 
 func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.FindParams) ([]order.Order, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -128,7 +128,7 @@ func (g *GormOrderRepository) GetPaginated(ctx context.Context, params *order.Fi
 }
 
 func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -145,7 +145,7 @@ func (g *GormOrderRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *GormOrderRepository) GetAll(ctx context.Context) ([]order.Order, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -153,7 +153,7 @@ func (g *GormOrderRepository) GetAll(ctx context.Context) ([]order.Order, error)
 }
 
 func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -168,7 +168,7 @@ func (g *GormOrderRepository) GetByID(ctx context.Context, id uint) (order.Order
 }
 
 func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -179,7 +179,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 	}
 
 	// Set tenant ID in domain entity
-	data.SetTenantID(tenant.ID)
+	data.SetTenantID(tenantID)
 
 	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
@@ -187,7 +187,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 	}
 
 	// Make sure tenant ID is set in DB model
-	dbOrder.TenantID = tenant.ID.String()
+	dbOrder.TenantID = tenantID.String()
 
 	if err := tx.QueryRow(
 		ctx,
@@ -202,7 +202,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 
 	for _, p := range dbProducts {
 		// Set tenant ID in product
-		p.TenantID = tenant.ID.String()
+		p.TenantID = tenantID.String()
 
 		if err := tx.QueryRow(
 			ctx,
@@ -232,7 +232,7 @@ func (g *GormOrderRepository) Create(ctx context.Context, data order.Order) erro
 }
 
 func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -243,7 +243,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 	}
 
 	// Set tenant ID in domain entity
-	data.SetTenantID(tenant.ID)
+	data.SetTenantID(tenantID)
 
 	dbOrder, dbProducts, err := mappers.ToDBOrder(data)
 	if err != nil {
@@ -251,7 +251,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 	}
 
 	// Make sure tenant ID is set in DB model
-	dbOrder.TenantID = tenant.ID.String()
+	dbOrder.TenantID = tenantID.String()
 
 	if _, err := tx.Exec(
 		ctx,
@@ -281,7 +281,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 
 	for _, product := range dbProducts {
 		// Set tenant ID
-		product.TenantID = tenant.ID.String()
+		product.TenantID = tenantID.String()
 
 		if _, err := tx.Exec(
 			ctx,
@@ -300,7 +300,7 @@ func (g *GormOrderRepository) Update(ctx context.Context, data order.Order) erro
 }
 
 func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}

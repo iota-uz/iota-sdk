@@ -42,7 +42,7 @@ func (g *GormInventoryRepository) GetPaginated(
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -137,7 +137,7 @@ func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.P
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -177,7 +177,7 @@ func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -237,13 +237,13 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID in domain entity
-	data.TenantID = tenant.ID
+	data.TenantID = tenantID
 
 	dbRow, err := mappers.ToDBInventoryCheck(data)
 	if err != nil {
@@ -260,7 +260,7 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 		for _, result := range results {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO inventory_check_results (tenant_id, inventory_check_id, position_id, expected_quantity, actual_quantity, difference) VALUES ($1, $2, $3, $4, $5, $6)
-			`, tenant.ID, data.ID, result.PositionID, result.ExpectedQuantity, result.ActualQuantity, result.Difference); err != nil {
+			`, tenantID, data.ID, result.PositionID, result.ExpectedQuantity, result.ActualQuantity, result.Difference); err != nil {
 				return err
 			}
 		}
@@ -274,13 +274,13 @@ func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Ch
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID in domain entity
-	data.TenantID = tenant.ID
+	data.TenantID = tenantID
 
 	dbRow, err := mappers.ToDBInventoryCheck(data)
 	if err != nil {
@@ -301,7 +301,7 @@ func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -327,7 +327,7 @@ func (g *GormInventoryRepository) getCheckResults(
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}

@@ -99,12 +99,12 @@ func (g *GormUploadRepository) queryUploads(
 func (g *GormUploadRepository) GetPaginated(
 	ctx context.Context, params *upload.FindParams,
 ) ([]upload.Upload, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	where, args := []string{"tenant_id = $1"}, []interface{}{tenant.ID.String()}
+	where, args := []string{"tenant_id = $1"}, []interface{}{tenantID.String()}
 	if params.ID != 0 {
 		where, args = append(where, fmt.Sprintf("id = $%d", len(args)+1)), append(args, params.ID)
 	}
@@ -133,13 +133,13 @@ func (g *GormUploadRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, err
 	}
 
 	var count int64
-	if err := pool.QueryRow(ctx, countUploadsQuery+" WHERE tenant_id = $1", tenant.ID.String()).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countUploadsQuery+" WHERE tenant_id = $1", tenantID.String()).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -181,13 +181,13 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	dbUpload := ToDBUpload(data)
-	dbUpload.TenantID = tenant.ID.String()
+	dbUpload.TenantID = tenantID.String()
 
 	if err := tx.QueryRow(
 		ctx,
@@ -213,13 +213,13 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return err
 	}
 
 	dbUpload := ToDBUpload(data)
-	dbUpload.TenantID = tenant.ID.String()
+	dbUpload.TenantID = tenantID.String()
 
 	if _, err := tx.Exec(
 		ctx,
@@ -245,12 +245,12 @@ func (g *GormUploadRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, deleteUploadQuery, id, tenant.ID.String()); err != nil {
+	if _, err := tx.Exec(ctx, deleteUploadQuery, id, tenantID.String()); err != nil {
 		return err
 	}
 	return nil

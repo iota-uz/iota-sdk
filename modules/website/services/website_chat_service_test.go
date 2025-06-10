@@ -83,7 +83,7 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Get tenant ID for the client
-	tenant, err := composables.UseTenant(fixtures.ctx)
+	tenant, err := composables.UseTenantID(fixtures.ctx)
 	require.NoError(t, err)
 
 	// Create an existing client first with phone
@@ -94,7 +94,7 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	existingClient, err := client.New(
 		phoneStr,
 		client.WithPhone(p),
-		client.WithTenantID(tenant.ID),
+		client.WithTenantID(tenant),
 	)
 	require.NoError(t, err)
 
@@ -120,7 +120,7 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Get tenant ID for the client
-	tenant, err := composables.UseTenant(fixtures.ctx)
+	tenant, err := composables.UseTenantID(fixtures.ctx)
 	require.NoError(t, err)
 
 	// 1. Create a client and get the client ID
@@ -130,7 +130,7 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 
 	existingClient, err := client.New(phoneStr,
 		client.WithPhone(p),
-		client.WithTenantID(tenant.ID),
+		client.WithTenantID(tenant),
 	)
 	require.NoError(t, err)
 

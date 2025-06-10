@@ -104,7 +104,7 @@ func (c *ChatController) createTenantContext(tenantID uuid.UUID) context.Context
 		Domain: tenant.Domain(),
 	}
 
-	return composables.WithPool(composables.WithTenant(ctx, tenantComposable), c.app.DB())
+	return composables.WithPool(composables.WithTenantID(ctx, tenantComposable.ID), c.app.DB())
 }
 
 func (c *ChatController) onChatCreated(event *chat.CreatedEvent) {
@@ -267,7 +267,7 @@ func (c *ChatController) chatViewModelsWithTotal(
 		return nil, 0, err
 	}
 
-	_, err = composables.UseTenant(ctx)
+	_, err = composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -452,13 +452,13 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		Phone:     dto.Phone,
 	}
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	clientEntity, err := clientDto.ToEntity(tenant.ID)
+	clientEntity, err := clientDto.ToEntity(tenant)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

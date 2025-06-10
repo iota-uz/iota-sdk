@@ -67,13 +67,13 @@ func NewMoneyAccountRepository() moneyaccount.Repository {
 }
 
 func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, params *moneyaccount.FindParams) ([]*moneyaccount.Account, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	where := []string{"ma.tenant_id = $1"}
-	args := []interface{}{tenant.ID}
+	args := []interface{}{tenantID}
 
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		where = append(where, fmt.Sprintf("ma.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
@@ -92,7 +92,7 @@ func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, params *m
 }
 
 func (g *GormMoneyAccountRepository) Count(ctx context.Context) (int64, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -102,29 +102,29 @@ func (g *GormMoneyAccountRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, countQuery, tenant.ID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, countQuery, tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]*moneyaccount.Account, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	query := repo.Join(findQuery, "WHERE ma.tenant_id = $1")
-	return g.queryAccounts(ctx, query, tenant.ID)
+	return g.queryAccounts(ctx, query, tenantID)
 }
 
 func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*moneyaccount.Account, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	accounts, err := g.queryAccounts(ctx, repo.Join(findQuery, "WHERE ma.id = $1 AND ma.tenant_id = $2"), id, tenant.ID)
+	accounts, err := g.queryAccounts(ctx, repo.Join(findQuery, "WHERE ma.id = $1 AND ma.tenant_id = $2"), id, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -135,12 +135,12 @@ func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (*mon
 }
 
 func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	err = g.execQuery(ctx, recalculateBalanceQuery, id, id, id, tenant.ID)
+	err = g.execQuery(ctx, recalculateBalanceQuery, id, id, id, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to recalculate balance")
 	}
@@ -148,12 +148,12 @@ func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id 
 }
 
 func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyaccount.Account) (*moneyaccount.Account, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	data.TenantID = tenant.ID
+	data.TenantID = tenantID
 	entity := toDBMoneyAccount(data)
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -178,12 +178,12 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data *moneyacco
 }
 
 func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyaccount.Account) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	data.TenantID = tenant.ID
+	data.TenantID = tenantID
 	dbAccount := toDBMoneyAccount(data)
 	args := []interface{}{
 		dbAccount.Name,
@@ -199,15 +199,15 @@ func (g *GormMoneyAccountRepository) Update(ctx context.Context, data *moneyacco
 }
 
 func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	if err := g.execQuery(ctx, deleteRelatedQuery, id, tenant.ID); err != nil {
+	if err := g.execQuery(ctx, deleteRelatedQuery, id, tenantID); err != nil {
 		return err
 	}
-	return g.execQuery(ctx, deleteQuery, id, tenant.ID)
+	return g.execQuery(ctx, deleteQuery, id, tenantID)
 }
 
 func (g *GormMoneyAccountRepository) queryAccounts(ctx context.Context, query string, args ...interface{}) ([]*moneyaccount.Account, error) {

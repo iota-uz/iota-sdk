@@ -75,7 +75,7 @@ func (g *tabRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -88,7 +88,7 @@ func (g *tabRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *tabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -112,7 +112,7 @@ func (g *tabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Ta
 }
 
 func (g *tabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}

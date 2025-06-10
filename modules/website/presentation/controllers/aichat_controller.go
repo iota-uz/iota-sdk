@@ -223,12 +223,12 @@ func (c *AIChatController) persistConfig(
 	config aichatconfig.AIConfig,
 	w http.ResponseWriter,
 ) error {
-	tenant, err := composables.UseTenant(r.Context())
+	tenant, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		panic(err)
 	}
 
-	configEntity, err := dto.Apply(config, tenant.ID)
+	configEntity, err := dto.Apply(config, tenant)
 	if err != nil {
 		logger.WithError(err).Error("failed to convert DTO to entity")
 		writeJSONError(w, http.StatusBadRequest,
