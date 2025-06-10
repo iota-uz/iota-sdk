@@ -52,7 +52,7 @@ func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context 
 		Domain: tenant.Domain(),
 	}
 
-	return composables.WithPool(composables.WithTenant(ctx, tenantComposable), h.pool)
+	return composables.WithPool(composables.WithTenantID(ctx, tenantComposable.ID), h.pool)
 }
 
 func (h *ClientHandler) onCreated(event *client.CreatedEvent) {

@@ -25,7 +25,7 @@ func NewPositionRepository() position.Repository {
 func (g *GormPositionRepository) GetPaginated(
 	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -76,7 +76,7 @@ func (g *GormPositionRepository) GetPaginated(
 }
 
 func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}

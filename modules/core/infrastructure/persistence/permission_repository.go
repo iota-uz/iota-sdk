@@ -50,13 +50,13 @@ func NewPermissionRepository() permission.Repository {
 func (g *PgPermissionRepository) GetPaginated(
 	ctx context.Context, params *permission.FindParams,
 ) ([]*permission.Permission, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	where := []string{"permissions.tenant_id = $1"}
-	joins, args := []string{}, []interface{}{tenant.ID}
+	joins, args := []string{}, []interface{}{tenantID}
 
 	if params.RoleID != 0 {
 		joins = append(joins, fmt.Sprintf("INNER JOIN role_permissions rp ON rp.permission_id = permissions.id and rp.role_id = $%d", len(args)+1))
@@ -82,7 +82,7 @@ func (g *PgPermissionRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -91,7 +91,7 @@ func (g *PgPermissionRepository) Count(ctx context.Context) (int64, error) {
 	if err := pool.QueryRow(
 		ctx,
 		permissionsCountQuery+" WHERE tenant_id = $1",
-		tenant.ID,
+		tenantID,
 	).Scan(&count); err != nil {
 		return 0, err
 	}
@@ -99,16 +99,16 @@ func (g *PgPermissionRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *PgPermissionRepository) GetAll(ctx context.Context) ([]*permission.Permission, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	return g.queryPermissions(ctx, permissionsSelectQuery+" WHERE tenant_id = $1", tenant.ID)
+	return g.queryPermissions(ctx, permissionsSelectQuery+" WHERE tenant_id = $1", tenantID)
 }
 
 func (g *PgPermissionRepository) GetByID(ctx context.Context, id string) (*permission.Permission, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -129,13 +129,13 @@ func (g *PgPermissionRepository) Save(ctx context.Context, data *permission.Perm
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	dbPerm := toDBPermission(data)
-	dbPerm.TenantID = tenant.ID.String()
+	dbPerm.TenantID = tenantID.String()
 
 	if err := tx.QueryRow(
 		ctx,
@@ -158,7 +158,7 @@ func (g *PgPermissionRepository) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}

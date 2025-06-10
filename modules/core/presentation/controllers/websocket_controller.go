@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 func NewWebSocketController(app application.Application) application.Controller {
@@ -20,5 +21,11 @@ func (c *WebSocketController) Key() string {
 }
 
 func (c *WebSocketController) Register(r *mux.Router) {
-	r.Handle("/ws", c.app.Websocket())
+	router := r.PathPrefix("/ws").Subrouter()
+	router.Use(
+		middleware.Authorize(),
+		middleware.ProvideUser(),
+	)
+
+	router.Handle("", c.app.Websocket())
 }

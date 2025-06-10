@@ -81,7 +81,7 @@ func setupTest(t *testing.T) *testFixtures {
 
 	// Create context with transaction and tenant
 	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithTenant(ctx, tenant)
+	ctx = composables.WithTenantID(ctx, tenant.ID)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
 
 	// Create admin user
@@ -119,8 +119,8 @@ func setupTest(t *testing.T) *testFixtures {
 			reqCtx = context.WithValue(reqCtx, constants.AppKey, app)
 
 			// Important: Add tenant to context
-			reqCtx = composables.WithTenant(reqCtx, tenant)
-			reqCtx = context.WithValue(reqCtx, constants.TenantKey, tenant)
+			reqCtx = composables.WithTenantID(reqCtx, tenant.ID)
+			reqCtx = context.WithValue(reqCtx, constants.TenantIDKey, tenant)
 
 			// Add logger to context
 			logger := logrus.New()

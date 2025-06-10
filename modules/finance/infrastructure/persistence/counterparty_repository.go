@@ -109,7 +109,7 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -122,7 +122,7 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 		entity.LegalAddress,
 		entity.CreatedAt,
 		entity.UpdatedAt,
-		tenant.ID,
+		tenantID,
 	}
 	row := tx.QueryRow(ctx, insertCounterpartyQuery, args...)
 	var id uint

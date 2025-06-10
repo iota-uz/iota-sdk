@@ -352,7 +352,7 @@ func (g *ChatRepository) queryMessages(ctx context.Context, query string, args .
 func (g *ChatRepository) GetPaginated(
 	ctx context.Context, params *chat.FindParams,
 ) ([]chat.Chat, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -385,7 +385,7 @@ func (g *ChatRepository) Count(ctx context.Context) (int64, error) {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -398,7 +398,7 @@ func (g *ChatRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -411,7 +411,7 @@ func (g *ChatRepository) GetAll(ctx context.Context) ([]chat.Chat, error) {
 }
 
 func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -428,7 +428,7 @@ func (g *ChatRepository) GetByID(ctx context.Context, id uint) (chat.Chat, error
 }
 
 func (g *ChatRepository) GetByClientID(ctx context.Context, clientID uint) (chat.Chat, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}

@@ -54,13 +54,13 @@ func NewPaymentRepository() payment.Repository {
 }
 
 func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *payment.FindParams) ([]payment.Payment, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	where := []string{"t.tenant_id = $1"}
-	args := []interface{}{tenant.ID}
+	args := []interface{}{tenantID}
 
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
 		where = append(where, fmt.Sprintf("p.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
@@ -79,7 +79,7 @@ func (g *GormPaymentRepository) GetPaginated(ctx context.Context, params *paymen
 }
 
 func (g *GormPaymentRepository) Count(ctx context.Context) (int64, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -89,29 +89,29 @@ func (g *GormPaymentRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, paymentCountQuery, tenant.ID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, paymentCountQuery, tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]payment.Payment, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	query := repo.Join(paymentFindQuery, "WHERE t.tenant_id = $1")
-	return g.queryPayments(ctx, query, tenant.ID)
+	return g.queryPayments(ctx, query, tenantID)
 }
 
 func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (payment.Payment, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	payments, err := g.queryPayments(ctx, repo.Join(paymentFindQuery, "WHERE p.id = $1 AND t.tenant_id = $2"), id, tenant.ID)
+	payments, err := g.queryPayments(ctx, repo.Join(paymentFindQuery, "WHERE p.id = $1 AND t.tenant_id = $2"), id, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get payment by id")
 	}
@@ -122,13 +122,13 @@ func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (payment.P
 }
 
 func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment) (payment.Payment, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID on the domain entity
-	data.SetTenantID(tenant.ID)
+	data.SetTenantID(tenantID)
 
 	dbPayment, dbTransaction := toDBPayment(data)
 	tx, err := composables.UseTx(ctx)
@@ -165,13 +165,13 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 }
 
 func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID on the domain entity
-	data.SetTenantID(tenant.ID)
+	data.SetTenantID(tenantID)
 
 	dbPayment, dbTransaction := toDBPayment(data)
 	if err := g.execQuery(
@@ -199,7 +199,7 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 }
 
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -211,7 +211,7 @@ func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, paymentDeleteQuery, id); err != nil {
 		return err
 	}
-	return g.execQuery(ctx, paymentDeleteRelatedQuery, entity.TransactionID(), tenant.ID)
+	return g.execQuery(ctx, paymentDeleteRelatedQuery, entity.TransactionID(), tenantID)
 }
 
 func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string, args ...interface{}) ([]payment.Payment, error) {

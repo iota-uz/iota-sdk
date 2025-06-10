@@ -39,7 +39,7 @@ func (g *GormAuthLogRepository) GetPaginated(
 		where, args = append(where, fmt.Sprintf("user_id = $%d", len(args)+1)), append(args, params.UserID)
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (g *GormAuthLogRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, err
 	}
@@ -123,13 +123,13 @@ func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.Authen
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return err
 	}
 
 	dbRow := toDBAuthenticationLog(data)
-	dbRow.TenantID = tenant.ID.String()
+	dbRow.TenantID = tenantID.String()
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO authentication_logs (user_id, ip, user_agent, tenant_id) VALUES ($1, $2, $3, $4)

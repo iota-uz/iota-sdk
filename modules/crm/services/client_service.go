@@ -31,7 +31,7 @@ func (s *ClientService) Count(ctx context.Context, params *client.FindParams) (i
 
 func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindParams) ([]client.Client, error) {
 	// Add tenant filter from context if not already present
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindPar
 }
 
 func (s *ClientService) GetByID(ctx context.Context, id uint) (client.Client, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -142,14 +142,14 @@ func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, err
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var deletedClient client.Client
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Delete(ctx, id, tenant.ID); err != nil {
+		if err := s.repo.Delete(ctx, id, tenantID); err != nil {
 			return err
 		}
 		deletedClient = entity

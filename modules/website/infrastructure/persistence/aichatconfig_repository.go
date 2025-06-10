@@ -70,7 +70,7 @@ func (r *AIChatConfigRepository) GetByID(ctx context.Context, id uuid.UUID) (aic
 }
 
 func (r *AIChatConfigRepository) GetDefault(ctx context.Context) (aichatconfig.AIConfig, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -86,7 +86,7 @@ func (r *AIChatConfigRepository) GetDefault(ctx context.Context) (aichatconfig.A
 }
 
 func (r *AIChatConfigRepository) List(ctx context.Context) ([]aichatconfig.AIConfig, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -177,7 +177,7 @@ func (r *AIChatConfigRepository) SetDefault(ctx context.Context, id uuid.UUID) e
 
 	now := time.Now()
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}

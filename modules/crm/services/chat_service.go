@@ -90,7 +90,7 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 
 	var createdEntity chat.Chat
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		tenant, err := composables.UseTenant(txCtx)
+		tenantID, err := composables.UseTenantID(txCtx)
 		if err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 		}
 		createdEntity, err = s.repo.Save(txCtx, chat.New(
 			client.ID(),
-			chat.WithTenantID(tenant.ID),
+			chat.WithTenantID(tenantID),
 		))
 		return err
 	})
@@ -309,7 +309,7 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 		//	sender Sender,
 		//	opts ...MemberOption,
 
-		tenant, err := composables.UseTenant(txCtx)
+		tenantID, err := composables.UseTenantID(txCtx)
 		if err != nil {
 			return err
 		}
@@ -320,7 +320,7 @@ func (s *ChatService) SendMessage(ctx context.Context, cmd SendMessageCommand) (
 				usr.LastName(),
 			),
 			cmd.Transport,
-			chat.WithMemberTenantID(tenant.ID),
+			chat.WithMemberTenantID(tenantID),
 		)
 
 		msg := chat.NewMessage(cmd.Message, member)

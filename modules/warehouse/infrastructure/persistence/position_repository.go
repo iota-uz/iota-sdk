@@ -101,7 +101,7 @@ func (g *GormPositionRepository) queryPositions(ctx context.Context, query strin
 func (g *GormPositionRepository) GetPaginated(
 	ctx context.Context, params *position.FindParams,
 ) ([]*position.Position, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -145,7 +145,7 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -158,7 +158,7 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 }
 
 func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Position, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -176,7 +176,7 @@ func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint,
 		return make([]uint, 0), err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -199,7 +199,7 @@ func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint,
 }
 
 func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -215,7 +215,7 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 }
 
 func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*position.Position, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -228,7 +228,7 @@ func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*p
 }
 
 func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode string) (*position.Position, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
@@ -266,14 +266,14 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}
 
 	positionRow, junctionRows := mappers.ToDBPosition(data)
-	positionRow.TenantID = tenant.ID.String()
-	data.TenantID = tenant.ID
+	positionRow.TenantID = tenantID.String()
+	data.TenantID = tenantID
 
 	if err := tx.QueryRow(
 		ctx,
@@ -306,14 +306,14 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}
 
 	positionRow, junctionRows := mappers.ToDBPosition(data)
-	positionRow.TenantID = tenant.ID.String()
-	data.TenantID = tenant.ID
+	positionRow.TenantID = tenantID.String()
+	data.TenantID = tenantID
 
 	if _, err := tx.Exec(
 		ctx,
@@ -349,7 +349,7 @@ func (g *GormPositionRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}
