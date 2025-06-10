@@ -1,6 +1,7 @@
 package server
 
 import (
+	"github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -30,7 +31,7 @@ func Default(options *DefaultOptions) (*server.HTTPServer, error) {
 		middleware.TracedMiddleware("database"),
 		middleware.Provide(constants.AppKey, app),
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
-		middleware.Provide(constants.LogoKey, layouts.DefaultLogo()),
+		middleware.Provide(constants.LogoKey, assets.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, options.Pool),
 
 		middleware.TracedMiddleware("cors"),
