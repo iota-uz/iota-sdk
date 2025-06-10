@@ -30,15 +30,17 @@ type SendMessageCommand struct {
 }
 
 type ChatService struct {
-	repo       chat.Repository
-	clientRepo client.Repository
-	providers  map[chat.Transport]chat.Provider
-	publisher  eventbus.EventBus
+	repo          chat.Repository
+	clientRepo    client.Repository
+	clientService *ClientService
+	providers     map[chat.Transport]chat.Provider
+	publisher     eventbus.EventBus
 }
 
 func NewChatService(
 	repo chat.Repository,
 	clientRepo client.Repository,
+	clientService *ClientService,
 	providers []chat.Provider,
 	publisher eventbus.EventBus,
 ) *ChatService {
@@ -48,10 +50,11 @@ func NewChatService(
 	}
 
 	service := &ChatService{
-		repo:       repo,
-		clientRepo: clientRepo,
-		providers:  providerMap,
-		publisher:  publisher,
+		repo:          repo,
+		clientRepo:    clientRepo,
+		clientService: clientService,
+		providers:     providerMap,
+		publisher:     publisher,
 	}
 
 	for _, provider := range providers {
@@ -87,11 +90,11 @@ func (s *ChatService) GetByClientIDOrCreate(ctx context.Context, clientID uint) 
 
 	var createdEntity chat.Chat
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		client, err := s.clientRepo.GetByID(txCtx, clientID)
+		tenant, err := composables.UseTenant(txCtx)
 		if err != nil {
 			return err
 		}
-		tenant, err := composables.UseTenant(txCtx)
+		client, err := s.clientService.GetByID(txCtx, clientID)
 		if err != nil {
 			return err
 		}

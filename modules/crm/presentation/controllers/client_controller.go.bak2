@@ -41,7 +41,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -97,7 +96,7 @@ func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 		return
 	}
 
-	clientEntity, err := ru.clientService.GetByID(ctx, event.Result.ID())
+	clientEntity, err := ru.clientService.GetByID(ctx, event.Result.ID(), event.Result.TenantID())
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v | Event: onClientCreated", err)
 		return
@@ -201,7 +200,11 @@ var (
 					return nil, errors.Wrap(err, "Error retrieving app")
 				}
 				clientService := app.Service(services.ClientService{}).(*services.ClientService)
-				clientEntity, err := clientService.GetByID(r.Context(), clientID)
+				tenant, err := composables.UseTenant(r.Context())
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving tenant")
+				}
+				clientEntity, err := clientService.GetByID(r.Context(), clientID, tenant.ID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
 				}
@@ -229,7 +232,11 @@ var (
 				}
 				clientService := app.Service(services.ClientService{}).(*services.ClientService)
 				chatService := app.Service(services.ChatService{}).(*services.ChatService)
-				clientEntity, err := clientService.GetByID(r.Context(), clientID)
+				tenant, err := composables.UseTenant(r.Context())
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving tenant")
+				}
+				clientEntity, err := clientService.GetByID(r.Context(), clientID, tenant.ID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
 				}
@@ -363,14 +370,7 @@ func (c *ClientController) viewModelClients(
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving tenant")
 	}
-	total, err := clientService.Count(r.Context(), &client.FindParams{
-		Filters: []client.Filter{
-			{
-				Column: client.TenantID,
-				Filter: repo.Eq(tenant.ID),
-			},
-		},
-	})
+	total, err := clientService.Count(r.Context(), tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting clients")
 	}
@@ -481,7 +481,7 @@ func (c *ClientController) Create(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	
 	logger.Infof("Creating client with tenant ID: %s (name: %s)", tenant.ID, tenant.Name)
 
 	clientEntity, err := dto.ToEntity(tenant.ID)
@@ -560,6 +560,13 @@ func (c *ClientController) View(
 		return
 	}
 
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusInternalServerError)
+		return
+	}
+
 	qTab := r.URL.Query().Get("tab")
 	disablePush := r.URL.Query().Get("dp") == "true"
 
@@ -568,7 +575,7 @@ func (c *ClientController) View(
 		qTab = c.tabsOrder[0].ID
 	}
 
-	entity, err := clientService.GetByID(r.Context(), clientID)
+	entity, err := clientService.GetByID(r.Context(), clientID, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -654,7 +661,14 @@ func (c *ClientController) GetPersonalEdit(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, fmt.Sprintf("Error retrieving client: %s", err.Error()), http.StatusInternalServerError)
@@ -682,7 +696,14 @@ func (c *ClientController) GetPassportEdit(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -710,7 +731,14 @@ func (c *ClientController) GetTaxEdit(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -738,7 +766,7 @@ func (c *ClientController) GetNotesEdit(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -772,6 +800,13 @@ func (c *ClientController) UpdatePersonal(
 		return
 	}
 
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving tenant: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusInternalServerError)
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		logger.Errorf("Error parsing form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -786,7 +821,7 @@ func (c *ClientController) UpdatePersonal(
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := clientService.GetByID(r.Context(), id)
+		entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 		if err != nil {
 			logger.Errorf("Error retrieving client: %v", err)
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -803,7 +838,7 @@ func (c *ClientController) UpdatePersonal(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -823,7 +858,7 @@ func (c *ClientController) UpdatePersonal(
 		return
 	}
 
-	entity, err = clientService.GetByID(r.Context(), id)
+	entity, err = clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -862,7 +897,7 @@ func (c *ClientController) UpdatePassport(
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := clientService.GetByID(r.Context(), id)
+		entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 		if err != nil {
 			logger.Errorf("Error retrieving client: %v", err)
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -879,7 +914,7 @@ func (c *ClientController) UpdatePassport(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -899,7 +934,7 @@ func (c *ClientController) UpdatePassport(
 		return
 	}
 
-	entity, err = clientService.GetByID(r.Context(), id)
+	entity, err = clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -938,7 +973,7 @@ func (c *ClientController) UpdateTax(
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := clientService.GetByID(r.Context(), id)
+		entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 		if err != nil {
 			logger.Errorf("Error retrieving client: %v", err)
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -955,7 +990,7 @@ func (c *ClientController) UpdateTax(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -975,7 +1010,7 @@ func (c *ClientController) UpdateTax(
 		return
 	}
 
-	entity, err = clientService.GetByID(r.Context(), id)
+	entity, err = clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)
@@ -1013,7 +1048,7 @@ func (c *ClientController) UpdateNotes(
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		entity, err := clientService.GetByID(r.Context(), id)
+		entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 		if err != nil {
 			logger.Errorf("Error retrieving client: %v", err)
 			http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -1030,7 +1065,7 @@ func (c *ClientController) UpdateNotes(
 		return
 	}
 
-	entity, err := clientService.GetByID(r.Context(), id)
+	entity, err := clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving client: %v", err)
 		http.Error(w, "Error retrieving client", http.StatusInternalServerError)
@@ -1050,7 +1085,7 @@ func (c *ClientController) UpdateNotes(
 		return
 	}
 
-	entity, err = clientService.GetByID(r.Context(), id)
+	entity, err = clientService.GetByID(r.Context(), id, tenant.ID)
 	if err != nil {
 		logger.Errorf("Error retrieving updated client: %v", err)
 		http.Error(w, "Error retrieving updated client", http.StatusInternalServerError)

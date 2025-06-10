@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -44,6 +45,7 @@ type ChatController struct {
 	templateService *services.MessageTemplateService
 	clientService   *services.ClientService
 	chatService     *services.ChatService
+	tenantService   *coreservices.TenantService
 	logger          *logrus.Logger
 	basePath        string
 }
@@ -56,6 +58,7 @@ func NewChatController(app application.Application, basePath string) application
 		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
 		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
 		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
+		tenantService:   app.Service(coreservices.TenantService{}).(*coreservices.TenantService),
 		basePath:        basePath,
 	}
 }
@@ -85,8 +88,34 @@ func (c *ChatController) Register(r *mux.Router) {
 	c.app.EventPublisher().Subscribe(c.onChatCreated)
 }
 
-func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
-	ctxWithDb := composables.WithPool(context.Background(), c.app.DB())
+func (c *ChatController) createTenantContext(tenantID uuid.UUID) context.Context {
+	ctx := context.Background()
+	ctxWithDb := composables.WithPool(ctx, c.app.DB())
+
+	tenant, err := c.tenantService.GetByID(ctxWithDb, tenantID)
+	if err != nil {
+		c.logger.WithError(err).WithField("tenantID", tenantID).Error("failed to get tenant")
+		return composables.WithPool(ctx, c.app.DB())
+	}
+
+	tenantComposable := &composables.Tenant{
+		ID:     tenant.ID(),
+		Name:   tenant.Name(),
+		Domain: tenant.Domain(),
+	}
+
+	return composables.WithPool(composables.WithTenant(ctx, tenantComposable), c.app.DB())
+}
+
+func (c *ChatController) onChatCreated(event *chat.CreatedEvent) {
+	var tenantID uuid.UUID
+	if event.User != nil {
+		tenantID = event.User.TenantID()
+	} else {
+		tenantID = event.Result.TenantID()
+	}
+
+	ctxWithDb := c.createTenantContext(tenantID)
 	chatViewModels, _, err := c.chatViewModelsWithTotal(
 		ctxWithDb,
 		&chat.FindParams{
@@ -131,7 +160,14 @@ func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
 }
 
 func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
-	ctxWithDb := composables.WithPool(context.Background(), c.app.DB())
+	var tenantID uuid.UUID
+	if event.User != nil {
+		tenantID = event.User.TenantID()
+	} else {
+		tenantID = event.Result.TenantID()
+	}
+
+	ctxWithDb := c.createTenantContext(tenantID)
 	clientEntity, err := c.clientService.GetByID(
 		ctxWithDb,
 		event.Result.ClientID(),
@@ -215,6 +251,11 @@ func (c *ChatController) chatViewModelsWithTotal(
 	}
 
 	total, err := c.chatService.Count(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	_, err = composables.UseTenant(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -399,7 +440,13 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		Phone:     dto.Phone,
 	}
 
-	clientEntity, err := clientDto.ToEntity()
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	clientEntity, err := clientDto.ToEntity(tenant.ID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
