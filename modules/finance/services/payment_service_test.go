@@ -14,13 +14,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
-	"github.com/iota-uz/iota-sdk/pkg/shared"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
@@ -115,12 +115,13 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) {
 	}
 
 	// Create account
-	err := f.accountService.Create(ctx, &moneyaccount.CreateDTO{
-		Name:          "Test",
-		AccountNumber: "123",
-		Balance:       100,
-		CurrencyCode:  string(currency.UsdCode),
-	})
+	account := moneyaccount.New(
+		"Test",
+		currency.USD,
+		moneyaccount.WithAccountNumber("123"),
+		moneyaccount.WithBalance(100),
+	)
+	err := f.accountService.Create(ctx, account)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,15 +156,20 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	)
 	setupTestData(f.ctx, t, f)
 	accountRepository := persistence.NewMoneyAccountRepository()
-	if err := f.paymentsService.Create(
-		f.ctx, &payment.CreateDTO{
-			Amount:           100,
-			AccountID:        1,
-			TransactionDate:  shared.DateOnly(time.Now()),
-			AccountingPeriod: shared.DateOnly(time.Now()),
-			CounterpartyID:   1,
-		},
-	); err != nil {
+
+	// Create payment category
+	category := paymentcategory.New("Test Category")
+
+	// Create payment entity
+	paymentEntity := payment.New(
+		100,
+		category,
+		payment.WithCounterpartyID(1),
+		payment.WithTransactionDate(time.Now()),
+		payment.WithAccountingPeriod(time.Now()),
+	)
+
+	if err := f.paymentsService.Create(f.ctx, paymentEntity); err != nil {
 		t.Fatal(err)
 	}
 
@@ -171,7 +177,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if accountEntity.Balance != 200 {
-		t.Fatalf("expected balance to be 200, got %f", accountEntity.Balance)
+	if accountEntity.Balance() != 200 {
+		t.Fatalf("expected balance to be 200, got %f", accountEntity.Balance())
 	}
 }

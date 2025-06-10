@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 )
 
 type Payment interface {
@@ -13,26 +14,27 @@ type Payment interface {
 	SetID(id uint)
 
 	TenantID() uuid.UUID
-	SetTenantID(id uuid.UUID)
+	UpdateTenantID(id uuid.UUID) Payment
 
 	Amount() float64
-	SetAmount(amount float64)
+	UpdateAmount(amount float64) Payment
 
 	TransactionID() uint
 
 	CounterpartyID() uint
-	SetCounterpartyID(partyID uint)
+	UpdateCounterpartyID(partyID uint) Payment
 
+	Category() paymentcategory.PaymentCategory
 	TransactionDate() time.Time
-	SetTransactionDate(t time.Time)
+	UpdateTransactionDate(t time.Time) Payment
 
 	AccountingPeriod() time.Time
-	SetAccountingPeriod(t time.Time)
+	UpdateAccountingPeriod(t time.Time) Payment
 
 	Comment() string
-	SetComment(comment string)
+	UpdateComment(comment string) Payment
 
-	Account() *moneyaccount.Account
+	Account() moneyaccount.Account
 	User() user.User
 	CreatedAt() time.Time
 	UpdatedAt() time.Time

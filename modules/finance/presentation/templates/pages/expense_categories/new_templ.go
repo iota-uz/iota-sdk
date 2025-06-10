@@ -16,13 +16,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
 	Currencies []*coreviewmodels.Currency
-	Category   category.CreateDTO
+	Category   dtos.ExpenseCategoryCreateDTO
 	Errors     map[string]string
 	PostPath   string
 }

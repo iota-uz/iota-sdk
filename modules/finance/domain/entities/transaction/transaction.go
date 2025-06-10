@@ -6,17 +6,92 @@ import (
 	"github.com/google/uuid"
 )
 
-type Transaction struct {
-	ID                   uint
-	TenantID             uuid.UUID
-	Amount               float64
-	OriginAccountID      *uint
-	DestinationAccountID *uint
-	TransactionDate      time.Time
-	AccountingPeriod     time.Time
-	TransactionType      Type
-	Comment              string
-	CreatedAt            time.Time
+type Option func(t *transaction)
+
+// Option setters
+func WithID(id uint) Option {
+	return func(t *transaction) {
+		t.id = id
+	}
+}
+
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(t *transaction) {
+		t.tenantID = tenantID
+	}
+}
+
+func WithOriginAccountID(accountID *uint) Option {
+	return func(t *transaction) {
+		t.originAccountID = accountID
+	}
+}
+
+func WithDestinationAccountID(accountID *uint) Option {
+	return func(t *transaction) {
+		t.destinationAccountID = accountID
+	}
+}
+
+func WithTransactionDate(date time.Time) Option {
+	return func(t *transaction) {
+		t.transactionDate = date
+	}
+}
+
+func WithAccountingPeriod(period time.Time) Option {
+	return func(t *transaction) {
+		t.accountingPeriod = period
+	}
+}
+
+func WithComment(comment string) Option {
+	return func(t *transaction) {
+		t.comment = comment
+	}
+}
+
+func WithCreatedAt(createdAt time.Time) Option {
+	return func(t *transaction) {
+		t.createdAt = createdAt
+	}
+}
+
+func WithExchangeRate(rate *float64) Option {
+	return func(t *transaction) {
+		t.exchangeRate = rate
+	}
+}
+
+func WithDestinationAmount(amount *float64) Option {
+	return func(t *transaction) {
+		t.destinationAmount = amount
+	}
+}
+
+func New(
+	amount float64,
+	transactionType Type,
+	opts ...Option,
+) Transaction {
+	t := &transaction{
+		id:                   0,
+		tenantID:             uuid.Nil,
+		amount:               amount,
+		originAccountID:      nil,
+		destinationAccountID: nil,
+		transactionDate:      time.Now(),
+		accountingPeriod:     time.Now(),
+		transactionType:      transactionType,
+		comment:              "",
+		createdAt:            time.Now(),
+		exchangeRate:         nil,
+		destinationAmount:    nil,
+	}
+	for _, opt := range opts {
+		opt(t)
+	}
+	return t
 }
 
 func NewDeposit(
@@ -26,7 +101,7 @@ func NewDeposit(
 	date time.Time,
 	accountingPeriod time.Time,
 	comment string,
-) *Transaction {
+) Transaction {
 	var origAccID *uint
 	if originAccount != 0 {
 		origAccID = &originAccount
@@ -35,18 +110,15 @@ func NewDeposit(
 	if destinationAccount != 0 {
 		destAccID = &destinationAccount
 	}
-	return &Transaction{
-		ID:                   0,
-		TenantID:             uuid.Nil,
-		Amount:               amount,
-		OriginAccountID:      origAccID,
-		DestinationAccountID: destAccID,
-		TransactionType:      Deposit,
-		TransactionDate:      date,
-		AccountingPeriod:     accountingPeriod,
-		Comment:              comment,
-		CreatedAt:            time.Now(),
-	}
+	return New(
+		amount,
+		Deposit,
+		WithOriginAccountID(origAccID),
+		WithDestinationAccountID(destAccID),
+		WithTransactionDate(date),
+		WithAccountingPeriod(accountingPeriod),
+		WithComment(comment),
+	)
 }
 
 func NewWithdrawal(
@@ -56,7 +128,7 @@ func NewWithdrawal(
 	date time.Time,
 	accountingPeriod time.Time,
 	comment string,
-) *Transaction {
+) Transaction {
 	var origAccID *uint
 	if originAccount != 0 {
 		origAccID = &originAccount
@@ -65,16 +137,173 @@ func NewWithdrawal(
 	if destinationAccount != 0 {
 		destAccID = &destinationAccount
 	}
-	return &Transaction{
-		ID:                   0,
-		TenantID:             uuid.Nil,
-		Amount:               amount,
-		OriginAccountID:      origAccID,
-		DestinationAccountID: destAccID,
-		TransactionType:      Withdrawal,
-		TransactionDate:      date,
-		AccountingPeriod:     accountingPeriod,
-		Comment:              comment,
-		CreatedAt:            time.Now(),
+	return New(
+		amount,
+		Withdrawal,
+		WithOriginAccountID(origAccID),
+		WithDestinationAccountID(destAccID),
+		WithTransactionDate(date),
+		WithAccountingPeriod(accountingPeriod),
+		WithComment(comment),
+	)
+}
+
+func NewExchange(
+	amount float64,
+	originAccount,
+	destinationAccount uint,
+	date time.Time,
+	accountingPeriod time.Time,
+	comment string,
+	exchangeRate float64,
+	destinationAmount float64,
+) Transaction {
+	var origAccID *uint
+	if originAccount != 0 {
+		origAccID = &originAccount
 	}
+	var destAccID *uint
+	if destinationAccount != 0 {
+		destAccID = &destinationAccount
+	}
+	return New(
+		amount,
+		Exchange,
+		WithOriginAccountID(origAccID),
+		WithDestinationAccountID(destAccID),
+		WithTransactionDate(date),
+		WithAccountingPeriod(accountingPeriod),
+		WithComment(comment),
+		WithExchangeRate(&exchangeRate),
+		WithDestinationAmount(&destinationAmount),
+	)
+}
+
+type transaction struct {
+	id                   uint
+	tenantID             uuid.UUID
+	amount               float64
+	originAccountID      *uint
+	destinationAccountID *uint
+	transactionDate      time.Time
+	accountingPeriod     time.Time
+	transactionType      Type
+	comment              string
+	createdAt            time.Time
+
+	// Exchange operation fields
+	exchangeRate      *float64 // Exchange rate used for currency conversion
+	destinationAmount *float64 // Amount in destination currency (for exchange operations)
+}
+
+func (t *transaction) ID() uint {
+	return t.id
+}
+
+func (t *transaction) SetID(id uint) {
+	t.id = id
+}
+
+func (t *transaction) TenantID() uuid.UUID {
+	return t.tenantID
+}
+
+func (t *transaction) UpdateTenantID(id uuid.UUID) Transaction {
+	result := *t
+	result.tenantID = id
+	return &result
+}
+
+func (t *transaction) Amount() float64 {
+	return t.amount
+}
+
+func (t *transaction) UpdateAmount(amount float64) Transaction {
+	result := *t
+	result.amount = amount
+	return &result
+}
+
+func (t *transaction) OriginAccountID() *uint {
+	return t.originAccountID
+}
+
+func (t *transaction) UpdateOriginAccountID(accountID *uint) Transaction {
+	result := *t
+	result.originAccountID = accountID
+	return &result
+}
+
+func (t *transaction) DestinationAccountID() *uint {
+	return t.destinationAccountID
+}
+
+func (t *transaction) UpdateDestinationAccountID(accountID *uint) Transaction {
+	result := *t
+	result.destinationAccountID = accountID
+	return &result
+}
+
+func (t *transaction) TransactionDate() time.Time {
+	return t.transactionDate
+}
+
+func (t *transaction) UpdateTransactionDate(date time.Time) Transaction {
+	result := *t
+	result.transactionDate = date
+	return &result
+}
+
+func (t *transaction) AccountingPeriod() time.Time {
+	return t.accountingPeriod
+}
+
+func (t *transaction) UpdateAccountingPeriod(period time.Time) Transaction {
+	result := *t
+	result.accountingPeriod = period
+	return &result
+}
+
+func (t *transaction) TransactionType() Type {
+	return t.transactionType
+}
+
+func (t *transaction) UpdateTransactionType(transactionType Type) Transaction {
+	result := *t
+	result.transactionType = transactionType
+	return &result
+}
+
+func (t *transaction) Comment() string {
+	return t.comment
+}
+
+func (t *transaction) UpdateComment(comment string) Transaction {
+	result := *t
+	result.comment = comment
+	return &result
+}
+
+func (t *transaction) CreatedAt() time.Time {
+	return t.createdAt
+}
+
+func (t *transaction) ExchangeRate() *float64 {
+	return t.exchangeRate
+}
+
+func (t *transaction) UpdateExchangeRate(rate *float64) Transaction {
+	result := *t
+	result.exchangeRate = rate
+	return &result
+}
+
+func (t *transaction) DestinationAmount() *float64 {
+	return t.destinationAmount
+}
+
+func (t *transaction) UpdateDestinationAmount(amount *float64) Transaction {
+	result := *t
+	result.destinationAmount = amount
+	return &result
 }

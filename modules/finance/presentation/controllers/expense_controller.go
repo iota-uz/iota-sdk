@@ -10,10 +10,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
-	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
-	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
@@ -162,21 +159,9 @@ func (c *ExpenseController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
 	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
-
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(
-		middleware.Authorize(),
-		middleware.RedirectNotAuthenticated(),
-		middleware.ProvideUser(),
-		middleware.Tabs(),
-		middleware.ProvideLocalizer(c.app.Bundle()),
-		middleware.NavItems(),
-		middleware.WithPageContext(),
-		middleware.WithTransaction(),
-	)
-	setRouter.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
 	c.realtime.Register()
 }
@@ -433,16 +418,7 @@ func (c *ExpenseController) GetNew(
 		Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
 		Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
 		Errors:     map[string]string{},
-		Expense: mappers.ExpenseToViewModel(expense.New(
-			0,
-			moneyaccount.Account{},
-			category.New(
-				"",            // name
-				0.0,           // amount - using 0.0 to be explicit about float64
-				&currency.USD, // currency
-			),
-			time.Now(),
-		)),
+		Expense:    &viewmodels.Expense{},
 	}
 	templ.Handler(expensesui.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

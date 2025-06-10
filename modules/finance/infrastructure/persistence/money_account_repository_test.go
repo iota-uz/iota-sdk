@@ -2,7 +2,6 @@ package persistence_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -21,15 +20,12 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 	}
 	createdAccount, err := accountRepository.Create(
 		f.ctx,
-		&moneyaccount.Account{
-			Name:          "test",
-			AccountNumber: "123",
-			Currency:      currency.USD,
-			Balance:       100,
-			Description:   "",
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
-		},
+		moneyaccount.New(
+			"test",
+			currency.USD,
+			moneyaccount.WithAccountNumber("123"),
+			moneyaccount.WithBalance(100),
+		),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -56,8 +52,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 			if len(accounts) != 1 {
 				t.Errorf("expected 1, got %d", len(accounts))
 			}
-			if accounts[0].Balance != 100 {
-				t.Errorf("expected 100, got %f", accounts[0].Balance)
+			if accounts[0].Balance() != 100 {
+				t.Errorf("expected 100, got %f", accounts[0].Balance())
 			}
 		},
 	)
@@ -71,8 +67,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 			if len(accounts) != 1 {
 				t.Errorf("expected 1, got %d", len(accounts))
 			}
-			if accounts[0].Balance != 100 {
-				t.Errorf("expected 100, got %f", accounts[0].Balance)
+			if accounts[0].Balance() != 100 {
+				t.Errorf("expected 100, got %f", accounts[0].Balance())
 			}
 		},
 	)
@@ -83,41 +79,36 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if accountEntity.Balance != 100 {
-				t.Errorf("expected 100, got %f", accountEntity.Balance)
+			if accountEntity.Balance() != 100 {
+				t.Errorf("expected 100, got %f", accountEntity.Balance())
 			}
-			if accountEntity.Currency.Code != currency.UsdCode {
-				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code)
+			if accountEntity.Currency().Code != currency.UsdCode {
+				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency().Code)
 			}
 		},
 	)
 
 	t.Run(
 		"Update", func(t *testing.T) {
-			if err := accountRepository.Update(
-				f.ctx,
-				&moneyaccount.Account{
-					ID:            createdAccount.ID,
-					Name:          "test",
-					AccountNumber: "123",
-					Currency:      currency.USD,
-					Balance:       200,
-					Description:   "",
-					CreatedAt:     createdAccount.CreatedAt,
-					UpdatedAt:     time.Now(),
-				},
-			); err != nil {
+			updatedAccount := moneyaccount.New(
+				"test",
+				currency.USD,
+				moneyaccount.WithID(createdAccount.ID()),
+				moneyaccount.WithAccountNumber("123"),
+				moneyaccount.WithBalance(200),
+			)
+			if err := accountRepository.Update(f.ctx, updatedAccount); err != nil {
 				t.Fatal(err)
 			}
 			accountEntity, err := accountRepository.GetByID(f.ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if accountEntity.Balance != 200 {
-				t.Errorf("expected 200, got %f", accountEntity.Balance)
+			if accountEntity.Balance() != 200 {
+				t.Errorf("expected 200, got %f", accountEntity.Balance())
 			}
-			if accountEntity.Currency.Code != currency.UsdCode {
-				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency.Code)
+			if accountEntity.Currency().Code != currency.UsdCode {
+				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency().Code)
 			}
 		},
 	)

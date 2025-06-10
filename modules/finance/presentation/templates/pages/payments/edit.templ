@@ -92,8 +92,6 @@ templ EditForm(props *EditPageProps) {
 				@button.Danger(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
-						"name":   "_action",
-						"value":  "delete",
 						"type":   "button",
 						"@click": "$dispatch('open-delete-payment-confirmation')",
 						"id":     "delete-payment-btn",
@@ -113,9 +111,7 @@ templ EditForm(props *EditPageProps) {
 				@button.Primary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
-						"name":  "_action",
-						"value": "save",
-						"id":    "save-btn",
+						"id": "save-btn",
 					},
 				}) {
 					{ pageCtx.T("Save") }

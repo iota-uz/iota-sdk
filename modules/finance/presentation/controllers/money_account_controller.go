@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	moneyaccounts2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
-	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
@@ -33,7 +33,7 @@ type MoneyAccountController struct {
 }
 
 type AccountPaginatedResponse struct {
-	Accounts        []*viewmodels2.MoneyAccount
+	Accounts        []*viewmodels.MoneyAccount
 	PaginationState *pagination.State
 }
 
@@ -51,7 +51,8 @@ func (c *MoneyAccountController) Key() string {
 }
 
 func (c *MoneyAccountController) Register(r *mux.Router) {
-	commonMiddleware := []mux.MiddlewareFunc{
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
@@ -59,23 +60,17 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
-	}
+	)
+	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
-func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
+func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*coreviewmodels.Currency, error) {
 	currencies, err := c.currencyService.GetAll(r.Context())
 	if err != nil {
 		return nil, err
@@ -175,23 +170,13 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto := moneyAccount.UpdateDTO{}
+	dto := dtos.MoneyAccountUpdateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	errorsMap, ok := dto.Ok(uniLocalizer)
-	if ok {
-		if err := c.moneyAccountService.Update(r.Context(), id, &dto); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
+
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		entity, err := c.moneyAccountService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving account", http.StatusInternalServerError)
@@ -212,6 +197,17 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 		templ.Handler(moneyaccounts2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
+
+	entity, err := dto.ToEntity(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := c.moneyAccountService.Update(r.Context(), entity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	shared.Redirect(w, r, c.basePath)
 }
 
@@ -224,7 +220,7 @@ func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) 
 	props := &moneyaccounts2.CreatePageProps{
 		Currencies: currencies,
 		Errors:     map[string]string{},
-		Account:    mappers.MoneyAccountToViewModel(&moneyAccount.Account{}),
+		Account:    &viewmodels.MoneyAccount{},
 		PostPath:   c.basePath,
 	}
 	templ.Handler(moneyaccounts2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -236,18 +232,13 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	dto := moneyAccount.CreateDTO{}
+	dto := dtos.MoneyAccountCreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -268,7 +259,13 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := c.moneyAccountService.Create(r.Context(), &dto); err != nil {
+	entity, err := dto.ToEntity()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.moneyAccountService.Create(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
