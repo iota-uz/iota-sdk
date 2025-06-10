@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -16,18 +15,7 @@ import (
 
 var (
 	navbarOnce = templ.NewOnceHandle()
-
-	companyLogo = "/assets/" + assets.HashFS.HashName("images/logo.webp")
 )
-
-templ DefaultLogo() {
-	<img
-		src={ companyLogo }
-		alt="Logo"
-		width="150"
-		height="50"
-	/>
-}
 
 templ Avatar() {
 	{{

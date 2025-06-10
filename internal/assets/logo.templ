@@ -1,0 +1,26 @@
+package assets
+
+var (
+	companyLogo        = "/assets/" + HashFS.HashName("images/logo.webp")
+	companyLogoCompact = "/assets/" + HashFS.HashName("images/logo-compact.webp")
+)
+
+templ DefaultLogo() {
+	<!-- Collapsed view: compact logo -->
+	<img
+		x-show="isCollapsed"
+		src={ companyLogoCompact }
+		alt="Logo"
+		width="48"
+		height="48"
+		class="mx-auto"
+	/>
+	<!-- Expanded view: full logo -->
+	<img
+		x-show="!isCollapsed"
+		src={ companyLogo }
+		alt="Logo"
+		width="150"
+		height="50"
+	/>
+}
