@@ -24,8 +24,14 @@ import (
 )
 
 func ToDomainClient(dbRow *models.Client, passportData passport.Passport) (client.Client, error) {
+	tenantID, err := uuid.Parse(dbRow.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	options := []client.Option{
 		client.WithID(dbRow.ID),
+		client.WithTenantID(tenantID),
 		client.WithCreatedAt(dbRow.CreatedAt),
 		client.WithUpdatedAt(dbRow.UpdatedAt),
 	}

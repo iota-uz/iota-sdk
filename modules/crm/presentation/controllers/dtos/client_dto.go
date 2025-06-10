@@ -3,7 +3,6 @@ package dtos
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 
@@ -60,7 +59,6 @@ func (d *CreateClientDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateClientDTO) ToEntity(tenantID uuid.UUID) (client.Client, error) {
-	log.Printf("DTO.ToEntity called with tenant ID: %s", tenantID)
 
 	// Create options slice
 	var opts []client.Option

@@ -33,3 +33,5 @@ The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write 
 - Use `htmx.IsHxRequest(r)` to check if a request is from HTMX
 - Use `htmx.SetTrigger(w, "eventName", payload)` for setting HTMX response triggers
 
+## Architectural Guidelines
+- Do not introduce UseTenant calls in repository layer, this is application layer concert
