@@ -40,17 +40,19 @@ type Huber interface {
 }
 
 func NewHub(opts *HuberOptions) Huber {
-	hub := ws.NewHub(&ws.HubOptions{
-		Logger:      opts.Logger,
-		CheckOrigin: opts.CheckOrigin,
-	})
 	appHub := &huber{
-		hub:      hub,
-		pool:     opts.Pool,
-		logger:   opts.Logger,
-		userRepo: opts.UserRepository,
+		pool:            opts.Pool,
+		logger:          opts.Logger,
+		userRepo:        opts.UserRepository,
+		connectionsMeta: make(map[*ws.Connection]*MetaInfo),
 	}
-	hub.OnConnect = appHub.onConnect
+	hub := ws.NewHub(&ws.HubOptions{
+		Logger:       opts.Logger,
+		CheckOrigin:  opts.CheckOrigin,
+		OnConnect:    appHub.onConnect,
+		OnDisconnect: appHub.onDisconnect,
+	})
+	appHub.hub = hub
 	return appHub
 }
 
@@ -82,6 +84,10 @@ func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) err
 	return nil
 }
 
+func (h *huber) onDisconnect(conn *ws.Connection) {
+	delete(h.connectionsMeta, conn)
+}
+
 func (h *huber) buildContext() context.Context {
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, constants.LoggerKey, h.logger)
@@ -89,10 +95,13 @@ func (h *huber) buildContext() context.Context {
 	return ctx
 }
 
-func (h *huber) ForEach(cannel string, f WsCallback) error {
+func (h *huber) ForEach(channel string, f WsCallback) error {
 	ctx := h.buildContext()
 
-	for _, conn := range h.hub.ConnectionsAll() {
+	// Get connections for the specific channel
+	connections := h.hub.ConnectionsInChannel(channel)
+
+	for _, conn := range connections {
 		meta, ok := h.connectionsMeta[conn]
 		if !ok {
 			h.logger.Error("connection meta not found")

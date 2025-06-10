@@ -5,12 +5,10 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
@@ -27,15 +25,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/text/language"
 )
 
 type ExpenseRealtimeUpdates struct {
@@ -58,95 +52,72 @@ func (ru *ExpenseRealtimeUpdates) Register() {
 	ru.app.EventPublisher().Subscribe(ru.onExpenseDeleted)
 }
 
-func (ru *ExpenseRealtimeUpdates) publisherContext() (context.Context, error) {
-	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
-	)
-	_url, err := url.Parse(ru.basePath)
-	if err != nil {
-		return nil, err
-	}
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-	return composables.WithPool(ctx, ru.app.DB()), nil
-}
-
 func (ru *ExpenseRealtimeUpdates) onExpenseCreated(event *expense.CreatedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
+
+	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(event.Result), &templ.Attributes{})
+
+	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render expense created event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send expense created event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	}); err != nil {
+		logger.WithError(err).Error("failed to broadcast expense created event to websocket")
 		return
 	}
-
-	exp, err := ru.expenseService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving expense: %v | Event: onExpenseCreated", err)
-		return
-	}
-	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(exp), &templ.Attributes{})
-
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering expense row: %v", err)
-		return
-	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 func (ru *ExpenseRealtimeUpdates) onExpenseDeleted(event *expense.DeletedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
 
 	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(event.Result), &templ.Attributes{
 		"hx-swap-oob": "delete",
 	})
 
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering expense row: %v", err)
+	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render expense deleted event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send expense deleted event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	}); err != nil {
+		logger.WithError(err).Error("failed to broadcast expense deleted event to websocket")
 		return
 	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 func (ru *ExpenseRealtimeUpdates) onExpenseUpdated(event *expense.UpdatedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
+
+	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(event.Result), &templ.Attributes{})
+
+	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render expense updated event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send expense updated event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	}); err != nil {
+		logger.WithError(err).Error("failed to broadcast expense updated event to websocket")
 		return
 	}
-
-	exp, err := ru.expenseService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving expense: %v", err)
-		return
-	}
-
-	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(exp), &templ.Attributes{})
-
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering expense row: %v", err)
-		return
-	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 type ExpenseController struct {
