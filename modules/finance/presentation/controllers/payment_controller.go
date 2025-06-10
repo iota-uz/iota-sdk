@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/a-h/templ"
@@ -50,7 +50,8 @@ func (c *PaymentsController) Key() string {
 }
 
 func (c *PaymentsController) Register(r *mux.Router) {
-	commonMiddleware := []mux.MiddlewareFunc{
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
@@ -58,19 +59,14 @@ func (c *PaymentsController) Register(r *mux.Router) {
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
-	}
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-	getRouter.HandleFunc("", c.Payments).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	)
+	router.HandleFunc("", c.Payments).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
 
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Payment, error) {
@@ -177,56 +173,39 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	action := shared.FormAction(r.FormValue("_action"))
-	if !action.IsValid() {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+
+	dto := dtos.PaymentUpdateDTO{}
+	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	r.Form.Del("_action")
 
-	switch action {
-	case shared.FormActionDelete:
-		_, err = c.paymentService.Delete(r.Context(), id)
-	case shared.FormActionSave:
-		dto := payment.UpdateDTO{}
-		if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		uniLocalizer, err := intl.UseUniLocalizer(r.Context())
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		paymentViewModel, err := c.viewModelPayment(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
-			paymentViewModel, err := c.viewModelPayment(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			accounts, err := c.viewModelAccounts(r)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			props := &payments.EditPageProps{
-				Payment:  paymentViewModel,
-				Accounts: accounts,
-				Errors:   errorsMap,
-			}
-			templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-			return
-		}
-		err = c.paymentService.Update(r.Context(), id, &dto)
+		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		props := &payments.EditPageProps{
+			Payment:  paymentViewModel,
+			Accounts: accounts,
+			Errors:   errorsMap,
+		}
+		templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
 	}
-	if err != nil {
+
+	entity := dto.ToEntity(id)
+	if err := c.paymentService.Update(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	shared.Redirect(w, r, c.basePath)
 }
 
@@ -246,7 +225,7 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
-	dto, err := composables.UseForm(&payment.CreateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.PaymentCreateDTO{}, r)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusBadRequest)
 		return
@@ -259,12 +238,7 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	dto.UserID = u.ID()
 
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		accounts, err := c.viewModelAccounts(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
@@ -279,7 +253,8 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.paymentService.Create(r.Context(), dto); err != nil {
+	entity := dto.ToEntity()
+	if err := c.paymentService.Create(r.Context(), entity); err != nil {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}

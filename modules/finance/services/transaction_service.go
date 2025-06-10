@@ -23,21 +23,21 @@ func (s *TransactionService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *TransactionService) GetAll(ctx context.Context) ([]*transaction2.Transaction, error) {
+func (s *TransactionService) GetAll(ctx context.Context) ([]transaction2.Transaction, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *TransactionService) GetByID(ctx context.Context, id uint) (*transaction2.Transaction, error) {
+func (s *TransactionService) GetByID(ctx context.Context, id uint) (transaction2.Transaction, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
 func (s *TransactionService) GetPaginated(
 	ctx context.Context, params *transaction2.FindParams,
-) ([]*transaction2.Transaction, error) {
+) ([]transaction2.Transaction, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *TransactionService) Create(ctx context.Context, data *transaction2.Transaction) error {
+func (s *TransactionService) Create(ctx context.Context, data transaction2.Transaction) error {
 	if err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
@@ -45,7 +45,7 @@ func (s *TransactionService) Create(ctx context.Context, data *transaction2.Tran
 	return nil
 }
 
-func (s *TransactionService) Update(ctx context.Context, data *transaction2.Transaction) error {
+func (s *TransactionService) Update(ctx context.Context, data transaction2.Transaction) error {
 	if err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}

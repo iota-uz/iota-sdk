@@ -6,6 +6,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expense_categories2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expense_categories"
 	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
@@ -18,7 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -184,18 +184,18 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto, err := composables.UseForm(&category.UpdateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.ExpenseCategoryUpdateDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); ok {
-		if err := c.expenseCategoryService.Update(r.Context(), id, dto); err != nil {
+	if errorsMap, ok := dto.Ok(r.Context()); ok {
+		entity, err := dto.ToEntity(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := c.expenseCategoryService.Update(r.Context(), entity); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -230,7 +230,7 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 	props := &expense_categories2.CreatePageProps{
 		Currencies: currencies,
 		Errors:     map[string]string{},
-		Category:   category.CreateDTO{},
+		Category:   dtos.ExpenseCategoryCreateDTO{},
 		PostPath:   c.basePath,
 	}
 	templ.Handler(expense_categories2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -242,18 +242,13 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	dto := category.CreateDTO{}
+	dto := dtos.ExpenseCategoryCreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		currencies, err := c.viewModelCurrencies(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -269,7 +264,13 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := c.expenseCategoryService.Create(r.Context(), &dto); err != nil {
+	entity, err := dto.ToEntity()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.expenseCategoryService.Create(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

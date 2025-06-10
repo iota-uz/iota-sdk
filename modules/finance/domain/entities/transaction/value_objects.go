@@ -8,11 +8,12 @@ const (
 	Deposit    Type = "DEPOSIT"
 	Withdrawal Type = "WITHDRAWAL"
 	Transfer   Type = "TRANSFER"
+	Exchange   Type = "EXCHANGE"
 )
 
 func (s Type) IsValid() bool {
 	switch s {
-	case Deposit, Withdrawal, Transfer:
+	case Deposit, Withdrawal, Transfer, Exchange:
 		return true
 	}
 	return false

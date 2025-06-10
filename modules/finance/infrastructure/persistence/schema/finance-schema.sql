@@ -1,5 +1,5 @@
 CREATE TABLE counterparty (
-    id serial PRIMARY KEY,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     tin varchar(20),
     name varchar(255) NOT NULL,
@@ -12,8 +12,8 @@ CREATE TABLE counterparty (
 );
 
 CREATE TABLE counterparty_contacts (
-    id serial PRIMARY KEY,
-    counterparty_id int NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    counterparty_id uuid NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255) NOT NULL,
     middle_name varchar(255) NULL,
@@ -24,7 +24,7 @@ CREATE TABLE counterparty_contacts (
 );
 
 CREATE TABLE inventory (
-    id serial PRIMARY KEY,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
@@ -37,7 +37,7 @@ CREATE TABLE inventory (
 );
 
 CREATE TABLE expense_categories (
-    id serial PRIMARY KEY,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
@@ -49,7 +49,7 @@ CREATE TABLE expense_categories (
 );
 
 CREATE TABLE money_accounts (
-    id serial PRIMARY KEY,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     account_number varchar(255) NOT NULL,
@@ -62,30 +62,44 @@ CREATE TABLE money_accounts (
 );
 
 CREATE TABLE transactions (
-    id serial PRIMARY KEY,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     amount numeric(9, 2) NOT NULL,
-    origin_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
-    destination_account_id int REFERENCES money_accounts (id) ON DELETE RESTRICT,
+    origin_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
+    destination_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
     transaction_date date NOT NULL DEFAULT now() ::date,
     accounting_period date NOT NULL DEFAULT now() ::date,
-    transaction_type varchar(255) NOT NULL, -- income, expense, transfer
+    transaction_type varchar(255) NOT NULL, -- income, expense, transfer, exchange
     comment text,
+    -- Exchange operation fields
+    exchange_rate numeric(18, 8), -- Exchange rate used for currency conversion
+    destination_amount numeric(9, 2), -- Amount in destination currency (for exchange operations)
     created_at timestamp with time zone DEFAULT now()
 );
 
 CREATE TABLE expenses (
-    id serial PRIMARY KEY,
-    transaction_id int NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
-    category_id int NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id uuid NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
+    category_id uuid NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
 
+CREATE TABLE payment_categories (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    name varchar(255) NOT NULL,
+    description text,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE (tenant_id, name)
+);
+
 CREATE TABLE payments (
-    id serial PRIMARY KEY,
-    transaction_id int NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
-    counterparty_id int NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id uuid NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
+    counterparty_id uuid NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
+    category_id uuid REFERENCES payment_categories (id) ON DELETE SET NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
@@ -97,6 +111,10 @@ CREATE INDEX expenses_transaction_id_idx ON expenses (transaction_id);
 CREATE INDEX payments_counterparty_id_idx ON payments (counterparty_id);
 
 CREATE INDEX payments_transaction_id_idx ON payments (transaction_id);
+
+CREATE INDEX payments_category_id_idx ON payments (category_id);
+
+CREATE INDEX payment_categories_tenant_id_idx ON payment_categories (tenant_id);
 
 CREATE INDEX transactions_tenant_id_idx ON transactions (tenant_id);
 

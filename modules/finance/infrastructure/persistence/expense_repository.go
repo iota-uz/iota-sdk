@@ -245,10 +245,10 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense
 	}
 
 	var id uint
-	if err := tx.QueryRow(ctx, expenseInsertQuery, transactionRow.ID, expenseRow.CategoryID).Scan(&id); err != nil {
+	if err := tx.QueryRow(ctx, expenseInsertQuery, transactionRow.ID(), expenseRow.CategoryID).Scan(&id); err != nil {
 		return errors.Wrap(err, "failed to create expense")
 	}
-	expenseRow.TransactionID = transactionRow.ID
+	expenseRow.TransactionID = transactionRow.ID()
 	return nil
 }
 
@@ -261,7 +261,7 @@ func (g *GormExpenseRepository) Update(ctx context.Context, data expense.Expense
 	if err := g.transactionRepo.Update(ctx, transactionRow); err != nil {
 		return errors.Wrap(err, "failed to update transaction")
 	}
-	expenseRow.TransactionID = transactionRow.ID
+	expenseRow.TransactionID = transactionRow.ID()
 	if _, err := tx.Exec(ctx, expenseUpdateQuery, expenseRow.TransactionID, expenseRow.CategoryID, expenseRow.ID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to update expense with ID: %d", expenseRow.ID))
 	}

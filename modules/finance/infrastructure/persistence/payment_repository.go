@@ -128,7 +128,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	}
 
 	// Set tenant ID on the domain entity
-	data.SetTenantID(tenantID)
+	data = data.UpdateTenantID(tenantID)
 
 	dbPayment, dbTransaction := toDBPayment(data)
 	tx, err := composables.UseTx(ctx)
@@ -171,7 +171,7 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 	}
 
 	// Set tenant ID on the domain entity
-	data.SetTenantID(tenantID)
+	data = data.UpdateTenantID(tenantID)
 
 	dbPayment, dbTransaction := toDBPayment(data)
 	if err := g.execQuery(

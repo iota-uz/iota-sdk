@@ -61,7 +61,7 @@ func NewTransactionRepository() transaction.Repository {
 	return &GormTransactionRepository{}
 }
 
-func (g *GormTransactionRepository) GetPaginated(ctx context.Context, params *transaction.FindParams) ([]*transaction.Transaction, error) {
+func (g *GormTransactionRepository) GetPaginated(ctx context.Context, params *transaction.FindParams) ([]transaction.Transaction, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -100,7 +100,7 @@ func (g *GormTransactionRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormTransactionRepository) GetAll(ctx context.Context) ([]*transaction.Transaction, error) {
+func (g *GormTransactionRepository) GetAll(ctx context.Context) ([]transaction.Transaction, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -110,7 +110,7 @@ func (g *GormTransactionRepository) GetAll(ctx context.Context) ([]*transaction.
 	return g.queryTransactions(ctx, query, tenantID)
 }
 
-func (g *GormTransactionRepository) GetByID(ctx context.Context, id uint) (*transaction.Transaction, error) {
+func (g *GormTransactionRepository) GetByID(ctx context.Context, id uint) (transaction.Transaction, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -126,13 +126,13 @@ func (g *GormTransactionRepository) GetByID(ctx context.Context, id uint) (*tran
 	return transactions[0], nil
 }
 
-func (g *GormTransactionRepository) Create(ctx context.Context, data *transaction.Transaction) error {
+func (g *GormTransactionRepository) Create(ctx context.Context, data transaction.Transaction) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	data.TenantID = tenantID
+	data = data.UpdateTenantID(tenantID)
 	entity := toDBTransaction(data)
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -148,16 +148,22 @@ func (g *GormTransactionRepository) Create(ctx context.Context, data *transactio
 		entity.TransactionType,
 		entity.Comment,
 	}
-	return tx.QueryRow(ctx, transactionInsertQuery, args...).Scan(&data.ID)
+	var id uint
+	err = tx.QueryRow(ctx, transactionInsertQuery, args...).Scan(&id)
+	if err != nil {
+		return err
+	}
+	data.SetID(id)
+	return nil
 }
 
-func (g *GormTransactionRepository) Update(ctx context.Context, data *transaction.Transaction) error {
+func (g *GormTransactionRepository) Update(ctx context.Context, data transaction.Transaction) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	data.TenantID = tenantID
+	data = data.UpdateTenantID(tenantID)
 	dbTransaction := toDBTransaction(data)
 	args := []interface{}{
 		dbTransaction.Amount,
@@ -182,7 +188,7 @@ func (g *GormTransactionRepository) Delete(ctx context.Context, id uint) error {
 	return g.execQuery(ctx, transactionDeleteQuery, id, tenantID)
 }
 
-func (g *GormTransactionRepository) queryTransactions(ctx context.Context, query string, args ...interface{}) ([]*transaction.Transaction, error) {
+func (g *GormTransactionRepository) queryTransactions(ctx context.Context, query string, args ...interface{}) ([]transaction.Transaction, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -82,7 +83,7 @@ func (d *ExpenseUpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *ExpenseCreateDTO) ToEntity() (expense.Expense, error) {
-	account := moneyAccount.Account{ID: d.AccountID}
+	account := moneyAccount.New("", currency.Currency{}, moneyAccount.WithID(d.AccountID))
 	expenseCategory := category.New(
 		"",  // name - will be populated when fetched from DB
 		0,   // amount - will be populated when fetched from DB
@@ -102,7 +103,7 @@ func (d *ExpenseCreateDTO) ToEntity() (expense.Expense, error) {
 
 func (d *ExpenseUpdateDTO) Apply(entity expense.Expense, cat category.ExpenseCategory) (expense.Expense, error) {
 	entity = entity.
-		SetAccount(moneyAccount.Account{ID: d.AccountID}).
+		SetAccount(moneyAccount.New("", currency.Currency{}, moneyAccount.WithID(d.AccountID))).
 		SetCategory(cat).
 		SetComment(d.Comment).
 		SetAmount(d.Amount).
