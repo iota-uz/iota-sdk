@@ -36,6 +36,7 @@ type Connection interface {
 type WsCallback func(ctx context.Context, conn Connection) error
 
 type Huber interface {
+	http.Handler
 	ForEach(channel string, f WsCallback) error
 }
 
@@ -67,6 +68,10 @@ type huber struct {
 	logger          *logrus.Logger
 	connectionsMeta map[*ws.Connection]*MetaInfo
 	userRepo        user.Repository
+}
+
+func (h *huber) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.hub.ServeHTTP(w, r)
 }
 
 func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) error {
