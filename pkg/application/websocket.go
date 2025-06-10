@@ -82,7 +82,6 @@ func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) err
 	if err != nil {
 		// Allow unauthenticated connections - they can still receive public broadcasts
 		h.connectionsMeta[conn] = meta
-		fmt.Println("Unauthenticated connection, allowing public access")
 		return nil //nolint:nilerr // Intentionally ignore auth error for public connections
 	}
 	meta.UserID = usr.ID()

@@ -60,13 +60,11 @@ func (ru *UserRealtimeUpdates) Register() {
 func (ru *UserRealtimeUpdates) onUserCreated(event *user.CreatedEvent) {
 	logger := configuration.Use().Logger()
 
-	fmt.Printf("UserRealtimeUpdates.onUserCreated: %d\n", event.Result.ID())
 	component := users.UserCreatedEvent(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
-		fmt.Printf("UserRealtimeUpdates.onUserCreated: broadcasting to connection %d\n", conn.User().ID())
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			logger.WithError(err).Error("failed to render user created event for websocket")
