@@ -53,12 +53,12 @@ const (
 type GormDialogueRepository struct{}
 
 func (g *GormDialogueRepository) GetByUserID(ctx context.Context, userID uint) ([]dialogue.Dialogue, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	return g.queryDialogues(ctx, dialogueFindQuery+" WHERE user_id = $1 AND tenant_id = $2", userID, tenant.ID)
+	return g.queryDialogues(ctx, dialogueFindQuery+" WHERE user_id = $1 AND tenant_id = $2", userID, tenantID)
 }
 
 func NewDialogueRepository() dialogue.Repository {
@@ -66,13 +66,13 @@ func NewDialogueRepository() dialogue.Repository {
 }
 
 func (g *GormDialogueRepository) GetPaginated(ctx context.Context, params *dialogue.FindParams) ([]dialogue.Dialogue, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
 	where := []string{"tenant_id = $1"}
-	args := []interface{}{tenant.ID}
+	args := []interface{}{tenantID}
 
 	if params.Query != "" && params.Field != "" {
 		where = append(where, fmt.Sprintf("%s::VARCHAR ILIKE $%d", params.Field, len(args)+1))
@@ -93,34 +93,34 @@ func (g *GormDialogueRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get tenant from context")
 	}
 
 	var count int64
-	if err := tx.QueryRow(ctx, dialogueCountQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, dialogueCountQuery+" WHERE tenant_id = $1", tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormDialogueRepository) GetAll(ctx context.Context) ([]dialogue.Dialogue, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	return g.queryDialogues(ctx, dialogueFindQuery+" WHERE tenant_id = $1", tenant.ID)
+	return g.queryDialogues(ctx, dialogueFindQuery+" WHERE tenant_id = $1", tenantID)
 }
 
 func (g *GormDialogueRepository) GetByID(ctx context.Context, id uint) (dialogue.Dialogue, error) {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	dialogues, err := g.queryDialogues(ctx, repo.Join(dialogueFindQuery, "WHERE id = $1 AND tenant_id = $2"), id, tenant.ID)
+	dialogues, err := g.queryDialogues(ctx, repo.Join(dialogueFindQuery, "WHERE id = $1 AND tenant_id = $2"), id, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get dialogue by id")
 	}
@@ -190,12 +190,12 @@ func (g *GormDialogueRepository) Update(ctx context.Context, d dialogue.Dialogue
 }
 
 func (g *GormDialogueRepository) Delete(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenantID(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get tenant from context")
 	}
 
-	return g.execQuery(ctx, dialogueDeleteQuery, id, tenant.ID)
+	return g.execQuery(ctx, dialogueDeleteQuery, id, tenantID)
 }
 
 func (g *GormDialogueRepository) queryDialogues(ctx context.Context, query string, args ...interface{}) ([]dialogue.Dialogue, error) {
