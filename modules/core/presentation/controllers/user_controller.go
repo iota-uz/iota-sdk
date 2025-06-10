@@ -227,13 +227,6 @@ func (c *UsersController) Users(
 	params := composables.UsePaginated(r)
 	groupIDs := r.URL.Query()["groupID"]
 
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	// Create find params using the query service types
 	findParams := &query.FindParams{
 		Limit:  params.Limit,
@@ -246,13 +239,8 @@ func (c *UsersController) Users(
 				},
 			},
 		},
-		Search: r.URL.Query().Get("Search"),
-		Filters: []query.Filter{
-			{
-				Column: query.FieldTenantID,
-				Filter: repo.Eq(tenantID.String()),
-			},
-		},
+		Search:  r.URL.Query().Get("Search"),
+		Filters: []query.Filter{},
 	}
 
 	// Add group filter if specified
@@ -306,12 +294,7 @@ func (c *UsersController) Users(
 				{Field: query.GroupFieldName, Ascending: true},
 			},
 		},
-		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenantID.String()),
-			},
-		},
+		Filters: []query.GroupFilter{},
 	}
 	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
@@ -358,13 +341,6 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -374,14 +350,9 @@ func (c *UsersController) GetEdit(
 
 	// Use GroupQueryService to fetch all groups
 	groupParams := &query.GroupFindParams{
-		Limit:  1000, // Large limit to fetch all groups
-		Offset: 0,
-		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenantID.String()),
-			},
-		},
+		Limit:   1000, // Large limit to fetch all groups
+		Offset:  0,
+		Filters: []query.GroupFilter{},
 	}
 	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
@@ -414,13 +385,6 @@ func (c *UsersController) GetNew(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) {
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -430,14 +394,9 @@ func (c *UsersController) GetNew(
 
 	// Use GroupQueryService to fetch all groups
 	groupParams := &query.GroupFindParams{
-		Limit:  1000, // Large limit to fetch all groups
-		Offset: 0,
-		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenantID.String()),
-			},
-		},
+		Limit:   1000, // Large limit to fetch all groups
+		Offset:  0,
+		Filters: []query.GroupFilter{},
 	}
 	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
@@ -467,13 +426,6 @@ func (c *UsersController) Create(
 	respondWithForm := func(errors map[string]string, dto *dtos.CreateUserDTO) {
 		ctx := r.Context()
 
-		tenantID, err := composables.UseTenantID(ctx)
-		if err != nil {
-			logger.Errorf("Error retrieving tenant from request: %v", err)
-			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-			return
-		}
-
 		roles, err := roleService.GetAll(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving roles: %v", err)
@@ -483,14 +435,9 @@ func (c *UsersController) Create(
 
 		// Use GroupQueryService to fetch all groups
 		groupParams := &query.GroupFindParams{
-			Limit:  1000, // Large limit to fetch all groups
-			Offset: 0,
-			Filters: []query.GroupFilter{
-				{
-					Column: query.GroupFieldTenantID,
-					Filter: repo.Eq(tenantID.String()),
-				},
-			},
+			Limit:   1000, // Large limit to fetch all groups
+			Offset:  0,
+			Filters: []query.GroupFilter{},
 		}
 		groups, _, err := groupQueryService.FindGroups(ctx, groupParams)
 		if err != nil {
@@ -539,7 +486,14 @@ func (c *UsersController) Create(
 		return
 	}
 
-	userEntity, err := dto.ToEntity(composables.MustUseUser(r.Context()).TenantID())
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		logger.Errorf("Error getting tenant: %v", err)
+		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
+		return
+	}
+
+	userEntity, err := dto.ToEntity(tenantID)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -593,13 +547,6 @@ func (c *UsersController) Update(
 	}
 
 	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
-		tenantID, err := composables.UseTenantID(ctx)
-		if err != nil {
-			logger.Errorf("Error retrieving tenant from request: %v", err)
-			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-			return
-		}
-
 		us, err := userService.GetByID(ctx, id)
 		if err != nil {
 			logger.Errorf("Error retrieving user: %v", err)
@@ -623,14 +570,9 @@ func (c *UsersController) Update(
 
 		// Use GroupQueryService to fetch all groups
 		groupParams := &query.GroupFindParams{
-			Limit:  1000, // Large limit to fetch all groups
-			Offset: 0,
-			Filters: []query.GroupFilter{
-				{
-					Column: query.GroupFieldTenantID,
-					Filter: repo.Eq(tenantID.String()),
-				},
-			},
+			Limit:   1000, // Large limit to fetch all groups
+			Offset:  0,
+			Filters: []query.GroupFilter{},
 		}
 		groups, _, err := groupQueryService.FindGroups(ctx, groupParams)
 		if err != nil {

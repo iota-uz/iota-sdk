@@ -226,8 +226,17 @@ func (g *ClientRepository) exists(ctx context.Context, id uint) (bool, error) {
 func (g *ClientRepository) GetPaginated(
 	ctx context.Context, params *client.FindParams,
 ) ([]client.Client, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	where := make([]string, 0)
 	args := make([]interface{}, 0)
+
+	// Add tenant filter first
+	where = append(where, fmt.Sprintf("c.tenant_id = $%d", len(args)+1))
+	args = append(args, tenantID)
 
 	// Apply filters
 	for _, filter := range params.Filters {
@@ -245,21 +254,12 @@ func (g *ClientRepository) GetPaginated(
 		args = append(args, "%"+params.Search+"%")
 	}
 
-	var sql string
-	if len(where) > 0 {
-		sql = repo.Join(
-			selectClientQuery,
-			repo.JoinWhere(where...),
-			params.SortBy.ToSQL(g.fieldMap),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		)
-	} else {
-		sql = repo.Join(
-			selectClientQuery,
-			params.SortBy.ToSQL(g.fieldMap),
-			repo.FormatLimitOffset(params.Limit, params.Offset),
-		)
-	}
+	sql := repo.Join(
+		selectClientQuery,
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
 
 	return g.queryClients(
 		ctx,
@@ -269,6 +269,11 @@ func (g *ClientRepository) GetPaginated(
 }
 
 func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams) (int64, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
@@ -276,6 +281,10 @@ func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 
 	where := make([]string, 0)
 	args := make([]interface{}, 0)
+
+	// Add tenant filter first
+	where = append(where, fmt.Sprintf("c.tenant_id = $%d", len(args)+1))
+	args = append(args, tenantID)
 
 	// Apply filters
 	for _, filter := range params.Filters {
@@ -293,10 +302,7 @@ func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 		args = append(args, "%"+params.Search+"%")
 	}
 
-	query := countClientQuery
-	if len(where) > 0 {
-		query += " " + repo.JoinWhere(where...)
-	}
+	query := countClientQuery + " " + repo.JoinWhere(where...)
 
 	var count int64
 	if err := pool.QueryRow(ctx, query, args...).Scan(&count); err != nil {
@@ -305,7 +311,12 @@ func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 	return count, nil
 }
 
-func (g *ClientRepository) GetByID(ctx context.Context, id uint, tenantID uuid.UUID) (client.Client, error) {
+func (g *ClientRepository) GetByID(ctx context.Context, id uint) (client.Client, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	clients, err := g.queryClients(ctx, selectClientQuery+" WHERE c.id = $1 AND c.tenant_id = $2", id, tenantID)
 	if err != nil {
 		return nil, err
@@ -578,7 +589,12 @@ func (g *ClientRepository) Save(ctx context.Context, data client.Client) (client
 	return g.create(ctx, data)
 }
 
-func (g *ClientRepository) Delete(ctx context.Context, id uint, tenantID uuid.UUID) error {
+func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
