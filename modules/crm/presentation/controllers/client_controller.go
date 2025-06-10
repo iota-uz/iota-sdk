@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
@@ -335,19 +336,21 @@ func (c *ClientController) viewModelClients(
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
-		// TODO: Parse date and add filter for CreatedAt >= v
-		// params.Filters = append(params.Filters, client.Filter{
-		//     Column: client.CreatedAt,
-		//     Filter: repo.Gte(parsedDate),
-		// })
+		if parsedDate, err := time.Parse("2006-01-02", v); err == nil {
+			params.Filters = append(params.Filters, client.Filter{
+				Column: client.CreatedAt,
+				Filter: repo.Gte(parsedDate),
+			})
+		}
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
-		// TODO: Parse date and add filter for CreatedAt <= v
-		// params.Filters = append(params.Filters, client.Filter{
-		//     Column: client.CreatedAt,
-		//     Filter: repo.Lte(parsedDate),
-		// })
+		if parsedDate, err := time.Parse("2006-01-02", v); err == nil {
+			params.Filters = append(params.Filters, client.Filter{
+				Column: client.CreatedAt,
+				Filter: repo.Lte(parsedDate),
+			})
+		}
 	}
 
 	if q := r.URL.Query().Get("Search"); q != "" {

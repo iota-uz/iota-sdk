@@ -226,8 +226,8 @@ func (g *ClientRepository) exists(ctx context.Context, id uint) (bool, error) {
 func (g *ClientRepository) GetPaginated(
 	ctx context.Context, params *client.FindParams,
 ) ([]client.Client, error) {
-	var where []string
-	var args []interface{}
+	where := make([]string, 0)
+	args := make([]interface{}, 0)
 
 	// Apply filters
 	for _, filter := range params.Filters {
@@ -274,8 +274,8 @@ func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 		return 0, err
 	}
 
-	var where []string
-	var args []interface{}
+	where := make([]string, 0)
+	args := make([]interface{}, 0)
 
 	// Apply filters
 	for _, filter := range params.Filters {
