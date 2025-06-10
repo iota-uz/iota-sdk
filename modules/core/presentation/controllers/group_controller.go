@@ -179,13 +179,6 @@ func (c *GroupsController) Groups(
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	// Build query parameters
 	findParams := &query.GroupFindParams{
 		Limit:  params.Limit,
@@ -196,12 +189,7 @@ func (c *GroupsController) Groups(
 				{Field: query.GroupFieldCreatedAt, Ascending: false},
 			},
 		},
-		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenantID.String()),
-			},
-		},
+		Filters: []query.GroupFilter{},
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
@@ -221,6 +209,7 @@ func (c *GroupsController) Groups(
 	// Use the appropriate method based on whether we're searching
 	var groupViewModels []*viewmodels.Group
 	var total int
+	var err error
 
 	if search != "" {
 		groupViewModels, total, err = groupQueryService.SearchGroups(r.Context(), findParams)
@@ -264,13 +253,6 @@ func (c *GroupsController) GetEdit(
 ) {
 	idStr := mux.Vars(r)["id"]
 
-	tenantID, err := composables.UseTenantID(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -284,10 +266,6 @@ func (c *GroupsController) GetEdit(
 		Limit:  1,
 		Offset: 0,
 		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenantID.String()),
-			},
 			{
 				Column: query.GroupFieldID,
 				Filter: repo.Eq(idStr),

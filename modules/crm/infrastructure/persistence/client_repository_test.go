@@ -144,7 +144,7 @@ func TestClientRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("Get non-existent client by ID", func(t *testing.T) {
-		_, err := clientRepo.GetByID(f.ctx, 9999, f.tenant.ID)
+		_, err := clientRepo.GetByID(f.ctx, 9999)
 		require.Error(t, err, "Expected error when getting non-existent client, got nil")
 		require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound")
 	})
@@ -450,14 +450,14 @@ func TestClientRepository_Delete(t *testing.T) {
 	created, err := clientRepo.Save(f.ctx, testClient)
 	require.NoError(t, err, "Failed to create test client for delete test")
 
-	_, err = clientRepo.GetByID(f.ctx, created.ID(), f.tenant.ID)
+	_, err = clientRepo.GetByID(f.ctx, created.ID())
 	require.NoError(t, err, "Client should exist before deletion")
 
-	err = clientRepo.Delete(f.ctx, created.ID(), f.tenant.ID)
+	err = clientRepo.Delete(f.ctx, created.ID())
 	require.NoError(t, err, "Failed to delete client")
 
 	// Verify deletion
-	_, err = clientRepo.GetByID(f.ctx, created.ID(), f.tenant.ID)
+	_, err = clientRepo.GetByID(f.ctx, created.ID())
 	require.Error(t, err, "Expected error when getting deleted client")
 	require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound after delete")
 }
@@ -509,7 +509,7 @@ func TestClientRepository_Update(t *testing.T) {
 		_, err = clientRepo.Save(f.ctx, updatedClientState)
 		require.NoError(t, err, "Failed to update client basic info")
 
-		retrievedAfterUpdate, err := clientRepo.GetByID(f.ctx, created.ID(), f.tenant.ID) // Re-fetch to ensure persistence
+		retrievedAfterUpdate, err := clientRepo.GetByID(f.ctx, created.ID()) // Re-fetch to ensure persistence
 		require.NoError(t, err, "Failed to retrieve client after basic update")
 
 		assert.Equal(t, "Robert", retrievedAfterUpdate.FirstName(), "FirstName mismatch after update")
@@ -556,7 +556,7 @@ func TestClientRepository_Update(t *testing.T) {
 		require.NoError(t, err, "Failed to update client with passport")
 
 		// Verify the result from the database
-		retrievedAfterPassport, err := clientRepo.GetByID(f.ctx, createdNoPassport.ID(), f.tenant.ID)
+		retrievedAfterPassport, err := clientRepo.GetByID(f.ctx, createdNoPassport.ID())
 		require.NoError(t, err, "Failed to retrieve client after adding passport")
 
 		require.NotNil(t, retrievedAfterPassport.Passport(), "Expected client to have passport after update")
