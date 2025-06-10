@@ -149,9 +149,14 @@ func (c *ChatController) onChatCreated(event *chat.CreatedEvent) {
 	err = c.app.Websocket().ForEach(application.ChannelAuthenticated, func(ctx context.Context, conn application.Connection) error {
 		var buf bytes.Buffer
 		if err := chatsui.ChatList(props).Render(ctx, &buf); err != nil {
-			return err
+			c.logger.WithError(err).Error("failed to render chat list for websocket")
+			return nil // Continue processing other connections
 		}
-		return conn.SendMessage(buf.Bytes())
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			c.logger.WithError(err).Error("failed to send chat list to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
 	})
 	if err != nil {
 		c.logger.WithError(err).Error("failed to send chat list to websocket")
@@ -216,16 +221,23 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 			}
 			var buf1 bytes.Buffer
 			if err := chatsui.ChatList(props).Render(ctx, &buf1); err != nil {
-				return err
+				c.logger.WithError(err).Error("failed to render chat list for websocket")
+				return nil // Continue processing other connections
 			}
 			if err := conn.SendMessage(buf1.Bytes()); err != nil {
-				return err
+				c.logger.WithError(err).Error("failed to send chat list to websocket connection")
+				return nil // Continue processing other connections
 			}
 			var buf2 bytes.Buffer
 			if err := chatsui.ChatMessages(chatViewModel).Render(ctx, &buf2); err != nil {
-				return err
+				c.logger.WithError(err).Error("failed to render chat messages for websocket")
+				return nil // Continue processing other connections
 			}
-			return conn.SendMessage(buf2.Bytes())
+			if err := conn.SendMessage(buf2.Bytes()); err != nil {
+				c.logger.WithError(err).Error("failed to send chat messages to websocket connection")
+				return nil // Continue processing other connections
+			}
+			return nil
 		},
 	)
 	if err != nil {

@@ -11,20 +11,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/di"
-	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
-	"github.com/iota-uz/iota-sdk/pkg/server"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-	"golang.org/x/text/language"
-
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/sirupsen/logrus"
-
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	userdomain "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -39,11 +29,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/sirupsen/logrus"
 )
 
 func clientIDFromQ(u *url.URL) (uint, error) {
@@ -72,50 +67,28 @@ func (ru *ClientRealtimeUpdates) Register() {
 	ru.app.EventPublisher().Subscribe(ru.onClientCreated)
 }
 
-func (ru *ClientRealtimeUpdates) publisherContext() (context.Context, error) {
-	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
-	)
-	_url, err := url.Parse(ru.basePath)
-	if err != nil {
-		return nil, err
-	}
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-	return composables.WithPool(ctx, ru.app.DB()), nil
-}
-
 func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
 
-	clientEntity, err := ru.clientService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v | Event: onClientCreated", err)
-		return
-	}
-
-	component := clients.ClientCreatedEvent(mappers.ClientToViewModel(clientEntity), &base.TableRowProps{
+	component := clients.ClientCreatedEvent(mappers.ClientToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
 
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering client row: %v", err)
+	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render client created event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send client created event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	}); err != nil {
+		logger.WithError(err).Error("failed to broadcast client created event to websocket")
 		return
 	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 type TabDefinition struct {

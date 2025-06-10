@@ -9,9 +9,10 @@ import (
 )
 
 type HubOptions struct {
-	Logger      *logrus.Logger
-	CheckOrigin func(r *http.Request) bool
-	OnConnect   func(r *http.Request, hub *Hub, conn *Connection) error
+	Logger       *logrus.Logger
+	CheckOrigin  func(r *http.Request) bool
+	OnConnect    func(r *http.Request, hub *Hub, conn *Connection) error
+	OnDisconnect func(conn *Connection)
 }
 
 type Connection struct {
@@ -39,6 +40,7 @@ type Hub struct {
 	mu                 sync.RWMutex
 	logger             *logrus.Logger
 	OnConnect          func(r *http.Request, hub *Hub, conn *Connection) error
+	OnDisconnect       func(conn *Connection)
 }
 
 var _ Huber = (*Hub)(nil)
@@ -55,6 +57,7 @@ func NewHub(opts *HubOptions) *Hub {
 		eventHandlers:      make(map[EventType][]func(conn *Connection, message []byte)),
 		logger:             opts.Logger,
 		OnConnect:          opts.OnConnect,
+		OnDisconnect:       opts.OnDisconnect,
 	}
 }
 
@@ -110,6 +113,11 @@ func (h *Hub) readPump(conn *Connection) {
 }
 
 func (h *Hub) removeConnection(conn *Connection) {
+	// Call OnDisconnect callback first to allow cleanup in application layer
+	if h.OnDisconnect != nil {
+		h.OnDisconnect(conn)
+	}
+
 	// Collect all channels this connection was in to trigger leave events
 	h.mu.RLock()
 	channelsCopy := make([]string, 0)
