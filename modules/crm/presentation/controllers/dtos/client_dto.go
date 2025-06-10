@@ -59,7 +59,6 @@ func (d *CreateClientDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (d *CreateClientDTO) ToEntity(tenantID uuid.UUID) (client.Client, error) {
-
 	// Create options slice
 	var opts []client.Option
 

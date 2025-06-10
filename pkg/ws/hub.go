@@ -16,7 +16,6 @@ type HubOptions struct {
 
 type Connection struct {
 	conn *websocket.Conn
-	mu   sync.RWMutex
 	hub  *Hub
 	ctx  map[string]any
 }

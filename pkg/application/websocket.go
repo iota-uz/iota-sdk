@@ -71,8 +71,9 @@ func (h *huber) onConnect(r *http.Request, hub *ws.Hub, conn *ws.Connection) err
 	meta := &MetaInfo{}
 	usr, err := composables.UseUser(r.Context())
 	if err != nil {
+		// Allow unauthenticated connections - they can still receive public broadcasts
 		h.connectionsMeta[conn] = meta
-		return nil
+		return nil //nolint:nilerr // Intentionally ignore auth error for public connections
 	}
 	meta.UserID = usr.ID()
 	h.hub.JoinChannel(ChannelAuthenticated, conn)
@@ -103,13 +104,13 @@ func (h *huber) ForEach(cannel string, f WsCallback) error {
 			continue
 		}
 		localizer := i18n.NewLocalizer(h.app.Bundle(), string(usr.UILanguage()))
-		ctx = intl.WithLocalizer(ctx, localizer)
-		ctx = composables.WithPageCtx(ctx, &types.PageContext{
+		connCtx := intl.WithLocalizer(ctx, localizer)
+		connCtx = composables.WithPageCtx(connCtx, &types.PageContext{
 			URL:       nil,
 			Locale:    language.English,
 			Localizer: localizer,
 		})
-		if err := f(ctx, &connection{
+		if err := f(connCtx, &connection{
 			user: usr,
 			conn: conn,
 		}); err != nil {
