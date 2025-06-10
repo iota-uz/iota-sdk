@@ -55,7 +55,6 @@ func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context 
 
 func (h *ClientHandler) onCreated(event *client.CreatedEvent) {
 	tenantID := event.Result.TenantID()
-	log.Printf("Creating chat for client %d with tenant ID: %s", event.Result.ID(), tenantID)
 
 	// Validate tenant exists before creating chat
 	ctxWithDb := composables.WithPool(context.Background(), h.pool)
