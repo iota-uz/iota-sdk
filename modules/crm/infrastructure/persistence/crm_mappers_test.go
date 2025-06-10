@@ -434,6 +434,7 @@ func TestToDomainChat(t *testing.T) {
 
 	dbChat := &models.Chat{
 		ID:        300,
+		TenantID:  "00000000-0000-0000-0000-000000000001",
 		ClientID:  400,
 		CreatedAt: now.Add(-3 * time.Hour),
 	}

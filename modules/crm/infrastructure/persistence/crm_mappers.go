@@ -204,9 +204,15 @@ func ToDBChat(domainEntity chat.Chat) (*models.Chat, []*models.Message) {
 }
 
 func ToDomainChat(dbRow *models.Chat, messages []chat.Message, members []chat.Member) (chat.Chat, error) {
+	tenantID, err := uuid.Parse(dbRow.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	return chat.New(
 		dbRow.ClientID,
 		chat.WithChatID(dbRow.ID),
+		chat.WithTenantID(tenantID),
 		chat.WithCreatedAt(dbRow.CreatedAt),
 		chat.WithMessages(messages),
 		chat.WithMembers(members),
