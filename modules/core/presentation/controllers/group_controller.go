@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/groups"
@@ -191,56 +192,74 @@ func (c *GroupsController) Groups(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
-	groupService *services.GroupService,
+	groupQueryService *services.GroupQueryService,
 ) {
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
 	tenant, err := composables.UseTenant(r.Context())
 	if err != nil {
-		logger.Errorf("Error retrieving tenant from request context: %v", err)
+		logger.Errorf("Error retrieving tenant from request: %v", err)
 		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
 		return
 	}
 
-	findParams := &group.FindParams{
+	// Build query parameters
+	findParams := &query.GroupFindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
-		SortBy: group.SortBy{Fields: []repo.SortByField[group.Field]{}},
 		Search: search,
-		Filters: []group.Filter{
+		SortBy: query.SortBy{
+			Fields: []repo.SortByField[query.Field]{
+				{Field: query.GroupFieldCreatedAt, Ascending: false},
+			},
+		},
+		Filters: []query.GroupFilter{
 			{
-				Column: group.TenantIDField,
+				Column: query.GroupFieldTenantID,
 				Filter: repo.Eq(tenant.ID.String()),
 			},
 		},
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
-		findParams = findParams.FilterBy(group.CreatedAtField, repo.Lt(v))
+		findParams.Filters = append(findParams.Filters, query.GroupFilter{
+			Column: query.GroupFieldCreatedAt,
+			Filter: repo.Lt(v),
+		})
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
-		findParams = findParams.FilterBy(group.CreatedAtField, repo.Gt(v))
+		findParams.Filters = append(findParams.Filters, query.GroupFilter{
+			Column: query.GroupFieldCreatedAt,
+			Filter: repo.Gt(v),
+		})
 	}
 
-	groupEntities, total, err := groupService.GetPaginatedWithTotal(r.Context(), findParams)
+	// Use the appropriate method based on whether we're searching
+	var groupViewModels []*viewmodels.Group
+	var total int
+
+	if search != "" {
+		groupViewModels, total, err = groupQueryService.SearchGroups(r.Context(), findParams)
+	} else {
+		groupViewModels, total, err = groupQueryService.FindGroups(r.Context(), findParams)
+	}
 
 	if err != nil {
 		logger.Errorf("Error retrieving groups: %v", err)
 		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
 		return
 	}
+
 	isHxRequest := htmx.IsHxRequest(r)
 
-	viewModelGroups := mapping.MapViewModels(groupEntities, mappers.GroupToViewModel)
-
 	pageProps := &groups.IndexPageProps{
-		Groups:  viewModelGroups,
+		Groups:  groupViewModels, // Already viewmodels from query service
 		Page:    params.Page,
 		PerPage: params.Limit,
 		Search:  search,
-		HasMore: total > int64(params.Page*params.Limit),
+		HasMore: total > params.Page*params.Limit,
 	}
 
 	if isHxRequest {
@@ -258,14 +277,15 @@ func (c *GroupsController) GetEdit(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
-	groupService *services.GroupService,
+	groupQueryService *services.GroupQueryService,
 	roleService *services.RoleService,
 ) {
 	idStr := mux.Vars(r)["id"]
-	id, err := uuid.Parse(idStr)
+
+	tenant, err := composables.UseTenant(r.Context())
 	if err != nil {
-		logger.Errorf("Error parsing group ID: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		logger.Errorf("Error retrieving tenant from request: %v", err)
+		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
 		return
 	}
 
@@ -276,15 +296,40 @@ func (c *GroupsController) GetEdit(
 		return
 	}
 
-	groupEntity, err := groupService.GetByID(r.Context(), id)
+	// For security, we should filter by tenant even in FindGroupByID
+	// We can use FindGroups with an ID filter instead
+	findParams := &query.GroupFindParams{
+		Limit:  1,
+		Offset: 0,
+		Filters: []query.GroupFilter{
+			{
+				Column: query.GroupFieldTenantID,
+				Filter: repo.Eq(tenant.ID.String()),
+			},
+			{
+				Column: query.GroupFieldID,
+				Filter: repo.Eq(idStr),
+			},
+		},
+	}
+
+	foundGroups, _, err := groupQueryService.FindGroups(r.Context(), findParams)
 	if err != nil {
 		logger.Errorf("Error retrieving group: %v", err)
 		http.Error(w, "Error retrieving group", http.StatusInternalServerError)
 		return
 	}
 
+	if len(foundGroups) == 0 {
+		logger.Errorf("Group not found or access denied: %s", idStr)
+		http.Error(w, "Group not found", http.StatusNotFound)
+		return
+	}
+
+	groupViewModel := foundGroups[0]
+
 	props := &groups.EditFormProps{
-		Group:  mappers.GroupToViewModel(groupEntity),
+		Group:  groupViewModel,
 		Roles:  mapping.MapViewModels(roles, mappers.RoleToViewModel),
 		Errors: map[string]string{},
 	}
@@ -354,6 +399,15 @@ func (c *GroupsController) Create(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Get tenant from context and set it on the group
+	tenant, err := composables.UseTenant(r.Context())
+	if err != nil {
+		logger.Errorf("Error getting tenant: %v", err)
+		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
+		return
+	}
+	groupEntity = groupEntity.SetTenantID(tenant.ID)
 
 	// Process role assignments
 	for _, roleIDStr := range dto.RoleIDs {
