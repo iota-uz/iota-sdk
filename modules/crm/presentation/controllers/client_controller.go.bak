@@ -41,7 +41,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -201,7 +200,11 @@ var (
 					return nil, errors.Wrap(err, "Error retrieving app")
 				}
 				clientService := app.Service(services.ClientService{}).(*services.ClientService)
-				clientEntity, err := clientService.GetByID(r.Context(), clientID)
+				tenant, err := composables.UseTenant(r.Context())
+				if err != nil {
+					return nil, errors.Wrap(err, "Error retrieving tenant")
+				}
+				clientEntity, err := clientService.GetByID(r.Context(), clientID, tenant.ID)
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving client")
 				}
@@ -363,14 +366,7 @@ func (c *ClientController) viewModelClients(
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving tenant")
 	}
-	total, err := clientService.Count(r.Context(), &client.FindParams{
-		Filters: []client.Filter{
-			{
-				Column: client.TenantID,
-				Filter: repo.Eq(tenant.ID),
-			},
-		},
-	})
+	total, err := clientService.Count(r.Context(), tenant.ID)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting clients")
 	}
@@ -481,7 +477,7 @@ func (c *ClientController) Create(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	
 	logger.Infof("Creating client with tenant ID: %s (name: %s)", tenant.ID, tenant.Name)
 
 	clientEntity, err := dto.ToEntity(tenant.ID)
@@ -559,7 +555,6 @@ func (c *ClientController) View(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	qTab := r.URL.Query().Get("tab")
 	disablePush := r.URL.Query().Get("dp") == "true"
 

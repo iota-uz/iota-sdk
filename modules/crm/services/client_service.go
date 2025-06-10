@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 type ClientService struct {
@@ -23,24 +25,69 @@ func NewClientService(
 	}
 }
 
-func (s *ClientService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *ClientService) Count(ctx context.Context, params *client.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }
 
-func (s *ClientService) GetAll(ctx context.Context) ([]client.Client, error) {
-	return s.repo.GetAll(ctx)
+func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindParams) ([]client.Client, error) {
+	// Add tenant filter from context if not already present
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if tenant filter already exists
+	hasTenantFilter := false
+	for _, filter := range params.Filters {
+		if filter.Column == client.TenantID {
+			hasTenantFilter = true
+			break
+		}
+	}
+
+	// Add tenant filter if not present
+	if !hasTenantFilter {
+		params.Filters = append(params.Filters, client.Filter{
+			Column: client.TenantID,
+			Filter: repo.Eq(tenant.ID),
+		})
+	}
+
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *ClientService) GetByID(ctx context.Context, id uint) (client.Client, error) {
-	return s.repo.GetByID(ctx, id)
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	params := &client.FindParams{
+		Limit: 1,
+		Filters: []client.Filter{
+			{
+				Column: client.ID,
+				Filter: repo.Eq(id),
+			},
+			{
+				Column: client.TenantID,
+				Filter: repo.Eq(tenant.ID),
+			},
+		},
+	}
+
+	clients, err := s.repo.GetPaginated(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	if len(clients) == 0 {
+		return nil, fmt.Errorf("client not found")
+	}
+	return clients[0], nil
 }
 
 func (s *ClientService) GetByPhone(ctx context.Context, phoneNumber string) (client.Client, error) {
 	return s.repo.GetByPhone(ctx, phoneNumber)
-}
-
-func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindParams) ([]client.Client, error) {
-	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *ClientService) Create(ctx context.Context, data client.Client) error {
@@ -90,13 +137,19 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 }
 
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
-	entity, err := s.repo.GetByID(ctx, id)
+	entity, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+
+	tenant, err := composables.UseTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var deletedClient client.Client
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Delete(ctx, id); err != nil {
+		if err := s.repo.Delete(ctx, id, tenant.ID); err != nil {
 			return err
 		}
 		deletedClient = entity
