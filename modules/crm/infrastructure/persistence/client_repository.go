@@ -23,6 +23,7 @@ const (
 	selectClientQuery = `
 		SELECT
 			c.id,
+			c.tenant_id,
 			c.first_name,
 			c.last_name,
 			c.middle_name,
@@ -108,6 +109,7 @@ func (g *ClientRepository) queryClients(
 		var c models.Client
 		if err := rows.Scan(
 			&c.ID,
+			&c.TenantID,
 			&c.FirstName,
 			&c.LastName,
 			&c.MiddleName,
