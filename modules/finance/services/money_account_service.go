@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
@@ -29,7 +30,7 @@ func NewMoneyAccountService(
 	}
 }
 
-func (s *MoneyAccountService) GetByID(ctx context.Context, id uint) (moneyaccount.Account, error) {
+func (s *MoneyAccountService) GetByID(ctx context.Context, id uuid.UUID) (moneyaccount.Account, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -43,7 +44,7 @@ func (s *MoneyAccountService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *MoneyAccountService) RecalculateBalance(ctx context.Context, id uint) error {
+func (s *MoneyAccountService) RecalculateBalance(ctx context.Context, id uuid.UUID) error {
 	return s.repo.RecalculateBalance(ctx, id)
 }
 
@@ -93,7 +94,7 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 	return nil
 }
 
-func (s *MoneyAccountService) Delete(ctx context.Context, id uint) (moneyaccount.Account, error) {
+func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyaccount.Account, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err

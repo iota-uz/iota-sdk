@@ -3,6 +3,7 @@ package persistence_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -75,7 +76,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			accountEntity, err := accountRepository.GetByID(f.ctx, 1)
+			accountEntity, err := accountRepository.GetByID(f.ctx, uuid.MustParse("00000000-0000-0000-0000-000000000001"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +101,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 			if err := accountRepository.Update(f.ctx, updatedAccount); err != nil {
 				t.Fatal(err)
 			}
-			accountEntity, err := accountRepository.GetByID(f.ctx, 1)
+			accountEntity, err := accountRepository.GetByID(f.ctx, createdAccount.ID())
 			if err != nil {
 				t.Fatal(err)
 			}

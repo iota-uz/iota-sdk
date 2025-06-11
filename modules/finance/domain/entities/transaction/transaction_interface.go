@@ -7,8 +7,8 @@ import (
 )
 
 type Transaction interface {
-	ID() uint
-	SetID(id uint)
+	ID() uuid.UUID
+	SetID(id uuid.UUID)
 
 	TenantID() uuid.UUID
 	UpdateTenantID(id uuid.UUID) Transaction
@@ -16,11 +16,11 @@ type Transaction interface {
 	Amount() float64
 	UpdateAmount(amount float64) Transaction
 
-	OriginAccountID() *uint
-	UpdateOriginAccountID(accountID *uint) Transaction
+	OriginAccountID() uuid.UUID
+	UpdateOriginAccountID(accountID uuid.UUID) Transaction
 
-	DestinationAccountID() *uint
-	UpdateDestinationAccountID(accountID *uint) Transaction
+	DestinationAccountID() uuid.UUID
+	UpdateDestinationAccountID(accountID uuid.UUID) Transaction
 
 	TransactionDate() time.Time
 	UpdateTransactionDate(date time.Time) Transaction

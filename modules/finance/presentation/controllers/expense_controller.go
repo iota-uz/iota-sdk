@@ -247,7 +247,7 @@ func (c *ExpenseController) GetEdit(
 	moneyAccountService *services.MoneyAccountService,
 	expenseCategoryService *services.ExpenseCategoryService,
 ) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		logger.Errorf("Error parsing expense ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -290,7 +290,7 @@ func (c *ExpenseController) Delete(
 	logger *logrus.Entry,
 	expenseService *services.ExpenseService,
 ) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		logger.Errorf("Error parsing expense ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
@@ -313,7 +313,7 @@ func (c *ExpenseController) Update(
 	moneyAccountService *services.MoneyAccountService,
 	expenseCategoryService *services.ExpenseCategoryService,
 ) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		logger.Errorf("Error parsing expense ID: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)

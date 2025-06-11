@@ -10,7 +10,7 @@ import (
 type Option func(e *expenseCategory)
 
 // Option setters
-func WithID(id uint) Option {
+func WithID(id uuid.UUID) Option {
 	return func(e *expenseCategory) {
 		e.id = id
 	}
@@ -60,7 +60,7 @@ func WithTenantID(tenantID uuid.UUID) Option {
 
 // Interface
 type ExpenseCategory interface {
-	ID() uint
+	ID() uuid.UUID
 	TenantID() uuid.UUID
 	Name() string
 	Description() string
@@ -80,7 +80,7 @@ func New(
 	opts ...Option,
 ) ExpenseCategory {
 	e := &expenseCategory{
-		id:          0,
+		id:          uuid.Nil,
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
@@ -96,7 +96,7 @@ func New(
 }
 
 type expenseCategory struct {
-	id          uint
+	id          uuid.UUID
 	tenantID    uuid.UUID
 	name        string
 	description string
@@ -106,7 +106,7 @@ type expenseCategory struct {
 	updatedAt   time.Time
 }
 
-func (e *expenseCategory) ID() uint {
+func (e *expenseCategory) ID() uuid.UUID {
 	return e.id
 }
 

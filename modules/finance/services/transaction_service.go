@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	transaction2 "github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -27,7 +28,7 @@ func (s *TransactionService) GetAll(ctx context.Context) ([]transaction2.Transac
 	return s.repo.GetAll(ctx)
 }
 
-func (s *TransactionService) GetByID(ctx context.Context, id uint) (transaction2.Transaction, error) {
+func (s *TransactionService) GetByID(ctx context.Context, id uuid.UUID) (transaction2.Transaction, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -53,7 +54,7 @@ func (s *TransactionService) Update(ctx context.Context, data transaction2.Trans
 	return nil
 }
 
-func (s *TransactionService) Delete(ctx context.Context, id uint) error {
+func (s *TransactionService) Delete(ctx context.Context, id uuid.UUID) error {
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}

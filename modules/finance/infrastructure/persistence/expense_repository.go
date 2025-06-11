@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
@@ -151,7 +152,7 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 	for _, data := range expensesData {
 		domainCategory, err := g.categoryRepo.GetByID(ctx, data.expense.CategoryID)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to get category for expense ID: %d", data.expense.ID))
+			return nil, errors.Wrap(err, fmt.Sprintf("failed to get category for expense ID: %s", data.expense.ID))
 		}
 
 		// Create a new expense with the retrieved category
@@ -218,7 +219,7 @@ func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]expense.Expense, 
 	return g.queryExpenses(ctx, query)
 }
 
-func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (expense.Expense, error) {
+func (g *GormExpenseRepository) GetByID(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
 	query := repo.Join(
 		expenseFindQuery,
 		repo.JoinWhere("ex.id = $1"),
@@ -226,10 +227,10 @@ func (g *GormExpenseRepository) GetByID(ctx context.Context, id uint) (expense.E
 
 	expenses, err := g.queryExpenses(ctx, query, id)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to get expense with ID: %d", id))
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to get expense with ID: %s", id))
 	}
 	if len(expenses) == 0 {
-		return nil, errors.Wrap(ErrExpenseNotFound, fmt.Sprintf("id: %d", id))
+		return nil, errors.Wrap(ErrExpenseNotFound, fmt.Sprintf("id: %s", id))
 	}
 	return expenses[0], nil
 }
@@ -244,7 +245,7 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense
 		return errors.Wrap(err, "failed to create transaction")
 	}
 
-	var id uint
+	var id uuid.UUID
 	if err := tx.QueryRow(ctx, expenseInsertQuery, transactionRow.ID(), expenseRow.CategoryID).Scan(&id); err != nil {
 		return errors.Wrap(err, "failed to create expense")
 	}
@@ -263,18 +264,18 @@ func (g *GormExpenseRepository) Update(ctx context.Context, data expense.Expense
 	}
 	expenseRow.TransactionID = transactionRow.ID()
 	if _, err := tx.Exec(ctx, expenseUpdateQuery, expenseRow.TransactionID, expenseRow.CategoryID, expenseRow.ID); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to update expense with ID: %d", expenseRow.ID))
+		return errors.Wrap(err, fmt.Sprintf("failed to update expense with ID: %s", expenseRow.ID))
 	}
 	return nil
 }
 
-func (g *GormExpenseRepository) Delete(ctx context.Context, id uint) error {
+func (g *GormExpenseRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
 	if _, err := tx.Exec(ctx, expenseDeleteQuery, id); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to delete expense with ID: %d", id))
+		return errors.Wrap(err, fmt.Sprintf("failed to delete expense with ID: %s", id))
 	}
 	return nil
 }

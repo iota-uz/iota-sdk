@@ -4,11 +4,12 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 )
 
 type ExpenseCategory struct {
-	ID               uint
+	ID               uuid.UUID
 	TenantID         string
 	Name             string
 	Description      sql.NullString
@@ -19,7 +20,7 @@ type ExpenseCategory struct {
 }
 
 type MoneyAccount struct {
-	ID                uint
+	ID                uuid.UUID
 	TenantID          string
 	Name              string
 	AccountNumber     string
@@ -32,11 +33,11 @@ type MoneyAccount struct {
 }
 
 type Transaction struct {
-	ID                   uint
+	ID                   uuid.UUID
 	TenantID             string
 	Amount               float64
-	OriginAccountID      *uint
-	DestinationAccountID *uint
+	OriginAccountID      uuid.UUID
+	DestinationAccountID uuid.UUID
 	TransactionDate      time.Time
 	AccountingPeriod     time.Time
 	TransactionType      string
@@ -45,24 +46,24 @@ type Transaction struct {
 }
 
 type Expense struct {
-	ID            uint
-	TransactionID uint
-	CategoryID    uint
+	ID            uuid.UUID
+	TransactionID uuid.UUID
+	CategoryID    uuid.UUID
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
 
 type Payment struct {
-	ID             uint
-	TransactionID  uint
-	CounterpartyID uint
+	ID             uuid.UUID
+	TransactionID  uuid.UUID
+	CounterpartyID uuid.UUID
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
 
 type Counterparty struct {
-	ID           uint
-	TenantID     uint
+	ID           uuid.UUID
+	TenantID     string
 	Tin          string
 	Name         string
 	Type         string

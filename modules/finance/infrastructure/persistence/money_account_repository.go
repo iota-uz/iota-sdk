@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 
@@ -118,7 +119,7 @@ func (g *GormMoneyAccountRepository) GetAll(ctx context.Context) ([]moneyaccount
 	return g.queryAccounts(ctx, query, tenantID)
 }
 
-func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (moneyaccount.Account, error) {
+func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uuid.UUID) (moneyaccount.Account, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -134,7 +135,7 @@ func (g *GormMoneyAccountRepository) GetByID(ctx context.Context, id uint) (mone
 	return accounts[0], nil
 }
 
-func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id uint) error {
+func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id uuid.UUID) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
@@ -170,7 +171,7 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data moneyaccou
 		entity.UpdatedAt,
 	}
 	row := tx.QueryRow(ctx, insertQuery, args...)
-	var id uint
+	var id uuid.UUID
 	if err := row.Scan(&id); err != nil {
 		return nil, err
 	}
@@ -198,7 +199,7 @@ func (g *GormMoneyAccountRepository) Update(ctx context.Context, data moneyaccou
 	return g.execQuery(ctx, updateQuery, args...)
 }
 
-func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uint) error {
+func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)

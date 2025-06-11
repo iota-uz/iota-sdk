@@ -9,8 +9,8 @@ import (
 )
 
 type Account interface {
-	ID() uint
-	SetID(id uint)
+	ID() uuid.UUID
+	SetID(id uuid.UUID)
 
 	TenantID() uuid.UUID
 	UpdateTenantID(id uuid.UUID) Account

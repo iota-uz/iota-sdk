@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 
@@ -105,7 +106,7 @@ func (g *GormPaymentRepository) GetAll(ctx context.Context) ([]payment.Payment, 
 	return g.queryPayments(ctx, query, tenantID)
 }
 
-func (g *GormPaymentRepository) GetByID(ctx context.Context, id uint) (payment.Payment, error) {
+func (g *GormPaymentRepository) GetByID(ctx context.Context, id uuid.UUID) (payment.Payment, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -157,7 +158,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 		dbPayment.CreatedAt,
 		dbPayment.UpdatedAt,
 	)
-	var id uint
+	var id uuid.UUID
 	if err := row.Scan(&id); err != nil {
 		return nil, errors.Wrap(err, "failed to create payment")
 	}
@@ -198,7 +199,7 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 	)
 }
 
-func (g *GormPaymentRepository) Delete(ctx context.Context, id uint) error {
+func (g *GormPaymentRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)

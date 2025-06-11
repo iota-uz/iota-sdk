@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -19,7 +20,7 @@ func NewExpenseCategoryService(repo category.Repository, publisher eventbus.Even
 	}
 }
 
-func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uint) (category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) GetByID(ctx context.Context, id uuid.UUID) (category.ExpenseCategory, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -67,7 +68,7 @@ func (s *ExpenseCategoryService) Update(ctx context.Context, entity category.Exp
 	return nil
 }
 
-func (s *ExpenseCategoryService) Delete(ctx context.Context, id uint) (category.ExpenseCategory, error) {
+func (s *ExpenseCategoryService) Delete(ctx context.Context, id uuid.UUID) (category.ExpenseCategory, error) {
 	deletedEvent, err := category.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
