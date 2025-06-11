@@ -68,7 +68,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		value := schema.Fields().GetKeyField().Value(created.ID())
 		exists, err := rep.Exists(ctx, value)
 		require.NoError(t, err)
-		assert.Equal(t, true, exists)
+		assert.True(t, exists)
 	})
 
 	t.Run("List with filter", func(t *testing.T) {
@@ -136,7 +136,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		_, err := rep.Count(ctx, &FindParams{
 			Filters: []Filter{{Column: "not_exist", Filter: repo.Eq("x")}},
 		})
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		_, err = rep.List(ctx, &FindParams{
 			Filters: []Filter{{Column: "not_exist", Filter: repo.Eq("x")}},
