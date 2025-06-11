@@ -41,8 +41,6 @@ CREATE TABLE expense_categories (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
-    amount numeric(9, 2) NOT NULL,
-    amount_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     UNIQUE (tenant_id, name)

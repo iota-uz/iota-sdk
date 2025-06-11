@@ -12,9 +12,6 @@ import (
 	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
-	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -27,7 +24,6 @@ import (
 
 type ExpenseCategoriesController struct {
 	app                    application.Application
-	currencyService        *coreservices.CurrencyService
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
@@ -40,7 +36,6 @@ type ExpenseCategoryPaginatedResponse struct {
 func NewExpenseCategoriesController(app application.Application) application.Controller {
 	return &ExpenseCategoriesController{
 		app:                    app,
-		currencyService:        app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
 		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
 		basePath:               "/finance/expense-categories",
 	}
@@ -73,14 +68,6 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-}
-
-func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
-	currencies, err := c.currencyService.GetAll(r.Context())
-	if err != nil {
-		return nil, err
-	}
-	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
 }
 
 func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {
@@ -151,15 +138,9 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
-	currencies, err := c.viewModelCurrencies(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &expense_categories2.EditPageProps{
-		Category:   mappers.ExpenseCategoryToViewModel(entity),
-		Currencies: currencies,
-		Errors:     map[string]string{},
+		Category: mappers.ExpenseCategoryToViewModel(entity),
+		Errors:   map[string]string{},
 	}
 	templ.Handler(expense_categories2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -205,15 +186,9 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 			http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 			return
 		}
-		currencies, err := c.viewModelCurrencies(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		props := &expense_categories2.EditPageProps{
-			Category:   mappers.ExpenseCategoryToViewModel(entity),
-			Currencies: currencies,
-			Errors:     errorsMap,
+			Category: mappers.ExpenseCategoryToViewModel(entity),
+			Errors:   errorsMap,
 		}
 		templ.Handler(expense_categories2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -222,16 +197,10 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
-	currencies, err := c.viewModelCurrencies(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &expense_categories2.CreatePageProps{
-		Currencies: currencies,
-		Errors:     map[string]string{},
-		Category:   dtos.ExpenseCategoryCreateDTO{},
-		PostPath:   c.basePath,
+		Errors:   map[string]string{},
+		Category: dtos.ExpenseCategoryCreateDTO{},
+		PostPath: c.basePath,
 	}
 	templ.Handler(expense_categories2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -249,16 +218,10 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		currencies, err := c.viewModelCurrencies(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		props := &expense_categories2.CreatePageProps{
-			Currencies: currencies,
-			Errors:     errorsMap,
-			Category:   dto,
-			PostPath:   c.basePath,
+			Errors:   errorsMap,
+			Category: dto,
+			PostPath: c.basePath,
 		}
 		templ.Handler(expense_categories2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

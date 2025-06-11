@@ -86,9 +86,7 @@ func (d *ExpenseUpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 func (d *ExpenseCreateDTO) ToEntity() (expense.Expense, error) {
 	account := moneyAccount.New("", currency.Currency{}, moneyAccount.WithID(d.AccountID))
 	expenseCategory := category.New(
-		"",  // name - will be populated when fetched from DB
-		0,   // amount - will be populated when fetched from DB
-		nil, // currency - will be populated when fetched from DB
+		"", // name - will be populated when fetched from DB
 		category.WithID(d.CategoryID),
 	)
 

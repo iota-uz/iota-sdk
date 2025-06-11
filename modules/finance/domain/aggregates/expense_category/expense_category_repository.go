@@ -13,8 +13,6 @@ const (
 	ID Field = iota
 	Name
 	Description
-	Amount
-	CurrencyID
 	CreatedAt
 	UpdatedAt
 )

@@ -21,8 +21,6 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 		f.ctx,
 		category.New(
 			"test", // name
-			100.0,  // amount
-			&currency.USD,
 			category.WithDescription("test"),
 		),
 	)
@@ -48,9 +46,6 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 		if len(categories) != 1 {
 			t.Errorf("expected 1, got %d", len(categories))
 		}
-		if categories[0].Amount() != 100 {
-			t.Errorf("expected 100, got %f", categories[0].Amount())
-		}
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
@@ -61,34 +56,22 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 		if len(categories) != 1 {
 			t.Errorf("expected 1, got %d", len(categories))
 		}
-		if categories[0].Amount() != 100 {
-			t.Errorf("expected 100, got %f", categories[0].Amount())
-		}
 	})
 
 	t.Run("GetByID", func(t *testing.T) {
-		categoryEntity, err := categoryRepository.GetByID(f.ctx, createdCategory.ID())
+		_, err := categoryRepository.GetByID(f.ctx, createdCategory.ID())
 		if err != nil {
 			t.Fatal(err)
-		}
-		if categoryEntity.Amount() != 100 {
-			t.Errorf("expected 100, got %f", categoryEntity.Amount())
-		}
-		if categoryEntity.Currency().Code != currency.UsdCode {
-			t.Errorf("expected %s, got %s", currency.UsdCode, categoryEntity.Currency().Code)
 		}
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		updatedCategory, err := categoryRepository.Update(f.ctx, createdCategory.UpdateAmount(200))
+		updatedCategory, err := categoryRepository.Update(f.ctx, createdCategory)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if updatedCategory.Amount() != 200 {
-			t.Errorf("expected 200, got %f", updatedCategory.Amount())
-		}
-		if updatedCategory.Currency().Code != currency.UsdCode {
-			t.Errorf("expected %s, got %s", currency.UsdCode, updatedCategory.Currency().Code)
+		if updatedCategory.Name() != "test" {
+			t.Errorf("expected test, got %s", updatedCategory.Name())
 		}
 	})
 }

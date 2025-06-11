@@ -15,14 +15,11 @@ import (
 
 func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.ExpenseCategory {
 	return &viewmodels.ExpenseCategory{
-		ID:                 entity.ID().String(),
-		Name:               entity.Name(),
-		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), entity.Currency().Symbol),
-		CurrencyCode:       string(entity.Currency().Code),
-		Description:        entity.Description(),
-		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
-		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
+		ID:          entity.ID().String(),
+		Name:        entity.Name(),
+		Description: entity.Description(),
+		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 
@@ -68,20 +65,18 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 }
 
 func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
-	currencyEntity := entity.Category().Currency()
 	return &viewmodels.Expense{
-		ID:                 entity.ID().String(),
-		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
-		AccountID:          entity.Account().ID().String(),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), currencyEntity.Symbol),
-		CategoryID:         entity.Category().ID().String(),
-		Category:           ExpenseCategoryToViewModel(entity.Category()),
-		Comment:            entity.Comment(),
-		TransactionID:      entity.TransactionID().String(),
-		AccountingPeriod:   entity.AccountingPeriod().Format(time.RFC3339),
-		Date:               entity.Date().Format(time.RFC3339),
-		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
-		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
+		ID:               entity.ID().String(),
+		Amount:           fmt.Sprintf("%.2f", entity.Amount()),
+		AccountID:        entity.Account().ID().String(),
+		CategoryID:       entity.Category().ID().String(),
+		Category:         ExpenseCategoryToViewModel(entity.Category()),
+		Comment:          entity.Comment(),
+		TransactionID:    entity.TransactionID().String(),
+		AccountingPeriod: entity.AccountingPeriod().Format(time.RFC3339),
+		Date:             entity.Date().Format(time.RFC3339),
+		CreatedAt:        entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:        entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
 
