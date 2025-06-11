@@ -87,6 +87,25 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		assert.Equal(t, "FilterTest", list[0].Author())
 	})
 
+	t.Run("List with order", func(t *testing.T) {
+		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Order Me", WithAuthor("OrderTest")))
+		require.NoError(t, err)
+		_, err = rep.Create(ctx, fields)
+		require.NoError(t, err)
+
+		list, err := rep.List(ctx, &FindParams{
+			SortBy: SortBy{
+				Fields: []repo.SortByField[string]{
+					{Field: "author", Ascending: true, NullsLast: true},
+				},
+			},
+			Limit: 5,
+		})
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		assert.Equal(t, "OrderTest", list[0].Author())
+	})
+
 	t.Run("Count with filter", func(t *testing.T) {
 		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Count Me", WithAuthor("Counter")))
 		require.NoError(t, err)
