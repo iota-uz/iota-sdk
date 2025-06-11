@@ -1,10 +1,11 @@
-package crud_v2
+package crud_v2_test
 
 import (
 	"context"
 	"fmt"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/crud_v2"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -115,17 +116,17 @@ func (r *report) SetSummary(summary string) Report {
 	return &result
 }
 
-func NewReportMapper(fields Fields) Mapper[Report] {
+func NewReportMapper(fields crud_v2.Fields) crud_v2.Mapper[Report] {
 	return &reportMapper{
 		fields: fields,
 	}
 }
 
 type reportMapper struct {
-	fields Fields
+	fields crud_v2.Fields
 }
 
-func (m *reportMapper) ToEntity(_ context.Context, values []FieldValue) (Report, error) {
+func (m *reportMapper) ToEntity(_ context.Context, values []crud_v2.FieldValue) (Report, error) {
 	var (
 		title   string
 		options []ReportOption
@@ -167,23 +168,23 @@ func toString(val any) string {
 	}
 }
 
-func (m *reportMapper) ToFieldValues(_ context.Context, r Report) ([]FieldValue, error) {
-	return []FieldValue{
-		m.fields.GetField("id").Value(r.ID()),
-		m.fields.GetField("title").Value(r.Title()),
-		m.fields.GetField("author").Value(r.Author()),
-		m.fields.GetField("summary").Value(r.Summary()),
-	}, nil
+func (m *reportMapper) ToFieldValues(_ context.Context, r Report) ([]crud_v2.FieldValue, error) {
+	return m.fields.FieldValues(map[string]any{
+		"id":      r.ID(),
+		"title":   r.Title(),
+		"author":  r.Author(),
+		"summary": r.Summary(),
+	})
 }
 
-func buildReportSchema() Schema[Report] {
-	fields := NewFields([]Field{
-		NewField("id", IntFieldType, WithKey(true)),
-		NewField("title", StringFieldType, WithSearchable(true)),
-		NewField("author", StringFieldType, WithSearchable(true)),
-		NewField("summary", StringFieldType, WithSearchable(true)),
+func buildReportSchema() crud_v2.Schema[Report] {
+	fields := crud_v2.NewFields([]crud_v2.Field{
+		crud_v2.NewField("id", crud_v2.IntFieldType, crud_v2.WithKey(true)),
+		crud_v2.NewField("title", crud_v2.StringFieldType, crud_v2.WithSearchable(true)),
+		crud_v2.NewField("author", crud_v2.StringFieldType, crud_v2.WithSearchable(true)),
+		crud_v2.NewField("summary", crud_v2.StringFieldType, crud_v2.WithSearchable(true)),
 	})
-	return NewSchema(
+	return crud_v2.NewSchema(
 		"reports",
 		fields,
 		NewReportMapper(fields),
@@ -193,7 +194,7 @@ func buildReportSchema() Schema[Report] {
 type testFixtures struct {
 	ctx       context.Context
 	pool      *pgxpool.Pool
-	schema    Schema[Report]
+	schema    crud_v2.Schema[Report]
 	publisher eventbus.EventBus
 }
 
