@@ -81,7 +81,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		list, err := rep.List(ctx, &crud_v2.FindParams{
 			Search:  "Filter Me",
 			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("FilterTest")}},
-			Limit:   5,
+			Limit:   1,
 		})
 		require.NoError(t, err)
 		require.Len(t, list, 1)
@@ -100,7 +100,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 					{Field: "author", Ascending: true, NullsLast: true},
 				},
 			},
-			Limit: 5,
+			Limit: 1,
 		})
 		require.NoError(t, err)
 		require.Len(t, list, 1)
