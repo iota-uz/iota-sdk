@@ -1,6 +1,7 @@
-package crud_v2
+package crud_v2_test
 
 import (
+	"github.com/iota-uz/iota-sdk/pkg/crud_v2"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,9 +14,9 @@ func TestReportService_CRUD(t *testing.T) {
 	fixture := setupTest(t)
 	ctx := fixture.ctx
 
-	service := DefaultService(
+	service := crud_v2.DefaultService(
 		fixture.schema,
-		DefaultRepository[Report](fixture.schema),
+		crud_v2.DefaultRepository[Report](fixture.schema),
 		fixture.publisher,
 	)
 
@@ -43,7 +44,7 @@ func TestReportService_CRUD(t *testing.T) {
 		created, err := service.Save(ctx, report)
 		require.NoError(t, err)
 
-		key := fixture.schema.Fields().GetKeyField().Value(created.ID())
+		key := fixture.schema.Fields().KeyField().Value(created.ID())
 		got, err := service.Get(ctx, key)
 		require.NoError(t, err)
 		assert.Equal(t, "GetAuthor", got.Author())
@@ -64,7 +65,7 @@ func TestReportService_CRUD(t *testing.T) {
 		created, err := service.Save(ctx, NewReport("Exists", WithAuthor("Ex")))
 		require.NoError(t, err)
 
-		key := fixture.schema.Fields().GetKeyField().Value(created.ID())
+		key := fixture.schema.Fields().KeyField().Value(created.ID())
 		ok, err := service.Exists(ctx, key)
 		require.NoError(t, err)
 		assert.True(t, ok)
@@ -74,9 +75,9 @@ func TestReportService_CRUD(t *testing.T) {
 		_, err := service.Save(ctx, NewReport("Filter Test", WithAuthor("SvcFilter")))
 		require.NoError(t, err)
 
-		list, err := service.List(ctx, &FindParams{
+		list, err := service.List(ctx, &crud_v2.FindParams{
 			Search:  "Filter",
-			Filters: []Filter{{Column: "author", Filter: repo.Eq("SvcFilter")}},
+			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("SvcFilter")}},
 			Limit:   10,
 		})
 		require.NoError(t, err)
@@ -88,8 +89,8 @@ func TestReportService_CRUD(t *testing.T) {
 		_, err := service.Save(ctx, NewReport("Countable", WithAuthor("SvcCounter")))
 		require.NoError(t, err)
 
-		count, err := service.Count(ctx, &FindParams{
-			Filters: []Filter{{Column: "author", Filter: repo.Eq("SvcCounter")}},
+		count, err := service.Count(ctx, &crud_v2.FindParams{
+			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("SvcCounter")}},
 		})
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), count)
@@ -99,7 +100,7 @@ func TestReportService_CRUD(t *testing.T) {
 		created, err := service.Save(ctx, NewReport("To Be Deleted", WithAuthor("Del")))
 		require.NoError(t, err)
 
-		key := fixture.schema.Fields().GetKeyField().Value(created.ID())
+		key := fixture.schema.Fields().KeyField().Value(created.ID())
 		deleted, err := service.Delete(ctx, key)
 		require.NoError(t, err)
 		assert.Equal(t, created.ID(), deleted.ID())
