@@ -95,6 +95,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		require.NoError(t, err)
 
 		list, err := rep.List(ctx, &crud_v2.FindParams{
+			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("OrderTest")}},
 			SortBy: crud_v2.SortBy{
 				Fields: []repo.SortByField[string]{
 					{Field: "author", Ascending: true, NullsLast: true},
