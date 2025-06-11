@@ -180,7 +180,7 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
 
-	keyField := r.schema.Fields().GetKeyField()
+	keyField := r.schema.Fields().KeyField()
 	var fieldKeyValue FieldValue
 
 	updates := make([]string, 0, len(values))
@@ -286,7 +286,11 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 	columnDescriptions := rows.FieldDescriptions()
 	columnOrder := make([]Field, len(columnDescriptions))
 	for i, col := range columnDescriptions {
-		columnOrder[i] = r.schema.Fields().GetField(col.Name)
+		f, err := r.schema.Fields().Field(col.Name)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get field %q", col.Name)
+		}
+		columnOrder[i] = f
 	}
 
 	var entities []TEntity

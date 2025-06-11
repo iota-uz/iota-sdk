@@ -6,8 +6,9 @@ type Fields interface {
 	Names() []string
 	Fields() []Field
 	Searchable() []Field
-	GetKeyField() Field
-	GetField(name string) Field
+	KeyField() Field
+	Field(name string) (Field, error)
+	FieldValues(values map[string]any) ([]FieldValue, error)
 }
 
 func NewFields(value []Field) Fields {
@@ -69,13 +70,27 @@ func (f *fields) Searchable() []Field {
 	return searchableFields
 }
 
-func (f *fields) GetKeyField() Field {
+func (f *fields) KeyField() Field {
 	return f.keyField
 }
 
-func (f *fields) GetField(name string) Field {
+func (f *fields) Field(name string) (Field, error) {
 	if field, ok := f.dict[name]; ok {
-		return field
+		return field, nil
 	}
-	panic(fmt.Errorf("field %q not found", name))
+	return nil, fmt.Errorf("field %q not found", name)
+}
+
+func (f *fields) FieldValues(values map[string]any) ([]FieldValue, error) {
+	fvs := make([]FieldValue, len(f.fields))
+	for i, field := range f.fields {
+		value, ok := values[field.Name()]
+		if !ok {
+			return nil, fmt.Errorf("missing value for field: %s", field.Name())
+		}
+
+		fvs[i] = field.Value(value)
+	}
+
+	return fvs, nil
 }

@@ -23,8 +23,8 @@ func NewDeletedEvent[TEntity any](_ context.Context) (*DeletedEvent[TEntity], er
 }
 
 type CreatedEvent[TEntity any] struct {
-	Data   any
-	Result any
+	Data   TEntity
+	Result TEntity
 }
 
 func (e *CreatedEvent[TEntity]) SetResult(result TEntity) {
@@ -32,8 +32,8 @@ func (e *CreatedEvent[TEntity]) SetResult(result TEntity) {
 }
 
 type UpdatedEvent[TEntity any] struct {
-	Data   any
-	Result any
+	Data   TEntity
+	Result TEntity
 }
 
 func (e *UpdatedEvent[TEntity]) SetResult(result TEntity) {
@@ -41,5 +41,5 @@ func (e *UpdatedEvent[TEntity]) SetResult(result TEntity) {
 }
 
 type DeletedEvent[TEntity any] struct {
-	Data any
+	Data TEntity
 }
