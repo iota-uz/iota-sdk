@@ -109,7 +109,7 @@ func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (in
 	baseQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", r.schema.Name())
 
 	query := baseQuery
-	if whereClauses != nil || len(whereClauses) > 0 {
+	if len(whereClauses) > 0 {
 		query = repo.Join(query, repo.JoinWhere(whereClauses...))
 	}
 
@@ -130,7 +130,7 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 
 	baseQuery := fmt.Sprintf("SELECT * FROM %s", r.schema.Name())
 	query := baseQuery
-	if whereClauses != nil || len(whereClauses) > 0 {
+	if len(whereClauses) > 0 {
 		query = repo.Join(query, repo.JoinWhere(whereClauses...))
 	}
 	query = repo.Join(
@@ -149,18 +149,15 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 
 func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
-
-	var columns []string
-	var args []any
+	columns := make([]string, 0, len(values))
+	args := make([]any, 0, len(values))
 
 	for _, fv := range values {
 		field := fv.Field()
 		value := fv.Value()
-
 		if field.Key() && fv.IsZero() {
 			continue
 		}
-
 		columns = append(columns, field.Name())
 		args = append(args, value)
 	}
@@ -170,7 +167,6 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 	}
 
 	query := repo.Insert(r.schema.Name(), columns, r.schema.Fields().Names()...)
-
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return zero, errors.Wrap(err, "failed to create entity")
@@ -185,45 +181,31 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 	var zero TEntity
 
 	keyField := r.schema.Fields().GetKeyField()
-
 	var fieldKeyValue FieldValue
-	var updates []string
-	var args []any
-	var whereArgs []any
 
-	// Separate update fields from the key field
+	updates := make([]string, 0, len(values))
+	args := make([]any, 0, len(values))
+
 	for _, fv := range values {
 		field := fv.Field()
 		val := fv.Value()
-
 		if field.Key() {
 			fieldKeyValue = fv
 			continue
 		}
-
-		updates = append(updates, field.Name()) // Just the field name, not the assignment
+		updates = append(updates, field.Name())
 		args = append(args, val)
 	}
 
-	if fieldKeyValue == nil {
-		return zero, errors.New("missing primary key")
-	}
-	if fieldKeyValue.IsZero() {
-		return zero, errors.New("missing primary key value")
+	if fieldKeyValue == nil || fieldKeyValue.IsZero() {
+		return zero, errors.New("missing primary key or value")
 	}
 
-	// Append key value to the where clause arguments
-	whereArgs = append(whereArgs, fieldKeyValue.Value())
-
-	// Construct the WHERE clause for the update
-	whereClause := fmt.Sprintf("%s = $%d", keyField.Name(), len(args)+1) // The key field will be the last parameter
+	whereClause := fmt.Sprintf("%s = $%d", keyField.Name(), len(args)+1)
+	args = append(args, fieldKeyValue.Value())
 
 	query := repo.Update(r.schema.Name(), updates, whereClause) + " RETURNING *"
-
-	// Combine update arguments and where arguments
-	allArgs := append(args, whereArgs...)
-
-	entities, err := r.queryEntities(ctx, query, allArgs...)
+	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return zero, errors.Wrap(err, "failed to update entity")
 	}
@@ -255,25 +237,20 @@ func (r *repository[TEntity]) Delete(ctx context.Context, value FieldValue) (TEn
 	return entities[0], nil
 }
 
-func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []interface{}, error) {
-	var where []string
-	var args []interface{}
-	currentArgIdx := 1 // Starting index for SQL parameters
+func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any, error) {
+	where := make([]string, 0)
+	args := make([]any, 0)
+	currentArgIdx := 1
 
-	filters := params.Filters
-
-	for _, filter := range filters {
+	for _, filter := range params.Filters {
 		column, ok := r.fieldMap[filter.Column]
 		if !ok {
 			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
 		}
 
-		// Generate the SQL string for the filter using the current argument index
 		where = append(where, filter.Filter.String(column, currentArgIdx))
-		// Append the values for the filter
 		filterValues := filter.Filter.Value()
 		args = append(args, filterValues...)
-		// Increment the argument index by the number of values used by this filter
 		currentArgIdx += len(filterValues)
 	}
 
@@ -288,7 +265,6 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []inte
 		if len(searchClauses) > 0 {
 			where = append(where, "("+strings.Join(searchClauses, " OR ")+")")
 			args = append(args, "%"+strings.ToLower(params.Search)+"%")
-			currentArgIdx++
 		}
 	}
 

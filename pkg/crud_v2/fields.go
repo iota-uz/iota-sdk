@@ -23,14 +23,14 @@ func NewFields(value []Field) Fields {
 			if keyIndex == -1 {
 				keyIndex = i
 			} else {
-				panic(fmt.Sprintf("expected exactly one key field"))
+				panic("expected exactly one key field")
 			}
 		}
 		dict[name] = f
 	}
 
 	if keyIndex == -1 {
-		panic(fmt.Sprintf("should have at least one key field"))
+		panic("should have at least one key field")
 	}
 
 	return &fields{
