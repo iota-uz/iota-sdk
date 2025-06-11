@@ -9,22 +9,18 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	Currencies []*coreviewmodels.Currency
-	Category   dtos.ExpenseCategoryCreateDTO
-	Errors     map[string]string
-	PostPath   string
+	Category dtos.ExpenseCategoryCreateDTO
+	Errors   map[string]string
+	PostPath string
 }
 
 func CreateForm(props *CreatePageProps) templ.Component {
@@ -56,7 +52,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.PostPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/new.templ`, Line: 26, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/new.templ`, Line: 22, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -90,39 +86,11 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: pageCtx.T("ExpenseCategories.Single.Amount"),
-				Attrs: templ.Attributes{"name": "Amount", "value": fmt.Sprintf("%.2f", props.Category.Amount)},
-				Error: props.Errors["Amount"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       pageCtx.T("ExpenseCategories.Single.CurrencyCode.Label"),
-				Placeholder: pageCtx.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
-				Value:       "",
-				Currencies:  props.Currencies,
-				Error:       props.Errors["CurrencyCode"],
-				Attrs:       templ.Attributes{"name": "CurrencyCode"},
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label:        pageCtx.T("ExpenseCategories.Single._Description"),
-				Attrs:        templ.Attributes{"name": "Description"},
-				WrapperClass: "col-span-3",
-				Value:        props.Category.Description,
-				Error:        props.Errors["Description"],
+				Label: pageCtx.T("ExpenseCategories.Single._Description"),
+				Attrs: templ.Attributes{"name": "Description"},
+				Value: props.Category.Description,
+				Error: props.Errors["Description"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -130,13 +98,13 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
+			Class:        "grid grid-cols-1 gap-4",
 			WrapperClass: "m-6",
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -155,7 +123,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/new.templ`, Line: 67, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/expense_categories/new.templ`, Line: 49, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -172,7 +140,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

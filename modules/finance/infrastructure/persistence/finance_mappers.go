@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -126,23 +125,16 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 
 func toDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
-		ID:               entity.ID(),
-		TenantID:         entity.TenantID().String(),
-		Name:             entity.Name(),
-		Description:      mapping.ValueToSQLNullString(entity.Description()),
-		Amount:           entity.Amount(),
-		AmountCurrencyID: string(entity.Currency().Code),
-		CreatedAt:        entity.CreatedAt(),
-		UpdatedAt:        entity.UpdatedAt(),
+		ID:          entity.ID(),
+		TenantID:    entity.TenantID().String(),
+		Name:        entity.Name(),
+		Description: mapping.ValueToSQLNullString(entity.Description()),
+		CreatedAt:   entity.CreatedAt(),
+		UpdatedAt:   entity.UpdatedAt(),
 	}
 }
 
-func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *coremodels.Currency) (category.ExpenseCategory, error) {
-	domainCurrency, err := corepersistence.ToDomainCurrency(dbCurrency)
-	if err != nil {
-		return nil, err
-	}
-
+func toDomainExpenseCategory(dbCategory *models.ExpenseCategory) (category.ExpenseCategory, error) {
 	tenantID, err := uuid.Parse(dbCategory.TenantID)
 	if err != nil {
 		return nil, err
@@ -161,8 +153,6 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *cor
 
 	return category.New(
 		dbCategory.Name,
-		dbCategory.Amount,
-		domainCurrency,
 		opts...,
 	), nil
 }
@@ -214,9 +204,7 @@ func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 
 	account := moneyaccount.New("", currency.Currency{}, moneyaccount.WithID(dbTransaction.OriginAccountID))
 	expenseCategory := category.New(
-		"",  // name - will be populated when actual category is fetched
-		0.0, // amount - will be populated when actual category is fetched
-		nil, // currency - will be populated when actual category is fetched
+		"", // name - will be populated when actual category is fetched
 		category.WithID(dbExpense.CategoryID),
 		category.WithTenantID(tenantID),
 		category.WithCreatedAt(dbExpense.CreatedAt),

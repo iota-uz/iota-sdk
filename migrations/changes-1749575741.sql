@@ -96,6 +96,11 @@ ALTER TABLE expense_categories
 ALTER TABLE expense_categories
     ADD PRIMARY KEY (id);
 
+-- Remove amount and currency fields from expense_categories
+ALTER TABLE expense_categories
+    DROP COLUMN IF EXISTS amount,
+    DROP COLUMN IF EXISTS amount_currency_id;
+
 -- Change ALTER_TABLE: money_accounts - change id to uuid
 ALTER TABLE money_accounts
     DROP CONSTRAINT money_accounts_pkey;
@@ -332,6 +337,11 @@ ALTER TABLE money_accounts
     ADD PRIMARY KEY (id);
 
 -- Undo expense_categories table changes
+-- Re-add amount and currency fields to expense_categories
+ALTER TABLE expense_categories
+    ADD COLUMN amount numeric(9, 2),
+    ADD COLUMN amount_currency_id varchar(3);
+
 ALTER TABLE expense_categories
     DROP CONSTRAINT expense_categories_pkey;
 

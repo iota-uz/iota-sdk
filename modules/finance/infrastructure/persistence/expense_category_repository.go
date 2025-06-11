@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -24,28 +23,19 @@ const (
 			ec.tenant_id,
 			ec.name,
 			ec.description,
-			ec.amount_currency_id,
-			ec.amount,
 			ec.created_at,
-			ec.updated_at,
-			c.code,
-			c.name,
-			c.symbol,
-			c.created_at,
-			c.updated_at
-		FROM expense_categories ec LEFT JOIN currencies c ON ec.amount_currency_id = c.code
+			ec.updated_at
+		FROM expense_categories ec
 	`
 	countExpenseCategoryQuery  = `SELECT COUNT(*) as count FROM expense_categories ec`
 	insertExpenseCategoryQuery = `
 	INSERT INTO expense_categories (
 		tenant_id,
 		name,
-		description,
-		amount,
-		amount_currency_id
+		description
 	)
-	VALUES ($1, $2, $3, $4, $5) RETURNING id`
-	updateExpenseCategoryQuery = `UPDATE expense_categories SET name = $1, description = $2, amount = $3, amount_currency_id = $4 WHERE id = $5 AND tenant_id = $6`
+	VALUES ($1, $2, $3) RETURNING id`
+	updateExpenseCategoryQuery = `UPDATE expense_categories SET name = $1, description = $2 WHERE id = $3 AND tenant_id = $4`
 	deleteExpenseCategoryQuery = `DELETE FROM expense_categories WHERE id = $1 AND tenant_id = $2`
 )
 
@@ -59,8 +49,6 @@ func NewExpenseCategoryRepository() category.Repository {
 			category.ID:          "ec.id",
 			category.Name:        "ec.name",
 			category.Description: "ec.description",
-			category.Amount:      "ec.amount",
-			category.CurrencyID:  "ec.amount_currency_id",
 			category.CreatedAt:   "ec.created_at",
 			category.UpdatedAt:   "ec.updated_at",
 		},
@@ -116,25 +104,17 @@ func (g *GormExpenseCategoryRepository) queryCategories(ctx context.Context, que
 
 	for rows.Next() {
 		var ec models.ExpenseCategory
-		var c coremodels.Currency
 		if err := rows.Scan(
 			&ec.ID,
 			&ec.TenantID,
 			&ec.Name,
 			&ec.Description,
-			&ec.AmountCurrencyID,
-			&ec.Amount,
 			&ec.CreatedAt,
 			&ec.UpdatedAt,
-			&c.Code,
-			&c.Name,
-			&c.Symbol,
-			&c.CreatedAt,
-			&c.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan expense category row: %w", err)
 		}
-		entity, err := toDomainExpenseCategory(&ec, &c)
+		entity, err := toDomainExpenseCategory(&ec)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert to domain expense category: %w", err)
 		}
@@ -245,8 +225,6 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data categor
 		dbRow.TenantID,
 		dbRow.Name,
 		dbRow.Description,
-		dbRow.Amount,
-		dbRow.AmountCurrencyID,
 	).Scan(&id); err != nil {
 		return nil, fmt.Errorf("failed to create expense category: %w", err)
 	}
@@ -272,8 +250,6 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data categor
 		updateExpenseCategoryQuery,
 		dbRow.Name,
 		dbRow.Description,
-		dbRow.Amount,
-		dbRow.AmountCurrencyID,
 		data.ID(),
 		dbRow.TenantID,
 	); err != nil {

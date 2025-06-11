@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 )
 
 type Option func(e *expenseCategory)
@@ -25,18 +24,6 @@ func WithName(name string) Option {
 func WithDescription(description string) Option {
 	return func(e *expenseCategory) {
 		e.description = description
-	}
-}
-
-func WithAmount(amount float64) Option {
-	return func(e *expenseCategory) {
-		e.amount = amount
-	}
-}
-
-func WithCurrency(currency *currency.Currency) Option {
-	return func(e *expenseCategory) {
-		e.currency = currency
 	}
 }
 
@@ -64,19 +51,13 @@ type ExpenseCategory interface {
 	TenantID() uuid.UUID
 	Name() string
 	Description() string
-	Amount() float64
-	Currency() *currency.Currency
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
-
-	UpdateAmount(a float64) ExpenseCategory
 }
 
 // Implementation
 func New(
 	name string,
-	amount float64,
-	currency *currency.Currency,
 	opts ...Option,
 ) ExpenseCategory {
 	e := &expenseCategory{
@@ -84,8 +65,6 @@ func New(
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
-		amount:      amount,
-		currency:    currency,
 		createdAt:   time.Now(),
 		updatedAt:   time.Now(),
 	}
@@ -100,8 +79,6 @@ type expenseCategory struct {
 	tenantID    uuid.UUID
 	name        string
 	description string
-	amount      float64
-	currency    *currency.Currency
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -120,27 +97,6 @@ func (e *expenseCategory) Name() string {
 
 func (e *expenseCategory) Description() string {
 	return e.description
-}
-
-func (e *expenseCategory) Amount() float64 {
-	return e.amount
-}
-
-func (e *expenseCategory) UpdateAmount(a float64) ExpenseCategory {
-	return New(
-		e.name,
-		a,
-		e.currency,
-		WithID(e.id),
-		WithTenantID(e.tenantID),
-		WithDescription(e.description),
-		WithCreatedAt(e.createdAt),
-		WithUpdatedAt(time.Now()),
-	)
-}
-
-func (e *expenseCategory) Currency() *currency.Currency {
-	return e.currency
 }
 
 func (e *expenseCategory) CreatedAt() time.Time {

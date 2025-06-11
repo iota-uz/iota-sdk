@@ -1,22 +1,18 @@
 package expense_categories
 
 import (
-	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CreatePageProps struct {
-	Currencies []*coreviewmodels.Currency
-	Category   dtos.ExpenseCategoryCreateDTO
-	Errors     map[string]string
-	PostPath   string
+	Category dtos.ExpenseCategoryCreateDTO
+	Errors   map[string]string
+	PostPath string
 }
 
 templ CreateForm(props *CreatePageProps) {
@@ -28,7 +24,7 @@ templ CreateForm(props *CreatePageProps) {
 		hx-indicator="#save-btn"
 	>
 		@card.Card(card.Props{
-			Class:        "grid grid-cols-3 gap-4",
+			Class:        "grid grid-cols-1 gap-4",
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
@@ -36,25 +32,11 @@ templ CreateForm(props *CreatePageProps) {
 				Attrs: templ.Attributes{"name": "Name", "value": props.Category.Name},
 				Error: props.Errors["Name"],
 			})
-			@input.Number(&input.Props{
-				Label: pageCtx.T("ExpenseCategories.Single.Amount"),
-				Attrs: templ.Attributes{"name": "Amount", "value": fmt.Sprintf("%.2f", props.Category.Amount)},
-				Error: props.Errors["Amount"],
-			})
-			@components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       pageCtx.T("ExpenseCategories.Single.CurrencyCode.Label"),
-				Placeholder: pageCtx.T("ExpenseCategories.Single.CurrencyCode.Placeholder"),
-				Value:       "",
-				Currencies:  props.Currencies,
-				Error:       props.Errors["CurrencyCode"],
-				Attrs:       templ.Attributes{"name": "CurrencyCode"},
-			})
 			@input.TextArea(&input.TextAreaProps{
-				Label:        pageCtx.T("ExpenseCategories.Single._Description"),
-				Attrs:        templ.Attributes{"name": "Description"},
-				WrapperClass: "col-span-3",
-				Value:        props.Category.Description,
-				Error:        props.Errors["Description"],
+				Label: pageCtx.T("ExpenseCategories.Single._Description"),
+				Attrs: templ.Attributes{"name": "Description"},
+				Value: props.Category.Description,
+				Error: props.Errors["Description"],
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
