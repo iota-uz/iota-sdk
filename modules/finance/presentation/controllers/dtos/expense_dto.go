@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
@@ -17,8 +18,8 @@ import (
 
 type ExpenseCreateDTO struct {
 	Amount           float64
-	AccountID        uint
-	CategoryID       uint
+	AccountID        uuid.UUID
+	CategoryID       uuid.UUID
 	Comment          string
 	AccountingPeriod time.Time
 	Date             time.Time
@@ -26,8 +27,8 @@ type ExpenseCreateDTO struct {
 
 type ExpenseUpdateDTO struct {
 	Amount           float64
-	AccountID        uint
-	CategoryID       uint
+	AccountID        uuid.UUID
+	CategoryID       uuid.UUID
 	Comment          string
 	AccountingPeriod time.Time
 	Date             time.Time

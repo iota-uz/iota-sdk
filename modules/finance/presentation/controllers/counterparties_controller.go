@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -61,7 +60,7 @@ func (c *CounterpartiesController) Search(w http.ResponseWriter, r *http.Request
 	}
 	props := mapping.MapViewModels(entities, func(e counterparty.Counterparty) *base.ComboboxOption {
 		return &base.ComboboxOption{
-			Value: strconv.FormatUint(uint64(e.ID()), 10),
+			Value: e.ID().String(),
 			Label: e.Name(),
 		}
 	})

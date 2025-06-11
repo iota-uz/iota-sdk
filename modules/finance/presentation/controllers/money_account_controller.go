@@ -124,7 +124,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -151,7 +151,7 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -165,7 +165,7 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

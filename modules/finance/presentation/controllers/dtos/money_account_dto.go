@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -94,7 +95,7 @@ func (p *MoneyAccountUpdateDTO) Ok(ctx context.Context) (map[string]string, bool
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (p *MoneyAccountUpdateDTO) ToEntity(id uint) (moneyaccount.Account, error) {
+func (p *MoneyAccountUpdateDTO) ToEntity(id uuid.UUID) (moneyaccount.Account, error) {
 	c, err := currency.NewCode(p.CurrencyCode)
 	if err != nil {
 		return nil, err

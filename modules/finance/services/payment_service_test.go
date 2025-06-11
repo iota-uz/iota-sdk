@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -164,7 +165,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	paymentEntity := payment.New(
 		100,
 		category,
-		payment.WithCounterpartyID(1),
+		payment.WithCounterpartyID(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
 		payment.WithTransactionDate(time.Now()),
 		payment.WithAccountingPeriod(time.Now()),
 	)
@@ -173,7 +174,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	accountEntity, err := accountRepository.GetByID(f.ctx, 1)
+	accountEntity, err := accountRepository.GetByID(f.ctx, uuid.MustParse("00000000-0000-0000-0000-000000000001"))
 	if err != nil {
 		t.Fatal(err)
 	}

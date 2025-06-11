@@ -22,18 +22,18 @@ var validate = validator.New(validator.WithRequiredStructEnabled())
 
 type PaymentCreateDTO struct {
 	Amount           float64         `validate:"required,gt=0"`
-	AccountID        uint            `validate:"required"`
+	AccountID        uuid.UUID       `validate:"required"`
 	TransactionDate  shared.DateOnly `validate:"required"`
 	AccountingPeriod shared.DateOnly `validate:"required"`
-	CounterpartyID   uint            `validate:"required"`
+	CounterpartyID   uuid.UUID       `validate:"required"`
 	UserID           uint            `validate:"required"`
 	Comment          string
 }
 
 type PaymentUpdateDTO struct {
 	Amount           float64 `validate:"gt=0"`
-	AccountID        uint
-	CounterpartyID   uint
+	AccountID        uuid.UUID
+	CounterpartyID   uuid.UUID
 	TransactionDate  shared.DateOnly
 	AccountingPeriod shared.DateOnly
 	Comment          string
@@ -114,7 +114,7 @@ func (p *PaymentUpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (p *PaymentUpdateDTO) ToEntity(id uint) payment.Payment {
+func (p *PaymentUpdateDTO) ToEntity(id uuid.UUID) payment.Payment {
 	email, err := internet.NewEmail("payment@system.internal")
 	if err != nil {
 		panic(err)

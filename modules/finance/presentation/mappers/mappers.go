@@ -2,7 +2,6 @@ package mappers
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
@@ -16,7 +15,7 @@ import (
 
 func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.ExpenseCategory {
 	return &viewmodels.ExpenseCategory{
-		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
+		ID:                 entity.ID().String(),
 		Name:               entity.Name(),
 		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
 		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), entity.Currency().Symbol),
@@ -29,7 +28,7 @@ func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.Exp
 
 func MoneyAccountToViewModel(entity moneyaccount.Account) *viewmodels.MoneyAccount {
 	return &viewmodels.MoneyAccount{
-		ID:                  strconv.FormatUint(uint64(entity.ID()), 10),
+		ID:                  entity.ID().String(),
 		Name:                entity.Name(),
 		AccountNumber:       entity.AccountNumber(),
 		Balance:             fmt.Sprintf("%.2f", entity.Balance()),
@@ -55,11 +54,11 @@ func MoneyAccountToViewUpdateModel(entity moneyaccount.Account) *viewmodels.Mone
 func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 	currency := entity.Account().Currency()
 	return &viewmodels.Payment{
-		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
+		ID:                 entity.ID().String(),
 		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
 		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), currency.Symbol),
-		AccountID:          strconv.FormatUint(uint64(entity.Account().ID()), 10),
-		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID()), 10),
+		AccountID:          entity.Account().ID().String(),
+		TransactionID:      entity.TransactionID().String(),
 		TransactionDate:    entity.TransactionDate().Format(time.DateOnly),
 		AccountingPeriod:   entity.AccountingPeriod().Format(time.DateOnly),
 		Comment:            entity.Comment(),
@@ -71,14 +70,14 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
 	currencyEntity := entity.Category().Currency()
 	return &viewmodels.Expense{
-		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
+		ID:                 entity.ID().String(),
 		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
-		AccountID:          strconv.FormatUint(uint64(entity.Account().ID()), 10),
+		AccountID:          entity.Account().ID().String(),
 		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), currencyEntity.Symbol),
-		CategoryID:         strconv.FormatUint(uint64(entity.Category().ID()), 10),
+		CategoryID:         entity.Category().ID().String(),
 		Category:           ExpenseCategoryToViewModel(entity.Category()),
 		Comment:            entity.Comment(),
-		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID()), 10),
+		TransactionID:      entity.TransactionID().String(),
 		AccountingPeriod:   entity.AccountingPeriod().Format(time.RFC3339),
 		Date:               entity.Date().Format(time.RFC3339),
 		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
@@ -88,7 +87,7 @@ func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
 
 func CounterpartyToViewModel(entity counterparty.Counterparty) *viewmodels.Counterparty {
 	return &viewmodels.Counterparty{
-		ID:           strconv.FormatUint(uint64(entity.ID()), 10),
+		ID:           entity.ID().String(),
 		TIN:          entity.Tin().Value(),
 		Name:         entity.Name(),
 		Type:         string(entity.Type()),

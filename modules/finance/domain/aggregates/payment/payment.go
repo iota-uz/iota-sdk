@@ -10,8 +10,8 @@ import (
 )
 
 type Payment interface {
-	ID() uint
-	SetID(id uint)
+	ID() uuid.UUID
+	SetID(id uuid.UUID)
 
 	TenantID() uuid.UUID
 	UpdateTenantID(id uuid.UUID) Payment
@@ -19,10 +19,10 @@ type Payment interface {
 	Amount() float64
 	UpdateAmount(amount float64) Payment
 
-	TransactionID() uint
+	TransactionID() uuid.UUID
 
-	CounterpartyID() uint
-	UpdateCounterpartyID(partyID uint) Payment
+	CounterpartyID() uuid.UUID
+	UpdateCounterpartyID(partyID uuid.UUID) Payment
 
 	Category() paymentcategory.PaymentCategory
 	TransactionDate() time.Time

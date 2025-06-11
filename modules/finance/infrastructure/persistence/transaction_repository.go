@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -110,7 +111,7 @@ func (g *GormTransactionRepository) GetAll(ctx context.Context) ([]transaction.T
 	return g.queryTransactions(ctx, query, tenantID)
 }
 
-func (g *GormTransactionRepository) GetByID(ctx context.Context, id uint) (transaction.Transaction, error) {
+func (g *GormTransactionRepository) GetByID(ctx context.Context, id uuid.UUID) (transaction.Transaction, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -148,7 +149,7 @@ func (g *GormTransactionRepository) Create(ctx context.Context, data transaction
 		entity.TransactionType,
 		entity.Comment,
 	}
-	var id uint
+	var id uuid.UUID
 	err = tx.QueryRow(ctx, transactionInsertQuery, args...).Scan(&id)
 	if err != nil {
 		return err
@@ -179,7 +180,7 @@ func (g *GormTransactionRepository) Update(ctx context.Context, data transaction
 	return g.execQuery(ctx, transactionUpdateQuery, args...)
 }
 
-func (g *GormTransactionRepository) Delete(ctx context.Context, id uint) error {
+func (g *GormTransactionRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)

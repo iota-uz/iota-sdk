@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
@@ -88,7 +89,7 @@ func (e *ExpenseCategoryCreateDTO) ToEntity() (category.ExpenseCategory, error) 
 	), nil
 }
 
-func (e *ExpenseCategoryUpdateDTO) ToEntity(id uint) (category.ExpenseCategory, error) {
+func (e *ExpenseCategoryUpdateDTO) ToEntity(id uuid.UUID) (category.ExpenseCategory, error) {
 	code, err := currency.NewCode(e.CurrencyCode)
 	if err != nil {
 		return nil, err

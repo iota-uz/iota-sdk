@@ -140,7 +140,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -165,7 +165,7 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -179,7 +179,7 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

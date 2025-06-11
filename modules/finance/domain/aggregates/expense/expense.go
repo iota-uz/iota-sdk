@@ -3,6 +3,7 @@ package expense
 import (
 	"time"
 
+	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 )
@@ -10,7 +11,7 @@ import (
 type Option func(e *expense)
 
 // Option setters
-func WithID(id uint) Option {
+func WithID(id uuid.UUID) Option {
 	return func(e *expense) {
 		e.id = id
 	}
@@ -40,7 +41,7 @@ func WithComment(comment string) Option {
 	}
 }
 
-func WithTransactionID(transactionID uint) Option {
+func WithTransactionID(transactionID uuid.UUID) Option {
 	return func(e *expense) {
 		e.transactionID = transactionID
 	}
@@ -72,12 +73,12 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 
 // Interface
 type Expense interface {
-	ID() uint
+	ID() uuid.UUID
 	Amount() float64
 	Account() moneyaccount.Account
 	Category() category.ExpenseCategory
 	Comment() string
-	TransactionID() uint
+	TransactionID() uuid.UUID
 	AccountingPeriod() time.Time
 	Date() time.Time
 	CreatedAt() time.Time
@@ -100,12 +101,12 @@ func New(
 	opts ...Option,
 ) Expense {
 	e := &expense{
-		id:               0,
+		id:               uuid.Nil,
 		amount:           amount,
 		account:          account,
 		category:         category,
 		comment:          "",
-		transactionID:    0,
+		transactionID:    uuid.Nil,
 		accountingPeriod: time.Time{},
 		date:             date,
 		createdAt:        time.Now(),
@@ -118,19 +119,19 @@ func New(
 }
 
 type expense struct {
-	id               uint
+	id               uuid.UUID
 	amount           float64
 	account          moneyaccount.Account
 	category         category.ExpenseCategory
 	comment          string
-	transactionID    uint
+	transactionID    uuid.UUID
 	accountingPeriod time.Time
 	date             time.Time
 	createdAt        time.Time
 	updatedAt        time.Time
 }
 
-func (e *expense) ID() uint {
+func (e *expense) ID() uuid.UUID {
 	return e.id
 }
 
@@ -150,7 +151,7 @@ func (e *expense) Comment() string {
 	return e.comment
 }
 
-func (e *expense) TransactionID() uint {
+func (e *expense) TransactionID() uuid.UUID {
 	return e.transactionID
 }
 

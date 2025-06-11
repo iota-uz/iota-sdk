@@ -70,7 +70,7 @@ func (c *PaymentsController) Register(r *mux.Router) {
 }
 
 func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Payment, error) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error parsing id")
 	}
@@ -154,7 +154,7 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
@@ -168,7 +168,7 @@ func (c *PaymentsController) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return

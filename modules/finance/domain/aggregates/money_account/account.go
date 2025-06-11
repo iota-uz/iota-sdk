@@ -15,7 +15,7 @@ import (
 type Option func(a *account)
 
 // Option setters
-func WithID(id uint) Option {
+func WithID(id uuid.UUID) Option {
 	return func(a *account) {
 		a.id = id
 	}
@@ -75,7 +75,7 @@ func New(
 	opts ...Option,
 ) Account {
 	a := &account{
-		id:            0,
+		id:            uuid.Nil,
 		tenantID:      uuid.Nil,
 		name:          name,
 		accountNumber: "",
@@ -92,7 +92,7 @@ func New(
 }
 
 type account struct {
-	id            uint
+	id            uuid.UUID
 	tenantID      uuid.UUID
 	name          string
 	accountNumber string
@@ -103,11 +103,11 @@ type account struct {
 	updatedAt     time.Time
 }
 
-func (a *account) ID() uint {
+func (a *account) ID() uuid.UUID {
 	return a.id
 }
 
-func (a *account) SetID(id uint) {
+func (a *account) SetID(id uuid.UUID) {
 	a.id = id
 }
 
@@ -182,7 +182,7 @@ func (a *account) UpdatedAt() time.Time {
 func (a *account) InitialTransaction() transaction.Transaction {
 	return transaction.NewDeposit(
 		a.balance,
-		0,
+		uuid.Nil,
 		a.id,
 		a.createdAt,
 		a.createdAt,

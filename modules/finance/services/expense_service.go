@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -27,7 +28,7 @@ func NewExpenseService(
 	}
 }
 
-func (s *ExpenseService) GetByID(ctx context.Context, id uint) (expense.Expense, error) {
+func (s *ExpenseService) GetByID(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
 	if err := composables.CanUser(ctx, permissions.ExpenseRead); err != nil {
 		return nil, err
 	}
@@ -104,7 +105,7 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) err
 	return nil
 }
 
-func (s *ExpenseService) Delete(ctx context.Context, id uint) (expense.Expense, error) {
+func (s *ExpenseService) Delete(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
 	if err := composables.CanUser(ctx, permissions.ExpenseDelete); err != nil {
 		return nil, err
 	}

@@ -12,7 +12,7 @@ import (
 type Option func(p *payment)
 
 // Option setters
-func WithID(id uint) Option {
+func WithID(id uuid.UUID) Option {
 	return func(p *payment) {
 		p.id = id
 	}
@@ -24,13 +24,13 @@ func WithTenantID(tenantID uuid.UUID) Option {
 	}
 }
 
-func WithTransactionID(transactionID uint) Option {
+func WithTransactionID(transactionID uuid.UUID) Option {
 	return func(p *payment) {
 		p.transactionID = transactionID
 	}
 }
 
-func WithCounterpartyID(counterpartyID uint) Option {
+func WithCounterpartyID(counterpartyID uuid.UUID) Option {
 	return func(p *payment) {
 		p.counterpartyID = counterpartyID
 	}
@@ -84,11 +84,11 @@ func New(
 	opts ...Option,
 ) Payment {
 	p := &payment{
-		id:               0,
+		id:               uuid.Nil,
 		tenantID:         uuid.Nil,
 		amount:           amount,
-		transactionID:    0,
-		counterpartyID:   0,
+		transactionID:    uuid.Nil,
+		counterpartyID:   uuid.Nil,
 		category:         category,
 		transactionDate:  time.Now(),
 		accountingPeriod: time.Now(),
@@ -105,11 +105,11 @@ func New(
 }
 
 type payment struct {
-	id               uint
+	id               uuid.UUID
 	tenantID         uuid.UUID
 	amount           float64
-	transactionID    uint
-	counterpartyID   uint
+	transactionID    uuid.UUID
+	counterpartyID   uuid.UUID
 	category         paymentcategory.PaymentCategory
 	transactionDate  time.Time
 	accountingPeriod time.Time
@@ -120,11 +120,11 @@ type payment struct {
 	updatedAt        time.Time
 }
 
-func (p *payment) ID() uint {
+func (p *payment) ID() uuid.UUID {
 	return p.id
 }
 
-func (p *payment) SetID(id uint) {
+func (p *payment) SetID(id uuid.UUID) {
 	p.id = id
 }
 
@@ -139,15 +139,15 @@ func (p *payment) UpdateAmount(a float64) Payment {
 	return &result
 }
 
-func (p *payment) TransactionID() uint {
+func (p *payment) TransactionID() uuid.UUID {
 	return p.transactionID
 }
 
-func (p *payment) CounterpartyID() uint {
+func (p *payment) CounterpartyID() uuid.UUID {
 	return p.counterpartyID
 }
 
-func (p *payment) UpdateCounterpartyID(id uint) Payment {
+func (p *payment) UpdateCounterpartyID(id uuid.UUID) Payment {
 	result := *p
 	result.counterpartyID = id
 	result.updatedAt = time.Now()

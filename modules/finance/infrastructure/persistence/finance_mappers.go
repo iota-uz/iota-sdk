@@ -69,8 +69,8 @@ func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 		Comment:              entity.Comment(),
 		AccountingPeriod:     entity.AccountingPeriod(),
 		TransactionDate:      entity.TransactionDate(),
-		OriginAccountID:      nil,
-		DestinationAccountID: func() *uint { id := entity.Account().ID(); return &id }(),
+		OriginAccountID:      uuid.Nil,
+		DestinationAccountID: entity.Account().ID(),
 		TransactionType:      string(transaction.Deposit),
 		CreatedAt:            entity.CreatedAt(),
 	}
@@ -110,7 +110,7 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		payment.WithTransactionID(t.ID()),
 		payment.WithCounterpartyID(dbPayment.CounterpartyID),
 		payment.WithComment(t.Comment()),
-		payment.WithAccount(moneyaccount.New("", currency.Currency{}, moneyaccount.WithID(*t.DestinationAccountID()))),
+		payment.WithAccount(moneyaccount.New("", currency.Currency{}, moneyaccount.WithID(t.DestinationAccountID()))),
 		payment.WithUser(user.New(
 			"", // firstName
 			"", // lastName
@@ -212,7 +212,7 @@ func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 		return nil, err
 	}
 
-	account := moneyaccount.New("", currency.Currency{}, moneyaccount.WithID(*dbTransaction.OriginAccountID))
+	account := moneyaccount.New("", currency.Currency{}, moneyaccount.WithID(dbTransaction.OriginAccountID))
 	expenseCategory := category.New(
 		"",  // name - will be populated when actual category is fetched
 		0.0, // amount - will be populated when actual category is fetched
@@ -248,7 +248,7 @@ func toDBExpense(entity expense.Expense) (*models.Expense, transaction.Transacti
 		transaction.WithComment(entity.Comment()),
 		transaction.WithAccountingPeriod(entity.AccountingPeriod()),
 		transaction.WithTransactionDate(entity.Date()),
-		transaction.WithOriginAccountID(&accountID),
+		transaction.WithOriginAccountID(accountID),
 		transaction.WithCreatedAt(entity.CreatedAt()),
 	)
 	dbExpense := &models.Expense{

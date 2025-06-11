@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
@@ -202,7 +203,7 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]category.
 	return g.queryCategories(ctx, query, tenantID.String())
 }
 
-func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (category.ExpenseCategory, error) {
+func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uuid.UUID) (category.ExpenseCategory, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
@@ -237,7 +238,7 @@ func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data categor
 	dbRow := toDBExpenseCategory(data)
 	dbRow.TenantID = tenantID.String()
 
-	var id uint
+	var id uuid.UUID
 	if err := tx.QueryRow(
 		ctx,
 		insertExpenseCategoryQuery,
@@ -281,7 +282,7 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data categor
 	return g.GetByID(ctx, data.ID())
 }
 
-func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
+func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get transaction: %w", err)

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"unicode"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 
 	"github.com/go-faster/errors"
@@ -27,6 +28,15 @@ func ParseID(r *http.Request) (uint, error) {
 		return 0, errors.Wrap(err, "Error parsing id")
 	}
 	return uint(id), nil
+}
+
+func ParseUUID(r *http.Request) (uuid.UUID, error) {
+	idStr := mux.Vars(r)["id"]
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return uuid.Nil, errors.Wrap(err, "Error parsing UUID")
+	}
+	return id, nil
 }
 
 func SetFlash(w http.ResponseWriter, name string, value []byte) {

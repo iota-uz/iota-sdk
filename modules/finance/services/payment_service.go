@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -27,7 +28,7 @@ func NewPaymentService(
 	}
 }
 
-func (s *PaymentService) GetByID(ctx context.Context, id uint) (payment.Payment, error) {
+func (s *PaymentService) GetByID(ctx context.Context, id uuid.UUID) (payment.Payment, error) {
 	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
 		return nil, err
 	}
@@ -102,7 +103,7 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) err
 	return nil
 }
 
-func (s *PaymentService) Delete(ctx context.Context, id uint) (payment.Payment, error) {
+func (s *PaymentService) Delete(ctx context.Context, id uuid.UUID) (payment.Payment, error) {
 	if err := composables.CanUser(ctx, permissions.PaymentDelete); err != nil {
 		return nil, err
 	}
