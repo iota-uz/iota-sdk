@@ -69,7 +69,7 @@ func New(
 	opts ...Option,
 ) Account {
 	a := &account{
-		id:            uuid.Nil,
+		id:            uuid.New(),
 		tenantID:      uuid.Nil,
 		name:          name,
 		accountNumber: "",

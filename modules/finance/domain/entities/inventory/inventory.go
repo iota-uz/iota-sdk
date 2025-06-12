@@ -69,7 +69,7 @@ func New(
 	opts ...Option,
 ) Inventory {
 	i := &inventory{
-		id:          uuid.Nil,
+		id:          uuid.New(),
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "",

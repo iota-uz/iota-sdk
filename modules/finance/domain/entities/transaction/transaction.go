@@ -76,7 +76,7 @@ func New(
 	opts ...Option,
 ) Transaction {
 	t := &transaction{
-		id:                   uuid.Nil,
+		id:                   uuid.New(),
 		tenantID:             uuid.Nil,
 		amount:               amount,
 		originAccountID:      uuid.Nil,

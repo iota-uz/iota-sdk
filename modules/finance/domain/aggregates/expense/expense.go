@@ -109,7 +109,7 @@ func New(
 	opts ...Option,
 ) Expense {
 	e := &expense{
-		id:               uuid.Nil,
+		id:               uuid.New(),
 		amount:           amount,
 		account:          account,
 		category:         category,

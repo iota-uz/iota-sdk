@@ -63,7 +63,7 @@ func New(
 	opts ...Option,
 ) ExpenseCategory {
 	e := &expenseCategory{
-		id:          uuid.Nil,
+		id:          uuid.New(),
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
