@@ -55,10 +55,22 @@ const (
 	inventoryDeleteQuery = `DELETE FROM inventory WHERE id = $1 AND tenant_id = $2`
 )
 
-type InventoryRepository struct{}
+type InventoryRepository struct {
+	fieldMap map[inventory.Field]string
+}
 
 func NewInventoryRepository() inventory.Repository {
-	return &InventoryRepository{}
+	return &InventoryRepository{
+		fieldMap: map[inventory.Field]string{
+			inventory.CreatedAtField:   "i.created_at",
+			inventory.UpdatedAtField:   "i.updated_at",
+			inventory.TenantIDField:    "i.tenant_id",
+			inventory.NameField:        "i.name",
+			inventory.DescriptionField: "i.description",
+			inventory.PriceField:       "i.price",
+			inventory.QuantityField:    "i.quantity",
+		},
+	}
 }
 
 func (r *InventoryRepository) Create(ctx context.Context, inv inventory.Inventory) (inventory.Inventory, error) {
@@ -107,8 +119,29 @@ func (r *InventoryRepository) GetByID(ctx context.Context, id uuid.UUID) (invent
 	return items[0], nil
 }
 
-func (r *InventoryRepository) Count(ctx context.Context) (int64, error) {
-	return r.count(ctx)
+func (r *InventoryRepository) Count(ctx context.Context, params *inventory.FindParams) (int64, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	where, args, err := r.buildInventoryFilters(ctx, params)
+	if err != nil {
+		return 0, err
+	}
+
+	baseQuery := "SELECT COUNT(*) FROM inventory i"
+	query := repo.Join(
+		baseQuery,
+		repo.JoinWhere(where...),
+	)
+
+	var count int64
+	err = tx.QueryRow(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count inventory: %w", err)
+	}
+	return count, nil
 }
 
 func (r *InventoryRepository) GetAll(ctx context.Context) ([]inventory.Inventory, error) {
@@ -122,17 +155,9 @@ func (r *InventoryRepository) GetAll(ctx context.Context) ([]inventory.Inventory
 }
 
 func (r *InventoryRepository) GetPaginated(ctx context.Context, params *inventory.FindParams) ([]inventory.Inventory, error) {
-	tenantID, err := composables.UseTenantID(ctx)
+	where, args, err := r.buildInventoryFilters(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
-	where := []string{"i.tenant_id = $1"}
-	args := []interface{}{tenantID}
-
-	if params.Query != "" && params.Field != "" {
-		where = append(where, fmt.Sprintf("i.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1))
-		args = append(args, "%"+params.Query+"%")
+		return nil, err
 	}
 
 	limit := params.Limit
@@ -143,6 +168,7 @@ func (r *InventoryRepository) GetPaginated(ctx context.Context, params *inventor
 	q := repo.Join(
 		inventoryFindQuery,
 		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(r.fieldMap),
 		repo.FormatLimitOffset(limit, params.Offset),
 	)
 
@@ -182,21 +208,31 @@ func (r *InventoryRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return r.execQuery(ctx, inventoryDeleteQuery, id, tenantID)
 }
 
-func (r *InventoryRepository) count(ctx context.Context) (int64, error) {
+func (r *InventoryRepository) buildInventoryFilters(ctx context.Context, params *inventory.FindParams) ([]string, []interface{}, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return 0, err
+	where := []string{"i.tenant_id = $1"}
+	args := []interface{}{tenantID}
+
+	for _, filter := range params.Filters {
+		column, ok := r.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown filter field: %v", filter.Column)
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
 	}
-	var count int64
-	if err := tx.QueryRow(ctx, inventoryCountQuery, tenantID).Scan(&count); err != nil {
-		return 0, err
+
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(where, fmt.Sprintf("(i.name ILIKE $%d OR i.description ILIKE $%d)", index, index))
+		args = append(args, "%"+params.Search+"%")
 	}
-	return count, nil
+
+	return where, args, nil
 }
 
 func (r *InventoryRepository) queryInventory(ctx context.Context, query string, args ...interface{}) ([]inventory.Inventory, error) {

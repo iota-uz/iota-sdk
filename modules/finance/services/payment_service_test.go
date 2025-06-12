@@ -7,99 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
-
-	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
-	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 )
-
-// testFixtures contains common test dependencies
-type testFixtures struct {
-	ctx             context.Context
-	pool            *pgxpool.Pool
-	publisher       eventbus.EventBus
-	paymentsService *services.PaymentService
-	accountService  *services.MoneyAccountService
-	tenantID        uuid.UUID
-}
-
-// setupTest creates all necessary dependencies for tests
-func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixtures {
-	t.Helper()
-
-	testutils.CreateDB(t.Name())
-	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
-
-	ctx := composables.WithUser(context.Background(), testutils.MockUser(permissions...))
-
-	t.Cleanup(func() {
-		pool.Close()
-	})
-
-	ctx = composables.WithPool(ctx, pool)
-	ctx = composables.WithSession(ctx, &session.Session{})
-
-	publisher := eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
-	app := setupApplication(t, pool, publisher)
-
-	// Run migrations to ensure all tables are created (including tenants table)
-	if err := app.Migrations().Run(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a test tenant and add it to the context (after migrations have created the table)
-	tenant, err := testutils.CreateTestTenant(ctx, pool)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx = composables.WithTenantID(ctx, tenant.ID)
-
-	return &testFixtures{
-		ctx:             ctx,
-		pool:            pool,
-		publisher:       publisher,
-		paymentsService: app.Service(services.PaymentService{}).(*services.PaymentService),
-		accountService:  app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		tenantID:        tenant.ID,
-	}
-}
-
-// setupApplication initializes and configures the application
-func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher eventbus.EventBus) application.Application {
-	t.Helper()
-	app := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		EventBus: publisher,
-		Logger:   logging.ConsoleLogger(logrus.WarnLevel),
-	})
-	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
-		t.Fatal(err)
-	}
-	if err := app.Migrations().Run(); err != nil {
-		t.Fatal(err)
-	}
-	return app
-}
 
 // setupTestData creates necessary test data and returns account and counterparty
 func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) (moneyaccount.Account, counterparty.Counterparty) {
