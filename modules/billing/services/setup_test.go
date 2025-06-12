@@ -11,3 +11,60 @@ func TestMain(m *testing.M) {
 	}
 	os.Exit(m.Run())
 }
+
+// testFixtures contains common test dependencies
+type testFixtures struct {
+	ctx            context.Context
+	pool           *pgxpool.Pool
+	app            application.Application
+	billingService *services.BillingService
+}
+
+// setupTest creates all necessary dependencies for tests
+func setupTest(t *testing.T) *testFixtures {
+	t.Helper()
+
+	testutils.CreateDB(t.Name())
+	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		if err := tx.Rollback(ctx); err != nil {
+			t.Fatal(err)
+		}
+		pool.Close()
+	})
+
+	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithParams(ctx, testutils.DefaultParams())
+
+	// Setup application and run migrations
+	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Run migrations first to create all tables including tenants
+	if err := app.Migrations().Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a test tenant and add it to the context
+	tenant, err := testutils.CreateTestTenant(ctx, pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx = composables.WithTenantID(ctx, tenant.ID)
+
+	return &testFixtures{
+		ctx:            ctx,
+		pool:           pool,
+		app:            app,
+		billingService: app.Service(services.BillingService{}).(*services.BillingService),
+	}
+}
