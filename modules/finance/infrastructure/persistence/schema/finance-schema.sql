@@ -1,5 +1,5 @@
 CREATE TABLE counterparty (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     tin varchar(20),
     name varchar(255) NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE counterparty (
 );
 
 CREATE TABLE counterparty_contacts (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     counterparty_id uuid NOT NULL REFERENCES counterparty (id) ON DELETE CASCADE,
     first_name varchar(255) NOT NULL,
     last_name varchar(255) NOT NULL,
@@ -24,12 +24,12 @@ CREATE TABLE counterparty_contacts (
 );
 
 CREATE TABLE inventory (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
     currency_id varchar(3) REFERENCES currencies (code) ON DELETE SET NULL,
-    price numeric(9, 2) NOT NULL,
+    price bigint NOT NULL,
     quantity int NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
@@ -37,24 +37,22 @@ CREATE TABLE inventory (
 );
 
 CREATE TABLE expense_categories (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
-    amount numeric(9, 2) NOT NULL,
-    amount_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE RESTRICT,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
     UNIQUE (tenant_id, name)
 );
 
 CREATE TABLE money_accounts (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     account_number varchar(255) NOT NULL,
     description text,
-    balance numeric(9, 2) NOT NULL,
+    balance bigint NOT NULL,
     balance_currency_id varchar(3) NOT NULL REFERENCES currencies (code) ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
@@ -62,9 +60,9 @@ CREATE TABLE money_accounts (
 );
 
 CREATE TABLE transactions (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-    amount numeric(9, 2) NOT NULL,
+    amount bigint NOT NULL,
     origin_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
     destination_account_id uuid REFERENCES money_accounts (id) ON DELETE RESTRICT,
     transaction_date date NOT NULL DEFAULT now() ::date,
@@ -73,12 +71,13 @@ CREATE TABLE transactions (
     comment text,
     -- Exchange operation fields
     exchange_rate numeric(18, 8), -- Exchange rate used for currency conversion
-    destination_amount numeric(9, 2), -- Amount in destination currency (for exchange operations)
+    destination_amount bigint, -- Amount in destination currency (for exchange operations)
     created_at timestamp with time zone DEFAULT now()
 );
 
 CREATE TABLE expenses (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     transaction_id uuid NOT NULL REFERENCES transactions (id) ON DELETE CASCADE,
     category_id uuid NOT NULL REFERENCES expense_categories (id) ON DELETE CASCADE,
     created_at timestamp with time zone DEFAULT now(),
@@ -86,7 +85,7 @@ CREATE TABLE expenses (
 );
 
 CREATE TABLE payment_categories (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     name varchar(255) NOT NULL,
     description text,
@@ -96,7 +95,8 @@ CREATE TABLE payment_categories (
 );
 
 CREATE TABLE payments (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     transaction_id uuid NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
     counterparty_id uuid NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
     category_id uuid REFERENCES payment_categories (id) ON DELETE SET NULL,

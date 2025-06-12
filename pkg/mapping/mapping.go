@@ -151,3 +151,14 @@ func UUIDToSQLNullString(id uuid.UUID) sql.NullString {
 		Valid:  id != uuid.Nil,
 	}
 }
+
+func SQLNullStringToUUID(ns sql.NullString) uuid.UUID {
+	if !ns.Valid {
+		return uuid.Nil
+	}
+	id, err := uuid.Parse(ns.String)
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
+}

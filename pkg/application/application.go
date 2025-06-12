@@ -90,18 +90,21 @@ type ApplicationOptions struct {
 	Pool     *pgxpool.Pool
 	EventBus eventbus.EventBus
 	Logger   *logrus.Logger
+	Bundle   *i18n.Bundle
 	Huber    Huber
 }
 
-func New(opts *ApplicationOptions) Application {
+func LoadBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	return bundle
+}
 
+func New(opts *ApplicationOptions) Application {
 	sl := spotlight.New()
 	quickLinks := &spotlight.QuickLinks{}
 	sl.Register(quickLinks)
-
 	return &application{
 		pool:           opts.Pool,
 		eventPublisher: opts.EventBus,
@@ -111,7 +114,7 @@ func New(opts *ApplicationOptions) Application {
 		services:       make(map[reflect.Type]interface{}),
 		quickLinks:     quickLinks,
 		spotlight:      sl,
-		bundle:         bundle,
+		bundle:         opts.Bundle,
 		migrations:     NewMigrationManager(opts.Pool),
 	}
 }

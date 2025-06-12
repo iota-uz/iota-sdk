@@ -3,11 +3,11 @@ package persistence_test
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	financepersistence "github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
@@ -23,9 +23,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 		f.ctx,
 		moneyaccount.New(
 			"test",
-			currency.USD,
+			money.New(10000, "USD"),
 			moneyaccount.WithAccountNumber("123"),
-			moneyaccount.WithBalance(100),
 		),
 	)
 	if err != nil {
@@ -53,8 +52,8 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 			if len(accounts) != 1 {
 				t.Errorf("expected 1, got %d", len(accounts))
 			}
-			if accounts[0].Balance() != 100 {
-				t.Errorf("expected 100, got %f", accounts[0].Balance())
+			if accounts[0].Balance().AsMajorUnits() != 100 {
+				t.Errorf("expected 100, got %f", accounts[0].Balance().AsMajorUnits())
 			}
 		},
 	)
@@ -68,23 +67,23 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 			if len(accounts) != 1 {
 				t.Errorf("expected 1, got %d", len(accounts))
 			}
-			if accounts[0].Balance() != 100 {
-				t.Errorf("expected 100, got %f", accounts[0].Balance())
+			if accounts[0].Balance().AsMajorUnits() != 100 {
+				t.Errorf("expected 100, got %f", accounts[0].Balance().AsMajorUnits())
 			}
 		},
 	)
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			accountEntity, err := accountRepository.GetByID(f.ctx, uuid.MustParse("00000000-0000-0000-0000-000000000001"))
+			accountEntity, err := accountRepository.GetByID(f.ctx, createdAccount.ID())
 			if err != nil {
 				t.Fatal(err)
 			}
-			if accountEntity.Balance() != 100 {
-				t.Errorf("expected 100, got %f", accountEntity.Balance())
+			if accountEntity.Balance().AsMajorUnits() != 100 {
+				t.Errorf("expected 100, got %f", accountEntity.Balance().AsMajorUnits())
 			}
-			if accountEntity.Currency().Code != currency.UsdCode {
-				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency().Code)
+			if accountEntity.Balance().Currency().Code != string(currency.UsdCode) {
+				t.Errorf("expected %s, got %s", string(currency.UsdCode), accountEntity.Balance().Currency().Code)
 			}
 		},
 	)
@@ -93,23 +92,22 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 		"Update", func(t *testing.T) {
 			updatedAccount := moneyaccount.New(
 				"test",
-				currency.USD,
+				money.New(20000, "USD"),
 				moneyaccount.WithID(createdAccount.ID()),
 				moneyaccount.WithAccountNumber("123"),
-				moneyaccount.WithBalance(200),
 			)
-			if err := accountRepository.Update(f.ctx, updatedAccount); err != nil {
+			if _, err := accountRepository.Update(f.ctx, updatedAccount); err != nil {
 				t.Fatal(err)
 			}
 			accountEntity, err := accountRepository.GetByID(f.ctx, createdAccount.ID())
 			if err != nil {
 				t.Fatal(err)
 			}
-			if accountEntity.Balance() != 200 {
-				t.Errorf("expected 200, got %f", accountEntity.Balance())
+			if accountEntity.Balance().AsMajorUnits() != 200 {
+				t.Errorf("expected 200, got %f", accountEntity.Balance().AsMajorUnits())
 			}
-			if accountEntity.Currency().Code != currency.UsdCode {
-				t.Errorf("expected %s, got %s", currency.UsdCode, accountEntity.Currency().Code)
+			if accountEntity.Balance().Currency().Code != string(currency.UsdCode) {
+				t.Errorf("expected %s, got %s", string(currency.UsdCode), accountEntity.Balance().Currency().Code)
 			}
 		},
 	)

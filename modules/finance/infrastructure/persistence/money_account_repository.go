@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -29,13 +28,9 @@ const (
 			ma.balance,
 			ma.balance_currency_id,
 			ma.created_at,
-			ma.updated_at,
-			c.code,
-			c.name,
-			c.symbol,
-			c.created_at,
-			c.updated_at
-		FROM money_accounts ma LEFT JOIN currencies c ON c.code = ma.balance_currency_id`
+			ma.updated_at
+		FROM money_accounts ma
+	`
 	countQuery              = `SELECT COUNT(*) as count FROM money_accounts WHERE tenant_id = $1`
 	recalculateBalanceQuery = `
 		UPDATE money_accounts
@@ -155,7 +150,7 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data moneyaccou
 	}
 
 	data = data.UpdateTenantID(tenantID)
-	entity := toDBMoneyAccount(data)
+	entity := ToDBMoneyAccount(data)
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -178,14 +173,14 @@ func (g *GormMoneyAccountRepository) Create(ctx context.Context, data moneyaccou
 	return g.GetByID(ctx, id)
 }
 
-func (g *GormMoneyAccountRepository) Update(ctx context.Context, data moneyaccount.Account) error {
+func (g *GormMoneyAccountRepository) Update(ctx context.Context, data moneyaccount.Account) (moneyaccount.Account, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	data = data.UpdateTenantID(tenantID)
-	dbAccount := toDBMoneyAccount(data)
+	dbAccount := ToDBMoneyAccount(data)
 	args := []interface{}{
 		dbAccount.Name,
 		dbAccount.AccountNumber,
@@ -196,7 +191,10 @@ func (g *GormMoneyAccountRepository) Update(ctx context.Context, data moneyaccou
 		dbAccount.ID,
 		dbAccount.TenantID,
 	}
-	return g.execQuery(ctx, updateQuery, args...)
+	if err := g.execQuery(ctx, updateQuery, args...); err != nil {
+		return nil, err
+	}
+	return g.GetByID(ctx, data.ID())
 }
 
 func (g *GormMoneyAccountRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -223,9 +221,7 @@ func (g *GormMoneyAccountRepository) queryAccounts(ctx context.Context, query st
 	defer rows.Close()
 	var dbRows []*models.MoneyAccount
 	for rows.Next() {
-		r := models.MoneyAccount{
-			Currency: &coremodels.Currency{},
-		}
+		r := models.MoneyAccount{}
 		if err := rows.Scan(
 			&r.ID,
 			&r.TenantID,
@@ -236,17 +232,12 @@ func (g *GormMoneyAccountRepository) queryAccounts(ctx context.Context, query st
 			&r.BalanceCurrencyID,
 			&r.CreatedAt,
 			&r.UpdatedAt,
-			&r.Currency.Code,
-			&r.Currency.Name,
-			&r.Currency.Symbol,
-			&r.Currency.CreatedAt,
-			&r.Currency.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		dbRows = append(dbRows, &r)
 	}
-	return mapping.MapDBModels(dbRows, toDomainMoneyAccount)
+	return mapping.MapDBModels(dbRows, ToDomainMoneyAccount)
 }
 
 func (g *GormMoneyAccountRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {

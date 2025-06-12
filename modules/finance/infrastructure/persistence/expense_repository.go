@@ -17,7 +17,7 @@ import (
 const (
 	// SQL queries
 	expenseFindQuery = `
-		SELECT ex.id, ex.transaction_id, ex.category_id, ex.created_at, ex.updated_at,
+		SELECT ex.id, ex.transaction_id, ex.category_id, ex.tenant_id, ex.created_at, ex.updated_at,
 		tr.amount, tr.transaction_date, tr.accounting_period, tr.transaction_type, tr.comment,
 		tr.origin_account_id, tr.destination_account_id
 		FROM expenses ex LEFT JOIN transactions tr on tr.id = ex.transaction_id`
@@ -118,6 +118,7 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 			&dbExpense.ID,
 			&dbExpense.TransactionID,
 			&dbExpense.CategoryID,
+			&dbExpense.TenantID,
 			&dbExpense.CreatedAt,
 			&dbExpense.UpdatedAt,
 			&dbTransaction.Amount,
@@ -131,7 +132,7 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 			return nil, errors.Wrap(err, "failed to scan expense row")
 		}
 
-		domainExpense, err := toDomainExpense(&dbExpense, &dbTransaction)
+		domainExpense, err := ToDomainExpense(&dbExpense, &dbTransaction)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain expense")
 		}
@@ -150,7 +151,7 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 	// Now fetch all categories in a single batch
 	expenses := make([]expense.Expense, 0, len(expensesData))
 	for _, data := range expensesData {
-		domainCategory, err := g.categoryRepo.GetByID(ctx, data.expense.CategoryID)
+		domainCategory, err := g.categoryRepo.GetByID(ctx, uuid.MustParse(data.expense.CategoryID))
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get category for expense ID: %s", data.expense.ID))
 		}
@@ -235,38 +236,49 @@ func (g *GormExpenseRepository) GetByID(ctx context.Context, id uuid.UUID) (expe
 	return expenses[0], nil
 }
 
-func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense) error {
+func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense) (expense.Expense, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get transaction")
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
-	expenseRow, transactionRow := toDBExpense(data)
-	if err := g.transactionRepo.Create(ctx, transactionRow); err != nil {
-		return errors.Wrap(err, "failed to create transaction")
+	expenseRow, transactionRow := ToDBExpense(data)
+	createdTransaction, err := g.transactionRepo.Create(ctx, transactionRow)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create transaction")
 	}
 
 	var id uuid.UUID
-	if err := tx.QueryRow(ctx, expenseInsertQuery, transactionRow.ID(), expenseRow.CategoryID).Scan(&id); err != nil {
-		return errors.Wrap(err, "failed to create expense")
+	if err := tx.QueryRow(
+		ctx,
+		expenseInsertQuery,
+		createdTransaction.ID(),
+		expenseRow.CategoryID,
+	).Scan(&id); err != nil {
+		return nil, errors.Wrap(err, "failed to create expense")
 	}
-	expenseRow.TransactionID = transactionRow.ID()
-	return nil
+	return g.GetByID(ctx, id)
 }
 
-func (g *GormExpenseRepository) Update(ctx context.Context, data expense.Expense) error {
+func (g *GormExpenseRepository) Update(ctx context.Context, data expense.Expense) (expense.Expense, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get transaction")
+		return nil, errors.Wrap(err, "failed to get transaction")
 	}
-	expenseRow, transactionRow := toDBExpense(data)
-	if err := g.transactionRepo.Update(ctx, transactionRow); err != nil {
-		return errors.Wrap(err, "failed to update transaction")
+	expenseRow, transactionRow := ToDBExpense(data)
+	updatedTransaction, err := g.transactionRepo.Update(ctx, transactionRow)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update transaction")
 	}
-	expenseRow.TransactionID = transactionRow.ID()
-	if _, err := tx.Exec(ctx, expenseUpdateQuery, expenseRow.TransactionID, expenseRow.CategoryID, expenseRow.ID); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to update expense with ID: %s", expenseRow.ID))
+	if _, err := tx.Exec(
+		ctx,
+		expenseUpdateQuery,
+		updatedTransaction.ID().String(),
+		expenseRow.CategoryID,
+		expenseRow.ID,
+	); err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to update expense with ID: %s", expenseRow.ID))
 	}
-	return nil
+	return g.GetByID(ctx, data.ID())
 }
 
 func (g *GormExpenseRepository) Delete(ctx context.Context, id uuid.UUID) error {

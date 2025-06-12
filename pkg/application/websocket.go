@@ -24,6 +24,7 @@ const (
 
 type HuberOptions struct {
 	Pool           *pgxpool.Pool
+	Bundle         *i18n.Bundle
 	Logger         *logrus.Logger
 	CheckOrigin    func(r *http.Request) bool
 	UserRepository user.Repository
@@ -43,6 +44,7 @@ type Huber interface {
 
 func NewHub(opts *HuberOptions) Huber {
 	appHub := &huber{
+		bundle:          opts.Bundle,
 		pool:            opts.Pool,
 		logger:          opts.Logger,
 		userRepo:        opts.UserRepository,
@@ -65,7 +67,7 @@ type MetaInfo struct {
 
 type huber struct {
 	hub             ws.Huber
-	app             Application
+	bundle          *i18n.Bundle
 	pool            *pgxpool.Pool
 	logger          *logrus.Logger
 	connectionsMeta map[*ws.Connection]*MetaInfo
@@ -122,7 +124,7 @@ func (h *huber) ForEach(channel string, f WsCallback) error {
 			h.logger.WithError(err).Error("failed to get user by ID")
 			continue
 		}
-		localizer := i18n.NewLocalizer(h.app.Bundle(), string(usr.UILanguage()))
+		localizer := i18n.NewLocalizer(h.bundle, string(usr.UILanguage()))
 		connCtx := intl.WithLocalizer(ctx, localizer)
 		connCtx = composables.WithPageCtx(connCtx, &types.PageContext{
 			URL:       nil,

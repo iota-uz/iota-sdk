@@ -90,7 +90,7 @@ func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) err
 	}
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Update(txCtx, entity); err != nil {
+		if _, err := s.repo.Update(txCtx, entity); err != nil {
 			return err
 		}
 		return s.accountService.RecalculateBalance(txCtx, entity.Account().ID())

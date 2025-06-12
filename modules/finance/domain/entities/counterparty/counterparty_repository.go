@@ -2,28 +2,41 @@ package counterparty
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
-type DateRange struct {
-	From string
-	To   string
-}
+type Field = int
+
+const (
+	NameField Field = iota
+	TinField
+	TypeField
+	LegalTypeField
+	LegalAddressField
+	CreatedAtField
+	UpdatedAtField
+	TenantIDField
+)
+
+type SortBy = repo.SortBy[Field]
+type Filter = repo.FieldFilter[Field]
 
 type FindParams struct {
-	Limit     int
-	Offset    int
-	SortBy    []string
-	Query     string
-	Field     string
-	CreatedAt DateRange
+	Limit   int
+	Offset  int
+	SortBy  SortBy
+	Search  string
+	Filters []Filter
 }
 
 type Repository interface {
-	Count(context.Context) (int64, error)
+	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetAll(context.Context) ([]Counterparty, error)
 	GetPaginated(context.Context, *FindParams) ([]Counterparty, error)
-	GetByID(context.Context, uint) (Counterparty, error)
+	GetByID(context.Context, uuid.UUID) (Counterparty, error)
 	Create(context.Context, Counterparty) (Counterparty, error)
-	Update(context.Context, Counterparty) error
-	Delete(context.Context, uint) error
+	Update(context.Context, Counterparty) (Counterparty, error)
+	Delete(context.Context, uuid.UUID) error
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
@@ -157,11 +158,11 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	)
 	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
 	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
 	c.realtime.Register()
 }
@@ -339,7 +340,14 @@ func (c *ExpenseController) Update(
 		return
 	}
 
-	cat, err := expenseCategoryService.GetByID(r.Context(), dto.CategoryID)
+	categoryID, err := uuid.Parse(dto.CategoryID)
+	if err != nil {
+		logger.Errorf("Invalid category ID: %v", err)
+		http.Error(w, "Invalid category ID", http.StatusBadRequest)
+		return
+	}
+
+	cat, err := expenseCategoryService.GetByID(r.Context(), categoryID)
 	if errors.Is(err, persistence.ErrExpenseCategoryNotFound) {
 		logger.Errorf("Expense category not found: %v", err)
 		http.Error(w, "Expense category not found", http.StatusBadRequest)
@@ -444,6 +452,13 @@ func (c *ExpenseController) Create(
 		return
 	}
 
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		logger.Errorf("Error getting tenant ID: %v", err)
+		http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
+		return
+	}
+
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		accounts, err := moneyAccountService.GetAll(r.Context())
 		if err != nil {
@@ -452,7 +467,7 @@ func (c *ExpenseController) Create(
 			return
 		}
 
-		entity, err := dto.ToEntity()
+		entity, err := dto.ToEntity(tenantID)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -476,7 +491,7 @@ func (c *ExpenseController) Create(
 		return
 	}
 
-	entity, err := dto.ToEntity()
+	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

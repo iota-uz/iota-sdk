@@ -37,12 +37,13 @@ const (
 	paymentCountQuery  = `SELECT COUNT(*) as count FROM payments p LEFT JOIN transactions t ON t.id = p.transaction_id WHERE t.tenant_id = $1`
 	paymentInsertQuery = `
 	INSERT INTO payments (
+		tenant_id,
 		counterparty_id,
 		transaction_id,
 		created_at,
 		updated_at
 	)
-	VALUES ($1, $2, $3, $4) RETURNING id`
+	VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	paymentUpdateQuery        = `UPDATE payments SET counterparty_id = $1, updated_at = $2 WHERE id = $3`
 	paymentDeleteRelatedQuery = `DELETE FROM transactions WHERE id = $1 AND tenant_id = $2`
 	paymentDeleteQuery        = `DELETE FROM payments WHERE id = $1`
@@ -131,7 +132,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	// Set tenant ID on the domain entity
 	data = data.UpdateTenantID(tenantID)
 
-	dbPayment, dbTransaction := toDBPayment(data)
+	dbPayment, dbTransaction := ToDBPayment(data)
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -153,6 +154,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	row := tx.QueryRow(
 		ctx,
 		paymentInsertQuery,
+		dbPayment.TenantID,
 		dbPayment.CounterpartyID,
 		dbPayment.TransactionID,
 		dbPayment.CreatedAt,
@@ -165,16 +167,16 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	return g.GetByID(ctx, id)
 }
 
-func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment) error {
+func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment) (payment.Payment, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID on the domain entity
 	data = data.UpdateTenantID(tenantID)
 
-	dbPayment, dbTransaction := toDBPayment(data)
+	dbPayment, dbTransaction := ToDBPayment(data)
 	if err := g.execQuery(
 		ctx,
 		paymentUpdateQuery,
@@ -182,9 +184,9 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 		dbPayment.UpdatedAt,
 		dbPayment.ID,
 	); err != nil {
-		return err
+		return nil, err
 	}
-	return g.execQuery(
+	if err := g.execQuery(
 		ctx,
 		transactionUpdateQuery,
 		dbTransaction.Amount,
@@ -196,7 +198,10 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 		dbTransaction.Comment,
 		dbTransaction.ID,
 		dbTransaction.TenantID,
-	)
+	); err != nil {
+		return nil, err
+	}
+	return g.GetByID(ctx, data.ID())
 }
 
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -247,7 +252,7 @@ func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string,
 		); err != nil {
 			return nil, err
 		}
-		entity, err := toDomainPayment(&paymentRow, &transactionRow)
+		entity, err := ToDomainPayment(&paymentRow, &transactionRow)
 		if err != nil {
 			return nil, err
 		}

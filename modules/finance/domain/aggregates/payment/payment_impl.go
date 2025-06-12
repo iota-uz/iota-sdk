@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Option func(p *payment)
@@ -79,12 +80,12 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 }
 
 func New(
-	amount float64,
+	amount *money.Money,
 	category paymentcategory.PaymentCategory,
 	opts ...Option,
 ) Payment {
 	p := &payment{
-		id:               uuid.Nil,
+		id:               uuid.New(),
 		tenantID:         uuid.Nil,
 		amount:           amount,
 		transactionID:    uuid.Nil,
@@ -107,7 +108,7 @@ func New(
 type payment struct {
 	id               uuid.UUID
 	tenantID         uuid.UUID
-	amount           float64
+	amount           *money.Money
 	transactionID    uuid.UUID
 	counterpartyID   uuid.UUID
 	category         paymentcategory.PaymentCategory
@@ -128,11 +129,11 @@ func (p *payment) SetID(id uuid.UUID) {
 	p.id = id
 }
 
-func (p *payment) Amount() float64 {
+func (p *payment) Amount() *money.Money {
 	return p.amount
 }
 
-func (p *payment) UpdateAmount(a float64) Payment {
+func (p *payment) UpdateAmount(a *money.Money) Payment {
 	result := *p
 	result.amount = a
 	result.updatedAt = time.Now()
@@ -156,6 +157,13 @@ func (p *payment) UpdateCounterpartyID(id uuid.UUID) Payment {
 
 func (p *payment) Category() paymentcategory.PaymentCategory {
 	return p.category
+}
+
+func (p *payment) UpdateCategory(category paymentcategory.PaymentCategory) Payment {
+	result := *p
+	result.category = category
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (p *payment) TransactionDate() time.Time {

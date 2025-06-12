@@ -4,7 +4,10 @@
     "Expenses": "Xarajatlar",
     "ExpenseCategories": "Xarajat kategoriyalari",
     "Payments": "To'lovlar",
-    "Finances": "Moliya"
+    "PaymentCategories": "To'lov kategoriyalari",
+    "Finances": "Moliya",
+    "Counterparties": "Kontragentlar",
+    "Inventory": "Ombor"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -72,6 +75,8 @@
         "Label": "Jo'natuvchi",
         "Placeholder": "Jo'natuvchini tanlang"
       },
+      "Category": "Kategoriya",
+      "SelectCategory": "Kategoriyani tanlang",
       "Comment": "Izoh",
       "Delete": "To'lovni o'chirish",
       "DeleteConfirmation": "Ushbu to'lovni o'chirishni xohlaysizmi?"
@@ -115,6 +120,78 @@
       "DeleteConfirmation": "Ushbu xarajatni o'chirishni xohlaysizmi?"
     }
   },
+  "Counterparties": {
+    "Meta": {
+      "List": {
+        "Title": "Kontragentlar"
+      },
+      "Edit": {
+        "Title": "Kontragentni tahrirlash"
+      },
+      "New": {
+        "Title": "Kontragent qo'shish"
+      }
+    },
+    "List": {
+      "New": "Kontragent qo'shish",
+      "Name": "Nomi",
+      "TIN": "STIR",
+      "Type": "Turi",
+      "LegalType": "Yuridik shakli",
+      "LegalAddress": "Yuridik manzili",
+      "NoCounterparties": {
+        "Title": "Kontragentlar topilmadi",
+        "_Description": "Hali kontragentlar yo'q. Yangi yaratish uchun 'Kontragent qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Edit": "Kontragentni tahrirlash",
+      "Name": "Nomi",
+      "TIN": "STIR",
+      "Type": "Turi",
+      "SelectType": "Turini tanlang",
+      "LegalType": "Yuridik shakli",
+      "SelectLegalType": "Yuridik shaklini tanlang",
+      "LegalAddress": "Yuridik manzili",
+      "Delete": "Kontragentni o'chirish",
+      "DeleteConfirmation": "Ushbu kontragentni o'chirishni xohlaysizmi?"
+    },
+    "Types": {
+      "CUSTOMER": "Mijoz",
+      "SUPPLIER": "Ta'minotchi",
+      "BOTH": "Ikkalasi",
+      "_OTHER": "Boshqa"
+    },
+    "LegalTypes": {
+      "INDIVIDUAL": "Jismoniy shaxs",
+      "LEGAL_ENTITY": "Yuridik shaxs",
+      "LLC": "MChJ",
+      "JSC": "AJ",
+      "INC": "Korporatsiya",
+      "LTD": "LTD",
+      "PLC": "Ochiq kompaniya",
+      "LLP": "Cheklangan javobgarlikdagi sheriklik",
+      "GMBH": "GmbH",
+      "AG": "AG",
+      "SA": "SA",
+      "PTYLTD": "Pty Ltd",
+      "CCORP": "C-Korporatsiya",
+      "SCORP": "S-Korporatsiya",
+      "SP": "Yakka tartibdagi tadbirkor",
+      "SC": "To'liq sheriklik",
+      "OU": "Osaühing",
+      "AB": "Aktiebolag",
+      "AS": "Aksjeselskap",
+      "SARL": "SARL",
+      "BV": "BV",
+      "KK": "Kabushiki Kaisha",
+      "SAO": "SAO",
+      "LLLP": "Cheklangan javobgarlikdagi kommanditat sheriklik",
+      "UAB": "UAB",
+      "SPZOO": "Sp. z o.o.",
+      "SRL": "SRL"
+    }
+  },
   "Accounts": {
     "Meta": {
       "List": {
@@ -148,6 +225,69 @@
       "AccountNumber": "Hisob raqami",
       "Delete": "Hisobni o'chirish",
       "DeleteConfirmation": "Ushbu hisobni o'chirishni xohlaysizmi?"
+    }
+  },
+  "PaymentCategories": {
+    "Meta": {
+      "List": {
+        "Title": "To'lov kategoriyalari"
+      },
+      "Edit": {
+        "Title": "To'lov kategoriyasini tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi to'lov kategoriyasi"
+      }
+    },
+    "List": {
+      "New": "Yangi kategoriya",
+      "Name": "Nomi",
+      "NoCategories": {
+        "Title": "To'lov kategoriyalari topilmadi",
+        "_Description": "Hali to'lov kategoriyalari yo'q. Yangi yaratish uchun 'Yangi kategoriya' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "Delete": "To'lov kategoriyasini o'chirish",
+      "DeleteConfirmation": "Ushbu to'lov kategoriyasini o'chirishni xohlaysizmi?"
+    }
+  },
+  "Inventory": {
+    "Meta": {
+      "List": {
+        "Title": "Ombor"
+      },
+      "Edit": {
+        "Title": "Tovarni tahrirlash"
+      },
+      "New": {
+        "Title": "Tovar qo'shish"
+      }
+    },
+    "List": {
+      "New": "Tovar qo'shish",
+      "Name": "Nomi",
+      "Price": "Narxi",
+      "Quantity": "Miqdori",
+      "NoInventory": {
+        "Title": "Tovarlar topilmadi",
+        "_Description": "Hali omborxonada tovarlar yo'q. Yangi yaratish uchun 'Tovar qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Edit": "Tovarni tahrirlash",
+      "Name": "Nomi",
+      "Price": "Narxi",
+      "Quantity": "Miqdori",
+      "Currency": {
+        "Label": "Valyuta",
+        "Placeholder": "Valyutani tanlang"
+      },
+      "_Description": "Tavsif",
+      "Delete": "Tovarni o'chirish",
+      "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
     }
   }
 }

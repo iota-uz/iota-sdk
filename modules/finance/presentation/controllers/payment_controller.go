@@ -3,7 +3,10 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/google/uuid"
+	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payments"
@@ -23,11 +26,12 @@ import (
 )
 
 type PaymentsController struct {
-	app                 application.Application
-	paymentService      *services.PaymentService
-	moneyAccountService *services.MoneyAccountService
-	counterpartyService *services.CounterpartyService
-	basePath            string
+	app                    application.Application
+	paymentService         *services.PaymentService
+	moneyAccountService    *services.MoneyAccountService
+	counterpartyService    *services.CounterpartyService
+	paymentCategoryService *services.PaymentCategoryService
+	basePath               string
 }
 
 type PaymentPaginatedResponse struct {
@@ -37,11 +41,12 @@ type PaymentPaginatedResponse struct {
 
 func NewPaymentsController(app application.Application) application.Controller {
 	return &PaymentsController{
-		app:                 app,
-		paymentService:      app.Service(services.PaymentService{}).(*services.PaymentService),
-		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
-		basePath:            "/finance/payments",
+		app:                    app,
+		paymentService:         app.Service(services.PaymentService{}).(*services.PaymentService),
+		moneyAccountService:    app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		counterpartyService:    app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
+		paymentCategoryService: app.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService),
+		basePath:               "/finance/payments",
 	}
 }
 
@@ -62,11 +67,11 @@ func (c *PaymentsController) Register(r *mux.Router) {
 	)
 	router.HandleFunc("", c.Payments).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
 
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Payment, error) {
@@ -87,6 +92,14 @@ func (c *PaymentsController) viewModelAccounts(r *http.Request) ([]*viewmodels.M
 		return nil, errors.Wrap(err, "Error retrieving accounts")
 	}
 	return mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel), nil
+}
+
+func (c *PaymentsController) viewModelPaymentCategories(r *http.Request) ([]*viewmodels.PaymentCategory, error) {
+	categories, err := c.paymentCategoryService.GetAll(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving payment categories")
+	}
+	return mapping.MapViewModels(categories, mappers.PaymentCategoryToViewModel), nil
 }
 
 func (c *PaymentsController) viewModelPayments(r *http.Request) (*PaymentPaginatedResponse, error) {
@@ -144,11 +157,17 @@ func (c *PaymentsController) GetEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	categories, err := c.viewModelPaymentCategories(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	props := &payments.EditPageProps{
-		Payment:  paymentViewModel,
-		Accounts: accounts,
-		Errors:   make(map[string]string),
+		Payment:    paymentViewModel,
+		Accounts:   accounts,
+		Categories: categories,
+		Errors:     make(map[string]string),
 	}
 	templ.Handler(payments.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -191,16 +210,55 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		categories, err := c.viewModelPaymentCategories(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		props := &payments.EditPageProps{
-			Payment:  paymentViewModel,
-			Accounts: accounts,
-			Errors:   errorsMap,
+			Payment:    paymentViewModel,
+			Accounts:   accounts,
+			Categories: categories,
+			Errors:     errorsMap,
 		}
 		templ.Handler(payments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	entity := dto.ToEntity(id)
+	// Get payment category
+	var categoryEntity paymentcategory.PaymentCategory
+	if dto.PaymentCategoryID != "" {
+		categoryID, err := uuid.Parse(dto.PaymentCategoryID)
+		if err != nil {
+			http.Error(w, "Invalid payment category ID", http.StatusBadRequest)
+			return
+		}
+		categoryEntity, err = c.paymentCategoryService.GetByID(r.Context(), categoryID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		categoryEntity = paymentcategory.New("Uncategorized")
+	}
+
+	existing, err := c.paymentService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving payment", http.StatusInternalServerError)
+		return
+	}
+
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		http.Error(w, "Error getting user", http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := dto.Apply(existing, categoryEntity, user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	if err := c.paymentService.Update(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -215,11 +273,17 @@ func (c *PaymentsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	categories, err := c.viewModelPaymentCategories(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	props := &payments.CreatePageProps{
-		Payment:  &viewmodels.Payment{},
-		Accounts: accounts,
-		Errors:   make(map[string]string),
+		Payment:    &viewmodels.Payment{},
+		Accounts:   accounts,
+		Categories: categories,
+		Errors:     make(map[string]string),
 	}
 	templ.Handler(payments.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -244,16 +308,50 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 			return
 		}
+		categories, err := c.viewModelPaymentCategories(r)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+			return
+		}
+		// Create a default payment viewmodel for displaying errors
+		payment := &viewmodels.Payment{
+			Amount:           fmt.Sprintf("%.2f", dto.Amount),
+			AccountID:        dto.AccountID,
+			CounterpartyID:   dto.CounterpartyID,
+			CategoryID:       dto.PaymentCategoryID,
+			TransactionDate:  time.Time(dto.TransactionDate).Format(time.DateOnly),
+			AccountingPeriod: time.Time(dto.AccountingPeriod).Format(time.DateOnly),
+			Comment:          dto.Comment,
+		}
 		props := &payments.CreatePageProps{
-			Payment:  mappers.PaymentToViewModel(dto.ToEntity()),
-			Accounts: accounts,
-			Errors:   errorsMap,
+			Payment:    payment,
+			Accounts:   accounts,
+			Categories: categories,
+			Errors:     errorsMap,
 		}
 		templ.Handler(payments.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	entity := dto.ToEntity()
+	// Get payment category
+	categoryID, err := uuid.Parse(dto.PaymentCategoryID)
+	if err != nil {
+		http.Error(w, "Invalid payment category ID", http.StatusBadRequest)
+		return
+	}
+	categoryEntity, err := c.paymentCategoryService.GetByID(r.Context(), categoryID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
+		return
+	}
+
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
+		return
+	}
+
+	entity := dto.ToEntity(tenantID, categoryEntity)
 	if err := c.paymentService.Create(r.Context(), entity); err != nil {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return

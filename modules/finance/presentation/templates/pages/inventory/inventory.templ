@@ -1,0 +1,119 @@
+package inventory
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type IndexPageProps struct {
+	Inventory       []*viewmodels.Inventory
+	PaginationState *pagination.State
+}
+
+templ InventoryTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col gap-4 table-wrapper">
+		if len(props.Inventory) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("Inventory.List.NoInventory.Title"),
+				Description: pageCtx.T("Inventory.List.NoInventory._Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("Inventory.List.Name"), Key: "name"},
+					{Label: pageCtx.T("Inventory.List.Price"), Key: "price"},
+					{Label: pageCtx.T("Inventory.List.Quantity"), Key: "quantity"},
+					{Label: pageCtx.T("Inventory.List.TotalValue"), Key: "totalValue"},
+					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, item := range props.Inventory {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							{ item.Name }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ item.Price } { item.CurrencyCode }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ item.Quantity }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ item.TotalValue } { item.CurrencyCode }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", item.UpdatedAt) }></span>
+							</div>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@button.Secondary(button.Props{
+								Fixed: true,
+								Size:  button.SizeSM,
+								Class: "btn-fixed",
+								Href:  fmt.Sprintf("/finance/inventory/%s", item.ID),
+							}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
+						}
+					}
+				}
+			}
+			if len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
+		}
+	</div>
+}
+
+templ InventoryContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ pageCtx.T("NavigationLinks.Inventory") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/finance/inventory"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@filters.Default(&filters.Props{
+					Fields: []filters.SearchField{
+						{
+							Label: pageCtx.T("Inventory.List.Name"),
+							Key:   "name",
+						},
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/finance/inventory/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ pageCtx.T("Inventory.List.New") }
+				}
+			</form>
+			@InventoryTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Inventory.Meta.List.Title")},
+	}) {
+		@InventoryContent(props)
+	}
+}

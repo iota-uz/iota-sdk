@@ -29,7 +29,6 @@ templ CategoriesTable(props *IndexPageProps) {
 			@base.Table(base.TableProps{
 				Columns: []*base.TableColumn{
 					{Label: pageCtx.T("ExpenseCategories.List.Name"), Key: "name"},
-					{Label: pageCtx.T("ExpenseCategories.List.Amount"), Key: "amount"},
 					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 					{Label: pageCtx.T("Actions"), Class: "w-16"},
 				},
@@ -38,9 +37,6 @@ templ CategoriesTable(props *IndexPageProps) {
 					@base.TableRow(base.TableRowProps{}) {
 						@base.TableCell(base.TableCellProps{}) {
 							{ category.Name }
-						}
-						@base.TableCell(base.TableCellProps{}) {
-							{ category.AmountWithCurrency }
 						}
 						@base.TableCell(base.TableCellProps{}) {
 							<div x-data="relativeformat">
@@ -108,10 +104,6 @@ templ CategoriesContent(props *IndexPageProps) {
 						{
 							Label: pageCtx.T("ExpenseCategories.List.Name"),
 							Key:   "name",
-						},
-						{
-							Label: pageCtx.T("ExpenseCategories.List.Amount"),
-							Key:   "amount",
 						},
 					},
 				})

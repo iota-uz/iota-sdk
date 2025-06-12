@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Payment interface {
@@ -16,8 +17,8 @@ type Payment interface {
 	TenantID() uuid.UUID
 	UpdateTenantID(id uuid.UUID) Payment
 
-	Amount() float64
-	UpdateAmount(amount float64) Payment
+	Amount() *money.Money
+	UpdateAmount(amount *money.Money) Payment
 
 	TransactionID() uuid.UUID
 
@@ -25,6 +26,7 @@ type Payment interface {
 	UpdateCounterpartyID(partyID uuid.UUID) Payment
 
 	Category() paymentcategory.PaymentCategory
+	UpdateCategory(category paymentcategory.PaymentCategory) Payment
 	TransactionDate() time.Time
 	UpdateTransactionDate(t time.Time) Payment
 

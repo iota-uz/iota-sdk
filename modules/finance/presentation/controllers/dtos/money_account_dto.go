@@ -2,15 +2,16 @@ package dtos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type MoneyAccountCreateDTO struct {
@@ -53,20 +54,15 @@ func (p *MoneyAccountCreateDTO) Ok(ctx context.Context) (map[string]string, bool
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (p *MoneyAccountCreateDTO) ToEntity() (moneyaccount.Account, error) {
-	c, err := currency.NewCode(p.CurrencyCode)
-	if err != nil {
-		return nil, err
-	}
+func (p *MoneyAccountCreateDTO) ToEntity(tenantID uuid.UUID) (moneyaccount.Account, error) {
+	// Create Money object from balance and currency
+	balance := money.NewFromFloat(p.Balance, p.CurrencyCode)
+
 	return moneyaccount.New(
 		p.Name,
-		currency.Currency{
-			Name:   "",
-			Code:   c,
-			Symbol: "",
-		},
+		balance,
+		moneyaccount.WithTenantID(tenantID),
 		moneyaccount.WithAccountNumber(p.AccountNumber),
-		moneyaccount.WithBalance(p.Balance),
 		moneyaccount.WithDescription(p.Description),
 	), nil
 }
@@ -95,21 +91,38 @@ func (p *MoneyAccountUpdateDTO) Ok(ctx context.Context) (map[string]string, bool
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (p *MoneyAccountUpdateDTO) ToEntity(id uuid.UUID) (moneyaccount.Account, error) {
-	c, err := currency.NewCode(p.CurrencyCode)
-	if err != nil {
-		return nil, err
-	}
+func (p *MoneyAccountUpdateDTO) ToEntity(id uuid.UUID, tenantID uuid.UUID) (moneyaccount.Account, error) {
+	// Create Money object from balance and currency
+	balance := money.NewFromFloat(p.Balance, p.CurrencyCode)
+
 	return moneyaccount.New(
 		p.Name,
-		currency.Currency{
-			Name:   "",
-			Code:   c,
-			Symbol: "",
-		},
+		balance,
 		moneyaccount.WithID(id),
+		moneyaccount.WithTenantID(tenantID),
 		moneyaccount.WithAccountNumber(p.AccountNumber),
-		moneyaccount.WithBalance(p.Balance),
 		moneyaccount.WithDescription(p.Description),
 	), nil
+}
+
+func (p *MoneyAccountUpdateDTO) Apply(existing moneyaccount.Account) (moneyaccount.Account, error) {
+	if existing.ID() == uuid.Nil {
+		return nil, errors.New("id cannot be nil")
+	}
+
+	// Create Money object from balance and currency if provided
+	var balance *money.Money
+	if p.CurrencyCode != "" {
+		balance = money.NewFromFloat(p.Balance, p.CurrencyCode)
+	} else {
+		balance = existing.Balance()
+	}
+
+	existing = existing.
+		UpdateName(p.Name).
+		UpdateBalance(balance).
+		UpdateAccountNumber(p.AccountNumber).
+		UpdateDescription(p.Description)
+
+	return existing, nil
 }
