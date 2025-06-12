@@ -51,8 +51,10 @@ func main() {
 	conf := configuration.Use()
 	ctx := context.Background()
 	pool := pgxPool()
+	bundle := application.LoadBundle()
 	app := application.New(&application.ApplicationOptions{
 		Pool:     pool,
+		Bundle:   bundle,
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	})
