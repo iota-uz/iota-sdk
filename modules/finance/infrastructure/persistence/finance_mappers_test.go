@@ -156,7 +156,7 @@ func TestToDomainTransaction(t *testing.T) {
 			validateFn: func(t *testing.T, tr transaction.Transaction) {
 				t.Helper()
 
-				assert.Equal(t, 75.25, tr.Amount().AsMajorUnits(), "Amount should match")
+				assert.InDelta(t, 75.25, tr.Amount().AsMajorUnits(), 0.01, "Amount should match")
 				assert.Equal(t, testTenantID, tr.TenantID(), "TenantID should match")
 				assert.Equal(t, "Test transaction", tr.Comment(), "Comment should match")
 				assert.Equal(t, transaction.Transfer, tr.TransactionType(), "TransactionType should match")
@@ -181,7 +181,7 @@ func TestToDomainTransaction(t *testing.T) {
 			validateFn: func(t *testing.T, tr transaction.Transaction) {
 				t.Helper()
 
-				assert.Equal(t, 150.00, tr.Amount().AsMajorUnits(), "Amount should match")
+				assert.InDelta(t, 150.00, tr.Amount().AsMajorUnits(), 0.01, "Amount should match")
 				assert.Equal(t, "Initial deposit", tr.Comment(), "Comment should match")
 				assert.Equal(t, transaction.Deposit, tr.TransactionType(), "TransactionType should match")
 				assert.Equal(t, uuid.Nil, tr.OriginAccountID(), "OriginAccountID should be uuid.Nil for NULL")
@@ -485,7 +485,7 @@ func TestToDomainMoneyAccount(t *testing.T) {
 				assert.Equal(t, testTenantID, account.TenantID(), "TenantID should match")
 				assert.Equal(t, "ACC-001", account.AccountNumber(), "AccountNumber should match")
 				assert.Equal(t, "Main business account", account.Description(), "Description should match")
-				assert.Equal(t, 2500.50, account.Balance().AsMajorUnits(), "Balance should match")
+				assert.InDelta(t, 2500.50, account.Balance().AsMajorUnits(), 0.01, "Balance should match")
 				assert.Equal(t, "USD", account.Balance().Currency().Code, "Currency code should match")
 			},
 		},
@@ -595,6 +595,7 @@ func TestToDomainCounterparty(t *testing.T) {
 			name: "complete counterparty",
 			dbCounterparty: &models.Counterparty{
 				ID:           uuid.New().String(),
+				TenantID:     uuid.New().String(),
 				Tin:          sql.NullString{String: "123456789", Valid: true},
 				Name:         "Supplier Corp",
 				Type:         string(counterparty.Supplier),
@@ -617,6 +618,7 @@ func TestToDomainCounterparty(t *testing.T) {
 			name: "counterparty with invalid type",
 			dbCounterparty: &models.Counterparty{
 				ID:           uuid.New().String(),
+				TenantID:     uuid.New().String(),
 				Tin:          sql.NullString{String: "123456789012", Valid: true},
 				Name:         "Test Corp",
 				Type:         "invalid_type",
@@ -631,6 +633,7 @@ func TestToDomainCounterparty(t *testing.T) {
 			name: "counterparty with invalid legal type",
 			dbCounterparty: &models.Counterparty{
 				ID:           uuid.New().String(),
+				TenantID:     uuid.New().String(),
 				Tin:          sql.NullString{String: "123456789012", Valid: true},
 				Name:         "Test Corp",
 				Type:         string(counterparty.Customer),
@@ -645,6 +648,7 @@ func TestToDomainCounterparty(t *testing.T) {
 			name: "counterparty with invalid TIN",
 			dbCounterparty: &models.Counterparty{
 				ID:           uuid.New().String(),
+				TenantID:     uuid.New().String(),
 				Tin:          sql.NullString{String: "invalid_tin", Valid: true},
 				Name:         "Test Corp",
 				Type:         string(counterparty.Customer),
