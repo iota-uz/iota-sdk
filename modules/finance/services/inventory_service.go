@@ -25,8 +25,8 @@ func (s *InventoryService) GetByID(ctx context.Context, id uuid.UUID) (inventory
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *InventoryService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *InventoryService) Count(ctx context.Context, params *inventory.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }
 
 func (s *InventoryService) GetAll(ctx context.Context) ([]inventory.Inventory, error) {

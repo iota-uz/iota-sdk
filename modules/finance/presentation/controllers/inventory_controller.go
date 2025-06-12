@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -81,11 +82,16 @@ func (c *InventoryController) viewModelInventory(r *http.Request) (*InventoryPag
 	params := &inventory.FindParams{
 		Limit:  paginationParams.Limit,
 		Offset: paginationParams.Offset,
-	}
-
-	if query := r.URL.Query().Get("query"); query != "" {
-		params.Query = query
-		params.Field = "name"
+		SortBy: inventory.SortBy{
+			Fields: []repo.SortByField[inventory.Field]{
+				{
+					Field:     inventory.CreatedAtField,
+					Ascending: false,
+				},
+			},
+		},
+		Search:  r.URL.Query().Get("Search"),
+		Filters: []inventory.Filter{},
 	}
 
 	items, err := c.inventoryService.GetPaginated(r.Context(), params)
@@ -93,7 +99,7 @@ func (c *InventoryController) viewModelInventory(r *http.Request) (*InventoryPag
 		return nil, err
 	}
 
-	total, err := c.inventoryService.Count(r.Context())
+	total, err := c.inventoryService.Count(r.Context(), params)
 	if err != nil {
 		return nil, err
 	}
