@@ -1,7 +1,7 @@
-package crud_v2_test
+package crud_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/crud_v2"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -15,7 +15,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	fixture := setupTest(t)
 	ctx := fixture.ctx
 	schema := fixture.schema
-	rep := crud_v2.DefaultRepository[Report](schema)
+	rep := crud.DefaultRepository[Report](schema)
 
 	t.Run("Create", func(t *testing.T) {
 		report := NewReport("Quarterly Results", WithAuthor("John"), WithSummary("Q1"))
@@ -78,9 +78,9 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
 
-		list, err := rep.List(ctx, &crud_v2.FindParams{
+		list, err := rep.List(ctx, &crud.FindParams{
 			Search:  "Filter Me",
-			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("FilterTest")}},
+			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("FilterTest")}},
 			Limit:   1,
 		})
 		require.NoError(t, err)
@@ -94,9 +94,9 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
 
-		list, err := rep.List(ctx, &crud_v2.FindParams{
-			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("OrderTest")}},
-			SortBy: crud_v2.SortBy{
+		list, err := rep.List(ctx, &crud.FindParams{
+			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("OrderTest")}},
+			SortBy: crud.SortBy{
 				Fields: []repo.SortByField[string]{
 					{Field: "author", Ascending: true, NullsLast: true},
 				},
@@ -114,8 +114,8 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
 
-		count, err := rep.Count(ctx, &crud_v2.FindParams{
-			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("Counter")}},
+		count, err := rep.Count(ctx, &crud.FindParams{
+			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("Counter")}},
 		})
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), count)
@@ -154,13 +154,13 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Invalid Filter Column", func(t *testing.T) {
-		_, err := rep.Count(ctx, &crud_v2.FindParams{
-			Filters: []crud_v2.Filter{{Column: "not_exist", Filter: repo.Eq("x")}},
+		_, err := rep.Count(ctx, &crud.FindParams{
+			Filters: []crud.Filter{{Column: "not_exist", Filter: repo.Eq("x")}},
 		})
 		require.Error(t, err)
 
-		_, err = rep.List(ctx, &crud_v2.FindParams{
-			Filters: []crud_v2.Filter{{Column: "not_exist", Filter: repo.Eq("x")}},
+		_, err = rep.List(ctx, &crud.FindParams{
+			Filters: []crud.Filter{{Column: "not_exist", Filter: repo.Eq("x")}},
 		})
 		assert.Error(t, err)
 	})
@@ -171,7 +171,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
 
-		list, err := rep.List(ctx, &crud_v2.FindParams{
+		list, err := rep.List(ctx, &crud.FindParams{
 			Limit:  10,
 			Offset: 1000,
 		})

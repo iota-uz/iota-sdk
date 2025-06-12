@@ -1,4 +1,4 @@
-package crud_v2
+package crud
 
 import (
 	"context"

@@ -1,75 +1,66 @@
 package crud
 
-import (
-	"net/http"
+type SchemaOption[TEntity any] func(s *schema[TEntity])
+type Validator[TEntity any] func(entity TEntity) error
 
-	"github.com/gorilla/mux"
-	formui "github.com/iota-uz/iota-sdk/components/scaffold/form"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-)
-
-// Schema defines a runtime-driven CRUD resource for entity type T with identifier type ID.
-type Schema[T any, ID any] struct {
-	Service       *Service[T, ID]
-	Renderer      RenderFunc
-	middlewares   []mux.MiddlewareFunc
-	getPrimaryKey func() string
+type Schema[TEntity any] interface {
+	Name() string
+	Fields() Fields
+	Mapper() Mapper[TEntity]
+	Validators() []Validator[TEntity]
 }
 
-// Ensure Schema implements application.Controller
-var _ application.Controller = (*Schema[any, any])(nil)
-
-// DefaultGetPrimaryKey returns a function that gets the primary key
-func DefaultGetPrimaryKey[T any]() func() string {
-	return func() string {
-		// Default implementation - replace with actual logic to determine primary key
-		return "ID"
+func WithValidators[TEntity any](validators []Validator[TEntity]) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.validators = append(s.validators, validators...)
 	}
 }
 
-// NewSchema constructs a new CRUD Schema and applies options
-func NewSchema[T any, ID any](
-	name, path string,
-	store DataStore[T, ID],
-	opts ...SchemaOpt[T, ID],
-) *Schema[T, ID] {
-	service := NewService[T, ID](
-		name,
-		path,
-		"ID", // Default ID field, can be overridden with options
-		store,
-		[]formui.Field{}, // Empty fields, can be added with options
-	)
+func WithValidator[TEntity any](validator Validator[TEntity]) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.validators = append(s.validators, validator)
+	}
+}
 
-	s := &Schema[T, ID]{
-		Service:       service,
-		Renderer:      DefaultRenderFunc,
-		getPrimaryKey: DefaultGetPrimaryKey[T](),
+func NewSchema[TEntity any](
+	name string,
+	fields Fields,
+	mapper Mapper[TEntity],
+	opts ...SchemaOption[TEntity],
+) Schema[TEntity] {
+	s := &schema[TEntity]{
+		name:       name,
+		fields:     fields,
+		mapper:     mapper,
+		validators: make([]Validator[TEntity], 0),
 	}
 
-	for _, o := range opts {
-		o(s)
+	for _, opt := range opts {
+		opt(s)
 	}
-
-	// Update the IDField from the getPrimaryKey function
-	s.Service.IDField = s.getPrimaryKey()
 
 	return s
 }
 
-// Register mounts CRUD HTTP handlers on the provided router
-func (s *Schema[T, ID]) Register(r *mux.Router) {
-	subR := r.PathPrefix(s.Service.Path).Subrouter()
-	subR.Use(s.middlewares...)
-	subR.HandleFunc("", s.listHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/new", s.newHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/", s.createHandler).Methods(http.MethodPost)
-	subR.HandleFunc("/{id}/edit", s.editHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/{id}", s.updateHandler).Methods(http.MethodPut)
-	subR.HandleFunc("/{id}", s.deleteHandler).Methods(http.MethodDelete)
+type schema[TEntity any] struct {
+	name       string
+	fields     Fields
+	mapper     Mapper[TEntity]
+	validators []Validator[TEntity]
 }
 
-// Key returns the base path for routing identification
-func (s *Schema[T, ID]) Key() string {
-	return s.Service.Path
+func (s *schema[TEntity]) Name() string {
+	return s.name
+}
+
+func (s *schema[TEntity]) Fields() Fields {
+	return s.fields
+}
+
+func (s *schema[TEntity]) Mapper() Mapper[TEntity] {
+	return s.mapper
+}
+
+func (s *schema[TEntity]) Validators() []Validator[TEntity] {
+	return s.validators
 }

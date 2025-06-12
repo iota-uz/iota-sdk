@@ -1,7 +1,7 @@
-package crud_v2_test
+package crud_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/crud_v2"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,9 +14,9 @@ func TestReportService_CRUD(t *testing.T) {
 	fixture := setupTest(t)
 	ctx := fixture.ctx
 
-	service := crud_v2.DefaultService(
+	service := crud.DefaultService(
 		fixture.schema,
-		crud_v2.DefaultRepository[Report](fixture.schema),
+		crud.DefaultRepository[Report](fixture.schema),
 		fixture.publisher,
 	)
 
@@ -75,10 +75,10 @@ func TestReportService_CRUD(t *testing.T) {
 		_, err := service.Save(ctx, NewReport("Filter Test", WithAuthor("SvcFilter")))
 		require.NoError(t, err)
 
-		list, err := service.List(ctx, &crud_v2.FindParams{
+		list, err := service.List(ctx, &crud.FindParams{
 			Search:  "Filter",
-			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("SvcFilter")}},
-			Limit:   10,
+			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("SvcFilter")}},
+			Limit:   1,
 		})
 		require.NoError(t, err)
 		require.Len(t, list, 1)
@@ -89,8 +89,8 @@ func TestReportService_CRUD(t *testing.T) {
 		_, err := service.Save(ctx, NewReport("Countable", WithAuthor("SvcCounter")))
 		require.NoError(t, err)
 
-		count, err := service.Count(ctx, &crud_v2.FindParams{
-			Filters: []crud_v2.Filter{{Column: "author", Filter: repo.Eq("SvcCounter")}},
+		count, err := service.Count(ctx, &crud.FindParams{
+			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("SvcCounter")}},
 		})
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), count)

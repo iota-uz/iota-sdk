@@ -3,133 +3,246 @@ package crud
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
 
-	formui "github.com/iota-uz/iota-sdk/components/scaffold/form"
+	"github.com/go-faster/errors"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
-// Service encapsulates the business logic of the CRUD operations
-type Service[T any, ID any] struct {
-	Name            string
-	Path            string
-	IDField         string
-	Fields          []formui.Field
-	Store           DataStore[T, ID]
-	EntityFactory   EntityFactory[T]
-	EntityPatcher   EntityPatcher[T]
-	ModelValidators []ModelLevelValidator[T]
+type Service[TEntity any] interface {
+	GetAll(ctx context.Context) ([]TEntity, error)
+	Get(ctx context.Context, value FieldValue) (TEntity, error)
+	Exists(ctx context.Context, value FieldValue) (bool, error)
+	Count(ctx context.Context, params *FindParams) (int64, error)
+	List(ctx context.Context, params *FindParams) ([]TEntity, error)
+	Save(ctx context.Context, entity TEntity) (TEntity, error)
+	Delete(ctx context.Context, value FieldValue) (TEntity, error)
 }
 
-// NewService creates a new CRUD service
-func NewService[T any, ID any](
-	name, path, idField string,
-	store DataStore[T, ID],
-	fields []formui.Field,
-) *Service[T, ID] {
-	return &Service[T, ID]{
-		Name:          name,
-		Path:          path,
-		IDField:       idField,
-		Fields:        fields,
-		Store:         store,
-		EntityFactory: DefaultEntityFactory[T]{},
-		EntityPatcher: DefaultEntityPatcher[T]{},
+func DefaultService[TEntity any](
+	schema Schema[TEntity],
+	repository Repository[TEntity],
+	publisher eventbus.EventBus,
+) Service[TEntity] {
+	return &service[TEntity]{
+		schema:     schema,
+		repository: repository,
+		publisher:  publisher,
 	}
 }
 
-// List retrieves entities based on the provided parameters
-func (s *Service[T, ID]) List(ctx context.Context, params FindParams) ([]T, error) {
-	return s.Store.List(ctx, params)
+type service[TEntity any] struct {
+	schema     Schema[TEntity]
+	repository Repository[TEntity]
+	publisher  eventbus.EventBus
 }
 
-// Get retrieves a single entity by ID
-func (s *Service[T, ID]) Get(ctx context.Context, id ID) (T, error) {
-	return s.Store.Get(ctx, id)
+func (s *service[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
+	entities, err := s.repository.GetAll(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "service failed to get all entities")
+	}
+	return entities, nil
 }
 
-// Extract returns entity field values as map for UI rendering
-func (s *Service[T, ID]) Extract(entity T) map[string]string {
-	result := make(map[string]string)
-	rVal := reflect.ValueOf(entity)
-	if rVal.Kind() == reflect.Ptr {
-		rVal = rVal.Elem()
+func (s *service[TEntity]) Get(ctx context.Context, value FieldValue) (TEntity, error) {
+	entity, err := s.repository.Get(ctx, value)
+	if err != nil {
+		return entity, errors.Wrap(err, "service failed to get entity by value")
+	}
+	return entity, nil
+}
+
+func (s *service[TEntity]) Exists(ctx context.Context, value FieldValue) (bool, error) {
+	exists, err := s.repository.Exists(ctx, value)
+	if err != nil {
+		return false, errors.Wrap(err, "service failed to check existence")
+	}
+	return exists, nil
+}
+
+func (s *service[TEntity]) Count(ctx context.Context, params *FindParams) (int64, error) {
+	count, err := s.repository.Count(ctx, params)
+	if err != nil {
+		return 0, errors.Wrap(err, "service failed to count entities")
+	}
+	return count, nil
+}
+
+func (s *service[TEntity]) List(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	entities, err := s.repository.List(ctx, params)
+	if err != nil {
+		return nil, errors.Wrap(err, "service failed to list entities")
+	}
+	return entities, nil
+}
+
+func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, error) {
+	var zero TEntity
+
+	fieldValues, err := s.schema.Mapper().ToFieldValues(ctx, entity)
+	if err != nil {
+		return zero, errors.Wrap(err, "failed to map entity to field values for saving")
 	}
 
-	for _, field := range s.Fields {
-		fieldName := field.Key()
-		fv := rVal.FieldByNameFunc(func(name string) bool {
-			return strings.EqualFold(name, fieldName)
-		})
+	var keyFieldVal FieldValue
+	for _, fv := range fieldValues {
+		if fv.Field().Key() {
+			keyFieldVal = fv
+			break
+		}
+	}
+	if keyFieldVal == nil {
+		return zero, errors.New("missing primary key in entity for save operation")
+	}
 
-		if fv.IsValid() {
-			// Convert the field value to string
-			var strVal string
-			if fv.Kind() == reflect.String {
-				strVal = fv.String()
-			} else {
-				strVal = fmt.Sprint(fv.Interface())
+	isCreate := keyFieldVal.IsZero()
+
+	if !isCreate {
+		exists, err := s.repository.Exists(ctx, keyFieldVal)
+		if err != nil {
+			return zero, errors.Wrap(err, "service failed to check if entity exists")
+		}
+		if exists {
+			isCreate = false
+		}
+	}
+
+	var (
+		savedEntity TEntity
+		event       Event[TEntity]
+	)
+
+	if isCreate {
+		if event, err = NewCreatedEvent(ctx, entity); err != nil {
+			return zero, errors.Wrap(err, "failed to create 'created' event")
+		}
+	} else {
+		if event, err = NewUpdatedEvent(ctx, entity); err != nil {
+			return zero, errors.Wrap(err, "failed to create 'updated' event")
+		}
+	}
+
+	if err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.validation(txCtx, entity); err != nil {
+			return errors.Wrap(err, "entity validation failed")
+		}
+		if isCreate {
+			savedEntity, err = s.repository.Create(txCtx, fieldValues)
+			if err != nil {
+				return errors.Wrap(err, "failed to create entity in repository")
 			}
-			result[fieldName] = strVal
+		} else {
+			savedEntity, err = s.repository.Update(txCtx, fieldValues)
+			if err != nil {
+				return errors.Wrap(err, "failed to update entity in repository")
+			}
 		}
+		return nil
+	}); err != nil {
+		return zero, errors.Wrap(err, "transaction failed during save operation")
 	}
 
-	return result
+	event.SetResult(savedEntity)
+	s.publisher.Publish(event)
+
+	return savedEntity, nil
 }
 
-// CreateEntity creates a new entity from form data
-func (s *Service[T, ID]) CreateEntity(ctx context.Context, formData map[string]string) (ID, error) {
-	// Create a new entity
-	entity := s.EntityFactory.Create()
+func (s *service[TEntity]) Delete(ctx context.Context, value FieldValue) (TEntity, error) {
+	var zero TEntity
 
-	// Apply form data to entity
-	patchedEntity, valErrs := s.EntityPatcher.Patch(entity, formData, s.Fields)
-	if len(valErrs.Errors) > 0 {
-		return *new(ID), fmt.Errorf("%w: %s", ErrValidation, valErrs.Error())
-	}
+	deletedEvent, err := NewDeletedEvent[TEntity](ctx)
 
-	// Run model-level validation
-	for _, validator := range s.ModelValidators {
-		if err := validator.ValidateModel(ctx, patchedEntity); err != nil {
-			return *new(ID), fmt.Errorf("%w: %s", ErrValidation, err.Error())
+	var deletedEntity TEntity
+	if err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if entity, err := s.repository.Delete(txCtx, value); err != nil {
+			return errors.Wrap(err, "failed to delete entity")
+		} else {
+			deletedEntity = entity
 		}
+		return nil
+	}); err != nil {
+		return zero, errors.Wrap(err, "transaction failed during save operation")
 	}
-
-	// Create the entity
-	id, err := s.Store.Create(ctx, patchedEntity)
 	if err != nil {
-		return *new(ID), err
+		return zero, errors.Wrap(err, "transaction failed during delete operation")
 	}
 
-	return id, nil
+	deletedEvent.Data = deletedEntity
+	s.publisher.Publish(deletedEvent)
+
+	return deletedEntity, nil
 }
 
-// UpdateEntity updates an existing entity from form data
-func (s *Service[T, ID]) UpdateEntity(ctx context.Context, id ID, formData map[string]string) error {
-	// Get the existing entity first
-	entity, err := s.Store.Get(ctx, id)
+func (s *service[TEntity]) validation(ctx context.Context, entity TEntity) error {
+	var errs []error
+
+	fieldValues, err := s.schema.Mapper().ToFieldValues(ctx, entity)
 	if err != nil {
-		return err
+		errs = append(errs, errors.Wrap(err, "failed to map entity to field values for validation"))
+		return errors.Join(errs...)
 	}
 
-	// Apply form data to entity
-	patchedEntity, valErrs := s.EntityPatcher.Patch(entity, formData, s.Fields)
-	if len(valErrs.Errors) > 0 {
-		return fmt.Errorf("%w: %s", ErrValidation, valErrs.Error())
+	var keyFieldVal FieldValue
+	readonlyFieldValues := make([]FieldValue, 0)
+	for _, fv := range fieldValues {
+		if fv.Field().Key() {
+			keyFieldVal = fv
+		}
+
+		if fv.Field().Readonly() {
+			readonlyFieldValues = append(readonlyFieldValues, fv)
+		}
+		for _, rule := range fv.Field().Rules() {
+			if ruleErr := rule(fv); ruleErr != nil {
+				errs = append(errs, errors.Wrap(ruleErr, fmt.Sprintf("validation rule failed for field %q", fv.Field().Name())))
+			}
+		}
+	}
+	if keyFieldVal == nil {
+		errs = append(errs, errors.New("missing primary key for validation"))
+		return errors.Join(errs...)
 	}
 
-	// Run model-level validation
-	for _, validator := range s.ModelValidators {
-		if err := validator.ValidateModel(ctx, patchedEntity); err != nil {
-			return fmt.Errorf("%w: %s", ErrValidation, err.Error())
+	if !keyFieldVal.IsZero() && len(readonlyFieldValues) > 0 {
+		dbEntity, err := s.repository.Get(ctx, keyFieldVal)
+		if err != nil {
+			errs = append(errs, errors.Wrap(err, "failed to retrieve existing entity for readonly field validation"))
+			return errors.Join(errs...)
+		}
+
+		dbFieldValues, err := s.schema.Mapper().ToFieldValues(ctx, dbEntity)
+		if err != nil {
+			errs = append(errs, errors.Wrap(err, "failed to map database entity to field values for readonly validation"))
+			return errors.Join(errs...)
+		}
+
+		dbReadonlyMap := make(map[string]FieldValue, len(readonlyFieldValues))
+		for _, dbFv := range dbFieldValues {
+			if dbFv.Field().Readonly() {
+				dbReadonlyMap[dbFv.Field().Name()] = dbFv
+			}
+		}
+
+		for _, readonlyFv := range readonlyFieldValues {
+			if dbFv, ok := dbReadonlyMap[readonlyFv.Field().Name()]; ok {
+				if readonlyFv.Value() != dbFv.Value() {
+					errs = append(errs, errors.Errorf("readonly field %q has been modified", readonlyFv.Field().Name()))
+				}
+			}
 		}
 	}
 
-	// Update the entity
-	return s.Store.Update(ctx, id, patchedEntity)
-}
+	for _, v := range s.schema.Validators() {
+		if valErr := v(entity); valErr != nil {
+			errs = append(errs, errors.Wrap(valErr, "schema-level validation failed"))
+		}
+	}
 
-// DeleteEntity deletes an entity by ID
-func (s *Service[T, ID]) DeleteEntity(ctx context.Context, id ID) error {
-	return s.Store.Delete(ctx, id)
+	if len(errs) == 0 {
+		return nil
+	}
+
+	return errors.Join(errs...)
 }
