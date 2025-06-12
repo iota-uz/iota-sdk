@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -45,15 +45,9 @@ func WithDescription(description string) Option {
 	}
 }
 
-func WithBalance(balance float64) Option {
+func WithBalance(balance *money.Money) Option {
 	return func(a *account) {
 		a.balance = balance
-	}
-}
-
-func WithCurrency(currency currency.Currency) Option {
-	return func(a *account) {
-		a.currency = currency
 	}
 }
 
@@ -71,7 +65,7 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 
 func New(
 	name string,
-	currency currency.Currency,
+	balance *money.Money,
 	opts ...Option,
 ) Account {
 	a := &account{
@@ -80,8 +74,7 @@ func New(
 		name:          name,
 		accountNumber: "",
 		description:   "",
-		balance:       0.0,
-		currency:      currency,
+		balance:       balance,
 		createdAt:     time.Now(),
 		updatedAt:     time.Now(),
 	}
@@ -97,8 +90,7 @@ type account struct {
 	name          string
 	accountNumber string
 	description   string
-	balance       float64
-	currency      currency.Currency
+	balance       *money.Money
 	createdAt     time.Time
 	updatedAt     time.Time
 }
@@ -151,23 +143,13 @@ func (a *account) UpdateDescription(description string) Account {
 	return &result
 }
 
-func (a *account) Balance() float64 {
+func (a *account) Balance() *money.Money {
 	return a.balance
 }
 
-func (a *account) UpdateBalance(balance float64) Account {
+func (a *account) UpdateBalance(balance *money.Money) Account {
 	result := *a
 	result.balance = balance
-	return &result
-}
-
-func (a *account) Currency() currency.Currency {
-	return a.currency
-}
-
-func (a *account) UpdateCurrency(currency currency.Currency) Account {
-	result := *a
-	result.currency = currency
 	return &result
 }
 

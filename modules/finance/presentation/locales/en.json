@@ -4,7 +4,9 @@
     "Accounts": "Accounts",
     "Expenses": "Expenses",
     "ExpenseCategories": "Expense categories",
-    "Payments": "Payments"
+    "Payments": "Payments",
+    "PaymentCategories": "Payment categories",
+    "Counterparties": "Counterparties"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -72,6 +74,8 @@
         "Label": "Sender",
         "Placeholder": "Select sender"
       },
+      "Category": "Category",
+      "SelectCategory": "Select category",
       "Comment": "Comment",
       "Delete": "Delete payment",
       "DeleteConfirmation": "Are you sure you want to delete this payment?"
@@ -115,6 +119,78 @@
       "DeleteConfirmation": "Are you sure you want to delete this expense?"
     }
   },
+  "Counterparties": {
+    "Meta": {
+      "List": {
+        "Title": "Counterparties"
+      },
+      "Edit": {
+        "Title": "Edit counterparty"
+      },
+      "New": {
+        "Title": "Add counterparty"
+      }
+    },
+    "List": {
+      "New": "Add counterparty",
+      "Name": "Name",
+      "TIN": "TIN",
+      "Type": "Type",
+      "LegalType": "Legal type",
+      "LegalAddress": "Legal address",
+      "NoCounterparties": {
+        "Title": "No counterparties found",
+        "_Description": "There are no counterparties yet. Click 'Add counterparty' to create one."
+      }
+    },
+    "Single": {
+      "Edit": "Edit counterparty",
+      "Name": "Name",
+      "TIN": "TIN",
+      "Type": "Type",
+      "SelectType": "Select type",
+      "LegalType": "Legal type",
+      "SelectLegalType": "Select legal type",
+      "LegalAddress": "Legal address",
+      "Delete": "Delete counterparty",
+      "DeleteConfirmation": "Are you sure you want to delete this counterparty?"
+    },
+    "Types": {
+      "CUSTOMER": "Customer",
+      "SUPPLIER": "Supplier", 
+      "BOTH": "Both",
+      "_OTHER": "Other"
+    },
+    "LegalTypes": {
+      "INDIVIDUAL": "Individual",
+      "LEGAL_ENTITY": "Legal Entity",
+      "LLC": "LLC",
+      "JSC": "Joint Stock Company",
+      "INC": "Incorporated",
+      "LTD": "Limited",
+      "PLC": "Public Limited Company",
+      "LLP": "Limited Liability Partnership",
+      "GMBH": "GmbH",
+      "AG": "AG",
+      "SA": "SA",
+      "PTYLTD": "Pty Ltd",
+      "CCORP": "C Corporation",
+      "SCORP": "S Corporation",
+      "SP": "Sole Proprietorship",
+      "SC": "Sociedad Colectiva",
+      "OU": "Osaühing",
+      "AB": "Aktiebolag",
+      "AS": "Aksjeselskap",
+      "SARL": "SARL",
+      "BV": "BV",
+      "KK": "Kabushiki Kaisha",
+      "SAO": "Societate pe Acțiuni",
+      "LLLP": "Limited Liability Limited Partnership",
+      "UAB": "Uždaroji Akcinė Bendrovė",
+      "SPZOO": "Sp. z o.o.",
+      "SRL": "SRL"
+    }
+  },
   "Accounts": {
     "Meta": {
       "List": {
@@ -148,6 +224,33 @@
       "AccountNumber": "Account number",
       "Delete": "Delete account",
       "DeleteConfirmation": "Are you sure you want to delete this account?"
+    }
+  },
+  "PaymentCategories": {
+    "Meta": {
+      "List": {
+        "Title": "Payment categories"
+      },
+      "Edit": {
+        "Title": "Edit payment category"
+      },
+      "New": {
+        "Title": "New payment category"
+      }
+    },
+    "List": {
+      "New": "New Category",
+      "Name": "Name",
+      "NoCategories": {
+        "Title": "No payment categories found",
+        "_Description": "There are no payment categories yet. Click 'New Category' to create one."
+      }
+    },
+    "Single": {
+      "Name": "Name",
+      "_Description": "Description",
+      "Delete": "Delete payment category",
+      "DeleteConfirmation": "Are you sure you want to delete this payment category?"
     }
   }
 }

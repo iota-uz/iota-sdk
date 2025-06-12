@@ -60,7 +60,7 @@ func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Ac
 		if err != nil {
 			return errors.Wrap(err, "accountRepo.Create")
 		}
-		if err := s.transactionRepo.Create(txCtx, createdEntity.InitialTransaction()); err != nil {
+		if _, err := s.transactionRepo.Create(txCtx, createdEntity.InitialTransaction()); err != nil {
 			return errors.Wrap(err, "transactionRepo.Create")
 		}
 		return nil
@@ -81,7 +81,7 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 	}
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Update(txCtx, entity); err != nil {
+		if _, err := s.repo.Update(txCtx, entity); err != nil {
 			return err
 		}
 		return nil

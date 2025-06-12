@@ -1,0 +1,153 @@
+package inventory
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type EditPageProps struct {
+	Inventory  *viewmodels.Inventory
+	Currencies []*coreviewmodels.Currency
+	Errors     map[string]string
+	PostPath   string
+	DeletePath string
+}
+
+templ EditForm(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col justify-between h-full" id="edit-content">
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			@input.Text(&input.Props{
+				Label: pageCtx.T("Inventory.Single.Name"),
+				Attrs: templ.Attributes{
+					"value": props.Inventory.Name,
+					"name":  "Name",
+					"form":  "save-form",
+				},
+				Error: props.Errors["Name"],
+			})
+			@input.Number(&input.Props{
+				Label: pageCtx.T("Inventory.Single.Price"),
+				Attrs: templ.Attributes{
+					"name":  "Price",
+					"value": props.Inventory.Price,
+					"step":  "0.01",
+					"form":  "save-form",
+				},
+				Error: props.Errors["Price"],
+			})
+			@input.Number(&input.Props{
+				Label: pageCtx.T("Inventory.Single.Quantity"),
+				Attrs: templ.Attributes{
+					"name":  "Quantity",
+					"value": props.Inventory.Quantity,
+					"form":  "save-form",
+				},
+				Error: props.Errors["Quantity"],
+			})
+			@components.CurrencySelect(&components.CurrencySelectProps{
+				Label:       pageCtx.T("Inventory.Single.Currency.Label"),
+				Placeholder: pageCtx.T("Inventory.Single.Currency.Placeholder"),
+				Value:       props.Inventory.CurrencyCode,
+				Currencies:  props.Currencies,
+				Error:       props.Errors["CurrencyCode"],
+				Attrs: templ.Attributes{
+					"name": "CurrencyCode",
+					"form": "save-form",
+				},
+			})
+			@input.TextArea(&input.TextAreaProps{
+				Label: pageCtx.T("Inventory.Single._Description"),
+				Attrs: templ.Attributes{
+					"name": "Description",
+					"form": "save-form",
+				},
+				Value:        props.Inventory.Description,
+				WrapperClass: "col-span-2",
+				Error:        props.Errors["Description"],
+			})
+		}
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="delete-form"
+				hx-delete={ props.DeletePath }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-inventory-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-inventory-confirmation')",
+						"id":     "delete-inventory-btn",
+					},
+				}) {
+					{ pageCtx.T("Delete") }
+				}
+			</form>
+			<form
+				id="save-form"
+				method="post"
+				hx-post={ props.PostPath }
+				hx-indicator="#save-btn"
+				hx-target="#edit-content"
+				hx-swap="outerHTML"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Inventory.Meta.Edit.Title")},
+	}) {
+		@EditForm(props)
+		@dialog.Confirmation(&dialog.Props{
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
+			Heading:     pageCtx.T("Inventory.Single.Delete"),
+			Text:        pageCtx.T("Inventory.Single.DeleteConfirmation"),
+			Icon:        icons.Trash(icons.Props{Size: "20"}),
+			Action:      "open-delete-inventory-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": `({target}) => {
+					if (target.returnValue === "confirm") {
+						let deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
+					}
+				}`,
+			},
+		})
+	}
+}

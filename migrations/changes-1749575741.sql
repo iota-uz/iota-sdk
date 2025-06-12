@@ -15,6 +15,9 @@ ALTER TABLE expenses
 ALTER TABLE payments
     DROP CONSTRAINT IF EXISTS payments_transaction_id_fkey;
 
+ALTER TABLE payments
+    ADD COLUMN tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+
 ALTER TABLE transactions
     DROP CONSTRAINT IF EXISTS transactions_origin_account_id_fkey;
 
@@ -149,10 +152,23 @@ ALTER TABLE transactions
 ALTER TABLE transactions
     ADD CONSTRAINT transactions_destination_account_id_fkey FOREIGN KEY (destination_account_id) REFERENCES money_accounts (id) ON DELETE RESTRICT;
 
--- Add exchange operation fields
+-- Add exchange operation fields and convert amounts to BIGINT for money package compatibility
 ALTER TABLE transactions
     ADD COLUMN exchange_rate numeric(18, 8),
-    ADD COLUMN destination_amount numeric(9, 2);
+    ADD COLUMN destination_amount bigint;
+
+-- Convert existing amount fields to BIGINT (store amounts as smallest currency unit)
+ALTER TABLE transactions
+    ALTER COLUMN amount TYPE bigint
+    USING (amount * 100)::bigint;
+
+ALTER TABLE money_accounts
+    ALTER COLUMN balance TYPE bigint
+    USING (balance * 100)::bigint;
+
+ALTER TABLE inventory
+    ALTER COLUMN price TYPE bigint
+    USING (price * 100)::bigint;
 
 -- Change ALTER_TABLE: expenses - change id and foreign keys to uuid
 ALTER TABLE expenses
@@ -169,12 +185,16 @@ ALTER TABLE expenses
     ALTER COLUMN id SET DEFAULT gen_random_uuid ();
 
 ALTER TABLE expenses
-    ALTER COLUMN transaction_id TYPE uuid
-    USING gen_random_uuid ();
+    ALTER COLUMN transaction_id TYPE uuid;
 
 ALTER TABLE expenses
-    ALTER COLUMN category_id TYPE uuid
-    USING gen_random_uuid ();
+    ALTER COLUMN transaction_id SET DEFAULT gen_random_uuid ();
+
+ALTER TABLE expenses
+    ALTER COLUMN category_id TYPE uuid;
+
+ALTER TABLE expenses
+    ALTER COLUMN category_id SET DEFAULT gen_random_uuid ();
 
 ALTER TABLE expenses
     ADD PRIMARY KEY (id);
@@ -233,6 +253,9 @@ ALTER TABLE payments
 
 -- +migrate Down
 -- Undo payments table changes
+ALTER TABLE payments
+    DROP COLUMN IF EXISTS tenant_id;
+
 ALTER TABLE payments
     DROP CONSTRAINT payments_pkey;
 
@@ -298,6 +321,19 @@ ALTER TABLE expenses
 ALTER TABLE transactions
     DROP COLUMN IF EXISTS destination_amount,
     DROP COLUMN IF EXISTS exchange_rate;
+
+-- Revert amount fields back to NUMERIC
+ALTER TABLE transactions
+    ALTER COLUMN amount TYPE numeric(9, 2)
+    USING (amount / 100.0)::numeric(9, 2);
+
+ALTER TABLE money_accounts
+    ALTER COLUMN balance TYPE numeric(9, 2)
+    USING (balance / 100.0)::numeric(9, 2);
+
+ALTER TABLE inventory
+    ALTER COLUMN price TYPE numeric(9, 2)
+    USING (price / 100.0)::numeric(9, 2);
 
 ALTER TABLE transactions
     DROP CONSTRAINT transactions_pkey;
@@ -389,5 +425,4 @@ ALTER TABLE counterparty
 
 ALTER TABLE counterparty
     ADD PRIMARY KEY (id);
-
 

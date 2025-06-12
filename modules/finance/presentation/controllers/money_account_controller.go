@@ -8,7 +8,7 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
-	moneyaccounts2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
@@ -62,12 +62,12 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	)
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
 	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*coreviewmodels.Currency, error) {
@@ -112,14 +112,14 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &moneyaccounts2.IndexPageProps{
+	props := &moneyaccounts.IndexPageProps{
 		Accounts:        paginated.Accounts,
 		PaginationState: paginated.PaginationState,
 	}
 	if isHxRequest {
-		templ.Handler(moneyaccounts2.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(moneyaccounts.AccountsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(moneyaccounts2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(moneyaccounts.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
@@ -140,14 +140,14 @@ func (c *MoneyAccountController) GetEdit(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &moneyaccounts2.EditPageProps{
+	props := &moneyaccounts.EditPageProps{
 		Account:    mappers.MoneyAccountToViewUpdateModel(entity),
 		Currencies: currencies,
 		Errors:     map[string]string{},
-		PostPath:   fmt.Sprintf("%s/%d", c.basePath, id),
-		DeletePath: fmt.Sprintf("%s/%d", c.basePath, id),
+		PostPath:   fmt.Sprintf("%s/%s", c.basePath, id.String()),
+		DeletePath: fmt.Sprintf("%s/%s", c.basePath, id.String()),
 	}
-	templ.Handler(moneyaccounts2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(moneyaccounts.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -187,18 +187,24 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &moneyaccounts2.EditPageProps{
+		props := &moneyaccounts.EditPageProps{
 			Account:    mappers.MoneyAccountToViewUpdateModel(entity),
 			Currencies: currencies,
 			Errors:     errorsMap,
-			PostPath:   fmt.Sprintf("%s/%d", c.basePath, id),
-			DeletePath: fmt.Sprintf("%s/%d", c.basePath, id),
+			PostPath:   fmt.Sprintf("%s/%s", c.basePath, id.String()),
+			DeletePath: fmt.Sprintf("%s/%s", c.basePath, id.String()),
 		}
-		templ.Handler(moneyaccounts2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(moneyaccounts.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	entity, err := dto.ToEntity(id)
+	existing, err := c.moneyAccountService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := dto.Apply(existing)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -217,13 +223,13 @@ func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := &moneyaccounts2.CreatePageProps{
+	props := &moneyaccounts.CreatePageProps{
 		Currencies: currencies,
 		Errors:     map[string]string{},
 		Account:    &viewmodels.MoneyAccount{},
 		PostPath:   c.basePath,
 	}
-	templ.Handler(moneyaccounts2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(moneyaccounts.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) {
@@ -244,22 +250,34 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		entity, err := dto.ToEntity()
+		tenantID, err := composables.UseTenantID(r.Context())
+		if err != nil {
+			http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
+			return
+		}
+
+		entity, err := dto.ToEntity(tenantID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		props := &moneyaccounts2.CreatePageProps{
+		props := &moneyaccounts.CreatePageProps{
 			Currencies: currencies,
 			Errors:     errorsMap,
 			Account:    mappers.MoneyAccountToViewModel(entity),
 			PostPath:   c.basePath,
 		}
-		templ.Handler(moneyaccounts2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(moneyaccounts.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	entity, err := dto.ToEntity()
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

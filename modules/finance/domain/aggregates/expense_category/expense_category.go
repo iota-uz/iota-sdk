@@ -53,6 +53,8 @@ type ExpenseCategory interface {
 	Description() string
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+	UpdateName(name string) ExpenseCategory
+	UpdateDescription(description string) ExpenseCategory
 }
 
 // Implementation
@@ -105,4 +107,19 @@ func (e *expenseCategory) CreatedAt() time.Time {
 
 func (e *expenseCategory) UpdatedAt() time.Time {
 	return e.updatedAt
+}
+
+// Update methods
+func (e *expenseCategory) UpdateName(name string) ExpenseCategory {
+	result := *e
+	result.name = name
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (e *expenseCategory) UpdateDescription(description string) ExpenseCategory {
+	result := *e
+	result.description = description
+	result.updatedAt = time.Now()
+	return &result
 }

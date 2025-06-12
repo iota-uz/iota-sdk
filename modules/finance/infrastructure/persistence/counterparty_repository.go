@@ -2,9 +2,10 @@ package persistence
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
+	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -19,6 +20,7 @@ var (
 const (
 	findCounterpartyQuery = `
 		SELECT cp.id,
+			cp.tenant_id,
 			cp.name,
 			cp.tin,
 			cp.type,
@@ -27,7 +29,7 @@ const (
 			cp.created_at,
 			cp.updated_at
 		FROM counterparty cp`
-	countCounterpartyQuery  = `SELECT COUNT(*) as count FROM counterparty`
+	countCounterpartyQuery  = `SELECT COUNT(*) as count FROM counterparty cp`
 	insertCounterpartyQuery = `
 		INSERT INTO counterparty (
 			name,
@@ -47,39 +49,106 @@ const (
 	deleteCounterpartyQuery = `DELETE FROM counterparty WHERE id = $1`
 )
 
-type GormCounterpartyRepository struct{}
+type GormCounterpartyRepository struct {
+	fieldMap map[counterparty.Field]string
+}
 
 func NewCounterpartyRepository() counterparty.Repository {
-	return &GormCounterpartyRepository{}
+	return &GormCounterpartyRepository{
+		fieldMap: map[counterparty.Field]string{
+			counterparty.NameField:         "cp.name",
+			counterparty.TinField:          "cp.tin",
+			counterparty.TypeField:         "cp.type",
+			counterparty.LegalTypeField:    "cp.legal_type",
+			counterparty.LegalAddressField: "cp.legal_address",
+			counterparty.CreatedAtField:    "cp.created_at",
+			counterparty.UpdatedAtField:    "cp.updated_at",
+			counterparty.TenantIDField:     "cp.tenant_id",
+		},
+	}
+}
+
+func (g *GormCounterpartyRepository) buildCounterpartyFilters(params *counterparty.FindParams) ([]string, []interface{}, error) {
+	where := []string{"1 = 1"}
+	args := []interface{}{}
+
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
+		}
+
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
+	}
+
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(
+			where,
+			fmt.Sprintf(
+				"(cp.name ILIKE $%d OR cp.tin ILIKE $%d)",
+				index,
+				index,
+			),
+		)
+		args = append(args, "%"+params.Search+"%")
+	}
+
+	return where, args, nil
 }
 
 func (g *GormCounterpartyRepository) GetPaginated(ctx context.Context, params *counterparty.FindParams) ([]counterparty.Counterparty, error) {
-	var args []interface{}
-	where := []string{"1 = 1"}
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where = append(where, fmt.Sprintf("cp.created_at BETWEEN $%d and $%d", len(where), len(where)+1))
-		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
-	if params.Query != "" && params.Field != "" {
-		where = append(where, fmt.Sprintf("cp.%s::VARCHAR ILIKE $%d", params.Field, len(where)))
-		args = append(args, "%"+params.Query+"%")
+
+	where, args, err := g.buildCounterpartyFilters(params)
+	if err != nil {
+		return nil, err
 	}
+
+	where = append(where, fmt.Sprintf("cp.tenant_id = $%d", len(args)+1))
+	args = append(args, tenantID)
+
 	q := repo.Join(
 		findCounterpartyQuery,
 		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryCounterparties(ctx, q, args...)
 }
 
-func (g *GormCounterpartyRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormCounterpartyRepository) Count(ctx context.Context, params *counterparty.FindParams) (int64, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get transaction")
+	}
+
+	where, args, err := g.buildCounterpartyFilters(params)
 	if err != nil {
 		return 0, err
 	}
+
+	where = append(where, fmt.Sprintf("cp.tenant_id = $%d", len(args)+1))
+	args = append(args, tenantID)
+
+	query := repo.Join(
+		countCounterpartyQuery,
+		repo.JoinWhere(where...),
+	)
+
 	var count int64
-	if err := tx.QueryRow(ctx, countCounterpartyQuery).Scan(&count); err != nil {
-		return 0, err
+	err = tx.QueryRow(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to count counterparties")
 	}
 	return count, nil
 }
@@ -88,7 +157,7 @@ func (g *GormCounterpartyRepository) GetAll(ctx context.Context) ([]counterparty
 	return g.queryCounterparties(ctx, findCounterpartyQuery)
 }
 
-func (g *GormCounterpartyRepository) GetByID(ctx context.Context, id uint) (counterparty.Counterparty, error) {
+func (g *GormCounterpartyRepository) GetByID(ctx context.Context, id uuid.UUID) (counterparty.Counterparty, error) {
 	counterparties, err := g.queryCounterparties(ctx, repo.Join(findCounterpartyQuery, "WHERE id = $1"), id)
 	if err != nil {
 		return nil, err
@@ -100,7 +169,7 @@ func (g *GormCounterpartyRepository) GetByID(ctx context.Context, id uint) (coun
 }
 
 func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterparty.Counterparty) (counterparty.Counterparty, error) {
-	entity, err := toDBCounterparty(data)
+	entity, err := ToDBCounterparty(data)
 	if err != nil {
 		return nil, err
 	}
@@ -125,17 +194,17 @@ func (g *GormCounterpartyRepository) Create(ctx context.Context, data counterpar
 		tenantID,
 	}
 	row := tx.QueryRow(ctx, insertCounterpartyQuery, args...)
-	var id uint
+	var id uuid.UUID
 	if err := row.Scan(&id); err != nil {
 		return nil, err
 	}
 	return g.GetByID(ctx, id)
 }
 
-func (g *GormCounterpartyRepository) Update(ctx context.Context, data counterparty.Counterparty) error {
-	entity, err := toDBCounterparty(data)
+func (g *GormCounterpartyRepository) Update(ctx context.Context, data counterparty.Counterparty) (counterparty.Counterparty, error) {
+	entity, err := ToDBCounterparty(data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	args := []interface{}{
 		entity.Name,
@@ -146,10 +215,13 @@ func (g *GormCounterpartyRepository) Update(ctx context.Context, data counterpar
 		entity.UpdatedAt,
 		entity.ID,
 	}
-	return g.execQuery(ctx, updateCounterpartyQuery, args...)
+	if err := g.execQuery(ctx, updateCounterpartyQuery, args...); err != nil {
+		return nil, err
+	}
+	return g.GetByID(ctx, data.ID())
 }
 
-func (g *GormCounterpartyRepository) Delete(ctx context.Context, id uint) error {
+func (g *GormCounterpartyRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return g.execQuery(ctx, deleteCounterpartyQuery, id)
 }
 
@@ -168,6 +240,7 @@ func (g *GormCounterpartyRepository) queryCounterparties(ctx context.Context, qu
 		var r models.Counterparty
 		if err := rows.Scan(
 			&r.ID,
+			&r.TenantID,
 			&r.Name,
 			&r.Tin,
 			&r.Type,
@@ -180,7 +253,7 @@ func (g *GormCounterpartyRepository) queryCounterparties(ctx context.Context, qu
 		}
 		dbRows = append(dbRows, &r)
 	}
-	return mapping.MapDBModels(dbRows, toDomainCounterparty)
+	return mapping.MapDBModels(dbRows, ToDomainCounterparty)
 }
 
 func (g *GormCounterpartyRepository) execQuery(ctx context.Context, query string, args ...interface{}) error {

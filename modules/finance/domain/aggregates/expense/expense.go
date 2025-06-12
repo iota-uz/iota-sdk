@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Option func(e *expense)
@@ -17,7 +18,7 @@ func WithID(id uuid.UUID) Option {
 	}
 }
 
-func WithAmount(amount float64) Option {
+func WithAmount(amount *money.Money) Option {
 	return func(e *expense) {
 		e.amount = amount
 	}
@@ -71,10 +72,16 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 	}
 }
 
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(e *expense) {
+		e.tenantID = tenantID
+	}
+}
+
 // Interface
 type Expense interface {
 	ID() uuid.UUID
-	Amount() float64
+	Amount() *money.Money
 	Account() moneyaccount.Account
 	Category() category.ExpenseCategory
 	Comment() string
@@ -83,18 +90,19 @@ type Expense interface {
 	Date() time.Time
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+	TenantID() uuid.UUID
 
 	SetAccount(account moneyaccount.Account) Expense
 	SetCategory(category category.ExpenseCategory) Expense
 	SetComment(comment string) Expense
-	SetAmount(amount float64) Expense
+	SetAmount(amount *money.Money) Expense
 	SetDate(date time.Time) Expense
 	SetAccountingPeriod(period time.Time) Expense
 }
 
 // Implementation
 func New(
-	amount float64,
+	amount *money.Money,
 	account moneyaccount.Account,
 	category category.ExpenseCategory,
 	date time.Time,
@@ -111,6 +119,7 @@ func New(
 		date:             date,
 		createdAt:        time.Now(),
 		updatedAt:        time.Now(),
+		tenantID:         uuid.Nil,
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -120,7 +129,7 @@ func New(
 
 type expense struct {
 	id               uuid.UUID
-	amount           float64
+	amount           *money.Money
 	account          moneyaccount.Account
 	category         category.ExpenseCategory
 	comment          string
@@ -129,13 +138,14 @@ type expense struct {
 	date             time.Time
 	createdAt        time.Time
 	updatedAt        time.Time
+	tenantID         uuid.UUID
 }
 
 func (e *expense) ID() uuid.UUID {
 	return e.id
 }
 
-func (e *expense) Amount() float64 {
+func (e *expense) Amount() *money.Money {
 	return e.amount
 }
 
@@ -192,7 +202,7 @@ func (e *expense) SetComment(comment string) Expense {
 	return &result
 }
 
-func (e *expense) SetAmount(amount float64) Expense {
+func (e *expense) SetAmount(amount *money.Money) Expense {
 	result := *e
 	result.amount = amount
 	result.updatedAt = time.Now()
@@ -211,4 +221,8 @@ func (e *expense) SetAccountingPeriod(period time.Time) Expense {
 	result.accountingPeriod = period
 	result.updatedAt = time.Now()
 	return &result
+}
+
+func (e *expense) TenantID() uuid.UUID {
+	return e.tenantID
 }

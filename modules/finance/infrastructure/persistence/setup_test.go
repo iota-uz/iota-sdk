@@ -47,6 +47,7 @@ func setupTest(t *testing.T) *testFixtures {
 	})
 
 	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithPool(ctx, pool)
 
 	// Setup application and run migrations
 	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)

@@ -1,0 +1,63 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type CounterpartyTypeSelectProps struct {
+	Value string
+	Attrs templ.Attributes
+	Error string
+}
+
+type CounterpartyLegalTypeSelectProps struct {
+	Value string
+	Attrs templ.Attributes
+	Error string
+}
+
+templ CounterpartyTypeSelect(props *CounterpartyTypeSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Select(&base.SelectProps{
+		Label:       pageCtx.T("Counterparties.Single.Type"),
+		Placeholder: pageCtx.T("Counterparties.Single.SelectType"),
+		Error:       props.Error,
+		Attrs:       props.Attrs,
+	}) {
+		for _, typeOption := range viewmodels.AllCounterpartyTypes() {
+			if string(typeOption) == props.Value {
+				<option value={ typeOption.String() } selected>
+					{ typeOption.LocalizedString(pageCtx) }
+				</option>
+			} else {
+				<option value={ typeOption.String() }>
+					{ typeOption.LocalizedString(pageCtx) }
+				</option>
+			}
+		}
+	}
+}
+
+templ CounterpartyLegalTypeSelect(props *CounterpartyLegalTypeSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Select(&base.SelectProps{
+		Label:       pageCtx.T("Counterparties.Single.LegalType"),
+		Placeholder: pageCtx.T("Counterparties.Single.SelectLegalType"),
+		Error:       props.Error,
+		Attrs:       props.Attrs,
+	}) {
+		for _, legalTypeOption := range viewmodels.AllCounterpartyLegalTypes() {
+			if string(legalTypeOption) == props.Value {
+				<option value={ legalTypeOption.String() } selected>
+					{ legalTypeOption.LocalizedString(pageCtx) }
+				</option>
+			} else {
+				<option value={ legalTypeOption.String() }>
+					{ legalTypeOption.LocalizedString(pageCtx) }
+				</option>
+			}
+		}
+	}
+}

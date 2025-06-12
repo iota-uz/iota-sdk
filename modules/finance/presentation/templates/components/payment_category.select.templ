@@ -1,0 +1,36 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+)
+
+type PaymentCategorySelectProps struct {
+	Label       string
+	Placeholder string
+	Value       string
+	Categories  []*viewmodels.PaymentCategory
+	Error       string
+	Attrs       templ.Attributes
+}
+
+templ PaymentCategorySelect(props *PaymentCategorySelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.Label,
+		Placeholder: props.Placeholder,
+		Attrs:       props.Attrs,
+		Error:       props.Error,
+	}) {
+		for _, category := range props.Categories {
+			if category.ID == props.Value {
+				<option value={ category.ID } selected>
+					{ category.Name }
+				</option>
+			} else {
+				<option value={ category.ID }>
+					{ category.Name }
+				</option>
+			}
+		}
+	}
+}
