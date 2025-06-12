@@ -47,18 +47,20 @@ func (m *Module) Register(app application.Application) error {
 		clientRepo,
 		chatRepo,
 	)
+	clientService := services.NewClientService(
+		clientRepo,
+		app.EventPublisher(),
+	)
 	chatsService := services.NewChatService(
 		chatRepo,
 		clientRepo,
+		clientService,
 		[]chat.Provider{twilioProvider},
 		app.EventPublisher(),
 	)
 	app.RegisterServices(
 		chatsService,
-		services.NewClientService(
-			clientRepo,
-			app.EventPublisher(),
-		),
+		clientService,
 		services.NewMessageTemplateService(
 			persistence.NewMessageTemplateRepository(),
 			app.EventPublisher(),

@@ -17,7 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -52,7 +51,13 @@ func main() {
 	conf := configuration.Use()
 	ctx := context.Background()
 	pool := pgxPool()
-	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
+	bundle := application.LoadBundle()
+	app := application.New(&application.ApplicationOptions{
+		Pool:     pool,
+		Bundle:   bundle,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	})
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panicWithStack(err)
 	}
@@ -99,10 +104,9 @@ func main() {
 		)),
 	)
 
-	ctxWithTenant := context.WithValue(
+	ctxWithTenant := composables.WithTenantID(
 		composables.WithTx(ctx, tx),
-		constants.TenantKey,
-		defaultTenant,
+		defaultTenant.ID,
 	)
 
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {

@@ -23,6 +23,7 @@ const (
 	selectClientQuery = `
 		SELECT
 			c.id,
+			c.tenant_id,
 			c.first_name,
 			c.last_name,
 			c.middle_name,
@@ -38,7 +39,7 @@ const (
 			c.updated_at
 		FROM clients c
 	`
-	countClientQuery        = `SELECT COUNT(*) as count FROM clients`
+	countClientQuery        = `SELECT COUNT(*) as count FROM clients c`
 	deleteChatMessagesQuery = `DELETE FROM messages WHERE chat_id IN (SELECT id FROM chats WHERE client_id = $1)`
 	deleteClientChatsQuery  = `DELETE FROM chats WHERE client_id = $1`
 	deleteClientQuery       = `DELETE FROM clients WHERE id = $1`
@@ -72,12 +73,14 @@ func NewClientRepository(passportRepo passport.Repository) client.Repository {
 	return &ClientRepository{
 		passportRepo: passportRepo,
 		fieldMap: map[client.Field]string{
+			client.ID:          "c.id",
 			client.FirstName:   "c.first_name",
 			client.LastName:    "c.last_name",
 			client.MiddleName:  "c.middle_name",
 			client.PhoneNumber: "c.phone_number",
 			client.UpdatedAt:   "c.updated_at",
 			client.CreatedAt:   "c.created_at",
+			client.TenantID:    "c.tenant_id",
 		},
 	}
 }
@@ -106,6 +109,7 @@ func (g *ClientRepository) queryClients(
 		var c models.Client
 		if err := rows.Scan(
 			&c.ID,
+			&c.TenantID,
 			&c.FirstName,
 			&c.LastName,
 			&c.MiddleName,
@@ -222,16 +226,26 @@ func (g *ClientRepository) exists(ctx context.Context, id uint) (bool, error) {
 func (g *ClientRepository) GetPaginated(
 	ctx context.Context, params *client.FindParams,
 ) ([]client.Client, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, err
 	}
 
-	// Start with tenant filter
-	where, args := []string{"c.tenant_id = $1"}, []interface{}{tenant.ID}
+	where := make([]string, 0)
+	args := make([]interface{}, 0)
 
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where, args = append(where, fmt.Sprintf("c.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2)), append(args, params.CreatedAt.From, params.CreatedAt.To)
+	// Add tenant filter first
+	where = append(where, fmt.Sprintf("c.tenant_id = $%d", len(args)+1))
+	args = append(args, tenantID)
+
+	// Apply filters
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			continue
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
 	}
 
 	if params.Search != "" {
@@ -246,6 +260,7 @@ func (g *ClientRepository) GetPaginated(
 		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
+
 	return g.queryClients(
 		ctx,
 		sql,
@@ -253,40 +268,68 @@ func (g *ClientRepository) GetPaginated(
 	)
 }
 
-func (g *ClientRepository) Count(ctx context.Context) (int64, error) {
+func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams) (int64, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
+	where := make([]string, 0)
+	args := make([]interface{}, 0)
+
+	// Add tenant filter first
+	where = append(where, fmt.Sprintf("c.tenant_id = $%d", len(args)+1))
+	args = append(args, tenantID)
+
+	// Apply filters
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			continue
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
 	}
 
+	if params.Search != "" {
+		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
+		where = append(where, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
+		args = append(args, "%"+params.Search+"%")
+	}
+
+	query := countClientQuery + " " + repo.JoinWhere(where...)
+
 	var count int64
-	if err := pool.QueryRow(ctx, countClientQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, query, args...).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
-func (g *ClientRepository) GetAll(ctx context.Context) ([]client.Client, error) {
-	tenant, err := composables.UseTenant(ctx)
+func (g *ClientRepository) GetByID(ctx context.Context, id uint) (client.Client, error) {
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, err
 	}
 
-	return g.queryClients(ctx, selectClientQuery+" WHERE c.tenant_id = $1", tenant.ID)
+	clients, err := g.queryClients(ctx, selectClientQuery+" WHERE c.id = $1 AND c.tenant_id = $2", id, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if len(clients) == 0 {
+		return nil, ErrClientNotFound
+	}
+	return clients[0], nil
 }
 
-func (g *ClientRepository) GetByID(ctx context.Context, id uint) (client.Client, error) {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
-	clients, err := g.queryClients(ctx, selectClientQuery+" WHERE c.id = $1 AND c.tenant_id = $2", id, tenant.ID)
+// getByID is an internal helper method for getting a client by ID without tenant filtering
+func (g *ClientRepository) getByID(ctx context.Context, id uint) (client.Client, error) {
+	clients, err := g.queryClients(ctx, selectClientQuery+" WHERE c.id = $1", id)
 	if err != nil {
 		return nil, err
 	}
@@ -297,12 +340,7 @@ func (g *ClientRepository) GetByID(ctx context.Context, id uint) (client.Client,
 }
 
 func (g *ClientRepository) GetByPhone(ctx context.Context, phoneNumber string) (client.Client, error) {
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
-	clients, err := g.queryClients(ctx, selectClientQuery+" WHERE c.phone_number = $1 AND c.tenant_id = $2", phoneNumber, tenant.ID)
+	clients, err := g.queryClients(ctx, selectClientQuery+" WHERE c.phone_number = $1", phoneNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -318,13 +356,7 @@ func (g *ClientRepository) create(ctx context.Context, data client.Client) (clie
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	dbRow := ToDBClient(data)
-	dbRow.TenantID = tenant.ID.String()
 
 	if data.Passport() != nil {
 		p, err := g.passportRepo.Save(ctx, data.Passport())
@@ -386,7 +418,7 @@ func (g *ClientRepository) create(ctx context.Context, data client.Client) (clie
 		}
 	}
 
-	return g.GetByID(ctx, dbRow.ID)
+	return g.getByID(ctx, dbRow.ID)
 }
 
 func (g *ClientRepository) saveContact(
@@ -435,13 +467,7 @@ func (g *ClientRepository) update(ctx context.Context, data client.Client) (clie
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
-	}
-
 	dbRow := ToDBClient(data)
-	dbRow.TenantID = tenant.ID.String()
 
 	if data.Passport() != nil {
 		p, err := g.passportRepo.Save(ctx, data.Passport())
@@ -491,7 +517,7 @@ func (g *ClientRepository) update(ctx context.Context, data client.Client) (clie
 		}
 	}
 
-	values = append(values, data.ID(), tenant.ID)
+	values = append(values, data.ID(), data.TenantID())
 
 	if _, err := tx.Exec(
 		ctx,
@@ -549,7 +575,7 @@ func (g *ClientRepository) update(ctx context.Context, data client.Client) (clie
 		}
 	}
 
-	return g.GetByID(ctx, data.ID())
+	return g.getByID(ctx, data.ID())
 }
 
 func (g *ClientRepository) Save(ctx context.Context, data client.Client) (client.Client, error) {
@@ -564,14 +590,14 @@ func (g *ClientRepository) Save(ctx context.Context, data client.Client) (client
 }
 
 func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
-	tx, err := composables.UseTx(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
+		return err
 	}
 
 	var passportID sql.NullString
@@ -592,7 +618,7 @@ func (g *ClientRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	if _, err := tx.Exec(ctx, deleteClientQuery+" AND tenant_id = $2", id, tenant.ID); err != nil {
+	if _, err := tx.Exec(ctx, deleteClientQuery+" AND tenant_id = $2", id, tenantID); err != nil {
 		return err
 	}
 
@@ -625,7 +651,7 @@ func (g *ClientRepository) getByContactValue(
 		return nil, err
 	}
 
-	return g.GetByID(ctx, clientID)
+	return g.getByID(ctx, clientID)
 }
 
 func (g *ClientRepository) GetByContactValue(

@@ -4,19 +4,17 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/sirupsen/logrus"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/go-i18n/v2/i18n"
-	"golang.org/x/text/language"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -28,12 +26,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type CreateChatDTO struct {
@@ -50,16 +45,20 @@ type ChatController struct {
 	templateService *services.MessageTemplateService
 	clientService   *services.ClientService
 	chatService     *services.ChatService
+	tenantService   *coreservices.TenantService
+	logger          *logrus.Logger
 	basePath        string
 }
 
 func NewChatController(app application.Application, basePath string) application.Controller {
 	return &ChatController{
 		app:             app,
+		logger:          configuration.Use().Logger(),
 		userService:     app.Service(coreservices.UserService{}).(*coreservices.UserService),
 		clientService:   app.Service(services.ClientService{}).(*services.ClientService),
 		chatService:     app.Service(services.ChatService{}).(*services.ChatService),
 		templateService: app.Service(services.MessageTemplateService{}).(*services.MessageTemplateService),
+		tenantService:   app.Service(coreservices.TenantService{}).(*coreservices.TenantService),
 		basePath:        basePath,
 	}
 }
@@ -89,63 +88,102 @@ func (c *ChatController) Register(r *mux.Router) {
 	c.app.EventPublisher().Subscribe(c.onChatCreated)
 }
 
-func (c *ChatController) onChatCreated(_ *chat.CreatedEvent) {
-	localizer := i18n.NewLocalizer(c.app.Bundle(), "en")
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
+func (c *ChatController) createTenantContext(tenantID uuid.UUID) context.Context {
+	ctx := context.Background()
+	ctxWithDb := composables.WithPool(ctx, c.app.DB())
+
+	tenant, err := c.tenantService.GetByID(ctxWithDb, tenantID)
+	if err != nil {
+		c.logger.WithError(err).WithField("tenantID", tenantID).Error("failed to get tenant")
+		return composables.WithPool(ctx, c.app.DB())
+	}
+
+	tenantComposable := &composables.Tenant{
+		ID:     tenant.ID(),
+		Name:   tenant.Name(),
+		Domain: tenant.Domain(),
+	}
+
+	return composables.WithPool(composables.WithTenantID(ctx, tenantComposable.ID), c.app.DB())
+}
+
+func (c *ChatController) onChatCreated(event *chat.CreatedEvent) {
+	var tenantID uuid.UUID
+	if event.User != nil {
+		tenantID = event.User.TenantID()
+	} else {
+		tenantID = event.Result.TenantID()
+	}
+
+	ctxWithDb := c.createTenantContext(tenantID)
+	chatViewModels, _, err := c.chatViewModelsWithTotal(
+		ctxWithDb,
+		&chat.FindParams{
+			SortBy: chat.SortBy{
+				Fields: []chat.SortByField{
+					{
+						Field:     chat.LastMessageAtField,
+						Ascending: false,
+						NullsLast: true,
+					},
+					{
+						Field:     chat.CreatedAtField,
+						Ascending: false,
+					},
+				},
+			},
+		},
 	)
-	ctx = composables.WithPool(ctx, c.app.DB())
-	_url, _ := url.Parse(c.basePath)
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
+	if err != nil {
+		c.logger.WithError(err).Error("failed to get chat view models")
+		return
+	}
+	props := &chatsui.IndexPageProps{
+		SearchURL:  c.basePath + "/search",
+		NewChatURL: "/crm/chats/new",
+		Chats:      chatViewModels,
+		Page:       1,
+		PerPage:    len(chatViewModels),
+		HasMore:    false,
+	}
+	err = c.app.Websocket().ForEach(application.ChannelAuthenticated, func(ctx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := chatsui.ChatList(props).Render(ctx, &buf); err != nil {
+			c.logger.WithError(err).Error("failed to render chat list for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			c.logger.WithError(err).Error("failed to send chat list to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
 	})
-	c.broadcastChatsListUpdate(ctx)
+	if err != nil {
+		c.logger.WithError(err).Error("failed to send chat list to websocket")
+		return
+	}
 }
 
 func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
-	var locale string
+	var tenantID uuid.UUID
 	if event.User != nil {
-		locale = string(event.User.UILanguage())
+		tenantID = event.User.TenantID()
 	} else {
-		locale = "en"
+		tenantID = event.Result.TenantID()
 	}
-	localizer := i18n.NewLocalizer(c.app.Bundle(), locale)
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
+
+	ctxWithDb := c.createTenantContext(tenantID)
+	clientEntity, err := c.clientService.GetByID(
+		ctxWithDb,
+		event.Result.ClientID(),
 	)
-	ctx = composables.WithPool(ctx, c.app.DB())
-	_url, _ := url.Parse(c.basePath)
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-
-	clientEntity, err := c.clientService.GetByID(ctx, event.Result.ClientID())
 	if err != nil {
-		log.Printf("Error getting client: %v", err)
+		c.logger.WithError(err).Error("failed to get client by ID")
 		return
 	}
-	chatViewModel := mappers.ChatToViewModel(event.Result, clientEntity)
-	var buf bytes.Buffer
-	if err := chatsui.ChatMessages(chatViewModel).Render(ctx, &buf); err != nil {
-		log.Printf("Error rendering chat messages: %v", err)
-		return
-	}
-	hub := server.WsHub()
-	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
-	c.broadcastChatsListUpdate(ctx)
-}
-
-func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 	config := configuration.Use()
-
-	chatViewModels, total, err := c.chatViewModelsWithTotal(
-		ctx,
+	chatViewModels, _, err := c.chatViewModelsWithTotal(
+		ctxWithDb,
 		&chat.FindParams{
 			Offset: 0,
 			Limit:  config.PageSize,
@@ -165,26 +203,47 @@ func (c *ChatController) broadcastChatsListUpdate(ctx context.Context) {
 		},
 	)
 	if err != nil {
-		log.Printf("Error rendering chat list: %v", err)
+		c.logger.WithError(err).Error("failed to get chat view models")
 		return
 	}
 
-	props := &chatsui.IndexPageProps{
-		Page:       1,
-		NewChatURL: "/crm/chats/new",
-		Chats:      chatViewModels,
-		PerPage:    config.PageSize,
-		SearchURL:  c.basePath + "/search",
-		HasMore:    total > int64(config.PageSize),
-	}
-
-	var buf bytes.Buffer
-	if err := chatsui.ChatList(props).Render(ctx, &buf); err != nil {
-		log.Printf("Error rendering chat list: %v", err)
+	chatViewModel := mappers.ChatToViewModel(event.Result, clientEntity)
+	err = c.app.Websocket().ForEach(
+		application.ChannelAuthenticated,
+		func(ctx context.Context, conn application.Connection) error {
+			props := &chatsui.IndexPageProps{
+				SearchURL:  c.basePath + "/search",
+				NewChatURL: "/crm/chats/new",
+				Chats:      chatViewModels,
+				Page:       1,
+				PerPage:    len(chatViewModels),
+				HasMore:    false,
+			}
+			var buf1 bytes.Buffer
+			if err := chatsui.ChatList(props).Render(ctx, &buf1); err != nil {
+				c.logger.WithError(err).Error("failed to render chat list for websocket")
+				return nil // Continue processing other connections
+			}
+			if err := conn.SendMessage(buf1.Bytes()); err != nil {
+				c.logger.WithError(err).Error("failed to send chat list to websocket connection")
+				return nil // Continue processing other connections
+			}
+			var buf2 bytes.Buffer
+			if err := chatsui.ChatMessages(chatViewModel).Render(ctx, &buf2); err != nil {
+				c.logger.WithError(err).Error("failed to render chat messages for websocket")
+				return nil // Continue processing other connections
+			}
+			if err := conn.SendMessage(buf2.Bytes()); err != nil {
+				c.logger.WithError(err).Error("failed to send chat messages to websocket connection")
+				return nil // Continue processing other connections
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		c.logger.WithError(err).Error("failed to send chat messages to websocket")
 		return
 	}
-	hub := server.WsHub()
-	hub.BroadcastToChannel(server.ChannelChat, buf.Bytes())
 }
 
 func (c *ChatController) messageTemplates(ctx context.Context) ([]*viewmodels.MessageTemplate, error) {
@@ -208,6 +267,11 @@ func (c *ChatController) chatViewModelsWithTotal(
 		return nil, 0, err
 	}
 
+	_, err = composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	viewModels := make([]*viewmodels.Chat, 0, len(chatEntities))
 	for _, chatEntity := range chatEntities {
 		clientEntity, err := c.clientService.GetByID(ctx, chatEntity.ClientID())
@@ -220,15 +284,13 @@ func (c *ChatController) chatViewModelsWithTotal(
 }
 
 func (c *ChatController) Search(w http.ResponseWriter, r *http.Request) {
-	searchQ := r.URL.Query().Get("Query")
 	params := composables.UsePaginated(r)
-
 	chatViewModels, total, err := c.chatViewModelsWithTotal(
 		r.Context(),
 		&chat.FindParams{
 			Limit:  params.Limit,
 			Offset: params.Offset,
-			Search: searchQ,
+			Search: r.URL.Query().Get("Query"),
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
 					{
@@ -390,7 +452,13 @@ func (c *ChatController) Create(w http.ResponseWriter, r *http.Request) {
 		Phone:     dto.Phone,
 	}
 
-	clientEntity, err := clientDto.ToEntity()
+	tenant, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	clientEntity, err := clientDto.ToEntity(tenant)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

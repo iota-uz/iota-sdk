@@ -3,12 +3,15 @@ package counterparty
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 )
 
 type Counterparty interface {
-	ID() uint
-	SetID(uint)
+	ID() uuid.UUID
+	SetID(uuid.UUID)
+
+	TenantID() uuid.UUID
 
 	Tin() tax.Tin
 	SetTin(t tax.Tin)

@@ -70,12 +70,12 @@ func (r *AIChatConfigRepository) GetByID(ctx context.Context, id uuid.UUID) (aic
 }
 
 func (r *AIChatConfigRepository) GetDefault(ctx context.Context) (aichatconfig.AIConfig, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, errors.Wrap(err, "failed to get tenant ID from context")
 	}
 
-	configs, err := r.queryConfigs(ctx, repo.Join(aiConfigFindQuery, "WHERE is_default = true AND tenant_id = $1 LIMIT 1"), tenant.ID)
+	configs, err := r.queryConfigs(ctx, repo.Join(aiConfigFindQuery, "WHERE is_default = true AND tenant_id = $1 LIMIT 1"), tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query default AI chat config")
 	}
@@ -86,13 +86,13 @@ func (r *AIChatConfigRepository) GetDefault(ctx context.Context) (aichatconfig.A
 }
 
 func (r *AIChatConfigRepository) List(ctx context.Context) ([]aichatconfig.AIConfig, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, errors.Wrap(err, "failed to get tenant ID from context")
 	}
 
 	q := repo.Join(aiConfigFindQuery, "WHERE tenant_id = $1 ORDER BY is_default DESC, id ASC")
-	configs, err := r.queryConfigs(ctx, q, tenant.ID)
+	configs, err := r.queryConfigs(ctx, q, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list AI chat configs")
 	}
@@ -177,12 +177,12 @@ func (r *AIChatConfigRepository) SetDefault(ctx context.Context, id uuid.UUID) e
 
 	now := time.Now()
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get tenant from context")
+		return errors.Wrap(err, "failed to get tenant ID from context")
 	}
 
-	_, err = tx.Exec(ctx, aiConfigClearDefaultQuery, now, tenant.ID)
+	_, err = tx.Exec(ctx, aiConfigClearDefaultQuery, now, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to clear default config")
 	}

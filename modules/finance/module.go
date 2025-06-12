@@ -43,6 +43,10 @@ func (m *Module) Register(app application.Application) error {
 			categoryRepo,
 			app.EventPublisher(),
 		),
+		services.NewPaymentCategoryService(
+			persistence.NewPaymentCategoryRepository(),
+			app.EventPublisher(),
+		),
 		services.NewExpenseService(
 			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
 			app.EventPublisher(),
@@ -50,20 +54,25 @@ func (m *Module) Register(app application.Application) error {
 		),
 		moneyAccountService,
 		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
+		services.NewInventoryService(persistence.NewInventoryRepository()),
 	)
 
 	app.RegisterControllers(
 		controllers.NewExpensesController(app),
 		controllers.NewMoneyAccountController(app),
 		controllers.NewExpenseCategoriesController(app),
+		controllers.NewPaymentCategoriesController(app),
 		controllers.NewPaymentsController(app),
 		controllers.NewCounterpartiesController(app),
+		controllers.NewInventoryController(app),
 	)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
+		spotlight.NewQuickLink(nil, PaymentCategoriesItem.Name, PaymentCategoriesItem.Href),
 		spotlight.NewQuickLink(nil, PaymentsItem.Name, PaymentsItem.Href),
 		spotlight.NewQuickLink(nil, ExpensesItem.Name, ExpensesItem.Href),
 		spotlight.NewQuickLink(nil, AccountsItem.Name, AccountsItem.Href),
+		spotlight.NewQuickLink(nil, InventoryItem.Name, InventoryItem.Href),
 		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Expenses.List.New",
@@ -83,6 +92,16 @@ func (m *Module) Register(app application.Application) error {
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"ExpenseCategories.List.New",
 			"/finance/expense-categories/new",
+		),
+		spotlight.NewQuickLink(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"PaymentCategories.List.New",
+			"/finance/payment-categories/new",
+		),
+		spotlight.NewQuickLink(
+			icons.PlusCircle(icons.Props{Size: "24"}),
+			"Inventory.List.New",
+			"/finance/inventory/new",
 		),
 	)
 

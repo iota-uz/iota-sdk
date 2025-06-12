@@ -9,21 +9,12 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
-
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/di"
-	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
-	"github.com/iota-uz/iota-sdk/pkg/server"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-	"golang.org/x/text/language"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/sirupsen/logrus"
-
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	userdomain "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -38,10 +29,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/sirupsen/logrus"
 )
 
 func clientIDFromQ(u *url.URL) (uint, error) {
@@ -70,50 +67,28 @@ func (ru *ClientRealtimeUpdates) Register() {
 	ru.app.EventPublisher().Subscribe(ru.onClientCreated)
 }
 
-func (ru *ClientRealtimeUpdates) publisherContext() (context.Context, error) {
-	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
-	)
-	_url, err := url.Parse(ru.basePath)
-	if err != nil {
-		return nil, err
-	}
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-	return composables.WithPool(ctx, ru.app.DB()), nil
-}
-
 func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
 
-	clientEntity, err := ru.clientService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving client: %v | Event: onClientCreated", err)
-		return
-	}
-
-	component := clients.ClientCreatedEvent(mappers.ClientToViewModel(clientEntity), &base.TableRowProps{
+	component := clients.ClientCreatedEvent(mappers.ClientToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
 
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering client row: %v", err)
+	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render client created event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send client created event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	}); err != nil {
+		logger.WithError(err).Error("failed to broadcast client created event to websocket")
 		return
 	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 type TabDefinition struct {
@@ -195,7 +170,7 @@ var (
 				crmPermissions.ClientRead,
 			},
 			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := composables.UseApp(r.Context())
+				app, err := application.UseApp(r.Context())
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving app")
 				}
@@ -222,7 +197,7 @@ var (
 				crmPermissions.ClientRead,
 			},
 			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
-				app, err := composables.UseApp(r.Context())
+				app, err := application.UseApp(r.Context())
 				if err != nil {
 					return nil, errors.Wrap(err, "Error retrieving app")
 				}
@@ -334,11 +309,21 @@ func (c *ClientController) viewModelClients(
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
-		params.CreatedAt.From = v
+		if parsedDate, err := time.Parse("2006-01-02", v); err == nil {
+			params.Filters = append(params.Filters, client.Filter{
+				Column: client.CreatedAt,
+				Filter: repo.Gte(parsedDate),
+			})
+		}
 	}
 
 	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
-		params.CreatedAt.To = v
+		if parsedDate, err := time.Parse("2006-01-02", v); err == nil {
+			params.Filters = append(params.Filters, client.Filter{
+				Column: client.CreatedAt,
+				Filter: repo.Lte(parsedDate),
+			})
+		}
 	}
 
 	if q := r.URL.Query().Get("Search"); q != "" {
@@ -350,7 +335,18 @@ func (c *ClientController) viewModelClients(
 		return nil, errors.Wrap(err, "Error retrieving clients")
 	}
 
-	total, err := clientService.Count(r.Context())
+	tenant, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving tenant")
+	}
+	total, err := clientService.Count(r.Context(), &client.FindParams{
+		Filters: []client.Filter{
+			{
+				Column: client.TenantID,
+				Filter: repo.Eq(tenant),
+			},
+		},
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "Error counting clients")
 	}
@@ -455,7 +451,16 @@ func (c *ClientController) Create(
 		return
 	}
 
-	clientEntity, err := dto.ToEntity()
+	tenant, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		logger.Errorf("Error getting tenant: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	logger.Infof("Creating client with tenant ID: %s", tenant)
+
+	clientEntity, err := dto.ToEntity(tenant)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -530,6 +535,7 @@ func (c *ClientController) View(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	qTab := r.URL.Query().Get("tab")
 	disablePush := r.URL.Query().Get("dp") == "true"
 

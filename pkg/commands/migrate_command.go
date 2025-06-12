@@ -53,7 +53,13 @@ func Migrate(mods ...application.Module) error {
 	}
 	defer pool.Close()
 
-	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
+	bundle := application.LoadBundle()
+	app := application.New(&application.ApplicationOptions{
+		Pool:     pool,
+		Bundle:   bundle,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	})
 	if err := modules.Load(app, mods...); err != nil {
 		return err
 	}

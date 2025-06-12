@@ -1,151 +1,90 @@
 package ws
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 	"sync"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 )
 
+type HubOptions struct {
+	Logger       *logrus.Logger
+	CheckOrigin  func(r *http.Request) bool
+	OnConnect    func(r *http.Request, hub *Hub, conn *Connection) error
+	OnDisconnect func(conn *Connection)
+}
+
 type Connection struct {
-	conn     *websocket.Conn
-	userID   uint
-	session  *session.Session
-	channels Set[string]
-	mu       sync.RWMutex
-	hub      *Hub
-	ctx      map[string]any
+	conn *websocket.Conn
+	hub  *Hub
+	ctx  map[string]any
 }
 
 var _ Connectioner = (*Connection)(nil)
-var _ io.Closer = (*Connection)(nil)
-
-func (c *Connection) UserID() uint {
-	return c.userID
-}
-
-func (c *Connection) Session() *session.Session {
-	return c.session
-}
-
-func (c *Connection) Channels() Set[string] {
-	return c.channels
-}
-
-func (c *Connection) SetContext(key string, value any) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.ctx[key] = value
-}
-
-func (c *Connection) GetContext(key string) (any, bool) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	value, ok := c.ctx[key]
-	return value, ok
-}
 
 func (c *Connection) Close() error {
 	return c.conn.Close()
 }
 
+// SendMessage sends a text message to the websocket connection
 func (c *Connection) SendMessage(message []byte) error {
 	return c.conn.WriteMessage(websocket.TextMessage, message)
-}
-
-func (c *Connection) Subscribe(channel string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.channels[channel] = struct{}{}
-
-	c.hub.mu.Lock()
-	defer c.hub.mu.Unlock()
-
-	if c.hub.channelConnections[channel] == nil {
-		c.hub.channelConnections[channel] = make(Set[*Connection])
-	}
-	c.hub.channelConnections[channel][c] = struct{}{}
-}
-
-func (c *Connection) Unsubscribe(channel string) {
-	c.mu.Lock()
-	delete(c.channels, channel)
-	c.mu.Unlock()
-
-	c.hub.mu.Lock()
-	defer c.hub.mu.Unlock()
-
-	if conns, ok := c.hub.channelConnections[channel]; ok {
-		delete(conns, c)
-		if len(conns) == 0 {
-			delete(c.hub.channelConnections, channel)
-		}
-	}
 }
 
 type Hub struct {
 	upgrader           websocket.Upgrader
 	connections        Set[*Connection]
-	userConnections    map[uint]Set[*Connection]
 	channelConnections map[string]Set[*Connection]
+	eventHandlers      map[EventType][]func(conn *Connection, message []byte)
 	mu                 sync.RWMutex
-	log                *logrus.Logger
+	logger             *logrus.Logger
+	OnConnect          func(r *http.Request, hub *Hub, conn *Connection) error
+	OnDisconnect       func(conn *Connection)
 }
 
 var _ Huber = (*Hub)(nil)
 
-func NewHub() *Hub {
-	conf := configuration.Use()
+func NewHub(opts *HubOptions) *Hub {
 	return &Hub{
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
+			CheckOrigin:     opts.CheckOrigin,
 		},
 		connections:        make(Set[*Connection]),
-		userConnections:    make(map[uint]Set[*Connection]),
 		channelConnections: make(map[string]Set[*Connection]),
-		log:                conf.Logger(),
+		eventHandlers:      make(map[EventType][]func(conn *Connection, message []byte)),
+		logger:             opts.Logger,
+		OnConnect:          opts.OnConnect,
+		OnDisconnect:       opts.OnDisconnect,
 	}
 }
 
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		h.log.Printf("Error upgrading connection: %v", err)
+		h.logger.Printf("Error upgrading connection: %v", err)
 		return
 	}
 
-	var userID uint
-	if user, ok := r.Context().Value(constants.UserKey).(user.User); ok {
-		userID = user.ID()
+	wsConn := &Connection{
+		conn: conn,
+		hub:  h,
+		ctx:  make(map[string]any),
 	}
 
-	wsConn := &Connection{
-		conn:     conn,
-		channels: make(Set[string]),
-		hub:      h,
-		ctx:      make(map[string]any),
+	// Call OnConnect callback if provided
+	if h.OnConnect != nil {
+		if err := h.OnConnect(r, h, wsConn); err != nil {
+			h.logger.Printf("Connection rejected by OnConnect callback: %v", err)
+			_ = conn.Close()
+			return
+		}
 	}
 
 	h.mu.Lock()
 	h.connections[wsConn] = struct{}{}
-	if userID != 0 {
-		if h.userConnections[userID] == nil {
-			h.userConnections[userID] = make(Set[*Connection])
-		}
-		h.userConnections[userID][wsConn] = struct{}{}
-	}
 	h.mu.Unlock()
 
 	go h.readPump(wsConn)
@@ -161,29 +100,50 @@ func (h *Hub) readPump(conn *Connection) {
 		_, message, err := conn.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				h.log.Printf("WebSocket error: %v", err)
+				h.logger.Printf("WebSocket error: %v", err)
 			}
 			break
 		}
 
 		if err := h.handleMessage(conn, message); err != nil {
-			h.log.Printf("Error handling message: %v", err)
+			h.logger.Printf("Error handling message: %v", err)
 			break
 		}
 	}
 }
 
 func (h *Hub) removeConnection(conn *Connection) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	// Call OnDisconnect callback first to allow cleanup in application layer
+	if h.OnDisconnect != nil {
+		h.OnDisconnect(conn)
+	}
 
-	delete(h.connections, conn)
-	if userConns, ok := h.userConnections[conn.userID]; ok {
-		delete(userConns, conn)
-		if len(userConns) == 0 {
-			delete(h.userConnections, conn.userID)
+	// Collect all channels this connection was in to trigger leave events
+	h.mu.RLock()
+	channelsCopy := make([]string, 0)
+	for channel, conns := range h.channelConnections {
+		if _, ok := conns[conn]; ok {
+			channelsCopy = append(channelsCopy, channel)
 		}
 	}
+	h.mu.RUnlock()
+
+	// Trigger leave handlers for each channel
+	for _, channel := range channelsCopy {
+		h.mu.RLock()
+		handlers, exists := h.eventHandlers[EventTypeLeave]
+		h.mu.RUnlock()
+
+		if exists {
+			for _, handler := range handlers {
+				handler(conn, []byte(channel))
+			}
+		}
+	}
+
+	// Remove connection from tracking structures
+	h.mu.Lock()
+	delete(h.connections, conn)
 	for channel, conns := range h.channelConnections {
 		if _, ok := conns[conn]; ok {
 			delete(conns, conn)
@@ -192,25 +152,31 @@ func (h *Hub) removeConnection(conn *Connection) {
 			}
 		}
 	}
-}
+	h.mu.Unlock()
 
-type SubscriptionMessage struct {
-	Subscribe   string `json:"subscribe,omitempty"`
-	Unsubscribe string `json:"unsubscribe,omitempty"`
+	// Trigger close handlers
+	h.mu.RLock()
+	handlers, exists := h.eventHandlers[EventTypeClose]
+	h.mu.RUnlock()
+
+	if exists {
+		for _, handler := range handlers {
+			handler(conn, nil)
+		}
+	}
 }
 
 func (h *Hub) handleMessage(conn *Connection, message []byte) error {
-	var subMsg SubscriptionMessage
-	if err := json.Unmarshal(message, &subMsg); err == nil {
-		if subMsg.Subscribe != "" {
-			conn.Subscribe(subMsg.Subscribe)
-			return nil
-		}
-		if subMsg.Unsubscribe != "" {
-			conn.Unsubscribe(subMsg.Unsubscribe)
-			return nil
+	h.mu.RLock()
+	handlers, exists := h.eventHandlers[EventTypeMessage]
+	h.mu.RUnlock()
+
+	if exists {
+		for _, handler := range handlers {
+			handler(conn, message)
 		}
 	}
+
 	return nil
 }
 
@@ -220,20 +186,7 @@ func (h *Hub) BroadcastToAll(message []byte) {
 
 	for conn := range h.connections {
 		if err := conn.SendMessage(message); err != nil {
-			h.log.Printf("Error broadcasting message: %v", err)
-		}
-	}
-}
-
-func (h *Hub) BroadcastToUser(userID uint, message []byte) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	if userConns, ok := h.userConnections[userID]; ok {
-		for conn := range userConns {
-			if err := conn.SendMessage(message); err != nil {
-				h.log.Printf("Error broadcasting to user %d: %v", userID, err)
-			}
+			h.logger.Printf("Error broadcasting message: %v", err)
 		}
 	}
 }
@@ -245,7 +198,7 @@ func (h *Hub) BroadcastToChannel(channel string, message []byte) {
 	if channelConns, ok := h.channelConnections[channel]; ok {
 		for conn := range channelConns {
 			if err := conn.SendMessage(message); err != nil {
-				h.log.Printf("Error broadcasting to channel %s: %v", channel, err)
+				h.logger.Printf("Error broadcasting to channel %s: %v", channel, err)
 			}
 		}
 	}
@@ -274,4 +227,53 @@ func (h *Hub) ConnectionsAll() []*Connection {
 		connections = append(connections, conn)
 	}
 	return connections
+}
+
+func (h *Hub) JoinChannel(channel string, conn *Connection) {
+	h.mu.Lock()
+	if h.channelConnections[channel] == nil {
+		h.channelConnections[channel] = make(Set[*Connection])
+	}
+	h.channelConnections[channel][conn] = struct{}{}
+	h.mu.Unlock()
+
+	// Trigger join handlers
+	h.mu.RLock()
+	handlers, exists := h.eventHandlers[EventTypeJoin]
+	h.mu.RUnlock()
+
+	if exists {
+		for _, handler := range handlers {
+			handler(conn, []byte(channel))
+		}
+	}
+}
+
+func (h *Hub) LeaveChannel(channel string, conn *Connection) {
+	h.mu.Lock()
+	if conns, ok := h.channelConnections[channel]; ok {
+		delete(conns, conn)
+		if len(conns) == 0 {
+			delete(h.channelConnections, channel)
+		}
+	}
+	h.mu.Unlock()
+
+	// Trigger leave handlers
+	h.mu.RLock()
+	handlers, exists := h.eventHandlers[EventTypeLeave]
+	h.mu.RUnlock()
+
+	if exists {
+		for _, handler := range handlers {
+			handler(conn, []byte(channel))
+		}
+	}
+}
+
+func (h *Hub) On(eventType EventType, handler func(conn *Connection, message []byte)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.eventHandlers[eventType] = append(h.eventHandlers[eventType], handler)
 }

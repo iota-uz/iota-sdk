@@ -58,7 +58,7 @@ const (
 			birth_date,
 			hire_date,
 			resignation_date
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	employeeUpdateQuery = `
 		UPDATE employees
@@ -84,14 +84,14 @@ func NewEmployeeRepository() employee.Repository {
 }
 
 func (g *GormEmployeeRepository) GetPaginated(ctx context.Context, params *employee.FindParams) ([]employee.Employee, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	var args []interface{}
 	where := []string{"e.tenant_id = $1"}
-	args = append(args, tenant.ID)
+	args = append(args, tenantID)
 
 	if params.Query != "" && params.Field != "" {
 		where = append(where, fmt.Sprintf("e.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1))
@@ -107,7 +107,7 @@ func (g *GormEmployeeRepository) GetPaginated(ctx context.Context, params *emplo
 }
 
 func (g *GormEmployeeRepository) Count(ctx context.Context) (int64, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -117,26 +117,26 @@ func (g *GormEmployeeRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, employeeCountQuery, tenant.ID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, employeeCountQuery, tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *GormEmployeeRepository) GetAll(ctx context.Context) ([]employee.Employee, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
-	return g.queryEmployees(ctx, repo.Join(employeeFindQuery, "WHERE e.tenant_id = $1"), tenant.ID)
+	return g.queryEmployees(ctx, repo.Join(employeeFindQuery, "WHERE e.tenant_id = $1"), tenantID)
 }
 
 func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (employee.Employee, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
-	employees, err := g.queryEmployees(ctx, repo.Join(employeeFindQuery, "WHERE e.id = $1 AND e.tenant_id = $2"), id, tenant.ID)
+	employees, err := g.queryEmployees(ctx, repo.Join(employeeFindQuery, "WHERE e.id = $1 AND e.tenant_id = $2"), id, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get employee by id")
 	}
@@ -147,13 +147,13 @@ func (g *GormEmployeeRepository) GetByID(ctx context.Context, id uint) (employee
 }
 
 func (g *GormEmployeeRepository) Create(ctx context.Context, data employee.Employee) (employee.Employee, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	dbEmployee, dbMeta := toDBEmployee(data)
-	dbEmployee.TenantID = tenant.ID.String() // Set tenant ID from context
+	dbEmployee.TenantID = tenantID.String() // Set tenant ID from context
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -197,7 +197,7 @@ func (g *GormEmployeeRepository) Create(ctx context.Context, data employee.Emplo
 }
 
 func (g *GormEmployeeRepository) Update(ctx context.Context, data employee.Employee) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -218,7 +218,7 @@ func (g *GormEmployeeRepository) Update(ctx context.Context, data employee.Emplo
 		dbEmployee.AvatarID,
 		dbEmployee.UpdatedAt,
 		dbEmployee.ID,
-		tenant.ID,
+		tenantID,
 	); err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (g *GormEmployeeRepository) Update(ctx context.Context, data employee.Emplo
 }
 
 func (g *GormEmployeeRepository) Delete(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -245,7 +245,7 @@ func (g *GormEmployeeRepository) Delete(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, employeeMetaDeleteQuery, id); err != nil {
 		return err
 	}
-	return g.execQuery(ctx, employeeDeleteQuery, id, tenant.ID)
+	return g.execQuery(ctx, employeeDeleteQuery, id, tenantID)
 }
 
 func (g *GormEmployeeRepository) queryEmployees(ctx context.Context, query string, args ...interface{}) ([]employee.Employee, error) {

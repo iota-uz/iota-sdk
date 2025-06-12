@@ -33,6 +33,7 @@ type Application interface {
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
 	RBAC() rbac.RBAC
+	Websocket() Huber
 	Spotlight() spotlight.Spotlight
 	QuickLinks() *spotlight.QuickLinks
 	Migrations() MigrationManager

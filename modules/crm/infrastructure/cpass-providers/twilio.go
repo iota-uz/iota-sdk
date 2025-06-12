@@ -12,6 +12,7 @@ import (
 	clientagg "github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/twilio/twilio-go"
 	"github.com/twilio/twilio-go/client"
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
@@ -121,10 +122,23 @@ func (s *TwilioProvider) Send(ctx context.Context, msg chat.Message) error {
 		return fmt.Errorf("unsupported transport: %s", msg.Sender().Transport())
 	}
 	clientSender := msg.Sender().(chat.ClientSender)
-	receiver, err := s.clientRepo.GetByID(ctx, clientSender.ClientID())
+	findParams := &clientagg.FindParams{
+		Limit: 1,
+		Filters: []clientagg.Filter{
+			{
+				Column: clientagg.ID,
+				Filter: repo.Eq(clientSender.ClientID()),
+			},
+		},
+	}
+	clients, err := s.clientRepo.GetPaginated(ctx, findParams)
 	if err != nil {
 		return err
 	}
+	if len(clients) == 0 {
+		return fmt.Errorf("client not found: %d", clientSender.ClientID())
+	}
+	receiver := clients[0]
 	contactID := clientSender.ContactID()
 	var contact clientagg.Contact
 	for _, v := range receiver.Contacts() {

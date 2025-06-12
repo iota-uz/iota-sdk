@@ -6,19 +6,16 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expense_categories2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expense_categories"
 	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
-	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -27,7 +24,6 @@ import (
 
 type ExpenseCategoriesController struct {
 	app                    application.Application
-	currencyService        *coreservices.CurrencyService
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
 }
@@ -40,7 +36,6 @@ type ExpenseCategoryPaginatedResponse struct {
 func NewExpenseCategoriesController(app application.Application) application.Controller {
 	return &ExpenseCategoriesController{
 		app:                    app,
-		currencyService:        app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
 		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
 		basePath:               "/finance/expense-categories",
 	}
@@ -64,23 +59,15 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9]+}", c.GetEdit).Methods(http.MethodGet)
+	getRouter.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
 	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
-}
-
-func (c *ExpenseCategoriesController) viewModelCurrencies(r *http.Request) ([]*viewmodels.Currency, error) {
-	currencies, err := c.currencyService.GetAll(r.Context())
-	if err != nil {
-		return nil, err
-	}
-	return mapping.MapViewModels(currencies, coremappers.CurrencyToViewModel), nil
+	setRouter.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
+	setRouter.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {
@@ -140,7 +127,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -151,21 +138,15 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
-	currencies, err := c.viewModelCurrencies(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &expense_categories2.EditPageProps{
-		Category:   mappers.ExpenseCategoryToViewModel(entity),
-		Currencies: currencies,
-		Errors:     map[string]string{},
+		Category: mappers.ExpenseCategoryToViewModel(entity),
+		Errors:   map[string]string{},
 	}
 	templ.Handler(expense_categories2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -179,23 +160,29 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Request) {
-	id, err := shared.ParseID(r)
+	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto, err := composables.UseForm(&category.UpdateDTO{}, r)
+	dto, err := composables.UseForm(&dtos.ExpenseCategoryUpdateDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); ok {
-		if err := c.expenseCategoryService.Update(r.Context(), id, dto); err != nil {
+	if errorsMap, ok := dto.Ok(r.Context()); ok {
+		existing, err := c.expenseCategoryService.GetByID(r.Context(), id)
+		if err != nil {
+			http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
+			return
+		}
+
+		entity, err := dto.Apply(existing)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := c.expenseCategoryService.Update(r.Context(), entity); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -205,15 +192,9 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 			http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 			return
 		}
-		currencies, err := c.viewModelCurrencies(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
 		props := &expense_categories2.EditPageProps{
-			Category:   mappers.ExpenseCategoryToViewModel(entity),
-			Currencies: currencies,
-			Errors:     errorsMap,
+			Category: mappers.ExpenseCategoryToViewModel(entity),
+			Errors:   errorsMap,
 		}
 		templ.Handler(expense_categories2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -222,16 +203,10 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
-	currencies, err := c.viewModelCurrencies(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	props := &expense_categories2.CreatePageProps{
-		Currencies: currencies,
-		Errors:     map[string]string{},
-		Category:   category.CreateDTO{},
-		PostPath:   c.basePath,
+		Errors:   map[string]string{},
+		Category: dtos.ExpenseCategoryCreateDTO{},
+		PostPath: c.basePath,
 	}
 	templ.Handler(expense_categories2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -242,34 +217,35 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	dto := category.CreateDTO{}
+	dto := dtos.ExpenseCategoryCreateDTO{}
 	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	uniLocalizer, err := intl.UseUniLocalizer(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if errorsMap, ok := dto.Ok(uniLocalizer); !ok {
-		currencies, err := c.viewModelCurrencies(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		props := &expense_categories2.CreatePageProps{
-			Currencies: currencies,
-			Errors:     errorsMap,
-			Category:   dto,
-			PostPath:   c.basePath,
+			Errors:   errorsMap,
+			Category: dto,
+			PostPath: c.basePath,
 		}
 		templ.Handler(expense_categories2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	if err := c.expenseCategoryService.Create(r.Context(), &dto); err != nil {
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
+		return
+	}
+
+	entity, err := dto.ToEntity(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := c.expenseCategoryService.Create(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

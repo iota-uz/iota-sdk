@@ -35,7 +35,7 @@ func UserSeedFunc(usr user.User) application.SeedFunc {
 }
 
 func (s *userSeeder) CreateUser(ctx context.Context, app application.Application) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get tenant from context")
 	}
@@ -45,7 +45,7 @@ func (s *userSeeder) CreateUser(ctx context.Context, app application.Application
 		return err
 	}
 
-	usr, err := s.getOrCreateUser(ctx, r, tenant.ID)
+	usr, err := s.getOrCreateUser(ctx, r, tenantID)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 		return matches[0], nil
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get tenant from context")
 	}
@@ -82,7 +82,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 		role.WithDescription(adminRoleDesc),
 		role.WithPermissions(app.RBAC().Permissions()),
 		role.WithType(role.TypeSystem),
-		role.WithTenantID(tenant.ID),
+		role.WithTenantID(tenantID),
 	)
 	logger.Infof("Creating role %s", adminRoleName)
 	return roleRepository.Create(ctx, newRole)
@@ -125,12 +125,12 @@ func (s *userSeeder) createUserTabs(
 	tabsRepository := persistence.NewTabRepository()
 	localizer := i18n.NewLocalizer(app.Bundle(), string(s.user.UILanguage()))
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get tenant from context")
 	}
 
-	tabs := buildTabsFromNavItems(app.NavItems(localizer), usr.ID(), tenant.ID)
+	tabs := buildTabsFromNavItems(app.NavItems(localizer), usr.ID(), tenantID)
 
 	for _, t := range tabs {
 		if err := tabsRepository.CreateOrUpdate(ctx, t); err != nil {

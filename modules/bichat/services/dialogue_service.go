@@ -249,12 +249,12 @@ func (s *DialogueService) StartDialogue(ctx context.Context, message string, mod
 	if err != nil {
 		return nil, err
 	}
-	tenant, err := localComposables.UseTenant(ctx)
+	tenantID, err := localComposables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	data := dialogue.New(
-		tenant.ID,
+		tenantID,
 		u.ID(),
 		"Новый чат",
 	).AddMessages(

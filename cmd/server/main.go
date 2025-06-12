@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"runtime/debug"
 	"time"
@@ -10,6 +11,7 @@ import (
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -51,7 +53,22 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	app := application.New(pool, eventbus.NewEventPublisher(logger))
+	bundle := application.LoadBundle()
+	app := application.New(&application.ApplicationOptions{
+		Pool:     pool,
+		Bundle:   bundle,
+		EventBus: eventbus.NewEventPublisher(logger),
+		Logger:   logger,
+		Huber: application.NewHub(&application.HuberOptions{
+			Pool:           pool,
+			Logger:         logger,
+			Bundle:         bundle,
+			UserRepository: persistence.NewUserRepository(persistence.NewUploadRepository()),
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}),
+	})
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		log.Fatalf("failed to load modules: %v", err)
 	}

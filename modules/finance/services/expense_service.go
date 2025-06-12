@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -27,7 +28,7 @@ func NewExpenseService(
 	}
 }
 
-func (s *ExpenseService) GetByID(ctx context.Context, id uint) (expense.Expense, error) {
+func (s *ExpenseService) GetByID(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
 	if err := composables.CanUser(ctx, permissions.ExpenseRead); err != nil {
 		return nil, err
 	}
@@ -54,16 +55,25 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) err
 	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
 		return err
 	}
-	if err := s.repo.Create(ctx, entity); err != nil {
-		return err
-	}
+
 	createdEvent, err := expense.NewCreatedEvent(ctx, entity)
 	if err != nil {
 		return err
 	}
-	if err := s.accountService.RecalculateBalance(ctx, entity.Account().ID); err != nil {
+
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if _, err := s.repo.Create(txCtx, entity); err != nil {
+			return err
+		}
+		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
+
 	s.publisher.Publish(createdEvent)
 	return nil
 }
@@ -72,35 +82,54 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) err
 	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, entity); err != nil {
-		return err
-	}
+
 	updatedEvent, err := expense.NewUpdatedEvent(ctx, entity)
 	if err != nil {
 		return err
 	}
-	if err := s.accountService.RecalculateBalance(ctx, entity.Account().ID); err != nil {
+
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if _, err := s.repo.Update(txCtx, entity); err != nil {
+			return err
+		}
+		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		return err
 	}
+
 	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
-func (s *ExpenseService) Delete(ctx context.Context, id uint) (expense.Expense, error) {
+func (s *ExpenseService) Delete(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
 	if err := composables.CanUser(ctx, permissions.ExpenseDelete); err != nil {
 		return nil, err
 	}
+
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return nil, err
-	}
+
 	deletedEvent, err := expense.NewDeletedEvent(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
+
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }

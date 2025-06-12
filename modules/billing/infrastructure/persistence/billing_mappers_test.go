@@ -24,7 +24,7 @@ func TestTransactionMapping(t *testing.T) {
 	id := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -177,7 +177,7 @@ func TestTransactionMapping(t *testing.T) {
 				billing.UZS,
 				tt.gateway,
 				tt.details,
-				billing.WithTenantID(tenant.ID),
+				billing.WithTenantID(tenant),
 				billing.WithID(id),
 				billing.WithStatus(billing.Completed),
 				billing.WithCreatedAt(now),
@@ -188,7 +188,7 @@ func TestTransactionMapping(t *testing.T) {
 			dbModel, err := persistence.ToDBTransaction(original)
 			require.NoError(t, err)
 			require.Equal(t, id.String(), dbModel.ID)
-			require.Equal(t, tenant.ID.String(), dbModel.TenantID)
+			require.Equal(t, tenant.String(), dbModel.TenantID)
 			require.Equal(t, "completed", dbModel.Status)
 			require.Equal(t, "UZS", dbModel.Currency)
 			require.Equal(t, string(tt.gateway), dbModel.Gateway)
