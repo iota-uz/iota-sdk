@@ -58,6 +58,7 @@ func main() {
 		EventBus: eventbus.NewEventPublisher(logger),
 		Logger:   logger,
 		Huber: application.NewHub(&application.HuberOptions{
+			Pool:           pool,
 			Logger:         logger,
 			UserRepository: persistence.NewUserRepository(persistence.NewUploadRepository()),
 			CheckOrigin: func(r *http.Request) bool {

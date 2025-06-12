@@ -85,7 +85,7 @@ func New(
 	opts ...Option,
 ) Payment {
 	p := &payment{
-		id:               uuid.Nil,
+		id:               uuid.New(),
 		tenantID:         uuid.Nil,
 		amount:           amount,
 		transactionID:    uuid.Nil,
