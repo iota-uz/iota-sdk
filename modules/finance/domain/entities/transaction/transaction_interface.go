@@ -4,17 +4,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Transaction interface {
 	ID() uuid.UUID
-	SetID(id uuid.UUID)
 
 	TenantID() uuid.UUID
 	UpdateTenantID(id uuid.UUID) Transaction
 
-	Amount() float64
-	UpdateAmount(amount float64) Transaction
+	Amount() *money.Money
+	UpdateAmount(amount *money.Money) Transaction
 
 	OriginAccountID() uuid.UUID
 	UpdateOriginAccountID(accountID uuid.UUID) Transaction
@@ -40,6 +40,6 @@ type Transaction interface {
 	ExchangeRate() *float64
 	UpdateExchangeRate(rate *float64) Transaction
 
-	DestinationAmount() *float64
-	UpdateDestinationAmount(amount *float64) Transaction
+	DestinationAmount() *money.Money
+	UpdateDestinationAmount(amount *money.Money) Transaction
 }

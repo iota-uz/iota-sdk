@@ -23,7 +23,7 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]Transaction, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Transaction, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Transaction, error)
-	Create(ctx context.Context, upload Transaction) error
-	Update(ctx context.Context, upload Transaction) error
+	Create(ctx context.Context, upload Transaction) (Transaction, error)
+	Update(ctx context.Context, upload Transaction) (Transaction, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }

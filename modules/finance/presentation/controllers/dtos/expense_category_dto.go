@@ -2,6 +2,7 @@ package dtos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
@@ -70,17 +71,31 @@ func (e *ExpenseCategoryUpdateDTO) Ok(ctx context.Context) (map[string]string, b
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (e *ExpenseCategoryCreateDTO) ToEntity() (category.ExpenseCategory, error) {
+func (e *ExpenseCategoryCreateDTO) ToEntity(tenantID uuid.UUID) (category.ExpenseCategory, error) {
 	return category.New(
 		e.Name,
+		category.WithTenantID(tenantID),
 		category.WithDescription(e.Description),
 	), nil
 }
 
-func (e *ExpenseCategoryUpdateDTO) ToEntity(id uuid.UUID) (category.ExpenseCategory, error) {
+func (e *ExpenseCategoryUpdateDTO) ToEntity(id uuid.UUID, tenantID uuid.UUID) (category.ExpenseCategory, error) {
 	return category.New(
 		e.Name,
 		category.WithID(id),
+		category.WithTenantID(tenantID),
 		category.WithDescription(e.Description),
 	), nil
+}
+
+func (e *ExpenseCategoryUpdateDTO) Apply(existing category.ExpenseCategory) (category.ExpenseCategory, error) {
+	if existing.ID() == uuid.Nil {
+		return nil, errors.New("id cannot be nil")
+	}
+
+	existing = existing.
+		UpdateName(e.Name).
+		UpdateDescription(e.Description)
+
+	return existing, nil
 }

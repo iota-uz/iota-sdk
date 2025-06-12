@@ -26,6 +26,6 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]Payment, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Payment, error)
 	Create(ctx context.Context, payment Payment) (Payment, error)
-	Update(ctx context.Context, payment Payment) error
+	Update(ctx context.Context, payment Payment) (Payment, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }

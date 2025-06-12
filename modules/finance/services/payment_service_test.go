@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
@@ -62,6 +63,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	})
 
 	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
 	publisher := eventbus.NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
@@ -105,8 +107,8 @@ func setupApplication(t *testing.T, pool *pgxpool.Pool, publisher eventbus.Event
 	return app
 }
 
-// setupTestData creates necessary test data
-func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) {
+// setupTestData creates necessary test data and returns account and counterparty
+func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) (moneyaccount.Account, counterparty.Counterparty) {
 	t.Helper()
 
 	// Create currency
@@ -118,9 +120,8 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) {
 	// Create account
 	account := moneyaccount.New(
 		"Test",
-		currency.USD,
+		money.New(10000, "USD"),
 		moneyaccount.WithAccountNumber("123"),
-		moneyaccount.WithBalance(100),
 	)
 	err := f.accountService.Create(ctx, account)
 	if err != nil {
@@ -135,16 +136,20 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) {
 	}
 
 	// Create the counterparty - the repository itself will set the tenant ID
-	_, err = counterpartyRepo.Create(ctx, counterparty.New(
-		tin,
+	testTenantID := uuid.New()
+	createdCounterparty, err := counterpartyRepo.Create(ctx, counterparty.New(
 		"Test",
 		counterparty.Customer,
 		counterparty.LLC,
-		"",
+		counterparty.WithTenantID(testTenantID),
+		counterparty.WithTin(tin),
+		counterparty.WithLegalAddress(""),
 	))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	return account, createdCounterparty
 }
 
 func TestPaymentsService_CRUD(t *testing.T) {
@@ -155,7 +160,7 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		permissions.PaymentUpdate,
 		permissions.PaymentDelete,
 	)
-	setupTestData(f.ctx, t, f)
+	account, createdCounterparty := setupTestData(f.ctx, t, f)
 	accountRepository := persistence.NewMoneyAccountRepository()
 
 	// Create payment category
@@ -163,22 +168,23 @@ func TestPaymentsService_CRUD(t *testing.T) {
 
 	// Create payment entity
 	paymentEntity := payment.New(
-		100,
+		money.New(10000, "USD"),
 		category,
-		payment.WithCounterpartyID(uuid.MustParse("00000000-0000-0000-0000-000000000001")),
+		payment.WithCounterpartyID(createdCounterparty.ID()),
 		payment.WithTransactionDate(time.Now()),
 		payment.WithAccountingPeriod(time.Now()),
+		payment.WithAccount(account),
 	)
 
 	if err := f.paymentsService.Create(f.ctx, paymentEntity); err != nil {
 		t.Fatal(err)
 	}
 
-	accountEntity, err := accountRepository.GetByID(f.ctx, uuid.MustParse("00000000-0000-0000-0000-000000000001"))
+	accountEntity, err := accountRepository.GetByID(f.ctx, account.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if accountEntity.Balance() != 200 {
-		t.Fatalf("expected balance to be 200, got %f", accountEntity.Balance())
+	if accountEntity.Balance().AsMajorUnits() != 200 {
+		t.Fatalf("expected balance to be 200, got %f", accountEntity.Balance().AsMajorUnits())
 	}
 }

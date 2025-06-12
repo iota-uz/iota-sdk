@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Account interface {
@@ -24,11 +24,8 @@ type Account interface {
 	Description() string
 	UpdateDescription(description string) Account
 
-	Balance() float64
-	UpdateBalance(balance float64) Account
-
-	Currency() currency.Currency
-	UpdateCurrency(currency currency.Currency) Account
+	Balance() *money.Money
+	UpdateBalance(balance *money.Money) Account
 
 	CreatedAt() time.Time
 	UpdatedAt() time.Time

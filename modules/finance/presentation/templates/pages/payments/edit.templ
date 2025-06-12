@@ -14,9 +14,10 @@ import (
 )
 
 type EditPageProps struct {
-	Payment  *viewmodels.Payment
-	Accounts []*viewmodels.MoneyAccount
-	Errors   map[string]string
+	Payment    *viewmodels.Payment
+	Accounts   []*viewmodels.MoneyAccount
+	Categories []*viewmodels.PaymentCategory
+	Errors     map[string]string
 }
 
 templ EditForm(props *EditPageProps) {
@@ -66,8 +67,20 @@ templ EditForm(props *EditPageProps) {
 			@components.CounterpartySelect(&components.CounterpartySelectProps{
 				Label:       pageCtx.T("Payments.Single.CounterpartyID.Label"),
 				Placeholder: pageCtx.T("Payments.Single.CounterpartyID.Placeholder"),
+				Value:       props.Payment.CounterpartyID,
 				Form:        "save-form",
 				Name:        "CounterpartyID",
+			})
+			@components.PaymentCategorySelect(&components.PaymentCategorySelectProps{
+				Label:       pageCtx.T("Payments.Single.Category"),
+				Placeholder: pageCtx.T("Payments.Single.SelectCategory"),
+				Value:       props.Payment.CategoryID,
+				Categories:  props.Categories,
+				Error:       props.Errors["PaymentCategoryID"],
+				Attrs: templ.Attributes{
+					"name": "PaymentCategoryID",
+					"form": "save-form",
+				},
 			})
 			@input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("Payments.Single.Comment"),

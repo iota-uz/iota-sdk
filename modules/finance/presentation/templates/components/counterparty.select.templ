@@ -24,5 +24,9 @@ templ CounterpartySelect(props *CounterpartySelectProps) {
 		Name:         props.Name,
 		Endpoint:     "/finance/counterparties/search",
 		Form:         props.Form,
-	})
+	}) {
+		if props.Value != "" {
+			<option value={ props.Value } selected></option>
+		}
+	}
 }

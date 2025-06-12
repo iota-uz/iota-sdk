@@ -12,6 +12,12 @@ var (
 		Permissions: nil,
 		Children:    nil,
 	}
+	PaymentCategoriesItem = types.NavigationItem{
+		Name:        "NavigationLinks.PaymentCategories",
+		Href:        "/finance/payment-categories",
+		Permissions: nil,
+		Children:    nil,
+	}
 	PaymentsItem = types.NavigationItem{
 		Name:        "NavigationLinks.Payments",
 		Href:        "/finance/payments",
@@ -30,6 +36,12 @@ var (
 		Permissions: nil,
 		Children:    nil,
 	}
+	CounterpartiesItem = types.NavigationItem{
+		Name:        "NavigationLinks.Counterparties",
+		Href:        "/finance/counterparties",
+		Permissions: nil,
+		Children:    nil,
+	}
 )
 
 var FinanceItem = types.NavigationItem{
@@ -38,9 +50,11 @@ var FinanceItem = types.NavigationItem{
 	Icon: icons.Money(icons.Props{Size: "20"}),
 	Children: []types.NavigationItem{
 		ExpenseCategoriesItem,
+		PaymentCategoriesItem,
 		PaymentsItem,
 		ExpensesItem,
 		AccountsItem,
+		CounterpartiesItem,
 	},
 }
 

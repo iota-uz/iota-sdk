@@ -131,7 +131,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	// Set tenant ID on the domain entity
 	data = data.UpdateTenantID(tenantID)
 
-	dbPayment, dbTransaction := toDBPayment(data)
+	dbPayment, dbTransaction := ToDBPayment(data)
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -165,16 +165,16 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	return g.GetByID(ctx, id)
 }
 
-func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment) error {
+func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment) (payment.Payment, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get tenant from context: %w", err)
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID on the domain entity
 	data = data.UpdateTenantID(tenantID)
 
-	dbPayment, dbTransaction := toDBPayment(data)
+	dbPayment, dbTransaction := ToDBPayment(data)
 	if err := g.execQuery(
 		ctx,
 		paymentUpdateQuery,
@@ -182,9 +182,9 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 		dbPayment.UpdatedAt,
 		dbPayment.ID,
 	); err != nil {
-		return err
+		return nil, err
 	}
-	return g.execQuery(
+	if err := g.execQuery(
 		ctx,
 		transactionUpdateQuery,
 		dbTransaction.Amount,
@@ -196,7 +196,10 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 		dbTransaction.Comment,
 		dbTransaction.ID,
 		dbTransaction.TenantID,
-	)
+	); err != nil {
+		return nil, err
+	}
+	return g.GetByID(ctx, data.ID())
 }
 
 func (g *GormPaymentRepository) Delete(ctx context.Context, id uuid.UUID) error {
@@ -247,7 +250,7 @@ func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string,
 		); err != nil {
 			return nil, err
 		}
-		entity, err := toDomainPayment(&paymentRow, &transactionRow)
+		entity, err := ToDomainPayment(&paymentRow, &transactionRow)
 		if err != nil {
 			return nil, err
 		}

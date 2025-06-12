@@ -62,7 +62,7 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) err
 	}
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Create(txCtx, entity); err != nil {
+		if _, err := s.repo.Create(txCtx, entity); err != nil {
 			return err
 		}
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
@@ -89,7 +89,7 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) err
 	}
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Update(txCtx, entity); err != nil {
+		if _, err := s.repo.Update(txCtx, entity); err != nil {
 			return err
 		}
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
