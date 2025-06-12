@@ -162,7 +162,13 @@ func DbOpts(name string) string {
 
 func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (application.Application, error) {
 	conf := configuration.Use()
-	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
+	bundle := application.LoadBundle()
+	app := application.New(&application.ApplicationOptions{
+		Pool:     pool,
+		Bundle:   bundle,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	})
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
 	}
@@ -175,7 +181,13 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 func GetTestContext() *TestFixtures {
 	conf := configuration.Use()
 	pool := NewPool(conf.Database.Opts)
-	app := application.New(pool, eventbus.NewEventPublisher(conf.Logger()))
+	bundle := application.LoadBundle()
+	app := application.New(&application.ApplicationOptions{
+		Pool:     pool,
+		Bundle:   bundle,
+		EventBus: eventbus.NewEventPublisher(conf.Logger()),
+		Logger:   conf.Logger(),
+	})
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}

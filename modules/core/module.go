@@ -103,6 +103,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewGroupsController(app),
 		controllers.NewDIExampleController(app),
 		controllers.NewShowcaseController(app),
+		controllers.NewWebSocketController(app),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{

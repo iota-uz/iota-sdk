@@ -31,6 +31,7 @@ func TestToDomainClientComplete(t *testing.T) {
 			name: "complete client with all fields",
 			client: &models.Client{
 				ID:        1,
+				TenantID:  "00000000-0000-0000-0000-000000000001",
 				FirstName: "John",
 				LastName: sql.NullString{
 					String: "Doe",
@@ -107,6 +108,7 @@ func TestToDomainClientComplete(t *testing.T) {
 			name: "minimal client with required fields only",
 			client: &models.Client{
 				ID:        2,
+				TenantID:  "00000000-0000-0000-0000-000000000001",
 				FirstName: "Jane",
 				LastName: sql.NullString{
 					String: "Smith",
@@ -432,6 +434,7 @@ func TestToDomainChat(t *testing.T) {
 
 	dbChat := &models.Chat{
 		ID:        300,
+		TenantID:  "00000000-0000-0000-0000-000000000001",
 		ClientID:  400,
 		CreatedAt: now.Add(-3 * time.Hour),
 	}

@@ -1,0 +1,115 @@
+package counterparties
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type CreatePageProps struct {
+	Counterparty *viewmodels.Counterparty
+	Errors       map[string]string
+	PostPath     string
+}
+
+type CounterpartyTypeOption struct {
+	Value string
+	Label string
+}
+
+templ CreateForm(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.PostPath }
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		<div class="m-6 space-y-6">
+			@card.Card(card.Props{
+				Class: "grid grid-cols-1 md:grid-cols-2 gap-6",
+			}) {
+				<div>
+					@input.Text(&input.Props{
+						Label: pageCtx.T("Counterparties.Single.TIN"),
+						Error: props.Errors["TIN"],
+						Attrs: templ.Attributes{
+							"name":  "TIN",
+							"value": props.Counterparty.TIN,
+						},
+					})
+				</div>
+				<div>
+					@input.Text(&input.Props{
+						Label: pageCtx.T("Counterparties.Single.Name"),
+						Error: props.Errors["Name"],
+						Attrs: templ.Attributes{
+							"name":     "Name",
+							"value":    props.Counterparty.Name,
+							"required": "true",
+						},
+					})
+				</div>
+				<div>
+					@components.CounterpartyTypeSelect(&components.CounterpartyTypeSelectProps{
+						Value: props.Counterparty.Type.String(),
+						Error: props.Errors["Type"],
+						Attrs: templ.Attributes{
+							"name":     "Type",
+							"required": "true",
+						},
+					})
+				</div>
+				<div>
+					@components.CounterpartyLegalTypeSelect(&components.CounterpartyLegalTypeSelectProps{
+						Value: props.Counterparty.LegalType.String(),
+						Error: props.Errors["LegalType"],
+						Attrs: templ.Attributes{
+							"name":     "LegalType",
+							"required": "true",
+						},
+					})
+				</div>
+			}
+			@card.Card(card.Props{}) {
+				@input.TextArea(&input.TextAreaProps{
+					Label: pageCtx.T("Counterparties.Single.LegalAddress"),
+					Value: props.Counterparty.LegalAddress,
+					Error: props.Errors["LegalAddress"],
+					Attrs: templ.Attributes{
+						"name": "LegalAddress",
+						"rows": "3",
+					},
+				})
+			}
+		</div>
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"id": "save-btn",
+				},
+			}) {
+				{ pageCtx.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ NewContent(props *CreatePageProps) {
+	@CreateForm(props)
+}
+
+templ New(props *CreatePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Counterparties.Meta.New.Title")},
+	}) {
+		@NewContent(props)
+	}
+}

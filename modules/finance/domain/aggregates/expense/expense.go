@@ -3,20 +3,22 @@ package expense
 import (
 	"time"
 
+	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Option func(e *expense)
 
 // Option setters
-func WithID(id uint) Option {
+func WithID(id uuid.UUID) Option {
 	return func(e *expense) {
 		e.id = id
 	}
 }
 
-func WithAmount(amount float64) Option {
+func WithAmount(amount *money.Money) Option {
 	return func(e *expense) {
 		e.amount = amount
 	}
@@ -40,7 +42,7 @@ func WithComment(comment string) Option {
 	}
 }
 
-func WithTransactionID(transactionID uint) Option {
+func WithTransactionID(transactionID uuid.UUID) Option {
 	return func(e *expense) {
 		e.transactionID = transactionID
 	}
@@ -70,46 +72,54 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 	}
 }
 
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(e *expense) {
+		e.tenantID = tenantID
+	}
+}
+
 // Interface
 type Expense interface {
-	ID() uint
-	Amount() float64
+	ID() uuid.UUID
+	Amount() *money.Money
 	Account() moneyaccount.Account
 	Category() category.ExpenseCategory
 	Comment() string
-	TransactionID() uint
+	TransactionID() uuid.UUID
 	AccountingPeriod() time.Time
 	Date() time.Time
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+	TenantID() uuid.UUID
 
 	SetAccount(account moneyaccount.Account) Expense
 	SetCategory(category category.ExpenseCategory) Expense
 	SetComment(comment string) Expense
-	SetAmount(amount float64) Expense
+	SetAmount(amount *money.Money) Expense
 	SetDate(date time.Time) Expense
 	SetAccountingPeriod(period time.Time) Expense
 }
 
 // Implementation
 func New(
-	amount float64,
+	amount *money.Money,
 	account moneyaccount.Account,
 	category category.ExpenseCategory,
 	date time.Time,
 	opts ...Option,
 ) Expense {
 	e := &expense{
-		id:               0,
+		id:               uuid.New(),
 		amount:           amount,
 		account:          account,
 		category:         category,
 		comment:          "",
-		transactionID:    0,
+		transactionID:    uuid.Nil,
 		accountingPeriod: time.Time{},
 		date:             date,
 		createdAt:        time.Now(),
 		updatedAt:        time.Now(),
+		tenantID:         uuid.Nil,
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -118,23 +128,24 @@ func New(
 }
 
 type expense struct {
-	id               uint
-	amount           float64
+	id               uuid.UUID
+	amount           *money.Money
 	account          moneyaccount.Account
 	category         category.ExpenseCategory
 	comment          string
-	transactionID    uint
+	transactionID    uuid.UUID
 	accountingPeriod time.Time
 	date             time.Time
 	createdAt        time.Time
 	updatedAt        time.Time
+	tenantID         uuid.UUID
 }
 
-func (e *expense) ID() uint {
+func (e *expense) ID() uuid.UUID {
 	return e.id
 }
 
-func (e *expense) Amount() float64 {
+func (e *expense) Amount() *money.Money {
 	return e.amount
 }
 
@@ -150,7 +161,7 @@ func (e *expense) Comment() string {
 	return e.comment
 }
 
-func (e *expense) TransactionID() uint {
+func (e *expense) TransactionID() uuid.UUID {
 	return e.transactionID
 }
 
@@ -191,7 +202,7 @@ func (e *expense) SetComment(comment string) Expense {
 	return &result
 }
 
-func (e *expense) SetAmount(amount float64) Expense {
+func (e *expense) SetAmount(amount *money.Money) Expense {
 	result := *e
 	result.amount = amount
 	result.updatedAt = time.Now()
@@ -210,4 +221,8 @@ func (e *expense) SetAccountingPeriod(period time.Time) Expense {
 	result.accountingPeriod = period
 	result.updatedAt = time.Now()
 	return &result
+}
+
+func (e *expense) TenantID() uuid.UUID {
+	return e.tenantID
 }

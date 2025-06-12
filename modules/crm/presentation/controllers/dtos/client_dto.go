@@ -58,9 +58,12 @@ func (d *CreateClientDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (d *CreateClientDTO) ToEntity() (client.Client, error) {
+func (d *CreateClientDTO) ToEntity(tenantID uuid.UUID) (client.Client, error) {
 	// Create options slice
 	var opts []client.Option
+
+	// Add tenant ID
+	opts = append(opts, client.WithTenantID(tenantID))
 
 	// Add address if provided
 	if d.Address != "" {

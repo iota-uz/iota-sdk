@@ -75,25 +75,25 @@ func (g *tabRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	var count int64
-	if err := pool.QueryRow(ctx, countTabsQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, countTabsQuery+" WHERE tenant_id = $1", tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *tabRepository) GetAll(ctx context.Context, params *tab.FindParams) ([]*tab.Tab, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	where, args := []string{"tenant_id = $1"}, []interface{}{tenant.ID}
+	where, args := []string{"tenant_id = $1"}, []interface{}{tenantID}
 	if params.UserID != 0 {
 		where, args = append(where, fmt.Sprintf("user_id = $%d", len(args)+1)), append(args, params.UserID)
 	}
@@ -112,12 +112,12 @@ func (g *tabRepository) GetUserTabs(ctx context.Context, userID uint) ([]*tab.Ta
 }
 
 func (g *tabRepository) GetByID(ctx context.Context, id uint) (*tab.Tab, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	tabs, err := g.queryTabs(ctx, repo.Join(selectTabsQuery, "WHERE id = $1 AND tenant_id = $2"), id, tenant.ID)
+	tabs, err := g.queryTabs(ctx, repo.Join(selectTabsQuery, "WHERE id = $1 AND tenant_id = $2"), id, tenantID)
 	if err != nil {
 		return nil, err
 	}

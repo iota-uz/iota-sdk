@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
 
@@ -27,15 +26,6 @@ type Params struct {
 	Authenticated bool
 	Request       *http.Request
 	Writer        http.ResponseWriter
-}
-
-// UseApp returns the application from the context.
-func UseApp(ctx context.Context) (application.Application, error) {
-	app, ok := ctx.Value(constants.AppKey).(application.Application)
-	if !ok {
-		return nil, errors.New("application not found")
-	}
-	return app, nil
 }
 
 // UseParams returns the request parameters from the context.

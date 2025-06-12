@@ -3,67 +3,87 @@ package models
 import (
 	"database/sql"
 	"time"
-
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 )
 
 type ExpenseCategory struct {
-	ID               uint
-	TenantID         string
-	Name             string
-	Description      sql.NullString
-	Amount           float64
-	AmountCurrencyID string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID          string
+	TenantID    string
+	Name        string
+	Description sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type MoneyAccount struct {
-	ID                uint
+	ID                string
 	TenantID          string
 	Name              string
 	AccountNumber     string
 	Description       string
-	Balance           float64
+	Balance           int64
 	BalanceCurrencyID string
-	Currency          *coremodels.Currency `gorm:"foreignKey:BalanceCurrencyID;references:Code"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
 
 type Transaction struct {
-	ID                   uint
+	ID                   string
 	TenantID             string
-	Amount               float64
-	OriginAccountID      *uint
-	DestinationAccountID *uint
+	Amount               int64
+	OriginAccountID      sql.NullString
+	DestinationAccountID sql.NullString
 	TransactionDate      time.Time
 	AccountingPeriod     time.Time
 	TransactionType      string
 	Comment              string
+	ExchangeRate         sql.NullFloat64
+	DestinationAmount    sql.NullInt64
 	CreatedAt            time.Time
 }
 
 type Expense struct {
-	ID            uint
-	TransactionID uint
-	CategoryID    uint
+	ID            string
+	TransactionID string
+	CategoryID    string
+	TenantID      string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
 
 type Payment struct {
-	ID             uint
-	TransactionID  uint
-	CounterpartyID uint
+	ID             string
+	TransactionID  string
+	CounterpartyID string
+	TenantID       string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
 
+type Inventory struct {
+	ID          string
+	TenantID    string
+	Name        string
+	Description sql.NullString
+	CurrencyID  sql.NullString
+	Price       int64
+	Quantity    int
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type PaymentCategory struct {
+	ID          string
+	TenantID    string
+	Name        string
+	Description sql.NullString
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Counterparty struct {
-	ID           uint
-	TenantID     uint
-	Tin          string
+	ID           string
+	TenantID     string
+	Tin          sql.NullString
 	Name         string
 	Type         string
 	LegalType    string

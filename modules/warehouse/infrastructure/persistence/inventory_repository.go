@@ -42,12 +42,12 @@ func (g *GormInventoryRepository) GetPaginated(
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	where, args := []string{"ic.tenant_id = $1"}, []interface{}{tenant.ID}
+	where, args := []string{"ic.tenant_id = $1"}, []interface{}{tenantID}
 	if params.ID != 0 {
 		where, args = append(where, fmt.Sprintf("ic.id = $%d", len(args)+1)), append(args, params.ID)
 	}
@@ -137,7 +137,7 @@ func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.P
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -150,7 +150,7 @@ func (g *GormInventoryRepository) Positions(ctx context.Context) ([]*inventory.P
 	WHERE warehouse_positions.tenant_id = $1
 	GROUP BY warehouse_positions.id;
 	`
-	rows, err := tx.Query(ctx, sql, tenant.ID)
+	rows, err := tx.Query(ctx, sql, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +177,7 @@ func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -185,7 +185,7 @@ func (g *GormInventoryRepository) Count(ctx context.Context) (uint, error) {
 	var count uint
 	if err := pool.QueryRow(ctx, `
 		SELECT COUNT(*) as count FROM inventory_checks WHERE tenant_id = $1
-	`, tenant.ID).Scan(&count); err != nil {
+	`, tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
@@ -237,13 +237,13 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID in domain entity
-	data.TenantID = tenant.ID
+	data.TenantID = tenantID
 
 	dbRow, err := mappers.ToDBInventoryCheck(data)
 	if err != nil {
@@ -260,7 +260,7 @@ func (g *GormInventoryRepository) Create(ctx context.Context, data *inventory.Ch
 		for _, result := range results {
 			if _, err := tx.Exec(ctx, `
 				INSERT INTO inventory_check_results (tenant_id, inventory_check_id, position_id, expected_quantity, actual_quantity, difference) VALUES ($1, $2, $3, $4, $5, $6)
-			`, tenant.ID, data.ID, result.PositionID, result.ExpectedQuantity, result.ActualQuantity, result.Difference); err != nil {
+			`, tenantID, data.ID, result.PositionID, result.ExpectedQuantity, result.ActualQuantity, result.Difference); err != nil {
 				return err
 			}
 		}
@@ -274,13 +274,13 @@ func (g *GormInventoryRepository) Update(ctx context.Context, data *inventory.Ch
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	// Set tenant ID in domain entity
-	data.TenantID = tenant.ID
+	data.TenantID = tenantID
 
 	dbRow, err := mappers.ToDBInventoryCheck(data)
 	if err != nil {
@@ -301,12 +301,12 @@ func (g *GormInventoryRepository) Delete(ctx context.Context, id uint) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	if _, err := tx.Exec(ctx, `DELETE FROM inventory_checks WHERE id = $1 AND tenant_id = $2`, id, tenant.ID); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM inventory_checks WHERE id = $1 AND tenant_id = $2`, id, tenantID); err != nil {
 		return err
 	}
 	return nil
@@ -327,12 +327,12 @@ func (g *GormInventoryRepository) getCheckResults(
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	where, args := []string{"icr.tenant_id = $1"}, []interface{}{tenant.ID}
+	where, args := []string{"icr.tenant_id = $1"}, []interface{}{tenantID}
 	if params.id != 0 {
 		where, args = append(where, fmt.Sprintf("ic.id = $%d", len(args)+1)), append(args, params.id)
 	}

@@ -79,12 +79,12 @@ func NewProductRepository() product.Repository {
 }
 
 func (g *GormProductRepository) GetPaginated(ctx context.Context, params *product.FindParams) ([]*product.Product, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	where, args := []string{"wp.tenant_id = $1"}, []interface{}{tenant.ID}
+	where, args := []string{"wp.tenant_id = $1"}, []interface{}{tenantID}
 
 	if params.OrderID != 0 {
 		where = append(where, fmt.Sprintf(
@@ -140,12 +140,12 @@ func (g *GormProductRepository) GetPaginated(ctx context.Context, params *produc
 }
 
 func (g *GormProductRepository) Count(ctx context.Context, opts *product.CountParams) (int64, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	where, args := []string{"tenant_id = $1"}, []interface{}{tenant.ID}
+	where, args := []string{"tenant_id = $1"}, []interface{}{tenantID}
 
 	if opts.PositionID != 0 {
 		where = append(where, fmt.Sprintf("position_id = $%d", len(args)+1))
@@ -180,20 +180,20 @@ func (g *GormProductRepository) FindByPositionID(ctx context.Context, opts *prod
 }
 
 func (g *GormProductRepository) GetAll(ctx context.Context) ([]*product.Product, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
-	return g.queryProducts(ctx, productFindQuery+" WHERE wp.tenant_id = $1", tenant.ID)
+	return g.queryProducts(ctx, productFindQuery+" WHERE wp.tenant_id = $1", tenantID)
 }
 
 func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.Product, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	products, err := g.queryProducts(ctx, productFindQuery+" WHERE wp.id = $1 AND wp.tenant_id = $2", id, tenant.ID)
+	products, err := g.queryProducts(ctx, productFindQuery+" WHERE wp.id = $1 AND wp.tenant_id = $2", id, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -204,12 +204,12 @@ func (g *GormProductRepository) GetByID(ctx context.Context, id uint) (*product.
 }
 
 func (g *GormProductRepository) GetByRfid(ctx context.Context, rfid string) (*product.Product, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	products, err := g.queryProducts(ctx, productFindQuery+" WHERE wp.rfid = $1 AND wp.tenant_id = $2", rfid, tenant.ID)
+	products, err := g.queryProducts(ctx, productFindQuery+" WHERE wp.rfid = $1 AND wp.tenant_id = $2", rfid, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -241,8 +241,8 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 		return err
 	}
 
-	dbProduct.TenantID = tenant.ID.String()
-	data.TenantID = tenant.ID
+	dbProduct.TenantID = tenantID.String()
+	data.TenantID = tenantID
 
 	if err := tx.QueryRow(
 		ctx,
@@ -279,7 +279,7 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 }
 
 func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -289,8 +289,8 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 		return err
 	}
 
-	dbProduct.TenantID = tenant.ID.String()
-	data.TenantID = tenant.ID
+	dbProduct.TenantID = tenantID.String()
+	data.TenantID = tenantID
 
 	return g.execQuery(
 		ctx,
@@ -304,30 +304,30 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 }
 
 func (g *GormProductRepository) UpdateStatus(ctx context.Context, ids []uint, status product.Status) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	return g.execQuery(ctx, productUpdateStatusQuery, status, ids, tenant.ID)
+	return g.execQuery(ctx, productUpdateStatusQuery, status, ids, tenantID)
 }
 
 func (g *GormProductRepository) Delete(ctx context.Context, id uint) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	return g.execQuery(ctx, productDeleteQuery, id, tenant.ID)
+	return g.execQuery(ctx, productDeleteQuery, id, tenantID)
 }
 
 func (g *GormProductRepository) BulkDelete(ctx context.Context, ids []uint) error {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	return g.execQuery(ctx, productBulkDeleteQuery, ids, tenant.ID)
+	return g.execQuery(ctx, productBulkDeleteQuery, ids, tenantID)
 }
 
 func (g *GormProductRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]*product.Product, error) {

@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -85,25 +86,36 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 
 // ---- Application implementation ----
 
-func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
+type ApplicationOptions struct {
+	Pool     *pgxpool.Pool
+	EventBus eventbus.EventBus
+	Logger   *logrus.Logger
+	Bundle   *i18n.Bundle
+	Huber    Huber
+}
+
+func LoadBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	return bundle
+}
 
+func New(opts *ApplicationOptions) Application {
 	sl := spotlight.New()
 	quickLinks := &spotlight.QuickLinks{}
 	sl.Register(quickLinks)
-
 	return &application{
-		pool:           pool,
-		eventPublisher: eventPublisher,
+		pool:           opts.Pool,
+		eventPublisher: opts.EventBus,
 		rbac:           rbac.NewRbac(),
+		websocket:      opts.Huber,
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
 		quickLinks:     quickLinks,
 		spotlight:      sl,
-		bundle:         bundle,
-		migrations:     NewMigrationManager(pool),
+		bundle:         opts.Bundle,
+		migrations:     NewMigrationManager(opts.Pool),
 	}
 }
 
@@ -111,6 +123,7 @@ func New(pool *pgxpool.Pool, eventPublisher eventbus.EventBus) Application {
 type application struct {
 	pool           *pgxpool.Pool
 	eventPublisher eventbus.EventBus
+	websocket      Huber
 	rbac           rbac.RBAC
 	services       map[reflect.Type]interface{}
 	controllers    map[string]Controller
@@ -127,6 +140,10 @@ type application struct {
 
 func (app *application) Spotlight() spotlight.Spotlight {
 	return app.spotlight
+}
+
+func (app *application) Websocket() Huber {
+	return app.websocket
 }
 
 func (app *application) QuickLinks() *spotlight.QuickLinks {

@@ -30,8 +30,6 @@ type HTTPServer struct {
 func (s *HTTPServer) Start(socketAddress string) error {
 	r := mux.NewRouter()
 	r.Use(s.Middlewares...)
-	hub := WsHub()
-	r.Handle("/ws", hub)
 	for _, controller := range s.Controllers {
 		controller.Register(r)
 	}

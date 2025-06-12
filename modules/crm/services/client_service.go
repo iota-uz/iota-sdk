@@ -23,12 +23,12 @@ func NewClientService(
 	}
 }
 
-func (s *ClientService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *ClientService) Count(ctx context.Context, params *client.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }
 
-func (s *ClientService) GetAll(ctx context.Context) ([]client.Client, error) {
-	return s.repo.GetAll(ctx)
+func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindParams) ([]client.Client, error) {
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *ClientService) GetByID(ctx context.Context, id uint) (client.Client, error) {
@@ -37,10 +37,6 @@ func (s *ClientService) GetByID(ctx context.Context, id uint) (client.Client, er
 
 func (s *ClientService) GetByPhone(ctx context.Context, phoneNumber string) (client.Client, error) {
 	return s.repo.GetByPhone(ctx, phoneNumber)
-}
-
-func (s *ClientService) GetPaginated(ctx context.Context, params *client.FindParams) ([]client.Client, error) {
-	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *ClientService) Create(ctx context.Context, data client.Client) error {
@@ -90,10 +86,11 @@ func (s *ClientService) Update(ctx context.Context, data client.Client) error {
 }
 
 func (s *ClientService) Delete(ctx context.Context, id uint) (client.Client, error) {
-	entity, err := s.repo.GetByID(ctx, id)
+	entity, err := s.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+
 	var deletedClient client.Client
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
 		if err := s.repo.Delete(ctx, id); err != nil {

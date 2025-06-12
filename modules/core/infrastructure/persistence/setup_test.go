@@ -72,7 +72,7 @@ func setupTest(t *testing.T) *testFixtures {
 
 	// Add transaction and tenant to context
 	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithTenant(ctx, tenant)
+	ctx = composables.WithTenantID(ctx, tenant.ID)
 
 	return &testFixtures{
 		ctx:  ctx,

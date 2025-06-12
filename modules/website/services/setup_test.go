@@ -54,7 +54,7 @@ func setupTest(t *testing.T) *testFixtures {
 		pool.Close()
 	})
 
-	ctx = composables.WithTenant(ctx, tenant)
+	ctx = composables.WithTenantID(ctx, tenant.ID)
 	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
 

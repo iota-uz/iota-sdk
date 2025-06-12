@@ -109,7 +109,7 @@ func (c *RolesController) List(
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
-	tenant, err := composables.UseTenant(r.Context())
+	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving tenant from request context: %v", err)
 		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
@@ -123,7 +123,7 @@ func (c *RolesController) List(
 		Filters: []role.Filter{
 			{
 				Column: role.TenantIDField,
-				Filter: repo.Eq(tenant.ID.String()),
+				Filter: repo.Eq(tenantID.String()),
 			},
 		},
 	}

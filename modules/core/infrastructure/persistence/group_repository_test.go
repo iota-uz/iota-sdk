@@ -33,7 +33,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 	err := permissionRepository.Save(f.ctx, permissions.UserRead)
 	require.NoError(t, err)
 
-	tenant, err := composables.UseTenant(f.ctx)
+	tenant, err := composables.UseTenantID(f.ctx)
 	require.NoError(t, err)
 
 	// First role
@@ -43,7 +43,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
 		}),
-		role.WithTenantID(tenant.ID),
+		role.WithTenantID(tenant),
 	)
 
 	roleEntity, err := roleRepository.Create(f.ctx, roleData)
@@ -56,7 +56,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		role.WithPermissions([]*permission.Permission{
 			permissions.UserRead,
 		}),
-		role.WithTenantID(tenant.ID),
+		role.WithTenantID(tenant),
 	)
 
 	secondRoleEntity, err := roleRepository.Create(f.ctx, secondRoleData)
@@ -71,7 +71,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		"Doe",
 		email,
 		user.UILanguageEN,
-		user.WithTenantID(tenant.ID),
+		user.WithTenantID(tenant),
 	)
 
 	createdUser, err := userRepository.Create(f.ctx, userEntity)
@@ -85,7 +85,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		"Smith",
 		secondEmail,
 		user.UILanguageEN,
-		user.WithTenantID(tenant.ID),
+		user.WithTenantID(tenant),
 	)
 
 	secondCreatedUser, err := userRepository.Create(f.ctx, secondUserEntity)
@@ -101,7 +101,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Test group description"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
-			group.WithTenantID(tenant.ID),
+			group.WithTenantID(tenant),
 		)
 
 		// Save the group
@@ -137,7 +137,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Second group description"),
 			group.WithUsers([]user.User{secondCreatedUser}),
 			group.WithRoles([]role.Role{secondRoleEntity}),
-			group.WithTenantID(tenant.ID),
+			group.WithTenantID(tenant),
 		)
 
 		secondSavedGroup, err := groupRepository.Save(f.ctx, secondGroupEntity)
@@ -159,7 +159,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for GetByID test"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
-			group.WithTenantID(tenant.ID),
+			group.WithTenantID(tenant),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
@@ -192,7 +192,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for update test"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
-			group.WithTenantID(tenant.ID),
+			group.WithTenantID(tenant),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
@@ -252,7 +252,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for removal test"),
 			group.WithUsers([]user.User{createdUser, secondCreatedUser}),
 			group.WithRoles([]role.Role{roleEntity, secondRoleEntity}),
-			group.WithTenantID(tenant.ID),
+			group.WithTenantID(tenant),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
@@ -341,7 +341,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithCreatedAt(pastTime.Add(-24*time.Hour)), // 2 days ago
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
-			group.WithTenantID(tenant.ID),
+			group.WithTenantID(tenant),
 		)
 
 		_, err := groupRepository.Save(f.ctx, customTimeGroupEntity)
@@ -514,7 +514,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 				group.WithDescription("Group for pagination test"),
 				group.WithUsers([]user.User{createdUser}),
 				group.WithRoles([]role.Role{roleEntity}),
-				group.WithTenantID(tenant.ID),
+				group.WithTenantID(tenant),
 			)
 
 			_, err := groupRepository.Save(f.ctx, groupEntity)
@@ -565,7 +565,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithDescription("Group for delete test"),
 			group.WithUsers([]user.User{createdUser}),
 			group.WithRoles([]role.Role{roleEntity}),
-			group.WithTenantID(tenant.ID),
+			group.WithTenantID(tenant),
 		)
 
 		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)

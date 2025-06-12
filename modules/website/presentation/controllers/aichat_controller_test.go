@@ -81,7 +81,7 @@ func setupTest(t *testing.T) *testFixtures {
 
 	// Create context with transaction and tenant
 	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithTenant(ctx, tenant)
+	ctx = composables.WithTenantID(ctx, tenant.ID)
 	ctx = composables.WithParams(ctx, testutils.DefaultParams())
 
 	// Create admin user
@@ -119,8 +119,7 @@ func setupTest(t *testing.T) *testFixtures {
 			reqCtx = context.WithValue(reqCtx, constants.AppKey, app)
 
 			// Important: Add tenant to context
-			reqCtx = composables.WithTenant(reqCtx, tenant)
-			reqCtx = context.WithValue(reqCtx, constants.TenantKey, tenant)
+			reqCtx = composables.WithTenantID(reqCtx, tenant.ID)
 
 			// Add logger to context
 			logger := logrus.New()
@@ -182,6 +181,7 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	formData.Set("AccessToken", "test-api-key")
 
 	req := httptest.NewRequest(http.MethodPost, "/website/ai-chat/config", strings.NewReader(formData.Encode()))
+	req = req.WithContext(fixtures.ctx)
 	req.Header.Set("Hx-Request", "true")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -191,6 +191,10 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	// Execute request
 	fixtures.router.ServeHTTP(rr, req)
 
+	if rr.Code != http.StatusOK {
+		t.Logf("Response body: %s", rr.Body.String())
+		t.Logf("Response headers: %v", rr.Header())
+	}
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, BasePath, rr.Header().Get("Hx-Redirect"))
 
@@ -232,6 +236,10 @@ func TestAIChatController_SaveConfig_ValidationError(t *testing.T) {
 	// Execute request
 	fixtures.router.ServeHTTP(rr, req)
 
+	if rr.Code != http.StatusBadRequest {
+		t.Logf("Response body: %s", rr.Body.String())
+		t.Logf("Response headers: %v", rr.Header())
+	}
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
@@ -277,6 +285,10 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 
 	fixtures.router.ServeHTTP(rr, req)
 
+	if rr.Code != http.StatusOK {
+		t.Logf("Response body: %s", rr.Body.String())
+		t.Logf("Response headers: %v", rr.Header())
+	}
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, BasePath, rr.Header().Get("Hx-Redirect"))
 
@@ -318,6 +330,10 @@ func TestAIChatController_SaveConfig_FirstConfigSetsDefault(t *testing.T) {
 	rr := httptest.NewRecorder()
 	fixtures.router.ServeHTTP(rr, req)
 
+	if rr.Code != http.StatusOK {
+		t.Logf("Response body: %s", rr.Body.String())
+		t.Logf("Response headers: %v", rr.Header())
+	}
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, BasePath, rr.Header().Get("Hx-Redirect"))
 

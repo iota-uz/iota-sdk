@@ -1,0 +1,147 @@
+package counterparties
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type IndexPageProps struct {
+	Counterparties  []*viewmodels.Counterparty
+	PaginationState *pagination.State
+}
+
+templ CounterpartyTableRow(counterparty *viewmodels.Counterparty, rowProps *base.TableRowProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		rowProps.Attrs["id"] = fmt.Sprintf("counterparty-%s", counterparty.ID)
+		rowProps.Attrs["class"] = "hide-on-load"
+	}}
+	@base.TableRow(*rowProps) {
+		@base.TableCell(base.TableCellProps{}) {
+			{ counterparty.TIN }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ counterparty.Name }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ counterparty.Type.LocalizedString(pageCtx) }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ counterparty.LegalType.LocalizedString(pageCtx) }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			{ counterparty.LegalAddress }
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			@button.Secondary(button.Props{Fixed: true, Size: button.SizeSM, Class: "btn-fixed", Href: fmt.Sprintf("/finance/counterparties/%s", counterparty.ID)}) {
+				@icons.PencilSimple(icons.Props{Size: "20"})
+			}
+		}
+	}
+}
+
+templ CounterpartyRows(props *IndexPageProps) {
+	<tr class="hidden">
+		<td colspan="6">
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes(
+					"flex justify-center items-center py-4",
+				),
+			})
+		</td>
+	</tr>
+	for _, counterparty := range props.Counterparties {
+		@CounterpartyTableRow(counterparty, &base.TableRowProps{
+			Attrs: templ.Attributes{},
+		})
+	}
+}
+
+templ CounterpartiesTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col gap-4 table-wrapper">
+		if len(props.Counterparties) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("Counterparties.List.NoCounterparties.Title"),
+				Description: pageCtx.T("Counterparties.List.NoCounterparties._Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("Counterparties.List.TIN"), Key: "tin"},
+					{Label: pageCtx.T("Counterparties.List.Name"), Key: "name"},
+					{Label: pageCtx.T("Counterparties.List.Type"), Key: "type"},
+					{Label: pageCtx.T("Counterparties.List.LegalType"), Key: "legalType"},
+					{Label: pageCtx.T("Counterparties.List.LegalAddress"), Key: "legalAddress"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+				TBodyAttrs: templ.Attributes{
+					"id": "counterparties-table-body",
+				},
+			}) {
+				@CounterpartyRows(props)
+			}
+			if len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
+		}
+	</div>
+}
+
+templ CounterpartiesContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ pageCtx.T("NavigationLinks.Counterparties") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/finance/counterparties"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target="#counterparties-table-body"
+				hx-swap="innerHTML"
+				hx-indicator="#counterparties-table-body"
+			>
+				<input type="hidden" name="page" value="1"/>
+				<div class="flex-1">
+					@input.Text(&input.Props{
+						AddonLeft: &input.Addon{
+							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+						},
+						Placeholder: pageCtx.T("Search"),
+						Attrs: templ.Attributes{
+							"name": "Search",
+						},
+					})
+				</div>
+				<div class="hidden md:flex gap-3">
+					@button.Primary(button.Props{
+						Size: button.SizeNormal, Href: "/finance/counterparties/new",
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					}) {
+						{ pageCtx.T("Counterparties.List.New") }
+					}
+				</div>
+			</form>
+			@CounterpartiesTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Counterparties.Meta.List.Title")},
+	}) {
+		@CounterpartiesContent(props)
+	}
+}

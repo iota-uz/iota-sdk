@@ -53,29 +53,8 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 
-				if _, err := composables.UseTenant(ctx); err != nil {
-					// Get tenant info directly
-					tx, txErr := composables.UseTx(ctx)
-					if txErr != nil {
-						http.Error(w, "Database transaction not found", http.StatusInternalServerError)
-						return
-					}
-					var name string
-					var domain string
-					err := tx.QueryRow(
-						ctx,
-						"SELECT name, domain FROM tenants WHERE id = $1 LIMIT 1",
-						sess.TenantID.String(),
-					).Scan(&name, &domain)
-					if err != nil {
-						panic(fmt.Errorf("failed to get tenant info: %w", err))
-					}
-					t := &composables.Tenant{
-						ID:     sess.TenantID,
-						Name:   name,
-						Domain: domain,
-					}
-					ctx = composables.WithTenant(ctx, t)
+				if _, err := composables.UseTenantID(ctx); err != nil {
+					ctx = composables.WithTenantID(ctx, sess.TenantID)
 				}
 
 				params, ok := composables.UseParams(ctx)
@@ -113,7 +92,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 
 				// Check if we already have a tenant in context
-				_, tenantErr := composables.UseTenant(ctx)
+				_, tenantErr := composables.UseTenantID(ctx)
 				if tenantErr != nil {
 					// If not, get it from the user's tenant ID
 					tenantService := app.Service(services.TenantService{}).(*services.TenantService)
@@ -123,7 +102,7 @@ func ProvideUser() mux.MiddlewareFunc {
 						// Don't add tenant to context if we couldn't get it
 					} else {
 						// Add tenant to context
-						ctx = context.WithValue(ctx, constants.TenantKey, t)
+						ctx = context.WithValue(ctx, constants.TenantIDKey, t)
 					}
 				}
 

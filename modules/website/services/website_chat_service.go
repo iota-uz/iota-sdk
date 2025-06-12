@@ -107,7 +107,7 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadD
 	if err != nil {
 		return nil, err
 	}
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadD
 	chatEntity := chat.New(
 		member.Sender().(chat.ClientSender).ClientID(),
 		chat.WithMembers([]chat.Member{member}),
-		chat.WithTenantID(tenant.ID),
+		chat.WithTenantID(tenantID),
 	)
 
 	var createdChat chat.Chat
@@ -444,7 +444,7 @@ func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) 
 	if err != nil {
 		return nil, err
 	}
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -456,12 +456,12 @@ func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) 
 			usr.LastName(),
 		),
 		chat.WebsiteTransport,
-		chat.WithMemberTenantID(tenant.ID),
+		chat.WithMemberTenantID(tenantID),
 	), nil
 }
 
 func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber phone.Phone) (chat.Member, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -482,7 +482,7 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 				match.LastName(),
 			),
 			chat.WebsiteTransport,
-			chat.WithMemberTenantID(tenant.ID),
+			chat.WithMemberTenantID(tenantID),
 		), nil
 	} else if err != nil && !errors.Is(err, persistence.ErrClientNotFound) {
 		return nil, err
@@ -491,7 +491,7 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 	c, err := client.New(
 		phoneNumber.Value(),
 		client.WithPhone(phoneNumber),
-		client.WithTenantID(tenant.ID),
+		client.WithTenantID(tenantID),
 	)
 	if err != nil {
 		return nil, err
@@ -524,7 +524,7 @@ func (s *WebsiteChatService) memberFromPhone(ctx context.Context, phoneNumber ph
 			clientEntity.LastName(),
 		),
 		chat.WebsiteTransport,
-		chat.WithMemberTenantID(tenant.ID),
+		chat.WithMemberTenantID(tenantID),
 	)
 	return member, nil
 }

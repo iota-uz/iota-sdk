@@ -17,6 +17,7 @@ import (
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 func createTestPassport() passport.Passport {
@@ -49,6 +50,7 @@ func createTestClient(t *testing.T, tenantID uuid.UUID, withPassport bool) clien
 	require.NoError(t, err, "Failed to create tax ID")
 
 	opts := []client.Option{
+		client.WithTenantID(tenantID),
 		client.WithLastName("Doe"),
 		client.WithMiddleName("Smith"),
 		client.WithEmail(email),
@@ -76,14 +78,14 @@ func createTestClient(t *testing.T, tenantID uuid.UUID, withPassport bool) clien
 func TestClientRepository_Create(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
 	t.Run("Create client without passport", func(t *testing.T) {
 		testClient := createTestClient(t, f.tenant.ID, false)
 
-		created, err := repo.Save(f.ctx, testClient)
+		created, err := clientRepo.Save(f.ctx, testClient)
 		require.NoError(t, err, "Failed to create client")
 
 		assert.NotZero(t, created.ID(), "Created client should have a non-zero ID")
@@ -97,7 +99,7 @@ func TestClientRepository_Create(t *testing.T) {
 	t.Run("Create client with passport", func(t *testing.T) {
 		testClient := createTestClient(t, f.tenant.ID, true)
 
-		created, err := repo.Save(f.ctx, testClient)
+		created, err := clientRepo.Save(f.ctx, testClient)
 		require.NoError(t, err, "Failed to create client with passport")
 
 		assert.NotZero(t, created.ID(), "Created client should have a non-zero ID")
@@ -111,18 +113,28 @@ func TestClientRepository_Create(t *testing.T) {
 func TestClientRepository_GetByID(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
 	testClient := createTestClient(t, f.tenant.ID, true)
-	created, err := repo.Save(f.ctx, testClient)
+	created, err := clientRepo.Save(f.ctx, testClient)
 	require.NoError(t, err, "Failed to create test client for GetByID")
 
 	t.Run("Get existing client by ID", func(t *testing.T) {
-		retrieved, err := repo.GetByID(f.ctx, created.ID())
+		clients, err := clientRepo.GetPaginated(f.ctx, &client.FindParams{
+			Limit: 1,
+			Filters: []client.Filter{
+				{
+					Column: client.ID,
+					Filter: repo.Eq(created.ID()),
+				},
+			},
+		})
 		require.NoError(t, err, "Failed to get client by ID")
+		require.Len(t, clients, 1, "Should return exactly one client")
 
+		retrieved := clients[0]
 		assert.Equal(t, created.ID(), retrieved.ID(), "ID mismatch")
 		assert.Equal(t, created.FirstName(), retrieved.FirstName(), "FirstName mismatch")
 		require.NotNil(t, retrieved.Passport(), "Retrieved client should have a passport")
@@ -132,7 +144,7 @@ func TestClientRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("Get non-existent client by ID", func(t *testing.T) {
-		_, err := repo.GetByID(f.ctx, 9999)
+		_, err := clientRepo.GetByID(f.ctx, 9999)
 		require.Error(t, err, "Expected error when getting non-existent client, got nil")
 		require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound")
 	})
@@ -141,7 +153,7 @@ func TestClientRepository_GetByID(t *testing.T) {
 func TestClientRepository_GetByPhone(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
@@ -157,6 +169,7 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 
 	uniquePhoneClient, err := client.New(
 		"Jane",
+		client.WithTenantID(f.tenant.ID),
 		client.WithLastName("Smith"),
 		client.WithMiddleName("Doe"),
 		client.WithPhone(p),
@@ -169,11 +182,11 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 	)
 	require.NoError(t, err, "Failed to create client instance")
 
-	created, err := repo.Save(f.ctx, uniquePhoneClient)
+	created, err := clientRepo.Save(f.ctx, uniquePhoneClient)
 	require.NoError(t, err, "Failed to create test client for GetByPhone")
 
 	t.Run("Get existing client by phone", func(t *testing.T) {
-		retrieved, err := repo.GetByPhone(f.ctx, "98765432109")
+		retrieved, err := clientRepo.GetByPhone(f.ctx, "98765432109")
 		require.NoError(t, err, "Failed to get client by phone")
 
 		assert.Equal(t, created.ID(), retrieved.ID(), "ID mismatch")
@@ -183,7 +196,7 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 	})
 
 	t.Run("Get non-existent client by phone", func(t *testing.T) {
-		_, err := repo.GetByPhone(f.ctx, "11111111111")
+		_, err := clientRepo.GetByPhone(f.ctx, "11111111111")
 		require.Error(t, err, "Expected error when getting non-existent client, got nil")
 		require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound")
 	})
@@ -192,7 +205,7 @@ func TestClientRepository_GetByPhone(t *testing.T) {
 func TestClientRepository_GetByContactValue(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
@@ -204,6 +217,7 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 
 	clientWithContacts, err := client.New(
 		"Contact",
+		client.WithTenantID(f.tenant.ID),
 		client.WithLastName("Test"),
 		client.WithMiddleName("User"),
 		client.WithPhone(p),
@@ -218,11 +232,11 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 	)
 	require.NoError(t, err, "Failed to create client instance")
 
-	createdClient, err := repo.Save(f.ctx, clientWithContacts)
+	createdClient, err := clientRepo.Save(f.ctx, clientWithContacts)
 	require.NoError(t, err, "Failed to create test client")
 
 	t.Run("Get client by phone from clients table", func(t *testing.T) {
-		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypePhone, "55555555555")
+		retrieved, err := clientRepo.GetByContactValue(f.ctx, client.ContactTypePhone, "55555555555")
 		require.NoError(t, err, "Failed to get client by phone contact")
 
 		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
@@ -230,7 +244,7 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 	})
 
 	t.Run("Get client by email from clients table", func(t *testing.T) {
-		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeEmail, "contact.test@example.com")
+		retrieved, err := clientRepo.GetByContactValue(f.ctx, client.ContactTypeEmail, "contact.test@example.com")
 		require.NoError(t, err, "Failed to get client by email contact")
 
 		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
@@ -238,14 +252,14 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 	})
 
 	t.Run("Get client by email from client_contacts table", func(t *testing.T) {
-		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeEmail, "test2@example.com")
+		retrieved, err := clientRepo.GetByContactValue(f.ctx, client.ContactTypeEmail, "test2@example.com")
 		require.NoError(t, err, "Failed to get client by email contact from client_contacts table")
 
 		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
 	})
 
 	t.Run("Get client by telegram contact from client_contacts table", func(t *testing.T) {
-		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "telegram_user123")
+		retrieved, err := clientRepo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "telegram_user123")
 		require.NoError(t, err, "Failed to get client by telegram contact")
 
 		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
@@ -253,14 +267,14 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 	})
 
 	t.Run("Get client by whatsapp contact from client_contacts table", func(t *testing.T) {
-		retrieved, err := repo.GetByContactValue(f.ctx, client.ContactTypeWhatsApp, "+1234567890")
+		retrieved, err := clientRepo.GetByContactValue(f.ctx, client.ContactTypeWhatsApp, "+1234567890")
 		require.NoError(t, err, "Failed to get client by whatsapp contact")
 
 		assert.Equal(t, createdClient.ID(), retrieved.ID(), "ID mismatch")
 	})
 
 	t.Run("Get client by non-existent contact", func(t *testing.T) {
-		_, err := repo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "non_existent_user")
+		_, err := clientRepo.GetByContactValue(f.ctx, client.ContactTypeTelegram, "non_existent_user")
 		require.Error(t, err, "Expected error when getting client by non-existent contact")
 		require.ErrorIs(t, err, persistence.ErrClientNotFound, "Expected ErrClientNotFound")
 	})
@@ -269,7 +283,7 @@ func TestClientRepository_GetByContactValue(t *testing.T) {
 func TestClientRepository_GetPaginated(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
@@ -287,6 +301,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 
 		testClient, err := client.New(
 			"Client",
+			client.WithTenantID(f.tenant.ID),
 			client.WithLastName(lastName),
 			client.WithMiddleName("Test"),
 			client.WithPhone(p),
@@ -297,7 +312,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 		)
 		require.NoError(t, err, "Failed to create client instance %d", i) // Use require for setup
 
-		_, err = repo.Save(f.ctx, testClient)
+		_, err = clientRepo.Save(f.ctx, testClient)
 		require.NoError(t, err, "Failed to create test client %d", i) // Use require for setup
 	}
 
@@ -313,7 +328,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			},
 		}
 
-		clients, err := repo.GetPaginated(f.ctx, params)
+		clients, err := clientRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to get paginated clients") // Use require
 
 		require.Len(t, clients, 2, "Expected 2 clients") // Use require for length check
@@ -337,7 +352,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 			},
 		}
 
-		clients, err := repo.GetPaginated(f.ctx, params)
+		clients, err := clientRepo.GetPaginated(f.ctx, params)
 		require.NoError(t, err, "Failed to get clients with search filter") // Use require
 
 		require.Len(t, clients, 1, "Expected 1 client") // Use require for length check
@@ -349,12 +364,12 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 func TestClientRepository_Count(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
 	// Get initial count to account for clients created in parallel tests
-	initialCount, err := repo.Count(f.ctx)
+	initialCount, err := clientRepo.Count(f.ctx, &client.FindParams{})
 	require.NoError(t, err, "Failed to get initial client count")
 
 	numClients := 3
@@ -364,6 +379,7 @@ func TestClientRepository_Count(t *testing.T) {
 
 		testClient, err := client.New(
 			"Count",
+			client.WithTenantID(f.tenant.ID),
 			client.WithLastName("Test"),
 			client.WithPhone(p),
 			client.WithMiddleName(string([]byte{'X' + byte(i)})),
@@ -371,11 +387,11 @@ func TestClientRepository_Count(t *testing.T) {
 		)
 		require.NoError(t, err, "Failed to create client instance for count test %d", i)
 
-		_, err = repo.Save(f.ctx, testClient)
+		_, err = clientRepo.Save(f.ctx, testClient)
 		require.NoError(t, err, "Failed to create test client for count test %d", i)
 	}
 
-	count, err := repo.Count(f.ctx)
+	count, err := clientRepo.Count(f.ctx, &client.FindParams{})
 	require.NoError(t, err, "Failed to count clients") // Use require
 
 	assert.Equal(t, initialCount+int64(numClients), count, "Client count mismatch")
@@ -384,11 +400,11 @@ func TestClientRepository_Count(t *testing.T) {
 func TestClientRepository_GetAll(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
-	initialCount, err := repo.Count(f.ctx)
+	initialCount, err := clientRepo.Count(f.ctx, &client.FindParams{})
 	require.NoError(t, err, "Failed to get initial client count for GetAll test")
 
 	numNewClients := 2
@@ -401,6 +417,7 @@ func TestClientRepository_GetAll(t *testing.T) {
 
 		testClient, err := client.New(
 			"All",
+			client.WithTenantID(f.tenant.ID),
 			client.WithLastName("Test"),
 			client.WithMiddleName(string([]byte{'Y' + byte(i)})),
 			client.WithPhone(p),
@@ -410,14 +427,16 @@ func TestClientRepository_GetAll(t *testing.T) {
 		)
 		require.NoError(t, err, "Failed to create client instance for GetAll test %d", i)
 
-		_, err = repo.Save(f.ctx, testClient)
+		_, err = clientRepo.Save(f.ctx, testClient)
 		require.NoError(t, err, "Failed to create test client for GetAll test %d", i)
 	}
 
-	allClients, err := repo.GetAll(f.ctx)
+	allClients, err := clientRepo.GetPaginated(f.ctx, &client.FindParams{
+		Limit: 1000, // Large limit to get all clients
+	})
 	require.NoError(t, err, "Failed to get all clients")
 
-	assert.Len(t, allClients, int(initialCount)+numNewClients, "GetAll returned incorrect number of clients")
+	assert.Len(t, allClients, int(initialCount)+numNewClients, "GetPaginated returned incorrect number of clients")
 }
 
 func TestClientRepository_Delete(t *testing.T) {
@@ -446,7 +465,7 @@ func TestClientRepository_Delete(t *testing.T) {
 func TestClientRepository_Update(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
-	repo := persistence.NewClientRepository(
+	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
@@ -463,6 +482,7 @@ func TestClientRepository_Update(t *testing.T) {
 
 	basicClient, err := client.New(
 		"John",
+		client.WithTenantID(f.tenant.ID),
 		client.WithLastName("Doe"),
 		client.WithMiddleName("Smith"),
 		client.WithPhone(p),
@@ -474,7 +494,7 @@ func TestClientRepository_Update(t *testing.T) {
 	)
 	require.NoError(t, err, "Failed to create client instance")
 
-	created, err := repo.Save(f.ctx, basicClient)
+	created, err := clientRepo.Save(f.ctx, basicClient)
 	require.NoError(t, err, "Failed to save initial client for update test")
 	// --- End Setup ---
 
@@ -486,10 +506,10 @@ func TestClientRepository_Update(t *testing.T) {
 			SetEmail(newEmail).
 			SetAddress("789 Pine St")
 
-		_, err = repo.Save(f.ctx, updatedClientState)
+		_, err = clientRepo.Save(f.ctx, updatedClientState)
 		require.NoError(t, err, "Failed to update client basic info")
 
-		retrievedAfterUpdate, err := repo.GetByID(f.ctx, created.ID()) // Re-fetch to ensure persistence
+		retrievedAfterUpdate, err := clientRepo.GetByID(f.ctx, created.ID()) // Re-fetch to ensure persistence
 		require.NoError(t, err, "Failed to retrieve client after basic update")
 
 		assert.Equal(t, "Robert", retrievedAfterUpdate.FirstName(), "FirstName mismatch after update")
@@ -514,6 +534,7 @@ func TestClientRepository_Update(t *testing.T) {
 
 		noPassportClient, err := client.New(
 			"Alice",
+			client.WithTenantID(f.tenant.ID),
 			client.WithLastName("Wonder"),
 			client.WithPhone(pUpdate),
 			client.WithEmail(emailUpdate),
@@ -522,7 +543,7 @@ func TestClientRepository_Update(t *testing.T) {
 		)
 		require.NoError(t, err, "Failed to create client instance without passport")
 
-		createdNoPassport, err := repo.Save(f.ctx, noPassportClient)
+		createdNoPassport, err := clientRepo.Save(f.ctx, noPassportClient)
 		require.NoError(t, err, "Failed to create client without passport for update test")
 		require.Nil(t, createdNoPassport.Passport(), "Client should initially have no passport")
 		// --- End Setup ---
@@ -531,11 +552,11 @@ func TestClientRepository_Update(t *testing.T) {
 		clientWithPassport := createdNoPassport.SetPassport(createTestPassport())
 
 		// Save the updated client
-		_, err = repo.Save(f.ctx, clientWithPassport)
+		_, err = clientRepo.Save(f.ctx, clientWithPassport)
 		require.NoError(t, err, "Failed to update client with passport")
 
 		// Verify the result from the database
-		retrievedAfterPassport, err := repo.GetByID(f.ctx, createdNoPassport.ID())
+		retrievedAfterPassport, err := clientRepo.GetByID(f.ctx, createdNoPassport.ID())
 		require.NoError(t, err, "Failed to retrieve client after adding passport")
 
 		require.NotNil(t, retrievedAfterPassport.Passport(), "Expected client to have passport after update")

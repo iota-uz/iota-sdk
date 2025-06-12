@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -23,57 +23,46 @@ const (
 			ec.tenant_id,
 			ec.name,
 			ec.description,
-			ec.amount_currency_id,
-			ec.amount,
 			ec.created_at,
-			ec.updated_at,
-			c.code,
-			c.name,
-			c.symbol,
-			c.created_at,
-			c.updated_at
-		FROM expense_categories ec LEFT JOIN currencies c ON ec.amount_currency_id = c.code
+			ec.updated_at
+		FROM expense_categories ec
 	`
 	countExpenseCategoryQuery  = `SELECT COUNT(*) as count FROM expense_categories ec`
 	insertExpenseCategoryQuery = `
 	INSERT INTO expense_categories (
 		tenant_id,
 		name,
-		description,
-		amount,
-		amount_currency_id
+		description
 	)
-	VALUES ($1, $2, $3, $4, $5) RETURNING id`
-	updateExpenseCategoryQuery = `UPDATE expense_categories SET name = $1, description = $2, amount = $3, amount_currency_id = $4 WHERE id = $5 AND tenant_id = $6`
+	VALUES ($1, $2, $3) RETURNING id`
+	updateExpenseCategoryQuery = `UPDATE expense_categories SET name = $1, description = $2 WHERE id = $3 AND tenant_id = $4`
 	deleteExpenseCategoryQuery = `DELETE FROM expense_categories WHERE id = $1 AND tenant_id = $2`
 )
 
-type GormExpenseCategoryRepository struct {
+type PgExpenseCategoryRepository struct {
 	fieldMap map[category.Field]string
 }
 
 func NewExpenseCategoryRepository() category.Repository {
-	return &GormExpenseCategoryRepository{
+	return &PgExpenseCategoryRepository{
 		fieldMap: map[category.Field]string{
 			category.ID:          "ec.id",
 			category.Name:        "ec.name",
 			category.Description: "ec.description",
-			category.Amount:      "ec.amount",
-			category.CurrencyID:  "ec.amount_currency_id",
 			category.CreatedAt:   "ec.created_at",
 			category.UpdatedAt:   "ec.updated_at",
 		},
 	}
 }
 
-func (g *GormExpenseCategoryRepository) buildCategoryFilters(ctx context.Context, params *category.FindParams) ([]string, []interface{}, error) {
-	tenant, err := composables.UseTenant(ctx)
+func (g *PgExpenseCategoryRepository) buildCategoryFilters(ctx context.Context, params *category.FindParams) ([]string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
 	where := []string{"ec.tenant_id = $1"}
-	args := []interface{}{tenant.ID.String()}
+	args := []interface{}{tenantID.String()}
 
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
@@ -101,7 +90,7 @@ func (g *GormExpenseCategoryRepository) buildCategoryFilters(ctx context.Context
 	return where, args, nil
 }
 
-func (g *GormExpenseCategoryRepository) queryCategories(ctx context.Context, query string, args ...interface{}) ([]category.ExpenseCategory, error) {
+func (g *PgExpenseCategoryRepository) queryCategories(ctx context.Context, query string, args ...interface{}) ([]category.ExpenseCategory, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction: %w", err)
@@ -115,25 +104,17 @@ func (g *GormExpenseCategoryRepository) queryCategories(ctx context.Context, que
 
 	for rows.Next() {
 		var ec models.ExpenseCategory
-		var c coremodels.Currency
 		if err := rows.Scan(
 			&ec.ID,
 			&ec.TenantID,
 			&ec.Name,
 			&ec.Description,
-			&ec.AmountCurrencyID,
-			&ec.Amount,
 			&ec.CreatedAt,
 			&ec.UpdatedAt,
-			&c.Code,
-			&c.Name,
-			&c.Symbol,
-			&c.CreatedAt,
-			&c.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan expense category row: %w", err)
 		}
-		entity, err := toDomainExpenseCategory(&ec, &c)
+		entity, err := ToDomainExpenseCategory(&ec)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert to domain expense category: %w", err)
 		}
@@ -146,7 +127,7 @@ func (g *GormExpenseCategoryRepository) queryCategories(ctx context.Context, que
 	return categories, nil
 }
 
-func (g *GormExpenseCategoryRepository) GetPaginated(
+func (g *PgExpenseCategoryRepository) GetPaginated(
 	ctx context.Context, params *category.FindParams,
 ) ([]category.ExpenseCategory, error) {
 	where, args, err := g.buildCategoryFilters(ctx, params)
@@ -164,7 +145,7 @@ func (g *GormExpenseCategoryRepository) GetPaginated(
 	return g.queryCategories(ctx, query, args...)
 }
 
-func (g *GormExpenseCategoryRepository) Count(ctx context.Context, params *category.FindParams) (int64, error) {
+func (g *PgExpenseCategoryRepository) Count(ctx context.Context, params *category.FindParams) (int64, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get transaction: %w", err)
@@ -188,8 +169,8 @@ func (g *GormExpenseCategoryRepository) Count(ctx context.Context, params *categ
 	return count, nil
 }
 
-func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]category.ExpenseCategory, error) {
-	tenant, err := composables.UseTenant(ctx)
+func (g *PgExpenseCategoryRepository) GetAll(ctx context.Context) ([]category.ExpenseCategory, error) {
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -199,11 +180,11 @@ func (g *GormExpenseCategoryRepository) GetAll(ctx context.Context) ([]category.
 		repo.JoinWhere("ec.tenant_id = $1"),
 	)
 
-	return g.queryCategories(ctx, query, tenant.ID.String())
+	return g.queryCategories(ctx, query, tenantID.String())
 }
 
-func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (category.ExpenseCategory, error) {
-	tenant, err := composables.UseTenant(ctx)
+func (g *PgExpenseCategoryRepository) GetByID(ctx context.Context, id uuid.UUID) (category.ExpenseCategory, error) {
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
@@ -213,7 +194,7 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (c
 		repo.JoinWhere("ec.id = $1 AND ec.tenant_id = $2"),
 	)
 
-	categories, err := g.queryCategories(ctx, query, id, tenant.ID.String())
+	categories, err := g.queryCategories(ctx, query, id, tenantID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get expense category with ID: %d: %w", id, err)
 	}
@@ -223,56 +204,52 @@ func (g *GormExpenseCategoryRepository) GetByID(ctx context.Context, id uint) (c
 	return categories[0], nil
 }
 
-func (g *GormExpenseCategoryRepository) Create(ctx context.Context, data category.ExpenseCategory) (category.ExpenseCategory, error) {
+func (g *PgExpenseCategoryRepository) Create(ctx context.Context, data category.ExpenseCategory) (category.ExpenseCategory, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	dbRow := toDBExpenseCategory(data)
-	dbRow.TenantID = tenant.ID.String()
+	dbRow := ToDBExpenseCategory(data)
+	dbRow.TenantID = tenantID.String()
 
-	var id uint
+	var id uuid.UUID
 	if err := tx.QueryRow(
 		ctx,
 		insertExpenseCategoryQuery,
 		dbRow.TenantID,
 		dbRow.Name,
 		dbRow.Description,
-		dbRow.Amount,
-		dbRow.AmountCurrencyID,
 	).Scan(&id); err != nil {
 		return nil, fmt.Errorf("failed to create expense category: %w", err)
 	}
 	return g.GetByID(ctx, id)
 }
 
-func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data category.ExpenseCategory) (category.ExpenseCategory, error) {
+func (g *PgExpenseCategoryRepository) Update(ctx context.Context, data category.ExpenseCategory) (category.ExpenseCategory, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	dbRow := toDBExpenseCategory(data)
-	dbRow.TenantID = tenant.ID.String()
+	dbRow := ToDBExpenseCategory(data)
+	dbRow.TenantID = tenantID.String()
 
 	if _, err := tx.Exec(
 		ctx,
 		updateExpenseCategoryQuery,
 		dbRow.Name,
 		dbRow.Description,
-		dbRow.Amount,
-		dbRow.AmountCurrencyID,
 		data.ID(),
 		dbRow.TenantID,
 	); err != nil {
@@ -281,18 +258,18 @@ func (g *GormExpenseCategoryRepository) Update(ctx context.Context, data categor
 	return g.GetByID(ctx, data.ID())
 }
 
-func (g *GormExpenseCategoryRepository) Delete(ctx context.Context, id uint) error {
+func (g *PgExpenseCategoryRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get transaction: %w", err)
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	if _, err := tx.Exec(ctx, deleteExpenseCategoryQuery, id, tenant.ID.String()); err != nil {
+	if _, err := tx.Exec(ctx, deleteExpenseCategoryQuery, id, tenantID.String()); err != nil {
 		return fmt.Errorf("failed to delete expense category with ID: %d: %w", id, err)
 	}
 	return nil

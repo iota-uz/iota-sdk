@@ -47,6 +47,7 @@ func setupTest(t *testing.T) *testFixtures {
 	})
 
 	ctx = composables.WithTx(ctx, tx)
+	ctx = composables.WithPool(ctx, pool)
 
 	// Setup application and run migrations
 	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
@@ -64,7 +65,7 @@ func setupTest(t *testing.T) *testFixtures {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx = composables.WithTenant(ctx, tenant)
+	ctx = composables.WithTenantID(ctx, tenant.ID)
 
 	return &testFixtures{
 		ctx:  ctx,

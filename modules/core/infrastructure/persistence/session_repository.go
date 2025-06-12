@@ -55,13 +55,13 @@ func NewSessionRepository() session.Repository {
 }
 
 func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	var args []interface{}
-	where, args := []string{"tenant_id = $%d"}, []interface{}{tenant.ID}
+	where, args := []string{"tenant_id = $%d"}, []interface{}{tenantID}
 
 	if params.Token != "" {
 		where = append(where, fmt.Sprintf("token = $%d", len(args)+1))
@@ -84,30 +84,30 @@ func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, err
 	}
 
 	var count int64
-	if err := tx.QueryRow(ctx, countSessionQuery+" WHERE tenant_id = $1", tenant.ID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, countSessionQuery+" WHERE tenant_id = $1", tenantID).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil
 }
 
 func (g *SessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return g.querySessions(ctx, selectSessionQuery+" WHERE tenant_id = $1", tenant.ID)
+	return g.querySessions(ctx, selectSessionQuery+" WHERE tenant_id = $1", tenantID)
 }
 
 func (g *SessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
 	// First try with tenant from context
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 
 	// If tenant is not in context (like during login), get the session regardless of tenant
 	if err != nil {
@@ -129,7 +129,7 @@ func (g *SessionRepository) GetByToken(ctx context.Context, token string) (*sess
 	}
 
 	// Normal flow with tenant from context
-	sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1 AND tenant_id = $2"), token, tenant.ID)
+	sessions, err := g.querySessions(ctx, repo.Join(selectSessionQuery, "WHERE token = $1 AND tenant_id = $2"), token, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get session by token")
 	}
@@ -143,9 +143,9 @@ func (g *SessionRepository) Create(ctx context.Context, data *session.Session) e
 	dbSession := ToDBSession(data)
 
 	// First try to get tenant from context
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err == nil {
-		dbSession.TenantID = tenant.ID.String()
+		dbSession.TenantID = tenantID.String()
 	}
 	// If tenant is not in context but session has TenantID set (from session.CreateDTO), use that
 	return g.execQuery(
@@ -165,9 +165,9 @@ func (g *SessionRepository) Update(ctx context.Context, data *session.Session) e
 	dbSession := ToDBSession(data)
 
 	// First try to get tenant from context
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err == nil {
-		dbSession.TenantID = tenant.ID.String()
+		dbSession.TenantID = tenantID.String()
 	} else if dbSession.TenantID == uuid.Nil.String() {
 		// If tenant is not in context and session has no TenantID, get the current session's tenant ID
 		existingSession, err := g.GetByToken(ctx, dbSession.Token)

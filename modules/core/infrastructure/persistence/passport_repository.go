@@ -172,14 +172,18 @@ func (r *PassportRepository) exists(ctx context.Context, id string) (bool, error
 		return false, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return false, err
 	}
 
 	var exists bool
-	err = pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM passports WHERE id = $1 AND tenant_id = $2)",
-		id, tenant.ID.String()).Scan(&exists)
+	err = pool.QueryRow(
+		ctx,
+		"SELECT EXISTS(SELECT 1 FROM passports WHERE id = $1 AND tenant_id = $2)",
+		id,
+		tenantID.String(),
+	).Scan(&exists)
 	if err != nil {
 		return false, err
 	}
@@ -207,7 +211,7 @@ func (r *PassportRepository) Create(ctx context.Context, data passport.Passport)
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +221,7 @@ func (r *PassportRepository) Create(ctx context.Context, data passport.Passport)
 		return nil, fmt.Errorf("failed to convert passport to db model: %w", err)
 	}
 
-	dbRow.TenantID = tenant.ID.String()
+	dbRow.TenantID = tenantID.String()
 
 	var id string
 	err = pool.QueryRow(
@@ -252,13 +256,13 @@ func (r *PassportRepository) Create(ctx context.Context, data passport.Passport)
 }
 
 func (r *PassportRepository) GetByID(ctx context.Context, id uuid.UUID) (passport.Passport, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	passports, err := r.queryPassports(ctx, selectPassportQuery+" WHERE id = $1 AND tenant_id = $2",
-		id.String(), tenant.ID.String())
+		id.String(), tenantID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -269,13 +273,13 @@ func (r *PassportRepository) GetByID(ctx context.Context, id uuid.UUID) (passpor
 }
 
 func (r *PassportRepository) GetByPassportNumber(ctx context.Context, series, number string) (passport.Passport, error) {
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	passports, err := r.queryPassports(ctx, selectPassportQuery+" WHERE series = $1 AND passport_number = $2 AND tenant_id = $3",
-		series, number, tenant.ID.String())
+		series, number, tenantID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +295,7 @@ func (r *PassportRepository) Update(ctx context.Context, id uuid.UUID, data pass
 		return nil, err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +328,7 @@ func (r *PassportRepository) Update(ctx context.Context, id uuid.UUID, data pass
 		dbRow.Remarks,
 		time.Now(),
 		id.String(),
-		tenant.ID.String(),
+		tenantID.String(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update passport: %w", err)
@@ -339,12 +343,12 @@ func (r *PassportRepository) Delete(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	tenant, err := composables.UseTenant(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return err
 	}
 
-	_, err = pool.Exec(ctx, deletePassportQuery+" AND tenant_id = $2", id.String(), tenant.ID.String())
+	_, err = pool.Exec(ctx, deletePassportQuery+" AND tenant_id = $2", id.String(), tenantID.String())
 	if err != nil {
 		return fmt.Errorf("failed to delete passport: %w", err)
 	}

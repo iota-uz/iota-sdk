@@ -2,64 +2,77 @@ package mappers
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
 
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 )
 
 func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.ExpenseCategory {
 	return &viewmodels.ExpenseCategory{
-		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
-		Name:               entity.Name(),
-		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), entity.Currency().Symbol),
-		CurrencyCode:       string(entity.Currency().Code),
-		Description:        entity.Description(),
-		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
-		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
+		ID:          entity.ID().String(),
+		Name:        entity.Name(),
+		Description: entity.Description(),
+		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 
-func MoneyAccountToViewModel(entity *moneyaccount.Account) *viewmodels.MoneyAccount {
+func PaymentCategoryToViewModel(entity paymentcategory.PaymentCategory) *viewmodels.PaymentCategory {
+	return &viewmodels.PaymentCategory{
+		ID:          entity.ID().String(),
+		Name:        entity.Name(),
+		Description: entity.Description(),
+		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
+		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
+	}
+}
+
+func MoneyAccountToViewModel(entity moneyaccount.Account) *viewmodels.MoneyAccount {
+	balance := entity.Balance()
 	return &viewmodels.MoneyAccount{
-		ID:                  strconv.FormatUint(uint64(entity.ID), 10),
-		Name:                entity.Name,
-		AccountNumber:       entity.AccountNumber,
-		Balance:             fmt.Sprintf("%.2f", entity.Balance),
-		BalanceWithCurrency: fmt.Sprintf("%.2f %s", entity.Balance, entity.Currency.Symbol),
-		CurrencyCode:        string(entity.Currency.Code),
-		CurrencySymbol:      string(entity.Currency.Symbol),
-		Description:         entity.Description,
-		UpdatedAt:           entity.UpdatedAt.Format(time.RFC3339),
-		CreatedAt:           entity.CreatedAt.Format(time.RFC3339),
+		ID:                  entity.ID().String(),
+		Name:                entity.Name(),
+		AccountNumber:       entity.AccountNumber(),
+		Balance:             fmt.Sprintf("%.2f", balance.AsMajorUnits()),
+		BalanceWithCurrency: balance.Display(),
+		CurrencyCode:        balance.Currency().Code,
+		CurrencySymbol:      balance.Currency().Grapheme,
+		Description:         entity.Description(),
+		UpdatedAt:           entity.UpdatedAt().Format(time.RFC3339),
+		CreatedAt:           entity.CreatedAt().Format(time.RFC3339),
 	}
 }
 
-func MoneyAccountToViewUpdateModel(entity *moneyaccount.Account) *viewmodels.MoneyAccountUpdateDTO {
+func MoneyAccountToViewUpdateModel(entity moneyaccount.Account) *viewmodels.MoneyAccountUpdateDTO {
+	balance := entity.Balance()
 	return &viewmodels.MoneyAccountUpdateDTO{
-		Name:          entity.Name,
-		Description:   entity.Description,
-		AccountNumber: entity.AccountNumber,
-		Balance:       fmt.Sprintf("%.2f", entity.Balance),
-		CurrencyCode:  string(entity.Currency.Code),
+		Name:          entity.Name(),
+		Description:   entity.Description(),
+		AccountNumber: entity.AccountNumber(),
+		Balance:       fmt.Sprintf("%.2f", balance.AsMajorUnits()),
+		CurrencyCode:  balance.Currency().Code,
 	}
 }
 
 func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
-	currency := entity.Account().Currency
+	amount := entity.Amount()
 	return &viewmodels.Payment{
-		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
-		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), currency.Symbol),
-		AccountID:          strconv.FormatUint(uint64(entity.Account().ID), 10),
-		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID()), 10),
+		ID:                 entity.ID().String(),
+		Amount:             fmt.Sprintf("%.2f", amount.AsMajorUnits()),
+		AmountWithCurrency: amount.Display(),
+		AccountID:          entity.Account().ID().String(),
+		CounterpartyID:     entity.CounterpartyID().String(),
+		CategoryID:         entity.Category().ID().String(),
+		Category:           PaymentCategoryToViewModel(entity.Category()),
+		TransactionID:      entity.TransactionID().String(),
 		TransactionDate:    entity.TransactionDate().Format(time.DateOnly),
 		AccountingPeriod:   entity.AccountingPeriod().Format(time.DateOnly),
 		Comment:            entity.Comment(),
@@ -69,31 +82,50 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 }
 
 func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
-	currencyEntity := entity.Category().Currency()
+	amount := entity.Amount()
 	return &viewmodels.Expense{
-		ID:                 strconv.FormatUint(uint64(entity.ID()), 10),
-		Amount:             fmt.Sprintf("%.2f", entity.Amount()),
-		AccountID:          strconv.FormatUint(uint64(entity.Account().ID), 10),
-		AmountWithCurrency: fmt.Sprintf("%.2f %s", entity.Amount(), currencyEntity.Symbol),
-		CategoryID:         strconv.FormatUint(uint64(entity.Category().ID()), 10),
-		Category:           ExpenseCategoryToViewModel(entity.Category()),
-		Comment:            entity.Comment(),
-		TransactionID:      strconv.FormatUint(uint64(entity.TransactionID()), 10),
-		AccountingPeriod:   entity.AccountingPeriod().Format(time.RFC3339),
-		Date:               entity.Date().Format(time.RFC3339),
-		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
-		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
+		ID:               entity.ID().String(),
+		Amount:           fmt.Sprintf("%.2f", amount.AsMajorUnits()),
+		AccountID:        entity.Account().ID().String(),
+		CategoryID:       entity.Category().ID().String(),
+		Category:         ExpenseCategoryToViewModel(entity.Category()),
+		Comment:          entity.Comment(),
+		TransactionID:    entity.TransactionID().String(),
+		AccountingPeriod: entity.AccountingPeriod().Format(time.RFC3339),
+		Date:             entity.Date().Format(time.RFC3339),
+		CreatedAt:        entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:        entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
 
 func CounterpartyToViewModel(entity counterparty.Counterparty) *viewmodels.Counterparty {
+	var tin string
+	if entity.Tin() != nil {
+		tin = entity.Tin().Value()
+	}
 	return &viewmodels.Counterparty{
-		ID:           strconv.FormatUint(uint64(entity.ID()), 10),
-		TIN:          entity.Tin().Value(),
+		ID:           entity.ID().String(),
+		TIN:          tin,
 		Name:         entity.Name(),
-		Type:         string(entity.Type()),
-		LegalType:    string(entity.LegalType()),
+		Type:         viewmodels.CounterpartyTypeFromDomain(entity.Type()),
+		LegalType:    viewmodels.CounterpartyLegalTypeFromDomain(entity.LegalType()),
 		LegalAddress: entity.LegalAddress(),
+		CreatedAt:    entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:    entity.UpdatedAt().Format(time.RFC3339),
+	}
+}
+
+func InventoryToViewModel(entity inventory.Inventory) *viewmodels.Inventory {
+	price := entity.Price()
+	totalValue := price.Multiply(int64(entity.Quantity()))
+	return &viewmodels.Inventory{
+		ID:           entity.ID().String(),
+		Name:         entity.Name(),
+		Description:  entity.Description(),
+		CurrencyCode: price.Currency().Code,
+		Price:        fmt.Sprintf("%.2f", price.AsMajorUnits()),
+		Quantity:     fmt.Sprintf("%d", entity.Quantity()),
+		TotalValue:   fmt.Sprintf("%.2f", totalValue.AsMajorUnits()),
 		CreatedAt:    entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:    entity.UpdatedAt().Format(time.RFC3339),
 	}

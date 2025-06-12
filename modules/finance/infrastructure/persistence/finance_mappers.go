@@ -1,39 +1,56 @@
 package persistence
 
 import (
+	"database/sql"
+
+	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
-	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	coremodels "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
+	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
-func toDBTransaction(entity *transaction.Transaction) *models.Transaction {
+func ToDBTransaction(entity transaction.Transaction) *models.Transaction {
+	var exchangeRate sql.NullFloat64
+	var destinationAmount sql.NullInt64
+
+	if entity.ExchangeRate() != nil {
+		exchangeRate = sql.NullFloat64{Float64: *entity.ExchangeRate(), Valid: true}
+	}
+
+	if entity.DestinationAmount() != nil {
+		destinationAmount = sql.NullInt64{Int64: entity.DestinationAmount().Amount(), Valid: true}
+	}
+
 	return &models.Transaction{
-		ID:                   entity.ID,
-		TenantID:             entity.TenantID.String(),
-		Amount:               entity.Amount,
-		Comment:              entity.Comment,
-		AccountingPeriod:     entity.AccountingPeriod,
-		TransactionDate:      entity.TransactionDate,
-		DestinationAccountID: entity.DestinationAccountID,
-		OriginAccountID:      entity.OriginAccountID,
-		TransactionType:      string(entity.TransactionType),
-		CreatedAt:            entity.CreatedAt,
+		ID:                   entity.ID().String(),
+		TenantID:             entity.TenantID().String(),
+		Amount:               entity.Amount().Amount(),
+		Comment:              entity.Comment(),
+		AccountingPeriod:     entity.AccountingPeriod(),
+		TransactionDate:      entity.TransactionDate(),
+		DestinationAccountID: mapping.UUIDToSQLNullString(entity.DestinationAccountID()),
+		OriginAccountID:      mapping.UUIDToSQLNullString(entity.OriginAccountID()),
+		TransactionType:      string(entity.TransactionType()),
+		CreatedAt:            entity.CreatedAt(),
+		ExchangeRate:         exchangeRate,
+		DestinationAmount:    destinationAmount,
 	}
 }
 
-func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transaction, error) {
+func ToDomainTransaction(dbTransaction *models.Transaction) (transaction.Transaction, error) {
 	_type, err := transaction.NewType(dbTransaction.TransactionType)
 	if err != nil {
 		return nil, err
@@ -43,37 +60,52 @@ func toDomainTransaction(dbTransaction *models.Transaction) (*transaction.Transa
 		return nil, err
 	}
 
-	return &transaction.Transaction{
-		ID:                   dbTransaction.ID,
-		TenantID:             tenantID,
-		Amount:               dbTransaction.Amount,
-		TransactionType:      _type,
-		Comment:              dbTransaction.Comment,
-		AccountingPeriod:     dbTransaction.AccountingPeriod,
-		TransactionDate:      dbTransaction.TransactionDate,
-		DestinationAccountID: dbTransaction.DestinationAccountID,
-		OriginAccountID:      dbTransaction.OriginAccountID,
-		CreatedAt:            dbTransaction.CreatedAt,
-	}, nil
+	// Create Money object from amount - assuming USD as default, will need to be updated when currency is stored
+	amount := money.New(dbTransaction.Amount, "USD")
+
+	opts := []transaction.Option{
+		transaction.WithID(uuid.MustParse(dbTransaction.ID)),
+		transaction.WithTenantID(tenantID),
+		transaction.WithComment(dbTransaction.Comment),
+		transaction.WithAccountingPeriod(dbTransaction.AccountingPeriod),
+		transaction.WithTransactionDate(dbTransaction.TransactionDate),
+		transaction.WithOriginAccountID(mapping.SQLNullStringToUUID(dbTransaction.OriginAccountID)),
+		transaction.WithDestinationAccountID(mapping.SQLNullStringToUUID(dbTransaction.DestinationAccountID)),
+		transaction.WithCreatedAt(dbTransaction.CreatedAt),
+	}
+
+	if dbTransaction.ExchangeRate.Valid {
+		opts = append(opts, transaction.WithExchangeRate(&dbTransaction.ExchangeRate.Float64))
+	}
+
+	if dbTransaction.DestinationAmount.Valid {
+		destAmount := money.New(dbTransaction.DestinationAmount.Int64, "USD") // TODO: get proper currency
+		opts = append(opts, transaction.WithDestinationAmount(destAmount))
+	}
+
+	t := transaction.New(amount, _type, opts...)
+
+	return t, nil
 }
 
-func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) {
+func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) {
 	dbTransaction := &models.Transaction{
-		ID:                   entity.TransactionID(),
+		ID:                   entity.TransactionID().String(),
 		TenantID:             entity.TenantID().String(),
-		Amount:               entity.Amount(),
+		Amount:               entity.Amount().Amount(),
 		Comment:              entity.Comment(),
 		AccountingPeriod:     entity.AccountingPeriod(),
 		TransactionDate:      entity.TransactionDate(),
-		OriginAccountID:      nil,
-		DestinationAccountID: &entity.Account().ID,
+		OriginAccountID:      mapping.UUIDToSQLNullString(uuid.Nil),
+		DestinationAccountID: mapping.UUIDToSQLNullString(entity.Account().ID()),
 		TransactionType:      string(transaction.Deposit),
 		CreatedAt:            entity.CreatedAt(),
 	}
 	dbPayment := &models.Payment{
-		ID:             entity.ID(),
-		TransactionID:  entity.TransactionID(),
-		CounterpartyID: entity.CounterpartyID(),
+		ID:             entity.ID().String(),
+		TenantID:       entity.TenantID().String(),
+		TransactionID:  entity.TransactionID().String(),
+		CounterpartyID: entity.CounterpartyID().String(),
 		CreatedAt:      entity.CreatedAt(),
 		UpdatedAt:      entity.UpdatedAt(),
 	}
@@ -81,8 +113,8 @@ func toDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 }
 
 // TODO: populate user && account
-func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transaction) (payment.Payment, error) {
-	t, err := toDomainTransaction(dbTransaction)
+func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transaction) (payment.Payment, error) {
+	t, err := ToDomainTransaction(dbTransaction)
 	if err != nil {
 		return nil, err
 	}
@@ -95,53 +127,52 @@ func toDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		return nil, err
 	}
 
-	return payment.NewWithID(
-		dbPayment.ID,
-		tenantID,
-		t.Amount,
-		t.ID,
-		dbPayment.CounterpartyID,
-		t.Comment,
-		&moneyaccount.Account{ID: *t.DestinationAccountID}, //nolint:exhaustruct
-		user.New(
+	// Create a default payment category
+	defaultCategory := paymentcategory.New("Uncategorized")
+
+	// Create default money account with zero balance
+	defaultBalance := money.New(0, "USD")
+	return payment.New(
+		t.Amount(),
+		defaultCategory,
+		payment.WithID(uuid.MustParse(dbPayment.ID)),
+		payment.WithTenantID(tenantID),
+		payment.WithTransactionID(t.ID()),
+		payment.WithCounterpartyID(uuid.MustParse(dbPayment.CounterpartyID)),
+		payment.WithComment(t.Comment()),
+		payment.WithAccount(moneyaccount.New("", defaultBalance, moneyaccount.WithID(t.DestinationAccountID()))),
+		payment.WithUser(user.New(
 			"", // firstName
 			"", // lastName
 			email,
 			"", // uiLanguage
-		),
-		t.TransactionDate,
-		t.AccountingPeriod,
-		dbPayment.CreatedAt,
-		dbPayment.UpdatedAt,
+		)),
+		payment.WithTransactionDate(t.TransactionDate()),
+		payment.WithAccountingPeriod(t.AccountingPeriod()),
+		payment.WithCreatedAt(dbPayment.CreatedAt),
+		payment.WithUpdatedAt(dbPayment.UpdatedAt),
 	), nil
 }
 
-func toDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategory {
+func ToDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategory {
 	return &models.ExpenseCategory{
-		ID:               entity.ID(),
-		TenantID:         entity.TenantID().String(),
-		Name:             entity.Name(),
-		Description:      mapping.ValueToSQLNullString(entity.Description()),
-		Amount:           entity.Amount(),
-		AmountCurrencyID: string(entity.Currency().Code),
-		CreatedAt:        entity.CreatedAt(),
-		UpdatedAt:        entity.UpdatedAt(),
+		ID:          entity.ID().String(),
+		TenantID:    entity.TenantID().String(),
+		Name:        entity.Name(),
+		Description: mapping.ValueToSQLNullString(entity.Description()),
+		CreatedAt:   entity.CreatedAt(),
+		UpdatedAt:   entity.UpdatedAt(),
 	}
 }
 
-func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *coremodels.Currency) (category.ExpenseCategory, error) {
-	domainCurrency, err := corepersistence.ToDomainCurrency(dbCurrency)
-	if err != nil {
-		return nil, err
-	}
-
+func ToDomainExpenseCategory(dbCategory *models.ExpenseCategory) (category.ExpenseCategory, error) {
 	tenantID, err := uuid.Parse(dbCategory.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
 	opts := []category.Option{
-		category.WithID(dbCategory.ID),
+		category.WithID(uuid.MustParse(dbCategory.ID)),
 		category.WithTenantID(tenantID),
 		category.WithCreatedAt(dbCategory.CreatedAt),
 		category.WithUpdatedAt(dbCategory.UpdatedAt),
@@ -153,75 +184,109 @@ func toDomainExpenseCategory(dbCategory *models.ExpenseCategory, dbCurrency *cor
 
 	return category.New(
 		dbCategory.Name,
-		dbCategory.Amount,
-		domainCurrency,
 		opts...,
 	), nil
 }
 
-func toDomainMoneyAccount(dbAccount *models.MoneyAccount) (*moneyaccount.Account, error) {
-	currencyEntity, err := corepersistence.ToDomainCurrency(dbAccount.Currency)
+func ToDBPaymentCategory(entity paymentcategory.PaymentCategory) *models.PaymentCategory {
+	return &models.PaymentCategory{
+		ID:          entity.ID().String(),
+		TenantID:    entity.TenantID().String(),
+		Name:        entity.Name(),
+		Description: mapping.ValueToSQLNullString(entity.Description()),
+		CreatedAt:   entity.CreatedAt(),
+		UpdatedAt:   entity.UpdatedAt(),
+	}
+}
+
+func ToDomainPaymentCategory(dbCategory *models.PaymentCategory) (paymentcategory.PaymentCategory, error) {
+	tenantID, err := uuid.Parse(dbCategory.TenantID)
 	if err != nil {
 		return nil, err
 	}
+
+	opts := []paymentcategory.Option{
+		paymentcategory.WithID(uuid.MustParse(dbCategory.ID)),
+		paymentcategory.WithTenantID(tenantID),
+		paymentcategory.WithCreatedAt(dbCategory.CreatedAt),
+		paymentcategory.WithUpdatedAt(dbCategory.UpdatedAt),
+	}
+
+	if dbCategory.Description.Valid {
+		opts = append(opts, paymentcategory.WithDescription(dbCategory.Description.String))
+	}
+
+	return paymentcategory.New(
+		dbCategory.Name,
+		opts...,
+	), nil
+}
+
+func ToDomainMoneyAccount(dbAccount *models.MoneyAccount) (moneyaccount.Account, error) {
 	tenantID, err := uuid.Parse(dbAccount.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &moneyaccount.Account{
-		ID:            dbAccount.ID,
-		TenantID:      tenantID,
-		Name:          dbAccount.Name,
-		AccountNumber: dbAccount.AccountNumber,
-		Balance:       dbAccount.Balance,
-		Currency:      *currencyEntity,
-		Description:   dbAccount.Description,
-		CreatedAt:     dbAccount.CreatedAt,
-		UpdatedAt:     dbAccount.UpdatedAt,
-	}, nil
+	balance := money.New(dbAccount.Balance, dbAccount.BalanceCurrencyID)
+	return moneyaccount.New(
+		dbAccount.Name,
+		balance,
+		moneyaccount.WithID(uuid.MustParse(dbAccount.ID)),
+		moneyaccount.WithTenantID(tenantID),
+		moneyaccount.WithAccountNumber(dbAccount.AccountNumber),
+		moneyaccount.WithDescription(dbAccount.Description),
+		moneyaccount.WithCreatedAt(dbAccount.CreatedAt),
+		moneyaccount.WithUpdatedAt(dbAccount.UpdatedAt),
+	), nil
 }
 
-func toDBMoneyAccount(entity *moneyaccount.Account) *models.MoneyAccount {
+func ToDBMoneyAccount(entity moneyaccount.Account) *models.MoneyAccount {
+	balance := entity.Balance()
 	return &models.MoneyAccount{
-		ID:                entity.ID,
-		TenantID:          entity.TenantID.String(),
-		Name:              entity.Name,
-		AccountNumber:     entity.AccountNumber,
-		Balance:           entity.Balance,
-		BalanceCurrencyID: string(entity.Currency.Code),
-		Currency:          corepersistence.ToDBCurrency(&entity.Currency),
-		Description:       entity.Description,
-		CreatedAt:         entity.CreatedAt,
-		UpdatedAt:         entity.UpdatedAt,
+		ID:                entity.ID().String(),
+		TenantID:          entity.TenantID().String(),
+		Name:              entity.Name(),
+		AccountNumber:     entity.AccountNumber(),
+		Balance:           balance.Amount(),
+		BalanceCurrencyID: balance.Currency().Code,
+		Description:       entity.Description(),
+		CreatedAt:         entity.CreatedAt(),
+		UpdatedAt:         entity.UpdatedAt(),
 	}
 }
 
-func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (expense.Expense, error) {
-	tenantID, err := uuid.Parse(dbTransaction.TenantID)
+func ToDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (expense.Expense, error) {
+	tenantID, err := uuid.Parse(dbExpense.TenantID)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to parse tenant ID")
 	}
 
-	account := moneyaccount.Account{ID: *dbTransaction.OriginAccountID} //nolint:exhaustruct
+	// Create default money account with zero balance
+	defaultBalance := money.New(0, "USD")
+	account := moneyaccount.New(
+		"",
+		defaultBalance,
+		moneyaccount.WithID(mapping.SQLNullStringToUUID(dbTransaction.OriginAccountID)),
+	)
 	expenseCategory := category.New(
-		"",  // name - will be populated when actual category is fetched
-		0.0, // amount - will be populated when actual category is fetched
-		nil, // currency - will be populated when actual category is fetched
-		category.WithID(dbExpense.CategoryID),
+		"", // name - will be populated when actual category is fetched
+		category.WithID(uuid.MustParse(dbExpense.CategoryID)),
 		category.WithTenantID(tenantID),
 		category.WithCreatedAt(dbExpense.CreatedAt),
 		category.WithUpdatedAt(dbExpense.UpdatedAt),
 	)
 
+	// Create expense amount as negative money
+	expenseAmount := money.New(-1*dbTransaction.Amount, "USD")
 	domainExpense := expense.New(
-		-1*dbTransaction.Amount,
+		expenseAmount,
 		account,
 		expenseCategory,
 		dbTransaction.TransactionDate,
-		expense.WithID(dbExpense.ID),
+		expense.WithID(uuid.MustParse(dbExpense.ID)),
 		expense.WithComment(dbTransaction.Comment),
-		expense.WithTransactionID(dbExpense.TransactionID),
+		expense.WithTransactionID(uuid.MustParse(dbExpense.TransactionID)),
 		expense.WithAccountingPeriod(dbTransaction.AccountingPeriod),
 		expense.WithCreatedAt(dbExpense.CreatedAt),
 		expense.WithUpdatedAt(dbExpense.UpdatedAt),
@@ -230,29 +295,33 @@ func toDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 	return domainExpense, nil
 }
 
-func toDBExpense(entity expense.Expense) (*models.Expense, *transaction.Transaction) {
-	domainTransaction := &transaction.Transaction{
-		ID:                   entity.TransactionID(),
-		Amount:               -1 * entity.Amount(),
-		Comment:              entity.Comment(),
-		AccountingPeriod:     entity.AccountingPeriod(),
-		TransactionDate:      entity.Date(),
-		OriginAccountID:      mapping.Pointer(entity.Account().ID),
-		DestinationAccountID: nil,
-		TransactionType:      transaction.Withdrawal,
-		CreatedAt:            entity.CreatedAt(),
-	}
+func ToDBExpense(entity expense.Expense) (*models.Expense, transaction.Transaction) {
+	accountID := entity.Account().ID()
+	tenantID := entity.Account().TenantID()
+	// Create negative amount for withdrawal
+	withdrawalAmount := entity.Amount().Negative()
+	domainTransaction := transaction.New(
+		withdrawalAmount,
+		transaction.Withdrawal,
+		transaction.WithID(entity.TransactionID()),
+		transaction.WithTenantID(tenantID),
+		transaction.WithComment(entity.Comment()),
+		transaction.WithAccountingPeriod(entity.AccountingPeriod()),
+		transaction.WithTransactionDate(entity.Date()),
+		transaction.WithOriginAccountID(accountID),
+		transaction.WithCreatedAt(entity.CreatedAt()),
+	)
 	dbExpense := &models.Expense{
-		ID:            entity.ID(),
-		CategoryID:    entity.Category().ID(),
-		TransactionID: entity.TransactionID(),
+		ID:            entity.ID().String(),
+		CategoryID:    entity.Category().ID().String(),
+		TransactionID: entity.TransactionID().String(),
 		CreatedAt:     entity.CreatedAt(),
 		UpdatedAt:     entity.UpdatedAt(),
 	}
 	return dbExpense, domainTransaction
 }
 
-func toDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty, error) {
+func ToDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty, error) {
 	partyType, err := counterparty.NewType(dbRow.Type)
 	if err != nil {
 		return nil, err
@@ -261,26 +330,35 @@ func toDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 	if err != nil {
 		return nil, err
 	}
-	t, err := tax.NewTin(dbRow.Tin, country.Uzbekistan)
-	if err != nil {
-		return nil, err
+	var t tax.Tin = tax.NilTin
+	if dbRow.Tin.Valid && dbRow.Tin.String != "" {
+		t, err = tax.NewTin(dbRow.Tin.String, country.Uzbekistan)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return counterparty.NewWithID(
-		dbRow.ID,
-		t,
+	return counterparty.New(
 		dbRow.Name,
 		partyType,
 		legalType,
-		dbRow.LegalAddress,
-		dbRow.CreatedAt,
-		dbRow.UpdatedAt,
+		counterparty.WithID(uuid.MustParse(dbRow.ID)),
+		counterparty.WithTenantID(uuid.MustParse(dbRow.TenantID)),
+		counterparty.WithTin(t),
+		counterparty.WithLegalAddress(dbRow.LegalAddress),
+		counterparty.WithCreatedAt(dbRow.CreatedAt),
+		counterparty.WithUpdatedAt(dbRow.UpdatedAt),
 	), nil
 }
 
-func toDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, error) {
+func ToDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, error) {
+	var tin sql.NullString
+	if entity.Tin() != tax.NilTin && entity.Tin().Value() != "" {
+		tin = sql.NullString{String: entity.Tin().Value(), Valid: true}
+	}
 	return &models.Counterparty{
-		ID:           entity.ID(),
-		Tin:          entity.Tin().Value(),
+		ID:           entity.ID().String(),
+		TenantID:     entity.TenantID().String(),
+		Tin:          tin,
 		Name:         entity.Name(),
 		Type:         string(entity.Type()),
 		LegalType:    string(entity.LegalType()),
@@ -288,4 +366,67 @@ func toDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, e
 		CreatedAt:    entity.CreatedAt(),
 		UpdatedAt:    entity.UpdatedAt(),
 	}, nil
+}
+
+func ToDBInventory(entity inventory.Inventory) *models.Inventory {
+	price := entity.Price()
+	var currencyID *string
+	if price != nil && price.Currency().Code != "" {
+		code := price.Currency().Code
+		currencyID = &code
+	}
+
+	var priceAmount int64
+	if price != nil {
+		priceAmount = price.Amount()
+	}
+
+	return &models.Inventory{
+		ID:          entity.ID().String(),
+		TenantID:    entity.TenantID().String(),
+		Name:        entity.Name(),
+		Description: mapping.ValueToSQLNullString(entity.Description()),
+		CurrencyID:  mapping.PointerToSQLNullString(currencyID),
+		Price:       priceAmount,
+		Quantity:    entity.Quantity(),
+		CreatedAt:   entity.CreatedAt(),
+		UpdatedAt:   entity.UpdatedAt(),
+	}
+}
+
+func ToDomainInventory(dbInventory *models.Inventory) (inventory.Inventory, error) {
+	id, err := uuid.Parse(dbInventory.ID)
+	if err != nil {
+		return nil, err
+	}
+	tenantID, err := uuid.Parse(dbInventory.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create price Money object
+	var price *money.Money
+	if dbInventory.CurrencyID.Valid && dbInventory.CurrencyID.String != "" {
+		price = money.New(dbInventory.Price, dbInventory.CurrencyID.String)
+	} else {
+		price = money.New(dbInventory.Price, "USD") // Default currency
+	}
+
+	opts := []inventory.Option{
+		inventory.WithID(id),
+		inventory.WithTenantID(tenantID),
+		inventory.WithCreatedAt(dbInventory.CreatedAt),
+		inventory.WithUpdatedAt(dbInventory.UpdatedAt),
+	}
+
+	if dbInventory.Description.Valid {
+		opts = append(opts, inventory.WithDescription(dbInventory.Description.String))
+	}
+
+	return inventory.New(
+		dbInventory.Name,
+		price,
+		dbInventory.Quantity,
+		opts...,
+	), nil
 }

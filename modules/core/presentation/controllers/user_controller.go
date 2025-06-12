@@ -6,19 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"slices"
 	"sort"
 	"strconv"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
-
-	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/a-h/templ"
+	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
@@ -29,20 +28,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"github.com/iota-uz/iota-sdk/pkg/server"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/iota-uz/iota-sdk/pkg/validators"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/text/language"
-
-	"github.com/a-h/templ"
-	"github.com/gorilla/mux"
 )
 
 type UserRealtimeUpdates struct {
@@ -65,58 +57,32 @@ func (ru *UserRealtimeUpdates) Register() {
 	ru.app.EventPublisher().Subscribe(ru.onUserDeleted)
 }
 
-func (ru *UserRealtimeUpdates) publisherContext() (context.Context, error) {
-	localizer := i18n.NewLocalizer(ru.app.Bundle(), "en")
-	ctx := intl.WithLocalizer(
-		context.Background(),
-		localizer,
-	)
-	_url, err := url.Parse(ru.basePath)
-	if err != nil {
-		return nil, err
-	}
-	ctx = composables.WithPageCtx(ctx, &types.PageContext{
-		URL:       _url,
-		Locale:    language.English,
-		Localizer: localizer,
-	})
-	return composables.WithPool(ctx, ru.app.DB()), nil
-}
-
 func (ru *UserRealtimeUpdates) onUserCreated(event *user.CreatedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
 
-	usr, err := ru.userService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving user: %v | Event: onUserCreated", err)
-		return
-	}
-	component := users.UserCreatedEvent(mappers.UserToViewModel(usr), &base.TableRowProps{
+	component := users.UserCreatedEvent(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
 
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering user row: %v", err)
+	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render user created event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send user created event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	}); err != nil {
+		logger.WithError(err).Error("failed to broadcast user created event to websocket")
 		return
 	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 func (ru *UserRealtimeUpdates) onUserDeleted(event *user.DeletedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
 
 	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{
@@ -124,42 +90,46 @@ func (ru *UserRealtimeUpdates) onUserDeleted(event *user.DeletedEvent) {
 		},
 	})
 
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering user row: %v", err)
+	err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render user deleted event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send user deleted event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	})
+	if err != nil {
+		logger.WithError(err).Error("failed to broadcast user deleted event to websocket")
 		return
 	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 func (ru *UserRealtimeUpdates) onUserUpdated(event *user.UpdatedEvent) {
 	logger := configuration.Use().Logger()
-	ctx, err := ru.publisherContext()
-	if err != nil {
-		logger.Errorf("Error creating publisher context: %v", err)
-		return
-	}
 
-	usr, err := ru.userService.GetByID(ctx, event.Result.ID())
-	if err != nil {
-		logger.Errorf("Error retrieving user: %v", err)
-		return
-	}
-
-	component := users.UserRow(mappers.UserToViewModel(usr), &base.TableRowProps{
+	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
 
-	var buf bytes.Buffer
-	if err := component.Render(ctx, &buf); err != nil {
-		logger.Errorf("Error rendering user row: %v", err)
+	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		var buf bytes.Buffer
+		if err := component.Render(connCtx, &buf); err != nil {
+			logger.WithError(err).Error("failed to render user updated event for websocket")
+			return nil // Continue processing other connections
+		}
+		if err := conn.SendMessage(buf.Bytes()); err != nil {
+			logger.WithError(err).Error("failed to send user updated event to websocket connection")
+			return nil // Continue processing other connections
+		}
+		return nil
+	}); err != nil {
+		logger.WithError(err).Error("failed to broadcast user updated event to websocket")
 		return
 	}
-
-	wsHub := server.WsHub()
-	wsHub.BroadcastToAll(buf.Bytes())
 }
 
 type UsersController struct {
@@ -255,13 +225,6 @@ func (c *UsersController) Users(
 	params := composables.UsePaginated(r)
 	groupIDs := r.URL.Query()["groupID"]
 
-	tenant, err := composables.UseTenant(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	// Create find params using the query service types
 	findParams := &query.FindParams{
 		Limit:  params.Limit,
@@ -274,13 +237,8 @@ func (c *UsersController) Users(
 				},
 			},
 		},
-		Search: r.URL.Query().Get("Search"),
-		Filters: []query.Filter{
-			{
-				Column: query.FieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
-			},
-		},
+		Search:  r.URL.Query().Get("Search"),
+		Filters: []query.Filter{},
 	}
 
 	// Add group filter if specified
@@ -334,12 +292,7 @@ func (c *UsersController) Users(
 				{Field: query.GroupFieldName, Ascending: true},
 			},
 		},
-		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
-			},
-		},
+		Filters: []query.GroupFilter{},
 	}
 	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
@@ -386,13 +339,6 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	tenant, err := composables.UseTenant(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -402,14 +348,9 @@ func (c *UsersController) GetEdit(
 
 	// Use GroupQueryService to fetch all groups
 	groupParams := &query.GroupFindParams{
-		Limit:  1000, // Large limit to fetch all groups
-		Offset: 0,
-		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
-			},
-		},
+		Limit:   1000, // Large limit to fetch all groups
+		Offset:  0,
+		Filters: []query.GroupFilter{},
 	}
 	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
@@ -442,13 +383,6 @@ func (c *UsersController) GetNew(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) {
-	tenant, err := composables.UseTenant(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving tenant from request: %v", err)
-		http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-		return
-	}
-
 	roles, err := roleService.GetAll(r.Context())
 	if err != nil {
 		logger.Errorf("Error retrieving roles: %v", err)
@@ -458,14 +392,9 @@ func (c *UsersController) GetNew(
 
 	// Use GroupQueryService to fetch all groups
 	groupParams := &query.GroupFindParams{
-		Limit:  1000, // Large limit to fetch all groups
-		Offset: 0,
-		Filters: []query.GroupFilter{
-			{
-				Column: query.GroupFieldTenantID,
-				Filter: repo.Eq(tenant.ID.String()),
-			},
-		},
+		Limit:   1000, // Large limit to fetch all groups
+		Offset:  0,
+		Filters: []query.GroupFilter{},
 	}
 	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
 	if err != nil {
@@ -495,13 +424,6 @@ func (c *UsersController) Create(
 	respondWithForm := func(errors map[string]string, dto *dtos.CreateUserDTO) {
 		ctx := r.Context()
 
-		tenant, err := composables.UseTenant(ctx)
-		if err != nil {
-			logger.Errorf("Error retrieving tenant from request: %v", err)
-			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-			return
-		}
-
 		roles, err := roleService.GetAll(ctx)
 		if err != nil {
 			logger.Errorf("Error retrieving roles: %v", err)
@@ -511,14 +433,9 @@ func (c *UsersController) Create(
 
 		// Use GroupQueryService to fetch all groups
 		groupParams := &query.GroupFindParams{
-			Limit:  1000, // Large limit to fetch all groups
-			Offset: 0,
-			Filters: []query.GroupFilter{
-				{
-					Column: query.GroupFieldTenantID,
-					Filter: repo.Eq(tenant.ID.String()),
-				},
-			},
+			Limit:   1000, // Large limit to fetch all groups
+			Offset:  0,
+			Filters: []query.GroupFilter{},
 		}
 		groups, _, err := groupQueryService.FindGroups(ctx, groupParams)
 		if err != nil {
@@ -567,7 +484,14 @@ func (c *UsersController) Create(
 		return
 	}
 
-	userEntity, err := dto.ToEntity(composables.MustUseUser(r.Context()).TenantID())
+	tenantID, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		logger.Errorf("Error getting tenant: %v", err)
+		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
+		return
+	}
+
+	userEntity, err := dto.ToEntity(tenantID)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -621,13 +545,6 @@ func (c *UsersController) Update(
 	}
 
 	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
-		tenant, err := composables.UseTenant(ctx)
-		if err != nil {
-			logger.Errorf("Error retrieving tenant from request: %v", err)
-			http.Error(w, "Error retrieving tenant", http.StatusBadRequest)
-			return
-		}
-
 		us, err := userService.GetByID(ctx, id)
 		if err != nil {
 			logger.Errorf("Error retrieving user: %v", err)
@@ -651,14 +568,9 @@ func (c *UsersController) Update(
 
 		// Use GroupQueryService to fetch all groups
 		groupParams := &query.GroupFindParams{
-			Limit:  1000, // Large limit to fetch all groups
-			Offset: 0,
-			Filters: []query.GroupFilter{
-				{
-					Column: query.GroupFieldTenantID,
-					Filter: repo.Eq(tenant.ID.String()),
-				},
-			},
+			Limit:   1000, // Large limit to fetch all groups
+			Offset:  0,
+			Filters: []query.GroupFilter{},
 		}
 		groups, _, err := groupQueryService.FindGroups(ctx, groupParams)
 		if err != nil {

@@ -4,8 +4,8 @@ type Counterparty struct {
 	ID           string
 	TIN          string
 	Name         string
-	Type         string
-	LegalType    string
+	Type         CounterpartyType
+	LegalType    CounterpartyLegalType
 	LegalAddress string
 	CreatedAt    string
 	UpdatedAt    string

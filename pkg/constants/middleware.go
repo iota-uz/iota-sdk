@@ -21,7 +21,7 @@ const (
 	RequestStart    ContextKey = "requestStart"
 
 	PageContext ContextKey = "pageContext"
-	TenantKey   ContextKey = "tenant"
+	TenantIDKey ContextKey = "tenant"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())

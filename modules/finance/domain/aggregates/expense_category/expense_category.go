@@ -4,13 +4,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 )
 
 type Option func(e *expenseCategory)
 
 // Option setters
-func WithID(id uint) Option {
+func WithID(id uuid.UUID) Option {
 	return func(e *expenseCategory) {
 		e.id = id
 	}
@@ -25,18 +24,6 @@ func WithName(name string) Option {
 func WithDescription(description string) Option {
 	return func(e *expenseCategory) {
 		e.description = description
-	}
-}
-
-func WithAmount(amount float64) Option {
-	return func(e *expenseCategory) {
-		e.amount = amount
-	}
-}
-
-func WithCurrency(currency *currency.Currency) Option {
-	return func(e *expenseCategory) {
-		e.currency = currency
 	}
 }
 
@@ -60,32 +47,26 @@ func WithTenantID(tenantID uuid.UUID) Option {
 
 // Interface
 type ExpenseCategory interface {
-	ID() uint
+	ID() uuid.UUID
 	TenantID() uuid.UUID
 	Name() string
 	Description() string
-	Amount() float64
-	Currency() *currency.Currency
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
-
-	UpdateAmount(a float64) ExpenseCategory
+	UpdateName(name string) ExpenseCategory
+	UpdateDescription(description string) ExpenseCategory
 }
 
 // Implementation
 func New(
 	name string,
-	amount float64,
-	currency *currency.Currency,
 	opts ...Option,
 ) ExpenseCategory {
 	e := &expenseCategory{
-		id:          0,
+		id:          uuid.New(),
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "", // description is optional
-		amount:      amount,
-		currency:    currency,
 		createdAt:   time.Now(),
 		updatedAt:   time.Now(),
 	}
@@ -96,17 +77,15 @@ func New(
 }
 
 type expenseCategory struct {
-	id          uint
+	id          uuid.UUID
 	tenantID    uuid.UUID
 	name        string
 	description string
-	amount      float64
-	currency    *currency.Currency
 	createdAt   time.Time
 	updatedAt   time.Time
 }
 
-func (e *expenseCategory) ID() uint {
+func (e *expenseCategory) ID() uuid.UUID {
 	return e.id
 }
 
@@ -122,31 +101,25 @@ func (e *expenseCategory) Description() string {
 	return e.description
 }
 
-func (e *expenseCategory) Amount() float64 {
-	return e.amount
-}
-
-func (e *expenseCategory) UpdateAmount(a float64) ExpenseCategory {
-	return New(
-		e.name,
-		a,
-		e.currency,
-		WithID(e.id),
-		WithTenantID(e.tenantID),
-		WithDescription(e.description),
-		WithCreatedAt(e.createdAt),
-		WithUpdatedAt(time.Now()),
-	)
-}
-
-func (e *expenseCategory) Currency() *currency.Currency {
-	return e.currency
-}
-
 func (e *expenseCategory) CreatedAt() time.Time {
 	return e.createdAt
 }
 
 func (e *expenseCategory) UpdatedAt() time.Time {
 	return e.updatedAt
+}
+
+// Update methods
+func (e *expenseCategory) UpdateName(name string) ExpenseCategory {
+	result := *e
+	result.name = name
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (e *expenseCategory) UpdateDescription(description string) ExpenseCategory {
+	result := *e
+	result.description = description
+	result.updatedAt = time.Now()
+	return &result
 }
