@@ -3,7 +3,7 @@ package controllers
 import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/crud_v2"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"net/http"
 )
@@ -11,18 +11,20 @@ import (
 type CrudController[TEntity any] struct {
 	basePath string
 	app      application.Application
-	builder  crud_v2.Builder[TEntity]
+	schema   crud.Schema[TEntity]
+	service  crud.Service[TEntity]
 }
 
 func NewCrudController[TEntity any](
 	basePath string,
 	app application.Application,
-	builder crud_v2.Builder[TEntity],
+	builder crud.Builder[TEntity],
 ) application.Controller {
 	return &CrudController[TEntity]{
 		basePath: basePath,
 		app:      app,
-		builder:  builder,
+		schema:   builder.Schema(),
+		service:  builder.Service(),
 	}
 }
 
