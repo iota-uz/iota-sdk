@@ -22,14 +22,14 @@ templ AccountsTable(props *IndexPageProps) {
 	<div class="flex flex-col gap-4 table-wrapper">
 		if len(props.Accounts) == 0 {
 			@base.TableEmptyState(base.TableEmptyStateProps{
-				Title:       pageCtx.T("Accounts.List.NoAccounts.Title"),
-				Description: pageCtx.T("Accounts.List.NoAccounts._Description"),
+				Title:       pageCtx.T("MoneyAccounts.List.NoAccounts.Title"),
+				Description: pageCtx.T("MoneyAccounts.List.NoAccounts._Description"),
 			})
 		} else {
 			@base.Table(base.TableProps{
 				Columns: []*base.TableColumn{
-					{Label: pageCtx.T("Accounts.List.Name"), Key: "name"},
-					{Label: pageCtx.T("Accounts.List.Balance"), Key: "balance"},
+					{Label: pageCtx.T("MoneyAccounts.List.Name"), Key: "name"},
+					{Label: pageCtx.T("MoneyAccounts.List.Balance"), Key: "balance"},
 					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 					{Label: pageCtx.T("Actions"), Class: "w-16"},
 				},
@@ -84,7 +84,7 @@ templ AccountsContent(props *IndexPageProps) {
 				@filters.Default(&filters.Props{
 					Fields: []filters.SearchField{
 						{
-							Label: pageCtx.T("Accounts.List.Name"),
+							Label: pageCtx.T("MoneyAccounts.List.Name"),
 							Key:   "name",
 						},
 					},
@@ -93,7 +93,7 @@ templ AccountsContent(props *IndexPageProps) {
 					Size: button.SizeNormal, Href: "/finance/accounts/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
 				}) {
-					{ pageCtx.T("Accounts.List.New") }
+					{ pageCtx.T("MoneyAccounts.List.New") }
 				}
 			</form>
 			@AccountsTable(props)
@@ -104,7 +104,7 @@ templ AccountsContent(props *IndexPageProps) {
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Accounts.Meta.List.Title")},
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("MoneyAccounts.Meta.List.Title")},
 	}) {
 		@AccountsContent(props)
 	}

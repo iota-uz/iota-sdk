@@ -165,6 +165,10 @@ func (c *MoneyAccountController) Delete(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
