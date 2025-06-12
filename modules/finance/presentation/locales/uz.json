@@ -6,7 +6,8 @@
     "Payments": "To'lovlar",
     "PaymentCategories": "To'lov kategoriyalari",
     "Finances": "Moliya",
-    "Counterparties": "Kontragentlar"
+    "Counterparties": "Kontragentlar",
+    "Inventory": "Ombor"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -251,6 +252,42 @@
       "_Description": "Tavsif",
       "Delete": "To'lov kategoriyasini o'chirish",
       "DeleteConfirmation": "Ushbu to'lov kategoriyasini o'chirishni xohlaysizmi?"
+    }
+  },
+  "Inventory": {
+    "Meta": {
+      "List": {
+        "Title": "Ombor"
+      },
+      "Edit": {
+        "Title": "Tovarni tahrirlash"
+      },
+      "New": {
+        "Title": "Tovar qo'shish"
+      }
+    },
+    "List": {
+      "New": "Tovar qo'shish",
+      "Name": "Nomi",
+      "Price": "Narxi",
+      "Quantity": "Miqdori",
+      "NoInventory": {
+        "Title": "Tovarlar topilmadi",
+        "_Description": "Hali omborxonada tovarlar yo'q. Yangi yaratish uchun 'Tovar qo'shish' tugmasini bosing."
+      }
+    },
+    "Single": {
+      "Edit": "Tovarni tahrirlash",
+      "Name": "Nomi",
+      "Price": "Narxi",
+      "Quantity": "Miqdori",
+      "Currency": {
+        "Label": "Valyuta",
+        "Placeholder": "Valyutani tanlang"
+      },
+      "_Description": "Tavsif",
+      "Delete": "Tovarni o'chirish",
+      "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
     }
   }
 }

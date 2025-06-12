@@ -6,7 +6,8 @@
     "ExpenseCategories": "Expense categories",
     "Payments": "Payments",
     "PaymentCategories": "Payment categories",
-    "Counterparties": "Counterparties"
+    "Counterparties": "Counterparties",
+    "Inventory": "Inventory"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -251,6 +252,42 @@
       "_Description": "Description",
       "Delete": "Delete payment category",
       "DeleteConfirmation": "Are you sure you want to delete this payment category?"
+    }
+  },
+  "Inventory": {
+    "Meta": {
+      "List": {
+        "Title": "Inventory"
+      },
+      "Edit": {
+        "Title": "Edit inventory item"
+      },
+      "New": {
+        "Title": "Add inventory item"
+      }
+    },
+    "List": {
+      "New": "Add inventory item",
+      "Name": "Name",
+      "Price": "Price",
+      "Quantity": "Quantity",
+      "NoInventory": {
+        "Title": "No inventory items found",
+        "_Description": "There are no inventory items yet. Click 'Add inventory item' to create one."
+      }
+    },
+    "Single": {
+      "Edit": "Edit inventory item",
+      "Name": "Name",
+      "Price": "Price",
+      "Quantity": "Quantity",
+      "Currency": {
+        "Label": "Currency",
+        "Placeholder": "Select currency"
+      },
+      "_Description": "Description",
+      "Delete": "Delete inventory item",
+      "DeleteConfirmation": "Are you sure you want to delete this inventory item?"
     }
   }
 }

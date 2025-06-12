@@ -40,6 +40,7 @@ type testFixtures struct {
 	publisher       eventbus.EventBus
 	paymentsService *services.PaymentService
 	accountService  *services.MoneyAccountService
+	tenantID        uuid.UUID
 }
 
 // setupTest creates all necessary dependencies for tests
@@ -50,19 +51,11 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
 
 	ctx := composables.WithUser(context.Background(), testutils.MockUser(permissions...))
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	t.Cleanup(func() {
-		if err := tx.Commit(ctx); err != nil {
-			t.Fatal(err)
-		}
 		pool.Close()
 	})
 
-	ctx = composables.WithTx(ctx, tx)
 	ctx = composables.WithPool(ctx, pool)
 	ctx = composables.WithSession(ctx, &session.Session{})
 
@@ -87,6 +80,7 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 		publisher:       publisher,
 		paymentsService: app.Service(services.PaymentService{}).(*services.PaymentService),
 		accountService:  app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		tenantID:        tenant.ID,
 	}
 }
 
@@ -117,13 +111,13 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) (moneyacc
 		t.Fatal(err)
 	}
 
-	// Create account
+	// Create account through service
 	account := moneyaccount.New(
 		"Test",
 		money.New(10000, "USD"),
 		moneyaccount.WithAccountNumber("123"),
 	)
-	err := f.accountService.Create(ctx, account)
+	account, err := f.accountService.Create(ctx, account)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,13 +157,14 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	account, createdCounterparty := setupTestData(f.ctx, t, f)
 	accountRepository := persistence.NewMoneyAccountRepository()
 
-	// Create payment category
-	category := paymentcategory.New("Test Category")
+	// Create payment category with tenant ID
+	category := paymentcategory.New("Test Category", paymentcategory.WithTenantID(f.tenantID))
 
 	// Create payment entity
 	paymentEntity := payment.New(
 		money.New(10000, "USD"),
 		category,
+		payment.WithTenantID(f.tenantID),
 		payment.WithCounterpartyID(createdCounterparty.ID()),
 		payment.WithTransactionDate(time.Now()),
 		payment.WithAccountingPeriod(time.Now()),

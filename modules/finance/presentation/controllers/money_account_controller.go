@@ -283,7 +283,7 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := c.moneyAccountService.Create(r.Context(), entity); err != nil {
+	if _, err := c.moneyAccountService.Create(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

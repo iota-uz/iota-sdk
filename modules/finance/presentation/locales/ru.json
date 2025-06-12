@@ -6,7 +6,8 @@
     "Payments": "Платежи",
     "PaymentCategories": "Категории платежей",
     "Finances": "Финансы",
-    "Counterparties": "Контрагенты"
+    "Counterparties": "Контрагенты",
+    "Inventory": "Склад"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -251,6 +252,42 @@
       "_Description": "Описание",
       "Delete": "Удалить категорию платежей",
       "DeleteConfirmation": "Вы уверены что хотите удалить эту категорию платежей?"
+    }
+  },
+  "Inventory": {
+    "Meta": {
+      "List": {
+        "Title": "Склад"
+      },
+      "Edit": {
+        "Title": "Редактировать товар"
+      },
+      "New": {
+        "Title": "Добавить товар"
+      }
+    },
+    "List": {
+      "New": "Добавить товар",
+      "Name": "Название",
+      "Price": "Цена",
+      "Quantity": "Количество",
+      "NoInventory": {
+        "Title": "Товары не найдены",
+        "_Description": "Пока нет товаров на складе. Нажмите 'Добавить товар', чтобы создать новый."
+      }
+    },
+    "Single": {
+      "Edit": "Редактировать товар",
+      "Name": "Название",
+      "Price": "Цена",
+      "Quantity": "Количество",
+      "Currency": {
+        "Label": "Валюта",
+        "Placeholder": "Выберите валюту"
+      },
+      "_Description": "Описание",
+      "Delete": "Удалить товар",
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот товар?"
     }
   }
 }
