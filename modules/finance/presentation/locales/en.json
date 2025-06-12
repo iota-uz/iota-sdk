@@ -192,7 +192,7 @@
       "SRL": "SRL"
     }
   },
-  "Accounts": {
+  "MoneyAccounts": {
     "Meta": {
       "List": {
         "Title": "Accounts"
@@ -217,6 +217,7 @@
       "Edit": "Edit account",
       "Name": "Name",
       "Balance": "Balance",
+      "CurrencyCode": "Currency",
       "Currency": {
         "Label": "Currency",
         "Placeholder": "Choose currency"

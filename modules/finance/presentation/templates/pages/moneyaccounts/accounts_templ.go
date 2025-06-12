@@ -53,8 +53,8 @@ func AccountsTable(props *IndexPageProps) templ.Component {
 		}
 		if len(props.Accounts) == 0 {
 			templ_7745c5c3_Err = base.TableEmptyState(base.TableEmptyStateProps{
-				Title:       pageCtx.T("Accounts.List.NoAccounts.Title"),
-				Description: pageCtx.T("Accounts.List.NoAccounts._Description"),
+				Title:       pageCtx.T("MoneyAccounts.List.NoAccounts.Title"),
+				Description: pageCtx.T("MoneyAccounts.List.NoAccounts._Description"),
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -242,8 +242,8 @@ func AccountsTable(props *IndexPageProps) templ.Component {
 			})
 			templ_7745c5c3_Err = base.Table(base.TableProps{
 				Columns: []*base.TableColumn{
-					{Label: pageCtx.T("Accounts.List.Name"), Key: "name"},
-					{Label: pageCtx.T("Accounts.List.Balance"), Key: "balance"},
+					{Label: pageCtx.T("MoneyAccounts.List.Name"), Key: "name"},
+					{Label: pageCtx.T("MoneyAccounts.List.Balance"), Key: "balance"},
 					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
 					{Label: pageCtx.T("Actions"), Class: "w-16"},
 				},
@@ -312,7 +312,7 @@ func AccountsContent(props *IndexPageProps) templ.Component {
 		templ_7745c5c3_Err = filters.Default(&filters.Props{
 			Fields: []filters.SearchField{
 				{
-					Label: pageCtx.T("Accounts.List.Name"),
+					Label: pageCtx.T("MoneyAccounts.List.Name"),
 					Key:   "name",
 				},
 			},
@@ -333,9 +333,9 @@ func AccountsContent(props *IndexPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var15 string
-			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Accounts.List.New"))
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("MoneyAccounts.List.New"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/accounts.templ`, Line: 96, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/accounts.templ`, Line: 96, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -407,7 +407,7 @@ func Index(props *IndexPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			BaseProps: layouts.BaseProps{Title: pageCtx.T("Accounts.Meta.List.Title")},
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("MoneyAccounts.Meta.List.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
