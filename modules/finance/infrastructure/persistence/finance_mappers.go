@@ -228,7 +228,7 @@ func ToDomainMoneyAccount(dbAccount *models.MoneyAccount) (moneyaccount.Account,
 		return nil, err
 	}
 
-	balance := money.New(dbAccount.Balance, string(dbAccount.BalanceCurrencyID))
+	balance := money.New(dbAccount.Balance, dbAccount.BalanceCurrencyID)
 	return moneyaccount.New(
 		dbAccount.Name,
 		balance,
