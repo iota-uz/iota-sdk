@@ -103,6 +103,7 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 	}
 	dbPayment := &models.Payment{
 		ID:             entity.ID().String(),
+		TenantID:       entity.TenantID().String(),
 		TransactionID:  entity.TransactionID().String(),
 		CounterpartyID: entity.CounterpartyID().String(),
 		CreatedAt:      entity.CreatedAt(),

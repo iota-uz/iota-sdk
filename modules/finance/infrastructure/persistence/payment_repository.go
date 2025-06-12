@@ -37,12 +37,13 @@ const (
 	paymentCountQuery  = `SELECT COUNT(*) as count FROM payments p LEFT JOIN transactions t ON t.id = p.transaction_id WHERE t.tenant_id = $1`
 	paymentInsertQuery = `
 	INSERT INTO payments (
+		tenant_id,
 		counterparty_id,
 		transaction_id,
 		created_at,
 		updated_at
 	)
-	VALUES ($1, $2, $3, $4) RETURNING id`
+	VALUES ($1, $2, $3, $4, $5) RETURNING id`
 	paymentUpdateQuery        = `UPDATE payments SET counterparty_id = $1, updated_at = $2 WHERE id = $3`
 	paymentDeleteRelatedQuery = `DELETE FROM transactions WHERE id = $1 AND tenant_id = $2`
 	paymentDeleteQuery        = `DELETE FROM payments WHERE id = $1`
@@ -153,6 +154,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 	row := tx.QueryRow(
 		ctx,
 		paymentInsertQuery,
+		dbPayment.TenantID,
 		dbPayment.CounterpartyID,
 		dbPayment.TransactionID,
 		dbPayment.CreatedAt,

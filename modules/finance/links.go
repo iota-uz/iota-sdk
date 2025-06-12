@@ -42,6 +42,12 @@ var (
 		Permissions: nil,
 		Children:    nil,
 	}
+	InventoryItem = types.NavigationItem{
+		Name:        "NavigationLinks.Inventory",
+		Href:        "/finance/inventory",
+		Permissions: nil,
+		Children:    nil,
+	}
 )
 
 var FinanceItem = types.NavigationItem{
@@ -55,6 +61,7 @@ var FinanceItem = types.NavigationItem{
 		ExpensesItem,
 		AccountsItem,
 		CounterpartiesItem,
+		InventoryItem,
 	},
 }
 

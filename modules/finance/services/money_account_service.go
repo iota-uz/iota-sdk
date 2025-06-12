@@ -48,10 +48,10 @@ func (s *MoneyAccountService) RecalculateBalance(ctx context.Context, id uuid.UU
 	return s.repo.RecalculateBalance(ctx, id)
 }
 
-func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Account) error {
+func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Account) (moneyaccount.Account, error) {
 	createdEvent, err := moneyaccount.NewCreatedEvent(ctx, entity, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var createdEntity moneyaccount.Account
@@ -66,12 +66,12 @@ func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Ac
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	createdEvent.Result = createdEntity
 	s.publisher.Publish(createdEvent)
-	return nil
+	return createdEntity, nil
 }
 
 func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Account) error {

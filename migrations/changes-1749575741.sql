@@ -185,13 +185,15 @@ ALTER TABLE expenses
     ALTER COLUMN id SET DEFAULT gen_random_uuid ();
 
 ALTER TABLE expenses
-    ALTER COLUMN transaction_id TYPE uuid;
+    ALTER COLUMN transaction_id TYPE uuid
+    USING gen_random_uuid ();
 
 ALTER TABLE expenses
     ALTER COLUMN transaction_id SET DEFAULT gen_random_uuid ();
 
 ALTER TABLE expenses
-    ALTER COLUMN category_id TYPE uuid;
+    ALTER COLUMN category_id TYPE uuid
+    USING gen_random_uuid ();
 
 ALTER TABLE expenses
     ALTER COLUMN category_id SET DEFAULT gen_random_uuid ();
@@ -218,6 +220,10 @@ CREATE TABLE payment_categories (
 
 -- Change CREATE_INDEX: idx_payment_categories_tenant_id
 CREATE INDEX idx_payment_categories_tenant_id ON payment_categories (tenant_id);
+
+-- Add payment_category_id column to payments table
+ALTER TABLE payments
+    ADD COLUMN payment_category_id uuid REFERENCES payment_categories (id) ON DELETE SET NULL;
 
 -- Change ALTER_TABLE: payments - change id and foreign keys to uuid
 ALTER TABLE payments
@@ -253,6 +259,9 @@ ALTER TABLE payments
 
 -- +migrate Down
 -- Undo payments table changes
+ALTER TABLE payments
+    DROP COLUMN IF EXISTS payment_category_id;
+
 ALTER TABLE payments
     DROP COLUMN IF EXISTS tenant_id;
 
