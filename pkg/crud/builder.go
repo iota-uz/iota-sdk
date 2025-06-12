@@ -1,4 +1,4 @@
-package crud_v2
+package crud
 
 import "github.com/iota-uz/iota-sdk/pkg/eventbus"
 
