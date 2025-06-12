@@ -53,13 +53,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	bundle := application.LoadBundle()
 	app := application.New(&application.ApplicationOptions{
 		Pool:     pool,
+		Bundle:   bundle,
 		EventBus: eventbus.NewEventPublisher(logger),
 		Logger:   logger,
 		Huber: application.NewHub(&application.HuberOptions{
 			Pool:           pool,
 			Logger:         logger,
+			Bundle:         bundle,
 			UserRepository: persistence.NewUserRepository(persistence.NewUploadRepository()),
 			CheckOrigin: func(r *http.Request) bool {
 				return true
