@@ -39,7 +39,7 @@ func (s *TransactionService) GetPaginated(
 }
 
 func (s *TransactionService) Create(ctx context.Context, data transaction2.Transaction) error {
-	if err := s.repo.Create(ctx, data); err != nil {
+	if _, err := s.repo.Create(ctx, data); err != nil {
 		return err
 	}
 	s.eventPublisher.Publish("transaction.created", data)
@@ -47,7 +47,7 @@ func (s *TransactionService) Create(ctx context.Context, data transaction2.Trans
 }
 
 func (s *TransactionService) Update(ctx context.Context, data transaction2.Transaction) error {
-	if err := s.repo.Update(ctx, data); err != nil {
+	if _, err := s.repo.Update(ctx, data); err != nil {
 		return err
 	}
 	s.eventPublisher.Publish("transaction.updated", data)

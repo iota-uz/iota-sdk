@@ -58,7 +58,7 @@ const (
 			birth_date,
 			hire_date,
 			resignation_date
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 
 	employeeUpdateQuery = `
 		UPDATE employees

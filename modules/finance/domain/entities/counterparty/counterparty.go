@@ -11,6 +11,8 @@ type Counterparty interface {
 	ID() uuid.UUID
 	SetID(uuid.UUID)
 
+	TenantID() uuid.UUID
+
 	Tin() tax.Tin
 	SetTin(t tax.Tin)
 

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 )
 
@@ -16,7 +17,7 @@ func NewCounterpartyService(repo counterparty.Repository) *CounterpartyService {
 	}
 }
 
-func (s *CounterpartyService) GetByID(ctx context.Context, id uint) (counterparty.Counterparty, error) {
+func (s *CounterpartyService) GetByID(ctx context.Context, id uuid.UUID) (counterparty.Counterparty, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -28,24 +29,16 @@ func (s *CounterpartyService) GetPaginated(ctx context.Context, params *counterp
 	return s.repo.GetPaginated(ctx, params)
 }
 
-//
-//func (s *CounterpartyService) Create(ctx context.Context, data counterparty.CreateDTO) error {
-//	entity, err := data.Apply()
-//	if err != nil {
-//		return err
-//	}
-//	return s.repo.Create(ctx, entity)
-//}
-//
-//func (s *CounterpartyService) Update(ctx context.Context, id uint, data counterparty.UpdateDTO) error {
-//	entity, err := data.Apply(id)
-//	if err != nil {
-//		return err
-//	}
-//	return s.repo.Update(ctx, entity)
-//}
+func (s *CounterpartyService) Create(ctx context.Context, entity counterparty.Counterparty) (counterparty.Counterparty, error) {
+	return s.repo.Create(ctx, entity)
+}
 
-func (s *CounterpartyService) Delete(ctx context.Context, id uint) (counterparty.Counterparty, error) {
+func (s *CounterpartyService) Update(ctx context.Context, entity counterparty.Counterparty) error {
+	_, err := s.repo.Update(ctx, entity)
+	return err
+}
+
+func (s *CounterpartyService) Delete(ctx context.Context, id uuid.UUID) (counterparty.Counterparty, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -56,6 +49,6 @@ func (s *CounterpartyService) Delete(ctx context.Context, id uint) (counterparty
 	return entity, nil
 }
 
-func (s *CounterpartyService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *CounterpartyService) Count(ctx context.Context, params *counterparty.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }

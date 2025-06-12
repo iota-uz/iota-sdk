@@ -7,48 +7,82 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 )
 
-func NewWithID(
-	id uuid.UUID,
-	tin tax.Tin,
-	name string,
-	partyType Type,
-	legalType LegalType,
-	legalAddress string,
-	createdAt, updatedAt time.Time,
-) Counterparty {
-	return &counterparty{
-		id:           id,
-		tin:          tin,
-		name:         name,
-		partyType:    partyType,
-		legalType:    legalType,
-		legalAddress: legalAddress,
-		createdAt:    createdAt,
-		updatedAt:    updatedAt,
+type Option func(c *counterparty)
+
+func WithID(id uuid.UUID) Option {
+	return func(c *counterparty) {
+		c.id = id
+	}
+}
+
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(c *counterparty) {
+		c.tenantID = tenantID
+	}
+}
+
+func WithTin(tin tax.Tin) Option {
+	return func(c *counterparty) {
+		c.tin = tin
+	}
+}
+
+func WithType(partyType Type) Option {
+	return func(c *counterparty) {
+		c.partyType = partyType
+	}
+}
+
+func WithLegalType(legalType LegalType) Option {
+	return func(c *counterparty) {
+		c.legalType = legalType
+	}
+}
+
+func WithLegalAddress(legalAddress string) Option {
+	return func(c *counterparty) {
+		c.legalAddress = legalAddress
+	}
+}
+
+func WithCreatedAt(createdAt time.Time) Option {
+	return func(c *counterparty) {
+		c.createdAt = createdAt
+	}
+}
+
+func WithUpdatedAt(updatedAt time.Time) Option {
+	return func(c *counterparty) {
+		c.updatedAt = updatedAt
 	}
 }
 
 func New(
-	tin tax.Tin,
 	name string,
 	partyType Type,
 	legalType LegalType,
-	legalAddress string,
+	opts ...Option,
 ) Counterparty {
-	return NewWithID(
-		uuid.Nil,
-		tin,
-		name,
-		partyType,
-		legalType,
-		legalAddress,
-		time.Now(),
-		time.Now(),
-	)
+	c := &counterparty{
+		id:        uuid.New(),
+		tenantID:  uuid.Nil,
+		tin:       tax.NilTin,
+		name:      name,
+		partyType: partyType,
+		legalType: legalType,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
+	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 type counterparty struct {
 	id           uuid.UUID
+	tenantID     uuid.UUID
 	tin          tax.Tin
 	name         string
 	partyType    Type
@@ -64,6 +98,10 @@ func (c *counterparty) ID() uuid.UUID {
 
 func (c *counterparty) SetID(id uuid.UUID) {
 	c.id = id
+}
+
+func (c *counterparty) TenantID() uuid.UUID {
+	return c.tenantID
 }
 
 func (c *counterparty) Tin() tax.Tin {

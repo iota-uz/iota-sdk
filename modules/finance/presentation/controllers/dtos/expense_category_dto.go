@@ -2,29 +2,25 @@ package dtos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type ExpenseCategoryCreateDTO struct {
-	Name         string  `validate:"required"`
-	Amount       float64 `validate:"required,gt=0"`
-	CurrencyCode string  `validate:"required,len=3"`
-	Description  string
+	Name        string `validate:"required"`
+	Description string
 }
 
 type ExpenseCategoryUpdateDTO struct {
-	Name         string
-	Amount       float64 `validate:"gt=0"`
-	CurrencyCode string  `validate:"len=3"`
-	Description  string
+	Name        string
+	Description string
 }
 
 func (e *ExpenseCategoryCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -75,30 +71,31 @@ func (e *ExpenseCategoryUpdateDTO) Ok(ctx context.Context) (map[string]string, b
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (e *ExpenseCategoryCreateDTO) ToEntity() (category.ExpenseCategory, error) {
-	code, err := currency.NewCode(e.CurrencyCode)
-	if err != nil {
-		return nil, err
-	}
-
+func (e *ExpenseCategoryCreateDTO) ToEntity(tenantID uuid.UUID) (category.ExpenseCategory, error) {
 	return category.New(
 		e.Name,
-		e.Amount,
-		&currency.Currency{Code: code},
+		category.WithTenantID(tenantID),
 		category.WithDescription(e.Description),
 	), nil
 }
 
-func (e *ExpenseCategoryUpdateDTO) ToEntity(id uuid.UUID) (category.ExpenseCategory, error) {
-	code, err := currency.NewCode(e.CurrencyCode)
-	if err != nil {
-		return nil, err
-	}
+func (e *ExpenseCategoryUpdateDTO) ToEntity(id uuid.UUID, tenantID uuid.UUID) (category.ExpenseCategory, error) {
 	return category.New(
 		e.Name,
-		e.Amount,
-		&currency.Currency{Code: code},
 		category.WithID(id),
+		category.WithTenantID(tenantID),
 		category.WithDescription(e.Description),
 	), nil
+}
+
+func (e *ExpenseCategoryUpdateDTO) Apply(existing category.ExpenseCategory) (category.ExpenseCategory, error) {
+	if existing.ID() == uuid.Nil {
+		return nil, errors.New("id cannot be nil")
+	}
+
+	existing = existing.
+		UpdateName(e.Name).
+		UpdateDescription(e.Description)
+
+	return existing, nil
 }

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
 type Option func(t *transaction)
@@ -63,19 +64,19 @@ func WithExchangeRate(rate *float64) Option {
 	}
 }
 
-func WithDestinationAmount(amount *float64) Option {
+func WithDestinationAmount(amount *money.Money) Option {
 	return func(t *transaction) {
 		t.destinationAmount = amount
 	}
 }
 
 func New(
-	amount float64,
+	amount *money.Money,
 	transactionType Type,
 	opts ...Option,
 ) Transaction {
 	t := &transaction{
-		id:                   uuid.Nil,
+		id:                   uuid.New(),
 		tenantID:             uuid.Nil,
 		amount:               amount,
 		originAccountID:      uuid.Nil,
@@ -95,7 +96,7 @@ func New(
 }
 
 func NewDeposit(
-	amount float64,
+	amount *money.Money,
 	originAccount,
 	destinationAccount uuid.UUID,
 	date time.Time,
@@ -114,7 +115,7 @@ func NewDeposit(
 }
 
 func NewWithdrawal(
-	amount float64,
+	amount *money.Money,
 	originAccount,
 	destinationAccount uuid.UUID,
 	date time.Time,
@@ -133,14 +134,14 @@ func NewWithdrawal(
 }
 
 func NewExchange(
-	amount float64,
+	amount *money.Money,
 	originAccount,
 	destinationAccount uuid.UUID,
 	date time.Time,
 	accountingPeriod time.Time,
 	comment string,
 	exchangeRate float64,
-	destinationAmount float64,
+	destinationAmount *money.Money,
 ) Transaction {
 	return New(
 		amount,
@@ -151,14 +152,14 @@ func NewExchange(
 		WithAccountingPeriod(accountingPeriod),
 		WithComment(comment),
 		WithExchangeRate(&exchangeRate),
-		WithDestinationAmount(&destinationAmount),
+		WithDestinationAmount(destinationAmount),
 	)
 }
 
 type transaction struct {
 	id                   uuid.UUID
 	tenantID             uuid.UUID
-	amount               float64
+	amount               *money.Money
 	originAccountID      uuid.UUID
 	destinationAccountID uuid.UUID
 	transactionDate      time.Time
@@ -168,16 +169,12 @@ type transaction struct {
 	createdAt            time.Time
 
 	// Exchange operation fields
-	exchangeRate      *float64 // Exchange rate used for currency conversion
-	destinationAmount *float64 // Amount in destination currency (for exchange operations)
+	exchangeRate      *float64     // Exchange rate used for currency conversion
+	destinationAmount *money.Money // Amount in destination currency (for exchange operations)
 }
 
 func (t *transaction) ID() uuid.UUID {
 	return t.id
-}
-
-func (t *transaction) SetID(id uuid.UUID) {
-	t.id = id
 }
 
 func (t *transaction) TenantID() uuid.UUID {
@@ -190,11 +187,11 @@ func (t *transaction) UpdateTenantID(id uuid.UUID) Transaction {
 	return &result
 }
 
-func (t *transaction) Amount() float64 {
+func (t *transaction) Amount() *money.Money {
 	return t.amount
 }
 
-func (t *transaction) UpdateAmount(amount float64) Transaction {
+func (t *transaction) UpdateAmount(amount *money.Money) Transaction {
 	result := *t
 	result.amount = amount
 	return &result
@@ -274,11 +271,11 @@ func (t *transaction) UpdateExchangeRate(rate *float64) Transaction {
 	return &result
 }
 
-func (t *transaction) DestinationAmount() *float64 {
+func (t *transaction) DestinationAmount() *money.Money {
 	return t.destinationAmount
 }
 
-func (t *transaction) UpdateDestinationAmount(amount *float64) Transaction {
+func (t *transaction) UpdateDestinationAmount(amount *money.Money) Transaction {
 	result := *t
 	result.destinationAmount = amount
 	return &result

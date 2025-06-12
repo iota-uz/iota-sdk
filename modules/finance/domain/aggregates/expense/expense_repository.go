@@ -35,7 +35,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Expense, error)
 	GetAll(ctx context.Context) ([]Expense, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Expense, error)
-	Create(ctx context.Context, data Expense) error
-	Update(ctx context.Context, data Expense) error
+	Create(ctx context.Context, data Expense) (Expense, error)
+	Update(ctx context.Context, data Expense) (Expense, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }

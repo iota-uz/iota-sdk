@@ -27,6 +27,6 @@ type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Account, error)
 	RecalculateBalance(ctx context.Context, id uuid.UUID) error
 	Create(ctx context.Context, data Account) (Account, error)
-	Update(ctx context.Context, data Account) error
+	Update(ctx context.Context, data Account) (Account, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 }

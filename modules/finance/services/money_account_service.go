@@ -48,10 +48,10 @@ func (s *MoneyAccountService) RecalculateBalance(ctx context.Context, id uuid.UU
 	return s.repo.RecalculateBalance(ctx, id)
 }
 
-func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Account) error {
+func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Account) (moneyaccount.Account, error) {
 	createdEvent, err := moneyaccount.NewCreatedEvent(ctx, entity, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var createdEntity moneyaccount.Account
@@ -60,18 +60,18 @@ func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Ac
 		if err != nil {
 			return errors.Wrap(err, "accountRepo.Create")
 		}
-		if err := s.transactionRepo.Create(txCtx, createdEntity.InitialTransaction()); err != nil {
+		if _, err := s.transactionRepo.Create(txCtx, createdEntity.InitialTransaction()); err != nil {
 			return errors.Wrap(err, "transactionRepo.Create")
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	createdEvent.Result = createdEntity
 	s.publisher.Publish(createdEvent)
-	return nil
+	return createdEntity, nil
 }
 
 func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Account) error {
@@ -81,7 +81,7 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 	}
 
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err := s.repo.Update(txCtx, entity); err != nil {
+		if _, err := s.repo.Update(txCtx, entity); err != nil {
 			return err
 		}
 		return nil
