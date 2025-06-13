@@ -25,8 +25,8 @@ const (
 	expenseCountQuery = `SELECT COUNT(ex.id) FROM expenses ex`
 
 	expenseInsertQuery = `
-		INSERT INTO expenses (transaction_id, category_id)
-		VALUES ($1, $2)
+		INSERT INTO expenses (transaction_id, category_id, tenant_id)
+		VALUES ($1, $2, $3)
 		RETURNING id`
 
 	expenseUpdateQuery = `
@@ -253,6 +253,7 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense
 		expenseInsertQuery,
 		createdTransaction.ID(),
 		expenseRow.CategoryID,
+		expenseRow.TenantID,
 	).Scan(&id); err != nil {
 		return nil, errors.Wrap(err, "failed to create expense")
 	}

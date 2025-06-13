@@ -56,18 +56,14 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	}
 
-	getRouter := r.PathPrefix(c.basePath).Subrouter()
-	getRouter.Use(commonMiddleware...)
-	getRouter.HandleFunc("", c.List).Methods(http.MethodGet)
-	getRouter.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
-	getRouter.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-
-	setRouter := r.PathPrefix(c.basePath).Subrouter()
-	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
-	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(commonMiddleware...)
+	router.HandleFunc("", c.List).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
 func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {
@@ -212,13 +208,8 @@ func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := dtos.ExpenseCategoryCreateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&dtos.ExpenseCategoryCreateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -226,7 +217,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		props := &expense_categories2.CreatePageProps{
 			Errors:   errorsMap,
-			Category: dto,
+			Category: *dto,
 			PostPath: c.basePath,
 		}
 		templ.Handler(expense_categories2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -245,7 +236,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := c.expenseCategoryService.Create(r.Context(), entity); err != nil {
+	if _, err := c.expenseCategoryService.Create(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
+// WithTransaction is deprecated and will be removed in the future.
 func WithTransaction() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

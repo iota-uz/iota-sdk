@@ -113,15 +113,9 @@ func (c *CounterpartiesController) GetNew(w http.ResponseWriter, r *http.Request
 }
 
 func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&dtos.CounterpartyCreateDTO{}, r)
+	if err != nil {
 		logrus.WithError(err).Error("Error parsing form")
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := dtos.CounterpartyCreateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		logrus.WithError(err).Error("Error decoding form")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
