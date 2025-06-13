@@ -64,7 +64,7 @@
       }
     },
     "Single": {
-      "Account": "Hisob",
+      "AccountID": "Hisob",
       "SelectAccount": "Hisobni tanlang",
       "Edit": "To'lovni tahrirlash",
       "Name": "Nomi",
@@ -75,9 +75,10 @@
         "Label": "Jo'natuvchi",
         "Placeholder": "Jo'natuvchini tanlang"
       },
-      "Category": "Kategoriya",
+      "CategoryID": "Kategoriya",
       "SelectCategory": "Kategoriyani tanlang",
       "Comment": "Izoh",
+      "User": "Foydalanuvchi",
       "Delete": "To'lovni o'chirish",
       "DeleteConfirmation": "Ushbu to'lovni o'chirishni xohlaysizmi?"
     }
@@ -271,6 +272,7 @@
       "Name": "Nomi",
       "Price": "Narxi",
       "Quantity": "Miqdori",
+      "TotalValue": "Umumiy qiymati",
       "NoInventory": {
         "Title": "Tovarlar topilmadi",
         "_Description": "Hali omborxonada tovarlar yo'q. Yangi yaratish uchun 'Tovar qo'shish' tugmasini bosing."

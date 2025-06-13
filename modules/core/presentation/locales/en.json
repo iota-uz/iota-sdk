@@ -10,9 +10,11 @@
     "required": "This field is required",
     "emptySelect": "Select value",
     "email": "Invalid email format",
+    "gt": "{{.Field}} must be greater than 0",
     "gte": "{{.Field}} must be greater than or equal to the specified value",
     "lte": "{{.Field}} must be less than or equal to the specified value",
     "len": "{{.Field}} must be exactly the required length",
+    "uuid": "{{.Field}} must be a valid UUID",
     "custom": "{{.Field}}: {{.Error}}"
   },
   "Filters": {

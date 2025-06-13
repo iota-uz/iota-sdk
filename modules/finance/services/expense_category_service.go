@@ -42,17 +42,18 @@ func (s *ExpenseCategoryService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *ExpenseCategoryService) Create(ctx context.Context, entity category.ExpenseCategory) error {
+func (s *ExpenseCategoryService) Create(ctx context.Context, entity category.ExpenseCategory) (category.ExpenseCategory, error) {
 	createdEvent, err := category.NewCreatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err := s.repo.Create(ctx, entity); err != nil {
-		return err
+	createdEntity, err := s.repo.Create(ctx, entity)
+	if err != nil {
+		return nil, err
 	}
-	createdEvent.Result = entity
+	createdEvent.Result = createdEntity
 	s.publisher.Publish(createdEvent)
-	return nil
+	return createdEntity, nil
 }
 
 func (s *ExpenseCategoryService) Update(ctx context.Context, entity category.ExpenseCategory) error {

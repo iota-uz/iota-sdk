@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -20,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -30,98 +27,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type ExpenseRealtimeUpdates struct {
-	app            application.Application
-	expenseService *services.ExpenseService
-	basePath       string
-}
-
-func NewExpenseRealtimeUpdates(app application.Application, expenseService *services.ExpenseService, basePath string) *ExpenseRealtimeUpdates {
-	return &ExpenseRealtimeUpdates{
-		app:            app,
-		expenseService: expenseService,
-		basePath:       basePath,
-	}
-}
-
-func (ru *ExpenseRealtimeUpdates) Register() {
-	ru.app.EventPublisher().Subscribe(ru.onExpenseCreated)
-	ru.app.EventPublisher().Subscribe(ru.onExpenseUpdated)
-	ru.app.EventPublisher().Subscribe(ru.onExpenseDeleted)
-}
-
-func (ru *ExpenseRealtimeUpdates) onExpenseCreated(event *expense.CreatedEvent) {
-	logger := configuration.Use().Logger()
-
-	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(event.Result), &templ.Attributes{})
-
-	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
-		var buf bytes.Buffer
-		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render expense created event for websocket")
-			return nil // Continue processing other connections
-		}
-		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send expense created event to websocket connection")
-			return nil // Continue processing other connections
-		}
-		return nil
-	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast expense created event to websocket")
-		return
-	}
-}
-
-func (ru *ExpenseRealtimeUpdates) onExpenseDeleted(event *expense.DeletedEvent) {
-	logger := configuration.Use().Logger()
-
-	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(event.Result), &templ.Attributes{
-		"hx-swap-oob": "delete",
-	})
-
-	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
-		var buf bytes.Buffer
-		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render expense deleted event for websocket")
-			return nil // Continue processing other connections
-		}
-		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send expense deleted event to websocket connection")
-			return nil // Continue processing other connections
-		}
-		return nil
-	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast expense deleted event to websocket")
-		return
-	}
-}
-
-func (ru *ExpenseRealtimeUpdates) onExpenseUpdated(event *expense.UpdatedEvent) {
-	logger := configuration.Use().Logger()
-
-	component := expensesui.ExpenseRow(mappers.ExpenseToViewModel(event.Result), &templ.Attributes{})
-
-	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
-		var buf bytes.Buffer
-		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render expense updated event for websocket")
-			return nil // Continue processing other connections
-		}
-		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send expense updated event to websocket connection")
-			return nil // Continue processing other connections
-		}
-		return nil
-	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast expense updated event to websocket")
-		return
-	}
-}
-
 type ExpenseController struct {
 	app      application.Application
 	basePath string
-	realtime *ExpenseRealtimeUpdates
 }
 
 type ExpensePaginationResponse struct {
@@ -130,13 +38,11 @@ type ExpensePaginationResponse struct {
 }
 
 func NewExpensesController(app application.Application) application.Controller {
-	expenseService := app.Service(services.ExpenseService{}).(*services.ExpenseService)
 	basePath := "/finance/expenses"
 
 	controller := &ExpenseController{
 		app:      app,
 		basePath: basePath,
-		realtime: NewExpenseRealtimeUpdates(app, expenseService, basePath),
 	}
 
 	return controller
@@ -163,8 +69,6 @@ func (c *ExpenseController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
-
-	c.realtime.Register()
 }
 
 func (c *ExpenseController) List(
@@ -439,15 +343,9 @@ func (c *ExpenseController) Create(
 	moneyAccountService *services.MoneyAccountService,
 	expenseCategoryService *services.ExpenseCategoryService,
 ) {
-	if err := r.ParseForm(); err != nil {
+	dto, err := composables.UseForm(&dtos.ExpenseCreateDTO{}, r)
+	if err != nil {
 		logger.Errorf("Error parsing form: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := dtos.ExpenseCreateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
-		logger.Errorf("Error decoding form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -459,6 +357,39 @@ func (c *ExpenseController) Create(
 		return
 	}
 
+	categoryID, err := uuid.Parse(dto.CategoryID)
+	if err != nil {
+		logger.Errorf("Invalid category ID: %v", err)
+		http.Error(w, "Invalid category ID", http.StatusBadRequest)
+		return
+	}
+
+	accountID, err := uuid.Parse(dto.AccountID)
+	if err != nil {
+		logger.Errorf("Invalid account ID: %v", err)
+		http.Error(w, "Invalid account ID", http.StatusBadRequest)
+		return
+	}
+
+	cat, err := expenseCategoryService.GetByID(r.Context(), categoryID)
+	if errors.Is(err, persistence.ErrExpenseCategoryNotFound) {
+		logger.Errorf("Expense category not found: %v", err)
+		http.Error(w, "Expense category not found", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		logger.Errorf("Error retrieving expense category: %v", err)
+		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
+		return
+	}
+
+	account, err := moneyAccountService.GetByID(r.Context(), accountID)
+	if err != nil {
+		logger.Errorf("Error retrieving account: %v", err)
+		http.Error(w, "Error retrieving account", http.StatusInternalServerError)
+		return
+	}
+
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		accounts, err := moneyAccountService.GetAll(r.Context())
 		if err != nil {
@@ -467,7 +398,7 @@ func (c *ExpenseController) Create(
 			return
 		}
 
-		entity, err := dto.ToEntity(tenantID)
+		entity, err := dto.ToEntityWithReferences(tenantID, account, cat)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -491,7 +422,7 @@ func (c *ExpenseController) Create(
 		return
 	}
 
-	entity, err := dto.ToEntity(tenantID)
+	entity, err := dto.ToEntityWithReferences(tenantID, account, cat)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

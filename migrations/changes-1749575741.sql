@@ -207,6 +207,10 @@ ALTER TABLE expenses
 ALTER TABLE expenses
     ADD CONSTRAINT expenses_category_id_fkey FOREIGN KEY (category_id) REFERENCES expense_categories (id) ON DELETE CASCADE;
 
+-- Add tenant_id column to expenses table
+ALTER TABLE expenses
+    ADD COLUMN tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE;
+
 -- Change CREATE_TABLE: payment_categories
 CREATE TABLE payment_categories (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
@@ -299,6 +303,10 @@ DROP INDEX IF EXISTS idx_payment_categories_tenant_id;
 DROP TABLE IF EXISTS payment_categories CASCADE;
 
 -- Undo expenses table changes
+-- Remove tenant_id column from expenses table
+ALTER TABLE expenses
+    DROP COLUMN IF EXISTS tenant_id;
+
 ALTER TABLE expenses
     DROP CONSTRAINT expenses_pkey;
 

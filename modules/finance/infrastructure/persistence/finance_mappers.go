@@ -313,6 +313,7 @@ func ToDBExpense(entity expense.Expense) (*models.Expense, transaction.Transacti
 	)
 	dbExpense := &models.Expense{
 		ID:            entity.ID().String(),
+		TenantID:      tenantID.String(),
 		CategoryID:    entity.Category().ID().String(),
 		TransactionID: entity.TransactionID().String(),
 		CreatedAt:     entity.CreatedAt(),
@@ -352,8 +353,9 @@ func ToDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 
 func ToDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, error) {
 	var tin sql.NullString
-	if entity.Tin() != tax.NilTin && entity.Tin().Value() != "" {
-		tin = sql.NullString{String: entity.Tin().Value(), Valid: true}
+	entityTin := entity.Tin()
+	if entityTin != tax.NilTin && entityTin != nil && entityTin.Value() != "" {
+		tin = sql.NullString{String: entityTin.Value(), Valid: true}
 	}
 	return &models.Counterparty{
 		ID:           entity.ID().String(),

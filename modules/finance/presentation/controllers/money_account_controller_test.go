@@ -16,7 +16,6 @@ import (
 	moneyAccountEntity "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
 	"github.com/stretchr/testify/require"
@@ -26,18 +25,12 @@ var (
 	MoneyAccountBasePath = "/finance/accounts"
 )
 
-// createCurrencies creates standard currencies in a committed transaction
 func createCurrencies(t *testing.T, ctx context.Context, currencies ...*currency.Currency) {
 	currencyRepo := persistence.NewCurrencyRepository()
-	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		for _, curr := range currencies {
-			if createErr := currencyRepo.Create(txCtx, curr); createErr != nil {
-				return createErr
-			}
-		}
-		return nil
-	})
-	require.NoError(t, err)
+	for _, curr := range currencies {
+		err := currencyRepo.Create(ctx, curr)
+		require.NoError(t, err)
+	}
 }
 
 func TestMoneyAccountController_List_Success(t *testing.T) {
@@ -89,7 +82,7 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2, "Should have at least 2 account rows")
+	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
 	response.Contains(t, "Test Account 1").
 		Contains(t, "Test Account 2")
@@ -160,17 +153,12 @@ func TestMoneyAccountController_GetNew_Success(t *testing.T) {
 
 	html := response.HTML(t)
 
-	// Check form exists
 	html.Element("//form[@hx-post]").Exists(t)
-
-	// Check required form fields
 	html.Element("//input[@name='Name']").Exists(t)
 	html.Element("//input[@name='Balance']").Exists(t)
 	html.Element("//select[@name='CurrencyCode']").Exists(t)
 	html.Element("//input[@name='AccountNumber']").Exists(t)
 	html.Element("//textarea[@name='Description']").Exists(t)
-
-	// Check currency options are populated
 	html.Element("//option[@value='USD']").Exists(t)
 	html.Element("//option[@value='EUR']").Exists(t)
 }
@@ -210,10 +198,9 @@ func TestMoneyAccountController_Create_Success(t *testing.T) {
 		Status(t, 302).
 		RedirectTo(t, MoneyAccountBasePath)
 
-	// Verify account was created
 	accounts, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
-	require.Len(t, accounts, 1, "One account should be created")
+	require.Len(t, accounts, 1)
 
 	savedAccount := accounts[0]
 	require.Equal(t, "New Test Account", savedAccount.Name())
@@ -245,28 +232,24 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
-	// Prepare invalid form data (missing required fields)
 	formData := url.Values{}
-	formData.Set("Name", "")                // Required field is empty
-	formData.Set("Balance", "-100")         // Negative balance
-	formData.Set("CurrencyCode", "INVALID") // Invalid currency code
+	formData.Set("Name", "")
+	formData.Set("Balance", "-100")
+	formData.Set("CurrencyCode", "INVALID")
 	formData.Set("AccountNumber", "ACC123")
 	formData.Set("Description", "Test description")
 
 	response := suite.POST(MoneyAccountBasePath).
 		WithForm(formData).
 		Expect().
-		Status(t, 200) // Returns form with errors
+		Status(t, 200)
 
 	html := response.HTML(t)
+	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
 
-	// Should contain validation error messages
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0, "Should have validation error indicators")
-
-	// Verify no account was created
 	accounts, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
-	require.Empty(t, accounts, "No accounts should be created with validation errors")
+	require.Empty(t, accounts)
 }
 
 func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
@@ -291,7 +274,6 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
-	// Create test account
 	balance := money.NewFromFloat(1000.00, "USD")
 	account := moneyAccountEntity.New(
 		"Edit Test Account",
@@ -310,7 +292,6 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 
 	html := response.HTML(t)
 
-	// Check that form is pre-populated with existing values
 	html.Element("//input[@name='Name']").Exists(t)
 	require.Equal(t, "Edit Test Account", html.Element("//input[@name='Name']").Attr("value"))
 
@@ -341,11 +322,10 @@ func TestMoneyAccountController_GetEdit_NotFound(t *testing.T) {
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.RegisterController(controller)
 
-	// Create request with non-existent UUID
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", MoneyAccountBasePath, nonExistentID.String())).
 		Expect().
-		Status(t, 500) // Should return error
+		Status(t, 500)
 }
 
 func TestMoneyAccountController_Update_Success(t *testing.T) {
@@ -370,7 +350,6 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
-	// Create test account
 	balance := money.NewFromFloat(500.00, "USD")
 	account := moneyAccountEntity.New(
 		"Original Account",
@@ -383,7 +362,6 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 	createdAccount, err := service.Create(env.Ctx, account)
 	require.NoError(t, err)
 
-	// Prepare update form data
 	formData := url.Values{}
 	formData.Set("Name", "Updated Account Name")
 	formData.Set("Balance", "750.50")
@@ -397,7 +375,6 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 		Status(t, 302).
 		RedirectTo(t, MoneyAccountBasePath)
 
-	// Verify account was updated
 	updatedAccount, err := service.GetByID(env.Ctx, createdAccount.ID())
 	require.NoError(t, err)
 
@@ -430,7 +407,6 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
-	// Create test account
 	balance := money.NewFromFloat(500.00, "USD")
 	account := moneyAccountEntity.New(
 		"Test Account",
@@ -441,28 +417,24 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 	createdAccount, err := service.Create(env.Ctx, account)
 	require.NoError(t, err)
 
-	// Prepare invalid update form data
 	formData := url.Values{}
-	formData.Set("Name", "")                // Empty name should fail validation
-	formData.Set("Balance", "-100")         // Negative balance
-	formData.Set("CurrencyCode", "INVALID") // Invalid currency code
+	formData.Set("Name", "")
+	formData.Set("Balance", "-100")
+	formData.Set("CurrencyCode", "INVALID")
 	formData.Set("AccountNumber", "")
 	formData.Set("Description", "")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", MoneyAccountBasePath, createdAccount.ID().String())).
 		WithForm(formData).
 		Expect().
-		Status(t, 200) // Returns form with errors
+		Status(t, 200)
 
 	html := response.HTML(t)
+	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
 
-	// Should contain validation error messages
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0, "Should have validation error indicators")
-
-	// Verify account was not updated
 	unchangedAccount, err := service.GetByID(env.Ctx, createdAccount.ID())
 	require.NoError(t, err)
-	require.Equal(t, "Test Account", unchangedAccount.Name()) // Should remain unchanged
+	require.Equal(t, "Test Account", unchangedAccount.Name())
 }
 
 func TestMoneyAccountController_Delete_Success(t *testing.T) {
@@ -487,7 +459,6 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
-	// Create test account
 	balance := money.NewFromFloat(100.00, "USD")
 	account := moneyAccountEntity.New(
 		"Account to Delete",
@@ -498,7 +469,6 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 	createdAccount, err := service.Create(env.Ctx, account)
 	require.NoError(t, err)
 
-	// Verify account exists
 	existingAccount, err := service.GetByID(env.Ctx, createdAccount.ID())
 	require.NoError(t, err)
 	require.Equal(t, "Account to Delete", existingAccount.Name())
@@ -508,9 +478,8 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 		Status(t, 302).
 		RedirectTo(t, MoneyAccountBasePath)
 
-	// Verify account was deleted
 	_, err = service.GetByID(env.Ctx, createdAccount.ID())
-	require.Error(t, err, "Account should be deleted and not found")
+	require.Error(t, err)
 }
 
 func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
@@ -533,11 +502,10 @@ func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.RegisterController(controller)
 
-	// Create request with non-existent UUID
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", MoneyAccountBasePath, nonExistentID.String())).
 		Expect().
-		Status(t, 500) // Should return error
+		Status(t, 500)
 }
 
 func TestMoneyAccountController_InvalidUUID(t *testing.T) {
@@ -560,8 +528,7 @@ func TestMoneyAccountController_InvalidUUID(t *testing.T) {
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.RegisterController(controller)
 
-	// Test with invalid UUID format
 	suite.GET(MoneyAccountBasePath+"/invalid-uuid").
 		Expect().
-		Status(t, 404) // Should return not found
+		Status(t, 404)
 }

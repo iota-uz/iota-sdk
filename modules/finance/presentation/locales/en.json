@@ -64,7 +64,7 @@
       }
     },
     "Single": {
-      "Account": "Account",
+      "AccountID": "Account",
       "SelectAccount": "Select account",
       "Edit": "Edit payment",
       "Name": "Name",
@@ -75,9 +75,10 @@
         "Label": "Sender",
         "Placeholder": "Select sender"
       },
-      "Category": "Category",
+      "CategoryID": "Category",
       "SelectCategory": "Select category",
       "Comment": "Comment",
+      "User": "User",
       "Delete": "Delete payment",
       "DeleteConfirmation": "Are you sure you want to delete this payment?"
     }
@@ -106,9 +107,9 @@
       }
     },
     "Single": {
-      "Account": "Account",
+      "AccountID": "Account",
       "SelectAccount": "Select account",
-      "Category": "Category",
+      "CategoryID": "Category",
       "SelectCategory": "Select category",
       "Edit": "Edit expense",
       "Name": "Name",
@@ -272,6 +273,7 @@
       "Name": "Name",
       "Price": "Price",
       "Quantity": "Quantity",
+      "TotalValue": "Total Value",
       "NoInventory": {
         "Title": "No inventory items found",
         "_Description": "There are no inventory items yet. Click 'Add inventory item' to create one."
