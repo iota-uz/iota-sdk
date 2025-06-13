@@ -177,6 +177,18 @@ type OctoDetails interface {
 type StripeItem interface {
 	PriceID() string
 	Quantity() int64
+	AdjustableQuantity() StripeItemAdjustableQuantity
+}
+
+type StripeItemAdjustableQuantity interface {
+	Enabled() bool
+	Maximum() int64
+	Minimum() int64
+}
+
+type StripeSubscriptionData interface {
+	Description() string
+	TrialPeriodDays() int64
 }
 
 type StripeDetails interface {
@@ -193,6 +205,8 @@ type StripeDetails interface {
 	CustomerID() string
 
 	Items() []StripeItem
+
+	SubscriptionData() StripeSubscriptionData
 
 	SuccessURL() string
 	CancelURL() string
