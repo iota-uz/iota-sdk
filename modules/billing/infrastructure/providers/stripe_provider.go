@@ -43,6 +43,14 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 			Price:    stripe.String(item.PriceID()),
 			Quantity: stripe.Int64(item.Quantity()),
 		}
+
+		if item.AdjustableQuantity() != nil {
+			lineItems[i].AdjustableQuantity = &stripe.CheckoutSessionLineItemAdjustableQuantityParams{
+				Enabled: stripe.Bool(item.AdjustableQuantity().Enabled()),
+				Minimum: stripe.Int64(item.AdjustableQuantity().Minimum()),
+				Maximum: stripe.Int64(item.AdjustableQuantity().Maximum()),
+			}
+		}
 	}
 
 	params := &stripe.CheckoutSessionParams{
@@ -51,6 +59,17 @@ func (s *stripeProvider) Create(_ context.Context, t billing.Transaction) (billi
 		ClientReferenceID: stripe.String(stripeDetails.ClientReferenceID()),
 		Mode:              stripe.String(stripeDetails.Mode()),
 		LineItems:         lineItems,
+	}
+
+	if stripeDetails.Mode() == "subscription" && stripeDetails.SubscriptionData() != nil {
+		params.SubscriptionData = &stripe.CheckoutSessionSubscriptionDataParams{}
+
+		if stripeDetails.SubscriptionData().Description() != "" {
+			params.SubscriptionData.Description = stripe.String(stripeDetails.SubscriptionData().Description())
+		}
+		if stripeDetails.SubscriptionData().TrialPeriodDays() != 0 {
+			params.SubscriptionData.TrialPeriodDays = stripe.Int64(stripeDetails.SubscriptionData().TrialPeriodDays())
+		}
 	}
 
 	sess, err := session.New(params)

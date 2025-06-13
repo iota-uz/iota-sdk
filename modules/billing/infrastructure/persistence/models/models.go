@@ -86,20 +86,33 @@ type OctoDetails struct {
 }
 
 type StripeItem struct {
-	PriceID  string `json:"price_id"`
-	Quantity int64  `json:"quantity"`
+	PriceID            string                        `json:"price_id"`
+	Quantity           int64                         `json:"quantity"`
+	AdjustableQuantity *StripeItemAdjustableQuantity `json:"adjustable_quantity"`
+}
+
+type StripeItemAdjustableQuantity struct {
+	Enabled bool  `json:"enabled"`
+	Maximum int64 `json:"maximum"`
+	Minimum int64 `json:"minimum"`
+}
+
+type StripeSubscriptionData struct {
+	Description     string `json:"description"`
+	TrialPeriodDays int64  `json:"trial_period_days"`
 }
 
 type StripeDetails struct {
-	Mode              string       `json:"mode"`
-	BillingReason     string       `json:"billing_reason"`
-	SessionID         string       `json:"session_id"`
-	ClientReferenceID string       `json:"client_reference_id"`
-	InvoiceID         string       `json:"invoice_id"`
-	SubscriptionID    string       `json:"subscription_id"`
-	CustomerID        string       `json:"customer_id"`
-	Items             []StripeItem `json:"items"`
-	SuccessURL        string       `json:"success_url"`
-	CancelURL         string       `json:"cancel_url"`
-	URL               string       `json:"url"`
+	Mode              string                  `json:"mode"`
+	BillingReason     string                  `json:"billing_reason"`
+	SessionID         string                  `json:"session_id"`
+	ClientReferenceID string                  `json:"client_reference_id"`
+	InvoiceID         string                  `json:"invoice_id"`
+	SubscriptionID    string                  `json:"subscription_id"`
+	CustomerID        string                  `json:"customer_id"`
+	SubscriptionData  *StripeSubscriptionData `json:"subscription_data"`
+	Items             []StripeItem            `json:"items"`
+	SuccessURL        string                  `json:"success_url"`
+	CancelURL         string                  `json:"cancel_url"`
+	URL               string                  `json:"url"`
 }
