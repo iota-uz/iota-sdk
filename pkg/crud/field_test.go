@@ -50,43 +50,43 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to StringField successfully
 		stringField, err := field.AsStringField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, stringField)
 		assert.Equal(t, "name", stringField.Name())
 
 		// Should fail casting to other types
 		_, err = field.AsIntField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 		assert.Contains(t, err.Error(), "field \"name\" is string, not int")
 
 		_, err = field.AsBoolField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsFloatField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsDateField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsTimeField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsDateTimeField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsTimestampField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsUUIDField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 	})
 
 	t.Run("IntField casting", func(t *testing.T) {
@@ -94,18 +94,18 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to IntField successfully
 		intField, err := field.AsIntField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, intField)
 		assert.Equal(t, "age", intField.Name())
 
 		// Should fail casting to other types
 		_, err = field.AsStringField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsBoolField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 	})
 
 	t.Run("BoolField casting", func(t *testing.T) {
@@ -113,18 +113,18 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to BoolField successfully
 		boolField, err := field.AsBoolField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, boolField)
 		assert.Equal(t, "active", boolField.Name())
 
 		// Should fail casting to other types
 		_, err = field.AsStringField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 
 		_, err = field.AsIntField()
-		assert.Error(t, err)
-		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
+		require.Error(t, err)
+		require.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 	})
 
 	t.Run("FloatField casting", func(t *testing.T) {
@@ -132,7 +132,7 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to FloatField successfully
 		floatField, err := field.AsFloatField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, floatField)
 		assert.Equal(t, "price", floatField.Name())
 	})
@@ -142,7 +142,7 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to DateField successfully
 		dateField, err := field.AsDateField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, dateField)
 		assert.Equal(t, "birthdate", dateField.Name())
 	})
@@ -152,7 +152,7 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to TimeField successfully
 		timeField, err := field.AsTimeField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, timeField)
 		assert.Equal(t, "start_time", timeField.Name())
 	})
@@ -162,7 +162,7 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to DateTimeField successfully
 		dateTimeField, err := field.AsDateTimeField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, dateTimeField)
 		assert.Equal(t, "created_at", dateTimeField.Name())
 	})
@@ -172,7 +172,7 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to TimestampField successfully
 		timestampField, err := field.AsTimestampField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, timestampField)
 		assert.Equal(t, "updated_at", timestampField.Name())
 	})
@@ -182,7 +182,7 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to UUIDField successfully
 		uuidField, err := field.AsUUIDField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, uuidField)
 		assert.Equal(t, "id", uuidField.Name())
 	})
@@ -193,14 +193,14 @@ func TestFieldCasting(t *testing.T) {
 
 		// Should cast to StringField successfully
 		stringField, err := field.AsStringField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, stringField)
 		assert.Equal(t, 500, stringField.MaxLen())
 
 		// Test with IntField
 		field = crud.NewIntField("count", crud.WithMin(0), crud.WithMax(100))
 		intField, err := field.AsIntField()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, intField)
 		assert.Equal(t, int64(0), intField.Min())
 		assert.Equal(t, int64(100), intField.Max())
@@ -214,13 +214,13 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for empty string
 		fieldValue := field.Value("")
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "is required")
 
 		// Should pass for non-empty string
 		fieldValue = field.Value("test")
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("MinLengthRule", func(t *testing.T) {
@@ -229,13 +229,13 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for short string
 		fieldValue := field.Value("abc")
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be at least 5 characters")
 
 		// Should pass for long enough string
 		fieldValue = field.Value("abcdef")
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("MaxLengthRule", func(t *testing.T) {
@@ -244,13 +244,13 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for long string
 		fieldValue := field.Value("abcdefgh")
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be at most 5 characters")
 
 		// Should pass for short enough string
 		fieldValue = field.Value("abc")
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("EmailRule", func(t *testing.T) {
@@ -259,13 +259,13 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for invalid email
 		fieldValue := field.Value("invalid-email")
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be a valid email")
 
 		// Should pass for valid email
 		fieldValue = field.Value("test@example.com")
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("MinValueRule", func(t *testing.T) {
@@ -274,13 +274,13 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for value below minimum
 		fieldValue := field.Value(16)
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be at least 18")
 
 		// Should pass for value above minimum
 		fieldValue = field.Value(25)
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("MaxValueRule", func(t *testing.T) {
@@ -289,13 +289,13 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for value above maximum
 		fieldValue := field.Value(150)
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be at most 100")
 
 		// Should pass for value below maximum
 		fieldValue = field.Value(85)
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("PositiveRule", func(t *testing.T) {
@@ -304,17 +304,17 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for zero and negative values
 		fieldValue := field.Value(0)
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be positive")
 
 		fieldValue = field.Value(-5)
 		err = field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		// Should pass for positive value
 		fieldValue = field.Value(10)
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("NonNegativeRule", func(t *testing.T) {
@@ -323,17 +323,17 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for negative values
 		fieldValue := field.Value(-1)
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be non-negative")
 
 		// Should pass for zero and positive values
 		fieldValue = field.Value(0)
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		fieldValue = field.Value(5)
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("InRule", func(t *testing.T) {
@@ -342,13 +342,13 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for value not in allowed list
 		fieldValue := field.Value("unknown")
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be one of")
 
 		// Should pass for value in allowed list
 		fieldValue = field.Value("active")
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("NotEmptyRule", func(t *testing.T) {
@@ -357,17 +357,17 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for empty string and whitespace
 		fieldValue := field.Value("")
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be empty")
 
 		fieldValue = field.Value("   ")
 		err = field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		// Should pass for non-empty string
 		fieldValue = field.Value("test description")
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("FutureDateRule", func(t *testing.T) {
@@ -377,14 +377,14 @@ func TestValidationRules(t *testing.T) {
 		pastDate := time.Now().Add(-24 * time.Hour)
 		fieldValue := field.Value(pastDate)
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be a future date")
 
 		// Should pass for future date
 		futureDate := time.Now().Add(24 * time.Hour)
 		fieldValue = field.Value(futureDate)
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("PastDateRule", func(t *testing.T) {
@@ -394,14 +394,14 @@ func TestValidationRules(t *testing.T) {
 		futureDate := time.Now().Add(24 * time.Hour)
 		fieldValue := field.Value(futureDate)
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must be a past date")
 
 		// Should pass for past date
 		pastDate := time.Now().Add(-24 * time.Hour)
 		fieldValue = field.Value(pastDate)
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("PatternRule", func(t *testing.T) {
@@ -411,12 +411,12 @@ func TestValidationRules(t *testing.T) {
 		// Should fail for invalid pattern
 		fieldValue := field.Value("invalid-phone")
 		err := field.Rules()[0](fieldValue)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must match pattern")
 
 		// Should pass for valid pattern
 		fieldValue = field.Value("+1234567890")
 		err = field.Rules()[0](fieldValue)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }

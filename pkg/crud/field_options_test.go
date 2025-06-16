@@ -191,14 +191,14 @@ func TestFloatFieldOptions(t *testing.T) {
 		field := crud.NewFloatField("test", crud.WithFloatMin(1.5))
 		floatField, err := field.AsFloatField()
 		require.NoError(t, err)
-		assert.Equal(t, 1.5, floatField.Min())
+		assert.InEpsilon(t, 1.5, floatField.Min(), 1e-9)
 	})
 
 	t.Run("WithFloatMax", func(t *testing.T) {
 		field := crud.NewFloatField("test", crud.WithFloatMax(10.5))
 		floatField, err := field.AsFloatField()
 		require.NoError(t, err)
-		assert.Equal(t, 10.5, floatField.Max())
+		assert.InEpsilon(t, 10.5, floatField.Max(), 1e-9)
 	})
 
 	t.Run("WithPrecision", func(t *testing.T) {
@@ -212,7 +212,7 @@ func TestFloatFieldOptions(t *testing.T) {
 		field := crud.NewFloatField("test", crud.WithFloatStep(0.5))
 		floatField, err := field.AsFloatField()
 		require.NoError(t, err)
-		assert.Equal(t, 0.5, floatField.Step())
+		assert.InEpsilon(t, 0.5, floatField.Step(), 1e-9)
 	})
 }
 
@@ -327,11 +327,11 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		validURL := field.Value("https://example.com")
 		err := field.Rules()[0](validURL)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invalidURL := field.Value("not a url")
 		err = field.Rules()[0](invalidURL)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithPhone", func(t *testing.T) {
@@ -341,22 +341,22 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		validPhone := field.Value("+12345678901")
 		err := field.Rules()[0](validPhone)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Another valid phone without +
 		validPhone2 := field.Value("12345678901")
 		err = field.Rules()[0](validPhone2)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Too short (less than 2 digits)
 		invalidPhone := field.Value("1")
 		err = field.Rules()[0](invalidPhone)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		// Invalid characters
 		invalidPhone2 := field.Value("123-456-7890")
 		err = field.Rules()[0](invalidPhone2)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithAlpha", func(t *testing.T) {
@@ -366,11 +366,11 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		validAlpha := field.Value("abcXYZ")
 		err := field.Rules()[0](validAlpha)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invalidAlpha := field.Value("abc123")
 		err = field.Rules()[0](invalidAlpha)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithAlphanumeric", func(t *testing.T) {
@@ -380,11 +380,11 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		validAlphanumeric := field.Value("abc123XYZ")
 		err := field.Rules()[0](validAlphanumeric)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invalidAlphanumeric := field.Value("abc-123")
 		err = field.Rules()[0](invalidAlphanumeric)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithEmail", func(t *testing.T) {
@@ -394,11 +394,11 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		validEmail := field.Value("test@example.com")
 		err := field.Rules()[0](validEmail)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		invalidEmail := field.Value("not-an-email")
 		err = field.Rules()[0](invalidEmail)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithRequired", func(t *testing.T) {
@@ -408,11 +408,11 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		nonEmpty := field.Value("value")
 		err := field.Rules()[0](nonEmpty)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		empty := field.Value("")
 		err = field.Rules()[0](empty)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithPositive", func(t *testing.T) {
@@ -422,15 +422,15 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		positive := field.Value(int64(5))
 		err := field.Rules()[0](positive)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		zero := field.Value(int64(0))
 		err = field.Rules()[0](zero)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		negative := field.Value(int64(-5))
 		err = field.Rules()[0](negative)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithNonNegative", func(t *testing.T) {
@@ -440,15 +440,15 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		positive := field.Value(int64(5))
 		err := field.Rules()[0](positive)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		zero := field.Value(int64(0))
 		err = field.Rules()[0](zero)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		negative := field.Value(int64(-5))
 		err = field.Rules()[0](negative)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithNotEmpty", func(t *testing.T) {
@@ -458,15 +458,15 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		nonEmpty := field.Value("value")
 		err := field.Rules()[0](nonEmpty)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		empty := field.Value("")
 		err = field.Rules()[0](empty)
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		whitespace := field.Value("   ")
 		err = field.Rules()[0](whitespace)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithFutureDate", func(t *testing.T) {
@@ -476,11 +476,11 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		futureDate := field.Value(time.Now().Add(24 * time.Hour))
 		err := field.Rules()[0](futureDate)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		pastDate := field.Value(time.Now().Add(-24 * time.Hour))
 		err = field.Rules()[0](pastDate)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithPastDate", func(t *testing.T) {
@@ -490,11 +490,11 @@ func TestValidationRuleOptions(t *testing.T) {
 		// Test validation
 		pastDate := field.Value(time.Now().Add(-24 * time.Hour))
 		err := field.Rules()[0](pastDate)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		futureDate := field.Value(time.Now().Add(24 * time.Hour))
 		err = field.Rules()[0](futureDate)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -609,7 +609,7 @@ func TestFieldDefaultValues(t *testing.T) {
 		assert.InDelta(t, -1.7976931348623157e+308, floatField.Min(), 1e300) // -math.MaxFloat64
 		assert.InDelta(t, 1.7976931348623157e+308, floatField.Max(), 1e300)  // math.MaxFloat64
 		assert.Equal(t, 2, floatField.Precision())
-		assert.Equal(t, 0.01, floatField.Step())
+		assert.InEpsilon(t, 0.01, floatField.Step(), 1e-9)
 	})
 
 	t.Run("BoolField defaults", func(t *testing.T) {
@@ -675,7 +675,7 @@ func TestOptionValidation(t *testing.T) {
 		validValue := stringField.Value("john_doe")
 		for _, rule := range stringField.Rules() {
 			err := rule(validValue)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		// Too short
@@ -720,7 +720,7 @@ func TestOptionValidation(t *testing.T) {
 		validValue := uuidField.Value(uuid4)
 		for _, rule := range uuidField.Rules() {
 			err := rule(validValue)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 	})
 
@@ -732,7 +732,7 @@ func TestOptionValidation(t *testing.T) {
 		validValue := dateField.Value(monday)
 		for _, rule := range dateField.Rules() {
 			err := rule(validValue)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 
 		// Sunday (weekend)
