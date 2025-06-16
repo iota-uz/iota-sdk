@@ -50,7 +50,6 @@ func MaxLengthRule(maxLength int) FieldRule {
 }
 
 func EmailRule() FieldRule {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	return func(fv FieldValue) error {
 		if fv.Field().Type() != StringFieldType {
 			return fmt.Errorf("email rule only applies to string fields")
@@ -59,7 +58,12 @@ func EmailRule() FieldRule {
 		if !ok || val == "" {
 			return nil
 		}
-		if !emailRegex.MatchString(val) {
+		emailPattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+		matched, err := regexp.MatchString(emailPattern, val)
+		if err != nil {
+			return err
+		}
+		if !matched {
 			return fmt.Errorf("field %q must be a valid email address", fv.Field().Name())
 		}
 		return nil
@@ -67,7 +71,6 @@ func EmailRule() FieldRule {
 }
 
 func PatternRule(pattern string) FieldRule {
-	regex := regexp.MustCompile(pattern)
 	return func(fv FieldValue) error {
 		if fv.Field().Type() != StringFieldType {
 			return fmt.Errorf("pattern rule only applies to string fields")
@@ -76,14 +79,18 @@ func PatternRule(pattern string) FieldRule {
 		if !ok || val == "" {
 			return nil
 		}
-		if !regex.MatchString(val) {
-			return fmt.Errorf("field %q must match pattern %q", fv.Field().Name(), pattern)
+		matched, err := regexp.MatchString(pattern, val)
+		if err != nil {
+			return err
+		}
+		if !matched {
+			return fmt.Errorf("field %q must match pattern", fv.Field().Name())
 		}
 		return nil
 	}
 }
 
-func MinValueRule(minValue int64) FieldRule {
+func MinValueRule(minValue float64) FieldRule {
 	return func(fv FieldValue) error {
 		fieldType := fv.Field().Type()
 		switch fieldType {
@@ -100,8 +107,8 @@ func MinValueRule(minValue int64) FieldRule {
 			default:
 				return nil
 			}
-			if intVal < minValue {
-				return fmt.Errorf("field %q must be at least %d", fv.Field().Name(), minValue)
+			if float64(intVal) < minValue {
+				return fmt.Errorf("field %q must be at least %g", fv.Field().Name(), minValue)
 			}
 		case FloatFieldType:
 			val := fv.Value()
@@ -114,8 +121,8 @@ func MinValueRule(minValue int64) FieldRule {
 			default:
 				return nil
 			}
-			if floatVal < float64(minValue) {
-				return fmt.Errorf("field %q must be at least %d", fv.Field().Name(), minValue)
+			if floatVal < minValue {
+				return fmt.Errorf("field %q must be at least %g", fv.Field().Name(), minValue)
 			}
 		default:
 			return fmt.Errorf("min value rule only applies to int and float fields")
@@ -124,7 +131,7 @@ func MinValueRule(minValue int64) FieldRule {
 	}
 }
 
-func MaxValueRule(maxValue int64) FieldRule {
+func MaxValueRule(maxValue float64) FieldRule {
 	return func(fv FieldValue) error {
 		fieldType := fv.Field().Type()
 		switch fieldType {
@@ -141,8 +148,8 @@ func MaxValueRule(maxValue int64) FieldRule {
 			default:
 				return nil
 			}
-			if intVal > maxValue {
-				return fmt.Errorf("field %q must be at most %d", fv.Field().Name(), maxValue)
+			if float64(intVal) > maxValue {
+				return fmt.Errorf("field %q must be at most %g", fv.Field().Name(), maxValue)
 			}
 		case FloatFieldType:
 			val := fv.Value()
@@ -155,8 +162,8 @@ func MaxValueRule(maxValue int64) FieldRule {
 			default:
 				return nil
 			}
-			if floatVal > float64(maxValue) {
-				return fmt.Errorf("field %q must be at most %d", fv.Field().Name(), maxValue)
+			if floatVal > maxValue {
+				return fmt.Errorf("field %q must be at most %g", fv.Field().Name(), maxValue)
 			}
 		default:
 			return fmt.Errorf("max value rule only applies to int and float fields")
@@ -255,7 +262,7 @@ func InRule(allowedValues ...any) FieldRule {
 				return nil
 			}
 		}
-		return fmt.Errorf("field %q must be one of %v", fv.Field().Name(), allowedValues)
+		return fmt.Errorf("field %q must be one of the allowed values", fv.Field().Name())
 	}
 }
 
@@ -304,6 +311,145 @@ func PastDateRule() FieldRule {
 		}
 		if !val.Before(time.Now()) {
 			return fmt.Errorf("field %q must be a past date", fv.Field().Name())
+		}
+		return nil
+	}
+}
+
+func MultipleOfRule(multiple int64) FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != IntFieldType {
+			return fmt.Errorf("multiple of rule only applies to int fields")
+		}
+		val := fv.Value()
+		var intVal int64
+		switch v := val.(type) {
+		case int:
+			intVal = int64(v)
+		case int32:
+			intVal = int64(v)
+		case int64:
+			intVal = v
+		default:
+			return nil
+		}
+		if intVal%multiple != 0 {
+			return fmt.Errorf("field %q must be a multiple of %d", fv.Field().Name(), multiple)
+		}
+		return nil
+	}
+}
+
+func WeekdayRule() FieldRule {
+	return func(fv FieldValue) error {
+		switch fv.Field().Type() {
+		case DateFieldType, DateTimeFieldType, TimestampFieldType:
+			t, err := fv.AsTime()
+			if err != nil {
+				return err
+			}
+			weekday := t.Weekday()
+			if weekday == time.Saturday || weekday == time.Sunday {
+				return fmt.Errorf("field %q must be a weekday", fv.Field().Name())
+			}
+			return nil
+		default:
+			return fmt.Errorf("weekday rule only applies to date/time fields")
+		}
+	}
+}
+
+func UUIDVersionRule(version int) FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != UUIDFieldType {
+			return fmt.Errorf("UUID version rule only applies to UUID fields")
+		}
+		u, err := fv.AsUUID()
+		if err != nil {
+			return err
+		}
+		actualVersion := int(u.Version())
+		if actualVersion != version {
+			return fmt.Errorf("field %q must be UUID version %d, got version %d", fv.Field().Name(), version, actualVersion)
+		}
+		return nil
+	}
+}
+
+func URLRule() FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != StringFieldType {
+			return fmt.Errorf("URL rule only applies to string fields")
+		}
+		val, ok := fv.Value().(string)
+		if !ok || val == "" {
+			return nil
+		}
+		urlPattern := `^(https?://)?([\da-z\.-]+)\.([a-z\.]{2,6})([/\w \.-]*)*/?$`
+		matched, err := regexp.MatchString(urlPattern, val)
+		if err != nil {
+			return err
+		}
+		if !matched {
+			return fmt.Errorf("field %q must be a valid URL", fv.Field().Name())
+		}
+		return nil
+	}
+}
+
+func PhoneRule() FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != StringFieldType {
+			return fmt.Errorf("phone rule only applies to string fields")
+		}
+		val, ok := fv.Value().(string)
+		if !ok || val == "" {
+			return nil
+		}
+		// Simple international phone pattern
+		phonePattern := `^\+?[1-9]\d{1,14}$`
+		matched, err := regexp.MatchString(phonePattern, val)
+		if err != nil {
+			return err
+		}
+		if !matched {
+			return fmt.Errorf("field %q must be a valid phone number", fv.Field().Name())
+		}
+		return nil
+	}
+}
+
+func AlphaRule() FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != StringFieldType {
+			return fmt.Errorf("alpha rule only applies to string fields")
+		}
+		val, ok := fv.Value().(string)
+		if !ok || val == "" {
+			return nil
+		}
+		for _, r := range val {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')) {
+				return fmt.Errorf("field %q must contain only alphabetic characters", fv.Field().Name())
+			}
+		}
+		return nil
+	}
+}
+
+func AlphanumericRule() FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != StringFieldType {
+			return fmt.Errorf("alphanumeric rule only applies to string fields")
+		}
+		val, ok := fv.Value().(string)
+		if !ok || val == "" {
+			return nil
+		}
+		for _, r := range val {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+				return fmt.Errorf("field %q must contain only alphanumeric characters", fv.Field().Name())
+			}
 		}
 		return nil
 	}

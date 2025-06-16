@@ -95,24 +95,21 @@ func (m *Module) Register(app application.Application) error {
 	handlers.RegisterUserHandler(app)
 
 	fields := crud.NewFields([]crud.Field{
-		crud.NewField(
+		crud.NewStringField(
 			"code",
-			crud.StringFieldType,
 			crud.WithKey(true),
 			crud.WithRule(crud.MaxLengthRule(3)),
 		),
-		crud.NewField(
+		crud.NewStringField(
 			"name",
-			crud.StringFieldType,
 			crud.WithRule(crud.MaxLengthRule(255)),
 		),
-		crud.NewField(
+		crud.NewStringField(
 			"symbol",
-			crud.StringFieldType,
 			crud.WithRule(crud.MaxLengthRule(3)),
 		),
-		crud.NewField("created_at", crud.DateTimeFieldType, crud.WithHidden(true)),
-		crud.NewField("updated_at", crud.DateTimeFieldType, crud.WithHidden(true)),
+		crud.NewDateTimeField("created_at", crud.WithHidden(true)),
+		crud.NewDateTimeField("updated_at", crud.WithHidden(true)),
 	})
 
 	schema := crud.NewSchema[currency.Currency](

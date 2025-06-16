@@ -1,12 +1,40 @@
 package crud_test
 
 import (
+	"fmt"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
+
+// Helper function to create field based on type
+func createField(name string, fieldType crud.FieldType, opts ...crud.FieldOption) crud.Field {
+	switch fieldType {
+	case crud.StringFieldType:
+		return crud.NewStringField(name, opts...)
+	case crud.IntFieldType:
+		return crud.NewIntField(name, opts...)
+	case crud.BoolFieldType:
+		return crud.NewBoolField(name, opts...)
+	case crud.FloatFieldType:
+		return crud.NewFloatField(name, opts...)
+	case crud.DateFieldType:
+		return crud.NewDateField(name, opts...)
+	case crud.TimeFieldType:
+		return crud.NewTimeField(name, opts...)
+	case crud.DateTimeFieldType:
+		return crud.NewDateTimeField(name, opts...)
+	case crud.TimestampFieldType:
+		return crud.NewTimestampField(name, opts...)
+	case crud.UUIDFieldType:
+		return crud.NewUUIDField(name, opts...)
+	default:
+		panic("unknown field type")
+	}
+}
 
 func TestRequiredRule(t *testing.T) {
 	rule := crud.RequiredRule()
@@ -45,7 +73,7 @@ func TestRequiredRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("test", tt.fieldType)
+			field := createField("test", tt.fieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -97,7 +125,7 @@ func TestMinLengthRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("test", crud.StringFieldType)
+			field := createField("test", crud.StringFieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -111,7 +139,7 @@ func TestMinLengthRule(t *testing.T) {
 
 func TestMinLengthRule_NonStringField(t *testing.T) {
 	rule := crud.MinLengthRule(5)
-	field := crud.NewField("test", crud.IntFieldType)
+	field := createField("test", crud.IntFieldType)
 	fv := field.Value(123)
 
 	err := rule(fv)
@@ -151,7 +179,7 @@ func TestMaxLengthRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("test", crud.StringFieldType)
+			field := createField("test", crud.StringFieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -165,7 +193,7 @@ func TestMaxLengthRule(t *testing.T) {
 
 func TestMaxLengthRule_NonStringField(t *testing.T) {
 	rule := crud.MaxLengthRule(5)
-	field := crud.NewField("test", crud.IntFieldType)
+	field := createField("test", crud.IntFieldType)
 	fv := field.Value(123)
 
 	err := rule(fv)
@@ -220,7 +248,7 @@ func TestEmailRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("email", crud.StringFieldType)
+			field := createField("email", crud.StringFieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -234,7 +262,7 @@ func TestEmailRule(t *testing.T) {
 
 func TestEmailRule_NonStringField(t *testing.T) {
 	rule := crud.EmailRule()
-	field := crud.NewField("test", crud.IntFieldType)
+	field := createField("test", crud.IntFieldType)
 	fv := field.Value(123)
 
 	err := rule(fv)
@@ -274,7 +302,7 @@ func TestPatternRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("ssn", crud.StringFieldType)
+			field := createField("ssn", crud.StringFieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -288,7 +316,7 @@ func TestPatternRule(t *testing.T) {
 
 func TestPatternRule_NonStringField(t *testing.T) {
 	rule := crud.PatternRule(`\d+`)
-	field := crud.NewField("test", crud.IntFieldType)
+	field := createField("test", crud.IntFieldType)
 	fv := field.Value(123)
 
 	err := rule(fv)
@@ -334,7 +362,7 @@ func TestMinValueRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("age", crud.IntFieldType)
+				field := createField("age", crud.IntFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -376,7 +404,7 @@ func TestMinValueRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("price", crud.FloatFieldType)
+				field := createField("price", crud.FloatFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -391,7 +419,7 @@ func TestMinValueRule(t *testing.T) {
 
 func TestMinValueRule_UnsupportedFieldType(t *testing.T) {
 	rule := crud.MinValueRule(10)
-	field := crud.NewField("test", crud.StringFieldType)
+	field := createField("test", crud.StringFieldType)
 	fv := field.Value("test")
 
 	err := rule(fv)
@@ -437,7 +465,7 @@ func TestMaxValueRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("age", crud.IntFieldType)
+				field := createField("age", crud.IntFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -479,7 +507,7 @@ func TestMaxValueRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("price", crud.FloatFieldType)
+				field := createField("price", crud.FloatFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -494,7 +522,7 @@ func TestMaxValueRule(t *testing.T) {
 
 func TestMaxValueRule_UnsupportedFieldType(t *testing.T) {
 	rule := crud.MaxValueRule(100)
-	field := crud.NewField("test", crud.StringFieldType)
+	field := createField("test", crud.StringFieldType)
 	fv := field.Value("test")
 
 	err := rule(fv)
@@ -540,7 +568,7 @@ func TestPositiveRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("count", crud.IntFieldType)
+				field := createField("count", crud.IntFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -582,7 +610,7 @@ func TestPositiveRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("price", crud.FloatFieldType)
+				field := createField("price", crud.FloatFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -597,7 +625,7 @@ func TestPositiveRule(t *testing.T) {
 
 func TestPositiveRule_UnsupportedFieldType(t *testing.T) {
 	rule := crud.PositiveRule()
-	field := crud.NewField("test", crud.StringFieldType)
+	field := createField("test", crud.StringFieldType)
 	fv := field.Value("test")
 
 	err := rule(fv)
@@ -643,7 +671,7 @@ func TestNonNegativeRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("count", crud.IntFieldType)
+				field := createField("count", crud.IntFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -685,7 +713,7 @@ func TestNonNegativeRule(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				field := crud.NewField("balance", crud.FloatFieldType)
+				field := createField("balance", crud.FloatFieldType)
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
@@ -700,7 +728,7 @@ func TestNonNegativeRule(t *testing.T) {
 
 func TestNonNegativeRule_UnsupportedFieldType(t *testing.T) {
 	rule := crud.NonNegativeRule()
-	field := crud.NewField("test", crud.StringFieldType)
+	field := createField("test", crud.StringFieldType)
 	fv := field.Value("test")
 
 	err := rule(fv)
@@ -740,7 +768,7 @@ func TestInRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("color", crud.StringFieldType)
+			field := createField("color", crud.StringFieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -833,7 +861,7 @@ func TestNotEmptyRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("description", crud.StringFieldType)
+			field := createField("description", crud.StringFieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -847,7 +875,7 @@ func TestNotEmptyRule(t *testing.T) {
 
 func TestNotEmptyRule_NonStringField(t *testing.T) {
 	rule := crud.NotEmptyRule()
-	field := crud.NewField("test", crud.IntFieldType)
+	field := createField("test", crud.IntFieldType)
 	fv := field.Value(123)
 
 	err := rule(fv)
@@ -899,7 +927,7 @@ func TestFutureDateRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("event_date", tt.fieldType)
+			field := createField("event_date", tt.fieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -913,7 +941,7 @@ func TestFutureDateRule(t *testing.T) {
 
 func TestFutureDateRule_UnsupportedFieldType(t *testing.T) {
 	rule := crud.FutureDateRule()
-	field := crud.NewField("test", crud.StringFieldType)
+	field := createField("test", crud.StringFieldType)
 	fv := field.Value("test")
 
 	err := rule(fv)
@@ -965,7 +993,7 @@ func TestPastDateRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			field := crud.NewField("birth_date", tt.fieldType)
+			field := createField("birth_date", tt.fieldType)
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
@@ -979,7 +1007,7 @@ func TestPastDateRule(t *testing.T) {
 
 func TestPastDateRule_UnsupportedFieldType(t *testing.T) {
 	rule := crud.PastDateRule()
-	field := crud.NewField("test", crud.StringFieldType)
+	field := createField("test", crud.StringFieldType)
 	fv := field.Value("test")
 
 	err := rule(fv)
@@ -989,7 +1017,7 @@ func TestPastDateRule_UnsupportedFieldType(t *testing.T) {
 
 func TestFieldRulesIntegration(t *testing.T) {
 	t.Run("multiple rules on same field", func(t *testing.T) {
-		field := crud.NewField("username", crud.StringFieldType, crud.WithRules([]crud.FieldRule{
+		field := createField("username", crud.StringFieldType, crud.WithRules([]crud.FieldRule{
 			crud.RequiredRule(),
 			crud.MinLengthRule(3),
 			crud.MaxLengthRule(20),
@@ -1050,7 +1078,7 @@ func TestFieldRulesIntegration(t *testing.T) {
 	})
 
 	t.Run("numeric field with multiple rules", func(t *testing.T) {
-		field := crud.NewField("age", crud.IntFieldType, crud.WithRules([]crud.FieldRule{
+		field := createField("age", crud.IntFieldType, crud.WithRules([]crud.FieldRule{
 			crud.RequiredRule(),
 			crud.MinValueRule(0),
 			crud.MaxValueRule(150),
@@ -1117,16 +1145,44 @@ type mockField struct {
 	fieldType crud.FieldType
 }
 
-func (m *mockField) Key() bool                    { return false }
-func (m *mockField) Name() string                 { return m.name }
-func (m *mockField) Type() crud.FieldType         { return m.fieldType }
-func (m *mockField) Readonly() bool               { return false }
-func (m *mockField) Searchable() bool             { return false }
-func (m *mockField) Hidden() bool                 { return false }
-func (m *mockField) Rules() []crud.FieldRule      { return nil }
-func (m *mockField) InitialValue() any            { return nil }
+func (m *mockField) Key() bool               { return false }
+func (m *mockField) Name() string            { return m.name }
+func (m *mockField) Type() crud.FieldType    { return m.fieldType }
+func (m *mockField) Readonly() bool          { return false }
+func (m *mockField) Searchable() bool        { return false }
+func (m *mockField) Hidden() bool            { return false }
+func (m *mockField) Rules() []crud.FieldRule { return nil }
+func (m *mockField) InitialValue() any       { return nil }
+func (m *mockField) Attrs() map[string]any   { return map[string]any{} }
 func (m *mockField) Value(value any) crud.FieldValue {
 	return &mockFieldValue{field: m, value: value}
+}
+func (m *mockField) AsStringField() (crud.StringField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not string", m.name, m.fieldType)
+}
+func (m *mockField) AsIntField() (crud.IntField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not int", m.name, m.fieldType)
+}
+func (m *mockField) AsBoolField() (crud.BoolField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not bool", m.name, m.fieldType)
+}
+func (m *mockField) AsFloatField() (crud.FloatField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not float", m.name, m.fieldType)
+}
+func (m *mockField) AsDateField() (crud.DateField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not date", m.name, m.fieldType)
+}
+func (m *mockField) AsTimeField() (crud.TimeField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not time", m.name, m.fieldType)
+}
+func (m *mockField) AsDateTimeField() (crud.DateTimeField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not datetime", m.name, m.fieldType)
+}
+func (m *mockField) AsTimestampField() (crud.TimestampField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not timestamp", m.name, m.fieldType)
+}
+func (m *mockField) AsUUIDField() (crud.UUIDField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not uuid", m.name, m.fieldType)
 }
 
 type mockFieldValue struct {
@@ -1136,4 +1192,58 @@ type mockFieldValue struct {
 
 func (m *mockFieldValue) Field() crud.Field { return m.field }
 func (m *mockFieldValue) Value() any        { return m.value }
-func (m *mockFieldValue) IsZero() bool { return m.value == nil }
+func (m *mockFieldValue) IsZero() bool      { return m.value == nil }
+func (m *mockFieldValue) AsString() (string, error) {
+	if s, ok := m.value.(string); ok {
+		return s, nil
+	}
+	return "", fmt.Errorf("value is not a string")
+}
+func (m *mockFieldValue) AsInt() (int, error) {
+	if i, ok := m.value.(int); ok {
+		return i, nil
+	}
+	return 0, fmt.Errorf("value is not an int")
+}
+func (m *mockFieldValue) AsInt32() (int32, error) {
+	if i, ok := m.value.(int32); ok {
+		return i, nil
+	}
+	return 0, fmt.Errorf("value is not an int32")
+}
+func (m *mockFieldValue) AsInt64() (int64, error) {
+	if i, ok := m.value.(int64); ok {
+		return i, nil
+	}
+	return 0, fmt.Errorf("value is not an int64")
+}
+func (m *mockFieldValue) AsBool() (bool, error) {
+	if b, ok := m.value.(bool); ok {
+		return b, nil
+	}
+	return false, fmt.Errorf("value is not a bool")
+}
+func (m *mockFieldValue) AsFloat32() (float32, error) {
+	if f, ok := m.value.(float32); ok {
+		return f, nil
+	}
+	return 0, fmt.Errorf("value is not a float32")
+}
+func (m *mockFieldValue) AsFloat64() (float64, error) {
+	if f, ok := m.value.(float64); ok {
+		return f, nil
+	}
+	return 0, fmt.Errorf("value is not a float64")
+}
+func (m *mockFieldValue) AsTime() (time.Time, error) {
+	if t, ok := m.value.(time.Time); ok {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("value is not a time.Time")
+}
+func (m *mockFieldValue) AsUUID() (uuid.UUID, error) {
+	if u, ok := m.value.(uuid.UUID); ok {
+		return u, nil
+	}
+	return uuid.UUID{}, fmt.Errorf("value is not a uuid.UUID")
+}
