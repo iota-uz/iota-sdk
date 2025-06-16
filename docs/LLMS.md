@@ -666,20 +666,32 @@ type TextAreaProps struct {
 ```go
 type Props struct {
     DefaultValue string
-    Tabs []string
     Class string
+    Attrs templ.Attributes
 }
 ```
 
-##### Methods
-
-- `func (Props) Validate() error`
-  Validate checks if the Props are valid and returns an error if not
-  
-
 ### Functions
 
-#### `func NavTabs(props Props) templ.Component`
+#### `func Button(value string) templ.Component`
+
+Button renders an individual tab button
+
+
+#### `func Content(value string) templ.Component`
+
+Content renders tab content that shows/hides based on active tab
+
+
+#### `func List(class string) templ.Component`
+
+List renders the tab navigation buttons
+
+
+#### `func Root(props Props) templ.Component`
+
+Root provides a container for navtabs with content switching functionality
+
 
 ### Variables and Constants
 
@@ -3257,8 +3269,33 @@ Link represents a navigation link in the sidebar.
 ```go
 type Props struct {
     Header templ.Component
-    Items []Item
+    TabGroups TabGroupCollection
     Footer templ.Component
+}
+```
+
+#### TabGroup
+
+TabGroup represents a group of sidebar items organized under a tab
+
+
+```go
+type TabGroup struct {
+    Label string
+    Value string
+    Items []Item
+}
+```
+
+#### TabGroupCollection
+
+TabGroupCollection holds multiple tab groups for the sidebar
+
+
+```go
+type TabGroupCollection struct {
+    Groups []TabGroup
+    DefaultValue string
 }
 ```
 
@@ -3269,6 +3306,8 @@ type Props struct {
 #### `func AccordionLink(link Link) templ.Component`
 
 #### `func Sidebar(props Props) templ.Component`
+
+#### `func SidebarContent(props Props) templ.Component`
 
 ### Variables and Constants
 
@@ -3339,6 +3378,13 @@ It displays all supported languages with their verbose names.
 
 ## Package `assets` (internal/assets)
 
+templ: version: v0.3.857
+
+
+### Functions
+
+#### `func DefaultLogo() templ.Component`
+
 ### Variables and Constants
 
 - Var: `[FS]`
@@ -3386,6 +3432,7 @@ Application with a dynamically extendable service registry
 - `Assets() []*embed.FS`
 - `HashFsAssets() []*hashfs.FS`
 - `RBAC() rbac.RBAC`
+- `Websocket() Huber`
 - `Spotlight() spotlight.Spotlight`
 - `QuickLinks() *spotlight.QuickLinks`
 - `Migrations() MigrationManager`
@@ -3403,6 +3450,25 @@ Application with a dynamically extendable service registry
 - `Services() map[reflect.Type]interface{}`
 - `Bundle() *i18n.Bundle`
 
+#### ApplicationOptions
+
+```go
+type ApplicationOptions struct {
+    Pool *pgxpool.Pool
+    EventBus eventbus.EventBus
+    Logger *logrus.Logger
+    Bundle *i18n.Bundle
+    Huber Huber
+}
+```
+
+#### Connection
+
+##### Interface Methods
+
+- `ws.Connectioner`
+- `User() user.User`
+
 #### Controller
 
 ##### Interface Methods
@@ -3417,6 +3483,34 @@ type GraphSchema struct {
     Value graphql.ExecutableSchema
     BasePath string
     ExecutorCb func(*executor.Executor)
+}
+```
+
+#### Huber
+
+##### Interface Methods
+
+- `http.Handler`
+- `ForEach(channel string, f WsCallback) error`
+
+#### HuberOptions
+
+```go
+type HuberOptions struct {
+    Pool *pgxpool.Pool
+    Bundle *i18n.Bundle
+    Logger *logrus.Logger
+    CheckOrigin func(r *http.Request) bool
+    UserRepository user.Repository
+}
+```
+
+#### MetaInfo
+
+```go
+type MetaInfo struct {
+    UserID uint
+    TenantID uuid.UUID
 }
 ```
 
@@ -3449,11 +3543,17 @@ MigrationManager is an interface for handling database migrations
 - `Seed(ctx context.Context, app Application) error`
 - `Register(funcs ...SeedFunc)`
 
+#### WsCallback
+
 ### Functions
+
+#### `func LoadBundle() *i18n.Bundle`
 
 ### Variables and Constants
 
 - Var: `[ErrAppNotFound]`
+
+- Const: `[ChannelAuthenticated]`
 
 ---
 
@@ -3606,11 +3706,6 @@ MustUseUser returns the user from the context. If no user is found, it panics.
 
 #### `func UseAllNavItems(ctx context.Context) ([]types.NavigationItem, error)`
 
-#### `func UseApp(ctx context.Context) (application.Application, error)`
-
-UseApp returns the application from the context.
-
-
 #### `func UseAuthenticated(ctx context.Context) bool`
 
 UseAuthenticated returns whether the user is authenticated and the second return value is true.
@@ -3664,6 +3759,8 @@ UseSession returns the session from the context.
 
 #### `func UseTabs(ctx context.Context) ([]*tab.Tab, error)`
 
+#### `func UseTenantID(ctx context.Context) (uuid.UUID, error)`
+
 #### `func UseTx(ctx context.Context) (repo.Tx, error)`
 
 #### `func UseUser(ctx context.Context) (user.User, error)`
@@ -3700,7 +3797,7 @@ WithParams returns a new context with the request parameters.
 WithSession returns a new context with the session.
 
 
-#### `func WithTenant(ctx context.Context, tenant *Tenant) context.Context`
+#### `func WithTenantID(ctx context.Context, tenantID uuid.UUID) context.Context`
 
 #### `func WithTx(ctx context.Context, tx pgx.Tx) context.Context`
 
@@ -3723,7 +3820,7 @@ WithUser returns a new context with the user.
 
 - Var: `[ErrNoLogger]`
 
-- Var: `[ErrNoTenantFound]`
+- Var: `[ErrNoTenantIDFound]`
 
 - Var: `[ErrTabsNotFound]`
 
@@ -5159,6 +5256,8 @@ PointerSlice is a utility function that returns a slice of pointers from a slice
 
 #### `func PointerToSQLNullTime(t *time.Time) sql.NullTime`
 
+#### `func SQLNullStringToUUID(ns sql.NullString) uuid.UUID`
+
 #### `func SQLNullTimeToPointer(v sql.NullTime) *time.Time`
 
 #### `func UUIDToSQLNullString(id uuid.UUID) sql.NullString`
@@ -5930,14 +6029,6 @@ type HTTPServer struct {
 
 - `func (HTTPServer) Start(socketAddress string) error`
 
-### Functions
-
-#### `func WsHub() *ws.Hub`
-
-### Variables and Constants
-
-- Const: `[ChannelChat]`
-
 ---
 
 ## Package `shared` (pkg/shared)
@@ -5963,6 +6054,8 @@ Returns "NA" if both names are empty.
 
 #### `func ParseID(r *http.Request) (uint, error)`
 
+#### `func ParseUUID(r *http.Request) (uuid.UUID, error)`
+
 #### `func Redirect(w http.ResponseWriter, r *http.Request, path string)`
 
 #### `func SetFlash(w http.ResponseWriter, name string, value []byte)`
@@ -5974,6 +6067,24 @@ Returns "NA" if both names are empty.
 - Var: `[Decoder]`
 
 - Var: `[Encoder]`
+
+---
+
+## Package `sidebar` (pkg/sidebar)
+
+### Types
+
+#### TabGroupBuilder
+
+TabGroupBuilder is a function that takes navigation items and returns tab groups
+
+
+### Functions
+
+#### `func DefaultTabGroupBuilder(items []types.NavigationItem, localizer *i18n.Localizer) sidebar.TabGroupCollection`
+
+DefaultTabGroupBuilder maintains current behavior (single "Core" tab)
+
 
 ---
 
@@ -6178,38 +6289,29 @@ type ValidationError struct {
 
 ##### Methods
 
-- `func (Connection) Channels() <?>`
-
 - `func (Connection) Close() error`
 
-- `func (Connection) GetContext(key string) (any, bool)`
-
 - `func (Connection) SendMessage(message []byte) error`
-
-- `func (Connection) Session() *session.Session`
-
-- `func (Connection) SetContext(key string, value any)`
-
-- `func (Connection) Subscribe(channel string)`
-
-- `func (Connection) Unsubscribe(channel string)`
-
-- `func (Connection) UserID() uint`
+  SendMessage sends a text message to the websocket connection
+  
 
 #### Connectioner
 
 ##### Interface Methods
 
-- `UserID() uint`
-- `Session() *session.Session`
-- `Channels() <?>`
+- `io.Closer`
 - `SendMessage(message []byte) error`
-- `Subscribe(channel string)`
-- `Unsubscribe(channel string)`
-- `SetContext(key string, value any)`
-- `GetContext(key string) (any, bool)`
+
+#### EventType
 
 #### Hub
+
+```go
+type Hub struct {
+    OnConnect func(r *http.Request, hub *Hub, conn *Connection) error
+    OnDisconnect func(conn *Connection)
+}
+```
 
 ##### Methods
 
@@ -6217,36 +6319,43 @@ type ValidationError struct {
 
 - `func (Hub) BroadcastToChannel(channel string, message []byte)`
 
-- `func (Hub) BroadcastToUser(userID uint, message []byte)`
-
 - `func (Hub) ConnectionsAll() []*Connection`
 
 - `func (Hub) ConnectionsInChannel(channel string) []*Connection`
 
+- `func (Hub) JoinChannel(channel string, conn *Connection)`
+
+- `func (Hub) LeaveChannel(channel string, conn *Connection)`
+
+- `func (Hub) On(eventType EventType, handler func(conn *Connection, message []byte))`
+
 - `func (Hub) ServeHTTP(w http.ResponseWriter, r *http.Request)`
+
+#### HubOptions
+
+```go
+type HubOptions struct {
+    Logger *logrus.Logger
+    CheckOrigin func(r *http.Request) bool
+    OnConnect func(r *http.Request, hub *Hub, conn *Connection) error
+    OnDisconnect func(conn *Connection)
+}
+```
 
 #### Huber
 
 ##### Interface Methods
 
+- `http.Handler`
 - `BroadcastToAll(message []byte)`
-- `BroadcastToUser(userID uint, message []byte)`
 - `BroadcastToChannel(channel string, message []byte)`
+- `On(eventType EventType, handler func(conn *Connection, message []byte))`
+- `JoinChannel(channel string, conn *Connection)`
+- `LeaveChannel(channel string, conn *Connection)`
 - `ConnectionsInChannel(channel string) []*Connection`
 - `ConnectionsAll() []*Connection`
 
 #### Set
-
-#### SubscriptionMessage
-
-```go
-type SubscriptionMessage struct {
-    Subscribe string `json:"subscribe,omitempty"`
-    Unsubscribe string `json:"unsubscribe,omitempty"`
-}
-```
-
-### Variables and Constants
 
 ---
 
