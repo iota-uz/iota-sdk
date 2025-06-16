@@ -120,7 +120,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
 				Attrs: templ.Attributes{
-					"name": "AccountId",
+					"name": "AccountID",
 					"form": "save-form",
 				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -165,10 +165,10 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("Payments.Single.Comment"),
+				Value: props.Payment.Comment,
 				Attrs: templ.Attributes{
-					"value": props.Payment.Comment,
-					"name":  "Comment",
-					"form":  "save-form",
+					"name": "Comment",
+					"form": "save-form",
 				},
 				WrapperClass: "col-span-3",
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -356,7 +356,7 @@ func Edit(props *EditPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			BaseProps: layouts.BaseProps{Title: pageCtx.T("Payments.Edit.Meta.Title")},
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("Payments.Meta.Edit.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

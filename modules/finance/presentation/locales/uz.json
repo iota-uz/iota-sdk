@@ -107,9 +107,9 @@
       }
     },
     "Single": {
-      "Account": "Hisob",
+      "AccountID": "Hisob",
       "SelectAccount": "Hisobni tanlang",
-      "Category": "Kategoriya",
+      "CategoryID": "Kategoriya",
       "SelectCategory": "Kategoriyani tanlang",
       "Edit": "Xarajatni tahrirlash",
       "Name": "Nomi",
@@ -218,6 +218,7 @@
       "Edit": "Hisobni tahrirlash",
       "Name": "Nomi",
       "Balance": "Balans",
+      "CurrencyCode": "Valyuta",
       "Currency": {
         "Label": "Valyuta",
         "Placeholder": "Valyutani tanlang"
@@ -291,5 +292,11 @@
       "Delete": "Tovarni o'chirish",
       "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
     }
+  },
+  "ValidationErrors": {
+    "uuid": "Haqiqiy UUID bo'lishi kerak",
+    "gte": "{0} dan katta yoki teng bo'lishi kerak",
+    "len": "Uzunligi {0} ga teng bo'lishi kerak",
+    "gt": "{0} dan katta bo'lishi kerak"
   }
 }

@@ -188,7 +188,7 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	categories, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -351,7 +351,7 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedCategory, err := service.GetByID(env.Ctx, createdCategory.ID())
 	require.NoError(t, err)

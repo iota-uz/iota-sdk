@@ -43,38 +43,42 @@ func (s *PaymentCategoryService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *PaymentCategoryService) Create(ctx context.Context, entity paymentcategory.PaymentCategory) error {
+func (s *PaymentCategoryService) Create(ctx context.Context, entity paymentcategory.PaymentCategory) (paymentcategory.PaymentCategory, error) {
 	createdEvent, err := paymentcategory.NewCreatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var created paymentcategory.PaymentCategory
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		_, createErr := s.repo.Create(txCtx, entity)
+		var createErr error
+		created, createErr = s.repo.Create(txCtx, entity)
 		return createErr
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	createdEvent.Result = entity
+	createdEvent.Result = created
 	s.publisher.Publish(createdEvent)
-	return nil
+	return created, nil
 }
 
-func (s *PaymentCategoryService) Update(ctx context.Context, entity paymentcategory.PaymentCategory) error {
+func (s *PaymentCategoryService) Update(ctx context.Context, entity paymentcategory.PaymentCategory) (paymentcategory.PaymentCategory, error) {
 	updatedEvent, err := paymentcategory.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var updated paymentcategory.PaymentCategory
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		_, updateErr := s.repo.Update(txCtx, entity)
+		var updateErr error
+		updated, updateErr = s.repo.Update(txCtx, entity)
 		return updateErr
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	updatedEvent.Result = entity
+	updatedEvent.Result = updated
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return updated, nil
 }
 
 func (s *PaymentCategoryService) Delete(ctx context.Context, id uuid.UUID) (paymentcategory.PaymentCategory, error) {

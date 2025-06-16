@@ -222,7 +222,7 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	counterparties, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -397,7 +397,7 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
 	require.NoError(t, err)

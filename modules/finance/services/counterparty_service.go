@@ -40,11 +40,14 @@ func (s *CounterpartyService) Create(ctx context.Context, entity counterparty.Co
 	return result, err
 }
 
-func (s *CounterpartyService) Update(ctx context.Context, entity counterparty.Counterparty) error {
-	return composables.InTx(ctx, func(txCtx context.Context) error {
-		_, err := s.repo.Update(txCtx, entity)
-		return err
+func (s *CounterpartyService) Update(ctx context.Context, entity counterparty.Counterparty) (counterparty.Counterparty, error) {
+	var result counterparty.Counterparty
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var updateErr error
+		result, updateErr = s.repo.Update(txCtx, entity)
+		return updateErr
 	})
+	return result, err
 }
 
 func (s *CounterpartyService) Delete(ctx context.Context, id uuid.UUID) (counterparty.Counterparty, error) {

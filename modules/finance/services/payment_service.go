@@ -51,14 +51,14 @@ func (s *PaymentService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) error {
+func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) (payment.Payment, error) {
 	if err := composables.CanUser(ctx, permissions.PaymentCreate); err != nil {
-		return err
+		return nil, err
 	}
 
 	createdEvent, err := payment.NewCreatedEvent(ctx, entity, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var createdEntity payment.Payment
@@ -71,36 +71,40 @@ func (s *PaymentService) Create(ctx context.Context, entity payment.Payment) err
 		return s.accountService.RecalculateBalance(txCtx, createdEntity.Account().ID())
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	createdEvent.Result = createdEntity
 	s.publisher.Publish(createdEvent)
-	return nil
+	return createdEntity, nil
 }
 
-func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) error {
+func (s *PaymentService) Update(ctx context.Context, entity payment.Payment) (payment.Payment, error) {
 	if err := composables.CanUser(ctx, permissions.PaymentUpdate); err != nil {
-		return err
+		return nil, err
 	}
 
 	updatedEvent, err := payment.NewUpdatedEvent(ctx, entity, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var updatedEntity payment.Payment
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if _, err := s.repo.Update(txCtx, entity); err != nil {
+		var err error
+		updatedEntity, err = s.repo.Update(txCtx, entity)
+		if err != nil {
 			return err
 		}
 		return s.accountService.RecalculateBalance(txCtx, entity.Account().ID())
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	updatedEvent.Result = updatedEntity
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return updatedEntity, nil
 }
 
 func (s *PaymentService) Delete(ctx context.Context, id uuid.UUID) (payment.Payment, error) {
