@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -94,16 +93,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				// Check if we already have a tenant in context
 				_, tenantErr := composables.UseTenantID(ctx)
 				if tenantErr != nil {
-					// If not, get it from the user's tenant ID
-					tenantService := app.Service(services.TenantService{}).(*services.TenantService)
-					t, err := tenantService.GetByID(ctx, u.TenantID())
-					if err != nil {
-						log.Printf("Error retrieving tenant: %v", err)
-						// Don't add tenant to context if we couldn't get it
-					} else {
-						// Add tenant to context
-						ctx = context.WithValue(ctx, constants.TenantIDKey, t)
-					}
+					ctx = context.WithValue(ctx, constants.TenantIDKey, u.TenantID())
 				}
 
 				next.ServeHTTP(w, r.WithContext(ctx))

@@ -1,6 +1,8 @@
 package details
 
 type StripeOption func(d *stripeDetails)
+type StripeItemOption func(i *stripeItem)
+type StripeSubscriptionDataOption func(d *stripeSubscriptionData)
 
 func StripeWithMode(mode string) StripeOption {
 	return func(d *stripeDetails) {
@@ -50,6 +52,12 @@ func StripeWithItems(items []StripeItem) StripeOption {
 	}
 }
 
+func StripeWithSubscription(subscriptionData StripeSubscriptionData) StripeOption {
+	return func(d *stripeDetails) {
+		d.subscriptionData = subscriptionData
+	}
+}
+
 func StripeWithSuccessURL(successURL string) StripeOption {
 	return func(d *stripeDetails) {
 		d.successURL = successURL
@@ -68,22 +76,110 @@ func StripeWithURL(url string) StripeOption {
 	}
 }
 
-func NewStripeItem(priceID string, quantity int64) StripeItem {
-	return &stripeItem{
-		priceID:  priceID,
-		quantity: quantity,
+func StripeItemWithAdjustableQuantity(
+	enabled bool,
+	minimum int64,
+	maximum int64,
+) StripeItemOption {
+	return func(i *stripeItem) {
+		i.adjustableQuantity = &stripeItemAdjustableQuantity{
+			enabled: enabled,
+			minimum: minimum,
+			maximum: maximum,
+		}
 	}
 }
 
+func NewStripeItem(
+	priceID string,
+	quantity int64,
+	opts ...StripeItemOption,
+) StripeItem {
+	i := &stripeItem{
+		priceID:            priceID,
+		quantity:           quantity,
+		adjustableQuantity: nil,
+	}
+
+	for _, opt := range opts {
+		opt(i)
+	}
+
+	return i
+}
+
 type stripeItem struct {
-	priceID  string
-	quantity int64
+	adjustableQuantity StripeItemAdjustableQuantity
+	priceID            string
+	quantity           int64
+}
+
+func (i *stripeItem) AdjustableQuantity() StripeItemAdjustableQuantity {
+	return i.adjustableQuantity
 }
 
 func (i *stripeItem) PriceID() string { return i.priceID }
 func (i *stripeItem) Quantity() int64 { return i.quantity }
 
-func NewStripeDetails(clientReferenceID string, opts ...StripeOption) *stripeDetails {
+type stripeItemAdjustableQuantity struct {
+	enabled bool
+	minimum int64
+	maximum int64
+}
+
+func (s *stripeItemAdjustableQuantity) Enabled() bool {
+	return s.enabled
+}
+
+func (s *stripeItemAdjustableQuantity) Maximum() int64 {
+	return s.maximum
+}
+
+func (s *stripeItemAdjustableQuantity) Minimum() int64 {
+	return s.minimum
+}
+
+func StripeSubscriptionDataWithDescription(description string) StripeSubscriptionDataOption {
+	return func(d *stripeSubscriptionData) {
+		d.description = description
+	}
+}
+
+func StripeSubscriptionDataWithTrialPeriodDays(trialPeriodDays int64) StripeSubscriptionDataOption {
+	return func(d *stripeSubscriptionData) {
+		d.trialPeriodDays = trialPeriodDays
+	}
+}
+
+func NewStripeSubscriptionData(
+	opts ...StripeSubscriptionDataOption,
+) StripeSubscriptionData {
+	sd := &stripeSubscriptionData{}
+
+	for _, opt := range opts {
+		opt(sd)
+	}
+
+	return sd
+}
+
+type stripeSubscriptionData struct {
+	description     string
+	trialPeriodDays int64
+}
+
+func (s stripeSubscriptionData) Description() string {
+	return s.description
+}
+
+func (s stripeSubscriptionData) TrialPeriodDays() int64 {
+	return s.trialPeriodDays
+}
+
+func NewStripeDetails(
+	clientReferenceID string,
+	opts ...StripeOption,
+) *stripeDetails {
 	d := &stripeDetails{
 		clientReferenceID: clientReferenceID,
 	}
@@ -102,6 +198,7 @@ type stripeDetails struct {
 	subscriptionID    string
 	customerID        string
 	items             []StripeItem
+	subscriptionData  StripeSubscriptionData
 	successURL        string
 	cancelURL         string
 	url               string
@@ -117,9 +214,12 @@ func (d *stripeDetails) InvoiceID() string         { return d.invoiceID }
 func (d *stripeDetails) SubscriptionID() string    { return d.subscriptionID }
 func (d *stripeDetails) CustomerID() string        { return d.customerID }
 func (d *stripeDetails) Items() []StripeItem       { return d.items }
-func (d *stripeDetails) SuccessURL() string        { return d.successURL }
-func (d *stripeDetails) CancelURL() string         { return d.cancelURL }
-func (d *stripeDetails) URL() string               { return d.url }
+func (d *stripeDetails) SubscriptionData() StripeSubscriptionData {
+	return d.subscriptionData
+}
+func (d *stripeDetails) SuccessURL() string { return d.successURL }
+func (d *stripeDetails) CancelURL() string  { return d.cancelURL }
+func (d *stripeDetails) URL() string        { return d.url }
 
 // Setters
 

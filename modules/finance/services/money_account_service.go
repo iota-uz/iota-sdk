@@ -74,24 +74,27 @@ func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Ac
 	return createdEntity, nil
 }
 
-func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Account) error {
+func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Account) (moneyaccount.Account, error) {
 	updatedEvent, err := moneyaccount.NewUpdatedEvent(ctx, entity, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var updatedEntity moneyaccount.Account
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if _, err := s.repo.Update(txCtx, entity); err != nil {
+		updatedEntity, err = s.repo.Update(txCtx, entity)
+		if err != nil {
 			return err
 		}
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	updatedEvent.Result = updatedEntity
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return updatedEntity, nil
 }
 
 func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyaccount.Account, error) {

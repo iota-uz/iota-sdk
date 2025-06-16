@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -42,30 +43,42 @@ func (s *PaymentCategoryService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *PaymentCategoryService) Create(ctx context.Context, entity paymentcategory.PaymentCategory) error {
+func (s *PaymentCategoryService) Create(ctx context.Context, entity paymentcategory.PaymentCategory) (paymentcategory.PaymentCategory, error) {
 	createdEvent, err := paymentcategory.NewCreatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err := s.repo.Create(ctx, entity); err != nil {
-		return err
+	var created paymentcategory.PaymentCategory
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var createErr error
+		created, createErr = s.repo.Create(txCtx, entity)
+		return createErr
+	})
+	if err != nil {
+		return nil, err
 	}
-	createdEvent.Result = entity
+	createdEvent.Result = created
 	s.publisher.Publish(createdEvent)
-	return nil
+	return created, nil
 }
 
-func (s *PaymentCategoryService) Update(ctx context.Context, entity paymentcategory.PaymentCategory) error {
+func (s *PaymentCategoryService) Update(ctx context.Context, entity paymentcategory.PaymentCategory) (paymentcategory.PaymentCategory, error) {
 	updatedEvent, err := paymentcategory.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err := s.repo.Update(ctx, entity); err != nil {
-		return err
+	var updated paymentcategory.PaymentCategory
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var updateErr error
+		updated, updateErr = s.repo.Update(txCtx, entity)
+		return updateErr
+	})
+	if err != nil {
+		return nil, err
 	}
-	updatedEvent.Result = entity
+	updatedEvent.Result = updated
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return updated, nil
 }
 
 func (s *PaymentCategoryService) Delete(ctx context.Context, id uuid.UUID) (paymentcategory.PaymentCategory, error) {
@@ -77,7 +90,10 @@ func (s *PaymentCategoryService) Delete(ctx context.Context, id uuid.UUID) (paym
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.Delete(txCtx, id)
+	})
+	if err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = entity

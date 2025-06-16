@@ -19,7 +19,7 @@ type ExpenseCategoryCreateDTO struct {
 }
 
 type ExpenseCategoryUpdateDTO struct {
-	Name        string
+	Name        string `validate:"required"`
 	Description string
 }
 
@@ -35,7 +35,7 @@ func (e *ExpenseCategoryCreateDTO) Ok(ctx context.Context) (map[string]string, b
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
 		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: fmt.Sprintf("Finance.ExpenseCategory.%s", err.Field()),
+			MessageID: fmt.Sprintf("ExpenseCategories.Single.%s", err.Field()),
 		})
 		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
@@ -59,7 +59,7 @@ func (e *ExpenseCategoryUpdateDTO) Ok(ctx context.Context) (map[string]string, b
 	}
 	for _, err := range errs.(validator.ValidationErrors) {
 		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
-			MessageID: fmt.Sprintf("Finance.ExpenseCategory.%s", err.Field()),
+			MessageID: fmt.Sprintf("ExpenseCategories.Single.%s", err.Field()),
 		})
 		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),

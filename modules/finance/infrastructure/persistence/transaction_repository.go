@@ -40,9 +40,10 @@ const (
 			transaction_date,
 			accounting_period,
 			transaction_type,
-			comment
+			comment,
+			created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
 	transactionUpdateQuery = `
 		UPDATE transactions
 		SET amount = $1,
@@ -148,6 +149,7 @@ func (g *PgTransactionRepository) Create(ctx context.Context, data transaction.T
 		entity.AccountingPeriod,
 		entity.TransactionType,
 		entity.Comment,
+		entity.CreatedAt,
 	}
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, transactionInsertQuery, args...).Scan(&id)

@@ -31,18 +31,18 @@ templ CreateForm(props *CreatePageProps) {
 			WrapperClass: "m-6",
 		}) {
 			@input.Text(&input.Props{
-				Label: pageCtx.T("Accounts.Single.Name"),
+				Label: pageCtx.T("MoneyAccounts.Single.Name"),
 				Attrs: templ.Attributes{"name": "Name", "value": props.Account.Name},
 				Error: props.Errors["Name"],
 			})
 			@input.Number(&input.Props{
-				Label: pageCtx.T("Accounts.Single.Balance"),
+				Label: pageCtx.T("MoneyAccounts.Single.Balance"),
 				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance},
 				Error: props.Errors["Balance"],
 			})
 			@components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       pageCtx.T("Accounts.Single.Currency.Label"),
-				Placeholder: pageCtx.T("Accounts.Single.Currency.Placeholder"),
+				Label:       pageCtx.T("MoneyAccounts.Single.Currency.Label"),
+				Placeholder: pageCtx.T("MoneyAccounts.Single.Currency.Placeholder"),
 				Value:       "",
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
@@ -50,12 +50,12 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@input.Text(&input.Props{
-				Label: pageCtx.T("Accounts.Single.AccountNumber"),
+				Label: pageCtx.T("MoneyAccounts.Single.AccountNumber"),
 				Attrs: templ.Attributes{"name": "AccountNumber", "value": props.Account.AccountNumber},
 				Error: props.Errors["AccountNumber"],
 			})
 			@input.TextArea(&input.TextAreaProps{
-				Label:        pageCtx.T("Accounts.Single._Description"),
+				Label:        pageCtx.T("MoneyAccounts.Single._Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Account.Description,
@@ -78,7 +78,7 @@ templ CreateForm(props *CreatePageProps) {
 templ New(props *CreatePageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Accounts.Meta.New.Title")},
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("MoneyAccounts.Meta.New.Title")},
 	}) {
 		@CreateForm(props)
 	}

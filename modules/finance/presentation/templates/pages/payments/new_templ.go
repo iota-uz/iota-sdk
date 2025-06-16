@@ -112,7 +112,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.AccountSelect(&components.AccountSelectProps{
-				Label:       pageCtx.T("Payments.Single.Account"),
+				Label:       pageCtx.T("Payments.Single.AccountID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
@@ -144,7 +144,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.PaymentCategorySelect(&components.PaymentCategorySelectProps{
-				Label:       pageCtx.T("Payments.Single.Category"),
+				Label:       pageCtx.T("Payments.Single.CategoryID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectCategory"),
 				Value:       props.Payment.CategoryID,
 				Categories:  props.Categories,
@@ -163,10 +163,10 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("Payments.Single.Comment"),
+				Value: props.Payment.Comment,
 				Attrs: templ.Attributes{
-					"value": props.Payment.Comment,
-					"name":  "Comment",
-					"form":  "save-form",
+					"name": "Comment",
+					"form": "save-form",
 				},
 				WrapperClass: "col-span-3",
 			}).Render(ctx, templ_7745c5c3_Buffer)

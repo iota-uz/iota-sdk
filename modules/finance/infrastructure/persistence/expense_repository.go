@@ -22,11 +22,11 @@ const (
 		tr.origin_account_id, tr.destination_account_id
 		FROM expenses ex LEFT JOIN transactions tr on tr.id = ex.transaction_id`
 
-	expenseCountQuery = `SELECT COUNT(ex.id) FROM expenses ex`
+	expenseCountQuery = `SELECT COUNT(ex.id) FROM expenses ex LEFT JOIN transactions tr on tr.id = ex.transaction_id`
 
 	expenseInsertQuery = `
-		INSERT INTO expenses (transaction_id, category_id)
-		VALUES ($1, $2)
+		INSERT INTO expenses (id, transaction_id, category_id, tenant_id)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 
 	expenseUpdateQuery = `
@@ -61,9 +61,14 @@ func NewExpenseRepository(categoryRepo category.Repository, transactionRepo tran
 	}
 }
 
-func (g *GormExpenseRepository) buildExpenseFilters(params *expense.FindParams) ([]string, []interface{}, error) {
-	where := []string{"1 = 1"}
-	args := []interface{}{}
+func (g *GormExpenseRepository) buildExpenseFilters(ctx context.Context, params *expense.FindParams) ([]string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	where := []string{"ex.tenant_id = $1"}
+	args := []interface{}{tenantID}
 
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
@@ -176,7 +181,7 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 }
 
 func (g *GormExpenseRepository) GetPaginated(ctx context.Context, params *expense.FindParams) ([]expense.Expense, error) {
-	where, args, err := g.buildExpenseFilters(params)
+	where, args, err := g.buildExpenseFilters(ctx, params)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build filters")
 	}
@@ -197,7 +202,7 @@ func (g *GormExpenseRepository) Count(ctx context.Context, params *expense.FindP
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	where, args, err := g.buildExpenseFilters(params)
+	where, args, err := g.buildExpenseFilters(ctx, params)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to build filters")
 	}
@@ -216,17 +221,30 @@ func (g *GormExpenseRepository) Count(ctx context.Context, params *expense.FindP
 }
 
 func (g *GormExpenseRepository) GetAll(ctx context.Context) ([]expense.Expense, error) {
-	query := expenseFindQuery
-	return g.queryExpenses(ctx, query)
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	query := repo.Join(
+		expenseFindQuery,
+		repo.JoinWhere("ex.tenant_id = $1"),
+	)
+	return g.queryExpenses(ctx, query, tenantID)
 }
 
 func (g *GormExpenseRepository) GetByID(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
 	query := repo.Join(
 		expenseFindQuery,
-		repo.JoinWhere("ex.id = $1"),
+		repo.JoinWhere("ex.id = $1 AND ex.tenant_id = $2"),
 	)
 
-	expenses, err := g.queryExpenses(ctx, query, id)
+	expenses, err := g.queryExpenses(ctx, query, id, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to get expense with ID: %s", id))
 	}
@@ -251,8 +269,10 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense
 	if err := tx.QueryRow(
 		ctx,
 		expenseInsertQuery,
+		expenseRow.ID,
 		createdTransaction.ID(),
 		expenseRow.CategoryID,
+		expenseRow.TenantID,
 	).Scan(&id); err != nil {
 		return nil, errors.Wrap(err, "failed to create expense")
 	}

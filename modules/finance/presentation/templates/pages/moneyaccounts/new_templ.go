@@ -78,7 +78,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: pageCtx.T("Accounts.Single.Name"),
+				Label: pageCtx.T("MoneyAccounts.Single.Name"),
 				Attrs: templ.Attributes{"name": "Name", "value": props.Account.Name},
 				Error: props.Errors["Name"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -90,7 +90,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: pageCtx.T("Accounts.Single.Balance"),
+				Label: pageCtx.T("MoneyAccounts.Single.Balance"),
 				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance},
 				Error: props.Errors["Balance"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -102,8 +102,8 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       pageCtx.T("Accounts.Single.Currency.Label"),
-				Placeholder: pageCtx.T("Accounts.Single.Currency.Placeholder"),
+				Label:       pageCtx.T("MoneyAccounts.Single.Currency.Label"),
+				Placeholder: pageCtx.T("MoneyAccounts.Single.Currency.Placeholder"),
 				Value:       "",
 				Currencies:  props.Currencies,
 				Attrs: templ.Attributes{
@@ -118,7 +118,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: pageCtx.T("Accounts.Single.AccountNumber"),
+				Label: pageCtx.T("MoneyAccounts.Single.AccountNumber"),
 				Attrs: templ.Attributes{"name": "AccountNumber", "value": props.Account.AccountNumber},
 				Error: props.Errors["AccountNumber"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -130,7 +130,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label:        pageCtx.T("Accounts.Single._Description"),
+				Label:        pageCtx.T("MoneyAccounts.Single._Description"),
 				Attrs:        templ.Attributes{"name": "Description"},
 				WrapperClass: "col-span-3",
 				Value:        props.Account.Description,
@@ -233,7 +233,7 @@ func New(props *CreatePageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			BaseProps: layouts.BaseProps{Title: pageCtx.T("Accounts.Meta.New.Title")},
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("MoneyAccounts.Meta.New.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

@@ -156,11 +156,19 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 
 		items := make([]details.StripeItem, len(d.Items))
 		for i, item := range d.Items {
-			items[i] = details.NewStripeItem(item.PriceID, item.Quantity)
+			itemOpts := make([]details.StripeItemOption, 0)
+
+			if item.AdjustableQuantity != nil {
+				itemOpts = append(itemOpts, details.StripeItemWithAdjustableQuantity(
+					item.AdjustableQuantity.Enabled,
+					item.AdjustableQuantity.Minimum,
+					item.AdjustableQuantity.Maximum,
+				))
+			}
+			items[i] = details.NewStripeItem(item.PriceID, item.Quantity, itemOpts...)
 		}
 
-		return details.NewStripeDetails(
-			d.ClientReferenceID,
+		opts := []details.StripeOption{
 			details.StripeWithMode(d.Mode),
 			details.StripeWithBillingReason(d.BillingReason),
 			details.StripeWithSessionID(d.SessionID),
@@ -171,6 +179,20 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			details.StripeWithSuccessURL(d.SuccessURL),
 			details.StripeWithCancelURL(d.CancelURL),
 			details.StripeWithURL(d.URL),
+		}
+
+		if d.SubscriptionData != nil {
+			opts = append(opts, details.StripeWithSubscription(
+				details.NewStripeSubscriptionData(
+					details.StripeSubscriptionDataWithDescription(d.SubscriptionData.Description),
+					details.StripeSubscriptionDataWithTrialPeriodDays(d.SubscriptionData.TrialPeriodDays),
+				),
+			))
+		}
+
+		return details.NewStripeDetails(
+			d.ClientReferenceID,
+			opts...,
 		), nil
 	default:
 		return nil, fmt.Errorf("unsupported gateway: %s", gateway)

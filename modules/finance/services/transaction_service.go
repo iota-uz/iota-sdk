@@ -38,20 +38,22 @@ func (s *TransactionService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *TransactionService) Create(ctx context.Context, data transaction2.Transaction) error {
-	if _, err := s.repo.Create(ctx, data); err != nil {
-		return err
+func (s *TransactionService) Create(ctx context.Context, data transaction2.Transaction) (transaction2.Transaction, error) {
+	entity, err := s.repo.Create(ctx, data)
+	if err != nil {
+		return nil, err
 	}
-	s.eventPublisher.Publish("transaction.created", data)
-	return nil
+	s.eventPublisher.Publish("transaction.created", entity)
+	return entity, nil
 }
 
-func (s *TransactionService) Update(ctx context.Context, data transaction2.Transaction) error {
-	if _, err := s.repo.Update(ctx, data); err != nil {
-		return err
+func (s *TransactionService) Update(ctx context.Context, data transaction2.Transaction) (transaction2.Transaction, error) {
+	entity, err := s.repo.Update(ctx, data)
+	if err != nil {
+		return nil, err
 	}
-	s.eventPublisher.Publish("transaction.updated", data)
-	return nil
+	s.eventPublisher.Publish("transaction.updated", entity)
+	return entity, nil
 }
 
 func (s *TransactionService) Delete(ctx context.Context, id uuid.UUID) error {

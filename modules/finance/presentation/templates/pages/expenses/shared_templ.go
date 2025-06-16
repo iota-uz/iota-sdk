@@ -157,7 +157,7 @@ func AccountSelect(props *AccountSelectProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Label:       pageCtx.T("Expenses.Single.Account"),
+			Label:       pageCtx.T("Expenses.Single.AccountID"),
 			Placeholder: pageCtx.T("Expenses.Single.SelectAccount"),
 			Attrs:       props.Attrs,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
@@ -270,7 +270,7 @@ func CategorySelect(props *CategorySelectProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = base.Select(&base.SelectProps{
-			Label:       pageCtx.T("Expenses.Single.Category"),
+			Label:       pageCtx.T("Expenses.Single.CategoryID"),
 			Placeholder: pageCtx.T("Expenses.Single.SelectCategory"),
 			Attrs:       props.Attrs,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
