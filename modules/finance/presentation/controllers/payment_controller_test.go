@@ -29,7 +29,13 @@ var (
 	PaymentBasePath = "/finance/payments"
 )
 
-func createPaymentCategory(t *testing.T, ctx context.Context, service *services.PaymentCategoryService, category paymentCategoryEntity.PaymentCategory) paymentCategoryEntity.PaymentCategory {
+func createPaymentCategory(
+	t *testing.T,
+	ctx context.Context,
+	service *services.PaymentCategoryService,
+	category paymentCategoryEntity.PaymentCategory,
+) paymentCategoryEntity.PaymentCategory {
+	t.Helper()
 	created, err := service.Create(ctx, category)
 	require.NoError(t, err)
 	return created
