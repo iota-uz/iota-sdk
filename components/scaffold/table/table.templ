@@ -140,7 +140,7 @@ templ TableSection(config *TableConfig) {
 		<div class="flex gap-5">
 			<!-- Left sidebar with filters -->
 			if config.SideFilter != nil {
-				<div class="hidden md:block w-64 flex-shrink-0">
+				<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:block w-64 flex-shrink-0">
 					@config.SideFilter
 				</div>
 			}
@@ -160,7 +160,7 @@ templ TableSection(config *TableConfig) {
 								},
 							})
 						</div>
-						<div class="hidden md:flex gap-3 h-full">
+						<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="flex gap-3 h-full">
 							for _, filter := range config.Filters {
 								@filter
 							}
@@ -174,12 +174,14 @@ templ TableSection(config *TableConfig) {
 			Heading: pageCtx.T("Scaffold.Filters.Title"),
 			Action:  "open-filters",
 		}) {
-			if config.SideFilter != nil {
-				@config.SideFilter
-			}
-			for _, filter := range config.Filters {
-				@filter
-			}
+			<div x-data="disableFormElementsWhen('(min-width: 48rem)')">
+				if config.SideFilter != nil {
+					@config.SideFilter
+				}
+				for _, filter := range config.Filters {
+					@filter
+				}
+			</div>
 		}
 	</form>
 }
