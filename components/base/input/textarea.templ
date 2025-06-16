@@ -48,7 +48,13 @@ templ (p *TextAreaProps) render() {
 			{ p.Value }
 		</textarea>
 		if p.Error != "" {
-			<small class="text-xs text-red-500 mt-1">{ p.Error }</small>
+			<small
+				class="text-xs text-red-500 mt-1"
+				data-testid="field-error"
+				data-field-id={ p.id }
+			>
+				{ p.Error }
+			</small>
 		}
 	</div>
 }

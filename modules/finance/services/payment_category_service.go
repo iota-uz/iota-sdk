@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -47,7 +48,11 @@ func (s *PaymentCategoryService) Create(ctx context.Context, entity paymentcateg
 	if err != nil {
 		return err
 	}
-	if _, err := s.repo.Create(ctx, entity); err != nil {
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		_, createErr := s.repo.Create(txCtx, entity)
+		return createErr
+	})
+	if err != nil {
 		return err
 	}
 	createdEvent.Result = entity
@@ -60,7 +65,11 @@ func (s *PaymentCategoryService) Update(ctx context.Context, entity paymentcateg
 	if err != nil {
 		return err
 	}
-	if _, err := s.repo.Update(ctx, entity); err != nil {
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		_, updateErr := s.repo.Update(txCtx, entity)
+		return updateErr
+	})
+	if err != nil {
 		return err
 	}
 	updatedEvent.Result = entity
@@ -77,7 +86,10 @@ func (s *PaymentCategoryService) Delete(ctx context.Context, id uuid.UUID) (paym
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.Delete(txCtx, id)
+	})
+	if err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = entity

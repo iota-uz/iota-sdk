@@ -164,6 +164,13 @@ func (c *InventoryController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if item exists first
+	_, err = c.inventoryService.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if err := c.inventoryService.Delete(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -177,8 +184,9 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto := dtos.InventoryUpdateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+
+	dto, err := composables.UseForm(&dtos.InventoryUpdateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -240,13 +248,8 @@ func (c *InventoryController) GetNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *InventoryController) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := dtos.InventoryCreateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&dtos.InventoryCreateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

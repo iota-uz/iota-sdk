@@ -68,7 +68,7 @@ func EditForm(props *EditPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: pageCtx.T("Accounts.Single.Name"),
+				Label: pageCtx.T("MoneyAccounts.Single.Name"),
 				Attrs: templ.Attributes{
 					"value": props.Account.Name,
 					"name":  "Name",
@@ -84,7 +84,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
-				Label: pageCtx.T("Accounts.Single.Balance"),
+				Label: pageCtx.T("MoneyAccounts.Single.Balance"),
 				Attrs: templ.Attributes{
 					"name":  "Balance",
 					"value": props.Account.Balance,
@@ -100,8 +100,8 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.CurrencySelect(&components.CurrencySelectProps{
-				Label:       pageCtx.T("Accounts.Single.Currency.Label"),
-				Placeholder: pageCtx.T("Accounts.Single.Currency.Placeholder"),
+				Label:       pageCtx.T("MoneyAccounts.Single.Currency.Label"),
+				Placeholder: pageCtx.T("MoneyAccounts.Single.Currency.Placeholder"),
 				Value:       props.Account.CurrencyCode,
 				Currencies:  props.Currencies,
 				Error:       props.Errors["CurrencyCode"],
@@ -118,7 +118,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label: pageCtx.T("Accounts.Single.AccountNumber"),
+				Label: pageCtx.T("MoneyAccounts.Single.AccountNumber"),
 				Attrs: templ.Attributes{
 					"value": props.Account.AccountNumber,
 					"name":  "AccountNumber",
@@ -134,7 +134,7 @@ func EditForm(props *EditPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label: pageCtx.T("Accounts.Single._Description"),
+				Label: pageCtx.T("MoneyAccounts.Single._Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 					"form": "save-form",
@@ -312,8 +312,8 @@ func Edit(props *EditPageProps) templ.Component {
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
 				CancelText:  pageCtx.T("Cancel"),
 				ConfirmText: pageCtx.T("Delete"),
-				Heading:     pageCtx.T("Accounts.Single.Delete"),
-				Text:        pageCtx.T("Accounts.Single.DeleteConfirmation"),
+				Heading:     pageCtx.T("MoneyAccounts.Single.Delete"),
+				Text:        pageCtx.T("MoneyAccounts.Single.DeleteConfirmation"),
 				Icon:        icons.Trash(icons.Props{Size: "20"}),
 				Action:      "open-delete-account-confirmation",
 				Attrs: templ.Attributes{
@@ -331,7 +331,7 @@ func Edit(props *EditPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
-			BaseProps: layouts.BaseProps{Title: pageCtx.T("Accounts.Meta.Edit.Title")},
+			BaseProps: layouts.BaseProps{Title: pageCtx.T("MoneyAccounts.Meta.Edit.Title")},
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
