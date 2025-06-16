@@ -149,8 +149,9 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 //			details.StripeWithSuccessURL("https://iota-sdk-staging.up.railway.app/success"),
 //			details.StripeWithCancelURL("https://iota-sdk-staging.up.railway.app/cancel"),
 //			details.StripeWithItems([]details.StripeItem{
-//				details.NewStripeItem("price_1RThAKFds3jHiGEnoRBQBBmr", 1),
+//				details.NewStripeItem("price_1RThAKFds3jHiGEnoRBQBBmr", 1, details.StripeItemWithAdjustableQuantity(true, 0, 100)),
 //			}),
+//			details.StripeWithSubscription(details.NewStripeSubscriptionData(details.StripeSubscriptionDataWithTrialPeriodDays(7))),
 //		),
 //	}
 //
