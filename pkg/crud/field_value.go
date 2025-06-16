@@ -125,9 +125,10 @@ func (fv *fieldValue) AsTime() (time.Time, error) {
 			return time.Time{}, fv.valueCastError("time.Time")
 		}
 		return t, nil
-	default:
+	case StringFieldType, IntFieldType, BoolFieldType, FloatFieldType, UUIDFieldType:
 		return time.Time{}, fv.typeMismatch("time.Time")
 	}
+	return time.Time{}, fv.typeMismatch("time.Time")
 }
 
 func (fv *fieldValue) AsUUID() (uuid.UUID, error) {

@@ -106,6 +106,6 @@ func TestReportService_CRUD(t *testing.T) {
 		assert.Equal(t, created.ID(), deleted.ID())
 
 		_, err = service.Get(ctx, key)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

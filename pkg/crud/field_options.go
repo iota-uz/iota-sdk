@@ -78,27 +78,27 @@ func WithMultiline(multiline bool) FieldOption {
 	}
 }
 
-func WithMin(min int64) FieldOption {
+func WithMin(minValue int64) FieldOption {
 	return func(field *field) {
-		field.attrs[Min] = min
+		field.attrs[Min] = minValue
 	}
 }
 
-func WithMax(max int64) FieldOption {
+func WithMax(maxValue int64) FieldOption {
 	return func(field *field) {
-		field.attrs[Max] = max
+		field.attrs[Max] = maxValue
 	}
 }
 
-func WithFloatMin(min float64) FieldOption {
+func WithFloatMin(minValue float64) FieldOption {
 	return func(field *field) {
-		field.attrs[Min] = min
+		field.attrs[Min] = minValue
 	}
 }
 
-func WithFloatMax(max float64) FieldOption {
+func WithFloatMax(maxValue float64) FieldOption {
 	return func(field *field) {
-		field.attrs[Max] = max
+		field.attrs[Max] = maxValue
 	}
 }
 

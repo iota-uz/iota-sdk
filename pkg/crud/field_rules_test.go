@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Helper function to create field based on type
@@ -77,9 +78,9 @@ func TestRequiredRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -88,7 +89,7 @@ func TestRequiredRule(t *testing.T) {
 		mockField := &mockField{name: "test", fieldType: crud.StringFieldType}
 		mockFV := &mockFieldValue{field: mockField, value: nil}
 		err := rule(mockFV)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "is required")
 	})
 }
@@ -129,9 +130,9 @@ func TestMinLengthRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -143,7 +144,7 @@ func TestMinLengthRule_NonStringField(t *testing.T) {
 	fv := field.Value(123)
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "min length rule only applies to string fields")
 }
 
@@ -183,9 +184,9 @@ func TestMaxLengthRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -197,7 +198,7 @@ func TestMaxLengthRule_NonStringField(t *testing.T) {
 	fv := field.Value(123)
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max length rule only applies to string fields")
 }
 
@@ -252,9 +253,9 @@ func TestEmailRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -266,7 +267,7 @@ func TestEmailRule_NonStringField(t *testing.T) {
 	fv := field.Value(123)
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "email rule only applies to string fields")
 }
 
@@ -306,9 +307,9 @@ func TestPatternRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -320,7 +321,7 @@ func TestPatternRule_NonStringField(t *testing.T) {
 	fv := field.Value(123)
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pattern rule only applies to string fields")
 }
 
@@ -366,9 +367,9 @@ func TestMinValueRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -408,9 +409,9 @@ func TestMinValueRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -423,7 +424,7 @@ func TestMinValueRule_UnsupportedFieldType(t *testing.T) {
 	fv := field.Value("test")
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "min value rule only applies to int and float fields")
 }
 
@@ -469,9 +470,9 @@ func TestMaxValueRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -511,9 +512,9 @@ func TestMaxValueRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -526,7 +527,7 @@ func TestMaxValueRule_UnsupportedFieldType(t *testing.T) {
 	fv := field.Value("test")
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max value rule only applies to int and float fields")
 }
 
@@ -572,9 +573,9 @@ func TestPositiveRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -614,9 +615,9 @@ func TestPositiveRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -629,7 +630,7 @@ func TestPositiveRule_UnsupportedFieldType(t *testing.T) {
 	fv := field.Value("test")
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "positive rule only applies to int and float fields")
 }
 
@@ -675,9 +676,9 @@ func TestNonNegativeRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -717,9 +718,9 @@ func TestNonNegativeRule(t *testing.T) {
 				fv := field.Value(tt.value)
 				err := rule(fv)
 				if tt.wantErr {
-					assert.Error(t, err)
+					require.Error(t, err)
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				}
 			})
 		}
@@ -732,7 +733,7 @@ func TestNonNegativeRule_UnsupportedFieldType(t *testing.T) {
 	fv := field.Value("test")
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "non-negative rule only applies to int and float fields")
 }
 
@@ -772,9 +773,9 @@ func TestInRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -816,9 +817,9 @@ func TestInRule_MultipleTypes(t *testing.T) {
 			mockFV := &mockFieldValue{field: mockField, value: tt.value}
 			err := rule(mockFV)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -865,9 +866,9 @@ func TestNotEmptyRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -879,7 +880,7 @@ func TestNotEmptyRule_NonStringField(t *testing.T) {
 	fv := field.Value(123)
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not empty rule only applies to string fields")
 }
 
@@ -931,9 +932,9 @@ func TestFutureDateRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -945,7 +946,7 @@ func TestFutureDateRule_UnsupportedFieldType(t *testing.T) {
 	fv := field.Value("test")
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "future date rule only applies to date/time fields")
 }
 
@@ -997,9 +998,9 @@ func TestPastDateRule(t *testing.T) {
 			fv := field.Value(tt.value)
 			err := rule(fv)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1011,7 +1012,7 @@ func TestPastDateRule_UnsupportedFieldType(t *testing.T) {
 	fv := field.Value("test")
 
 	err := rule(fv)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "past date rule only applies to date/time fields")
 }
 

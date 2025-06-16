@@ -150,7 +150,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		assert.Equal(t, created.ID(), deleted.ID())
 
 		_, err = rep.Get(ctx, key)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Invalid Filter Column", func(t *testing.T) {
@@ -162,7 +162,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		_, err = rep.List(ctx, &crud.FindParams{
 			Filters: []crud.Filter{{Column: "not_exist", Filter: repo.Eq("x")}},
 		})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("Offset beyond result", func(t *testing.T) {
