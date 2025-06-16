@@ -78,11 +78,15 @@ func TestPaymentsService_CRUD(t *testing.T) {
 
 	// Create payment category with tenant ID
 	category := paymentcategory.New("Test Category", paymentcategory.WithTenantID(f.tenantID))
+	createdCategory, err := f.paymentCategoryService.Create(f.ctx, category)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create payment entity
 	paymentEntity := payment.New(
 		money.New(10000, "USD"),
-		category,
+		createdCategory,
 		payment.WithTenantID(f.tenantID),
 		payment.WithCounterpartyID(createdCounterparty.ID()),
 		payment.WithTransactionDate(time.Now()),
@@ -90,7 +94,8 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		payment.WithAccount(account),
 	)
 
-	if err := f.paymentsService.Create(f.ctx, paymentEntity); err != nil {
+	_, err = f.paymentsService.Create(f.ctx, paymentEntity)
+	if err != nil {
 		t.Fatal(err)
 	}
 

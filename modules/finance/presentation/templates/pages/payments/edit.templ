@@ -55,12 +55,12 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@components.AccountSelect(&components.AccountSelectProps{
-				Label:       pageCtx.T("Payments.Single.Account"),
+				Label:       pageCtx.T("Payments.Single.AccountID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
 				Attrs: templ.Attributes{
-					"name": "AccountId",
+					"name": "AccountID",
 					"form": "save-form",
 				},
 			})
@@ -72,7 +72,7 @@ templ EditForm(props *EditPageProps) {
 				Name:        "CounterpartyID",
 			})
 			@components.PaymentCategorySelect(&components.PaymentCategorySelectProps{
-				Label:       pageCtx.T("Payments.Single.Category"),
+				Label:       pageCtx.T("Payments.Single.CategoryID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectCategory"),
 				Value:       props.Payment.CategoryID,
 				Categories:  props.Categories,
@@ -84,10 +84,10 @@ templ EditForm(props *EditPageProps) {
 			})
 			@input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("Payments.Single.Comment"),
+				Value: props.Payment.Comment,
 				Attrs: templ.Attributes{
-					"value": props.Payment.Comment,
-					"name":  "Comment",
-					"form":  "save-form",
+					"name": "Comment",
+					"form": "save-form",
 				},
 				WrapperClass: "col-span-3",
 			})
@@ -137,7 +137,7 @@ templ EditForm(props *EditPageProps) {
 templ Edit(props *EditPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Payments.Edit.Meta.Title")},
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Payments.Meta.Edit.Title")},
 	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{

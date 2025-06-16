@@ -64,7 +64,7 @@
       }
     },
     "Single": {
-      "Account": "Hisob",
+      "AccountID": "Hisob",
       "SelectAccount": "Hisobni tanlang",
       "Edit": "To'lovni tahrirlash",
       "Name": "Nomi",
@@ -75,9 +75,10 @@
         "Label": "Jo'natuvchi",
         "Placeholder": "Jo'natuvchini tanlang"
       },
-      "Category": "Kategoriya",
+      "CategoryID": "Kategoriya",
       "SelectCategory": "Kategoriyani tanlang",
       "Comment": "Izoh",
+      "User": "Foydalanuvchi",
       "Delete": "To'lovni o'chirish",
       "DeleteConfirmation": "Ushbu to'lovni o'chirishni xohlaysizmi?"
     }
@@ -106,9 +107,9 @@
       }
     },
     "Single": {
-      "Account": "Hisob",
+      "AccountID": "Hisob",
       "SelectAccount": "Hisobni tanlang",
-      "Category": "Kategoriya",
+      "CategoryID": "Kategoriya",
       "SelectCategory": "Kategoriyani tanlang",
       "Edit": "Xarajatni tahrirlash",
       "Name": "Nomi",
@@ -192,7 +193,7 @@
       "SRL": "SRL"
     }
   },
-  "Accounts": {
+  "MoneyAccounts": {
     "Meta": {
       "List": {
         "Title": "Hisoblar"
@@ -217,6 +218,7 @@
       "Edit": "Hisobni tahrirlash",
       "Name": "Nomi",
       "Balance": "Balans",
+      "CurrencyCode": "Valyuta",
       "Currency": {
         "Label": "Valyuta",
         "Placeholder": "Valyutani tanlang"
@@ -271,6 +273,7 @@
       "Name": "Nomi",
       "Price": "Narxi",
       "Quantity": "Miqdori",
+      "TotalValue": "Umumiy qiymati",
       "NoInventory": {
         "Title": "Tovarlar topilmadi",
         "_Description": "Hali omborxonada tovarlar yo'q. Yangi yaratish uchun 'Tovar qo'shish' tugmasini bosing."
@@ -289,5 +292,11 @@
       "Delete": "Tovarni o'chirish",
       "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
     }
+  },
+  "ValidationErrors": {
+    "uuid": "Haqiqiy UUID bo'lishi kerak",
+    "gte": "{0} dan katta yoki teng bo'lishi kerak",
+    "len": "Uzunligi {0} ga teng bo'lishi kerak",
+    "gt": "{0} dan katta bo'lishi kerak"
   }
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type CounterpartyService struct {
@@ -30,12 +31,23 @@ func (s *CounterpartyService) GetPaginated(ctx context.Context, params *counterp
 }
 
 func (s *CounterpartyService) Create(ctx context.Context, entity counterparty.Counterparty) (counterparty.Counterparty, error) {
-	return s.repo.Create(ctx, entity)
+	var result counterparty.Counterparty
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var createErr error
+		result, createErr = s.repo.Create(txCtx, entity)
+		return createErr
+	})
+	return result, err
 }
 
-func (s *CounterpartyService) Update(ctx context.Context, entity counterparty.Counterparty) error {
-	_, err := s.repo.Update(ctx, entity)
-	return err
+func (s *CounterpartyService) Update(ctx context.Context, entity counterparty.Counterparty) (counterparty.Counterparty, error) {
+	var result counterparty.Counterparty
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var updateErr error
+		result, updateErr = s.repo.Update(txCtx, entity)
+		return updateErr
+	})
+	return result, err
 }
 
 func (s *CounterpartyService) Delete(ctx context.Context, id uuid.UUID) (counterparty.Counterparty, error) {
@@ -43,7 +55,10 @@ func (s *CounterpartyService) Delete(ctx context.Context, id uuid.UUID) (counter
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.Delete(txCtx, id)
+	})
+	if err != nil {
 		return nil, err
 	}
 	return entity, nil

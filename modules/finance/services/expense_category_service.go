@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -42,30 +43,42 @@ func (s *ExpenseCategoryService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *ExpenseCategoryService) Create(ctx context.Context, entity category.ExpenseCategory) error {
+func (s *ExpenseCategoryService) Create(ctx context.Context, entity category.ExpenseCategory) (category.ExpenseCategory, error) {
 	createdEvent, err := category.NewCreatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err := s.repo.Create(ctx, entity); err != nil {
-		return err
+	var createdEntity category.ExpenseCategory
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var createErr error
+		createdEntity, createErr = s.repo.Create(txCtx, entity)
+		return createErr
+	})
+	if err != nil {
+		return nil, err
 	}
-	createdEvent.Result = entity
+	createdEvent.Result = createdEntity
 	s.publisher.Publish(createdEvent)
-	return nil
+	return createdEntity, nil
 }
 
-func (s *ExpenseCategoryService) Update(ctx context.Context, entity category.ExpenseCategory) error {
+func (s *ExpenseCategoryService) Update(ctx context.Context, entity category.ExpenseCategory) (category.ExpenseCategory, error) {
 	updatedEvent, err := category.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if _, err := s.repo.Update(ctx, entity); err != nil {
-		return err
+	var updatedEntity category.ExpenseCategory
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var updateErr error
+		updatedEntity, updateErr = s.repo.Update(txCtx, entity)
+		return updateErr
+	})
+	if err != nil {
+		return nil, err
 	}
-	updatedEvent.Result = entity
+	updatedEvent.Result = updatedEntity
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return updatedEntity, nil
 }
 
 func (s *ExpenseCategoryService) Delete(ctx context.Context, id uuid.UUID) (category.ExpenseCategory, error) {
@@ -77,7 +90,10 @@ func (s *ExpenseCategoryService) Delete(ctx context.Context, id uuid.UUID) (cate
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.Delete(txCtx, id)
+	})
+	if err != nil {
 		return nil, err
 	}
 	deletedEvent.Result = entity

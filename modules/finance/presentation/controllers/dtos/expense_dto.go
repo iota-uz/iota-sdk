@@ -27,7 +27,7 @@ type ExpenseCreateDTO struct {
 }
 
 type ExpenseUpdateDTO struct {
-	Amount           float64 `validate:"omitempty,gt=0"`
+	Amount           float64 `validate:"gt=0"`
 	AccountID        string  `validate:"omitempty,uuid"`
 	CategoryID       string  `validate:"omitempty,uuid"`
 	Comment          string
@@ -110,6 +110,21 @@ func (d *ExpenseCreateDTO) ToEntity(tenantID uuid.UUID) (expense.Expense, error)
 		amount,
 		account,
 		expenseCategory,
+		time.Time(d.Date),
+		expense.WithComment(d.Comment),
+		expense.WithAccountingPeriod(time.Time(d.AccountingPeriod)),
+		expense.WithTenantID(tenantID),
+	), nil
+}
+
+func (d *ExpenseCreateDTO) ToEntityWithReferences(tenantID uuid.UUID, account moneyAccount.Account, cat category.ExpenseCategory) (expense.Expense, error) {
+	// Create Money object from float amount, assuming USD as default
+	amount := money.NewFromFloat(d.Amount, "USD")
+
+	return expense.New(
+		amount,
+		account,
+		cat,
 		time.Time(d.Date),
 		expense.WithComment(d.Comment),
 		expense.WithAccountingPeriod(time.Time(d.AccountingPeriod)),
