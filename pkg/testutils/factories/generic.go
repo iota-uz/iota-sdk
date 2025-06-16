@@ -129,8 +129,8 @@ func RandomPhone() string {
 }
 
 // RandomAmount generates a random money amount
-func RandomAmount(min, max float64) float64 {
-	return min + rand.Float64()*(max-min)
+func RandomAmount(minVal, maxVal float64) float64 {
+	return minVal + rand.Float64()*(maxVal-minVal)
 }
 
 // FormBuilder helps build form data with validation

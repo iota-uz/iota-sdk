@@ -26,6 +26,7 @@ var (
 )
 
 func createCurrencies(t *testing.T, ctx context.Context, currencies ...*currency.Currency) {
+	t.Helper()
 	currencyRepo := persistence.NewCurrencyRepository()
 	for _, curr := range currencies {
 		err := currencyRepo.Create(ctx, curr)
@@ -245,7 +246,7 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	accounts, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -430,7 +431,7 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedAccount, err := service.GetByID(env.Ctx, createdAccount.ID())
 	require.NoError(t, err)

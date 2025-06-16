@@ -232,7 +232,7 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	items, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -414,7 +414,7 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedItem, err := service.GetByID(env.Ctx, createdItem.ID())
 	require.NoError(t, err)

@@ -51,13 +51,13 @@ type Expense struct {
 }
 
 type Payment struct {
-	ID                 string
-	TransactionID      string
-	CounterpartyID     string
-	PaymentCategoryID  sql.NullString
-	TenantID           string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                string
+	TransactionID     string
+	CounterpartyID    string
+	PaymentCategoryID sql.NullString
+	TenantID          string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type Inventory struct {

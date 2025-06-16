@@ -48,6 +48,7 @@ func (tc *TestContext) WithUser(u user.User) *TestContext {
 
 // WithDBName sets a custom database name
 func (tc *TestContext) WithDBName(t *testing.T, name string) *TestContext {
+	t.Helper()
 	if tc.dbName == "" {
 		tc.dbName = name
 	}

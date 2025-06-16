@@ -84,9 +84,9 @@ func TestExpenseController_List_Success(t *testing.T) {
 		expenseAggregate.WithComment("Test expense 2"),
 	)
 
-	err = expenseService.Create(env.Ctx, expense1)
+	_, err = expenseService.Create(env.Ctx, expense1)
 	require.NoError(t, err)
-	err = expenseService.Create(env.Ctx, expense2)
+	_, err = expenseService.Create(env.Ctx, expense2)
 	require.NoError(t, err)
 
 	response := suite.GET(ExpenseBasePath).
@@ -96,8 +96,9 @@ func TestExpenseController_List_Success(t *testing.T) {
 	html := response.HTML(t)
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Test expense 1").
-		Contains(t, "Test expense 2")
+	response.Contains(t, "Test Category").
+		Contains(t, "100.50").
+		Contains(t, "200.75")
 }
 
 func TestExpenseController_List_HTMX_Request(t *testing.T) {
@@ -146,14 +147,15 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		expenseAggregate.WithComment("HTMX Test Expense"),
 	)
 
-	err = expenseService.Create(env.Ctx, expense1)
+	_, err = expenseService.Create(env.Ctx, expense1)
 	require.NoError(t, err)
 
 	suite.GET(ExpenseBasePath).
 		HTMX().
 		Expect().
 		Status(t, 200).
-		Contains(t, "HTMX Test Expense")
+		Contains(t, "HTMX Test Category").
+		Contains(t, "50.25")
 }
 
 func TestExpenseController_GetNew_Success(t *testing.T) {
@@ -318,7 +320,7 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	expenses, err := expenseService.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -372,10 +374,16 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 		expenseAggregate.WithComment("Edit test expense"),
 	)
 
-	err = expenseService.Create(env.Ctx, expense1)
+	_, err = expenseService.Create(env.Ctx, expense1)
 	require.NoError(t, err)
 
-	response := suite.GET(fmt.Sprintf("%s/%s", ExpenseBasePath, expense1.ID().String())).
+	// Retrieve the created expense
+	expenses, err := expenseService.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, expenses)
+	createdExpense := expenses[0]
+
+	response := suite.GET(fmt.Sprintf("%s/%s", ExpenseBasePath, createdExpense.ID().String())).
 		Expect().
 		Status(t, 200)
 
@@ -457,7 +465,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 		expenseAggregate.WithComment("Original expense"),
 	)
 
-	err = expenseService.Create(env.Ctx, expense1)
+	_, err = expenseService.Create(env.Ctx, expense1)
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -529,7 +537,7 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 		expenseAggregate.WithComment("Test expense"),
 	)
 
-	err = expenseService.Create(env.Ctx, expense1)
+	_, err = expenseService.Create(env.Ctx, expense1)
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -547,7 +555,7 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedExpense, err := expenseService.GetByID(env.Ctx, expense1.ID())
 	require.NoError(t, err)
@@ -601,7 +609,7 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 		expenseAggregate.WithComment("Expense to Delete"),
 	)
 
-	err = expenseService.Create(env.Ctx, expense1)
+	_, err = expenseService.Create(env.Ctx, expense1)
 	require.NoError(t, err)
 
 	existingExpense, err := expenseService.GetByID(env.Ctx, expense1.ID())
@@ -661,8 +669,9 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 }
 
 func createExpenseCategories(t *testing.T, ctx context.Context, categories ...expenseCategoryEntity.ExpenseCategory) []expenseCategoryEntity.ExpenseCategory {
+	t.Helper()
 	categoryRepo := persistence.NewExpenseCategoryRepository()
-	var results []expenseCategoryEntity.ExpenseCategory
+	results := make([]expenseCategoryEntity.ExpenseCategory, 0, len(categories))
 	for _, cat := range categories {
 		created, err := categoryRepo.Create(ctx, cat)
 		require.NoError(t, err)

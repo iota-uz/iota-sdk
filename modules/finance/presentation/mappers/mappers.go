@@ -84,17 +84,18 @@ func PaymentToViewModel(entity payment.Payment) *viewmodels.Payment {
 func ExpenseToViewModel(entity expense.Expense) *viewmodels.Expense {
 	amount := entity.Amount()
 	return &viewmodels.Expense{
-		ID:               entity.ID().String(),
-		Amount:           fmt.Sprintf("%.2f", amount.AsMajorUnits()),
-		AccountID:        entity.Account().ID().String(),
-		CategoryID:       entity.Category().ID().String(),
-		Category:         ExpenseCategoryToViewModel(entity.Category()),
-		Comment:          entity.Comment(),
-		TransactionID:    entity.TransactionID().String(),
-		AccountingPeriod: entity.AccountingPeriod().Format(time.RFC3339),
-		Date:             entity.Date().Format(time.RFC3339),
-		CreatedAt:        entity.CreatedAt().Format(time.RFC3339),
-		UpdatedAt:        entity.UpdatedAt().Format(time.RFC3339),
+		ID:                 entity.ID().String(),
+		Amount:             fmt.Sprintf("%.2f", amount.AsMajorUnits()),
+		AmountWithCurrency: amount.Display(),
+		AccountID:          entity.Account().ID().String(),
+		CategoryID:         entity.Category().ID().String(),
+		Category:           ExpenseCategoryToViewModel(entity.Category()),
+		Comment:            entity.Comment(),
+		TransactionID:      entity.TransactionID().String(),
+		AccountingPeriod:   entity.AccountingPeriod().Format(time.RFC3339),
+		Date:               entity.Date().Format(time.RFC3339),
+		CreatedAt:          entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:          entity.UpdatedAt().Format(time.RFC3339),
 	}
 }
 

@@ -236,7 +236,7 @@ func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := c.counterpartiesService.Update(r.Context(), entity); err != nil {
+	if _, err := c.counterpartiesService.Update(r.Context(), entity); err != nil {
 		logrus.WithError(err).Error("Error updating counterparty")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

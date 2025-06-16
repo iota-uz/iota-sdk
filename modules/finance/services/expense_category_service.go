@@ -62,21 +62,23 @@ func (s *ExpenseCategoryService) Create(ctx context.Context, entity category.Exp
 	return createdEntity, nil
 }
 
-func (s *ExpenseCategoryService) Update(ctx context.Context, entity category.ExpenseCategory) error {
+func (s *ExpenseCategoryService) Update(ctx context.Context, entity category.ExpenseCategory) (category.ExpenseCategory, error) {
 	updatedEvent, err := category.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	var updatedEntity category.ExpenseCategory
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		_, updateErr := s.repo.Update(txCtx, entity)
+		var updateErr error
+		updatedEntity, updateErr = s.repo.Update(txCtx, entity)
 		return updateErr
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	updatedEvent.Result = entity
+	updatedEvent.Result = updatedEntity
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return updatedEntity, nil
 }
 
 func (s *ExpenseCategoryService) Delete(ctx context.Context, id uuid.UUID) (category.ExpenseCategory, error) {
