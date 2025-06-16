@@ -292,6 +292,7 @@ func ToDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 		expenseCategory,
 		dbTransaction.TransactionDate,
 		expense.WithID(uuid.MustParse(dbExpense.ID)),
+		expense.WithTenantID(tenantID),
 		expense.WithComment(dbTransaction.Comment),
 		expense.WithTransactionID(uuid.MustParse(dbExpense.TransactionID)),
 		expense.WithAccountingPeriod(dbTransaction.AccountingPeriod),
@@ -304,7 +305,7 @@ func ToDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 
 func ToDBExpense(entity expense.Expense) (*models.Expense, transaction.Transaction) {
 	accountID := entity.Account().ID()
-	tenantID := entity.Account().TenantID()
+	tenantID := entity.TenantID()
 	// Create negative amount for withdrawal
 	withdrawalAmount := entity.Amount().Negative()
 	domainTransaction := transaction.New(

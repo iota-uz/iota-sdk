@@ -25,12 +25,13 @@ func TestMain(m *testing.M) {
 
 // testFixtures contains common test dependencies
 type testFixtures struct {
-	ctx             context.Context
-	pool            *pgxpool.Pool
-	app             application.Application
-	paymentsService *services.PaymentService
-	accountService  *services.MoneyAccountService
-	tenantID        uuid.UUID
+	ctx                    context.Context
+	pool                   *pgxpool.Pool
+	app                    application.Application
+	paymentsService        *services.PaymentService
+	accountService         *services.MoneyAccountService
+	paymentCategoryService *services.PaymentCategoryService
+	tenantID               uuid.UUID
 }
 
 // setupTest creates all necessary dependencies for tests
@@ -63,11 +64,12 @@ func setupTest(t *testing.T, permissions ...*permission.Permission) *testFixture
 	ctx = composables.WithTenantID(ctx, tenant.ID)
 
 	return &testFixtures{
-		ctx:             ctx,
-		pool:            pool,
-		app:             app,
-		paymentsService: app.Service(services.PaymentService{}).(*services.PaymentService),
-		accountService:  app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
-		tenantID:        tenant.ID,
+		ctx:                    ctx,
+		pool:                   pool,
+		app:                    app,
+		paymentsService:        app.Service(services.PaymentService{}).(*services.PaymentService),
+		accountService:         app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
+		paymentCategoryService: app.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService),
+		tenantID:               tenant.ID,
 	}
 }

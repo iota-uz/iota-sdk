@@ -54,7 +54,9 @@ func Setup(t *testing.T, modules ...application.Module) *TestEnv {
 
 	// Cleanup
 	t.Cleanup(func() {
-		tx.Rollback(ctx)
+		if err := tx.Rollback(ctx); err != nil {
+			t.Logf("Failed to rollback transaction: %v", err)
+		}
 		pool.Close()
 	})
 

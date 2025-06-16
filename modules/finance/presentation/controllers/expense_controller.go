@@ -296,7 +296,7 @@ func (c *ExpenseController) Update(
 		return
 	}
 
-	if err := expenseService.Update(r.Context(), entity); err != nil {
+	if _, err := expenseService.Update(r.Context(), entity); err != nil {
 		logger.Errorf("Error updating expense: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -429,7 +429,7 @@ func (c *ExpenseController) Create(
 		return
 	}
 
-	if err := expenseService.Create(r.Context(), entity); err != nil {
+	if _, err := expenseService.Create(r.Context(), entity); err != nil {
 		logger.Errorf("Error creating expense: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

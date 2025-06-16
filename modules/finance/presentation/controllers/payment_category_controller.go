@@ -178,7 +178,7 @@ func (c *PaymentCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := c.paymentCategoryService.Update(r.Context(), entity); err != nil {
+		if _, err := c.paymentCategoryService.Update(r.Context(), entity); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -230,7 +230,7 @@ func (c *PaymentCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := c.paymentCategoryService.Create(r.Context(), entity); err != nil {
+	if _, err := c.paymentCategoryService.Create(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

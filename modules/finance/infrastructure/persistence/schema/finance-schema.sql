@@ -99,7 +99,7 @@ CREATE TABLE payments (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     transaction_id uuid NOT NULL REFERENCES transactions (id) ON DELETE RESTRICT,
     counterparty_id uuid NOT NULL REFERENCES counterparty (id) ON DELETE RESTRICT,
-    category_id uuid REFERENCES payment_categories (id) ON DELETE SET NULL,
+    payment_category_id uuid REFERENCES payment_categories (id) ON DELETE SET NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
@@ -112,7 +112,7 @@ CREATE INDEX payments_counterparty_id_idx ON payments (counterparty_id);
 
 CREATE INDEX payments_transaction_id_idx ON payments (transaction_id);
 
-CREATE INDEX payments_category_id_idx ON payments (category_id);
+CREATE INDEX payments_payment_category_id_idx ON payments (payment_category_id);
 
 CREATE INDEX payment_categories_tenant_id_idx ON payment_categories (tenant_id);
 
