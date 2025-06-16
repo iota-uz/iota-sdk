@@ -1,7 +1,55 @@
 # CLAUDE.md - IOTA SDK Guide
 
 ## Overview
-The project follows DDD principles. DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
+DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
+
+## Module Architecture
+
+Each module follows a strict **Domain-Driven Design (DDD)** pattern with clear layer separation:
+
+```
+modules/{module}/
+├── domain/                     # Pure business logic
+│   ├── aggregates/{entity}/    # Complex business entities
+│   │   ├── {entity}.go         # Entity interface
+│   │   ├── {entity}_impl.go    # Entity implementation
+│   │   ├── {entity}_events.go  # Domain events
+│   │   └── {entity}_repository.go # Repository interface
+│   ├── entities/{entity}/      # Simpler domain entities
+│   └── value_objects/          # Immutable domain concepts
+├── infrastructure/             # External concerns
+│   └── persistence/
+│       ├── models/models.go    # Database models
+│       ├── {entity}_repository.go # Repository implementations
+│       ├── {module}_mappers.go # Domain-to-DB mapping
+│       ├── schema/{module}-schema.sql # SQL schema
+│       └── setup_test.go       # Test utilities
+├── services/                   # Business logic orchestration
+│   ├── {entity}_service.go     # Service implementation
+│   ├── {entity}_service_test.go # Service tests
+│   └── setup_test.go           # Test setup
+├── presentation/               # UI and API layer
+│   ├── controllers/
+│   │   ├── {entity}_controller.go # HTTP handlers
+│   │   ├── {entity}_controller_test.go # Controller tests
+│   │   ├── dtos/{entity}_dto.go # Data transfer objects
+│   │   └── setup_test.go       # Test utilities
+│   ├── templates/
+│   │   ├── pages/{entity}/     # Entity-specific pages
+│   │   │   ├── list.templ      # List view
+│   │   │   ├── edit.templ      # Edit form
+│   │   │   └── new.templ       # Create form
+│   │   └── components/         # Reusable UI components
+│   ├── viewmodels/             # Presentation models
+│   ├── mappers/mappers.go      # Domain-to-presentation mapping
+│   └── locales/                # Internationalization
+│       ├── en.json             # English translations
+│       ├── ru.json             # Russian translations
+│       └── uz.json             # Uzbek translations
+├── module.go                   # Module registration
+├── links.go                    # Navigation items
+└── permissions/constants.go    # RBAC permissions
+```
 
 ## Creating New Entities (Repositories, Services, Controllers)
 

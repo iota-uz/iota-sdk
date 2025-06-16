@@ -11,6 +11,7 @@ require (
 	github.com/Rhymond/go-money v1.0.15
 	github.com/a-h/templ v0.3.857
 	github.com/alecthomas/chroma/v2 v2.17.0
+	github.com/antchfx/htmlquery v1.3.4
 	github.com/benbjohnson/hashfs v0.2.2
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/gabriel-vasile/mimetype v1.4.7
@@ -65,6 +66,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	github.com/PuerkitoBio/goquery v1.10.1 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect
+	github.com/antchfx/xpath v1.3.3 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/certifi/gocertifi v0.0.0-20200922220541-2c3bb06c6054 // indirect
 	github.com/cockroachdb/apd v1.1.1-0.20181017181144-bced77f817b4 // indirect

@@ -170,8 +170,9 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dto := dtos.MoneyAccountUpdateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+
+	dto, err := composables.UseForm(&dtos.MoneyAccountUpdateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -233,13 +234,8 @@ func (c *MoneyAccountController) GetNew(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	dto := dtos.MoneyAccountCreateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&dtos.MoneyAccountCreateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

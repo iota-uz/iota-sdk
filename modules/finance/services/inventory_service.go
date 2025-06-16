@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type InventoryService struct {
@@ -18,7 +19,13 @@ func NewInventoryService(repo inventory.Repository) *InventoryService {
 }
 
 func (s *InventoryService) Create(ctx context.Context, inv inventory.Inventory) (inventory.Inventory, error) {
-	return s.repo.Create(ctx, inv)
+	var result inventory.Inventory
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var createErr error
+		result, createErr = s.repo.Create(txCtx, inv)
+		return createErr
+	})
+	return result, err
 }
 
 func (s *InventoryService) GetByID(ctx context.Context, id uuid.UUID) (inventory.Inventory, error) {
@@ -38,10 +45,14 @@ func (s *InventoryService) GetPaginated(ctx context.Context, params *inventory.F
 }
 
 func (s *InventoryService) Update(ctx context.Context, inv inventory.Inventory) error {
-	_, err := s.repo.Update(ctx, inv)
-	return err
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		_, err := s.repo.Update(txCtx, inv)
+		return err
+	})
 }
 
 func (s *InventoryService) Delete(ctx context.Context, id uuid.UUID) error {
-	return s.repo.Delete(ctx, id)
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.Delete(txCtx, id)
+	})
 }

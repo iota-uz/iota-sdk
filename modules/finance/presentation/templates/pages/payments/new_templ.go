@@ -112,7 +112,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.AccountSelect(&components.AccountSelectProps{
-				Label:       pageCtx.T("Payments.Single.Account"),
+				Label:       pageCtx.T("Payments.Single.AccountID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
@@ -144,7 +144,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = components.PaymentCategorySelect(&components.PaymentCategorySelectProps{
-				Label:       pageCtx.T("Payments.Single.Category"),
+				Label:       pageCtx.T("Payments.Single.CategoryID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectCategory"),
 				Value:       props.Payment.CategoryID,
 				Categories:  props.Categories,

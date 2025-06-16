@@ -52,7 +52,7 @@ templ CreateForm(props *CreatePageProps) {
 				},
 			})
 			@components.AccountSelect(&components.AccountSelectProps{
-				Label:       pageCtx.T("Payments.Single.Account"),
+				Label:       pageCtx.T("Payments.Single.AccountID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
@@ -70,7 +70,7 @@ templ CreateForm(props *CreatePageProps) {
 				Form:        "save-form",
 			})
 			@components.PaymentCategorySelect(&components.PaymentCategorySelectProps{
-				Label:       pageCtx.T("Payments.Single.Category"),
+				Label:       pageCtx.T("Payments.Single.CategoryID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectCategory"),
 				Value:       props.Payment.CategoryID,
 				Categories:  props.Categories,

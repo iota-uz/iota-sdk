@@ -55,7 +55,7 @@ templ EditForm(props *EditPageProps) {
 				},
 			})
 			@components.AccountSelect(&components.AccountSelectProps{
-				Label:       pageCtx.T("Payments.Single.Account"),
+				Label:       pageCtx.T("Payments.Single.AccountID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectAccount"),
 				Value:       props.Payment.AccountID,
 				Accounts:    props.Accounts,
@@ -72,7 +72,7 @@ templ EditForm(props *EditPageProps) {
 				Name:        "CounterpartyID",
 			})
 			@components.PaymentCategorySelect(&components.PaymentCategorySelectProps{
-				Label:       pageCtx.T("Payments.Single.Category"),
+				Label:       pageCtx.T("Payments.Single.CategoryID"),
 				Placeholder: pageCtx.T("Payments.Single.SelectCategory"),
 				Value:       props.Payment.CategoryID,
 				Categories:  props.Categories,

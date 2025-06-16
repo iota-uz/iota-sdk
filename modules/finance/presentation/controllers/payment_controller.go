@@ -193,8 +193,8 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dto := dtos.PaymentUpdateDTO{}
-	if err := shared.Decoder.Decode(&dto, r.Form); err != nil {
+	dto, err := composables.UseForm(&dtos.PaymentUpdateDTO{}, r)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

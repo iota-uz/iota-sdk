@@ -23,13 +23,13 @@ var validate = validator.New(validator.WithRequiredStructEnabled())
 
 var paymentFieldTranslations = map[string]string{
 	"CounterpartyID":    "Payments.Single.CounterpartyID.Label",
-	"AccountID":         "Payments.Single.Account",
+	"AccountID":         "Payments.Single.AccountID",
 	"Amount":            "Payments.Single.Amount",
 	"TransactionDate":   "Payments.Single.Date",
 	"AccountingPeriod":  "Payments.Single.AccountingPeriod",
 	"Comment":           "Payments.Single.Comment",
 	"UserID":            "Payments.Single.User",
-	"PaymentCategoryID": "Payments.Single.Category",
+	"PaymentCategoryID": "Payments.Single.CategoryID",
 }
 
 func validatePaymentDTO(ctx context.Context, data interface{}) (map[string]string, bool) {

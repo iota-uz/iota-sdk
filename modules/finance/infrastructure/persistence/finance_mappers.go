@@ -102,12 +102,13 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 		CreatedAt:            entity.CreatedAt(),
 	}
 	dbPayment := &models.Payment{
-		ID:             entity.ID().String(),
-		TenantID:       entity.TenantID().String(),
-		TransactionID:  entity.TransactionID().String(),
-		CounterpartyID: entity.CounterpartyID().String(),
-		CreatedAt:      entity.CreatedAt(),
-		UpdatedAt:      entity.UpdatedAt(),
+		ID:                entity.ID().String(),
+		TenantID:          entity.TenantID().String(),
+		TransactionID:     entity.TransactionID().String(),
+		CounterpartyID:    entity.CounterpartyID().String(),
+		PaymentCategoryID: mapping.UUIDToSQLNullString(entity.Category().ID()),
+		CreatedAt:         entity.CreatedAt(),
+		UpdatedAt:         entity.UpdatedAt(),
 	}
 	return dbPayment, dbTransaction
 }
@@ -127,14 +128,20 @@ func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		return nil, err
 	}
 
-	// Create a default payment category
-	defaultCategory := paymentcategory.New("Uncategorized")
+	// Create a default payment category - TODO: fetch actual category from database
+	var category paymentcategory.PaymentCategory
+	if dbPayment.PaymentCategoryID.Valid {
+		// For now, create a category with the ID - ideally we'd fetch from DB
+		category = paymentcategory.New("Uncategorized", paymentcategory.WithID(uuid.MustParse(dbPayment.PaymentCategoryID.String)))
+	} else {
+		category = paymentcategory.New("Uncategorized")
+	}
 
 	// Create default money account with zero balance
 	defaultBalance := money.New(0, "USD")
 	return payment.New(
 		t.Amount(),
-		defaultCategory,
+		category,
 		payment.WithID(uuid.MustParse(dbPayment.ID)),
 		payment.WithTenantID(tenantID),
 		payment.WithTransactionID(t.ID()),
@@ -313,6 +320,7 @@ func ToDBExpense(entity expense.Expense) (*models.Expense, transaction.Transacti
 	)
 	dbExpense := &models.Expense{
 		ID:            entity.ID().String(),
+		TenantID:      tenantID.String(),
 		CategoryID:    entity.Category().ID().String(),
 		TransactionID: entity.TransactionID().String(),
 		CreatedAt:     entity.CreatedAt(),
@@ -352,8 +360,9 @@ func ToDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 
 func ToDBCounterparty(entity counterparty.Counterparty) (*models.Counterparty, error) {
 	var tin sql.NullString
-	if entity.Tin() != tax.NilTin && entity.Tin().Value() != "" {
-		tin = sql.NullString{String: entity.Tin().Value(), Valid: true}
+	entityTin := entity.Tin()
+	if entityTin != tax.NilTin && entityTin != nil && entityTin.Value() != "" {
+		tin = sql.NullString{String: entityTin.Value(), Valid: true}
 	}
 	return &models.Counterparty{
 		ID:           entity.ID().String(),

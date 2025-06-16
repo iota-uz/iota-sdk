@@ -21,6 +21,7 @@ const (
 	paymentFindQuery = `
 		SELECT p.id,
 		p.counterparty_id,
+		p.payment_category_id,
 		p.created_at,
 		p.updated_at,
 		t.id,
@@ -40,10 +41,11 @@ const (
 		tenant_id,
 		counterparty_id,
 		transaction_id,
+		payment_category_id,
 		created_at,
 		updated_at
 	)
-	VALUES ($1, $2, $3, $4, $5) RETURNING id`
+	VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
 	paymentUpdateQuery        = `UPDATE payments SET counterparty_id = $1, updated_at = $2 WHERE id = $3`
 	paymentDeleteRelatedQuery = `DELETE FROM transactions WHERE id = $1 AND tenant_id = $2`
 	paymentDeleteQuery        = `DELETE FROM payments WHERE id = $1`
@@ -148,6 +150,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 		dbTransaction.AccountingPeriod,
 		dbTransaction.TransactionType,
 		dbTransaction.Comment,
+		dbTransaction.CreatedAt,
 	).Scan(&dbPayment.TransactionID); err != nil {
 		return nil, errors.Wrap(err, "failed to create transaction")
 	}
@@ -157,6 +160,7 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 		dbPayment.TenantID,
 		dbPayment.CounterpartyID,
 		dbPayment.TransactionID,
+		dbPayment.PaymentCategoryID,
 		dbPayment.CreatedAt,
 		dbPayment.UpdatedAt,
 	)
@@ -237,6 +241,7 @@ func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string,
 		if err := rows.Scan(
 			&paymentRow.ID,
 			&paymentRow.CounterpartyID,
+			&paymentRow.PaymentCategoryID,
 			&paymentRow.CreatedAt,
 			&paymentRow.UpdatedAt,
 			&transactionRow.ID,
