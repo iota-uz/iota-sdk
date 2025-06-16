@@ -19,7 +19,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -138,12 +138,12 @@ let dialog = (initialState) => ({
       });
     });
   }),
-  lightDismiss({ target: dialog }) {
+  lightDismiss({target: dialog}) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({ target: dialog }) {
+  async close({target: dialog}) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -384,7 +384,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = list.children[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }
     });
   },
@@ -397,7 +397,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = list.children[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        item.scrollIntoView({block: 'nearest', behavior: 'smooth'});
       }
     });
   },
@@ -436,25 +436,25 @@ let datePicker = ({
     labelFormat = labelFormat || 'F j, Y';
     dateFormat = dateFormat || 'z';
 
-    let { default: flatpickr } = await import("./lib/flatpickr/index.js");
+    let {default: flatpickr} = await import("./lib/flatpickr/index.js");
     let found = this.localeMap[locale];
     if (found) {
-      let { default: localeData } = await import(`./lib/flatpickr/locales/${found.path}`);
+      let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
       flatpickr.localize(localeData[found.key]);
     }
     let plugins = [];
     if (selectorType === 'month') {
-      let { default: monthSelect } = await import('./lib/flatpickr/plugins/month-select.js');
+      let {default: monthSelect} = await import('./lib/flatpickr/plugins/month-select.js');
       plugins.push(monthSelect({
         altFormat: labelFormat,
         dateFormat: dateFormat,
         shortHand: true,
       }))
     } else if (selectorType === 'week') {
-      let { default: weekSelect } = await import('./lib/flatpickr/plugins/week-select.js');
+      let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
       plugins.push(weekSelect())
     } else if (selectorType === 'year') {
-      let { default: yearSelect } = await import('./lib/flatpickr/plugins/year-select.js');
+      let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
       plugins.push(yearSelect())
     }
     let self = this;
@@ -484,12 +484,12 @@ let datePicker = ({
 
 let navTabs = (defaultValue = '') => ({
   activeTab: defaultValue,
-  backgroundStyle: { left: 0, width: 0, opacity: 0 },
+  backgroundStyle: {left: 0, width: 0, opacity: 0},
   restoreHandler: null,
 
   init() {
     this.$nextTick(() => this.updateBackground());
-    
+
     // Listen for restore-tab event on document since it bubbles up
     this.restoreHandler = (event) => {
       if (event.detail && event.detail.value) {
@@ -497,10 +497,10 @@ let navTabs = (defaultValue = '') => ({
         this.$nextTick(() => this.updateBackground());
       }
     };
-    
+
     document.addEventListener('restore-tab', this.restoreHandler);
   },
-  
+
   destroy() {
     if (this.restoreHandler) {
       document.removeEventListener('restore-tab', this.restoreHandler);
@@ -511,13 +511,13 @@ let navTabs = (defaultValue = '') => ({
     this.activeTab = tabValue;
     this.$nextTick(() => this.updateBackground());
     // Emit event for parent components to handle
-    this.$dispatch('tab-changed', { value: tabValue });
+    this.$dispatch('tab-changed', {value: tabValue});
   },
 
   updateBackground() {
     const tabsContainer = this.$refs.tabsContainer;
     if (!tabsContainer) return;
-    
+
     const activeButton = tabsContainer.querySelector(`button[data-tab-value="${this.activeTab}"]`);
     if (activeButton) {
       this.backgroundStyle = {
@@ -533,8 +533,8 @@ let navTabs = (defaultValue = '') => ({
   },
 
   getTabClasses(tabValue) {
-    return this.isActive(tabValue) 
-      ? 'text-slate-900' 
+    return this.isActive(tabValue)
+      ? 'text-slate-900'
       : 'text-gray-500 hover:text-slate-300';
   }
 })
@@ -542,12 +542,12 @@ let navTabs = (defaultValue = '') => ({
 let sidebar = () => ({
   isCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
-  
+
   toggle() {
     this.isCollapsed = !this.isCollapsed;
     localStorage.setItem('sidebar-collapsed', this.isCollapsed.toString());
   },
-  
+
   handleTabChange(event) {
     // Save the selected tab to localStorage
     if (event.detail && event.detail.value) {
@@ -555,26 +555,51 @@ let sidebar = () => ({
       this.storedTab = event.detail.value;
     }
   },
-  
+
   getStoredTab() {
     return this.storedTab;
   },
-  
+
   initSidebar() {
     // Apply initial state class to prevent flash
     this.$nextTick(() => {
       if (this.isCollapsed) {
         this.$el.classList.add('sidebar-collapsed');
       }
-      
+
       // Dispatch event to restore tab if stored
       if (this.storedTab) {
         // Wait a bit for navTabs to initialize
         setTimeout(() => {
-          this.$dispatch('restore-tab', { value: this.storedTab });
+          this.$dispatch('restore-tab', {value: this.storedTab});
         }, 100);
       }
     });
+  }
+})
+
+let disableFormElementsWhen = (query) => ({
+  matches: window.matchMedia(query).matches,
+  media: null,
+  onChange() {
+    this.matches = window.matchMedia(query).matches;
+    this.disableAllFormElements();
+  },
+  disableAllFormElements() {
+    let elements = this.$el.querySelectorAll('input,select,textarea');
+    for (let element of elements) {
+      element.disabled = this.matches;
+    }
+  },
+  init() {
+    this.media = window.matchMedia(query);
+    this.media.addEventListener('change', this.onChange.bind(this));
+    this.disableAllFormElements();
+  },
+  destroy() {
+    if (this.media == null) return;
+    this.media.removeEventListener('change', this.onChange.bind(this));
+    this.media = null;
   }
 })
 
@@ -590,4 +615,5 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("datePicker", datePicker);
   Alpine.data("navTabs", navTabs);
   Alpine.data("sidebar", sidebar);
+  Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
 });
