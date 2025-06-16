@@ -259,7 +259,7 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := c.paymentService.Update(r.Context(), entity); err != nil {
+	if _, err := c.paymentService.Update(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -352,7 +352,7 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entity := dto.ToEntity(tenantID, categoryEntity)
-	if err := c.paymentService.Create(r.Context(), entity); err != nil {
+	if _, err := c.paymentService.Create(r.Context(), entity); err != nil {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
 	}

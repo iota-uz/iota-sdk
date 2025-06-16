@@ -51,18 +51,20 @@ func (s *ExpenseService) GetPaginated(
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) error {
+func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) (expense.Expense, error) {
 	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
-		return err
+		return nil, err
 	}
 
 	createdEvent, err := expense.NewCreatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var created expense.Expense
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if _, err := s.repo.Create(txCtx, entity); err != nil {
+		created, err = s.repo.Create(txCtx, entity)
+		if err != nil {
 			return err
 		}
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
@@ -71,25 +73,27 @@ func (s *ExpenseService) Create(ctx context.Context, entity expense.Expense) err
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.publisher.Publish(createdEvent)
-	return nil
+	return created, nil
 }
 
-func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) error {
+func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) (expense.Expense, error) {
 	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
-		return err
+		return nil, err
 	}
 
 	updatedEvent, err := expense.NewUpdatedEvent(ctx, entity)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var updated expense.Expense
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if _, err := s.repo.Update(txCtx, entity); err != nil {
+		updated, err = s.repo.Update(txCtx, entity)
+		if err != nil {
 			return err
 		}
 		if err := s.accountService.RecalculateBalance(txCtx, entity.Account().ID()); err != nil {
@@ -98,11 +102,11 @@ func (s *ExpenseService) Update(ctx context.Context, entity expense.Expense) err
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	s.publisher.Publish(updatedEvent)
-	return nil
+	return updated, nil
 }
 
 func (s *ExpenseService) Delete(ctx context.Context, id uuid.UUID) (expense.Expense, error) {

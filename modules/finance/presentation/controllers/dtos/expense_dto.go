@@ -27,7 +27,7 @@ type ExpenseCreateDTO struct {
 }
 
 type ExpenseUpdateDTO struct {
-	Amount           float64 `validate:"omitempty,gt=0"`
+	Amount           float64 `validate:"gt=0"`
 	AccountID        string  `validate:"omitempty,uuid"`
 	CategoryID       string  `validate:"omitempty,uuid"`
 	Comment          string

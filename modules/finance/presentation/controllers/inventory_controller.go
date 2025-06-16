@@ -224,7 +224,7 @@ func (c *InventoryController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := c.inventoryService.Update(r.Context(), entity); err != nil {
+	if _, err := c.inventoryService.Update(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

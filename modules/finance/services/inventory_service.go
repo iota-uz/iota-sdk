@@ -44,11 +44,14 @@ func (s *InventoryService) GetPaginated(ctx context.Context, params *inventory.F
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *InventoryService) Update(ctx context.Context, inv inventory.Inventory) error {
-	return composables.InTx(ctx, func(txCtx context.Context) error {
-		_, err := s.repo.Update(txCtx, inv)
-		return err
+func (s *InventoryService) Update(ctx context.Context, inv inventory.Inventory) (inventory.Inventory, error) {
+	var result inventory.Inventory
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		var updateErr error
+		result, updateErr = s.repo.Update(txCtx, inv)
+		return updateErr
 	})
+	return result, err
 }
 
 func (s *InventoryService) Delete(ctx context.Context, id uuid.UUID) error {

@@ -54,9 +54,9 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 		paymentCategoryEntity.WithDescription("Travel expenses"),
 	)
 
-	err := service.Create(env.Ctx, category1)
+	_, err := service.Create(env.Ctx, category1)
 	require.NoError(t, err)
-	err = service.Create(env.Ctx, category2)
+	_, err = service.Create(env.Ctx, category2)
 	require.NoError(t, err)
 
 	response := suite.GET(PaymentCategoryBasePath).
@@ -96,7 +96,7 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err := service.Create(env.Ctx, category)
+	_, err := service.Create(env.Ctx, category)
 	require.NoError(t, err)
 
 	suite.GET(PaymentCategoryBasePath).
@@ -207,7 +207,7 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	categories, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
 		paymentCategoryEntity.WithDescription("Category to edit"),
 	)
 
-	err := service.Create(env.Ctx, category)
+	_, err := service.Create(env.Ctx, category)
 	require.NoError(t, err)
 
 	createdCategory, err := service.GetAll(env.Ctx)
@@ -313,7 +313,7 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 		paymentCategoryEntity.WithDescription("Original description"),
 	)
 
-	err := service.Create(env.Ctx, category)
+	_, err := service.Create(env.Ctx, category)
 	require.NoError(t, err)
 
 	categories, err := service.GetAll(env.Ctx)
@@ -365,7 +365,7 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err := service.Create(env.Ctx, category)
+	_, err := service.Create(env.Ctx, category)
 	require.NoError(t, err)
 
 	categories, err := service.GetAll(env.Ctx)
@@ -384,7 +384,7 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedCategory, err := service.GetByID(env.Ctx, createdCategory.ID())
 	require.NoError(t, err)
@@ -417,7 +417,7 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err := service.Create(env.Ctx, category)
+	_, err := service.Create(env.Ctx, category)
 	require.NoError(t, err)
 
 	categories, err := service.GetAll(env.Ctx)

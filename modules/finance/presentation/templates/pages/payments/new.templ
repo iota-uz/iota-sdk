@@ -82,10 +82,10 @@ templ CreateForm(props *CreatePageProps) {
 			})
 			@input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("Payments.Single.Comment"),
+				Value: props.Payment.Comment,
 				Attrs: templ.Attributes{
-					"value": props.Payment.Comment,
-					"name":  "Comment",
-					"form":  "save-form",
+					"name": "Comment",
+					"form": "save-form",
 				},
 				WrapperClass: "col-span-3",
 			})

@@ -47,6 +47,7 @@ func (s *Suite) WithModules(module ...application.Module) *Suite {
 
 // WithUser sets the user for the test
 func (s *Suite) WithUser(t *testing.T, u user.User) *Suite {
+	t.Helper()
 	s.env = builder.New().
 		WithModules(s.modules...).
 		WithUser(u).
@@ -56,6 +57,7 @@ func (s *Suite) WithUser(t *testing.T, u user.User) *Suite {
 
 // Build finalizes the test suite setup
 func (s *Suite) Build(t *testing.T) *Suite {
+	t.Helper()
 	if s.env == nil {
 		s.env = builder.New().
 			WithModules(s.modules...).
@@ -221,12 +223,14 @@ type ResponseAssertion struct {
 
 // Status asserts the response status code
 func (ra *ResponseAssertion) Status(t *testing.T, code int) *ResponseAssertion {
+	t.Helper()
 	assert.Equal(t, code, ra.recorder.Code)
 	return ra
 }
 
 // RedirectTo asserts redirect location
 func (ra *ResponseAssertion) RedirectTo(t *testing.T, location string) *ResponseAssertion {
+	t.Helper()
 	assert.Equal(t, location, ra.recorder.Header().Get("Location"))
 	return ra
 }
@@ -238,6 +242,7 @@ func (ra *ResponseAssertion) Body() string {
 
 // HTML parses and returns the HTML document
 func (ra *ResponseAssertion) HTML(t *testing.T) *HTMLAssertion {
+	t.Helper()
 	if ra.doc == nil {
 		doc, err := htmlquery.Parse(strings.NewReader(ra.Body()))
 		require.NoError(t, err)
@@ -251,12 +256,14 @@ func (ra *ResponseAssertion) HTML(t *testing.T) *HTMLAssertion {
 
 // Contains asserts the body contains text
 func (ra *ResponseAssertion) Contains(t *testing.T, text string) *ResponseAssertion {
+	t.Helper()
 	assert.Contains(t, ra.Body(), text)
 	return ra
 }
 
 // NotContains asserts the body doesn't contain text
 func (ra *ResponseAssertion) NotContains(t *testing.T, text string) *ResponseAssertion {
+	t.Helper()
 	assert.NotContains(t, ra.Body(), text)
 	return ra
 }
@@ -297,12 +304,14 @@ type ElementAssertion struct {
 
 // Exists asserts the element exists
 func (ea *ElementAssertion) Exists(t *testing.T) *ElementAssertion {
+	t.Helper()
 	assert.NotNil(t, ea.node, "Element not found: %s", ea.xpath)
 	return ea
 }
 
 // NotExists asserts the element doesn't exist
 func (ea *ElementAssertion) NotExists(t *testing.T) *ElementAssertion {
+	t.Helper()
 	assert.Nil(t, ea.node, "Element should not exist: %s", ea.xpath)
 	return ea
 }

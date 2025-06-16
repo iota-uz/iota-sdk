@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"testing"
@@ -27,6 +28,12 @@ import (
 var (
 	PaymentBasePath = "/finance/payments"
 )
+
+func createPaymentCategory(t *testing.T, ctx context.Context, service *services.PaymentCategoryService, category paymentCategoryEntity.PaymentCategory) paymentCategoryEntity.PaymentCategory {
+	created, err := service.Create(ctx, category)
+	require.NoError(t, err)
+	return created
+}
 
 func TestPaymentController_List_Success(t *testing.T) {
 	adminUser := testutils.MockUser(
@@ -62,10 +69,10 @@ func TestPaymentController_List_Success(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"Test Payment Category",
 		paymentCategoryEntity.WithDescription("Test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	counterparty1 := counterparty.New(
 		"Test Counterparty",
@@ -79,7 +86,7 @@ func TestPaymentController_List_Success(t *testing.T) {
 
 	payment1 := paymentAggregate.New(
 		money.NewFromFloat(150.00, "USD"),
-		category,
+		createdCategory,
 		paymentAggregate.WithTenantID(env.Tenant.ID),
 		paymentAggregate.WithAccount(createdAccount),
 		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
@@ -91,7 +98,7 @@ func TestPaymentController_List_Success(t *testing.T) {
 
 	payment2 := paymentAggregate.New(
 		money.NewFromFloat(250.50, "USD"),
-		category,
+		createdCategory,
 		paymentAggregate.WithTenantID(env.Tenant.ID),
 		paymentAggregate.WithAccount(createdAccount),
 		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
@@ -101,9 +108,9 @@ func TestPaymentController_List_Success(t *testing.T) {
 		paymentAggregate.WithAccountingPeriod(time.Now()),
 	)
 
-	err = paymentService.Create(env.Ctx, payment1)
+	_, err = paymentService.Create(env.Ctx, payment1)
 	require.NoError(t, err)
-	err = paymentService.Create(env.Ctx, payment2)
+	_, err = paymentService.Create(env.Ctx, payment2)
 	require.NoError(t, err)
 
 	response := suite.GET(PaymentBasePath).
@@ -113,8 +120,8 @@ func TestPaymentController_List_Success(t *testing.T) {
 	html := response.HTML(t)
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Test payment 1").
-		Contains(t, "Test payment 2")
+	response.Contains(t, "$150.00").
+		Contains(t, "$250.50")
 }
 
 func TestPaymentController_List_HTMX_Request(t *testing.T) {
@@ -151,10 +158,10 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"HTMX Test Category",
 		paymentCategoryEntity.WithDescription("HTMX test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	counterparty1 := counterparty.New(
 		"HTMX Test Counterparty",
@@ -168,7 +175,7 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 
 	payment1 := paymentAggregate.New(
 		money.NewFromFloat(75.25, "USD"),
-		category,
+		createdCategory,
 		paymentAggregate.WithTenantID(env.Tenant.ID),
 		paymentAggregate.WithAccount(createdAccount),
 		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
@@ -178,14 +185,14 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 		paymentAggregate.WithAccountingPeriod(time.Now()),
 	)
 
-	err = paymentService.Create(env.Ctx, payment1)
+	_, err = paymentService.Create(env.Ctx, payment1)
 	require.NoError(t, err)
 
 	suite.GET(PaymentBasePath).
 		HTMX().
 		Expect().
 		Status(t, 200).
-		Contains(t, "HTMX Test Payment")
+		Contains(t, "$75.25")
 }
 
 func TestPaymentController_GetNew_Success(t *testing.T) {
@@ -220,10 +227,10 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"Test Category",
 		paymentCategoryEntity.WithDescription("Test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	_ = createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	response := suite.GET(PaymentBasePath+"/new").
 		Expect().
@@ -235,7 +242,8 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 	html.Element("//input[@name='Amount']").Exists(t)
 	html.Element("//select[@name='AccountID']").Exists(t)
 	html.Element("//select[@name='PaymentCategoryID']").Exists(t)
-	html.Element("//input[@name='CounterpartyID']").Exists(t)
+	// CounterpartyID is a combobox component which has hidden input and select
+	html.Element("//*[@name='CounterpartyID']").Exists(t)
 	html.Element("//textarea[@name='Comment']").Exists(t)
 	html.Element("//input[@name='TransactionDate']").Exists(t)
 	html.Element("//input[@name='AccountingPeriod']").Exists(t)
@@ -275,10 +283,10 @@ func TestPaymentController_Create_Success(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"Test Category",
 		paymentCategoryEntity.WithDescription("Test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	counterparty1 := counterparty.New(
 		"Test Counterparty",
@@ -294,7 +302,7 @@ func TestPaymentController_Create_Success(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("Amount", "175.50")
 	formData.Set("AccountID", createdAccount.ID().String())
-	formData.Set("PaymentCategoryID", category.ID().String())
+	formData.Set("PaymentCategoryID", createdCategory.ID().String())
 	formData.Set("CounterpartyID", createdCounterparty.ID().String())
 	formData.Set("Comment", "New test payment")
 	formData.Set("TransactionDate", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
@@ -349,7 +357,7 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	payments, err := paymentService.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -391,10 +399,10 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"Edit Test Category",
 		paymentCategoryEntity.WithDescription("Edit test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	counterparty1 := counterparty.New(
 		"Edit Test Counterparty",
@@ -408,7 +416,7 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 
 	payment1 := paymentAggregate.New(
 		money.NewFromFloat(300.00, "USD"),
-		category,
+		createdCategory,
 		paymentAggregate.WithTenantID(env.Tenant.ID),
 		paymentAggregate.WithAccount(createdAccount),
 		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
@@ -418,10 +426,10 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 		paymentAggregate.WithAccountingPeriod(time.Now()),
 	)
 
-	err = paymentService.Create(env.Ctx, payment1)
+	createdPayment1, err := paymentService.Create(env.Ctx, payment1)
 	require.NoError(t, err)
 
-	response := suite.GET(fmt.Sprintf("%s/%s", PaymentBasePath, payment1.ID().String())).
+	response := suite.GET(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
 		Expect().
 		Status(t, 200)
 
@@ -430,7 +438,8 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 	html.Element("//input[@name='Amount']").Exists(t)
 	html.Element("//select[@name='AccountID']").Exists(t)
 	html.Element("//select[@name='PaymentCategoryID']").Exists(t)
-	html.Element("//input[@name='CounterpartyID']").Exists(t)
+	// CounterpartyID is a combobox component
+	html.Element("//*[@name='CounterpartyID']").Exists(t)
 	html.Element("//textarea[@name='Comment']").Exists(t)
 	require.Equal(t, "Edit test payment", html.Element("//textarea[@name='Comment']").Text())
 }
@@ -493,10 +502,10 @@ func TestPaymentController_Update_Success(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"Update Test Category",
 		paymentCategoryEntity.WithDescription("Update test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	counterparty1 := counterparty.New(
 		"Update Test Counterparty",
@@ -510,7 +519,7 @@ func TestPaymentController_Update_Success(t *testing.T) {
 
 	payment1 := paymentAggregate.New(
 		money.NewFromFloat(100.00, "USD"),
-		category,
+		createdCategory,
 		paymentAggregate.WithTenantID(env.Tenant.ID),
 		paymentAggregate.WithAccount(createdAccount),
 		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
@@ -520,26 +529,26 @@ func TestPaymentController_Update_Success(t *testing.T) {
 		paymentAggregate.WithAccountingPeriod(time.Now()),
 	)
 
-	err = paymentService.Create(env.Ctx, payment1)
+	createdPayment1, err := paymentService.Create(env.Ctx, payment1)
 	require.NoError(t, err)
 
 	now := time.Now()
 	formData := url.Values{}
 	formData.Set("Amount", "350.75")
 	formData.Set("AccountID", createdAccount.ID().String())
-	formData.Set("PaymentCategoryID", category.ID().String())
+	formData.Set("PaymentCategoryID", createdCategory.ID().String())
 	formData.Set("CounterpartyID", createdCounterparty.ID().String())
 	formData.Set("Comment", "Updated payment comment")
 	formData.Set("TransactionDate", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
-	suite.POST(fmt.Sprintf("%s/%s", PaymentBasePath, payment1.ID().String())).
+	suite.POST(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
 		WithForm(formData).
 		Expect().
 		Status(t, 302).
 		RedirectTo(t, PaymentBasePath)
 
-	updatedPayment, err := paymentService.GetByID(env.Ctx, payment1.ID())
+	updatedPayment, err := paymentService.GetByID(env.Ctx, createdPayment1.ID())
 	require.NoError(t, err)
 
 	require.Equal(t, int64(35075), updatedPayment.Amount().Amount())
@@ -581,10 +590,10 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"Test Category",
 		paymentCategoryEntity.WithDescription("Test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	counterparty1 := counterparty.New(
 		"Test Counterparty",
@@ -598,7 +607,7 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 
 	payment1 := paymentAggregate.New(
 		money.NewFromFloat(100.00, "USD"),
-		category,
+		createdCategory,
 		paymentAggregate.WithTenantID(env.Tenant.ID),
 		paymentAggregate.WithAccount(createdAccount),
 		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
@@ -608,7 +617,7 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 		paymentAggregate.WithAccountingPeriod(time.Now()),
 	)
 
-	err = paymentService.Create(env.Ctx, payment1)
+	createdPayment1, err := paymentService.Create(env.Ctx, payment1)
 	require.NoError(t, err)
 
 	formData := url.Values{}
@@ -618,15 +627,15 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 	formData.Set("CounterpartyID", "invalid-uuid")
 	formData.Set("Comment", "")
 
-	response := suite.POST(fmt.Sprintf("%s/%s", PaymentBasePath, payment1.ID().String())).
+	response := suite.POST(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
 		WithForm(formData).
 		Expect().
 		Status(t, 200)
 
 	html := response.HTML(t)
-	require.Greater(t, len(html.Elements("//small[@data-testid='field-error']")), 0)
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
-	unchangedPayment, err := paymentService.GetByID(env.Ctx, payment1.ID())
+	unchangedPayment, err := paymentService.GetByID(env.Ctx, createdPayment1.ID())
 	require.NoError(t, err)
 	require.Equal(t, "Test payment", unchangedPayment.Comment())
 }
@@ -666,10 +675,10 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 	category := paymentCategoryEntity.New(
 		"Delete Test Category",
 		paymentCategoryEntity.WithDescription("Delete test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	err = paymentCategoryService.Create(env.Ctx, category)
-	require.NoError(t, err)
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
 	counterparty1 := counterparty.New(
 		"Delete Test Counterparty",
@@ -683,7 +692,7 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 
 	payment1 := paymentAggregate.New(
 		money.NewFromFloat(100.00, "USD"),
-		category,
+		createdCategory,
 		paymentAggregate.WithTenantID(env.Tenant.ID),
 		paymentAggregate.WithAccount(createdAccount),
 		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
@@ -693,19 +702,19 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 		paymentAggregate.WithAccountingPeriod(time.Now()),
 	)
 
-	err = paymentService.Create(env.Ctx, payment1)
+	createdPayment1, err := paymentService.Create(env.Ctx, payment1)
 	require.NoError(t, err)
 
-	existingPayment, err := paymentService.GetByID(env.Ctx, payment1.ID())
+	existingPayment, err := paymentService.GetByID(env.Ctx, createdPayment1.ID())
 	require.NoError(t, err)
 	require.Equal(t, "Payment to Delete", existingPayment.Comment())
 
-	suite.DELETE(fmt.Sprintf("%s/%s", PaymentBasePath, payment1.ID().String())).
+	suite.DELETE(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
 		Expect().
 		Status(t, 302).
 		RedirectTo(t, PaymentBasePath)
 
-	_, err = paymentService.GetByID(env.Ctx, payment1.ID())
+	_, err = paymentService.GetByID(env.Ctx, createdPayment1.ID())
 	require.Error(t, err)
 }
 

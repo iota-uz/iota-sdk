@@ -178,7 +178,7 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := c.expenseCategoryService.Update(r.Context(), entity); err != nil {
+		if _, err := c.expenseCategoryService.Update(r.Context(), entity); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
