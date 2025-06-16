@@ -47,43 +47,43 @@ func TestUUIDField(t *testing.T) {
 func TestFieldCasting(t *testing.T) {
 	t.Run("StringField casting", func(t *testing.T) {
 		field := crud.NewStringField("name")
-		
+
 		// Should cast to StringField successfully
 		stringField, err := field.AsStringField()
 		assert.NoError(t, err)
 		assert.NotNil(t, stringField)
 		assert.Equal(t, "name", stringField.Name())
-		
+
 		// Should fail casting to other types
 		_, err = field.AsIntField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
 		assert.Contains(t, err.Error(), "field \"name\" is string, not int")
-		
+
 		_, err = field.AsBoolField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsFloatField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsDateField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsTimeField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsDateTimeField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsTimestampField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsUUIDField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
@@ -91,18 +91,18 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("IntField casting", func(t *testing.T) {
 		field := crud.NewIntField("age")
-		
+
 		// Should cast to IntField successfully
 		intField, err := field.AsIntField()
 		assert.NoError(t, err)
 		assert.NotNil(t, intField)
 		assert.Equal(t, "age", intField.Name())
-		
+
 		// Should fail casting to other types
 		_, err = field.AsStringField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsBoolField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
@@ -110,18 +110,18 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("BoolField casting", func(t *testing.T) {
 		field := crud.NewBoolField("active")
-		
+
 		// Should cast to BoolField successfully
 		boolField, err := field.AsBoolField()
 		assert.NoError(t, err)
 		assert.NotNil(t, boolField)
 		assert.Equal(t, "active", boolField.Name())
-		
+
 		// Should fail casting to other types
 		_, err = field.AsStringField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
-		
+
 		_, err = field.AsIntField()
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, crud.ErrFieldTypeMismatch)
@@ -129,7 +129,7 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("FloatField casting", func(t *testing.T) {
 		field := crud.NewFloatField("price")
-		
+
 		// Should cast to FloatField successfully
 		floatField, err := field.AsFloatField()
 		assert.NoError(t, err)
@@ -139,7 +139,7 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("DateField casting", func(t *testing.T) {
 		field := crud.NewDateField("birthdate")
-		
+
 		// Should cast to DateField successfully
 		dateField, err := field.AsDateField()
 		assert.NoError(t, err)
@@ -149,7 +149,7 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("TimeField casting", func(t *testing.T) {
 		field := crud.NewTimeField("start_time")
-		
+
 		// Should cast to TimeField successfully
 		timeField, err := field.AsTimeField()
 		assert.NoError(t, err)
@@ -159,7 +159,7 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("DateTimeField casting", func(t *testing.T) {
 		field := crud.NewDateTimeField("created_at")
-		
+
 		// Should cast to DateTimeField successfully
 		dateTimeField, err := field.AsDateTimeField()
 		assert.NoError(t, err)
@@ -169,7 +169,7 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("TimestampField casting", func(t *testing.T) {
 		field := crud.NewTimestampField("updated_at")
-		
+
 		// Should cast to TimestampField successfully
 		timestampField, err := field.AsTimestampField()
 		assert.NoError(t, err)
@@ -179,7 +179,7 @@ func TestFieldCasting(t *testing.T) {
 
 	t.Run("UUIDField casting", func(t *testing.T) {
 		field := crud.NewUUIDField("id")
-		
+
 		// Should cast to UUIDField successfully
 		uuidField, err := field.AsUUIDField()
 		assert.NoError(t, err)
@@ -190,13 +190,13 @@ func TestFieldCasting(t *testing.T) {
 	t.Run("Casting through Field interface", func(t *testing.T) {
 		// Test that casting works when field is referenced through Field interface
 		var field crud.Field = crud.NewStringField("description", crud.WithMaxLen(500))
-		
+
 		// Should cast to StringField successfully
 		stringField, err := field.AsStringField()
 		assert.NoError(t, err)
 		assert.NotNil(t, stringField)
 		assert.Equal(t, 500, stringField.MaxLen())
-		
+
 		// Test with IntField
 		field = crud.NewIntField("count", crud.WithMin(0), crud.WithMax(100))
 		intField, err := field.AsIntField()
