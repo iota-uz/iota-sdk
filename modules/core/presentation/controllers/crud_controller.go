@@ -102,8 +102,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}
 
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	if isHxRequest {
+	if htmx.IsHxRequest(r) {
 		templ.Handler(crud_pages.ListTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(crud_pages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -140,29 +139,16 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Create entity from form data
-	var entity TEntity
-	fieldValues, err := c.schema.Mapper().ToFieldValues(r.Context(), entity)
-	if err != nil {
-		log.Printf("Failed to map entity to field values: %v", err)
-		http.Error(w, "Error processing form", http.StatusInternalServerError)
-		return
-	}
-
-	// Update field values from form
-	for i, fv := range fieldValues {
-		field := fv.Field()
-		if !field.Hidden() && !field.Key() && !field.Readonly() {
-			formValue := r.FormValue(field.Name())
-			if formValue != "" {
-				// Update the field value with form data
-				fieldValues[i] = field.Value(formValue)
-			}
+	var fieldValues []crud.FieldValue
+	for _, f := range c.schema.Fields().Fields() {
+		fv := f.Value(f.InitialValue())
+		if r.Form.Has(f.Name()) {
+			fv = f.Value(r.Form.Get(f.Name()))
 		}
+		fieldValues = append(fieldValues, fv)
 	}
 
-	// Convert back to entity
-	entity, err = c.schema.Mapper().ToEntity(r.Context(), fieldValues)
+	entity, err := c.schema.Mapper().ToEntity(r.Context(), fieldValues)
 	if err != nil {
 		log.Printf("Failed to map field values to entity: %v", err)
 		http.Error(w, "Error processing form", http.StatusInternalServerError)
@@ -202,7 +188,6 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	// Redirect to list or edit page
 	if htmx.IsHxRequest(r) {
 		w.Header().Set("HX-Redirect", fmt.Sprintf("%s/%s", c.basePath, primaryKeyValue))
 	} else {
