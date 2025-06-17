@@ -3,6 +3,8 @@ package controllertest
 import (
 	"bytes"
 	"context"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -160,11 +162,12 @@ func (s *Suite) setupMiddleware() {
 
 // RequestBuilder builds HTTP requests
 type RequestBuilder struct {
-	suite   *Suite
-	method  string
-	path    string
-	body    []byte
-	headers http.Header
+	suite         *Suite
+	method        string
+	path          string
+	body          []byte
+	headers       http.Header
+	multipartForm *MultipartFormBuilder
 }
 
 // WithJSON sets JSON body
@@ -180,6 +183,16 @@ func (rb *RequestBuilder) WithForm(values url.Values) *RequestBuilder {
 	return rb
 }
 
+// WithMultipartForm creates a multipart form builder
+func (rb *RequestBuilder) WithMultipartForm() *MultipartFormBuilder {
+	rb.multipartForm = &MultipartFormBuilder{
+		requestBuilder: rb,
+		fields:         make(map[string]string),
+		files:          make([]multipartFile, 0),
+	}
+	return rb.multipartForm
+}
+
 // WithHeader adds a header
 func (rb *RequestBuilder) WithHeader(key, value string) *RequestBuilder {
 	rb.headers.Set(key, value)
@@ -193,8 +206,29 @@ func (rb *RequestBuilder) HTMX() *RequestBuilder {
 
 // Expect executes the request and returns response assertions
 func (rb *RequestBuilder) Expect() *ResponseAssertion {
-	var bodyReader *bytes.Reader
-	if rb.body != nil {
+	var bodyReader io.Reader
+
+	if rb.multipartForm != nil {
+		// Build multipart form
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		// Add fields
+		for key, value := range rb.multipartForm.fields {
+			_ = writer.WriteField(key, value)
+		}
+
+		// Add files
+		for _, file := range rb.multipartForm.files {
+			part, _ := writer.CreateFormFile(file.fieldName, file.fileName)
+			_, _ = io.Copy(part, bytes.NewReader(file.content))
+		}
+
+		_ = writer.Close()
+
+		bodyReader = body
+		rb.headers.Set("Content-Type", writer.FormDataContentType())
+	} else if rb.body != nil {
 		bodyReader = bytes.NewReader(rb.body)
 	} else {
 		bodyReader = bytes.NewReader([]byte{})
@@ -330,4 +364,57 @@ func (ea *ElementAssertion) Attr(name string) string {
 		return ""
 	}
 	return htmlquery.SelectAttr(ea.node, name)
+}
+
+// multipartFile represents a file in a multipart form
+type multipartFile struct {
+	fieldName string
+	fileName  string
+	content   []byte
+}
+
+// MultipartFormBuilder builds multipart form requests
+type MultipartFormBuilder struct {
+	requestBuilder *RequestBuilder
+	fields         map[string]string
+	files          []multipartFile
+}
+
+// AddField adds a field to the multipart form
+func (mfb *MultipartFormBuilder) AddField(key, value string) *MultipartFormBuilder {
+	mfb.fields[key] = value
+	return mfb
+}
+
+// AddFile adds a file to the multipart form
+func (mfb *MultipartFormBuilder) AddFile(fieldName, fileName string, content []byte) *MultipartFormBuilder {
+	mfb.files = append(mfb.files, multipartFile{
+		fieldName: fieldName,
+		fileName:  fileName,
+		content:   content,
+	})
+	return mfb
+}
+
+// AddFileFromReader adds a file from an io.Reader to the multipart form
+func (mfb *MultipartFormBuilder) AddFileFromReader(fieldName, fileName string, reader io.Reader) *MultipartFormBuilder {
+	content, _ := io.ReadAll(reader)
+	return mfb.AddFile(fieldName, fileName, content)
+}
+
+// WithHeader adds a header to the request
+func (mfb *MultipartFormBuilder) WithHeader(key, value string) *MultipartFormBuilder {
+	mfb.requestBuilder.WithHeader(key, value)
+	return mfb
+}
+
+// HTMX marks the request as HTMX
+func (mfb *MultipartFormBuilder) HTMX() *MultipartFormBuilder {
+	mfb.requestBuilder.HTMX()
+	return mfb
+}
+
+// Expect executes the request and returns response assertions
+func (mfb *MultipartFormBuilder) Expect() *ResponseAssertion {
+	return mfb.requestBuilder.Expect()
 }
