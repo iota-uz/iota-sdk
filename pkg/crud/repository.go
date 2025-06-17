@@ -13,7 +13,7 @@ type SortBy = repo.SortBy[string]
 type Filter = repo.FieldFilter[string]
 
 type FindParams struct {
-	Search  string
+	Query   string
 	Filters []Filter
 	Limit   int
 	Offset  int
@@ -254,7 +254,7 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 		currentArgIdx += len(filterValues)
 	}
 
-	if params.Search != "" {
+	if params.Query != "" {
 		searchClauses := make([]string, 0)
 		for _, sf := range r.schema.Fields().Searchable() {
 			searchClauses = append(
@@ -264,7 +264,7 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 		}
 		if len(searchClauses) > 0 {
 			where = append(where, "("+strings.Join(searchClauses, " OR ")+")")
-			args = append(args, "%"+strings.ToLower(params.Search)+"%")
+			args = append(args, "%"+strings.ToLower(params.Query)+"%")
 		}
 	}
 

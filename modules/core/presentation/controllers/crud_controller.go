@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
@@ -10,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"log"
 	"net/http"
 )
@@ -61,37 +61,14 @@ func (c *CrudController[TEntity]) Key() string {
 }
 
 func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
-	pagParams := composables.UsePaginated(r)
-
-	params := crud.FindParams{
-		Limit:  pagParams.Limit,
-		Offset: pagParams.Offset,
-	}
-
-	// Handle search across all searchable fields
-	searchQuery := r.URL.Query().Get("search")
-	if searchQuery != "" {
-		params.Search = searchQuery
-	}
-
-	// Handle sorting
-	sortBy := r.URL.Query().Get("sort_by")
-	sortOrder := r.URL.Query().Get("sort_order")
-	if sortBy != "" {
-		ascending := sortOrder != "desc"
-		params.SortBy = crud.SortBy{
-			Fields: []repo.SortByField[string]{
-				{
-					Field:     sortBy,
-					Ascending: ascending,
-					NullsLast: true,
-				},
-			},
-		}
-	}
+	paginationParams := composables.UsePaginated(r)
+	params, err := composables.UseQuery(&crud.FindParams{
+		Limit:  paginationParams.Limit,
+		Offset: paginationParams.Offset,
+	}, r)
 
 	// Get the list of entities
-	entities, err := c.service.List(r.Context(), &params)
+	entities, err := c.service.List(r.Context(), params)
 	if err != nil {
 		log.Printf("Failed to get entities: %v", err)
 		http.Error(w, "Error retrieving entities", http.StatusInternalServerError)
@@ -99,7 +76,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get total count for pagination
-	total, err := c.service.Count(r.Context(), &params)
+	total, err := c.service.Count(r.Context(), params)
 	if err != nil {
 		log.Printf("Failed to count entities: %v", err)
 		http.Error(w, "Error counting entities", http.StatusInternalServerError)
@@ -118,40 +95,120 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare data for the template
-	props := &crud_pages.ListPageProps[TEntity]{
+	props := &crud_pages.IndexPageProps[TEntity]{
+		BasePath:        c.basePath,
 		Schema:          c.schema,
 		Rows:            rows,
-		Page:            pagParams.Page,
-		PerPage:         pagParams.Limit,
-		Total:           total,
-		HasMore:         total > int64(pagParams.Page*pagParams.Limit),
-		BasePath:        c.basePath,
-		Search:          searchQuery,
-		SortBy:          sortBy,
-		SortOrder:       sortOrder,
-		PaginationState: pagination.New(c.basePath, pagParams.Page, int(total), pagParams.Limit),
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
 	}
 
-	// Handle HTMX requests
-	if htmx.IsHxRequest(r) {
-		if pagParams.Page > 1 {
-			// Infinite scroll - return only new rows
-			templ.Handler(crud_pages.EntityRows(props), templ.WithStreaming()).ServeHTTP(w, r)
-		} else {
-			// Regular HTMX request (search, sort, filter) - return only the table
-			templ.Handler(crud_pages.EntitiesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
-		}
+	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
+	if isHxRequest {
+		templ.Handler(crud_pages.ListTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		// Full page request
 		templ.Handler(crud_pages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
-func (c *CrudController[TEntity]) GetNew(w http.ResponseWriter, r *http.Request) {}
+func (c *CrudController[TEntity]) GetNew(w http.ResponseWriter, r *http.Request) {
+	// Create empty entity for the form
+	var entity TEntity
+
+	// Convert to field values
+	fieldValues, err := c.schema.Mapper().ToFieldValues(r.Context(), entity)
+	if err != nil {
+		log.Printf("Failed to map entity to field values: %v", err)
+		http.Error(w, "Error preparing form", http.StatusInternalServerError)
+		return
+	}
+
+	props := &crud_pages.CreatePageProps[TEntity]{
+		Schema:   c.schema,
+		Fields:   fieldValues,
+		Errors:   map[string]string{},
+		BasePath: c.basePath,
+	}
+
+	templ.Handler(crud_pages.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
 
 func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request) {}
 
-func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request) {}
+func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Create entity from form data
+	var entity TEntity
+	fieldValues, err := c.schema.Mapper().ToFieldValues(r.Context(), entity)
+	if err != nil {
+		log.Printf("Failed to map entity to field values: %v", err)
+		http.Error(w, "Error processing form", http.StatusInternalServerError)
+		return
+	}
+
+	// Update field values from form
+	for i, fv := range fieldValues {
+		field := fv.Field()
+		if !field.Hidden() && !field.Key() && !field.Readonly() {
+			formValue := r.FormValue(field.Name())
+			if formValue != "" {
+				// Update the field value with form data
+				fieldValues[i] = field.Value(formValue)
+			}
+		}
+	}
+
+	// Convert back to entity
+	entity, err = c.schema.Mapper().ToEntity(r.Context(), fieldValues)
+	if err != nil {
+		log.Printf("Failed to map field values to entity: %v", err)
+		http.Error(w, "Error processing form", http.StatusInternalServerError)
+		return
+	}
+
+	// Save entity
+	savedEntity, err := c.service.Save(r.Context(), entity)
+	if err != nil {
+		log.Printf("Failed to save entity: %v", err)
+
+		// Return form with errors
+		props := &crud_pages.CreatePageProps[TEntity]{
+			Schema:   c.schema,
+			Fields:   fieldValues,
+			Errors:   map[string]string{"_error": err.Error()},
+			BasePath: c.basePath,
+		}
+
+		templ.Handler(crud_pages.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+		return
+	}
+
+	// Get the primary key value for redirect
+	savedFieldValues, err := c.schema.Mapper().ToFieldValues(r.Context(), savedEntity)
+	if err != nil {
+		log.Printf("Failed to map saved entity: %v", err)
+		http.Error(w, "Error processing saved entity", http.StatusInternalServerError)
+		return
+	}
+
+	var primaryKeyValue string
+	for _, fv := range savedFieldValues {
+		if fv.Field().Key() {
+			primaryKeyValue = fmt.Sprintf("%v", fv.Value())
+			break
+		}
+	}
+
+	// Redirect to list or edit page
+	if htmx.IsHxRequest(r) {
+		w.Header().Set("HX-Redirect", fmt.Sprintf("%s/%s", c.basePath, primaryKeyValue))
+	} else {
+		http.Redirect(w, r, c.basePath, http.StatusSeeOther)
+	}
+}
 
 func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request) {}
 
