@@ -98,15 +98,18 @@ func (m *Module) Register(app application.Application) error {
 		crud.NewStringField(
 			"code",
 			crud.WithKey(true),
-			crud.WithRule(crud.MaxLengthRule(3)),
+			crud.WithMaxLen(3),
+			crud.WithSearchable(true),
 		),
 		crud.NewStringField(
 			"name",
-			crud.WithRule(crud.MaxLengthRule(255)),
+			crud.WithMaxLen(255),
+			crud.WithSearchable(true),
 		),
 		crud.NewStringField(
 			"symbol",
-			crud.WithRule(crud.MaxLengthRule(3)),
+			crud.WithMaxLen(3),
+			crud.WithSearchable(true),
 		),
 		crud.NewDateTimeField("created_at", crud.WithHidden(true)),
 		crud.NewDateTimeField("updated_at", crud.WithHidden(true)),
