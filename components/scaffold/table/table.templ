@@ -160,7 +160,7 @@ templ TableSection(config *TableConfig) {
 								},
 							})
 						</div>
-						<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="flex gap-3 h-full">
+						<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
 							for _, filter := range config.Filters {
 								@filter
 							}
