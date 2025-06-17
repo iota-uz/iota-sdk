@@ -38,6 +38,18 @@ func (m *currencyMapper) ToEntity(_ context.Context, values []crud.FieldValue) (
 				return result, err
 			}
 			result.Symbol = Symbol(symbol)
+		case "created_at":
+			createdAt, err := v.AsTime()
+			if err != nil {
+				return result, err
+			}
+			result.CreatedAt = createdAt
+		case "updated_at":
+			updatedAt, err := v.AsTime()
+			if err != nil {
+				return result, err
+			}
+			result.UpdatedAt = updatedAt
 		}
 	}
 
@@ -46,8 +58,10 @@ func (m *currencyMapper) ToEntity(_ context.Context, values []crud.FieldValue) (
 
 func (m *currencyMapper) ToFieldValues(_ context.Context, entity Currency) ([]crud.FieldValue, error) {
 	return m.fields.FieldValues(map[string]any{
-		"code":   entity.Code,
-		"name":   entity.Name,
-		"symbol": entity.Symbol,
+		"code":       string(entity.Code),
+		"name":       entity.Name,
+		"symbol":     string(entity.Symbol),
+		"created_at": entity.CreatedAt,
+		"updated_at": entity.UpdatedAt,
 	})
 }

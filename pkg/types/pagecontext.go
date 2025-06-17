@@ -33,3 +33,21 @@ func (p *PageContext) T(k string, args ...map[string]interface{}) string {
 	}
 	return p.Localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: k, TemplateData: args[0]})
 }
+
+func (p *PageContext) TSafe(k string, args ...map[string]interface{}) string {
+	if len(args) > 1 {
+		panic("T(): too many arguments")
+	}
+
+	cfg := &i18n.LocalizeConfig{MessageID: k}
+	if len(args) == 1 {
+		cfg.TemplateData = args[0]
+	}
+
+	result, err := p.Localizer.Localize(cfg)
+	if err != nil {
+		return ""
+	}
+
+	return result
+}

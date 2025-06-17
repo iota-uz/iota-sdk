@@ -138,7 +138,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewShowcaseController(app),
 		controllers.NewWebSocketController(app),
 		controllers.NewCrudController[currency.Currency](
-			"currencies",
+			"/currencies",
 			app,
 			builder,
 		),

@@ -1,10 +1,15 @@
 package controllers
 
 import (
+	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/crud_pages"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"log"
 	"net/http"
 )
 
@@ -53,7 +58,69 @@ func (c *CrudController[TEntity]) Key() string {
 	return c.basePath
 }
 
-func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {}
+func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
+	pagParams := composables.UsePaginated(r)
+
+	params := crud.FindParams{
+		Limit:  pagParams.Limit,
+		Offset: pagParams.Offset,
+		Search: r.URL.Query().Get("search"),
+	}
+
+	// Get the list of entities
+	entities, err := c.service.List(r.Context(), &params)
+	if err != nil {
+		log.Printf("Failed to get entities: %v", err)
+		http.Error(w, "Error retrieving entities", http.StatusInternalServerError)
+		return
+	}
+
+	// Get total count for pagination
+	total, err := c.service.Count(r.Context(), &params)
+	if err != nil {
+		log.Printf("Failed to count entities: %v", err)
+		http.Error(w, "Error counting entities", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert entities to field values for display
+	var rows [][]crud.FieldValue
+	for _, entity := range entities {
+		fieldValues, err := c.schema.Mapper().ToFieldValues(r.Context(), entity)
+		if err != nil {
+			log.Printf("Failed to map entity to field values: %v", err)
+			continue
+		}
+		rows = append(rows, fieldValues)
+	}
+
+	// Prepare data for the template
+	props := &crud_pages.ListPageProps[TEntity]{
+		Schema:   c.schema,
+		Rows:     rows,
+		Page:     pagParams.Page,
+		PerPage:  pagParams.Limit,
+		Total:    total,
+		HasMore:  total > int64(pagParams.Page*pagParams.Limit),
+		BasePath: c.basePath,
+		Search:   params.Search,
+	}
+
+	// Handle HTMX requests
+	if htmx.IsHxRequest(r) {
+		if pagParams.Page > 1 {
+			templ.Handler(crud_pages.EntityRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			if htmx.Target(r) == "entities-table-body" {
+				templ.Handler(crud_pages.EntityRows(props), templ.WithStreaming()).ServeHTTP(w, r)
+			} else {
+				templ.Handler(crud_pages.ListContent(props), templ.WithStreaming()).ServeHTTP(w, r)
+			}
+		}
+	} else {
+		templ.Handler(crud_pages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
 
 func (c *CrudController[TEntity]) GetNew(w http.ResponseWriter, r *http.Request) {}
 
