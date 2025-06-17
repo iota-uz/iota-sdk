@@ -1,0 +1,183 @@
+package crud_pages
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
+)
+
+type CreatePageProps[TEntity any] struct {
+	Schema     crud.Schema[TEntity]
+	Fields     []crud.FieldValue
+	Errors     map[string]string
+	BasePath   string
+}
+
+templ renderField(fv crud.FieldValue, errors map[string]string, autofocus bool) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		field := fv.Field()
+		value := fmt.Sprintf("%v", fv.Value())
+		if fv.IsZero() {
+			value = ""
+		}
+		errorMsg := errors[field.Name()]
+	}}
+	
+	switch field.Type() {
+	case crud.StringFieldType:
+		// Check if it's a multiline field
+		if sf, sfErr := field.AsStringField(); sfErr == nil && sf.Multiline() {
+			@input.TextArea(&input.TextAreaProps{
+				Label:       pageCtx.TSafe(field.Name()),
+				Placeholder: pageCtx.TSafe(fmt.Sprintf("%s.Placeholder", field.Name())),
+				Value:       value,
+				Attrs: templ.Attributes{
+					"name":  field.Name(),
+					"autofocus": autofocus,
+				},
+				Error: errorMsg,
+			})
+		} else {
+			@input.Text(&input.Props{
+				Label:       pageCtx.TSafe(field.Name()),
+				Placeholder: pageCtx.TSafe(fmt.Sprintf("%s.Placeholder", field.Name())),
+				Attrs: templ.Attributes{
+					"name":  field.Name(),
+					"value": value,
+					"autofocus": autofocus,
+				},
+				Error: errorMsg,
+			})
+		}
+	case crud.IntFieldType, crud.FloatFieldType:
+		@input.Number(&input.Props{
+			Label:       pageCtx.TSafe(field.Name()),
+			Placeholder: pageCtx.TSafe(fmt.Sprintf("%s.Placeholder", field.Name())),
+			Attrs: templ.Attributes{
+				"name":  field.Name(),
+				"value": value,
+				"autofocus": autofocus,
+			},
+			Error: errorMsg,
+		})
+	case crud.DateFieldType:
+		@input.Date(&input.Props{
+			Label:       pageCtx.TSafe(field.Name()),
+			Placeholder: pageCtx.TSafe(fmt.Sprintf("%s.Placeholder", field.Name())),
+			Attrs: templ.Attributes{
+				"name":  field.Name(),
+				"value": value,
+				"autofocus": autofocus,
+			},
+			Error: errorMsg,
+		})
+	case crud.DateTimeFieldType:
+		@input.Text(&input.Props{
+			Label:       pageCtx.TSafe(field.Name()),
+			Placeholder: pageCtx.TSafe(fmt.Sprintf("%s.Placeholder", field.Name())),
+			Attrs: templ.Attributes{
+				"type":  "datetime-local",
+				"name":  field.Name(),
+				"value": value,
+				"autofocus": autofocus,
+			},
+			Error: errorMsg,
+		})
+	case crud.BoolFieldType:
+		@input.Checkbox(&input.CheckboxProps{
+			Label: pageCtx.TSafe(field.Name()),
+			Attrs: templ.Attributes{
+				"name":  field.Name(),
+				"value": "true",
+			},
+			Checked: value == "true",
+			Error:   errorMsg,
+		})
+	case crud.UUIDFieldType:
+		// UUID fields are typically readonly
+		@input.Text(&input.Props{
+			Label:       pageCtx.TSafe(field.Name()),
+			Placeholder: pageCtx.TSafe(fmt.Sprintf("%s.Placeholder", field.Name())),
+			Attrs: templ.Attributes{
+				"name":  field.Name(),
+				"value": value,
+				"readonly": true,
+				"autofocus": autofocus,
+			},
+			Error: errorMsg,
+		})
+	default:
+		// For now, just use text input as default
+		// TODO: Add support for select fields when available
+		@input.Text(&input.Props{
+			Label:       pageCtx.TSafe(field.Name()),
+			Placeholder: pageCtx.TSafe(fmt.Sprintf("%s.Placeholder", field.Name())),
+			Attrs: templ.Attributes{
+				"name":  field.Name(),
+				"value": value,
+				"autofocus": autofocus,
+			},
+			Error: errorMsg,
+		})
+	}
+}
+
+templ CreateForm[TEntity any](props *CreatePageProps[TEntity]) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<form
+		class="flex flex-col justify-between h-full"
+		hx-post={ props.BasePath }
+		hx-swap="outerHTML"
+		hx-indicator="#save-btn"
+	>
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			{{
+				firstField := true
+			}}
+			for _, fv := range props.Fields {
+				if !fv.Field().Hidden() && !fv.Field().Key() && !fv.Field().Readonly() {
+					<div class="col-span-1">
+						@renderField(fv, props.Errors, firstField)
+						{{
+							firstField = false
+						}}
+					</div>
+				}
+			}
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			@button.Secondary(button.Props{
+				Size: button.SizeMD,
+				Href: props.BasePath,
+			}) {
+				{ pageCtx.T("Cancel") }
+			}
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"type": "submit",
+					"id":   "save-btn",
+				},
+			}) {
+				{ pageCtx.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+templ New[TEntity any](props *CreatePageProps[TEntity]) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.TSafe(fmt.Sprintf("%s.New.Meta.Title", props.Schema.Name()))},
+	}) {
+		@CreateForm(props)
+	}
+}
