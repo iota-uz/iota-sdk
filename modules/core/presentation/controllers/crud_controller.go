@@ -3,12 +3,14 @@ package controllers
 import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/crud_pages"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"log"
 	"net/http"
 )
@@ -64,7 +66,28 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	params := crud.FindParams{
 		Limit:  pagParams.Limit,
 		Offset: pagParams.Offset,
-		Search: r.URL.Query().Get("search"),
+	}
+
+	// Handle search across all searchable fields
+	searchQuery := r.URL.Query().Get("search")
+	if searchQuery != "" {
+		params.Search = searchQuery
+	}
+
+	// Handle sorting
+	sortBy := r.URL.Query().Get("sort_by")
+	sortOrder := r.URL.Query().Get("sort_order")
+	if sortBy != "" {
+		ascending := sortOrder != "desc"
+		params.SortBy = crud.SortBy{
+			Fields: []repo.SortByField[string]{
+				{
+					Field:     sortBy,
+					Ascending: ascending,
+					NullsLast: true,
+				},
+			},
+		}
 	}
 
 	// Get the list of entities
@@ -96,28 +119,30 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 	// Prepare data for the template
 	props := &crud_pages.ListPageProps[TEntity]{
-		Schema:   c.schema,
-		Rows:     rows,
-		Page:     pagParams.Page,
-		PerPage:  pagParams.Limit,
-		Total:    total,
-		HasMore:  total > int64(pagParams.Page*pagParams.Limit),
-		BasePath: c.basePath,
-		Search:   params.Search,
+		Schema:          c.schema,
+		Rows:            rows,
+		Page:            pagParams.Page,
+		PerPage:         pagParams.Limit,
+		Total:           total,
+		HasMore:         total > int64(pagParams.Page*pagParams.Limit),
+		BasePath:        c.basePath,
+		Search:          searchQuery,
+		SortBy:          sortBy,
+		SortOrder:       sortOrder,
+		PaginationState: pagination.New(c.basePath, pagParams.Page, int(total), pagParams.Limit),
 	}
 
 	// Handle HTMX requests
 	if htmx.IsHxRequest(r) {
 		if pagParams.Page > 1 {
+			// Infinite scroll - return only new rows
 			templ.Handler(crud_pages.EntityRows(props), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
-			if htmx.Target(r) == "entities-table-body" {
-				templ.Handler(crud_pages.EntityRows(props), templ.WithStreaming()).ServeHTTP(w, r)
-			} else {
-				templ.Handler(crud_pages.ListContent(props), templ.WithStreaming()).ServeHTTP(w, r)
-			}
+			// Regular HTMX request (search, sort, filter) - return only the table
+			templ.Handler(crud_pages.EntitiesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 		}
 	} else {
+		// Full page request
 		templ.Handler(crud_pages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
