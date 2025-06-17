@@ -400,6 +400,15 @@
       "Title": "Home"
     }
   },
+  "currencies": {
+    "List": {
+      "New": "New",
+      "NoEntities": {
+        "Title": "No data available",
+        "Desc": "There are no items to display. Create your first item by clicking the 'New' button."
+      }
+    }
+  },
   "UpdatedAt": "Updated at",
   "CreatedAt": "Created at",
   "SignOut": "Sign out",
