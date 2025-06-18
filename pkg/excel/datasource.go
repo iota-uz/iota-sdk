@@ -54,10 +54,16 @@ func (p *PostgresDataSource) GetHeaders() []string {
 	if err != nil {
 		return []string{}
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	columns, err := rows.Columns()
 	if err != nil {
+		return []string{}
+	}
+
+	if err := rows.Err(); err != nil {
 		return []string{}
 	}
 
@@ -71,9 +77,14 @@ func (p *PostgresDataSource) GetRows(ctx context.Context) (func() ([]interface{}
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf("rows error after query: %w", err)
+	}
+
 	columns, err := rows.Columns()
 	if err != nil {
-		rows.Close()
+		_ = rows.Close()
 		return nil, fmt.Errorf("failed to get columns: %w", err)
 	}
 
@@ -84,7 +95,7 @@ func (p *PostgresDataSource) GetRows(ctx context.Context) (func() ([]interface{}
 			if err := rows.Err(); err != nil {
 				return nil, err
 			}
-			rows.Close()
+			_ = rows.Close()
 			return nil, nil // EOF
 		}
 
@@ -183,7 +194,7 @@ func (p *PgxDataSource) GetHeaders() []string {
 	fields := rows.FieldDescriptions()
 	columns := make([]string, len(fields))
 	for i, field := range fields {
-		columns[i] = string(field.Name)
+		columns[i] = field.Name
 	}
 
 	return columns

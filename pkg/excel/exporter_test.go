@@ -171,7 +171,7 @@ func TestExcelExporter_EmptyDataSource(t *testing.T) {
 
 	ctx := context.Background()
 	_, err := exporter.Export(ctx, ds)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no columns found")
 }
 

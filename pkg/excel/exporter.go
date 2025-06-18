@@ -46,7 +46,7 @@ func (e *ExcelExporter) Export(ctx context.Context, datasource DataSource) ([]by
 	f.SetActiveSheet(index)
 
 	// Delete default sheet if it exists
-	f.DeleteSheet("Sheet1")
+	_ = f.DeleteSheet("Sheet1")
 
 	// Get headers
 	headers := datasource.GetHeaders()
@@ -105,18 +105,18 @@ func (e *ExcelExporter) Export(ctx context.Context, datasource DataSource) ([]by
 	// Auto-fit columns
 	for i := 0; i < len(headers); i++ {
 		col, _ := excelize.ColumnNumberToName(i + 1)
-		f.SetColWidth(sheetName, col, col, 15)
+		_ = f.SetColWidth(sheetName, col, col, 15)
 	}
 
 	// Apply options
 	if e.options.IncludeHeaders {
 		if e.options.AutoFilter {
 			endCol, _ := excelize.ColumnNumberToName(len(headers))
-			f.AutoFilter(sheetName, fmt.Sprintf("A1:%s1", endCol), nil)
+			_ = f.AutoFilter(sheetName, fmt.Sprintf("A1:%s1", endCol), nil)
 		}
 
 		if e.options.FreezeHeader {
-			f.SetPanes(sheetName, &excelize.Panes{
+			_ = f.SetPanes(sheetName, &excelize.Panes{
 				Freeze:      true,
 				Split:       false,
 				XSplit:      0,
@@ -165,18 +165,18 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 			style, _ := f.NewStyle(&excelize.Style{
 				NumFmt: 22, // m/d/yy h:mm
 			})
-			f.SetCellStyle(sheet, cell, cell, style)
+			_ = f.SetCellStyle(sheet, cell, cell, style)
 		case float64, float32:
 			style, _ := f.NewStyle(&excelize.Style{
 				NumFmt: 2, // 0.00
 			})
-			f.SetCellStyle(sheet, cell, cell, style)
+			_ = f.SetCellStyle(sheet, cell, cell, style)
 		case int, int64, int32:
 			if v != nil {
 				style, _ := f.NewStyle(&excelize.Style{
 					NumFmt: 1, // 0
 				})
-				f.SetCellStyle(sheet, cell, cell, style)
+				_ = f.SetCellStyle(sheet, cell, cell, style)
 			}
 		}
 	}
