@@ -160,7 +160,7 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 		}
 
 		// Set number format for specific types
-		switch v := value.(type) {
+		switch value.(type) {
 		case time.Time, *time.Time:
 			style, _ := f.NewStyle(&excelize.Style{
 				NumFmt: 22, // m/d/yy h:mm
