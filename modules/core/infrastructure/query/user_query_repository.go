@@ -107,10 +107,6 @@ func (r *pgUserQueryRepository) fieldMapping() map[Field]string {
 	}
 }
 
-func (r *pgUserQueryRepository) buildFilterConditions(filters []Filter) ([]string, []interface{}) {
-	return r.buildFilterConditionsWithStartIndex(filters, 1)
-}
-
 func (r *pgUserQueryRepository) buildFilterConditionsWithStartIndex(filters []Filter, startIndex int) ([]string, []interface{}) {
 	if len(filters) == 0 {
 		return []string{}, []interface{}{}
