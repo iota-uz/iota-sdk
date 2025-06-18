@@ -1,0 +1,36 @@
+package showcase
+
+import (
+	"github.com/iota-uz/iota-sdk/components/sidebar"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
+	"github.com/iota-uz/iota-sdk/pkg/lens/ui"
+)
+
+type LensPageProps struct {
+	SidebarProps    sidebar.Props
+	Dashboard       lens.DashboardConfig
+	DashboardResult *executor.DashboardResult
+}
+
+templ LensContent(props LensPageProps) {
+	<style>
+		@templ.Raw(ui.GenerateCSS(props.Dashboard.Grid))
+	</style>
+	if props.DashboardResult != nil {
+		@ui.DashboardWithData(props.Dashboard, props.DashboardResult)
+	} else {
+		<div class="p-8 text-center">
+			<p class="text-gray-600">No database connection available</p>
+		</div>
+	}
+}
+
+templ LensPage(props LensPageProps) {
+	@Layout(LayoutProps{
+		Title:        "Lens Dashboard",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@LensContent(props)
+	}
+}
