@@ -862,7 +862,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Get primary key for redirect
-	savedFieldValues, err := c.schema.Mapper().ToFieldValues(ctx, savedEntity)
+	_, err = c.schema.Mapper().ToFieldValues(ctx, savedEntity)
 	if err != nil {
 		log.Printf("[CrudController.Create] Failed to map saved entity: %v", err)
 		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
@@ -870,16 +870,8 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	primaryKey, err := c.getPrimaryKeyValue(savedFieldValues)
-	if err != nil {
-		log.Printf("[CrudController.Create] %v", err)
-		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
-		http.Error(w, errorMsg, http.StatusInternalServerError)
-		return
-	}
-
 	// Handle redirect
-	redirectUrl := fmt.Sprintf("%s/%v", c.basePath, primaryKey)
+	redirectUrl := fmt.Sprintf("%s", c.basePath)
 	if htmx.IsHxRequest(r) {
 		w.Header().Set("HX-Redirect", redirectUrl)
 	} else {
@@ -919,7 +911,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Save the updated entity
-	updatedEntity, err := c.service.Save(ctx, entity)
+	_, err = c.service.Save(ctx, entity)
 	if err != nil {
 		log.Printf("[CrudController.Update] Failed to update entity %s: %v", id, err)
 
@@ -933,23 +925,8 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get primary key for redirect
-	updatedFieldValues, err := c.schema.Mapper().ToFieldValues(ctx, updatedEntity)
-	if err != nil {
-		log.Printf("[CrudController.Update] Failed to map updated entity: %v", err)
-		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
-		http.Error(w, errorMsg, http.StatusInternalServerError)
-		return
-	}
-
-	primaryKey, err := c.getPrimaryKeyValue(updatedFieldValues)
-	if err != nil {
-		log.Printf("[CrudController.Update] %v", err)
-		primaryKey = id // Fallback to original ID
-	}
-
 	// Handle redirect
-	redirectUrl := fmt.Sprintf("%s/%v", c.basePath, primaryKey)
+	redirectUrl := fmt.Sprintf("%s", c.basePath)
 	if htmx.IsHxRequest(r) {
 		w.Header().Set("HX-Redirect", redirectUrl)
 	} else {
