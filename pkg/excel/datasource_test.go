@@ -15,7 +15,9 @@ import (
 func TestPostgresDataSource_GetHeaders(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	rows := sqlmock.NewRows([]string{"id", "name", "email", "created_at"})
 	mock.ExpectQuery("SELECT (.+) FROM users").WillReturnRows(rows)
@@ -30,7 +32,9 @@ func TestPostgresDataSource_GetHeaders(t *testing.T) {
 func TestPostgresDataSource_GetRows(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	rows := sqlmock.NewRows([]string{"id", "name", "email"}).
 		AddRow(1, "John Doe", "john@example.com").
@@ -71,7 +75,9 @@ func TestPostgresDataSource_GetRows(t *testing.T) {
 func TestPostgresDataSource_WithSheetName(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	ds := excel.NewPostgresDataSource(db, "SELECT * FROM users")
 	assert.Equal(t, "Sheet1", ds.GetSheetName())
@@ -83,7 +89,9 @@ func TestPostgresDataSource_WithSheetName(t *testing.T) {
 func TestPostgresDataSource_QueryError(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	mock.ExpectQuery("SELECT (.+) FROM users").WillReturnError(sql.ErrConnDone)
 
@@ -91,14 +99,16 @@ func TestPostgresDataSource_QueryError(t *testing.T) {
 	ctx := context.Background()
 
 	_, err = ds.GetRows(ctx)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to execute query")
 }
 
 func TestPostgresDataSource_ConvertSQLValues(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	rows := sqlmock.NewRows([]string{"str", "int", "float", "bool", "bytes"}).
 		AddRow(

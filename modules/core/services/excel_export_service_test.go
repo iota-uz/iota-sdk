@@ -355,7 +355,7 @@ func TestExcelExportService_ExportError(t *testing.T) {
 	ctx := context.Background()
 	_, err := excelService.ExportFromDataSource(ctx, datasource, "test", nil, nil)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to export to Excel")
 }
 
