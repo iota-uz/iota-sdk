@@ -1,7 +1,6 @@
 package controllers_test
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"testing"
@@ -58,13 +57,14 @@ func TestExpenseController_List_Success(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
 		money.NewFromFloat(100.50, "USD"),
@@ -130,13 +130,14 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"HTMX Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
 		money.NewFromFloat(50.25, "USD"),
@@ -185,12 +186,14 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 	_, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createExpenseCategories(t, env.Ctx, category)
+	_, err = categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	response := suite.GET(ExpenseBasePath+"/new").
 		Expect().
@@ -236,13 +239,14 @@ func TestExpenseController_Create_Success(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	now := time.Now()
 	formData := url.Values{}
@@ -297,13 +301,14 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	now := time.Now()
 	formData := url.Values{}
@@ -357,13 +362,14 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Edit Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
 		money.NewFromFloat(250.00, "USD"),
@@ -377,7 +383,6 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 	_, err = expenseService.Create(env.Ctx, expense1)
 	require.NoError(t, err)
 
-	// Retrieve the created expense
 	expenses, err := expenseService.GetAll(env.Ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, expenses)
@@ -448,13 +453,14 @@ func TestExpenseController_Update_Success(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Update Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
 		money.NewFromFloat(100.00, "USD"),
@@ -520,13 +526,14 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
 		money.NewFromFloat(100.00, "USD"),
@@ -592,13 +599,14 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
 	require.NoError(t, err)
 
+	categoryRepo := persistence.NewExpenseCategoryRepository()
 	category := expenseCategoryEntity.New(
 		"Delete Test Category",
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	categories := createExpenseCategories(t, env.Ctx, category)
-	createdCategory := categories[0]
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
 		money.NewFromFloat(100.00, "USD"),
@@ -666,16 +674,4 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 	suite.GET(ExpenseBasePath+"/invalid-uuid").
 		Expect().
 		Status(t, 404)
-}
-
-func createExpenseCategories(t *testing.T, ctx context.Context, categories ...expenseCategoryEntity.ExpenseCategory) []expenseCategoryEntity.ExpenseCategory {
-	t.Helper()
-	categoryRepo := persistence.NewExpenseCategoryRepository()
-	results := make([]expenseCategoryEntity.ExpenseCategory, 0, len(categories))
-	for _, cat := range categories {
-		created, err := categoryRepo.Create(ctx, cat)
-		require.NoError(t, err)
-		results = append(results, created)
-	}
-	return results
 }
