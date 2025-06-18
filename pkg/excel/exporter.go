@@ -172,12 +172,10 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 			})
 			_ = f.SetCellStyle(sheet, cell, cell, style)
 		case int, int64, int32:
-			if v != nil {
-				style, _ := f.NewStyle(&excelize.Style{
-					NumFmt: 1, // 0
-				})
-				_ = f.SetCellStyle(sheet, cell, cell, style)
-			}
+			style, _ := f.NewStyle(&excelize.Style{
+				NumFmt: 1, // 0
+			})
+			_ = f.SetCellStyle(sheet, cell, cell, style)
 		}
 	}
 	return nil
