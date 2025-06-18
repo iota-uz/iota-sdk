@@ -1,10 +1,9 @@
 # Excel Exporter Service Guide
 
-This guide explains how to use the Excel Exporter Service in the IOTA SDK to export data from your application to Excel files.
+The Excel Exporter Service provides functionality to export data from your application to Excel files.
 
 ## Overview
 
-The Excel Exporter Service provides a convenient way to:
 - Export SQL query results directly to Excel files
 - Use custom data sources for Excel generation
 - Automatically manage file uploads through the Upload Service
@@ -228,7 +227,11 @@ func (c *MyController) ExportCustomReport(w http.ResponseWriter, r *http.Request
     }
     
     // Return download link
-    fmt.Fprintf(w, "Download your report: %s", upload.URL())
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{
+        "downloadUrl": upload.URL().String(),
+        "message": "Download your report",
+    })
 }
 ```
 
@@ -260,7 +263,7 @@ func (c *MyController) ExportLargeDataset(w http.ResponseWriter, r *http.Request
     // Return result
     json.NewEncoder(w).Encode(map[string]interface{}{
         "fileUrl": upload.URL().String(),
-        "fileSize": upload.Size(),
+        "fileSize": upload.Size().String(),
     })
 }
 ```
@@ -325,8 +328,6 @@ func (c *MyController) ExportMultiSheetReport(w http.ResponseWriter, r *http.Req
 
 ## Integration with HTMX
 
-For HTMX-based UIs, trigger downloads seamlessly:
-
 ```go
 func (c *MyController) ExportWithHTMX(w http.ResponseWriter, r *http.Request) {
     ctx := r.Context()
@@ -383,55 +384,33 @@ if err != nil {
 }
 ```
 
-## Performance Tips
+## Performance Considerations
 
-1. **Use Query Limits**: For large datasets, use SQL LIMIT or configure MaxRows
-2. **Index Your Queries**: Ensure database queries are optimized with proper indexes
-3. **Stream Large Results**: The service automatically streams data for memory efficiency
-4. **Use Context Cancellation**: Pass request context for proper cancellation support
-5. **Cache Common Exports**: Consider caching frequently requested exports
+- Use SQL LIMIT or configure MaxRows for large datasets
+- Ensure database queries are optimized with proper indexes
+- The service automatically streams data for memory efficiency
+- Pass request context for proper cancellation support
 
 ## Security Considerations
 
-1. **Validate SQL Inputs**: Always use parameterized queries
-2. **Check Permissions**: Verify user permissions before exporting sensitive data
-3. **Limit Export Size**: Use MaxRows to prevent resource exhaustion
-4. **Audit Exports**: Log export activities for compliance
-5. **Secure URLs**: Upload URLs are secured by hash
+- Always use parameterized queries
+- Verify user permissions before exporting sensitive data
+- Use MaxRows to prevent resource exhaustion
+- Upload URLs are secured by hash
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Out of Memory**: Reduce MaxRows or optimize query
-2. **Slow Exports**: Add database indexes, limit columns
-3. **File Not Found**: Check upload service configuration
-4. **Permission Denied**: Verify upload directory permissions
-
-### Debug Mode
-
-Enable debug logging to troubleshoot issues:
-
-```go
-// In your service initialization
-logger.SetLevel(logrus.DebugLevel)
-```
+- **Out of Memory**: Reduce MaxRows or optimize query
+- **Slow Exports**: Add database indexes, limit columns
+- **File Not Found**: Check upload service configuration
+- **Permission Denied**: Verify upload directory permissions
 
 ## Complete Example
 
-Here's a complete controller example:
-
 ```go
 package controllers
-
-import (
-    "encoding/json"
-    "net/http"
-    "time"
-    
-    "github.com/iota-uz/iota-sdk/modules/core/services"
-    "github.com/iota-uz/iota-sdk/pkg/excel"
-)
 
 type ReportController struct {
     excelService *services.ExcelExportService
@@ -450,13 +429,13 @@ func (c *ReportController) RegisterRoutes(router *http.ServeMux) {
 
 func (c *ReportController) ExportUsers(w http.ResponseWriter, r *http.Request) {
     ctx := r.Context()
-    
+
     // Parse filters
     status := r.URL.Query().Get("status")
     if status == "" {
         status = "active"
     }
-    
+
     // Export with filters
     upload, err := c.excelService.ExportFromQuery(
         ctx,
@@ -549,8 +528,3 @@ func (c *ReportController) ExportSales(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-## Next Steps
-
-- Review the [Excel Package Documentation](/pkg/excel/README.md) for advanced DataSource implementations
-- Check the [Upload Service Documentation](upload-service.md) for file management details
-- See [Example Projects](../examples/) for more usage patterns
