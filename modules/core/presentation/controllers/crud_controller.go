@@ -13,13 +13,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"time"
 
-	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 )
@@ -34,18 +33,47 @@ type CrudController[TEntity any] struct {
 	visibleFields   []crud.Field
 	formFields      []crud.Field
 	primaryKeyField crud.Field
+	
+	// options
+	enableEdit   bool
+	enableDelete bool
+}
+
+// CrudOption defines options for CrudController
+type CrudOption[TEntity any] func(*CrudController[TEntity])
+
+// WithoutEdit disables edit functionality
+func WithoutEdit[TEntity any]() CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.enableEdit = false
+	}
+}
+
+// WithoutDelete disables delete functionality
+func WithoutDelete[TEntity any]() CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.enableDelete = false
+	}
 }
 
 func NewCrudController[TEntity any](
 	basePath string,
 	app application.Application,
 	builder crud.Builder[TEntity],
+	opts ...CrudOption[TEntity],
 ) application.Controller {
 	controller := &CrudController[TEntity]{
-		basePath: basePath,
-		app:      app,
-		schema:   builder.Schema(),
-		service:  builder.Service(),
+		basePath:     basePath,
+		app:          app,
+		schema:       builder.Schema(),
+		service:      builder.Service(),
+		enableEdit:   true,  // Enable by default
+		enableDelete: true,  // Enable by default
+	}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(controller)
 	}
 
 	// Pre-cache frequently used field collections
@@ -304,7 +332,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 	// Add columns based on visible fields (only for initial load)
 	if !htmx.IsHxRequest(r) {
-		columns := make([]table.TableColumn, 0, len(c.visibleFields))
+		columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
 		for _, f := range c.visibleFields {
 			// Localize field label
 			fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name()), f.Name())
@@ -313,6 +341,13 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			}
 			columns = append(columns, table.Column(f.Name(), fieldLabel))
 		}
+		
+		// Add actions column if edit or delete is enabled
+		if c.enableEdit || c.enableDelete {
+			actionsLabel, _ := c.localize(ctx, "Common.Actions", "Actions")
+			columns = append(columns, table.Column("actions", actionsLabel))
+		}
+		
 		cfg.AddCols(columns...)
 
 		// Add create button
@@ -321,11 +356,14 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			createLabel = "New"
 		}
 
-		// Create the button component
-		createButton := c.createNewButton(createLabel)
-		if createButton != nil {
-			cfg.AddActions(createButton)
-		}
+		// Create action configuration
+		createAction := actions.CreateAction(createLabel, fmt.Sprintf("%s/new", c.basePath))
+		cfg.AddActions(actions.RenderAction(createAction))
+		
+		// Optionally add export button
+		// exportLabel, _ := c.localize(ctx, fmt.Sprintf("%s.List.Export", c.schema.Name()), "Export")
+		// exportAction := actions.ExportAction(exportLabel, fmt.Sprintf("%s/export", c.basePath))
+		// cfg.AddActions(actions.Action(exportAction))
 	}
 
 	// Convert entities to table rows
@@ -365,36 +403,11 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// createNewButton creates a wrapper component that renders the create button
-func (c *CrudController[TEntity]) createNewButton(label string) templ.Component {
-	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		// Since we can't use templ syntax in Go files, we'll render the HTML directly
-		// This matches the pattern used in the templates
-		html := fmt.Sprintf(`<a href="%s/new" class="btn btn-primary btn-normal">`, c.basePath)
-		if _, err := io.WriteString(w, html); err != nil {
-			return err
-		}
-
-		// Render icon
-		icon := icons.PlusCircle(icons.Props{Size: "18"})
-		if err := icon.Render(ctx, w); err != nil {
-			return err
-		}
-
-		// Render label and close
-		html = fmt.Sprintf(`%s</a>`, label)
-		if _, err := io.WriteString(w, html); err != nil {
-			return err
-		}
-
-		return nil
-	})
-}
 
 // buildTableRow creates a table row from field values
 func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues []crud.FieldValue) (table.TableRow, error) {
 	var primaryKey any
-	components := make([]templ.Component, 0, len(c.visibleFields))
+	components := make([]templ.Component, 0, len(c.visibleFields)+1)
 
 	// Create a map for quick field value lookup
 	fieldValueMap := make(map[string]crud.FieldValue, len(fieldValues))
@@ -416,6 +429,23 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 
 	if primaryKey == nil {
 		return nil, fmt.Errorf("primary key not found")
+	}
+
+	// Add row actions if enabled
+	if c.enableEdit || c.enableDelete {
+		var rowActions []actions.ActionProps
+		
+		if c.enableEdit {
+			editAction := actions.EditAction(fmt.Sprintf("%s/%v", c.basePath, primaryKey))
+			rowActions = append(rowActions, editAction)
+		}
+		
+		if c.enableDelete {
+			deleteAction := actions.DeleteAction(fmt.Sprintf("%s/%v", c.basePath, primaryKey))
+			rowActions = append(rowActions, deleteAction)
+		}
+		
+		components = append(components, actions.RenderRowActions(rowActions...))
 	}
 
 	fetchUrl := fmt.Sprintf("/%s/%v", c.basePath, primaryKey)
