@@ -1,0 +1,110 @@
+package actions
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/button"
+)
+
+// Action renders a single action button based on ActionProps
+templ Action(props ActionProps) {
+	switch props.Variant {
+	case button.VariantPrimary:
+		@button.Primary(button.Props{
+			Size:    props.Size,
+			Href:    props.Href,
+			Icon:    props.Icon,
+			Attrs:   mergeOnClick(props),
+		}) {
+			{ props.Label }
+		}
+	case button.VariantSecondary:
+		@button.Secondary(button.Props{
+			Size:    props.Size,
+			Href:    props.Href,
+			Icon:    props.Icon,
+			Attrs:   mergeOnClick(props),
+		}) {
+			{ props.Label }
+		}
+	case button.VariantDanger:
+		@button.Danger(button.Props{
+			Size:    props.Size,
+			Href:    props.Href,
+			Icon:    props.Icon,
+			Attrs:   mergeOnClick(props),
+		}) {
+			{ props.Label }
+		}
+	case button.VariantPrimaryOutline:
+		@button.PrimaryOutline(button.Props{
+			Size:    props.Size,
+			Href:    props.Href,
+			Icon:    props.Icon,
+			Attrs:   mergeOnClick(props),
+		}) {
+			{ props.Label }
+		}
+	case button.VariantGhost:
+		@button.Ghost(button.Props{
+			Size:    props.Size,
+			Href:    props.Href,
+			Icon:    props.Icon,
+			Attrs:   mergeOnClick(props),
+		}) {
+			{ props.Label }
+		}
+	default:
+		@button.Secondary(button.Props{
+			Size:    props.Size,
+			Href:    props.Href,
+			Icon:    props.Icon,
+			Attrs:   mergeOnClick(props),
+		}) {
+			{ props.Label }
+		}
+	}
+}
+
+// Actions renders a group of action buttons
+templ Actions(actions ...ActionProps) {
+	for _, action := range actions {
+		@Action(action)
+	}
+}
+
+// RowActions renders action buttons for table rows
+templ RowActions(actions ...ActionProps) {
+	<div class="flex gap-2">
+		for _, action := range actions {
+			@Action(action)
+		}
+	</div>
+}
+
+// Helper function to merge attributes
+func mergeAttrs(attrs1, attrs2 templ.Attributes) templ.Attributes {
+	if attrs1 == nil {
+		return attrs2
+	}
+	if attrs2 == nil {
+		return attrs1
+	}
+	
+	merged := make(templ.Attributes)
+	for k, v := range attrs1 {
+		merged[k] = v
+	}
+	for k, v := range attrs2 {
+		merged[k] = v
+	}
+	return merged
+}
+
+// Helper function to merge onClick attribute
+func mergeOnClick(props ActionProps) templ.Attributes {
+	if props.OnClick != "" {
+		return mergeAttrs(props.Attrs, templ.Attributes{
+			"onclick": props.OnClick,
+		})
+	}
+	return props.Attrs
+}
