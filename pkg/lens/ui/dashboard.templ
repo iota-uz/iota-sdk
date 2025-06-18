@@ -1,0 +1,174 @@
+package ui
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/evaluation"
+	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
+	"github.com/iota-uz/iota-sdk/components/charts"
+)
+
+// Dashboard renders a complete dashboard with panels
+templ Dashboard(dashboard *evaluation.EvaluatedDashboard) {
+	<div class="dashboard-container" style={ generateGridCSS(&dashboard.Layout) }>
+		for _, panel := range dashboard.Panels {
+			@Panel(&panel)
+		}
+	</div>
+}
+
+// DashboardWithData renders a dashboard using executor results
+templ DashboardWithData(config lens.DashboardConfig, results *executor.DashboardResult) {
+	<div class="dashboard-container" style={ generateDashboardGridCSS(config) }>
+		<div class="dashboard-header">
+			<h1 class="dashboard-title">{ config.Name }</h1>
+			if config.Description != "" {
+				<p class="dashboard-description">{ config.Description }</p>
+			}
+		</div>
+		
+		<div class="dashboard-panels">
+			for _, panelConfig := range config.Panels {
+				if result, exists := results.PanelResults[panelConfig.ID]; exists {
+					@PanelWithData(panelConfig, result)
+				} else {
+					@PanelError(panelConfig, "No data available")
+				}
+			}
+		</div>
+	</div>
+}
+
+// Panel renders a single evaluated panel
+templ Panel(panel *evaluation.EvaluatedPanel) {
+	<div 
+		id={ "panel-" + panel.Config.ID }
+		class="dashboard-panel"
+		style={ generatePanelGridCSS(panel) }
+	>
+		<div class="panel-header">
+			<h3 class="panel-title">{ panel.Config.Title }</h3>
+		</div>
+		
+		<div class="panel-content">
+			switch panel.Config.Type {
+				case lens.ChartTypeTable:
+					@TablePanel(panel)
+				default:
+					@ChartPanel(panel)
+			}
+		</div>
+	</div>
+}
+
+// PanelWithData renders a panel using executor results
+templ PanelWithData(config lens.PanelConfig, result *executor.ExecutionResult) {
+	<div 
+		id={ "panel-" + config.ID }
+		class="dashboard-panel"
+		style={ generateConfigPanelGridCSS(config) }
+	>
+		<div class="panel-header">
+			<h3 class="panel-title">{ config.Title }</h3>
+			if result.CacheHit {
+				<span class="cache-indicator">cached</span>
+			}
+		</div>
+		
+		<div class="panel-content">
+			if result.Error != nil {
+				@ErrorContent(result.Error.Error())
+			} else {
+				switch config.Type {
+					case lens.ChartTypeTable:
+						@TableContent(result)
+					default:
+						@ChartContent(config, result)
+				}
+			}
+		</div>
+		
+		<div class="panel-footer">
+			<span class="exec-time">{ result.ExecTime.String() }</span>
+			<span class="row-count">{ fmt.Sprintf("%d rows", len(result.Data)) }</span>
+		</div>
+	</div>
+}
+
+// TablePanel renders a table panel from evaluated panel
+templ TablePanel(panel *evaluation.EvaluatedPanel) {
+	<div class="table-container">
+		<div class="table-placeholder">
+			Table data will be loaded via HTMX
+		</div>
+	</div>
+}
+
+// TableContent renders table data from executor results
+templ TableContent(result *executor.ExecutionResult) {
+	<div class="table-container">
+		<table class="dashboard-table">
+			<thead>
+				<tr>
+					for _, col := range result.Columns {
+						<th>{ col.Name }</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				for _, row := range result.Data {
+					<tr>
+						for _, col := range result.Columns {
+							<td>{ formatValue(row.Fields[col.Name]) }</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// ChartPanel renders a chart panel from evaluated panel
+templ ChartPanel(panel *evaluation.EvaluatedPanel) {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: buildChartOptionsFromPanel(panel),
+	})
+}
+
+// ChartContent renders chart from executor results
+templ ChartContent(config lens.PanelConfig, result *executor.ExecutionResult) {
+	@charts.Chart(charts.Props{
+		Class: "h-64",
+		Options: buildChartOptionsFromResult(config, result),
+	})
+}
+
+// PanelError renders error state for a panel
+templ PanelError(config lens.PanelConfig, message string) {
+	<div 
+		id={ "panel-" + config.ID }
+		class="dashboard-panel panel-error"
+		style={ generateConfigPanelGridCSS(config) }
+	>
+		<div class="panel-header">
+			<h3 class="panel-title">{ config.Title }</h3>
+		</div>
+		<div class="panel-content">
+			@ErrorContent(message)
+		</div>
+	</div>
+}
+
+// ErrorContent renders error message
+templ ErrorContent(message string) {
+	<div class="error-container">
+		<div class="error-icon">⚠️</div>
+		<div class="error-message">{ message }</div>
+	</div>
+}
+
+// Grid renders just the grid layout
+templ Grid(layout *evaluation.Layout) {
+	<div class="dashboard-grid" style={ generateLayoutCSS(layout) }></div>
+}
