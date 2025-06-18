@@ -116,7 +116,7 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := c.userService.Update(r.Context(), entity); err != nil {
+	if _, err := c.userService.Update(r.Context(), entity); err != nil {
 		logger.WithError(err).Error("failed to update user")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

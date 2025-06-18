@@ -27,12 +27,12 @@ const (
 		u.email, u.phone, u.ui_language, u.avatar_id, u.last_login, u.last_action,
 		u.created_at, u.updated_at
 	FROM users u
-	WHERE u.id = $1`
+	WHERE u.id = $1 AND u.tenant_id = $2`
 
 	selectUploadByIDSQL = `SELECT
 		id, tenant_id, hash, path, name, size, mimetype, type, created_at, updated_at
 	FROM uploads
-	WHERE id = $1`
+	WHERE id = $1 AND tenant_id = $2`
 
 	selectUserRolesSQL = `SELECT r.id, r.type, r.name, r.description, r.created_at, r.updated_at
 		FROM roles r
@@ -107,7 +107,11 @@ func (r *pgUserQueryRepository) fieldMapping() map[Field]string {
 	}
 }
 
-func (r *pgUserQueryRepository) filtersToSQL(filters []Filter) ([]string, []interface{}) {
+func (r *pgUserQueryRepository) buildFilterConditions(filters []Filter) ([]string, []interface{}) {
+	return r.buildFilterConditionsWithStartIndex(filters, 1)
+}
+
+func (r *pgUserQueryRepository) buildFilterConditionsWithStartIndex(filters []Filter, startIndex int) ([]string, []interface{}) {
 	if len(filters) == 0 {
 		return []string{}, []interface{}{}
 	}
@@ -120,7 +124,7 @@ func (r *pgUserQueryRepository) filtersToSQL(filters []Filter) ([]string, []inte
 		if fieldName == "" {
 			continue
 		}
-		condition := f.Filter.String(fieldName, len(args)+1)
+		condition := f.Filter.String(fieldName, startIndex+len(args))
 		if condition != "" {
 			conditions = append(conditions, condition)
 			args = append(args, f.Filter.Value()...)
@@ -130,98 +134,104 @@ func (r *pgUserQueryRepository) filtersToSQL(filters []Filter) ([]string, []inte
 	return conditions, args
 }
 
+// buildGroupFilterCondition builds the SQL condition for group filters
+func (r *pgUserQueryRepository) buildGroupFilterCondition(filter *Filter, startIndex int) (string, []interface{}) {
+	groupValues := filter.Filter.Value()
+	if len(groupValues) == 0 {
+		return "", nil
+	}
+
+	placeholders := make([]string, len(groupValues))
+	args := make([]interface{}, 0, len(groupValues))
+
+	for i, val := range groupValues {
+		placeholders[i] = fmt.Sprintf("$%d", startIndex+i)
+		// Convert string group ID to UUID format
+		groupIDStr, ok := val.(string)
+		if !ok {
+			continue // Skip invalid values
+		}
+		groupUUID, err := uuid.Parse(groupIDStr)
+		if err != nil {
+			continue // Skip invalid UUIDs
+		}
+		args = append(args, groupUUID)
+	}
+
+	if len(args) == 0 {
+		return "", nil
+	}
+
+	return fmt.Sprintf("gu.group_id IN (%s)", strings.Join(placeholders[:len(args)], ", ")), args
+}
+
 func (r *pgUserQueryRepository) FindUsers(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	// Check if we need to filter by groups
-	hasGroupFilter := false
-	var groupFilterIndex int
-	for i, f := range params.Filters {
-		if f.Column == "group_id" {
-			hasGroupFilter = true
-			groupFilterIndex = i
-			break
-		}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to get tenant ID")
 	}
 
-	// Build conditions and args, excluding group_id since it needs special handling
-	var filteredFilters []Filter
+	// Separate group filters from regular filters
+	var regularFilters []Filter
+	var groupFilter *Filter
+
 	for _, f := range params.Filters {
-		if f.Column != "group_id" {
-			filteredFilters = append(filteredFilters, f)
-		}
-	}
-	conditions, args := r.filtersToSQL(filteredFilters)
-	whereClause := ""
-	if len(conditions) > 0 {
-		whereClause = " WHERE " + strings.Join(conditions, " AND ")
-	}
-
-	// Add group filter if specified
-	joinClause := ""
-	if hasGroupFilter {
-		joinClause = " JOIN group_users gu ON u.id = gu.user_id"
-
-		// Get the group filter values
-		groupFilter := params.Filters[groupFilterIndex].Filter
-		groupValues := groupFilter.Value()
-
-		// Convert string group IDs to UUID format and add to args
-		placeholders := make([]string, len(groupValues))
-		for i, val := range groupValues {
-			placeholders[i] = fmt.Sprintf("$%d", len(args)+i+1)
-			// Convert string group ID to UUID format
-			groupIDStr, ok := val.(string)
-			if !ok {
-				return nil, 0, errors.New("group ID must be a string")
-			}
-			groupUUID, err := uuid.Parse(groupIDStr)
-			if err != nil {
-				return nil, 0, errors.Wrapf(err, "invalid group ID: %s", groupIDStr)
-			}
-			args = append(args, groupUUID)
-		}
-		groupCondition := fmt.Sprintf("gu.group_id IN (%s)", strings.Join(placeholders, ", "))
-
-		if whereClause == "" {
-			whereClause = " WHERE " + groupCondition
+		if f.Column == FieldGroupID {
+			groupFilter = &f
 		} else {
-			whereClause += " AND " + groupCondition
+			regularFilters = append(regularFilters, f)
 		}
 	}
 
-	orderBy := params.SortBy.ToSQL(r.fieldMapping())
+	// Build conditions and args, starting with tenant filter
+	conditions := []string{"u.tenant_id = $1"}
+	args := []interface{}{tenantID}
+
+	// Add regular filter conditions
+	if len(regularFilters) > 0 {
+		filterConditions, filterArgs := r.buildFilterConditionsWithStartIndex(regularFilters, len(args)+1)
+		conditions = append(conditions, filterConditions...)
+		args = append(args, filterArgs...)
+	}
+
+	// Handle group filter specially
+	joinClause := ""
+	if groupFilter != nil {
+		joinClause = " JOIN group_users gu ON u.id = gu.user_id"
+		groupCondition, groupArgs := r.buildGroupFilterCondition(groupFilter, len(args)+1)
+		if groupCondition != "" {
+			conditions = append(conditions, groupCondition)
+			args = append(args, groupArgs...)
+		}
+	}
+
+	whereClause := repo.JoinWhere(conditions...)
 
 	// Count query
-	countQuery := fmt.Sprintf("SELECT COUNT(DISTINCT u.id) FROM users u%s%s", joinClause, whereClause)
-
+	countQuery := repo.Join("SELECT COUNT(DISTINCT u.id) FROM users u"+joinClause, whereClause)
 	var count int
 	err = tx.QueryRow(ctx, countQuery, args...).Scan(&count)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to count users")
 	}
 
-	// Main query - need to modify selectUsersSQL to include join
+	// Build main query
 	selectQuery := selectUsersSQL
-	if hasGroupFilter {
-		// Replace "FROM users u" with "FROM users u JOIN group_users gu ON u.id = gu.user_id"
-		selectQuery = strings.Replace(selectUsersSQL, "FROM users u", fmt.Sprintf("FROM users u%s", joinClause), 1)
+	if joinClause != "" {
+		selectQuery = strings.Replace(selectUsersSQL, "FROM users u", "FROM users u"+joinClause, 1)
 	}
 
-	queryParts := []string{selectQuery}
-	if whereClause != "" {
-		queryParts = append(queryParts, whereClause)
-	}
-	if orderBy != "" {
-		queryParts = append(queryParts, orderBy)
-	}
-	if limitOffset := repo.FormatLimitOffset(params.Limit, params.Offset); limitOffset != "" {
-		queryParts = append(queryParts, limitOffset)
-	}
-	query := strings.Join(queryParts, " ")
+	query := repo.Join(
+		selectQuery,
+		whereClause,
+		params.SortBy.ToSQL(r.fieldMapping()),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
@@ -229,36 +239,9 @@ func (r *pgUserQueryRepository) FindUsers(ctx context.Context, params *FindParam
 	}
 	defer rows.Close()
 
-	users := make([]*viewmodels.User, 0)
-	for rows.Next() {
-		var dbUser models.User
-		err := rows.Scan(
-			&dbUser.ID, &dbUser.TenantID, &dbUser.Type, &dbUser.FirstName, &dbUser.LastName, &dbUser.MiddleName,
-			&dbUser.Email, &dbUser.Phone, &dbUser.UILanguage, &dbUser.AvatarID, &dbUser.LastLogin, &dbUser.LastAction,
-			&dbUser.CreatedAt, &dbUser.UpdatedAt,
-		)
-		if err != nil {
-			return nil, 0, errors.Wrap(err, "failed to scan user")
-		}
-
-		// Load avatar if exists
-		var avatar *models.Upload
-		if dbUser.AvatarID.Valid {
-			avatar, err = r.loadUploadByID(ctx, int(dbUser.AvatarID.Int32))
-			if err != nil {
-				// Log error but don't fail the query
-				avatar = nil
-			}
-		}
-
-		user := mapToUserViewModel(dbUser, avatar != nil, avatar)
-
-		// Load roles and permissions separately
-		if err := r.loadUserRolesAndPermissions(ctx, &user); err != nil {
-			return nil, 0, errors.Wrap(err, "failed to load roles and permissions")
-		}
-
-		users = append(users, &user)
+	users, err := r.scanAndLoadUsers(ctx, rows)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	return users, count, nil
@@ -270,37 +253,18 @@ func (r *pgUserQueryRepository) FindUserByID(ctx context.Context, userID int) (*
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
-	query := selectUserByIDSQL
-	args := []interface{}{userID}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant ID")
+	}
 
-	var dbUser models.User
-	err = tx.QueryRow(ctx, query, args...).Scan(
-		&dbUser.ID, &dbUser.TenantID, &dbUser.Type, &dbUser.FirstName, &dbUser.LastName, &dbUser.MiddleName,
-		&dbUser.Email, &dbUser.Phone, &dbUser.UILanguage, &dbUser.AvatarID, &dbUser.LastLogin, &dbUser.LastAction,
-		&dbUser.CreatedAt, &dbUser.UpdatedAt,
-	)
+	row := tx.QueryRow(ctx, selectUserByIDSQL, userID, tenantID)
+	dbUser, err := r.scanUser(row)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find user by id")
 	}
 
-	// Load avatar if exists
-	var avatar *models.Upload
-	if dbUser.AvatarID.Valid {
-		avatar, err = r.loadUploadByID(ctx, int(dbUser.AvatarID.Int32))
-		if err != nil {
-			// Log error but don't fail the query
-			avatar = nil
-		}
-	}
-
-	user := mapToUserViewModel(dbUser, avatar != nil, avatar)
-
-	// Load roles and permissions
-	if err := r.loadUserRolesAndPermissions(ctx, &user); err != nil {
-		return nil, errors.Wrap(err, "failed to load roles and permissions")
-	}
-
-	return &user, nil
+	return r.loadUserWithRelations(ctx, dbUser)
 }
 
 func (r *pgUserQueryRepository) SearchUsers(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error) {
@@ -308,100 +272,28 @@ func (r *pgUserQueryRepository) SearchUsers(ctx context.Context, params *FindPar
 		return r.FindUsers(ctx, params)
 	}
 
-	tx, err := composables.UseTx(ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to get transaction")
+		return nil, 0, errors.Wrap(err, "failed to get tenant ID")
 	}
 
-	searchQuery := strings.TrimSpace(params.Search)
-	baseQuery := selectUsersSQL + ` WHERE (
-		u.email ILIKE $1 OR
-		u.first_name ILIKE $1 OR
-		u.last_name ILIKE $1 OR
-		CONCAT(u.first_name, ' ', u.last_name) ILIKE $1
-	)`
+	// Build search condition
+	searchFilter := r.buildSearchFilter(params.Search, 2) // $2 since $1 is tenant_id
 
-	args := []interface{}{"%" + searchQuery + "%"}
-	argIndex := 2
+	// Build combined conditions and args, starting with tenant filter
+	allConditions := []string{"u.tenant_id = $1", searchFilter.condition}
+	allArgs := []interface{}{tenantID}
+	allArgs = append(allArgs, searchFilter.args...)
 
-	// Add additional filters if any
-	conditions, filterArgs := r.filtersToSQL(params.Filters)
-	if len(conditions) > 0 {
-		// Update arg positions in conditions
-		for i, cond := range conditions {
-			for j := 1; j <= len(filterArgs); j++ {
-				oldPlaceholder := fmt.Sprintf("$%d", j)
-				newPlaceholder := fmt.Sprintf("$%d", argIndex)
-				conditions[i] = strings.Replace(cond, oldPlaceholder, newPlaceholder, 1)
-				if strings.Contains(conditions[i], newPlaceholder) {
-					argIndex++
-				}
-			}
-		}
-		baseQuery += " AND " + strings.Join(conditions, " AND ")
-		args = append(args, filterArgs...)
+	// Add other filter conditions with proper placeholder indexing
+	if len(params.Filters) > 0 {
+		filterConditions, filterArgs := r.buildFilterConditionsWithStartIndex(params.Filters, len(allArgs)+1)
+		allConditions = append(allConditions, filterConditions...)
+		allArgs = append(allArgs, filterArgs...)
 	}
 
-	// Count query - extract the WHERE clause from baseQuery
-	whereClauseStart := strings.Index(baseQuery, "WHERE")
-	countQuery := "SELECT COUNT(DISTINCT u.id) FROM users u " + baseQuery[whereClauseStart:]
-
-	var count int
-	err = tx.QueryRow(ctx, countQuery, args...).Scan(&count)
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to count users")
-	}
-
-	orderBy := params.SortBy.ToSQL(r.fieldMapping())
-
-	queryParts := []string{baseQuery}
-	if orderBy != "" {
-		queryParts = append(queryParts, orderBy)
-	}
-	if limitOffset := repo.FormatLimitOffset(params.Limit, params.Offset); limitOffset != "" {
-		queryParts = append(queryParts, limitOffset)
-	}
-	query := strings.Join(queryParts, " ")
-
-	rows, err := tx.Query(ctx, query, args...)
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to search users")
-	}
-	defer rows.Close()
-
-	users := make([]*viewmodels.User, 0)
-	for rows.Next() {
-		var dbUser models.User
-		err := rows.Scan(
-			&dbUser.ID, &dbUser.TenantID, &dbUser.Type, &dbUser.FirstName, &dbUser.LastName, &dbUser.MiddleName,
-			&dbUser.Email, &dbUser.Phone, &dbUser.UILanguage, &dbUser.AvatarID, &dbUser.LastLogin, &dbUser.LastAction,
-			&dbUser.CreatedAt, &dbUser.UpdatedAt,
-		)
-		if err != nil {
-			return nil, 0, errors.Wrap(err, "failed to scan user")
-		}
-
-		// Load avatar if exists
-		var avatar *models.Upload
-		if dbUser.AvatarID.Valid {
-			avatar, err = r.loadUploadByID(ctx, int(dbUser.AvatarID.Int32))
-			if err != nil {
-				// Log error but don't fail the query
-				avatar = nil
-			}
-		}
-
-		user := mapToUserViewModel(dbUser, avatar != nil, avatar)
-
-		// Load roles and permissions
-		if err := r.loadUserRolesAndPermissions(ctx, &user); err != nil {
-			return nil, 0, errors.Wrap(err, "failed to load roles and permissions")
-		}
-
-		users = append(users, &user)
-	}
-
-	return users, count, nil
+	// Execute query with combined conditions
+	return r.executeUserQuery(ctx, allConditions, allArgs, params)
 }
 
 func (r *pgUserQueryRepository) FindUsersWithRoles(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error) {
@@ -415,10 +307,23 @@ func (r *pgUserQueryRepository) loadUploadByID(ctx context.Context, uploadID int
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant ID")
+	}
+
 	var upload models.Upload
-	err = tx.QueryRow(ctx, selectUploadByIDSQL, uploadID).Scan(
-		&upload.ID, &upload.TenantID, &upload.Hash, &upload.Path, &upload.Name,
-		&upload.Size, &upload.Mimetype, &upload.Type, &upload.CreatedAt, &upload.UpdatedAt,
+	err = tx.QueryRow(ctx, selectUploadByIDSQL, uploadID, tenantID).Scan(
+		&upload.ID,
+		&upload.TenantID,
+		&upload.Hash,
+		&upload.Path,
+		&upload.Name,
+		&upload.Size,
+		&upload.Mimetype,
+		&upload.Type,
+		&upload.CreatedAt,
+		&upload.UpdatedAt,
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load upload")
@@ -448,7 +353,14 @@ func (r *pgUserQueryRepository) loadUserRolesAndPermissions(ctx context.Context,
 	user.Roles = make([]*viewmodels.Role, 0)
 	for rows.Next() {
 		var role models.Role
-		err := rows.Scan(&role.ID, &role.Type, &role.Name, &role.Description, &role.CreatedAt, &role.UpdatedAt)
+		err := rows.Scan(
+			&role.ID,
+			&role.Type,
+			&role.Name,
+			&role.Description,
+			&role.CreatedAt,
+			&role.UpdatedAt,
+		)
 		if err != nil {
 			return errors.Wrap(err, "failed to scan role")
 		}
@@ -466,7 +378,13 @@ func (r *pgUserQueryRepository) loadUserRolesAndPermissions(ctx context.Context,
 	user.Permissions = make([]*viewmodels.Permission, 0)
 	for permRows.Next() {
 		var perm models.Permission
-		err := permRows.Scan(&perm.ID, &perm.Name, &perm.Resource, &perm.Action, &perm.Modifier)
+		err := permRows.Scan(
+			&perm.ID,
+			&perm.Name,
+			&perm.Resource,
+			&perm.Action,
+			&perm.Modifier,
+		)
 		if err != nil {
 			return errors.Wrap(err, "failed to scan permission")
 		}
@@ -491,4 +409,138 @@ func (r *pgUserQueryRepository) loadUserRolesAndPermissions(ctx context.Context,
 	}
 
 	return nil
+}
+
+// scanAndLoadUsers scans user rows and loads related data (avatar, roles, permissions)
+func (r *pgUserQueryRepository) scanAndLoadUsers(ctx context.Context, rows interface {
+	Next() bool
+	Scan(...interface{}) error
+}) ([]*viewmodels.User, error) {
+	users := make([]*viewmodels.User, 0)
+
+	for rows.Next() {
+		dbUser, err := r.scanUser(rows)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to scan user")
+		}
+
+		user, err := r.loadUserWithRelations(ctx, dbUser)
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, user)
+	}
+
+	return users, nil
+}
+
+// scanUser scans a single user row
+func (r *pgUserQueryRepository) scanUser(row interface{ Scan(...interface{}) error }) (*models.User, error) {
+	var dbUser models.User
+	err := row.Scan(
+		&dbUser.ID,
+		&dbUser.TenantID,
+		&dbUser.Type,
+		&dbUser.FirstName,
+		&dbUser.LastName,
+		&dbUser.MiddleName,
+		&dbUser.Email,
+		&dbUser.Phone,
+		&dbUser.UILanguage,
+		&dbUser.AvatarID,
+		&dbUser.LastLogin,
+		&dbUser.LastAction,
+		&dbUser.CreatedAt,
+		&dbUser.UpdatedAt,
+	)
+	return &dbUser, err
+}
+
+// loadUserWithRelations loads user with all related data (avatar, roles, permissions)
+func (r *pgUserQueryRepository) loadUserWithRelations(ctx context.Context, dbUser *models.User) (*viewmodels.User, error) {
+	// Load avatar if exists
+	var avatar *models.Upload
+	if dbUser.AvatarID.Valid {
+		var err error
+		avatar, err = r.loadUploadByID(ctx, int(dbUser.AvatarID.Int32))
+		if err != nil {
+			// Log error but don't fail the query
+			avatar = nil
+		}
+	}
+
+	user := mapToUserViewModel(*dbUser, avatar != nil, avatar)
+
+	// Load roles and permissions
+	if err := r.loadUserRolesAndPermissions(ctx, &user); err != nil {
+		return nil, errors.Wrap(err, "failed to load roles and permissions")
+	}
+
+	return &user, nil
+}
+
+// buildSearchFilter creates a search condition for user search
+func (r *pgUserQueryRepository) buildSearchFilter(search string, startIndex int) struct {
+	condition string
+	args      []interface{}
+} {
+	searchQuery := strings.TrimSpace(search)
+	placeholder := fmt.Sprintf("$%d", startIndex)
+	searchCondition := fmt.Sprintf(`(
+		u.email ILIKE %s OR
+		u.first_name ILIKE %s OR
+		u.last_name ILIKE %s OR
+		CONCAT(u.first_name, ' ', u.last_name) ILIKE %s
+	)`, placeholder, placeholder, placeholder, placeholder)
+
+	return struct {
+		condition string
+		args      []interface{}
+	}{
+		condition: searchCondition,
+		args:      []interface{}{"%" + searchQuery + "%"},
+	}
+}
+
+// executeUserQuery executes a user query with given conditions and args
+func (r *pgUserQueryRepository) executeUserQuery(ctx context.Context, conditions []string, args []interface{}, params *FindParams) ([]*viewmodels.User, int, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to get transaction")
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = repo.JoinWhere(conditions...)
+	}
+
+	// Count query
+	countQuery := repo.Join("SELECT COUNT(DISTINCT u.id) FROM users u", whereClause)
+	var count int
+	err = tx.QueryRow(ctx, countQuery, args...).Scan(&count)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to count users")
+	}
+
+	// Build main query
+	query := repo.Join(
+		selectUsersSQL,
+		whereClause,
+		params.SortBy.ToSQL(r.fieldMapping()),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to execute user query")
+	}
+	defer rows.Close()
+
+	users, err := r.scanAndLoadUsers(ctx, rows)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return users, count, nil
 }

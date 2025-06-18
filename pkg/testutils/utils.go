@@ -93,10 +93,11 @@ func DefaultParams() *composables.Params {
 
 // CreateTestTenant creates a test tenant for testing
 func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Tenant, error) {
+	tenantID := uuid.New()
 	testTenant := &composables.Tenant{
-		ID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-		Name:   "Test Tenant",
-		Domain: "test.com",
+		ID:     tenantID,
+		Name:   "Test Tenant " + tenantID.String()[:8],
+		Domain: tenantID.String()[:8] + ".test.com",
 	}
 
 	_, err := pool.Exec(ctx, "INSERT INTO tenants (id, name, domain, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING",
