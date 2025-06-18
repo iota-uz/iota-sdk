@@ -63,13 +63,15 @@ func (m *Module) Register(app application.Application) error {
 	// Create services
 	tabService := services.NewTabService(persistence.NewTabRepository())
 	tenantService := services.NewTenantService(tenantRepo)
+	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
 
 	app.RegisterServices(
-		services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher()),
+		uploadService,
 		services.NewUserService(userRepo, userValidator, app.EventPublisher()),
 		services.NewUserQueryService(userQueryRepo),
 		services.NewGroupQueryService(groupQueryRepo),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
+		services.NewExcelExportService(app.DB(), uploadService),
 	)
 	app.RegisterServices(
 		services.NewAuthService(app),

@@ -498,7 +498,7 @@ func (c *UsersController) Create(
 		return
 	}
 
-	if err := userService.Create(r.Context(), userEntity); err != nil {
+	if _, err := userService.Create(r.Context(), userEntity); err != nil {
 		var errs *validators.ValidationError
 		if errors.As(err, &errs) {
 			respondWithForm(errs.Fields, dto)
@@ -653,7 +653,7 @@ func (c *UsersController) Update(
 		return
 	}
 
-	if err := userService.Update(ctx, userEntity); err != nil {
+	if _, err := userService.Update(ctx, userEntity); err != nil {
 		var errs *validators.ValidationError
 		if errors.As(err, &errs) {
 			respondWithForm(errs.Fields, dto)

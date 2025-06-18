@@ -110,9 +110,14 @@ func NewUserRepository(uploadRepo upload.Repository) user.Repository {
 	}
 }
 
-func (g *PgUserRepository) buildUserFilters(params *user.FindParams) ([]string, []interface{}, error) {
-	where := []string{"1 = 1"}
-	args := []interface{}{}
+func (g *PgUserRepository) buildUserFilters(ctx context.Context, params *user.FindParams) ([]string, []interface{}, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get tenant from context")
+	}
+
+	where := []string{"u.tenant_id = $1"}
+	args := []interface{}{tenantID}
 
 	for _, filter := range params.Filters {
 		column, ok := g.fieldMap[filter.Column]
@@ -144,7 +149,7 @@ func (g *PgUserRepository) buildUserFilters(params *user.FindParams) ([]string, 
 }
 
 func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
-	where, args, err := g.buildUserFilters(params)
+	where, args, err := g.buildUserFilters(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -178,23 +183,15 @@ func (g *PgUserRepository) GetPaginated(ctx context.Context, params *user.FindPa
 }
 
 func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (int64, error) {
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return 0, errors.Wrap(err, "failed to get tenant from context")
-	}
-
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	where, args, err := g.buildUserFilters(params)
+	where, args, err := g.buildUserFilters(ctx, params)
 	if err != nil {
 		return 0, err
 	}
-
-	where = append(where, fmt.Sprintf("u.tenant_id = $%d", len(args)+1))
-	args = append(args, tenantID)
 
 	baseQuery := userCountQuery
 

@@ -13,6 +13,7 @@ import (
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -428,6 +429,91 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 				}
 			}
 			assert.True(t, hasGroup, "User should have the group")
+		}
+	})
+
+	t.Run("GetPaginated_TenantFiltering", func(t *testing.T) {
+		// Create a second tenant for testing cross-tenant isolation
+		secondTenant, err := testutils.CreateTestTenant(f.ctx, f.pool)
+		require.NoError(t, err)
+
+		// Create users in the first tenant (current context tenant)
+		email1, err := internet.NewEmail("tenant1user1@gmail.com")
+		require.NoError(t, err)
+		user1 := user.New("Tenant1", "User1", email1, user.UILanguageEN, user.WithTenantID(tenant))
+		_, err = userRepository.Create(f.ctx, user1)
+		require.NoError(t, err)
+
+		email2, err := internet.NewEmail("tenant1user2@gmail.com")
+		require.NoError(t, err)
+		user2 := user.New("Tenant1", "User2", email2, user.UILanguageEN, user.WithTenantID(tenant))
+		_, err = userRepository.Create(f.ctx, user2)
+		require.NoError(t, err)
+
+		// Create users in the second tenant by temporarily switching context
+		secondTenantCtx := composables.WithTenantID(f.ctx, secondTenant.ID)
+
+		email3, err := internet.NewEmail("tenant2user1@gmail.com")
+		require.NoError(t, err)
+		user3 := user.New("Tenant2", "User1", email3, user.UILanguageEN, user.WithTenantID(secondTenant.ID))
+		_, err = userRepository.Create(secondTenantCtx, user3)
+		require.NoError(t, err)
+
+		email4, err := internet.NewEmail("tenant2user2@gmail.com")
+		require.NoError(t, err)
+		user4 := user.New("Tenant2", "User2", email4, user.UILanguageEN, user.WithTenantID(secondTenant.ID))
+		_, err = userRepository.Create(secondTenantCtx, user4)
+		require.NoError(t, err)
+
+		// Test GetPaginated with first tenant context (should only return first tenant users)
+		params := &user.FindParams{
+			SortBy: user.SortBy{
+				Fields: []repo.SortByField[user.Field]{{Field: user.FirstNameField, Ascending: true}},
+			},
+			Limit:  10,
+			Offset: 0,
+		}
+
+		firstTenantUsers, err := userRepository.GetPaginated(f.ctx, params)
+		require.NoError(t, err)
+
+		// Verify all returned users belong to the first tenant
+		for _, u := range firstTenantUsers {
+			assert.Equal(t, tenant.String(), u.TenantID().String(), "User should belong to first tenant")
+		}
+
+		// Count users that match our test pattern (Tenant1*)
+		tenant1UserCount := 0
+		for _, u := range firstTenantUsers {
+			if u.FirstName() == "Tenant1" {
+				tenant1UserCount++
+			}
+		}
+		assert.GreaterOrEqual(t, tenant1UserCount, 2, "Should find at least 2 users for first tenant")
+
+		// Test GetPaginated with second tenant context (should only return second tenant users)
+		secondTenantUsers, err := userRepository.GetPaginated(secondTenantCtx, params)
+		require.NoError(t, err)
+
+		// Verify all returned users belong to the second tenant
+		for _, u := range secondTenantUsers {
+			assert.Equal(t, secondTenant.ID.String(), u.TenantID().String(), "User should belong to second tenant")
+		}
+
+		// Count users that match our test pattern (Tenant2*)
+		tenant2UserCount := 0
+		for _, u := range secondTenantUsers {
+			if u.FirstName() == "Tenant2" {
+				tenant2UserCount++
+			}
+		}
+		assert.GreaterOrEqual(t, tenant2UserCount, 2, "Should find at least 2 users for second tenant")
+
+		// Verify no cross-tenant contamination
+		for _, u := range firstTenantUsers {
+			for _, u2 := range secondTenantUsers {
+				assert.NotEqual(t, u.ID(), u2.ID(), "No user should appear in both tenant results")
+			}
 		}
 	})
 

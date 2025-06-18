@@ -64,15 +64,15 @@ func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.Fi
 	return us, total, nil
 }
 
-func (s *UserService) Create(ctx context.Context, data user.User) error {
+func (s *UserService) Create(ctx context.Context, data user.User) (user.User, error) {
 	err := composables.CanUser(ctx, permissions.UserCreate)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	createdEvent, err := user.NewCreatedEvent(ctx, data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var createdUser user.User
@@ -88,7 +88,7 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	createdEvent.Result = createdUser
 
@@ -97,7 +97,7 @@ func (s *UserService) Create(ctx context.Context, data user.User) error {
 		s.publisher.Publish(e)
 	}
 
-	return err
+	return createdUser, nil
 }
 
 func (s *UserService) UpdateLastAction(ctx context.Context, id uint) error {
@@ -108,19 +108,19 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 	return s.repo.UpdateLastLogin(ctx, id)
 }
 
-func (s *UserService) Update(ctx context.Context, data user.User) error {
+func (s *UserService) Update(ctx context.Context, data user.User) (user.User, error) {
 	err := composables.CanUser(ctx, permissions.UserUpdate)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !data.CanUpdate() {
-		return composables.ErrForbidden
+		return nil, composables.ErrForbidden
 	}
 
 	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var updatedUser user.User
@@ -139,7 +139,7 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	updatedEvent.Result = updatedUser
@@ -149,7 +149,7 @@ func (s *UserService) Update(ctx context.Context, data user.User) error {
 		s.publisher.Publish(e)
 	}
 
-	return nil
+	return updatedUser, nil
 }
 
 func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {

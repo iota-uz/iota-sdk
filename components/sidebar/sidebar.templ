@@ -33,17 +33,19 @@ templ Sidebar(props Props) {
 				if props.Header != nil {
 					@props.Header
 				}
-				<div x-show="!isCollapsed" x-transition>
-					<div class="mt-4">
-						@navtabs.List("w-full") {
-							for _, group := range props.TabGroups.Groups {
-								@navtabs.Button(group.Value) {
-									{ group.Label }
+				if len(props.TabGroups.Groups) > 1 {
+					<div x-show="!isCollapsed" x-transition>
+						<div class="mt-4">
+							@navtabs.List("w-full") {
+								for _, group := range props.TabGroups.Groups {
+									@navtabs.Button(group.Value) {
+										{ group.Label }
+									}
 								}
 							}
-						}
+						</div>
 					</div>
-				</div>
+				}
 			</div>
 			@SidebarContent(props)
 		}

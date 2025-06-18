@@ -57,15 +57,18 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 }
 
 func UploadToViewModel(entity upload.Upload) *viewmodels.Upload {
-	return &viewmodels.Upload{
+	upload := &viewmodels.Upload{
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Hash:      entity.Hash(),
 		URL:       entity.PreviewURL(),
-		Mimetype:  entity.Mimetype().String(),
 		Size:      entity.Size().String(),
 		CreatedAt: entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt: entity.UpdatedAt().Format(time.RFC3339),
 	}
+	if mime := entity.Mimetype(); mime != nil {
+		upload.Mimetype = mime.String()
+	}
+	return upload
 }
 
 func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
