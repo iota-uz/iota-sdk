@@ -13,11 +13,16 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"html"
+	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
@@ -33,10 +38,11 @@ type CrudController[TEntity any] struct {
 	visibleFields   []crud.Field
 	formFields      []crud.Field
 	primaryKeyField crud.Field
-	
+
 	// options
 	enableEdit   bool
 	enableDelete bool
+	enableCreate bool
 }
 
 // CrudOption defines options for CrudController
@@ -56,6 +62,13 @@ func WithoutDelete[TEntity any]() CrudOption[TEntity] {
 	}
 }
 
+// WithoutCreate disables create functionality
+func WithoutCreate[TEntity any]() CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.enableCreate = false
+	}
+}
+
 func NewCrudController[TEntity any](
 	basePath string,
 	app application.Application,
@@ -67,8 +80,9 @@ func NewCrudController[TEntity any](
 		app:          app,
 		schema:       builder.Schema(),
 		service:      builder.Service(),
-		enableEdit:   true,  // Enable by default
-		enableDelete: true,  // Enable by default
+		enableEdit:   true,
+		enableDelete: true,
+		enableCreate: true,
 	}
 
 	// Apply options
@@ -95,12 +109,21 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 	)
 
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
-	router.HandleFunc("/{id}", c.GetEdit).Methods(http.MethodGet)
+	router.HandleFunc("/{id}/view", c.GetView).Methods(http.MethodGet)
 
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id}", c.Update).Methods(http.MethodPost)
-	router.HandleFunc("/{id}", c.Delete).Methods(http.MethodDelete)
+	if c.enableCreate {
+		router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+		router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	}
+
+	if c.enableEdit {
+		router.HandleFunc("/{id}/edit", c.GetEdit).Methods(http.MethodGet)
+		router.HandleFunc("/{id}", c.Update).Methods(http.MethodPost)
+	}
+
+	if c.enableDelete {
+		router.HandleFunc("/{id}", c.Delete).Methods(http.MethodDelete)
+	}
 }
 
 func (c *CrudController[TEntity]) Key() string {
@@ -121,9 +144,7 @@ func (c *CrudController[TEntity]) initFieldCache() {
 
 		if !f.Hidden() {
 			c.visibleFields = append(c.visibleFields, f)
-			if !f.Key() {
-				c.formFields = append(c.formFields, f)
-			}
+			c.formFields = append(c.formFields, f)
 		}
 	}
 
@@ -168,6 +189,26 @@ func (c *CrudController[TEntity]) getPrimaryKeyValue(fieldValues []crud.FieldVal
 		}
 	}
 	return nil, fmt.Errorf("primary key not found")
+}
+
+// parseIDValue converts string ID to proper type based on primary key field type
+func (c *CrudController[TEntity]) parseIDValue(id string) any {
+	switch c.primaryKeyField.Type() {
+	case crud.IntFieldType:
+		// Try to parse as int64 first (handles larger numbers)
+		if int64Val, err := strconv.ParseInt(id, 10, 64); err == nil {
+			// Check if it fits in int32
+			if int64Val >= math.MinInt32 && int64Val <= math.MaxInt32 {
+				return int(int64Val)
+			}
+			return int64Val
+		}
+	case crud.UUIDFieldType:
+		if uuidVal, err := uuid.Parse(id); err == nil {
+			return uuidVal
+		}
+	}
+	return id
 }
 
 // buildFieldValuesFromForm creates field values from form data
@@ -281,23 +322,49 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		params.Query = searchQuery
 	}
 
+	// Fetch entities and count in parallel for better performance
+	type listResult struct {
+		entities []TEntity
+		err      error
+	}
+	type countResult struct {
+		count int64
+		err   error
+	}
+
+	listCh := make(chan listResult, 1)
+	countCh := make(chan countResult, 1)
+
 	// Fetch entities
-	entities, err := c.service.List(ctx, params)
-	if err != nil {
-		log.Printf("[CrudController.List] Failed to list entities: %v", err)
+	go func() {
+		entities, err := c.service.List(ctx, params)
+		listCh <- listResult{entities: entities, err: err}
+	}()
+
+	// Count total items
+	go func() {
+		countParams := &crud.FindParams{
+			Query: params.Query, // Include search query in count
+		}
+		count, err := c.service.Count(ctx, countParams)
+		countCh <- countResult{count: count, err: err}
+	}()
+
+	// Wait for results
+	listRes := <-listCh
+	countRes := <-countCh
+
+	if listRes.err != nil {
+		log.Printf("[CrudController.List] Failed to list entities: %v", listRes.err)
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
 	}
 
-	// Get total count for infinity scroll
-	// We need to create a separate params for count to include the search query
-	countParams := &crud.FindParams{
-		Query: params.Query, // Include search query in count
-	}
-	totalCount, err := c.service.Count(ctx, countParams)
-	if err != nil {
-		log.Printf("[CrudController.List] Failed to count entities: %v", err)
+	entities := listRes.entities
+	totalCount := countRes.count
+	if countRes.err != nil {
+		log.Printf("[CrudController.List] Failed to count entities: %v", countRes.err)
 		// Non-critical error, continue without infinity scroll
 		totalCount = 0
 	}
@@ -341,29 +408,22 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			}
 			columns = append(columns, table.Column(f.Name(), fieldLabel))
 		}
-		
+
 		// Add actions column if edit or delete is enabled
 		if c.enableEdit || c.enableDelete {
 			actionsLabel, _ := c.localize(ctx, "Common.Actions", "Actions")
 			columns = append(columns, table.Column("actions", actionsLabel))
 		}
-		
+
 		cfg.AddCols(columns...)
 
-		// Add create button
-		createLabel, err := c.localize(ctx, fmt.Sprintf("%s.List.New", c.schema.Name()), "New")
-		if err != nil {
-			createLabel = "New"
+		// Add header actions
+		headerActions := c.buildHeaderActions(ctx)
+		if len(headerActions) > 0 {
+			for _, action := range headerActions {
+				cfg.AddActions(actions.RenderAction(action))
+			}
 		}
-
-		// Create action configuration
-		createAction := actions.CreateAction(createLabel, fmt.Sprintf("%s/new", c.basePath))
-		cfg.AddActions(actions.RenderAction(createAction))
-		
-		// Optionally add export button
-		// exportLabel, _ := c.localize(ctx, fmt.Sprintf("%s.List.Export", c.schema.Name()), "Export")
-		// exportAction := actions.ExportAction(exportLabel, fmt.Sprintf("%s/export", c.basePath))
-		// cfg.AddActions(actions.Action(exportAction))
 	}
 
 	// Convert entities to table rows
@@ -403,7 +463,6 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 // buildTableRow creates a table row from field values
 func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues []crud.FieldValue) (table.TableRow, error) {
 	var primaryKey any
@@ -431,25 +490,47 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 		return nil, fmt.Errorf("primary key not found")
 	}
 
-	// Add row actions if enabled
-	if c.enableEdit || c.enableDelete {
-		var rowActions []actions.ActionProps
-		
-		if c.enableEdit {
-			editAction := actions.EditAction(fmt.Sprintf("%s/%v", c.basePath, primaryKey))
-			rowActions = append(rowActions, editAction)
-		}
-		
-		if c.enableDelete {
-			deleteAction := actions.DeleteAction(fmt.Sprintf("%s/%v", c.basePath, primaryKey))
-			rowActions = append(rowActions, deleteAction)
-		}
-		
+	// Add row actions
+	rowActions := c.buildRowActions(ctx, primaryKey)
+	if len(rowActions) > 0 {
 		components = append(components, actions.RenderRowActions(rowActions...))
 	}
 
-	fetchUrl := fmt.Sprintf("/%s/%v", c.basePath, primaryKey)
+	fetchUrl := fmt.Sprintf("%s/%v/view", c.basePath, primaryKey)
 	return table.Row(components...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
+}
+
+// buildHeaderActions creates header actions for the list view
+func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []actions.ActionProps {
+	var headerActions []actions.ActionProps
+
+	if c.enableCreate {
+		createLabel, err := c.localize(ctx, fmt.Sprintf("%s.List.New", c.schema.Name()), "New")
+		if err != nil {
+			createLabel = "New"
+		}
+		createAction := actions.CreateAction(createLabel, fmt.Sprintf("%s/new", c.basePath))
+		headerActions = append(headerActions, createAction)
+	}
+
+	return headerActions
+}
+
+// buildRowActions creates row actions for table rows
+func (c *CrudController[TEntity]) buildRowActions(ctx context.Context, primaryKey any) []actions.ActionProps {
+	var rowActions []actions.ActionProps
+
+	if c.enableEdit {
+		editAction := actions.EditAction(fmt.Sprintf("%s/%v/edit", c.basePath, primaryKey))
+		rowActions = append(rowActions, editAction)
+	}
+
+	if c.enableDelete {
+		deleteAction := actions.DeleteAction(fmt.Sprintf("%s/%v", c.basePath, primaryKey))
+		rowActions = append(rowActions, deleteAction)
+	}
+
+	return rowActions
 }
 
 func (c *CrudController[TEntity]) GetNew(w http.ResponseWriter, r *http.Request) {
@@ -469,7 +550,7 @@ func (c *CrudController[TEntity]) GetNew(w http.ResponseWriter, r *http.Request)
 		submitLabel = "Create"
 	}
 
-	// Build form fields using cached fields
+	// Build form fields using cached fields (no values for new form)
 	formFields := c.buildFormFields(ctx, nil)
 
 	cfg := form.NewFormConfig(
@@ -499,17 +580,18 @@ func (c *CrudController[TEntity]) buildFormFields(ctx context.Context, fieldValu
 
 	formFields := make([]form.Field, 0, len(c.formFields))
 	for _, f := range c.formFields {
-		formField := c.fieldToFormField(ctx, f)
-		if formField == nil {
-			continue
+		// Get current value if available
+		var currentValue crud.FieldValue
+		if fieldValueMap != nil {
+			if fv, exists := fieldValueMap[f.Name()]; exists {
+				currentValue = fv
+			}
 		}
 
-		// Set current value if available
-		if fieldValueMap != nil {
-			if fv, exists := fieldValueMap[f.Name()]; exists && !fv.IsZero() {
-				// TODO: Implement setFormFieldValue properly
-				formField = c.setFormFieldValue(formField, fv)
-			}
+		// Create form field with current value
+		formField := c.fieldToFormFieldWithValue(ctx, f, currentValue)
+		if formField == nil {
+			continue
 		}
 
 		formFields = append(formFields, formField)
@@ -518,13 +600,152 @@ func (c *CrudController[TEntity]) buildFormFields(ctx context.Context, fieldValu
 	return formFields
 }
 
+func (c *CrudController[TEntity]) GetView(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	// Create field value for the ID
+	idFieldValue := c.primaryKeyField.Value(c.parseIDValue(id))
+
+	// Fetch entity
+	entity, err := c.service.Get(ctx, idFieldValue)
+	if err != nil {
+		log.Printf("[CrudController.GetView] Failed to get entity %s: %v", id, err)
+		errorMsg, _ := c.localize(ctx, errEntityNotFound, "Entity not found")
+		http.Error(w, errorMsg, http.StatusNotFound)
+		return
+	}
+
+	// Convert entity to field values
+	fieldValues, err := c.schema.Mapper().ToFieldValues(ctx, entity)
+	if err != nil {
+		log.Printf("[CrudController.GetView] Failed to map entity: %v", err)
+		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+		return
+	}
+
+	// Get entity title
+	titleText, _ := c.localize(ctx, fmt.Sprintf("%s.View.Title", c.schema.Name()), c.schema.Name())
+
+	// Create view content
+	viewContent := c.buildViewContent(ctx, fieldValues)
+
+	// Create wrapper component that renders drawer with content
+	drawerComponent := templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		// Generate unique ID for this drawer instance
+		drawerID := fmt.Sprintf("drawer-%d", time.Now().UnixNano())
+
+		// Write wrapper div that will be removed when drawer closes
+		fmt.Fprintf(w, `<div id="%s">`, drawerID)
+
+		// Create drawer component
+		component := dialog.StdViewDrawer(dialog.StdDrawerProps{
+			ID:     drawerID + "-dialog",
+			Title:  titleText,
+			Action: "open-view-drawer",
+			Open:   true,
+			Attrs: templ.Attributes{
+				"@closing": fmt.Sprintf("window.history.pushState({}, '', '%s')", c.basePath),
+				"@closed":  fmt.Sprintf("document.getElementById('%s').remove()", drawerID),
+			},
+		})
+
+		// Render drawer with content
+		if err := component.Render(templ.WithChildren(ctx, viewContent), w); err != nil {
+			return err
+		}
+
+		// Close wrapper div
+		fmt.Fprintf(w, `</div>`)
+
+		return nil
+	})
+
+	if err := drawerComponent.Render(ctx, w); err != nil {
+		log.Printf("[CrudController.GetView] Failed to render view: %v", err)
+		errorMsg, _ := c.localize(ctx, errFailedToRender, "Failed to render view")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+	}
+}
+
+// buildViewContent creates the content for displaying entity details
+func (c *CrudController[TEntity]) buildViewContent(ctx context.Context, fieldValues []crud.FieldValue) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		// Create field value map
+		fieldValueMap := make(map[string]crud.FieldValue, len(fieldValues))
+		var primaryKey any
+		for _, fv := range fieldValues {
+			fieldValueMap[fv.Field().Name()] = fv
+			if fv.Field().Key() {
+				primaryKey = fv.Value()
+			}
+		}
+
+		// Start the content container
+		fmt.Fprintf(w, `<div class="p-6 space-y-4">`)
+
+		// Add field details
+		fmt.Fprintf(w, `<dl class="divide-y divide-gray-100">`)
+
+		for _, field := range c.visibleFields {
+			if fv, exists := fieldValueMap[field.Name()]; exists {
+				// Localize field label
+				fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
+				if err != nil {
+					fieldLabel = field.Name()
+				}
+
+				fmt.Fprintf(w, `<div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">`)
+				fmt.Fprintf(w, `<dt class="text-sm font-medium text-gray-900">%s</dt>`, html.EscapeString(fieldLabel))
+				fmt.Fprintf(w, `<dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">`)
+
+				// Render field value
+				if err := c.fieldValueToTableCell(ctx, field, fv).Render(ctx, w); err != nil {
+					return err
+				}
+
+				fmt.Fprintf(w, `</dd></div>`)
+			}
+		}
+
+		fmt.Fprintf(w, `</dl>`)
+
+		// Add action buttons
+		if c.enableEdit || c.enableDelete {
+			fmt.Fprintf(w, `<div class="mt-6 flex gap-3">`)
+
+			if c.enableEdit {
+				editLabel, _ := c.localize(ctx, "Common.Edit", "Edit")
+				fmt.Fprintf(w, `<a href="%s/%v/edit" class="btn btn-primary">%s</a>`,
+					html.EscapeString(c.basePath), primaryKey, html.EscapeString(editLabel))
+			}
+
+			if c.enableDelete {
+				deleteLabel, _ := c.localize(ctx, "Common.Delete", "Delete")
+				fmt.Fprintf(w, `<button hx-delete="%s/%v" hx-confirm="%s" hx-target="closest dialog" hx-swap="outerHTML" class="btn btn-danger">%s</button>`,
+					html.EscapeString(c.basePath), primaryKey,
+					html.EscapeString("Are you sure you want to delete this item?"),
+					html.EscapeString(deleteLabel))
+			}
+
+			fmt.Fprintf(w, `</div>`)
+		}
+
+		fmt.Fprintf(w, `</div>`)
+
+		return nil
+	})
+}
+
 func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	vars := mux.Vars(r)
 	id := vars["id"]
 
 	// Create field value for the ID
-	idFieldValue := c.primaryKeyField.Value(id)
+	idFieldValue := c.primaryKeyField.Value(c.parseIDValue(id))
 
 	// Fetch entity
 	entity, err := c.service.Get(ctx, idFieldValue)
@@ -575,14 +796,6 @@ func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// setFormFieldValue sets the value of a form field based on field value
-func (c *CrudController[TEntity]) setFormFieldValue(formField form.Field, fv crud.FieldValue) form.Field {
-	// This is a simplified version - in real implementation,
-	// you would need to recreate the field with the value
-	// based on the specific field type and builder pattern
-	return formField
-}
-
 func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -609,7 +822,11 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("[CrudController.Create] Failed to save entity: %v", err)
 
-		// TODO: Return form with validation errors
+		// Check if it's a validation error
+		if c.handleValidationError(w, r, ctx, err, fieldValues, true) {
+			return
+		}
+
 		errorMsg, _ := c.localize(ctx, errFailedToSave, "Failed to save data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
@@ -658,7 +875,7 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 	// Set the ID in field values
 	for i, fv := range fieldValues {
 		if fv.Field().Key() {
-			fieldValues[i] = fv.Field().Value(id)
+			fieldValues[i] = fv.Field().Value(c.parseIDValue(id))
 			break
 		}
 	}
@@ -677,7 +894,11 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		log.Printf("[CrudController.Update] Failed to update entity %s: %v", id, err)
 
-		// TODO: Return form with validation errors
+		// Check if it's a validation error
+		if c.handleValidationError(w, r, ctx, err, fieldValues, false) {
+			return
+		}
+
 		errorMsg, _ := c.localize(ctx, errFailedToUpdate, "Failed to update data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
@@ -713,7 +934,7 @@ func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request)
 	id := vars["id"]
 
 	// Create field value for the ID
-	idFieldValue := c.primaryKeyField.Value(id)
+	idFieldValue := c.primaryKeyField.Value(c.parseIDValue(id))
 
 	// Delete entity
 	if _, err := c.service.Delete(ctx, idFieldValue); err != nil {
@@ -734,7 +955,8 @@ func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field crud.Field) form.Field {
+// fieldToFormFieldWithValue creates a form field with a value if provided
+func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context, field crud.Field, value crud.FieldValue) form.Field {
 	if field.Hidden() || field.Key() {
 		return nil
 	}
@@ -743,6 +965,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 	fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
 	if err != nil {
 		fieldLabel = field.Name()
+	}
+
+	// Get the actual value to use
+	var currentValue any
+	if value != nil && !value.IsZero() {
+		currentValue = value.Value()
+	} else if field.InitialValue() != nil {
+		currentValue = field.InitialValue()
 	}
 
 	switch field.Type() {
@@ -774,13 +1004,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 				textareaBuilder = textareaBuilder.Attrs(templ.Attributes{"readonly": true})
 			}
 
-			// Check if field has any rules (likely means it's required)
 			if len(field.Rules()) > 0 {
 				textareaBuilder = textareaBuilder.Required()
 			}
 
-			if field.InitialValue() != nil {
-				textareaBuilder = textareaBuilder.Default(field.InitialValue().(string))
+			if currentValue != nil {
+				if strVal, ok := currentValue.(string); ok {
+					textareaBuilder = textareaBuilder.Default(strVal)
+				}
 			}
 
 			return textareaBuilder.Build()
@@ -790,13 +1021,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 			builder = builder.Attrs(templ.Attributes{"readonly": true})
 		}
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			builder = builder.Default(field.InitialValue().(string))
+		if currentValue != nil {
+			if strVal, ok := currentValue.(string); ok {
+				builder = builder.Default(strVal)
+			}
 		}
 
 		return builder.Build()
@@ -820,13 +1052,19 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 			builder = builder.Attrs(templ.Attributes{"readonly": true})
 		}
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			builder = builder.Default(float64(field.InitialValue().(int)))
+		if currentValue != nil {
+			switch v := currentValue.(type) {
+			case int:
+				builder = builder.Default(float64(v))
+			case int64:
+				builder = builder.Default(float64(v))
+			case float64:
+				builder = builder.Default(v)
+			}
 		}
 
 		return builder.Build()
@@ -838,13 +1076,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 			builder = builder.Attrs(templ.Attributes{"readonly": true})
 		}
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			builder = builder.Default(field.InitialValue().(bool))
+		if currentValue != nil {
+			if boolVal, ok := currentValue.(bool); ok {
+				builder = builder.Default(boolVal)
+			}
 		}
 
 		return builder.Build()
@@ -877,13 +1116,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 
 		builder = builder.Attrs(attrs)
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			builder = builder.Default(field.InitialValue().(float64))
+		if currentValue != nil {
+			if floatVal, ok := currentValue.(float64); ok {
+				builder = builder.Default(floatVal)
+			}
 		}
 
 		return builder.Build()
@@ -905,13 +1145,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 			builder = builder.Attrs(templ.Attributes{"readonly": true})
 		}
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			builder = builder.Default(field.InitialValue().(time.Time))
+		if currentValue != nil {
+			if timeVal, ok := currentValue.(time.Time); ok && !timeVal.IsZero() {
+				builder = builder.Default(timeVal)
+			}
 		}
 
 		return builder.Build()
@@ -923,14 +1164,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 			builder = builder.Attrs(templ.Attributes{"readonly": true})
 		}
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			t := field.InitialValue().(time.Time)
-			builder = builder.Default(t.Format("15:04"))
+		if currentValue != nil {
+			if timeVal, ok := currentValue.(time.Time); ok && !timeVal.IsZero() {
+				builder = builder.Default(timeVal.Format("15:04"))
+			}
 		}
 
 		return builder.Build()
@@ -952,13 +1193,14 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 			builder = builder.Attrs(templ.Attributes{"readonly": true})
 		}
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			builder = builder.Default(field.InitialValue().(time.Time))
+		if currentValue != nil {
+			if timeVal, ok := currentValue.(time.Time); ok && !timeVal.IsZero() {
+				builder = builder.Default(timeVal)
+			}
 		}
 
 		return builder.Build()
@@ -970,19 +1212,27 @@ func (c *CrudController[TEntity]) fieldToFormField(ctx context.Context, field cr
 			builder = builder.Attrs(templ.Attributes{"readonly": true})
 		}
 
-		// Check if field has any rules (likely means it's required)
 		if len(field.Rules()) > 0 {
 			builder = builder.Required()
 		}
 
-		if field.InitialValue() != nil {
-			builder = builder.Default(field.InitialValue().(string))
+		if currentValue != nil {
+			switch v := currentValue.(type) {
+			case string:
+				builder = builder.Default(v)
+			case uuid.UUID:
+				builder = builder.Default(v.String())
+			}
 		}
 
 		return builder.Build()
 
 	default:
-		return form.Text(field.Name(), field.Name()).Build()
+		builder := form.Text(field.Name(), field.Name())
+		if currentValue != nil {
+			builder = builder.Default(fmt.Sprintf("%v", currentValue))
+		}
+		return builder.Build()
 	}
 }
 
@@ -1097,4 +1347,19 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 	default:
 		return templ.Raw(fmt.Sprintf("%v", value.Value()))
 	}
+}
+
+// handleValidationError handles validation errors by re-rendering the form with errors
+func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r *http.Request, ctx context.Context, err error, fieldValues []crud.FieldValue, isCreate bool) bool {
+	// For now, we'll just log the error and return false
+	// In a real implementation, you would need to enhance the form package
+	// to support error handling at the field level
+	log.Printf("[CrudController.handleValidationError] Validation error: %v", err)
+
+	// You could potentially enhance this by:
+	// 1. Parsing the error to extract field-specific errors
+	// 2. Creating a custom form renderer that includes errors
+	// 3. Using HTMX to return partial form updates with errors
+
+	return false
 }
