@@ -144,7 +144,12 @@ func (c *CrudController[TEntity]) initFieldCache() {
 
 		if !f.Hidden() {
 			c.visibleFields = append(c.visibleFields, f)
-			c.formFields = append(c.formFields, f)
+
+			// Add to form fields if it's not a key field or if key field is not readonly
+			// This allows editable primary keys to be included in forms
+			if !f.Key() || !f.Readonly() {
+				c.formFields = append(c.formFields, f)
+			}
 		}
 	}
 
@@ -217,86 +222,110 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 		return nil, fmt.Errorf("failed to parse form: %w", err)
 	}
 
-	fieldValues := make([]crud.FieldValue, 0, len(c.schema.Fields().Fields()))
+	fieldValues := make([]crud.FieldValue, 0)
 
-	for _, f := range c.schema.Fields().Fields() {
-		var value any
-
-		if r.Form.Has(f.Name()) {
-			formValue := r.Form.Get(f.Name())
-
-			// Convert form value based on field type
-			switch f.Type() {
-			case crud.BoolFieldType:
-				value = formValue == "on" || formValue == "true" || formValue == "1"
-			case crud.IntFieldType:
-				// Try to parse as int
-				if formValue != "" {
-					var intVal int64
-					if _, err := fmt.Sscanf(formValue, "%d", &intVal); err == nil {
-						value = int(intVal)
-					} else {
-						value = 0
-					}
-				} else {
-					value = 0
-				}
-			case crud.FloatFieldType:
-				// Try to parse as float
-				if formValue != "" {
-					var floatVal float64
-					if _, err := fmt.Sscanf(formValue, "%f", &floatVal); err == nil {
-						value = floatVal
-					} else {
-						value = 0.0
-					}
-				} else {
-					value = 0.0
-				}
-			case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType:
-				// Parse time values
-				if formValue != "" {
-					parsedTime, err := time.Parse(time.RFC3339, formValue)
-					if err != nil {
-						// Try common HTML5 formats
-						for _, format := range []string{"2006-01-02", "2006-01-02T15:04", "15:04"} {
-							if parsedTime, err = time.Parse(format, formValue); err == nil {
-								break
-							}
-						}
-					}
-					if err == nil {
-						value = parsedTime
-					} else {
-						value = time.Time{}
-					}
-				} else {
-					value = time.Time{}
-				}
-			case crud.UUIDFieldType:
-				// Parse UUID
-				if formValue != "" {
-					if uid, err := uuid.Parse(formValue); err == nil {
-						value = uid
-					} else {
-						value = uuid.Nil
-					}
-				} else {
-					value = uuid.Nil
-				}
-			default:
-				value = formValue
-			}
-		} else {
-			// Special handling for checkboxes (bool fields)
-			if f.Type() == crud.BoolFieldType {
-				value = false
-			} else {
-				value = f.InitialValue()
-			}
+	// Process only fields that are present in the form
+	for fieldName := range r.Form {
+		field, err := c.schema.Fields().Field(fieldName)
+		if err != nil {
+			// Skip fields that are not in schema
+			continue
 		}
 
-		fieldValues = append(fieldValues, f.Value(value))
+		formValue := r.Form.Get(fieldName)
+		var value any
+
+		// Convert form value based on field type
+		switch field.Type() {
+		case crud.BoolFieldType:
+			value = formValue == "on" || formValue == "true" || formValue == "1"
+		case crud.IntFieldType:
+			if formValue != "" {
+				if int64Val, err := strconv.ParseInt(formValue, 10, 64); err == nil {
+					if int64Val >= math.MinInt32 && int64Val <= math.MaxInt32 {
+						value = int(int64Val)
+					} else {
+						value = int64Val
+					}
+				} else {
+					return nil, fmt.Errorf("invalid integer value for field %s: %v", fieldName, err)
+				}
+			} else {
+				continue // Skip empty values
+			}
+		case crud.FloatFieldType:
+			if formValue != "" {
+				if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
+					value = floatVal
+				} else {
+					return nil, fmt.Errorf("invalid float value for field %s: %v", fieldName, err)
+				}
+			} else {
+				continue // Skip empty values
+			}
+		case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType:
+			if formValue != "" {
+				parsedTime, err := time.Parse(time.RFC3339, formValue)
+				if err != nil {
+					// Try common HTML5 formats based on field type
+					formats := []string{}
+					switch field.Type() {
+					case crud.DateFieldType:
+						formats = []string{"2006-01-02"}
+					case crud.TimeFieldType:
+						formats = []string{"15:04", "15:04:05"}
+					case crud.DateTimeFieldType:
+						formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
+					}
+
+					for _, format := range formats {
+						if parsedTime, err = time.Parse(format, formValue); err == nil {
+							break
+						}
+					}
+				}
+				if err == nil {
+					value = parsedTime
+				} else {
+					return nil, fmt.Errorf("invalid time value for field %s: %v", fieldName, err)
+				}
+			} else {
+				continue // Skip empty values
+			}
+		case crud.UUIDFieldType:
+			if formValue != "" {
+				if uid, err := uuid.Parse(formValue); err == nil {
+					value = uid
+				} else {
+					return nil, fmt.Errorf("invalid UUID value for field %s: %v", fieldName, err)
+				}
+			} else {
+				continue // Skip empty values
+			}
+		default:
+			value = formValue
+		}
+
+		fieldValues = append(fieldValues, field.Value(value))
+	}
+
+	// Special handling for checkboxes - they don't send data when unchecked
+	for _, field := range c.schema.Fields().Fields() {
+		if field.Type() == crud.BoolFieldType && !field.Hidden() && !field.Readonly() {
+			// Check if this field was already processed
+			found := false
+			for _, fv := range fieldValues {
+				if fv.Field().Name() == field.Name() {
+					found = true
+					break
+				}
+			}
+
+			// If checkbox field wasn't in form data, it means it was unchecked
+			if !found && r.Method == "POST" {
+				fieldValues = append(fieldValues, field.Value(false))
+			}
+		}
 	}
 
 	return fieldValues, nil
@@ -517,7 +546,7 @@ func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []acti
 }
 
 // buildRowActions creates row actions for table rows
-func (c *CrudController[TEntity]) buildRowActions(ctx context.Context, primaryKey any) []actions.ActionProps {
+func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey any) []actions.ActionProps {
 	var rowActions []actions.ActionProps
 
 	if c.enableEdit {
@@ -671,7 +700,7 @@ func (c *CrudController[TEntity]) GetView(w http.ResponseWriter, r *http.Request
 }
 
 // buildViewContent creates the content for displaying entity details
-func (c *CrudController[TEntity]) buildViewContent(ctx context.Context, fieldValues []crud.FieldValue) templ.Component {
+func (c *CrudController[TEntity]) buildViewContent(_ context.Context, fieldValues []crud.FieldValue) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
 		// Create field value map
 		fieldValueMap := make(map[string]crud.FieldValue, len(fieldValues))
@@ -957,7 +986,13 @@ func (c *CrudController[TEntity]) Delete(w http.ResponseWriter, r *http.Request)
 
 // fieldToFormFieldWithValue creates a form field with a value if provided
 func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context, field crud.Field, value crud.FieldValue) form.Field {
-	if field.Hidden() || field.Key() {
+	// Skip hidden fields
+	if field.Hidden() {
+		return nil
+	}
+
+	// Skip key fields that are readonly (auto-generated IDs)
+	if field.Key() && field.Readonly() {
 		return nil
 	}
 
