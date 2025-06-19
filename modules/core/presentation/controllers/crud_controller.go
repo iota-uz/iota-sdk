@@ -488,8 +488,40 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	vars := mux.Vars(r)
+	id := vars["id"]
 
-	// Localize form title
+	// Create field value for the ID
+	idFieldValue := c.primaryKeyField.Value(c.parseIDValue(id))
+
+	// Fetch entity
+	entity, err := c.service.Get(ctx, idFieldValue)
+	if err != nil {
+		log.Printf("[CrudController.Details] Failed to get entity %s: %v", id, err)
+		errorMsg, _ := c.localize(ctx, errEntityNotFound, "Entity not found")
+		http.Error(w, errorMsg, http.StatusNotFound)
+		return
+	}
+
+	// Convert entity to field values
+	fieldValues, err := c.schema.Mapper().ToFieldValues(ctx, entity)
+	if err != nil {
+		log.Printf("[CrudController.Details] Failed to map entity: %v", err)
+		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+		return
+	}
+
+	// Extract primary key
+	var primaryKey any
+	for _, fv := range fieldValues {
+		if fv.Field().Key() {
+			primaryKey = fv.Value()
+			break
+		}
+	}
+
+	// Localize view title
 	viewTitle, err := c.localize(
 		ctx,
 		fmt.Sprintf("%s.View.Title", c.schema.Name()),
@@ -500,13 +532,65 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 		viewTitle = fmt.Sprintf("View %s", c.schema.Name())
 	}
 
-	props := table.DefaultDrawerProps{
-		Title:       viewTitle,
-		CallbackURL: c.basePath,
+	// Localize field labels
+	fieldLabels := make(map[string]string)
+	for _, field := range c.visibleFields {
+		fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
+		if err != nil {
+			fieldLabels[field.Name()] = field.Name()
+		} else {
+			fieldLabels[field.Name()] = fieldLabel
+		}
 	}
 
-	templ.Handler(table.DefaultDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	// Build actions
+	var actions []table.DetailAction
+
+	if c.enableEdit {
+		editLabel, _ := c.localize(ctx, "Common.Edit", "Edit")
+		actions = append(actions, table.DetailAction{
+			Label:  editLabel,
+			URL:    fmt.Sprintf("%s/%v/edit", c.basePath, primaryKey),
+			Method: "GET",
+			Class:  "btn-primary",
+		})
+	}
+
+	if c.enableDelete {
+		deleteLabel, _ := c.localize(ctx, "Common.Delete", "Delete")
+		confirmMsg, _ := c.localize(ctx, "Common.ConfirmDelete", "Are you sure?")
+		actions = append(actions, table.DetailAction{
+			Label:   deleteLabel,
+			URL:     fmt.Sprintf("%s/%v", c.basePath, primaryKey),
+			Method:  "DELETE",
+			Class:   "btn-danger",
+			Confirm: confirmMsg,
+		})
+	}
+
+	// Generate unique ID for this drawer instance
+	drawerID := fmt.Sprintf("drawer-%d", time.Now().UnixNano())
+
+	// Create drawer component using the new DetailsDrawer
+	drawerProps := table.DetailsDrawerProps{
+		ID:            drawerID,
+		Title:         viewTitle,
+		CallbackURL:   c.basePath,
+		FieldValues:   fieldValues,
+		VisibleFields: c.visibleFields,
+		FieldLabels:   fieldLabels,
+		Actions:       actions,
+	}
+
+	drawerComponent := table.DetailsDrawer(drawerProps)
+
+	if err := drawerComponent.Render(ctx, w); err != nil {
+		log.Printf("[CrudController.Details] Failed to render view: %v", err)
+		errorMsg, _ := c.localize(ctx, errFailedToRender, "Failed to render view")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+	}
 }
+
 
 // buildTableRow creates a table row from field values
 func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues []crud.FieldValue) (table.TableRow, error) {
