@@ -26,9 +26,9 @@ func WithSearchable(searchable bool) FieldOption {
 	}
 }
 
-func WithInitialValue(initialValue any) FieldOption {
+func WithInitialValue(fn func() any) FieldOption {
 	return func(field *field) {
-		field.initialValue = initialValue
+		field.initialValueFn = fn
 	}
 }
 

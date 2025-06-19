@@ -118,7 +118,7 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 	)
 
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id}", c.Details).Methods(http.MethodGet)
+	router.HandleFunc("/{id}/details", c.Details).Methods(http.MethodGet)
 
 	if c.enableCreate {
 		router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
@@ -671,7 +671,7 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 		components = append(components, actions.RenderRowActions(rowActions...))
 	}
 
-	fetchUrl := fmt.Sprintf("%s/%v", c.basePath, primaryKey)
+	fetchUrl := fmt.Sprintf("%s/%v/details", c.basePath, primaryKey)
 	return table.Row(components...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
 }
 

@@ -50,10 +50,14 @@ func TestFieldOptions(t *testing.T) {
 	})
 
 	t.Run("WithInitialValue", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithInitialValue("initial"))
+		field := crud.NewStringField("test", crud.WithInitialValue(func() any {
+			return "initial"
+		}))
 		assert.Equal(t, "initial", field.InitialValue())
 
-		field2 := crud.NewIntField("test2", crud.WithInitialValue(42))
+		field2 := crud.NewIntField("test2", crud.WithInitialValue(func() any {
+			return 42
+		}))
 		assert.Equal(t, 42, field2.InitialValue())
 	})
 
