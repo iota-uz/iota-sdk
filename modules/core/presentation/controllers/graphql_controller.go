@@ -55,7 +55,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		}
 		router.Handle(filepath.Join(fmt.Sprintf("/query/%s", schema.BasePath)), graphql.NewHandler(exec))
 	}
-	log.Printf("See %s/playground for GraphQL playground", configuration.Use().Address())
+	log.Printf("See %s/playground for GraphQL playground", configuration.Use().Origin)
 }
 
 func NewGraphQLController(app application.Application) application.Controller {
