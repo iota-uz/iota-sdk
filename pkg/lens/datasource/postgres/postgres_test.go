@@ -48,7 +48,7 @@ func TestNewPostgreSQLDataSource(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ds, err := NewPostgreSQLDataSource(tt.config)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, ds)
@@ -62,7 +62,7 @@ func TestNewPostgreSQLDataSource(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, ds)
 				assert.Equal(t, datasource.TypePostgreSQL, ds.GetMetadata().Type)
-				
+
 				// Clean up
 				if ds != nil {
 					ds.Close()
@@ -77,13 +77,13 @@ func TestPostgreSQLDataSource_GetMetadata(t *testing.T) {
 		ConnectionString: "postgres://user:pass@localhost:5432/testdb",
 		QueryTimeout:     30 * time.Second,
 	}
-	
+
 	ds, err := NewPostgreSQLDataSource(config)
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
 	defer ds.Close()
-	
+
 	metadata := ds.GetMetadata()
 	assert.Equal(t, datasource.TypePostgreSQL, metadata.Type)
 	assert.Equal(t, "PostgreSQL", metadata.Name)
@@ -96,13 +96,13 @@ func TestPostgreSQLDataSource_ValidateQuery(t *testing.T) {
 		ConnectionString: "postgres://user:pass@localhost:5432/testdb",
 		QueryTimeout:     30 * time.Second,
 	}
-	
+
 	ds, err := NewPostgreSQLDataSource(config)
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
 	defer ds.Close()
-	
+
 	tests := []struct {
 		name        string
 		query       datasource.Query
@@ -162,7 +162,7 @@ func TestPostgreSQLDataSource_ValidateQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ds.ValidateQuery(tt.query)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -177,13 +177,13 @@ func TestPostgreSQLDataSource_InterpolateVariables(t *testing.T) {
 		ConnectionString: "postgres://user:pass@localhost:5432/testdb",
 		QueryTimeout:     30 * time.Second,
 	}
-	
+
 	ds, err := NewPostgreSQLDataSource(config)
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
 	defer ds.Close()
-	
+
 	tests := []struct {
 		name      string
 		query     string
@@ -266,26 +266,26 @@ func TestPostgreSQLDataSource_PgTypeToDataType(t *testing.T) {
 		ConnectionString: "postgres://user:pass@localhost:5432/testdb",
 		QueryTimeout:     30 * time.Second,
 	}
-	
+
 	ds, err := NewPostgreSQLDataSource(config)
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
 	defer ds.Close()
-	
+
 	tests := []struct {
 		name     string
 		pgType   uint32
 		expected datasource.DataType
 	}{
-		{"text", 25, datasource.DataTypeString},     // TextOID
-		{"varchar", 1043, datasource.DataTypeString}, // VarcharOID  
-		{"int4", 23, datasource.DataTypeNumber},     // Int4OID
-		{"int8", 20, datasource.DataTypeNumber},     // Int8OID
-		{"float8", 701, datasource.DataTypeNumber},  // Float8OID
-		{"bool", 16, datasource.DataTypeBoolean},    // BoolOID
+		{"text", 25, datasource.DataTypeString},           // TextOID
+		{"varchar", 1043, datasource.DataTypeString},      // VarcharOID
+		{"int4", 23, datasource.DataTypeNumber},           // Int4OID
+		{"int8", 20, datasource.DataTypeNumber},           // Int8OID
+		{"float8", 701, datasource.DataTypeNumber},        // Float8OID
+		{"bool", 16, datasource.DataTypeBoolean},          // BoolOID
 		{"timestamp", 1114, datasource.DataTypeTimestamp}, // TimestampOID
-		{"unknown", 9999, datasource.DataTypeString}, // Default case
+		{"unknown", 9999, datasource.DataTypeString},      // Default case
 	}
 
 	for _, tt := range tests {
@@ -298,7 +298,7 @@ func TestPostgreSQLDataSource_PgTypeToDataType(t *testing.T) {
 
 func TestFactory_Create(t *testing.T) {
 	factory := NewFactory()
-	
+
 	tests := []struct {
 		name        string
 		config      datasource.DataSourceConfig
@@ -307,9 +307,9 @@ func TestFactory_Create(t *testing.T) {
 		{
 			name: "valid PostgreSQL config",
 			config: datasource.DataSourceConfig{
-				Type: datasource.TypePostgreSQL,
-				Name: "Test DB",
-				URL:  "postgres://user:pass@localhost:5432/testdb",
+				Type:    datasource.TypePostgreSQL,
+				Name:    "Test DB",
+				URL:     "postgres://user:pass@localhost:5432/testdb",
 				Timeout: 30 * time.Second,
 			},
 			expectError: false,
@@ -337,7 +337,7 @@ func TestFactory_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ds, err := factory.Create(tt.config)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, ds)
@@ -348,7 +348,7 @@ func TestFactory_Create(t *testing.T) {
 				}
 				assert.NoError(t, err)
 				assert.NotNil(t, ds)
-				
+
 				// Clean up
 				if ds != nil {
 					ds.Close()
@@ -361,14 +361,14 @@ func TestFactory_Create(t *testing.T) {
 func TestFactory_SupportedTypes(t *testing.T) {
 	factory := NewFactory()
 	types := factory.SupportedTypes()
-	
+
 	assert.Len(t, types, 1)
 	assert.Contains(t, types, datasource.TypePostgreSQL)
 }
 
 func TestFactory_ValidateConfig(t *testing.T) {
 	factory := NewFactory()
-	
+
 	tests := []struct {
 		name        string
 		config      datasource.DataSourceConfig
@@ -419,7 +419,7 @@ func TestFactory_ValidateConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := factory.ValidateConfig(tt.config)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -433,46 +433,46 @@ func TestFactory_ValidateConfig(t *testing.T) {
 func TestPostgreSQLDataSource_Integration(t *testing.T) {
 	// Skip integration test if no database URL provided
 	connectionString := "postgres://postgres:password@localhost:5432/testdb?sslmode=disable"
-	
+
 	config := Config{
 		ConnectionString: connectionString,
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     10 * time.Second,
 	}
-	
+
 	ds, err := NewPostgreSQLDataSource(config)
 	if err != nil {
 		t.Skipf("Skipping integration test - cannot connect to database: %v", err)
 	}
 	defer ds.Close()
-	
+
 	// Test connection
 	ctx := context.Background()
 	err = ds.TestConnection(ctx)
 	if err != nil {
 		t.Skipf("Skipping integration test - connection test failed: %v", err)
 	}
-	
+
 	// Test simple query
 	query := datasource.Query{
 		ID:     "test-query",
 		Raw:    "SELECT 1 as test_value, NOW() as test_time",
 		Format: datasource.FormatTable,
 	}
-	
+
 	result, err := ds.Query(ctx, query)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Len(t, result.Data, 1)
 	assert.Len(t, result.Columns, 2)
-	
+
 	// Check column types
 	assert.Equal(t, "test_value", result.Columns[0].Name)
 	assert.Equal(t, datasource.DataTypeNumber, result.Columns[0].Type)
 	assert.Equal(t, "test_time", result.Columns[1].Name)
 	assert.Equal(t, datasource.DataTypeTimestamp, result.Columns[1].Type)
-	
+
 	// Check data
 	dataPoint := result.Data[0]
 	assert.NotNil(t, dataPoint.Fields["test_value"])

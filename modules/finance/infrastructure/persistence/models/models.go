@@ -19,7 +19,7 @@ type MoneyAccount struct {
 	TenantID          string
 	Name              string
 	AccountNumber     string
-	Description       string
+	Description       sql.NullString
 	Balance           int64
 	BalanceCurrencyID string
 	CreatedAt         time.Time

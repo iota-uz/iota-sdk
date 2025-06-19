@@ -42,29 +42,8 @@ type RenderConfig struct {
 	RefreshRate  int // seconds
 }
 
-// Layout represents the calculated layout
-type Layout struct {
-	Grid       GridConfig
-	Panels     []PanelLayout
-	Breakpoint string
-}
-
-// PanelLayout represents a panel's layout information
-type PanelLayout struct {
-	PanelID    string
-	Position   GridPosition
-	Dimensions GridDimensions
-	CSS        PanelCSS
-}
-
-// GridCSS represents grid-specific CSS
+// GridCSS represents grid-specific CSS (UI concern)
 type GridCSS struct {
-	Classes []string
-	Styles  map[string]string
-}
-
-// PanelCSS represents panel-specific CSS
-type PanelCSS struct {
 	Classes []string
 	Styles  map[string]string
 }
@@ -89,7 +68,7 @@ func (e *evaluator) Evaluate(config *DashboardConfig, ctx EvaluationContext) (*E
 		Panels: make([]EvaluatedPanel, 0, len(config.Panels)),
 		Errors: []EvaluationError{},
 	}
-	
+
 	// Process panels
 	for _, panel := range config.Panels {
 		evaluated := EvaluatedPanel{
@@ -104,6 +83,6 @@ func (e *evaluator) Evaluate(config *DashboardConfig, ctx EvaluationContext) (*E
 		}
 		result.Panels = append(result.Panels, evaluated)
 	}
-	
+
 	return result, nil
 }

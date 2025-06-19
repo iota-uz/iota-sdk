@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,12 +33,12 @@ func TestEvaluator_Evaluate(t *testing.T) {
 				},
 				Panels: []lens.PanelConfig{
 					{
-						ID:    "panel1",
-						Title: "CPU Usage",
-						Type:  lens.ChartTypeLine,
-						Position: lens.GridPosition{X: 0, Y: 0},
+						ID:         "panel1",
+						Title:      "CPU Usage",
+						Type:       lens.ChartTypeLine,
+						Position:   lens.GridPosition{X: 0, Y: 0},
 						Dimensions: lens.GridDimensions{Width: 6, Height: 4},
-						Query: "SELECT timestamp, cpu_percent FROM metrics WHERE host = :host AND time >= :timeRange.start",
+						Query:      "SELECT timestamp, cpu_percent FROM metrics WHERE host = :host AND time >= :timeRange.start",
 						DataSource: lens.DataSourceConfig{
 							Type: "postgres",
 							Ref:  "main",
@@ -84,12 +85,12 @@ func TestEvaluator_Evaluate(t *testing.T) {
 				},
 				Panels: []lens.PanelConfig{
 					{
-						ID:    "panel1",
-						Title: "Nested Vars Panel",
-						Type:  lens.ChartTypeLine,
-						Position: lens.GridPosition{X: 0, Y: 0},
+						ID:         "panel1",
+						Title:      "Nested Vars Panel",
+						Type:       lens.ChartTypeLine,
+						Position:   lens.GridPosition{X: 0, Y: 0},
 						Dimensions: lens.GridDimensions{Width: 6, Height: 4},
-						Query: "SELECT * FROM logs WHERE level = :filters.level AND app = :filters.app",
+						Query:      "SELECT * FROM logs WHERE level = :filters.level AND app = :filters.app",
 						DataSource: lens.DataSourceConfig{
 							Type: "postgres",
 							Ref:  "main",
@@ -128,12 +129,12 @@ func TestEvaluator_Evaluate(t *testing.T) {
 				},
 				Panels: []lens.PanelConfig{
 					{
-						ID:    "panel1",
-						Title: "Invalid Vars Panel",
-						Type:  lens.ChartTypeLine,
-						Position: lens.GridPosition{X: 0, Y: 0},
+						ID:         "panel1",
+						Title:      "Invalid Vars Panel",
+						Type:       lens.ChartTypeLine,
+						Position:   lens.GridPosition{X: 0, Y: 0},
 						Dimensions: lens.GridDimensions{Width: 6, Height: 4},
-						Query: "SELECT * FROM logs WHERE level = :nonexistent",
+						Query:      "SELECT * FROM logs WHERE level = :nonexistent",
 						DataSource: lens.DataSourceConfig{
 							Type: "postgres",
 							Ref:  "main",
@@ -162,15 +163,15 @@ func TestEvaluator_Evaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := evaluator.Evaluate(tt.config, tt.context)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			
+
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}
@@ -275,12 +276,12 @@ func TestQueryProcessor_InterpolateQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := processor.InterpolateQuery(tt.query, tt.context)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -384,7 +385,7 @@ func TestQueryProcessor_ValidateQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := processor.ValidateQuery(tt.query, tt.dataSourceType)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				if tt.errorContains != "" {
@@ -392,7 +393,7 @@ func TestQueryProcessor_ValidateQuery(t *testing.T) {
 				}
 				return
 			}
-			
+
 			assert.NoError(t, err)
 		})
 	}
@@ -412,15 +413,15 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 			name: "simple_grid_layout",
 			panels: []lens.PanelConfig{
 				{
-					ID:    "panel1",
-					Title: "Panel 1",
-					Position: lens.GridPosition{X: 0, Y: 0},
+					ID:         "panel1",
+					Title:      "Panel 1",
+					Position:   lens.GridPosition{X: 0, Y: 0},
 					Dimensions: lens.GridDimensions{Width: 6, Height: 4},
 				},
 				{
-					ID:    "panel2",
-					Title: "Panel 2",
-					Position: lens.GridPosition{X: 6, Y: 0},
+					ID:         "panel2",
+					Title:      "Panel 2",
+					Position:   lens.GridPosition{X: 6, Y: 0},
 					Dimensions: lens.GridDimensions{Width: 6, Height: 4},
 				},
 			},
@@ -434,11 +435,11 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 				assert.Equal(t, 60, layout.Grid.RowHeight)
 				assert.Equal(t, BreakpointLG, layout.Breakpoint)
 				assert.Len(t, layout.Panels, 2)
-				
+
 				panel1Layout := layout.Panels[0]
 				assert.Equal(t, "panel1", panel1Layout.PanelID)
 				assert.Equal(t, "1 / 1 / 5 / 7", panel1Layout.CSS.GridArea)
-				
+
 				panel2Layout := layout.Panels[1]
 				assert.Equal(t, "panel2", panel2Layout.PanelID)
 				assert.Equal(t, "1 / 7 / 5 / 13", panel2Layout.CSS.GridArea)
@@ -448,21 +449,21 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 			name: "complex_grid_layout",
 			panels: []lens.PanelConfig{
 				{
-					ID:    "header",
-					Title: "Header Panel",
-					Position: lens.GridPosition{X: 0, Y: 0},
+					ID:         "header",
+					Title:      "Header Panel",
+					Position:   lens.GridPosition{X: 0, Y: 0},
 					Dimensions: lens.GridDimensions{Width: 12, Height: 2},
 				},
 				{
-					ID:    "sidebar",
-					Title: "Sidebar Panel",
-					Position: lens.GridPosition{X: 0, Y: 2},
+					ID:         "sidebar",
+					Title:      "Sidebar Panel",
+					Position:   lens.GridPosition{X: 0, Y: 2},
 					Dimensions: lens.GridDimensions{Width: 3, Height: 8},
 				},
 				{
-					ID:    "main",
-					Title: "Main Panel",
-					Position: lens.GridPosition{X: 3, Y: 2},
+					ID:         "main",
+					Title:      "Main Panel",
+					Position:   lens.GridPosition{X: 3, Y: 2},
 					Dimensions: lens.GridDimensions{Width: 9, Height: 8},
 				},
 			},
@@ -473,15 +474,15 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 			expectError: false,
 			validate: func(t *testing.T, layout *Layout) {
 				assert.Len(t, layout.Panels, 3)
-				
+
 				headerLayout := layout.Panels[0]
 				assert.Equal(t, "header", headerLayout.PanelID)
 				assert.Equal(t, "1 / 1 / 3 / 13", headerLayout.CSS.GridArea)
-				
+
 				sidebarLayout := layout.Panels[1]
 				assert.Equal(t, "sidebar", sidebarLayout.PanelID)
 				assert.Equal(t, "3 / 1 / 11 / 4", sidebarLayout.CSS.GridArea)
-				
+
 				mainLayout := layout.Panels[2]
 				assert.Equal(t, "main", mainLayout.PanelID)
 				assert.Equal(t, "3 / 4 / 11 / 13", mainLayout.CSS.GridArea)
@@ -506,15 +507,15 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			layout, err := engine.CalculateLayout(tt.panels, tt.grid)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			require.NotNil(t, layout)
-			
+
 			if tt.validate != nil {
 				tt.validate(t, layout)
 			}
@@ -535,10 +536,10 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 		{
 			name: "line_chart_config",
 			panel: &lens.PanelConfig{
-				ID:    "line-chart",
-				Title: "Line Chart",
-				Type:  lens.ChartTypeLine,
-				Position: lens.GridPosition{X: 0, Y: 0},
+				ID:         "line-chart",
+				Title:      "Line Chart",
+				Type:       lens.ChartTypeLine,
+				Position:   lens.GridPosition{X: 0, Y: 0},
 				Dimensions: lens.GridDimensions{Width: 6, Height: 4},
 				Options: map[string]any{
 					"color": "blue",
@@ -559,10 +560,10 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 		{
 			name: "bar_chart_config",
 			panel: &lens.PanelConfig{
-				ID:    "bar-chart",
-				Title: "Bar Chart",
-				Type:  lens.ChartTypeBar,
-				Position: lens.GridPosition{X: 6, Y: 0},
+				ID:         "bar-chart",
+				Title:      "Bar Chart",
+				Type:       lens.ChartTypeBar,
+				Position:   lens.GridPosition{X: 6, Y: 0},
 				Dimensions: lens.GridDimensions{Width: 6, Height: 4},
 			},
 			context: &EvaluationContext{},
@@ -576,10 +577,10 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 		{
 			name: "pie_chart_config",
 			panel: &lens.PanelConfig{
-				ID:    "pie-chart",
-				Title: "Pie Chart",
-				Type:  lens.ChartTypePie,
-				Position: lens.GridPosition{X: 0, Y: 4},
+				ID:         "pie-chart",
+				Title:      "Pie Chart",
+				Type:       lens.ChartTypePie,
+				Position:   lens.GridPosition{X: 0, Y: 4},
 				Dimensions: lens.GridDimensions{Width: 12, Height: 6},
 			},
 			context: &EvaluationContext{},
@@ -595,15 +596,15 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config, err := mapper.MapToRenderConfig(tt.panel, tt.context)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			require.NotNil(t, config)
-			
+
 			if tt.validate != nil {
 				tt.validate(t, config)
 			}
@@ -614,7 +615,7 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 func BenchmarkQueryProcessor_InterpolateQuery(b *testing.B) {
 	processor := NewQueryProcessor()
 	query := "SELECT * FROM metrics WHERE host = :host AND time >= :timeRange.start AND time <= :timeRange.end AND app = :filters.app"
-	
+
 	ctx := &EvaluationContext{
 		Variables: map[string]any{
 			"host": "server1",
@@ -627,7 +628,7 @@ func BenchmarkQueryProcessor_InterpolateQuery(b *testing.B) {
 			},
 		},
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := processor.InterpolateQuery(query, ctx)
@@ -639,7 +640,7 @@ func BenchmarkQueryProcessor_InterpolateQuery(b *testing.B) {
 
 func BenchmarkLayoutEngine_CalculateLayout(b *testing.B) {
 	engine := NewLayoutEngine()
-	
+
 	panels := make([]lens.PanelConfig, 20)
 	for i := 0; i < 20; i++ {
 		panels[i] = lens.PanelConfig{
@@ -655,12 +656,12 @@ func BenchmarkLayoutEngine_CalculateLayout(b *testing.B) {
 			},
 		}
 	}
-	
+
 	grid := lens.GridConfig{
 		Columns:   12,
 		RowHeight: 60,
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := engine.CalculateLayout(panels, grid)

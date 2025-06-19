@@ -38,7 +38,7 @@ func NewShowcaseController(app application.Application) application.Controller {
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
 	}
-	
+
 	pgDataSource, err := postgres.NewPostgreSQLDataSource(pgConfig)
 	if err != nil {
 		log.Printf("Failed to create PostgreSQL data source for lens: %v", err)
@@ -49,7 +49,7 @@ func NewShowcaseController(app application.Application) application.Controller {
 			executor: nil,
 		}
 	}
-	
+
 	// Create executor and register data source
 	exec := executor.NewExecutor(nil, 30*time.Second)
 	err = exec.RegisterDataSource("core", pgDataSource)
@@ -207,7 +207,7 @@ func (c *ShowcaseController) Lens(
 					"label": "New Users",
 				}).
 				Option("xAxis", map[string]interface{}{
-					"type": "datetime",
+					"type":  "datetime",
 					"label": "Date",
 				}).
 				Build(),
@@ -276,7 +276,7 @@ func (c *ShowcaseController) Lens(
 	if c.executor != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		
+
 		result, err := c.executor.ExecuteDashboard(ctx, dashboard)
 		if err != nil {
 			logger.WithError(err).Error("Failed to execute dashboard queries")

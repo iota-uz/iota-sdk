@@ -415,7 +415,7 @@ func TestToDBMoneyAccount(t *testing.T) {
 				assert.Equal(t, "123456789", dbAccount.AccountNumber, "AccountNumber should match")
 				assert.Equal(t, int64(150075), dbAccount.Balance, "Balance should match")
 				assert.Equal(t, "USD", dbAccount.BalanceCurrencyID, "BalanceCurrencyID should match")
-				assert.Equal(t, "Primary business checking account", dbAccount.Description, "Description should match")
+				assert.Equal(t, sql.NullString{String: "Primary business checking account", Valid: true}, dbAccount.Description, "Description should match")
 			},
 		},
 		{
@@ -435,7 +435,7 @@ func TestToDBMoneyAccount(t *testing.T) {
 				assert.Equal(t, "Savings Account", dbAccount.Name, "Name should match")
 				assert.Equal(t, "987654321", dbAccount.AccountNumber, "AccountNumber should match")
 				assert.Equal(t, int64(0), dbAccount.Balance, "Balance should match")
-				assert.Equal(t, "", dbAccount.Description, "Description should be empty")
+				assert.Equal(t, sql.NullString{String: "", Valid: false}, dbAccount.Description, "Description should be empty")
 			},
 		},
 	}
@@ -472,7 +472,7 @@ func TestToDomainMoneyAccount(t *testing.T) {
 				TenantID:          testTenantID.String(),
 				Name:              "Business Account",
 				AccountNumber:     "ACC-001",
-				Description:       "Main business account",
+				Description:       sql.NullString{String: "Main business account", Valid: true},
 				Balance:           250050,
 				BalanceCurrencyID: "USD",
 				CreatedAt:         now,

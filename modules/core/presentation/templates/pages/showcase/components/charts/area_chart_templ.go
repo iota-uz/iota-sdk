@@ -33,37 +33,13 @@ func AreaChart() templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = charts.Chart(charts.Props{
 			Class: "h-64",
-			Options: charts.ChartOptions{
-				Chart: charts.ChartConfig{
-					Type:   charts.AreaChartType,
-					Height: "100%",
-					Toolbar: charts.Toolbar{
-						Show: false,
-					},
-				},
-				Series: []charts.Series{
-					{
-						Name: "Users",
-						Data: []interface{}{31.0, 40.0, 28.0, 51.0, 42.0, 109.0, 100.0},
-					},
-					{
-						Name: "Sessions",
-						Data: []interface{}{11.0, 32.0, 45.0, 32.0, 34.0, 52.0, 41.0},
-					},
-				},
-				XAxis: charts.XAxisConfig{
-					Categories: []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"},
-				},
-				Colors: []string{"#3b82f6", "#8b5cf6"},
-				DataLabels: &charts.DataLabels{
-					Enabled: false,
-				},
-				YAxis: []charts.YAxisConfig{
-					{
-						// Default YAxis config
-					},
-				},
-			},
+			Options: charts.NewAreaChart().
+				WithSeries("Users", []float64{31.0, 40.0, 28.0, 51.0, 42.0, 109.0, 100.0}).
+				WithSeries("Sessions", []float64{11.0, 32.0, 45.0, 32.0, 34.0, 52.0, 41.0}).
+				WithCategories([]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}).
+				WithHeight("100%").
+				WithColors("#3b82f6", "#8b5cf6").
+				Build(),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

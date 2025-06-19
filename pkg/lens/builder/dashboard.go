@@ -2,33 +2,33 @@ package builder
 
 import (
 	"fmt"
-	"time"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"time"
 )
 
 // DashboardBuilder provides a fluent API for building dashboards
 type DashboardBuilder interface {
 	// ID sets the dashboard ID
 	ID(id string) DashboardBuilder
-	
+
 	// Title sets the dashboard title
 	Title(title string) DashboardBuilder
-	
+
 	// Description sets the dashboard description
 	Description(desc string) DashboardBuilder
-	
+
 	// Grid configures the grid layout
 	Grid(columns int, rowHeight int) DashboardBuilder
-	
+
 	// RefreshRate sets the dashboard refresh rate
 	RefreshRate(rate time.Duration) DashboardBuilder
-	
+
 	// Variable adds a dashboard variable
 	Variable(name string, value interface{}) DashboardBuilder
-	
+
 	// Panel adds a panel to the dashboard
 	Panel(panel lens.PanelConfig) DashboardBuilder
-	
+
 	// Build creates the dashboard configuration
 	Build() lens.DashboardConfig
 }
@@ -37,31 +37,31 @@ type DashboardBuilder interface {
 type PanelBuilder interface {
 	// ID sets the panel ID
 	ID(id string) PanelBuilder
-	
+
 	// Title sets the panel title
 	Title(title string) PanelBuilder
-	
+
 	// Type sets the chart type
 	Type(chartType lens.ChartType) PanelBuilder
-	
+
 	// Position sets the panel position in the grid
 	Position(x, y int) PanelBuilder
-	
+
 	// Size sets the panel dimensions
 	Size(width, height int) PanelBuilder
-	
+
 	// DataSource sets the data source for the panel
 	DataSource(dsID string) PanelBuilder
-	
+
 	// Query sets the query for the panel
 	Query(query string) PanelBuilder
-	
+
 	// RefreshRate sets the panel refresh rate
 	RefreshRate(rate time.Duration) PanelBuilder
-	
+
 	// Option sets a custom option for the panel
 	Option(key string, value interface{}) PanelBuilder
-	
+
 	// Build creates the panel configuration
 	Build() lens.PanelConfig
 }
@@ -322,7 +322,7 @@ func ExampleDashboard() lens.DashboardConfig {
 		Title("Example Dashboard").
 		Description("A sample dashboard created with the builder pattern").
 		Grid(12, 120).
-		RefreshRate(30 * time.Second).
+		RefreshRate(30*time.Second).
 		Variable("timeRange", "1h").
 		Variable("environment", "production").
 		Panel(
@@ -333,7 +333,7 @@ func ExampleDashboard() lens.DashboardConfig {
 				Size(6, 4).
 				DataSource("prometheus").
 				Query("cpu_usage_percent").
-				RefreshRate(10 * time.Second).
+				RefreshRate(10*time.Second).
 				Option("yAxis", map[string]interface{}{
 					"min": 0,
 					"max": 100,
@@ -368,19 +368,19 @@ func ValidatePanel(panel lens.PanelConfig) error {
 	if panel.ID == "" {
 		return fmt.Errorf("panel ID is required")
 	}
-	
+
 	if panel.Title == "" {
 		return fmt.Errorf("panel title is required")
 	}
-	
+
 	if panel.Dimensions.Width <= 0 || panel.Dimensions.Height <= 0 {
 		return fmt.Errorf("panel dimensions must be positive")
 	}
-	
+
 	if panel.Position.X < 0 || panel.Position.Y < 0 {
 		return fmt.Errorf("panel position cannot be negative")
 	}
-	
+
 	return nil
 }
 
@@ -389,25 +389,25 @@ func ValidateDashboard(dashboard lens.DashboardConfig) error {
 	if dashboard.ID == "" {
 		return fmt.Errorf("dashboard ID is required")
 	}
-	
+
 	if dashboard.Name == "" {
 		return fmt.Errorf("dashboard name is required")
 	}
-	
+
 	if dashboard.Grid.Columns <= 0 {
 		return fmt.Errorf("grid columns must be positive")
 	}
-	
+
 	if dashboard.Grid.RowHeight <= 0 {
 		return fmt.Errorf("grid row height must be positive")
 	}
-	
+
 	// Validate each panel
 	for i, panel := range dashboard.Panels {
 		if err := ValidatePanel(panel); err != nil {
 			return fmt.Errorf("panel %d validation failed: %w", i, err)
 		}
 	}
-	
+
 	return nil
 }

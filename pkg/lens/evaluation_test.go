@@ -29,12 +29,12 @@ func TestEvaluator_Evaluate(t *testing.T) {
 				},
 				Panels: []PanelConfig{
 					{
-						ID:    "panel1",
-						Title: "Test Panel",
-						Type:  ChartTypeLine,
-						Position: GridPosition{X: 0, Y: 0},
+						ID:         "panel1",
+						Title:      "Test Panel",
+						Type:       ChartTypeLine,
+						Position:   GridPosition{X: 0, Y: 0},
 						Dimensions: GridDimensions{Width: 6, Height: 4},
-						Query: "SELECT * FROM test",
+						Query:      "SELECT * FROM test",
 						DataSource: DataSourceConfig{
 							Type: "postgres",
 							Ref:  "main",
@@ -71,7 +71,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 				assert.Equal(t, "Test Dashboard", result.Config.Name)
 				assert.Equal(t, 12, result.Layout.Grid.Columns)
 				assert.Equal(t, "lg", result.Layout.Breakpoint)
-				
+
 				require.Len(t, result.Panels, 1)
 				panel := result.Panels[0]
 				assert.Equal(t, "panel1", panel.Config.ID)
@@ -80,7 +80,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 				assert.Equal(t, ChartTypeLine, panel.RenderConfig.ChartType)
 				assert.Equal(t, 30, panel.RenderConfig.RefreshRate)
 				assert.Contains(t, panel.RenderConfig.ChartOptions, "color")
-				
+
 				assert.Empty(t, result.Errors)
 			},
 		},
@@ -117,30 +117,30 @@ func TestEvaluator_Evaluate(t *testing.T) {
 				},
 				Panels: []PanelConfig{
 					{
-						ID:    "panel1",
-						Title: "Line Chart",
-						Type:  ChartTypeLine,
-						Position: GridPosition{X: 0, Y: 0},
+						ID:         "panel1",
+						Title:      "Line Chart",
+						Type:       ChartTypeLine,
+						Position:   GridPosition{X: 0, Y: 0},
 						Dimensions: GridDimensions{Width: 6, Height: 4},
 					},
 					{
-						ID:    "panel2",
-						Title: "Bar Chart",
-						Type:  ChartTypeBar,
-						Position: GridPosition{X: 6, Y: 0},
+						ID:         "panel2",
+						Title:      "Bar Chart",
+						Type:       ChartTypeBar,
+						Position:   GridPosition{X: 6, Y: 0},
 						Dimensions: GridDimensions{Width: 6, Height: 4},
 					},
 				},
 			},
-			context: EvaluationContext{},
+			context:     EvaluationContext{},
 			expectError: false,
 			validate: func(t *testing.T, result *EvaluatedDashboard) {
 				require.Len(t, result.Panels, 2)
-				
+
 				panel1 := result.Panels[0]
 				assert.Equal(t, "panel1", panel1.Config.ID)
 				assert.Equal(t, ChartTypeLine, panel1.RenderConfig.ChartType)
-				
+
 				panel2 := result.Panels[1]
 				assert.Equal(t, "panel2", panel2.Config.ID)
 				assert.Equal(t, ChartTypeBar, panel2.RenderConfig.ChartType)
@@ -151,15 +151,15 @@ func TestEvaluator_Evaluate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := evaluator.Evaluate(tt.config, tt.context)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			
+
 			if tt.validate != nil {
 				tt.validate(t, result)
 			}
@@ -171,7 +171,7 @@ func TestEvaluationContext(t *testing.T) {
 	t.Run("evaluation_context_creation", func(t *testing.T) {
 		start := time.Now().Add(-24 * time.Hour)
 		end := time.Now()
-		
+
 		ctx := EvaluationContext{
 			TimeRange: TimeRange{
 				Start: start,
@@ -186,7 +186,7 @@ func TestEvaluationContext(t *testing.T) {
 				Roles: []string{"admin", "viewer"},
 			},
 		}
-		
+
 		assert.Equal(t, start, ctx.TimeRange.Start)
 		assert.Equal(t, end, ctx.TimeRange.End)
 		assert.Equal(t, "engineering", ctx.Variables["department"])
@@ -216,7 +216,7 @@ func TestEvaluatedPanel(t *testing.T) {
 				RefreshRate: 60,
 			},
 		}
-		
+
 		assert.Equal(t, "test-panel", panel.Config.ID)
 		assert.Equal(t, ChartTypePie, panel.Config.Type)
 		assert.Equal(t, "SELECT count(*) FROM users WHERE active = true", panel.ResolvedQuery)

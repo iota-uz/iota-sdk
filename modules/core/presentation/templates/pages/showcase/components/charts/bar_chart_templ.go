@@ -9,7 +9,6 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/iota-uz/iota-sdk/components/charts"
-import "github.com/iota-uz/iota-sdk/pkg/mapping"
 
 func BarChart() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -34,52 +33,13 @@ func BarChart() templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = charts.Chart(charts.Props{
 			Class: "h-64",
-			Options: charts.ChartOptions{
-				Chart: charts.ChartConfig{
-					Type:   charts.BarChartType,
-					Height: "100%",
-					Toolbar: charts.Toolbar{
-						Show: false,
-					},
-				},
-				Series: []charts.Series{
-					{
-						Name: "Sales",
-						Data: []interface{}{30.0, 40.0, 45.0, 50.0, 49.0, 60.0, 70.0, 91.0},
-					},
-				},
-				XAxis: charts.XAxisConfig{
-					Categories: []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"},
-				},
-				YAxis: []charts.YAxisConfig{
-					{
-						Title: &charts.YAxisTitleConfig{
-							Text: mapping.Pointer("Sales Amount"),
-							Style: &charts.YAxisTitleStyleConfig{
-								FontWeight: "500",
-							},
-						},
-						Min:            func() *float64 { v := 0.0; return &v }(),
-						Max:            func() *float64 { v := 100.0; return &v }(),
-						TickAmount:     mapping.Pointer(5),
-						ForceNiceScale: mapping.Pointer(true),
-					},
-				},
-				Colors: []string{"#6366f1"},
-				DataLabels: &charts.DataLabels{
-					Enabled: true,
-					Style: &charts.DataLabelStyle{
-						Colors:   []string{"#000000"},
-						FontSize: "12px",
-					},
-				},
-				PlotOptions: &charts.PlotOptions{
-					Bar: &charts.BarConfig{
-						BorderRadius: 8,
-						ColumnWidth:  "60%",
-					},
-				},
-			},
+			Options: charts.NewBarChart().
+				WithSeries("Sales", []float64{30.0, 40.0, 45.0, 50.0, 49.0, 60.0, 70.0, 91.0}).
+				WithCategories([]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"}).
+				WithHeight("100%").
+				WithColors("#6366f1").
+				WithBorderRadius(8).
+				Build(),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

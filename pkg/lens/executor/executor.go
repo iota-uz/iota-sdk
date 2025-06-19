@@ -14,16 +14,16 @@ import (
 type Executor interface {
 	// Execute executes a query against a data source
 	Execute(ctx context.Context, query ExecutionQuery) (*ExecutionResult, error)
-	
+
 	// ExecutePanel executes a query for a specific panel
 	ExecutePanel(ctx context.Context, panel lens.PanelConfig, variables map[string]interface{}) (*ExecutionResult, error)
-	
+
 	// ExecuteDashboard executes all queries for a dashboard
 	ExecuteDashboard(ctx context.Context, dashboard lens.DashboardConfig) (*DashboardResult, error)
-	
+
 	// RegisterDataSource registers a data source for execution
 	RegisterDataSource(id string, ds datasource.DataSource) error
-	
+
 	// Close closes the executor and all registered data sources
 	Close() error
 }
@@ -41,22 +41,22 @@ type ExecutionQuery struct {
 
 // ExecutionResult represents the result of query execution
 type ExecutionResult struct {
-	Data      []datasource.DataPoint // Query result data
-	Metadata  ExecutionMetadata      // Execution metadata
-	Error     error                  // Execution error if any
-	Columns   []datasource.ColumnInfo // Column information
-	ExecTime  time.Duration          // Execution time
-	CacheHit  bool                   // Whether result came from cache
+	Data     []datasource.DataPoint  // Query result data
+	Metadata ExecutionMetadata       // Execution metadata
+	Error    error                   // Execution error if any
+	Columns  []datasource.ColumnInfo // Column information
+	ExecTime time.Duration           // Execution time
+	CacheHit bool                    // Whether result came from cache
 }
 
 // ExecutionMetadata contains metadata about query execution
 type ExecutionMetadata struct {
-	QueryID        string    // Unique query identifier
-	DataSourceID   string    // Data source used
-	ExecutedAt     time.Time // Execution timestamp
-	RowCount       int       // Number of rows returned
+	QueryID        string        // Unique query identifier
+	DataSourceID   string        // Data source used
+	ExecutedAt     time.Time     // Execution timestamp
+	RowCount       int           // Number of rows returned
 	ProcessingTime time.Duration // Processing time
-	QueryHash      string    // Hash of the query for caching
+	QueryHash      string        // Hash of the query for caching
 }
 
 // DashboardResult represents the result of executing all dashboard queries
@@ -80,7 +80,7 @@ func NewExecutor(registry datasource.Registry, timeout time.Duration) Executor {
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}
-	
+
 	return &executor{
 		dataSources: make(map[string]datasource.DataSource),
 		registry:    registry,
@@ -91,12 +91,12 @@ func NewExecutor(registry datasource.Registry, timeout time.Duration) Executor {
 // Execute executes a query against a data source
 func (e *executor) Execute(ctx context.Context, query ExecutionQuery) (*ExecutionResult, error) {
 	start := time.Now()
-	
+
 	// Get data source
 	e.mu.RLock()
 	ds, exists := e.dataSources[query.DataSourceID]
 	e.mu.RUnlock()
-	
+
 	if !exists {
 		// Try to get from registry
 		var err error
@@ -104,22 +104,22 @@ func (e *executor) Execute(ctx context.Context, query ExecutionQuery) (*Executio
 		if err != nil {
 			return nil, fmt.Errorf("data source not found: %s", query.DataSourceID)
 		}
-		
+
 		// Cache it
 		e.mu.Lock()
 		e.dataSources[query.DataSourceID] = ds
 		e.mu.Unlock()
 	}
-	
+
 	// Set timeout
 	timeout := query.Timeout
 	if timeout == 0 {
 		timeout = e.timeout
 	}
-	
+
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	
+
 	// Build datasource query
 	dsQuery := datasource.Query{
 		ID:            generateQueryID(),
@@ -129,7 +129,7 @@ func (e *executor) Execute(ctx context.Context, query ExecutionQuery) (*Executio
 		MaxDataPoints: query.MaxRows,
 		Format:        query.Format,
 	}
-	
+
 	// Execute query
 	result, err := ds.Query(queryCtx, dsQuery)
 	if err != nil {
@@ -143,7 +143,7 @@ func (e *executor) Execute(ctx context.Context, query ExecutionQuery) (*Executio
 			},
 		}, err
 	}
-	
+
 	// Convert to execution result
 	execResult := &ExecutionResult{
 		Data:     result.Data,
@@ -158,7 +158,7 @@ func (e *executor) Execute(ctx context.Context, query ExecutionQuery) (*Executio
 			QueryHash:      generateQueryHash(query),
 		},
 	}
-	
+
 	return execResult, nil
 }
 
@@ -169,10 +169,10 @@ func (e *executor) ExecutePanel(ctx context.Context, panel lens.PanelConfig, var
 		DataSourceID: panel.DataSource.Ref,
 		Query:        panel.Query,
 		Variables:    variables,
-		MaxRows:      1000, // Default max rows
+		MaxRows:      1000,                        // Default max rows
 		Format:       datasource.FormatTimeSeries, // Default format
 	}
-	
+
 	// Set format based on panel type
 	switch panel.Type {
 	case lens.ChartTypeTable:
@@ -180,19 +180,19 @@ func (e *executor) ExecutePanel(ctx context.Context, panel lens.PanelConfig, var
 	case lens.ChartTypeLine, lens.ChartTypeArea, lens.ChartTypeBar, lens.ChartTypeColumn:
 		query.Format = datasource.FormatTimeSeries
 	}
-	
+
 	// Extract timeout from panel options
 	if timeoutStr, ok := panel.Options["timeout"].(string); ok {
 		if timeout, err := time.ParseDuration(timeoutStr); err == nil {
 			query.Timeout = timeout
 		}
 	}
-	
+
 	// Extract max rows from panel options
 	if maxRows, ok := panel.Options["maxRows"].(int); ok {
 		query.MaxRows = maxRows
 	}
-	
+
 	return e.Execute(ctx, query)
 }
 
@@ -203,27 +203,27 @@ func (e *executor) ExecuteDashboard(ctx context.Context, dashboard lens.Dashboar
 		PanelResults: make(map[string]*ExecutionResult),
 		ExecutedAt:   start,
 	}
-	
+
 	// Convert dashboard variables to map
 	variables := make(map[string]interface{})
 	for _, variable := range dashboard.Variables {
 		variables[variable.Name] = variable.Value
 	}
-	
+
 	// Execute queries for each panel concurrently
 	var wg sync.WaitGroup
 	var mu sync.Mutex
-	
+
 	for _, panel := range dashboard.Panels {
 		wg.Add(1)
 		go func(p lens.PanelConfig) {
 			defer wg.Done()
-			
+
 			panelResult, err := e.ExecutePanel(ctx, p, variables)
-			
+
 			mu.Lock()
 			defer mu.Unlock()
-			
+
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("panel %s: %w", p.ID, err))
 				// Store error result
@@ -239,10 +239,10 @@ func (e *executor) ExecuteDashboard(ctx context.Context, dashboard lens.Dashboar
 			}
 		}(panel)
 	}
-	
+
 	wg.Wait()
 	result.Duration = time.Since(start)
-	
+
 	return result, nil
 }
 
@@ -250,7 +250,7 @@ func (e *executor) ExecuteDashboard(ctx context.Context, dashboard lens.Dashboar
 func (e *executor) RegisterDataSource(id string, ds datasource.DataSource) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	e.dataSources[id] = ds
 	return nil
 }
@@ -259,21 +259,21 @@ func (e *executor) RegisterDataSource(id string, ds datasource.DataSource) error
 func (e *executor) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	
+
 	var errors []error
 	for id, ds := range e.dataSources {
 		if err := ds.Close(); err != nil {
 			errors = append(errors, fmt.Errorf("failed to close data source %s: %w", id, err))
 		}
 	}
-	
+
 	// Clear the map
 	e.dataSources = make(map[string]datasource.DataSource)
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf("errors closing data sources: %v", errors)
 	}
-	
+
 	return nil
 }
 
@@ -285,7 +285,7 @@ func generateQueryID() string {
 
 func generateQueryHash(query ExecutionQuery) string {
 	// Simple hash based on query content
-	return fmt.Sprintf("%x", 
+	return fmt.Sprintf("%x",
 		fmt.Sprintf("%s:%s:%v", query.DataSourceID, query.Query, query.Variables))
 }
 

@@ -9,11 +9,11 @@ import (
 type Breakpoint string
 
 const (
-	BreakpointXS Breakpoint = "xs"  // < 576px
-	BreakpointSM Breakpoint = "sm"  // >= 576px
-	BreakpointMD Breakpoint = "md"  // >= 768px
-	BreakpointLG Breakpoint = "lg"  // >= 992px
-	BreakpointXL Breakpoint = "xl"  // >= 1200px
+	BreakpointXS Breakpoint = "xs" // < 576px
+	BreakpointSM Breakpoint = "sm" // >= 576px
+	BreakpointMD Breakpoint = "md" // >= 768px
+	BreakpointLG Breakpoint = "lg" // >= 992px
+	BreakpointXL Breakpoint = "xl" // >= 1200px
 )
 
 // BreakpointConfig represents breakpoint configuration
@@ -103,57 +103,57 @@ func (re *responsiveEngine) AdjustLayout(layout *Layout, breakpoint Breakpoint) 
 		CSS:        layout.CSS,
 		Bounds:     layout.Bounds,
 	}
-	
+
 	// Get breakpoint configuration
 	config := re.GetBreakpointConfig(breakpoint)
-	
+
 	// Adjust grid configuration
 	adjusted.Grid.Columns = config.Columns
 	adjusted.Grid.RowHeight = config.RowHeight
-	
+
 	// Adjust each panel for the breakpoint
 	for i, panel := range layout.Panels {
 		adjustedPanel := re.adjustPanelForBreakpoint(panel, breakpoint, config)
 		adjusted.Panels[i] = adjustedPanel
 	}
-	
+
 	// Update container CSS for the breakpoint
 	re.updateContainerCSS(&adjusted.CSS, breakpoint, config)
-	
+
 	return adjusted
 }
 
 // adjustPanelForBreakpoint adjusts a single panel for a specific breakpoint
 func (re *responsiveEngine) adjustPanelForBreakpoint(panel PanelLayout, breakpoint Breakpoint, config BreakpointConfig) PanelLayout {
 	adjusted := panel
-	
+
 	switch breakpoint {
 	case BreakpointXS:
 		// Stack all panels vertically on mobile
 		adjusted.Position = lens.GridPosition{X: 0, Y: panel.Position.Y}
 		adjusted.Dimensions = lens.GridDimensions{Width: 1, Height: panel.Dimensions.Height}
-		
+
 	case BreakpointSM:
 		// Reduce to 2 columns on small tablets
 		adjusted.Dimensions.Width = min(panel.Dimensions.Width, 2)
 		if panel.Position.X+adjusted.Dimensions.Width > config.Columns {
 			adjusted.Position.X = 0
 		}
-		
+
 	case BreakpointMD:
 		// Reduce to 4 columns on medium screens
 		adjusted.Dimensions.Width = min(panel.Dimensions.Width, 4)
 		if panel.Position.X+adjusted.Dimensions.Width > config.Columns {
 			adjusted.Position.X = max(0, config.Columns-adjusted.Dimensions.Width)
 		}
-		
+
 	case BreakpointLG, BreakpointXL:
 		// Use original dimensions for large screens, but ensure they fit
 		if panel.Position.X+panel.Dimensions.Width > config.Columns {
 			adjusted.Dimensions.Width = max(1, config.Columns-panel.Position.X)
 		}
 	}
-	
+
 	// Update CSS with responsive values
 	if responsiveCSS, exists := panel.CSS.ResponsiveCSS[breakpoint]; exists {
 		// Merge responsive styles
@@ -163,11 +163,11 @@ func (re *responsiveEngine) adjustPanelForBreakpoint(panel PanelLayout, breakpoi
 		// Add responsive classes
 		adjusted.CSS.Classes = append(adjusted.CSS.Classes, responsiveCSS.Classes...)
 	}
-	
+
 	// Recalculate grid area
 	adjusted.CSS.GridArea = calculateGridArea(adjusted.Position, adjusted.Dimensions)
 	adjusted.CSS.Styles["grid-area"] = adjusted.CSS.GridArea
-	
+
 	return adjusted
 }
 
@@ -175,18 +175,18 @@ func (re *responsiveEngine) adjustPanelForBreakpoint(panel PanelLayout, breakpoi
 func (re *responsiveEngine) updateContainerCSS(css *LayoutCSS, breakpoint Breakpoint, config BreakpointConfig) {
 	// Update grid template columns
 	css.GridTemplate.Columns = generateGridColumns(config.Columns)
-	
+
 	// Add breakpoint-specific classes
 	css.ContainerClasses = append(css.ContainerClasses, string(breakpoint))
-	
+
 	// Update container styles
 	if css.ContainerStyles == nil {
 		css.ContainerStyles = make(map[string]string)
 	}
-	
+
 	css.ContainerStyles["grid-template-columns"] = css.GridTemplate.Columns
 	css.ContainerStyles["grid-auto-rows"] = generateAutoRows(config.RowHeight)
-	
+
 	// Add responsive-specific styles
 	switch breakpoint {
 	case BreakpointXS:
@@ -208,7 +208,7 @@ func (re *responsiveEngine) GetBreakpointConfig(breakpoint Breakpoint) Breakpoin
 			return config
 		}
 	}
-	
+
 	// Return default if not found
 	return BreakpointConfig{
 		Name:      breakpoint,
@@ -222,7 +222,7 @@ func (re *responsiveEngine) GetBreakpointConfig(breakpoint Breakpoint) Breakpoin
 // CalculateResponsiveDimensions calculates responsive dimensions for a panel
 func (re *responsiveEngine) CalculateResponsiveDimensions(panel lens.PanelConfig, breakpoint Breakpoint) lens.GridDimensions {
 	config := re.GetBreakpointConfig(breakpoint)
-	
+
 	switch breakpoint {
 	case BreakpointXS:
 		return lens.GridDimensions{Width: 1, Height: panel.Dimensions.Height}
@@ -252,7 +252,7 @@ func (re *responsiveEngine) GetBreakpointFromWidth(width int) Breakpoint {
 			return config.Name
 		}
 	}
-	
+
 	// Default to large if no match found
 	return BreakpointLG
 }

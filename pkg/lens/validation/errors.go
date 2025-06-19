@@ -20,13 +20,13 @@ func (e ValidationError) Error() string {
 type ValidationErrorCode string
 
 const (
-	ErrCodeRequired        ValidationErrorCode = "REQUIRED"
-	ErrCodeInvalid         ValidationErrorCode = "INVALID"
-	ErrCodeDuplicate       ValidationErrorCode = "DUPLICATE"
-	ErrCodeOutOfBounds     ValidationErrorCode = "OUT_OF_BOUNDS"
-	ErrCodeOverlap         ValidationErrorCode = "OVERLAP"
-	ErrCodeInvalidFormat   ValidationErrorCode = "INVALID_FORMAT"
-	ErrCodeInvalidRange    ValidationErrorCode = "INVALID_RANGE"
+	ErrCodeRequired      ValidationErrorCode = "REQUIRED"
+	ErrCodeInvalid       ValidationErrorCode = "INVALID"
+	ErrCodeDuplicate     ValidationErrorCode = "DUPLICATE"
+	ErrCodeOutOfBounds   ValidationErrorCode = "OUT_OF_BOUNDS"
+	ErrCodeOverlap       ValidationErrorCode = "OVERLAP"
+	ErrCodeInvalidFormat ValidationErrorCode = "INVALID_FORMAT"
+	ErrCodeInvalidRange  ValidationErrorCode = "INVALID_RANGE"
 )
 
 // NewValidationError creates a new validation error with a code
@@ -45,11 +45,11 @@ func (e ValidationErrors) Error() string {
 	if len(e) == 0 {
 		return "no validation errors"
 	}
-	
+
 	if len(e) == 1 {
 		return e[0].Error()
 	}
-	
+
 	return fmt.Sprintf("validation failed with %d errors: %s", len(e), e[0].Error())
 }
 

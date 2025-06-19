@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // PostgreSQLDataSource implements DataSource for PostgreSQL databases
@@ -34,13 +34,13 @@ func NewPostgreSQLDataSource(config Config) (*PostgreSQLDataSource, error) {
 	if config.ConnectionString == "" {
 		return nil, fmt.Errorf("connection string is required")
 	}
-	
+
 	// Parse connection string and create pool config
 	poolConfig, err := pgxpool.ParseConfig(config.ConnectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}
-	
+
 	// Apply configuration
 	if config.MaxConnections > 0 {
 		poolConfig.MaxConns = config.MaxConnections
@@ -54,18 +54,18 @@ func NewPostgreSQLDataSource(config Config) (*PostgreSQLDataSource, error) {
 	if config.MaxConnIdleTime > 0 {
 		poolConfig.MaxConnIdleTime = config.MaxConnIdleTime
 	}
-	
+
 	// Create connection pool
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connection pool: %w", err)
 	}
-	
+
 	// Set default timeout
 	if config.QueryTimeout == 0 {
 		config.QueryTimeout = 30 * time.Second
 	}
-	
+
 	ds := &PostgreSQLDataSource{
 		pool:   pool,
 		config: config,
@@ -80,7 +80,7 @@ func NewPostgreSQLDataSource(config Config) (*PostgreSQLDataSource, error) {
 			},
 		},
 	}
-	
+
 	return ds, nil
 }
 
@@ -91,10 +91,10 @@ func (ds *PostgreSQLDataSource) Query(ctx context.Context, query datasource.Quer
 	if query.RefreshRate > 0 && query.RefreshRate < queryTimeout {
 		queryTimeout = query.RefreshRate
 	}
-	
+
 	queryCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	
+
 	// Interpolate variables in query
 	interpolatedQuery, err := ds.interpolateVariables(query.Raw, query.Variables)
 	if err != nil {
@@ -105,7 +105,7 @@ func (ds *PostgreSQLDataSource) Query(ctx context.Context, query datasource.Quer
 			Query:   query.Raw,
 		}
 	}
-	
+
 	// Execute query based on format
 	switch query.Format {
 	case datasource.FormatTable:
@@ -120,18 +120,18 @@ func (ds *PostgreSQLDataSource) Query(ctx context.Context, query datasource.Quer
 // executeTableQuery executes a query and returns table format results
 func (ds *PostgreSQLDataSource) executeTableQuery(ctx context.Context, query string, originalQuery datasource.Query) (*datasource.QueryResult, error) {
 	start := time.Now()
-	
+
 	// Apply row limit
 	if originalQuery.MaxDataPoints > 0 {
 		query = fmt.Sprintf("%s LIMIT %d", query, originalQuery.MaxDataPoints)
 	}
-	
+
 	rows, err := ds.pool.Query(ctx, query)
 	if err != nil {
 		return nil, ds.handleQueryError(err, query)
 	}
 	defer rows.Close()
-	
+
 	// Get column information
 	fieldDescriptions := rows.FieldDescriptions()
 	columns := make([]datasource.ColumnInfo, len(fieldDescriptions))
@@ -141,45 +141,45 @@ func (ds *PostgreSQLDataSource) executeTableQuery(ctx context.Context, query str
 			Type: ds.pgTypeToDataType(desc.DataTypeOID),
 		}
 	}
-	
+
 	// Read all rows
 	var dataPoints []datasource.DataPoint
 	rowCount := 0
-	
+
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
 			return nil, ds.handleQueryError(err, query)
 		}
-		
+
 		// Convert row to data point
 		fields := make(map[string]interface{})
 		for i, value := range values {
 			columnName := columns[i].Name
 			fields[columnName] = value
 		}
-		
+
 		dataPoint := datasource.DataPoint{
 			Timestamp: time.Now(), // Use current time for non-time series data
 			Fields:    fields,
 			Labels:    make(map[string]string),
 		}
-		
+
 		// If first column looks like a timestamp, use it
 		if len(values) > 0 {
 			if timestamp, ok := values[0].(time.Time); ok {
 				dataPoint.Timestamp = timestamp
 			}
 		}
-		
+
 		dataPoints = append(dataPoints, dataPoint)
 		rowCount++
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, ds.handleQueryError(err, query)
 	}
-	
+
 	return &datasource.QueryResult{
 		Data:    dataPoints,
 		Columns: columns,
@@ -197,18 +197,18 @@ func (ds *PostgreSQLDataSource) executeTableQuery(ctx context.Context, query str
 // executeTimeSeriesQuery executes a query and returns time series format results
 func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, query string, originalQuery datasource.Query) (*datasource.QueryResult, error) {
 	start := time.Now()
-	
+
 	// Apply row limit
 	if originalQuery.MaxDataPoints > 0 {
 		query = fmt.Sprintf("%s LIMIT %d", query, originalQuery.MaxDataPoints)
 	}
-	
+
 	rows, err := ds.pool.Query(ctx, query)
 	if err != nil {
 		return nil, ds.handleQueryError(err, query)
 	}
 	defer rows.Close()
-	
+
 	// Get column information
 	fieldDescriptions := rows.FieldDescriptions()
 	columns := make([]datasource.ColumnInfo, len(fieldDescriptions))
@@ -218,7 +218,7 @@ func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, quer
 			Type: ds.pgTypeToDataType(desc.DataTypeOID),
 		}
 	}
-	
+
 	// Expect at least timestamp and value columns
 	if len(columns) < 2 {
 		return nil, &datasource.QueryError{
@@ -227,21 +227,21 @@ func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, quer
 			Query:   query,
 		}
 	}
-	
+
 	// Read all rows
 	var dataPoints []datasource.DataPoint
 	rowCount := 0
-	
+
 	for rows.Next() {
 		values, err := rows.Values()
 		if err != nil {
 			return nil, ds.handleQueryError(err, query)
 		}
-		
+
 		if len(values) < 2 {
 			continue
 		}
-		
+
 		// First column should be timestamp
 		var timestamp time.Time
 		switch t := values[0].(type) {
@@ -256,18 +256,18 @@ func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, quer
 		default:
 			timestamp = time.Now()
 		}
-		
+
 		// Second column should be the main value
 		var value interface{} = values[1]
-		
+
 		// Additional columns become fields
 		fields := make(map[string]interface{})
 		labels := make(map[string]string)
-		
+
 		for i := 2; i < len(values); i++ {
 			columnName := columns[i].Name
 			columnValue := values[i]
-			
+
 			// String values go to labels, others to fields
 			if strValue, ok := columnValue.(string); ok {
 				labels[columnName] = strValue
@@ -275,22 +275,22 @@ func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, quer
 				fields[columnName] = columnValue
 			}
 		}
-		
+
 		dataPoint := datasource.DataPoint{
 			Timestamp: timestamp,
 			Value:     value,
 			Fields:    fields,
 			Labels:    labels,
 		}
-		
+
 		dataPoints = append(dataPoints, dataPoint)
 		rowCount++
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, ds.handleQueryError(err, query)
 	}
-	
+
 	return &datasource.QueryResult{
 		Data:    dataPoints,
 		Columns: columns,
@@ -309,7 +309,7 @@ func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, quer
 func (ds *PostgreSQLDataSource) TestConnection(ctx context.Context) error {
 	testCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	
+
 	return ds.pool.Ping(testCtx)
 }
 
@@ -323,27 +323,27 @@ func (ds *PostgreSQLDataSource) ValidateQuery(query datasource.Query) error {
 	if query.Raw == "" {
 		return fmt.Errorf("query cannot be empty")
 	}
-	
+
 	// Basic SQL injection protection
 	lowerQuery := strings.ToLower(strings.TrimSpace(query.Raw))
-	
+
 	// Allow only SELECT statements
 	if !strings.HasPrefix(lowerQuery, "select") {
 		return fmt.Errorf("only SELECT queries are allowed")
 	}
-	
+
 	// Prevent dangerous operations
 	dangerousKeywords := []string{
-		"drop", "delete", "insert", "update", "create", "alter", 
+		"drop", "delete", "insert", "update", "create", "alter",
 		"truncate", "grant", "revoke", "exec", "execute",
 	}
-	
+
 	for _, keyword := range dangerousKeywords {
 		if strings.Contains(lowerQuery, keyword) {
 			return fmt.Errorf("query contains dangerous keyword: %s", keyword)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -360,10 +360,10 @@ func (ds *PostgreSQLDataSource) Close() error {
 // interpolateVariables replaces variables in the query string
 func (ds *PostgreSQLDataSource) interpolateVariables(query string, variables map[string]interface{}) (string, error) {
 	result := query
-	
+
 	for key, value := range variables {
 		placeholder := fmt.Sprintf("$%s", key)
-		
+
 		// Convert value to string safely
 		var valueStr string
 		switch v := value.(type) {
@@ -381,10 +381,10 @@ func (ds *PostgreSQLDataSource) interpolateVariables(query string, variables map
 		default:
 			valueStr = fmt.Sprintf("'%v'", v)
 		}
-		
+
 		result = strings.ReplaceAll(result, placeholder, valueStr)
 	}
-	
+
 	return result, nil
 }
 
@@ -410,10 +410,10 @@ func (ds *PostgreSQLDataSource) handleQueryError(err error, query string) error 
 	if err == nil {
 		return nil
 	}
-	
+
 	var code datasource.ErrorCode
 	message := err.Error()
-	
+
 	switch {
 	case strings.Contains(message, "timeout"):
 		code = datasource.ErrorCodeTimeout
@@ -426,7 +426,7 @@ func (ds *PostgreSQLDataSource) handleQueryError(err error, query string) error 
 	default:
 		code = datasource.ErrorCodeInternal
 	}
-	
+
 	return &datasource.QueryError{
 		Code:    code,
 		Message: message,
@@ -447,7 +447,7 @@ func (f *Factory) Create(config datasource.DataSourceConfig) (datasource.DataSou
 	if config.Type != datasource.TypePostgreSQL {
 		return nil, fmt.Errorf("unsupported data source type: %s", config.Type)
 	}
-	
+
 	pgConfig := Config{
 		ConnectionString: config.URL,
 		QueryTimeout:     config.Timeout,
@@ -456,7 +456,7 @@ func (f *Factory) Create(config datasource.DataSourceConfig) (datasource.DataSou
 		MaxConnLifetime:  time.Hour,
 		MaxConnIdleTime:  30 * time.Minute,
 	}
-	
+
 	// Extract additional options
 	if maxConns, ok := config.Options["maxConnections"].(int); ok {
 		pgConfig.MaxConnections = int32(maxConns)
@@ -464,7 +464,7 @@ func (f *Factory) Create(config datasource.DataSourceConfig) (datasource.DataSou
 	if minConns, ok := config.Options["minConnections"].(int); ok {
 		pgConfig.MinConnections = int32(minConns)
 	}
-	
+
 	return NewPostgreSQLDataSource(pgConfig)
 }
 
@@ -478,15 +478,15 @@ func (f *Factory) ValidateConfig(config datasource.DataSourceConfig) error {
 	if config.Type != datasource.TypePostgreSQL {
 		return fmt.Errorf("unsupported data source type: %s", config.Type)
 	}
-	
+
 	if config.URL == "" {
 		return fmt.Errorf("connection URL is required for PostgreSQL data source")
 	}
-	
+
 	// Validate connection string format
 	if !strings.Contains(config.URL, "postgres://") && !strings.Contains(config.URL, "postgresql://") {
 		return fmt.Errorf("invalid PostgreSQL connection string format")
 	}
-	
+
 	return nil
 }

@@ -35,10 +35,10 @@ type GridDimensions struct {
 
 // Variable represents a dashboard variable for templating
 type Variable struct {
-	Name    string      `json:"name"`
-	Type    string      `json:"type"`
-	Default any `json:"default"`
-	Value   any `json:"value,omitempty"`
+	Name    string `json:"name"`
+	Type    string `json:"type"`
+	Default any    `json:"default"`
+	Value   any    `json:"value,omitempty"`
 }
 
 // DataResult represents query execution results
@@ -52,4 +52,18 @@ type DataResult struct {
 type Column struct {
 	Name string
 	Type string
+}
+
+// Layout represents the calculated dashboard layout (core business logic only)
+type Layout struct {
+	Grid       GridConfig
+	Panels     []PanelLayout
+	Breakpoint string
+}
+
+// PanelLayout represents a panel's layout information (core business logic only)
+type PanelLayout struct {
+	PanelID    string
+	Position   GridPosition
+	Dimensions GridDimensions
 }

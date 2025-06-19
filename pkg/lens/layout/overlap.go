@@ -15,11 +15,11 @@ type OverlapDetector interface {
 
 // OverlapError represents an overlap between two panels
 type OverlapError struct {
-	Panel1    string
-	Panel2    string
-	Overlap   OverlapRegion
-	Severity  OverlapSeverity
-	Message   string
+	Panel1   string
+	Panel2   string
+	Overlap  OverlapRegion
+	Severity OverlapSeverity
+	Message  string
 }
 
 func (e OverlapError) Error() string {
@@ -45,13 +45,13 @@ const (
 
 // ConflictReport provides detailed conflict analysis
 type ConflictReport struct {
-	TotalOverlaps     int
-	CriticalOverlaps  int
-	ModerateOverlaps  int
-	MinorOverlaps     int
-	AffectedPanels    []string
-	OverlapDetails    []OverlapError
-	GridUtilization   float64
+	TotalOverlaps    int
+	CriticalOverlaps int
+	ModerateOverlaps int
+	MinorOverlaps    int
+	AffectedPanels   []string
+	OverlapDetails   []OverlapError
+	GridUtilization  float64
 }
 
 // ResolutionSuggestion suggests how to resolve overlaps
@@ -84,19 +84,19 @@ func NewOverlapDetector() OverlapDetector {
 // DetectOverlaps detects all overlapping panel pairs
 func (od *overlapDetector) DetectOverlaps(panels []lens.PanelConfig) []OverlapError {
 	var overlaps []OverlapError
-	
+
 	for i, panel1 := range panels {
 		for j, panel2 := range panels {
 			if i >= j {
 				continue // Avoid checking the same pair twice and self-comparison
 			}
-			
+
 			if overlap := od.checkPanelOverlap(panel1, panel2); overlap != nil {
 				overlaps = append(overlaps, *overlap)
 			}
 		}
 	}
-	
+
 	return overlaps
 }
 
@@ -107,40 +107,40 @@ func (od *overlapDetector) checkPanelOverlap(panel1, panel2 lens.PanelConfig) *O
 	p1Right := panel1.Position.X + panel1.Dimensions.Width
 	p1Top := panel1.Position.Y
 	p1Bottom := panel1.Position.Y + panel1.Dimensions.Height
-	
+
 	p2Left := panel2.Position.X
 	p2Right := panel2.Position.X + panel2.Dimensions.Width
 	p2Top := panel2.Position.Y
 	p2Bottom := panel2.Position.Y + panel2.Dimensions.Height
-	
+
 	// Check if panels overlap
 	if p1Right <= p2Left || p2Right <= p1Left || p1Bottom <= p2Top || p2Bottom <= p1Top {
 		return nil // No overlap
 	}
-	
+
 	// Calculate overlap region
 	overlapLeft := max(p1Left, p2Left)
 	overlapRight := min(p1Right, p2Right)
 	overlapTop := max(p1Top, p2Top)
 	overlapBottom := min(p1Bottom, p2Bottom)
-	
+
 	overlapRegion := OverlapRegion{
 		X:      overlapLeft,
 		Y:      overlapTop,
 		Width:  overlapRight - overlapLeft,
 		Height: overlapBottom - overlapTop,
 	}
-	
+
 	// Calculate overlap severity
 	overlapArea := overlapRegion.Width * overlapRegion.Height
 	panel1Area := panel1.Dimensions.Width * panel1.Dimensions.Height
 	panel2Area := panel2.Dimensions.Width * panel2.Dimensions.Height
-	
+
 	minPanelArea := min(panel1Area, panel2Area)
 	overlapPercentage := float64(overlapArea) / float64(minPanelArea)
-	
+
 	severity := od.calculateSeverity(overlapPercentage)
-	
+
 	return &OverlapError{
 		Panel1:   panel1.ID,
 		Panel2:   panel2.ID,
@@ -165,22 +165,22 @@ func (od *overlapDetector) calculateSeverity(overlapPercentage float64) OverlapS
 // DetectAllConflicts provides comprehensive conflict analysis
 func (od *overlapDetector) DetectAllConflicts(panels []lens.PanelConfig) []ConflictReport {
 	overlaps := od.DetectOverlaps(panels)
-	
+
 	if len(overlaps) == 0 {
 		return []ConflictReport{{
 			TotalOverlaps:   0,
 			GridUtilization: od.calculateGridUtilization(panels),
 		}}
 	}
-	
+
 	// Count overlaps by severity
 	var critical, moderate, minor int
 	affectedPanels := make(map[string]bool)
-	
+
 	for _, overlap := range overlaps {
 		affectedPanels[overlap.Panel1] = true
 		affectedPanels[overlap.Panel2] = true
-		
+
 		switch overlap.Severity {
 		case SeverityCritical:
 			critical++
@@ -190,23 +190,23 @@ func (od *overlapDetector) DetectAllConflicts(panels []lens.PanelConfig) []Confl
 			minor++
 		}
 	}
-	
+
 	// Convert affected panels map to slice
 	var affected []string
 	for panelID := range affectedPanels {
 		affected = append(affected, panelID)
 	}
-	
+
 	report := ConflictReport{
-		TotalOverlaps:     len(overlaps),
-		CriticalOverlaps:  critical,
-		ModerateOverlaps:  moderate,
-		MinorOverlaps:     minor,
-		AffectedPanels:    affected,
-		OverlapDetails:    overlaps,
-		GridUtilization:   od.calculateGridUtilization(panels),
+		TotalOverlaps:    len(overlaps),
+		CriticalOverlaps: critical,
+		ModerateOverlaps: moderate,
+		MinorOverlaps:    minor,
+		AffectedPanels:   affected,
+		OverlapDetails:   overlaps,
+		GridUtilization:  od.calculateGridUtilization(panels),
 	}
-	
+
 	return []ConflictReport{report}
 }
 
@@ -215,29 +215,29 @@ func (od *overlapDetector) calculateGridUtilization(panels []lens.PanelConfig) f
 	if len(panels) == 0 {
 		return 0.0
 	}
-	
+
 	// Find grid bounds
 	maxX, maxY := 0, 0
 	totalPanelArea := 0
-	
+
 	for _, panel := range panels {
 		right := panel.Position.X + panel.Dimensions.Width
 		bottom := panel.Position.Y + panel.Dimensions.Height
-		
+
 		if right > maxX {
 			maxX = right
 		}
 		if bottom > maxY {
 			maxY = bottom
 		}
-		
+
 		totalPanelArea += panel.Dimensions.Width * panel.Dimensions.Height
 	}
-	
+
 	if maxX == 0 || maxY == 0 {
 		return 0.0
 	}
-	
+
 	gridArea := maxX * maxY
 	return float64(totalPanelArea) / float64(gridArea)
 }
@@ -245,27 +245,27 @@ func (od *overlapDetector) calculateGridUtilization(panels []lens.PanelConfig) f
 // SuggestResolution suggests how to resolve overlaps
 func (od *overlapDetector) SuggestResolution(panels []lens.PanelConfig, conflicts []OverlapError) []ResolutionSuggestion {
 	var suggestions []ResolutionSuggestion
-	
+
 	// Group conflicts by panel
 	panelConflicts := make(map[string][]OverlapError)
 	for _, conflict := range conflicts {
 		panelConflicts[conflict.Panel1] = append(panelConflicts[conflict.Panel1], conflict)
 		panelConflicts[conflict.Panel2] = append(panelConflicts[conflict.Panel2], conflict)
 	}
-	
+
 	// Generate suggestions for each conflicted panel
 	for panelID, panelConflictsList := range panelConflicts {
 		panel := od.findPanelByID(panels, panelID)
 		if panel == nil {
 			continue
 		}
-		
+
 		suggestion := od.generateSuggestionForPanel(*panel, panelConflictsList)
 		if suggestion != nil {
 			suggestions = append(suggestions, *suggestion)
 		}
 	}
-	
+
 	return suggestions
 }
 
@@ -276,7 +276,7 @@ func (od *overlapDetector) generateSuggestionForPanel(panel lens.PanelConfig, co
 		if conflict.Severity == SeverityCritical {
 			// Find the next available position
 			newPos := od.findNextAvailablePosition(panel)
-			
+
 			return &ResolutionSuggestion{
 				Type:        ResolutionMove,
 				PanelID:     panel.ID,
@@ -287,13 +287,13 @@ func (od *overlapDetector) generateSuggestionForPanel(panel lens.PanelConfig, co
 			}
 		}
 	}
-	
+
 	// For moderate overlaps, suggest resizing
 	for _, conflict := range conflicts {
 		if conflict.Severity == SeverityModerate {
 			// Suggest reducing width to avoid overlap
 			newWidth := max(1, panel.Dimensions.Width-conflict.Overlap.Width)
-			
+
 			return &ResolutionSuggestion{
 				Type:    ResolutionResize,
 				PanelID: panel.ID,
@@ -306,7 +306,7 @@ func (od *overlapDetector) generateSuggestionForPanel(panel lens.PanelConfig, co
 			}
 		}
 	}
-	
+
 	return nil
 }
 

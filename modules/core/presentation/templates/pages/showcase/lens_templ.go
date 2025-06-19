@@ -42,7 +42,7 @@ func LensContent(props LensPageProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t@templ.Raw(ui.GenerateCSS(props.Dashboard.Grid))\n\t</style>")
+		templ_7745c5c3_Err = templ.Raw(ui.GenerateCSS(props.Dashboard.Grid)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -52,7 +52,7 @@ func LensContent(props LensPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"p-8 text-center\"><p class=\"text-gray-600\">No database connection available</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"p-8 text-center\"><p class=\"text-gray-600\">No database connection available</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

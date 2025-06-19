@@ -33,34 +33,14 @@ func RadialBarChart() templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = charts.Chart(charts.Props{
 			Class: "h-64",
-			Options: charts.ChartOptions{
-				Chart: charts.ChartConfig{
-					Type:   charts.RadialBarChartType,
-					Height: "100%",
-					Toolbar: charts.Toolbar{
-						Show: false,
-					},
-				},
-				Series: []charts.Series{
-					{
-						Data: []interface{}{70.0, 85.0, 60.0, 45.0, 90.0},
-					},
-				},
-				XAxis: charts.XAxisConfig{
-					Categories: []string{
-						"Metric A", "Metric B", "Metric C", "Metric D", "Metric E",
-					},
-				},
-				Colors: []string{"#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"},
-				DataLabels: &charts.DataLabels{
-					Enabled: false,
-				},
-				YAxis: []charts.YAxisConfig{
-					{
-						// Default YAxis config
-					},
-				},
-			},
+			Options: charts.NewRadialBarChart(
+				[]float64{70, 85, 60, 45, 90},
+				[]string{"Metric A", "Metric B", "Metric C", "Metric D", "Metric E"},
+			).
+				WithHeight("100%").
+				WithColors("#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6").
+				WithTrackStrokeWidth("25px").
+				Build(),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
