@@ -2,10 +2,8 @@ package table
 
 import (
 	"fmt"
-	"time"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
-	"github.com/iota-uz/iota-sdk/pkg/crud"
 )
 
 type DefaultDrawerProps struct {
@@ -13,14 +11,32 @@ type DefaultDrawerProps struct {
 	CallbackURL string
 }
 
+// DetailFieldValue represents a field value to display in the details drawer
+type DetailFieldValue struct {
+	Name  string
+	Label string
+	Value string
+	Type  DetailFieldType
+}
+
+// DetailFieldType represents the type of field for display purposes
+type DetailFieldType string
+
+const (
+	DetailFieldTypeText      DetailFieldType = "text"
+	DetailFieldTypeBoolean   DetailFieldType = "boolean"
+	DetailFieldTypeDate      DetailFieldType = "date"
+	DetailFieldTypeTime      DetailFieldType = "time"
+	DetailFieldTypeDateTime  DetailFieldType = "datetime"
+	DetailFieldTypeBadge     DetailFieldType = "badge"
+)
+
 type DetailsDrawerProps struct {
-	ID              string
-	Title           string
-	CallbackURL     string
-	FieldValues     []crud.FieldValue
-	VisibleFields   []crud.Field
-	FieldLabels     map[string]string // Map field name to localized label
-	Actions         []DetailAction
+	ID          string
+	Title       string
+	CallbackURL string
+	Fields      []DetailFieldValue
+	Actions     []DetailAction
 }
 
 type DetailAction struct {
@@ -78,28 +94,15 @@ templ DetailsDrawer(props DetailsDrawerProps) {
 		}) {
 			<div class="p-6 space-y-4">
 				<dl class="divide-y divide-gray-100">
-					{{
-						// Create field value map for quick lookup
-						fieldValueMap := make(map[string]crud.FieldValue, len(props.FieldValues))
-						for _, fv := range props.FieldValues {
-							fieldValueMap[fv.Field().Name()] = fv
-						}
-					}}
-					for _, field := range props.VisibleFields {
-						if fv, exists := fieldValueMap[field.Name()]; exists {
-							<div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
-								<dt class="text-sm font-medium leading-6 text-gray-900">
-									if label, ok := props.FieldLabels[field.Name()]; ok {
-										{ label }
-									} else {
-										{ field.Name() }
-									}
-								</dt>
-								<dd class="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
-									@renderFieldValue(fv)
-								</dd>
-							</div>
-						}
+					for _, field := range props.Fields {
+						<div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
+							<dt class="text-sm font-medium leading-6 text-gray-900">
+								{ field.Label }
+							</dt>
+							<dd class="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+								@renderDetailFieldValue(field)
+							</dd>
+						</div>
 					}
 				</dl>
 				
@@ -132,33 +135,21 @@ templ DetailsDrawer(props DetailsDrawerProps) {
 	</div>
 }
 
-templ renderFieldValue(fv crud.FieldValue) {
-	if fv.IsZero() {
+templ renderDetailFieldValue(field DetailFieldValue) {
+	if field.Value == "" {
 		<span class="text-gray-400">-</span>
 	} else {
-		switch fv.Field().Type() {
-		case crud.BoolFieldType:
-			if val, ok := fv.Value().(bool); ok {
-				if val {
-					<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">True</span>
-				} else {
-					<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">False</span>
-				}
+		switch field.Type {
+		case DetailFieldTypeBoolean:
+			if field.Value == "true" {
+				<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">True</span>
+			} else {
+				<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">False</span>
 			}
-		case crud.DateFieldType:
-			if val, ok := fv.Value().(time.Time); ok {
-				{ val.Format("2006-01-02") }
-			}
-		case crud.TimeFieldType:
-			if val, ok := fv.Value().(time.Time); ok {
-				{ val.Format("15:04:05") }
-			}
-		case crud.DateTimeFieldType, crud.TimestampFieldType:
-			if val, ok := fv.Value().(time.Time); ok {
-				{ val.Format("2006-01-02 15:04:05") }
-			}
+		case DetailFieldTypeBadge:
+			<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">{ field.Value }</span>
 		default:
-			{ fmt.Sprintf("%v", fv.Value()) }
+			{ field.Value }
 		}
 	}
 }

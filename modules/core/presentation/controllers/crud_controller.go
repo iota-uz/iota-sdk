@@ -25,6 +25,18 @@ import (
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 )
 
+// Common error message IDs
+const (
+	errInvalidFormData  = "Errors.InvalidFormData"
+	errFailedToRetrieve = "Errors.FailedToRetrieve"
+	errFailedToSave     = "Errors.FailedToSave"
+	errFailedToUpdate   = "Errors.FailedToUpdate"
+	errFailedToDelete   = "Errors.FailedToDelete"
+	errEntityNotFound   = "Errors.EntityNotFound"
+	errInternalServer   = "Errors.InternalServer"
+	errFailedToRender   = "Errors.FailedToRender"
+)
+
 type CrudController[TEntity any] struct {
 	basePath string
 	app      application.Application
@@ -170,18 +182,6 @@ func (c *CrudController[TEntity]) localize(ctx context.Context, messageID string
 		},
 	})
 }
-
-// Common error message IDs
-const (
-	errInvalidFormData  = "Errors.InvalidFormData"
-	errFailedToRetrieve = "Errors.FailedToRetrieve"
-	errFailedToSave     = "Errors.FailedToSave"
-	errFailedToUpdate   = "Errors.FailedToUpdate"
-	errFailedToDelete   = "Errors.FailedToDelete"
-	errEntityNotFound   = "Errors.EntityNotFound"
-	errInternalServer   = "Errors.InternalServer"
-	errFailedToRender   = "Errors.FailedToRender"
-)
 
 // parseIDValue converts string ID to proper type based on primary key field type
 func (c *CrudController[TEntity]) parseIDValue(id string) any {
@@ -532,14 +532,63 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 		viewTitle = fmt.Sprintf("View %s", c.schema.Name())
 	}
 
-	// Localize field labels
-	fieldLabels := make(map[string]string)
+	// Create field value map for quick lookup
+	fieldValueMap := make(map[string]crud.FieldValue, len(fieldValues))
+	for _, fv := range fieldValues {
+		fieldValueMap[fv.Field().Name()] = fv
+	}
+
+	// Map field values to detail field values
+	detailFields := make([]table.DetailFieldValue, 0, len(c.visibleFields))
 	for _, field := range c.visibleFields {
-		fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
-		if err != nil {
-			fieldLabels[field.Name()] = field.Name()
-		} else {
-			fieldLabels[field.Name()] = fieldLabel
+		if fv, exists := fieldValueMap[field.Name()]; exists {
+			// Localize field label
+			fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
+			if err != nil {
+				fieldLabel = field.Name()
+			}
+
+			// Convert field value to string and determine type
+			var valueStr string
+			var fieldType table.DetailFieldType
+
+			if fv.IsZero() {
+				valueStr = ""
+				fieldType = table.DetailFieldTypeText
+			} else {
+				switch field.Type() {
+				case crud.BoolFieldType:
+					if val, ok := fv.Value().(bool); ok {
+						valueStr = fmt.Sprintf("%v", val)
+						fieldType = table.DetailFieldTypeBoolean
+					}
+				case crud.DateFieldType:
+					if val, ok := fv.Value().(time.Time); ok {
+						valueStr = val.Format("2006-01-02")
+						fieldType = table.DetailFieldTypeDate
+					}
+				case crud.TimeFieldType:
+					if val, ok := fv.Value().(time.Time); ok {
+						valueStr = val.Format("15:04:05")
+						fieldType = table.DetailFieldTypeTime
+					}
+				case crud.DateTimeFieldType, crud.TimestampFieldType:
+					if val, ok := fv.Value().(time.Time); ok {
+						valueStr = val.Format("2006-01-02 15:04:05")
+						fieldType = table.DetailFieldTypeDateTime
+					}
+				default:
+					valueStr = fmt.Sprintf("%v", fv.Value())
+					fieldType = table.DetailFieldTypeText
+				}
+			}
+
+			detailFields = append(detailFields, table.DetailFieldValue{
+				Name:  field.Name(),
+				Label: fieldLabel,
+				Value: valueStr,
+				Type:  fieldType,
+			})
 		}
 	}
 
@@ -573,13 +622,11 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 
 	// Create drawer component using the new DetailsDrawer
 	drawerProps := table.DetailsDrawerProps{
-		ID:            drawerID,
-		Title:         viewTitle,
-		CallbackURL:   c.basePath,
-		FieldValues:   fieldValues,
-		VisibleFields: c.visibleFields,
-		FieldLabels:   fieldLabels,
-		Actions:       actions,
+		ID:          drawerID,
+		Title:       viewTitle,
+		CallbackURL: c.basePath,
+		Fields:      detailFields,
+		Actions:     actions,
 	}
 
 	drawerComponent := table.DetailsDrawer(drawerProps)
@@ -590,7 +637,6 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 	}
 }
-
 
 // buildTableRow creates a table row from field values
 func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues []crud.FieldValue) (table.TableRow, error) {
