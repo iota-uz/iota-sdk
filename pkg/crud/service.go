@@ -105,6 +105,8 @@ func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, e
 		}
 		if exists {
 			isCreate = false
+		} else {
+			isCreate = true
 		}
 	}
 

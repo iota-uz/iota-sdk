@@ -23,12 +23,12 @@ type DetailFieldValue struct {
 type DetailFieldType string
 
 const (
-	DetailFieldTypeText      DetailFieldType = "text"
-	DetailFieldTypeBoolean   DetailFieldType = "boolean"
-	DetailFieldTypeDate      DetailFieldType = "date"
-	DetailFieldTypeTime      DetailFieldType = "time"
-	DetailFieldTypeDateTime  DetailFieldType = "datetime"
-	DetailFieldTypeBadge     DetailFieldType = "badge"
+	DetailFieldTypeText     DetailFieldType = "text"
+	DetailFieldTypeBoolean  DetailFieldType = "boolean"
+	DetailFieldTypeDate     DetailFieldType = "date"
+	DetailFieldTypeTime     DetailFieldType = "time"
+	DetailFieldTypeDateTime DetailFieldType = "datetime"
+	DetailFieldTypeBadge    DetailFieldType = "badge"
 )
 
 type DetailsDrawerProps struct {
@@ -40,11 +40,11 @@ type DetailsDrawerProps struct {
 }
 
 type DetailAction struct {
-	Label    string
-	URL      string
-	Method   string // GET, DELETE, etc.
-	Class    string // btn-primary, btn-danger, etc.
-	Confirm  string // Confirmation message for dangerous actions
+	Label   string
+	URL     string
+	Method  string // GET, DELETE, etc.
+	Class   string // btn-primary, btn-danger, etc.
+	Confirm string // Confirmation message for dangerous actions
 }
 
 templ DefaultDrawer(props DefaultDrawerProps) {
@@ -105,13 +105,12 @@ templ DetailsDrawer(props DetailsDrawerProps) {
 						</div>
 					}
 				</dl>
-				
 				if len(props.Actions) > 0 {
 					<div class="mt-6 flex gap-3 justify-end">
 						for _, action := range props.Actions {
 							if action.Method == "DELETE" {
-								<button 
-									type="button" 
+								<button
+									type="button"
 									class={ "btn " + action.Class }
 									hx-delete={ action.URL }
 									if action.Confirm != "" {
@@ -140,16 +139,16 @@ templ renderDetailFieldValue(field DetailFieldValue) {
 		<span class="text-gray-400">-</span>
 	} else {
 		switch field.Type {
-		case DetailFieldTypeBoolean:
-			if field.Value == "true" {
-				<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">True</span>
-			} else {
-				<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">False</span>
-			}
-		case DetailFieldTypeBadge:
-			<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">{ field.Value }</span>
-		default:
-			{ field.Value }
+			case DetailFieldTypeBoolean:
+				if field.Value == "true" {
+					<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">True</span>
+				} else {
+					<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">False</span>
+				}
+			case DetailFieldTypeBadge:
+				<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">{ field.Value }</span>
+			default:
+				{ field.Value }
 		}
 	}
 }
