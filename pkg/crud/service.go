@@ -175,6 +175,10 @@ func (s *service[TEntity]) Delete(ctx context.Context, value FieldValue) (TEntit
 	var zero TEntity
 
 	deletedEvent, err := NewDeletedEvent[TEntity](ctx)
+	if err != nil {
+		return zero, errors.Wrap(err, "failed to create 'deleted' event")
+	}
+
 	deletedHook := s.schema.Hooks().OnDelete()
 
 	var deletedEntity TEntity
@@ -189,9 +193,6 @@ func (s *service[TEntity]) Delete(ctx context.Context, value FieldValue) (TEntit
 		}
 		return nil
 	}); err != nil {
-		return zero, errors.Wrap(err, "transaction failed during save operation")
-	}
-	if err != nil {
 		return zero, errors.Wrap(err, "transaction failed during delete operation")
 	}
 
