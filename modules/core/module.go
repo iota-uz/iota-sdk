@@ -149,7 +149,6 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUsersController(app),
 		controllers.NewRolesController(app),
 		controllers.NewGroupsController(app),
-		controllers.NewDIExampleController(app),
 		controllers.NewShowcaseController(app),
 		controllers.NewWebSocketController(app),
 		controllers.NewCrudController[currency.Currency](
