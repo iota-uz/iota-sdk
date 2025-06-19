@@ -844,6 +844,16 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	existingFields := make(map[string]struct{}, len(fieldValues))
+	for _, fv := range fieldValues {
+		existingFields[fv.Field().Name()] = struct{}{}
+	}
+	for _, f := range c.schema.Fields().Fields() {
+		if _, found := existingFields[f.Name()]; !found {
+			fieldValues = append(fieldValues, f.Value(f.InitialValue()))
+		}
+	}
+
 	// Convert to entity
 	entity, err := c.schema.Mapper().ToEntity(ctx, fieldValues)
 	if err != nil {
