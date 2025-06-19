@@ -4,6 +4,7 @@ import (
 	"embed"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -111,8 +112,19 @@ func (m *Module) Register(app application.Application) error {
 			crud.WithMaxLen(3),
 			crud.WithSearchable(true),
 		),
-		crud.NewDateTimeField("created_at", crud.WithHidden(true)),
-		crud.NewDateTimeField("updated_at", crud.WithHidden(true)),
+		crud.NewDateTimeField("created_at",
+			crud.WithHidden(true),
+			crud.WithInitialValue(func() any {
+				return time.Now()
+			}),
+		),
+		crud.NewDateTimeField(
+			"updated_at",
+			crud.WithHidden(true),
+			crud.WithInitialValue(func() any {
+				return time.Now()
+			}),
+		),
 	})
 
 	schema := crud.NewSchema[currency.Currency](

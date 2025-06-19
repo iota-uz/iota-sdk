@@ -81,15 +81,15 @@ type Field interface {
 
 // Base field implementation
 type field struct {
-	key          bool
-	name         string
-	type_        FieldType
-	readonly     bool
-	hidden       bool
-	searchable   bool
-	attrs        map[string]any
-	initialValue any
-	rules        []FieldRule
+	key            bool
+	name           string
+	type_          FieldType
+	readonly       bool
+	hidden         bool
+	searchable     bool
+	attrs          map[string]any
+	initialValueFn func() any
+	rules          []FieldRule
 }
 
 func newField(
@@ -98,15 +98,17 @@ func newField(
 	opts ...FieldOption,
 ) Field {
 	f := &field{
-		key:          false,
-		name:         name,
-		type_:        type_,
-		searchable:   false,
-		readonly:     false,
-		hidden:       false,
-		attrs:        map[string]any{},
-		initialValue: nil,
-		rules:        make([]FieldRule, 0),
+		key:        false,
+		name:       name,
+		type_:      type_,
+		searchable: false,
+		readonly:   false,
+		hidden:     false,
+		attrs:      map[string]any{},
+		initialValueFn: func() any {
+			return nil
+		},
+		rules: make([]FieldRule, 0),
 	}
 
 	for _, opt := range opts {
@@ -149,7 +151,7 @@ func (f *field) Attrs() map[string]any {
 }
 
 func (f *field) InitialValue() any {
-	return f.initialValue
+	return f.initialValueFn()
 }
 
 func (f *field) Rules() []FieldRule {
