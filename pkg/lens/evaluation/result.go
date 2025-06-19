@@ -2,28 +2,28 @@ package evaluation
 
 import (
 	"fmt"
-	"time"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"time"
 )
 
 // EvaluatedDashboard represents a dashboard ready for rendering
 type EvaluatedDashboard struct {
-	Config     lens.DashboardConfig
-	Layout     Layout
-	Panels     []EvaluatedPanel
-	Errors     []EvaluationError
+	Config      lens.DashboardConfig
+	Layout      Layout
+	Panels      []EvaluatedPanel
+	Errors      []EvaluationError
 	EvaluatedAt time.Time
-	Context    *EvaluationContext
+	Context     *EvaluationContext
 }
 
 // EvaluatedPanel represents an evaluated panel ready for rendering
 type EvaluatedPanel struct {
-	Config         lens.PanelConfig
-	ResolvedQuery  string
-	DataSourceRef  string
-	RenderConfig   RenderConfig
-	Variables      map[string]any
-	Errors         []EvaluationError
+	Config        lens.PanelConfig
+	ResolvedQuery string
+	DataSourceRef string
+	RenderConfig  RenderConfig
+	Variables     map[string]any
+	Errors        []EvaluationError
 }
 
 // RenderConfig contains everything needed for rendering a panel
@@ -55,10 +55,10 @@ type PanelLayout struct {
 
 // GridCSS represents grid-specific CSS configuration
 type GridCSS struct {
-	Classes     []string
-	Styles      map[string]string
-	GridArea    string
-	Position    Position
+	Classes  []string
+	Styles   map[string]string
+	GridArea string
+	Position Position
 }
 
 // PanelCSS represents panel-specific CSS configuration
@@ -110,12 +110,12 @@ const (
 
 // HTMXConfig contains HTMX-specific configuration for panels
 type HTMXConfig struct {
-	Trigger     string
-	Target      string
-	Swap        string
-	PushURL     bool
-	Headers     map[string]string
-	Indicators  []string
+	Trigger    string
+	Target     string
+	Swap       string
+	PushURL    bool
+	Headers    map[string]string
+	Indicators []string
 }
 
 // EvaluationError represents an error that occurred during evaluation
@@ -131,10 +131,10 @@ type EvaluationError struct {
 type EvaluationPhase string
 
 const (
-	PhaseValidation      EvaluationPhase = "validation"
-	PhaseInterpolation   EvaluationPhase = "interpolation"
+	PhaseValidation        EvaluationPhase = "validation"
+	PhaseInterpolation     EvaluationPhase = "interpolation"
 	PhaseLayoutCalculation EvaluationPhase = "layout_calculation"
-	PhaseRenderConfig    EvaluationPhase = "render_config"
+	PhaseRenderConfig      EvaluationPhase = "render_config"
 )
 
 func (e EvaluationError) Error() string {
@@ -144,7 +144,7 @@ func (e EvaluationError) Error() string {
 		}
 		return fmt.Sprintf("%s: %s: %v", e.Phase, e.Message, e.Cause)
 	}
-	
+
 	if e.PanelID != "" {
 		return fmt.Sprintf("panel %s (%s): %s", e.PanelID, e.Phase, e.Message)
 	}
@@ -167,13 +167,13 @@ func (ed *EvaluatedDashboard) HasErrors() bool {
 	if len(ed.Errors) > 0 {
 		return true
 	}
-	
+
 	for _, panel := range ed.Panels {
 		if len(panel.Errors) > 0 {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -181,11 +181,11 @@ func (ed *EvaluatedDashboard) HasErrors() bool {
 func (ed *EvaluatedDashboard) GetAllErrors() []EvaluationError {
 	var allErrors []EvaluationError
 	allErrors = append(allErrors, ed.Errors...)
-	
+
 	for _, panel := range ed.Panels {
 		allErrors = append(allErrors, panel.Errors...)
 	}
-	
+
 	return allErrors
 }
 

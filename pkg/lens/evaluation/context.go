@@ -1,8 +1,8 @@
 package evaluation
 
 import (
-	"time"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"time"
 )
 
 // EvaluationContext provides context for dashboard evaluation
@@ -28,7 +28,7 @@ type EvaluationOptions struct {
 	ValidateQueries      bool
 	CalculateLayout      bool
 	EnableCaching        bool
-	CacheTTL            time.Duration
+	CacheTTL             time.Duration
 }
 
 // DefaultEvaluationOptions returns default evaluation options
@@ -38,7 +38,7 @@ func DefaultEvaluationOptions() EvaluationOptions {
 		ValidateQueries:      true,
 		CalculateLayout:      true,
 		EnableCaching:        false,
-		CacheTTL:            5 * time.Minute,
+		CacheTTL:             5 * time.Minute,
 	}
 }
 
@@ -104,13 +104,13 @@ func (ctx *EvaluationContext) Clone() *EvaluationContext {
 	for k, v := range ctx.Variables {
 		variables[k] = v
 	}
-	
+
 	permissions := make([]string, len(ctx.User.Permissions))
 	copy(permissions, ctx.User.Permissions)
-	
+
 	roles := make([]string, len(ctx.User.Roles))
 	copy(roles, ctx.User.Roles)
-	
+
 	return &EvaluationContext{
 		TimeRange: ctx.TimeRange,
 		Variables: variables,

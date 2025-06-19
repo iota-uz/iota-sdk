@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bytes"
+	"fmt"
 	"text/template"
 
 	"github.com/a-h/templ"
@@ -30,6 +31,30 @@ type Renderer interface {
 type Config struct {
 	GridClasses     GridClassConfig
 	RefreshStrategy RefreshStrategy
+}
+
+// PanelCSS represents panel-specific CSS (UI concern)
+type PanelCSS struct {
+	Classes []string
+	Styles  map[string]string
+}
+
+// LayoutWithCSS represents a layout with CSS information for UI rendering
+type LayoutWithCSS struct {
+	lens.Layout // Embed the core layout
+	CSS         LayoutCSS
+}
+
+// PanelLayoutWithCSS represents a panel layout with CSS information for UI rendering
+type PanelLayoutWithCSS struct {
+	lens.PanelLayout // Embed the core panel layout
+	CSS              PanelCSS
+}
+
+// LayoutCSS represents layout-level CSS
+type LayoutCSS struct {
+	ContainerClasses []string
+	ContainerStyles  map[string]string
 }
 
 // GridClassConfig contains grid CSS class configuration
@@ -106,12 +131,36 @@ func DefaultConfig() Config {
 
 // CSS template for dashboard styles
 const cssTemplate = `
-.dashboard-grid {
+.dashboard-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.dashboard-header {
+  padding: 1rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dashboard-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.dashboard-description {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.dashboard-grid, .dashboard-panels {
   display: grid;
   grid-template-columns: repeat({{.Columns}}, 1fr);
   grid-auto-rows: {{.RowHeight}}px;
   gap: 1rem;
-  padding: 1rem;
 }
 
 .dashboard-panel {
@@ -191,19 +240,65 @@ const cssTemplate = `
 }
 `
 
-// GenerateCSS generates the CSS for the dashboard using text templating
+// GenerateCSS generates the CSS for the dashboard using text templating, wrapped in style tags
 func GenerateCSS(gridConfig lens.GridConfig) string {
 	tmpl, err := template.New("css").Parse(cssTemplate)
 	if err != nil {
-		return ""
+		return "<style>/* CSS generation error */</style>"
 	}
 
 	var buf bytes.Buffer
 	err = tmpl.Execute(&buf, gridConfig)
 	if err != nil {
-		return ""
+		return "<style>/* CSS template execution error */</style>"
 	}
 
-	return buf.String()
+	return "<style>\n" + buf.String() + "\n</style>"
 }
 
+// AddCSSToLayout enriches a core layout with CSS information for UI rendering
+func AddCSSToLayout(coreLayout lens.Layout) LayoutWithCSS {
+	layoutWithCSS := LayoutWithCSS{
+		Layout: coreLayout,
+		CSS: LayoutCSS{
+			ContainerClasses: []string{"dashboard-grid", "grid-container"},
+			ContainerStyles: map[string]string{
+				"display":               "grid",
+				"gap":                   "1rem",
+				"padding":               "1rem",
+				"grid-auto-rows":        fmt.Sprintf("%dpx", coreLayout.Grid.RowHeight),
+				"grid-template-columns": fmt.Sprintf("repeat(%d, 1fr)", coreLayout.Grid.Columns),
+			},
+		},
+	}
+
+	return layoutWithCSS
+}
+
+// AddCSSToPanel enriches a core panel layout with CSS information for UI rendering
+func AddCSSToPanel(corePanel lens.PanelLayout, panelType lens.ChartType) PanelLayoutWithCSS {
+	// Calculate CSS grid area
+	gridArea := fmt.Sprintf("%d / %d / %d / %d",
+		corePanel.Position.Y+1,
+		corePanel.Position.X+1,
+		corePanel.Position.Y+corePanel.Dimensions.Height+1,
+		corePanel.Position.X+corePanel.Dimensions.Width+1)
+
+	panelWithCSS := PanelLayoutWithCSS{
+		PanelLayout: corePanel,
+		CSS: PanelCSS{
+			Classes: []string{"dashboard-panel", fmt.Sprintf("panel-%s", panelType)},
+			Styles: map[string]string{
+				"grid-area":      gridArea,
+				"display":        "flex",
+				"flex-direction": "column",
+				"border":         "1px solid #e5e7eb",
+				"border-radius":  "0.5rem",
+				"background":     "white",
+				"overflow":       "hidden",
+			},
+		},
+	}
+
+	return panelWithCSS
+}

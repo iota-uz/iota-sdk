@@ -11,9 +11,9 @@ func TestValidator_Validate(t *testing.T) {
 	validator := NewValidator()
 
 	tests := []struct {
-		name        string
-		config      *DashboardConfig
-		expectValid bool
+		name         string
+		config       *DashboardConfig
+		expectValid  bool
 		expectErrors []string
 	}{
 		{
@@ -26,7 +26,7 @@ func TestValidator_Validate(t *testing.T) {
 					RowHeight: 60,
 				},
 			},
-			expectValid: true,
+			expectValid:  true,
 			expectErrors: nil,
 		},
 		{
@@ -34,7 +34,7 @@ func TestValidator_Validate(t *testing.T) {
 			config: &DashboardConfig{
 				Name: "Test Dashboard",
 			},
-			expectValid: false,
+			expectValid:  false,
 			expectErrors: []string{"dashboard ID is required"},
 		},
 		{
@@ -42,13 +42,13 @@ func TestValidator_Validate(t *testing.T) {
 			config: &DashboardConfig{
 				ID: "test-dashboard",
 			},
-			expectValid: false,
+			expectValid:  false,
 			expectErrors: []string{"dashboard name is required"},
 		},
 		{
-			name: "missing_both_id_and_name",
-			config: &DashboardConfig{},
-			expectValid: false,
+			name:         "missing_both_id_and_name",
+			config:       &DashboardConfig{},
+			expectValid:  false,
 			expectErrors: []string{"dashboard ID is required", "dashboard name is required"},
 		},
 	}
@@ -56,9 +56,9 @@ func TestValidator_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := validator.Validate(tt.config)
-			
+
 			assert.Equal(t, tt.expectValid, result.IsValid())
-			
+
 			if tt.expectErrors != nil {
 				require.Len(t, result.Errors, len(tt.expectErrors))
 				for i, expectedMsg := range tt.expectErrors {
@@ -76,21 +76,21 @@ func TestValidator_ValidatePanel(t *testing.T) {
 	grid := GridConfig{Columns: 12, RowHeight: 60}
 
 	tests := []struct {
-		name        string
-		panel       *PanelConfig
-		expectValid bool
+		name         string
+		panel        *PanelConfig
+		expectValid  bool
 		expectErrors []string
 	}{
 		{
 			name: "valid_panel",
 			panel: &PanelConfig{
-				ID:    "test-panel",
-				Title: "Test Panel",
-				Type:  ChartTypeLine,
-				Position: GridPosition{X: 0, Y: 0},
+				ID:         "test-panel",
+				Title:      "Test Panel",
+				Type:       ChartTypeLine,
+				Position:   GridPosition{X: 0, Y: 0},
 				Dimensions: GridDimensions{Width: 6, Height: 4},
 			},
-			expectValid: true,
+			expectValid:  true,
 			expectErrors: nil,
 		},
 		{
@@ -99,7 +99,7 @@ func TestValidator_ValidatePanel(t *testing.T) {
 				Title: "Test Panel",
 				Type:  ChartTypeLine,
 			},
-			expectValid: false,
+			expectValid:  false,
 			expectErrors: []string{"panel ID is required"},
 		},
 	}
@@ -107,9 +107,9 @@ func TestValidator_ValidatePanel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := validator.ValidatePanel(tt.panel, grid)
-			
+
 			assert.Equal(t, tt.expectValid, result.IsValid())
-			
+
 			if tt.expectErrors != nil {
 				require.Len(t, result.Errors, len(tt.expectErrors))
 				for i, expectedMsg := range tt.expectErrors {
@@ -126,18 +126,18 @@ func TestValidator_ValidateGrid(t *testing.T) {
 	validator := NewValidator()
 
 	tests := []struct {
-		name        string
-		panels      []PanelConfig
-		grid        GridConfig
-		expectValid bool
+		name         string
+		panels       []PanelConfig
+		grid         GridConfig
+		expectValid  bool
 		expectErrors []string
 	}{
 		{
 			name: "valid_grid",
 			panels: []PanelConfig{
 				{
-					ID: "panel1",
-					Position: GridPosition{X: 0, Y: 0},
+					ID:         "panel1",
+					Position:   GridPosition{X: 0, Y: 0},
 					Dimensions: GridDimensions{Width: 6, Height: 4},
 				},
 			},
@@ -145,27 +145,27 @@ func TestValidator_ValidateGrid(t *testing.T) {
 				Columns:   12,
 				RowHeight: 60,
 			},
-			expectValid: true,
+			expectValid:  true,
 			expectErrors: nil,
 		},
 		{
-			name: "invalid_grid_columns_zero",
+			name:   "invalid_grid_columns_zero",
 			panels: []PanelConfig{},
 			grid: GridConfig{
 				Columns:   0,
 				RowHeight: 60,
 			},
-			expectValid: false,
+			expectValid:  false,
 			expectErrors: []string{"grid columns must be positive"},
 		},
 		{
-			name: "invalid_grid_columns_negative",
+			name:   "invalid_grid_columns_negative",
 			panels: []PanelConfig{},
 			grid: GridConfig{
 				Columns:   -1,
 				RowHeight: 60,
 			},
-			expectValid: false,
+			expectValid:  false,
 			expectErrors: []string{"grid columns must be positive"},
 		},
 	}
@@ -173,9 +173,9 @@ func TestValidator_ValidateGrid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := validator.ValidateGrid(tt.panels, tt.grid)
-			
+
 			assert.Equal(t, tt.expectValid, result.IsValid())
-			
+
 			if tt.expectErrors != nil {
 				require.Len(t, result.Errors, len(tt.expectErrors))
 				for i, expectedMsg := range tt.expectErrors {

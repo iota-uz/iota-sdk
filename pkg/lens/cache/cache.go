@@ -16,16 +16,16 @@ import (
 type Cache interface {
 	// Get retrieves a cached result by key
 	Get(ctx context.Context, key string) (*executor.ExecutionResult, bool)
-	
+
 	// Set stores a result in the cache with TTL
 	Set(ctx context.Context, key string, result *executor.ExecutionResult, ttl time.Duration) error
-	
+
 	// Delete removes a cached result
 	Delete(ctx context.Context, key string) error
-	
+
 	// Clear removes all cached results
 	Clear(ctx context.Context) error
-	
+
 	// Stats returns cache statistics
 	Stats() CacheStats
 }
@@ -65,17 +65,17 @@ func NewMemoryCache(maxEntries int, cleanupInterval time.Duration) *MemoryCache 
 	if cleanupInterval == 0 {
 		cleanupInterval = 5 * time.Minute // Default cleanup interval
 	}
-	
+
 	cache := &MemoryCache{
 		entries:    make(map[string]*cacheEntry),
 		maxEntries: maxEntries,
 		cleanupTTL: cleanupInterval,
 		stopChan:   make(chan struct{}),
 	}
-	
+
 	// Start cleanup goroutine
 	go cache.cleanupRoutine()
-	
+
 	return cache
 }
 
@@ -83,26 +83,26 @@ func NewMemoryCache(maxEntries int, cleanupInterval time.Duration) *MemoryCache 
 func (mc *MemoryCache) Get(ctx context.Context, key string) (*executor.ExecutionResult, bool) {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
-	
+
 	entry, exists := mc.entries[key]
 	if !exists {
 		mc.stats.Misses++
 		return nil, false
 	}
-	
+
 	// Check if expired
 	if mc.isExpired(entry) {
 		mc.stats.Misses++
 		return nil, false
 	}
-	
+
 	// Update last used time
 	entry.lastUsed = time.Now()
-	
+
 	// Mark as cache hit
 	result := *entry.result
 	result.CacheHit = true
-	
+
 	mc.stats.Hits++
 	return &result, true
 }
@@ -111,12 +111,12 @@ func (mc *MemoryCache) Get(ctx context.Context, key string) (*executor.Execution
 func (mc *MemoryCache) Set(ctx context.Context, key string, result *executor.ExecutionResult, ttl time.Duration) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	// Check if we need to evict entries
 	if len(mc.entries) >= mc.maxEntries {
 		mc.evictOldest()
 	}
-	
+
 	// Create cache entry
 	entry := &cacheEntry{
 		result:    result,
@@ -124,10 +124,10 @@ func (mc *MemoryCache) Set(ctx context.Context, key string, result *executor.Exe
 		ttl:       ttl,
 		lastUsed:  time.Now(),
 	}
-	
+
 	mc.entries[key] = entry
 	mc.stats.Entries = len(mc.entries)
-	
+
 	return nil
 }
 
@@ -135,10 +135,10 @@ func (mc *MemoryCache) Set(ctx context.Context, key string, result *executor.Exe
 func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	delete(mc.entries, key)
 	mc.stats.Entries = len(mc.entries)
-	
+
 	return nil
 }
 
@@ -146,10 +146,10 @@ func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
 func (mc *MemoryCache) Clear(ctx context.Context) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	mc.entries = make(map[string]*cacheEntry)
 	mc.stats.Entries = 0
-	
+
 	return nil
 }
 
@@ -157,16 +157,16 @@ func (mc *MemoryCache) Clear(ctx context.Context) error {
 func (mc *MemoryCache) Stats() CacheStats {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
-	
+
 	stats := mc.stats
 	stats.Entries = len(mc.entries)
-	
+
 	// Calculate hit rate
 	total := stats.Hits + stats.Misses
 	if total > 0 {
 		stats.HitRate = float64(stats.Hits) / float64(total) * 100
 	}
-	
+
 	return stats
 }
 
@@ -190,14 +190,14 @@ func (mc *MemoryCache) isExpired(entry *cacheEntry) bool {
 func (mc *MemoryCache) evictOldest() {
 	var oldestKey string
 	var oldestTime time.Time
-	
+
 	for key, entry := range mc.entries {
 		if oldestKey == "" || entry.lastUsed.Before(oldestTime) {
 			oldestKey = key
 			oldestTime = entry.lastUsed
 		}
 	}
-	
+
 	if oldestKey != "" {
 		delete(mc.entries, oldestKey)
 	}
@@ -207,7 +207,7 @@ func (mc *MemoryCache) evictOldest() {
 func (mc *MemoryCache) cleanupRoutine() {
 	ticker := time.NewTicker(mc.cleanupTTL)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -222,14 +222,14 @@ func (mc *MemoryCache) cleanupRoutine() {
 func (mc *MemoryCache) cleanup() {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	now := time.Now()
 	for key, entry := range mc.entries {
 		if mc.isExpired(entry) {
 			delete(mc.entries, key)
 		}
 	}
-	
+
 	mc.stats.Entries = len(mc.entries)
 	mc.stats.LastCleanup = now
 }
@@ -246,7 +246,7 @@ func NewCachingExecutor(exec executor.Executor, cache Cache, defaultTTL time.Dur
 	if defaultTTL == 0 {
 		defaultTTL = 5 * time.Minute // Default TTL
 	}
-	
+
 	return &CachingExecutor{
 		executor: exec,
 		cache:    cache,
@@ -258,27 +258,27 @@ func NewCachingExecutor(exec executor.Executor, cache Cache, defaultTTL time.Dur
 func (ce *CachingExecutor) Execute(ctx context.Context, query executor.ExecutionQuery) (*executor.ExecutionResult, error) {
 	// Generate cache key
 	cacheKey := ce.generateCacheKey(query)
-	
+
 	// Try to get from cache first
 	if result, found := ce.cache.Get(ctx, cacheKey); found {
 		return result, nil
 	}
-	
+
 	// Execute query
 	result, err := ce.executor.Execute(ctx, query)
 	if err != nil {
 		return result, err
 	}
-	
+
 	// Cache the result
 	ttl := ce.ttl
 	if query.TimeRange.End.Sub(query.TimeRange.Start) < time.Hour {
 		// Shorter TTL for recent data
 		ttl = 1 * time.Minute
 	}
-	
+
 	ce.cache.Set(ctx, cacheKey, result, ttl)
-	
+
 	return result, nil
 }
 
@@ -313,7 +313,7 @@ func (ce *CachingExecutor) generateCacheKey(query executor.ExecutionQuery) strin
 		query.MaxRows,
 		query.Format,
 	)
-	
+
 	hash := md5.Sum([]byte(data))
 	return fmt.Sprintf("query:%x", hash)
 }

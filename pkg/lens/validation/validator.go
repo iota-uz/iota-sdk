@@ -39,7 +39,7 @@ func NewValidator() Validator {
 // Validate validates the entire dashboard configuration
 func (v *validator) Validate(config *lens.DashboardConfig) ValidationResult {
 	result := ValidationResult{Valid: true}
-	
+
 	for _, rule := range v.rules {
 		if dashboardRule, ok := rule.(*DashboardValidationRule); ok {
 			ruleResult := dashboardRule.ValidateDashboard(config)
@@ -49,7 +49,7 @@ func (v *validator) Validate(config *lens.DashboardConfig) ValidationResult {
 			}
 		}
 	}
-	
+
 	// Validate all panels
 	for _, panel := range config.Panels {
 		panelResult := v.ValidatePanel(&panel, config.Grid)
@@ -58,21 +58,21 @@ func (v *validator) Validate(config *lens.DashboardConfig) ValidationResult {
 			result.Errors = append(result.Errors, panelResult.Errors...)
 		}
 	}
-	
+
 	// Validate grid layout
 	gridResult := v.ValidateGrid(config.Panels, config.Grid)
 	if !gridResult.IsValid() {
 		result.Valid = false
 		result.Errors = append(result.Errors, gridResult.Errors...)
 	}
-	
+
 	return result
 }
 
 // ValidatePanel validates a single panel configuration
 func (v *validator) ValidatePanel(panel *lens.PanelConfig, grid lens.GridConfig) ValidationResult {
 	result := ValidationResult{Valid: true}
-	
+
 	for _, rule := range v.rules {
 		if panelRule, ok := rule.(*PanelValidationRule); ok {
 			ruleResult := panelRule.ValidatePanel(panel, grid)
@@ -82,14 +82,14 @@ func (v *validator) ValidatePanel(panel *lens.PanelConfig, grid lens.GridConfig)
 			}
 		}
 	}
-	
+
 	return result
 }
 
 // ValidateGrid validates the grid layout
 func (v *validator) ValidateGrid(panels []lens.PanelConfig, grid lens.GridConfig) ValidationResult {
 	result := ValidationResult{Valid: true}
-	
+
 	for _, rule := range v.rules {
 		if gridRule, ok := rule.(*GridValidationRule); ok {
 			ruleResult := gridRule.ValidateGrid(panels, grid)
@@ -99,6 +99,6 @@ func (v *validator) ValidateGrid(panels []lens.PanelConfig, grid lens.GridConfig
 			}
 		}
 	}
-	
+
 	return result
 }

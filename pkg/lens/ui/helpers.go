@@ -109,21 +109,31 @@ func buildChartOptionsFromPanel(panel *evaluation.EvaluatedPanel) charts.ChartOp
 
 func buildChartOptionsFromResult(config lens.PanelConfig, result *executor.ExecutionResult) charts.ChartOptions {
 	// Build chart options from executor result data
-	series := buildSeriesFromResult(result)
-	categories := buildCategoriesFromResult(result)
+	chartType := convertLensToChartsType(config.Type)
 
 	options := charts.ChartOptions{
 		Chart: charts.ChartConfig{
-			Type:    convertLensToChartsType(config.Type),
+			Type:    chartType,
 			Height:  "100%",
 			Toolbar: charts.Toolbar{Show: false},
 		},
-		Series: series,
-		XAxis: charts.XAxisConfig{
-			Categories: categories,
-		},
 		DataLabels: &charts.DataLabels{Enabled: false},
 		Colors:     getChartColors(config.Type),
+	}
+
+	// Handle pie and gauge charts differently
+	if config.Type == lens.ChartTypePie {
+		options.Series = buildPieSeriesFromResult(result)
+		options.Labels = buildCategoriesFromResult(result)
+	} else if config.Type == lens.ChartTypeGauge {
+		// Gauge charts (radial bars) use pie-like series format
+		options.Series = buildPieSeriesFromResult(result)
+		options.Labels = buildCategoriesFromResult(result)
+	} else {
+		options.Series = buildSeriesFromResult(result)
+		options.XAxis = charts.XAxisConfig{
+			Categories: buildCategoriesFromResult(result),
+		}
 	}
 
 	// Add chart-specific options
@@ -172,6 +182,19 @@ func buildSeriesFromResult(result *executor.ExecutionResult) []charts.Series {
 	}
 }
 
+func buildPieSeriesFromResult(result *executor.ExecutionResult) []interface{} {
+	if len(result.Data) == 0 {
+		return []interface{}{}
+	}
+
+	dataPoints := make([]interface{}, 0, len(result.Data))
+	for _, point := range result.Data {
+		dataPoints = append(dataPoints, point.Value)
+	}
+
+	return dataPoints
+}
+
 func buildCategoriesFromResult(result *executor.ExecutionResult) []string {
 	categories := make([]string, 0, len(result.Data))
 
@@ -199,6 +222,8 @@ func getChartColors(chartType lens.ChartType) []string {
 		return []string{"#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6"}
 	case lens.ChartTypeArea:
 		return []string{"#06b6d4"}
+	case lens.ChartTypeGauge:
+		return []string{"#f59e0b"}
 	default:
 		return []string{"#6b7280"}
 	}
@@ -238,6 +263,78 @@ func addChartSpecificOptions(options *charts.ChartOptions, chartType lens.ChartT
 				OpacityTo:      floatPtr(0.3),
 			},
 		}
+	case lens.ChartTypeGauge:
+		startAngle := -135
+		endAngle := 225
+		margin := 0
+		size := "70%"
+		background := "#fff"
+		image := ""
+		position := "front"
+		strokeWidth := "70%"
+		fontSize16 := "16px"
+		fontSize14 := "14px"
+		fontWeight600 := "600"
+		fontWeight400 := "400"
+		color := "#373d3f"
+		show := true
+		label := "Total"
+		offsetY120 := 120
+		offsetY76 := 76
+
+		options.PlotOptions = &charts.PlotOptions{
+			RadialBar: &charts.RadialBarConfig{
+				StartAngle: &startAngle,
+				EndAngle:   &endAngle,
+				Hollow: &charts.RadialBarHollow{
+					Margin:     &margin,
+					Size:       &size,
+					Background: &background,
+					Image:      &image,
+					Position:   &position,
+					DropShadow: &charts.DropShadow{
+						Enabled: true,
+						Top:     3,
+						Left:    0,
+						Blur:    4,
+						Opacity: 0.24,
+					},
+				},
+				Track: &charts.RadialBarTrack{
+					Background:  &background,
+					StrokeWidth: &strokeWidth,
+					Margin:      &margin,
+					DropShadow: &charts.DropShadow{
+						Enabled: true,
+						Top:     -3,
+						Left:    0,
+						Blur:    4,
+						Opacity: 0.35,
+					},
+				},
+				DataLabels: &charts.RadialBarDataLabels{
+					Name: &charts.LabelNameValue{
+						Show:       &show,
+						FontSize:   &fontSize16,
+						FontWeight: &fontWeight600,
+						OffsetY:    &offsetY120,
+					},
+					Value: &charts.LabelNameValue{
+						Show:       &show,
+						FontSize:   &fontSize14,
+						FontWeight: &fontWeight400,
+						OffsetY:    &offsetY76,
+					},
+					Total: &charts.LabelTotal{
+						Show:       &show,
+						Label:      &label,
+						FontSize:   &fontSize16,
+						FontWeight: &fontWeight600,
+						Color:      &color,
+					},
+				},
+			},
+		}
 	}
 }
 
@@ -268,4 +365,3 @@ func mergeCustomOptions(options *charts.ChartOptions, customOptions map[string]i
 func floatPtr(f float64) *float64 {
 	return &f
 }
-

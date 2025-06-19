@@ -2,10 +2,10 @@ package evaluation
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"regexp"
 	"strings"
 	"time"
-	"github.com/iota-uz/iota-sdk/pkg/lens"
 )
 
 // Evaluator evaluates dashboard configurations into renderable structures
@@ -48,7 +48,7 @@ func (e *evaluator) Evaluate(config *lens.DashboardConfig, ctx *EvaluationContex
 		EvaluatedAt: time.Now(),
 		Context:     ctx,
 	}
-	
+
 	// Calculate layout
 	if ctx.Options.CalculateLayout {
 		layout, err := e.layoutEngine.CalculateLayout(config.Panels, config.Grid)
@@ -58,7 +58,7 @@ func (e *evaluator) Evaluate(config *lens.DashboardConfig, ctx *EvaluationContex
 			result.Layout = *layout
 		}
 	}
-	
+
 	// Evaluate each panel
 	for _, panelConfig := range config.Panels {
 		panel, err := e.EvaluatePanel(&panelConfig, ctx)
@@ -66,10 +66,10 @@ func (e *evaluator) Evaluate(config *lens.DashboardConfig, ctx *EvaluationContex
 			result.Errors = append(result.Errors, NewEvaluationError(panelConfig.ID, PhaseRenderConfig, "failed to evaluate panel", err))
 			continue
 		}
-		
+
 		result.Panels = append(result.Panels, *panel)
 	}
-	
+
 	return result, nil
 }
 
@@ -80,7 +80,7 @@ func (e *evaluator) EvaluatePanel(panel *lens.PanelConfig, ctx *EvaluationContex
 		Variables: make(map[string]any),
 		Errors:    []EvaluationError{},
 	}
-	
+
 	// Interpolate query variables
 	if ctx.Options.InterpolateVariables {
 		resolvedQuery, err := e.queryProcessor.InterpolateQuery(panel.Query, ctx)
@@ -93,10 +93,10 @@ func (e *evaluator) EvaluatePanel(panel *lens.PanelConfig, ctx *EvaluationContex
 	} else {
 		result.ResolvedQuery = panel.Query
 	}
-	
+
 	// Set data source reference
 	result.DataSourceRef = panel.DataSource.Ref
-	
+
 	// Generate render configuration
 	renderConfig, err := e.renderMapper.MapToRenderConfig(panel, ctx)
 	if err != nil {
@@ -104,12 +104,12 @@ func (e *evaluator) EvaluatePanel(panel *lens.PanelConfig, ctx *EvaluationContex
 	} else {
 		result.RenderConfig = *renderConfig
 	}
-	
+
 	// Copy relevant variables for this panel
 	for name, value := range ctx.Variables {
 		result.Variables[name] = value
 	}
-	
+
 	return result, nil
 }
 
@@ -134,24 +134,24 @@ func NewQueryProcessor() QueryProcessor {
 // InterpolateQuery replaces variables in the query with actual values
 func (qp *queryProcessor) InterpolateQuery(query string, ctx *EvaluationContext) (string, error) {
 	result := query
-	
+
 	// Find all variable references in the query
 	matches := qp.variablePattern.FindAllString(query, -1)
-	
+
 	for _, match := range matches {
 		// Remove the leading colon
 		varName := strings.TrimPrefix(match, ":")
-		
+
 		// Handle nested variable access (e.g., :timeRange.start)
 		varValue, err := qp.resolveVariable(varName, ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to resolve variable %s: %w", varName, err)
 		}
-		
+
 		// Replace the variable reference with the actual value
 		result = strings.ReplaceAll(result, match, fmt.Sprintf("%v", varValue))
 	}
-	
+
 	return result, nil
 }
 
@@ -159,7 +159,7 @@ func (qp *queryProcessor) InterpolateQuery(query string, ctx *EvaluationContext)
 func (qp *queryProcessor) ValidateQuery(query string, dataSourceType string) error {
 	// Basic validation - check for potentially dangerous SQL
 	query = strings.ToLower(strings.TrimSpace(query))
-	
+
 	// Check for basic SQL injection patterns
 	dangerousPatterns := []string{
 		"drop table",
@@ -172,26 +172,26 @@ func (qp *queryProcessor) ValidateQuery(query string, dataSourceType string) err
 		"--",
 		";",
 	}
-	
+
 	for _, pattern := range dangerousPatterns {
 		if strings.Contains(query, pattern) {
 			return fmt.Errorf("potentially dangerous query pattern detected: %s", pattern)
 		}
 	}
-	
+
 	return nil
 }
 
 // resolveVariable resolves a variable from the context, supporting nested access
 func (qp *queryProcessor) resolveVariable(varName string, ctx *EvaluationContext) (any, error) {
 	parts := strings.Split(varName, ".")
-	
+
 	// Get the root variable
 	value, exists := ctx.GetVariable(parts[0])
 	if !exists {
 		return nil, fmt.Errorf("variable %s not found", parts[0])
 	}
-	
+
 	// Handle nested access
 	current := value
 	for i := 1; i < len(parts); i++ {
@@ -215,7 +215,7 @@ func (qp *queryProcessor) resolveVariable(varName string, ctx *EvaluationContext
 			return nil, fmt.Errorf("cannot access property %s on non-object variable", parts[i])
 		}
 	}
-	
+
 	return current, nil
 }
 
@@ -239,7 +239,7 @@ func (le *layoutEngine) CalculateLayout(panels []lens.PanelConfig, grid lens.Gri
 		Panels:     make([]PanelLayout, 0, len(panels)),
 		Breakpoint: BreakpointLG, // Default breakpoint
 	}
-	
+
 	// Generate CSS grid template
 	layout.CSS = LayoutCSS{
 		ContainerClasses: []string{"dashboard-grid"},
@@ -248,7 +248,7 @@ func (le *layoutEngine) CalculateLayout(panels []lens.PanelConfig, grid lens.Gri
 			Rows:    fmt.Sprintf("repeat(auto-fit, %dpx)", grid.RowHeight),
 		},
 	}
-	
+
 	// Calculate layout for each panel
 	for i, panel := range panels {
 		panelLayout := PanelLayout{
@@ -257,18 +257,18 @@ func (le *layoutEngine) CalculateLayout(panels []lens.PanelConfig, grid lens.Gri
 			Dimensions: panel.Dimensions,
 			ZIndex:     i + 1,
 			CSS: PanelCSS{
-				Classes:  []string{"dashboard-panel"},
-				GridArea: fmt.Sprintf("%d / %d / %d / %d", 
-					panel.Position.Y+1, 
-					panel.Position.X+1, 
-					panel.Position.Y+panel.Dimensions.Height+1, 
+				Classes: []string{"dashboard-panel"},
+				GridArea: fmt.Sprintf("%d / %d / %d / %d",
+					panel.Position.Y+1,
+					panel.Position.X+1,
+					panel.Position.Y+panel.Dimensions.Height+1,
 					panel.Position.X+panel.Dimensions.Width+1),
 			},
 		}
-		
+
 		layout.Panels = append(layout.Panels, panelLayout)
 	}
-	
+
 	return layout, nil
 }
 
@@ -294,10 +294,10 @@ func (rm *renderMapper) MapToRenderConfig(panel *lens.PanelConfig, ctx *Evaluati
 		DataEndpoint: fmt.Sprintf("/api/panels/%s/data", panel.ID),
 		GridCSS: GridCSS{
 			Classes: []string{"panel-container"},
-			GridArea: fmt.Sprintf("%d / %d / %d / %d", 
-				panel.Position.Y+1, 
-				panel.Position.X+1, 
-				panel.Position.Y+panel.Dimensions.Height+1, 
+			GridArea: fmt.Sprintf("%d / %d / %d / %d",
+				panel.Position.Y+1,
+				panel.Position.X+1,
+				panel.Position.Y+panel.Dimensions.Height+1,
 				panel.Position.X+panel.Dimensions.Width+1),
 		},
 		HTMXConfig: HTMXConfig{
@@ -306,12 +306,12 @@ func (rm *renderMapper) MapToRenderConfig(panel *lens.PanelConfig, ctx *Evaluati
 			Swap:    "innerHTML",
 		},
 	}
-	
+
 	// Customize options based on chart type
 	if config.ChartOptions == nil {
 		config.ChartOptions = make(map[string]any)
 	}
-	
+
 	// Set default options based on chart type
 	switch panel.Type {
 	case lens.ChartTypeLine:
@@ -323,6 +323,6 @@ func (rm *renderMapper) MapToRenderConfig(panel *lens.PanelConfig, ctx *Evaluati
 	case lens.ChartTypePie:
 		config.ChartOptions["legend"] = map[string]any{"position": "bottom"}
 	}
-	
+
 	return config, nil
 }

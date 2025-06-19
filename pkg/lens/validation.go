@@ -29,7 +29,7 @@ func NewValidator() Validator {
 // Validate validates the entire dashboard configuration
 func (v *validator) Validate(config *DashboardConfig) ValidationResult {
 	result := ValidationResult{Valid: true}
-	
+
 	// Minimal implementation - just check required fields
 	if config.ID == "" {
 		result.Valid = false
@@ -38,7 +38,7 @@ func (v *validator) Validate(config *DashboardConfig) ValidationResult {
 			Message: "dashboard ID is required",
 		})
 	}
-	
+
 	if config.Name == "" {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -46,14 +46,14 @@ func (v *validator) Validate(config *DashboardConfig) ValidationResult {
 			Message: "dashboard name is required",
 		})
 	}
-	
+
 	return result
 }
 
 // ValidatePanel validates a single panel configuration
 func (v *validator) ValidatePanel(panel *PanelConfig, grid GridConfig) ValidationResult {
 	result := ValidationResult{Valid: true}
-	
+
 	// Minimal implementation
 	if panel.ID == "" {
 		result.Valid = false
@@ -62,14 +62,14 @@ func (v *validator) ValidatePanel(panel *PanelConfig, grid GridConfig) Validatio
 			Message: "panel ID is required",
 		})
 	}
-	
+
 	return result
 }
 
 // ValidateGrid validates the grid layout
 func (v *validator) ValidateGrid(panels []PanelConfig, grid GridConfig) ValidationResult {
 	result := ValidationResult{Valid: true}
-	
+
 	// Minimal implementation
 	if grid.Columns <= 0 {
 		result.Valid = false
@@ -78,6 +78,6 @@ func (v *validator) ValidateGrid(panels []PanelConfig, grid GridConfig) Validati
 			Message: "grid columns must be positive",
 		})
 	}
-	
+
 	return result
 }

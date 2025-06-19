@@ -1,11 +1,10 @@
 package ui
 
 import (
-	"fmt"
+	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/evaluation"
 	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
-	"github.com/iota-uz/iota-sdk/components/charts"
 )
 
 // Dashboard renders a complete dashboard with panels
@@ -19,15 +18,14 @@ templ Dashboard(dashboard *evaluation.EvaluatedDashboard) {
 
 // DashboardWithData renders a dashboard using executor results
 templ DashboardWithData(config lens.DashboardConfig, results *executor.DashboardResult) {
-	<div class="dashboard-container" style={ generateDashboardGridCSS(config) }>
+	<div class="dashboard-wrapper">
 		<div class="dashboard-header">
 			<h1 class="dashboard-title">{ config.Name }</h1>
 			if config.Description != "" {
 				<p class="dashboard-description">{ config.Description }</p>
 			}
 		</div>
-		
-		<div class="dashboard-panels">
+		<div class="dashboard-panels" style={ generateDashboardGridCSS(config) }>
 			for _, panelConfig := range config.Panels {
 				if result, exists := results.PanelResults[panelConfig.ID]; exists {
 					@PanelWithData(panelConfig, result)
@@ -41,7 +39,7 @@ templ DashboardWithData(config lens.DashboardConfig, results *executor.Dashboard
 
 // Panel renders a single evaluated panel
 templ Panel(panel *evaluation.EvaluatedPanel) {
-	<div 
+	<div
 		id={ "panel-" + panel.Config.ID }
 		class="dashboard-panel"
 		style={ generatePanelGridCSS(panel) }
@@ -49,7 +47,6 @@ templ Panel(panel *evaluation.EvaluatedPanel) {
 		<div class="panel-header">
 			<h3 class="panel-title">{ panel.Config.Title }</h3>
 		</div>
-		
 		<div class="panel-content">
 			switch panel.Config.Type {
 				case lens.ChartTypeTable:
@@ -63,7 +60,7 @@ templ Panel(panel *evaluation.EvaluatedPanel) {
 
 // PanelWithData renders a panel using executor results
 templ PanelWithData(config lens.PanelConfig, result *executor.ExecutionResult) {
-	<div 
+	<div
 		id={ "panel-" + config.ID }
 		class="dashboard-panel"
 		style={ generateConfigPanelGridCSS(config) }
@@ -74,7 +71,6 @@ templ PanelWithData(config lens.PanelConfig, result *executor.ExecutionResult) {
 				<span class="cache-indicator">cached</span>
 			}
 		</div>
-		
 		<div class="panel-content">
 			if result.Error != nil {
 				@ErrorContent(result.Error.Error())
@@ -86,11 +82,6 @@ templ PanelWithData(config lens.PanelConfig, result *executor.ExecutionResult) {
 						@ChartContent(config, result)
 				}
 			}
-		</div>
-		
-		<div class="panel-footer">
-			<span class="exec-time">{ result.ExecTime.String() }</span>
-			<span class="row-count">{ fmt.Sprintf("%d rows", len(result.Data)) }</span>
 		</div>
 	</div>
 }
@@ -131,7 +122,7 @@ templ TableContent(result *executor.ExecutionResult) {
 // ChartPanel renders a chart panel from evaluated panel
 templ ChartPanel(panel *evaluation.EvaluatedPanel) {
 	@charts.Chart(charts.Props{
-		Class: "h-64",
+		Class:   "h-64",
 		Options: buildChartOptionsFromPanel(panel),
 	})
 }
@@ -139,14 +130,14 @@ templ ChartPanel(panel *evaluation.EvaluatedPanel) {
 // ChartContent renders chart from executor results
 templ ChartContent(config lens.PanelConfig, result *executor.ExecutionResult) {
 	@charts.Chart(charts.Props{
-		Class: "h-64",
+		Class:   "h-64",
 		Options: buildChartOptionsFromResult(config, result),
 	})
 }
 
 // PanelError renders error state for a panel
 templ PanelError(config lens.PanelConfig, message string) {
-	<div 
+	<div
 		id={ "panel-" + config.ID }
 		class="dashboard-panel panel-error"
 		style={ generateConfigPanelGridCSS(config) }

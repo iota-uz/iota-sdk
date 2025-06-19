@@ -11,7 +11,7 @@ func FromJSON(jsonStr string) (*DashboardConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	validator := NewValidator()
 	result := validator.Validate(&config)
 	if !result.IsValid() {
@@ -20,7 +20,7 @@ func FromJSON(jsonStr string) (*DashboardConfig, error) {
 			Message: "validation failed after JSON deserialization",
 		}
 	}
-	
+
 	return &config, nil
 }
 
@@ -31,7 +31,7 @@ func FromJSONBytes(data []byte) (*DashboardConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	validator := NewValidator()
 	result := validator.Validate(&config)
 	if !result.IsValid() {
@@ -40,7 +40,7 @@ func FromJSONBytes(data []byte) (*DashboardConfig, error) {
 			Message: "validation failed after JSON deserialization",
 		}
 	}
-	
+
 	return &config, nil
 }
 
@@ -63,4 +63,3 @@ func FromJSONBytesUnsafe(data []byte) (*DashboardConfig, error) {
 	}
 	return &config, nil
 }
-

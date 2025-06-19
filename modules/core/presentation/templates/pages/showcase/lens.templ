@@ -14,9 +14,7 @@ type LensPageProps struct {
 }
 
 templ LensContent(props LensPageProps) {
-	<style>
-		@templ.Raw(ui.GenerateCSS(props.Dashboard.Grid))
-	</style>
+	@templ.Raw(ui.GenerateCSS(props.Dashboard.Grid))
 	if props.DashboardResult != nil {
 		@ui.DashboardWithData(props.Dashboard, props.DashboardResult)
 	} else {

@@ -13,22 +13,11 @@ templ PolarAreaChart() {
 					Show: false,
 				},
 			},
-			Series: []charts.Series{
-				{
-					Data: []interface{}{14.0, 23.0, 21.0, 17.0, 15.0, 10.0, 12.0, 17.0, 21.0},
-				},
-			},
-			XAxis: charts.XAxisConfig{
-				Categories: []string{"Segment 1", "Segment 2", "Segment 3", "Segment 4", "Segment 5", "Segment 6", "Segment 7", "Segment 8", "Segment 9"},
-			},
+			Series: []interface{}{14, 23, 21, 17, 15, 10, 12, 17, 21},
+			Labels: []string{"Segment 1", "Segment 2", "Segment 3", "Segment 4", "Segment 5", "Segment 6", "Segment 7", "Segment 8", "Segment 9"},
 			Colors: []string{"#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#6366f1", "#ec4899", "#14b8a6", "#f43f5e"},
 			DataLabels: &charts.DataLabels{
 				Enabled: false,
-			},
-			YAxis: []charts.YAxisConfig{
-				{
-					// Default YAxis config
-				},
 			},
 		},
 	})
