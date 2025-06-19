@@ -577,6 +577,18 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 						valueStr = val.Format("2006-01-02 15:04:05")
 						fieldType = table.DetailFieldTypeDateTime
 					}
+				case crud.StringFieldType:
+					valueStr = fmt.Sprintf("%v", fv.Value())
+					fieldType = table.DetailFieldTypeText
+				case crud.IntFieldType:
+					valueStr = fmt.Sprintf("%v", fv.Value())
+					fieldType = table.DetailFieldTypeText
+				case crud.FloatFieldType:
+					valueStr = fmt.Sprintf("%v", fv.Value())
+					fieldType = table.DetailFieldTypeText
+				case crud.UUIDFieldType:
+					valueStr = fmt.Sprintf("%v", fv.Value())
+					fieldType = table.DetailFieldTypeText
 				default:
 					valueStr = fmt.Sprintf("%v", fv.Value())
 					fieldType = table.DetailFieldTypeText
