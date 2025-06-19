@@ -1,66 +1,64 @@
 package actions
 
-import (
-	"github.com/iota-uz/iota-sdk/components/base/button"
-)
+import "github.com/iota-uz/iota-sdk/components/base/button"
 
 // Action renders a single action button based on ActionProps
 templ Action(props ActionProps) {
 	switch props.Variant {
-	case button.VariantPrimary:
-		@button.Primary(button.Props{
-			Size:    props.Size,
-			Href:    props.Href,
-			Icon:    props.Icon,
-			Attrs:   mergeOnClick(props),
-		}) {
-			{ props.Label }
-		}
-	case button.VariantSecondary:
-		@button.Secondary(button.Props{
-			Size:    props.Size,
-			Href:    props.Href,
-			Icon:    props.Icon,
-			Attrs:   mergeOnClick(props),
-		}) {
-			{ props.Label }
-		}
-	case button.VariantDanger:
-		@button.Danger(button.Props{
-			Size:    props.Size,
-			Href:    props.Href,
-			Icon:    props.Icon,
-			Attrs:   mergeOnClick(props),
-		}) {
-			{ props.Label }
-		}
-	case button.VariantPrimaryOutline:
-		@button.PrimaryOutline(button.Props{
-			Size:    props.Size,
-			Href:    props.Href,
-			Icon:    props.Icon,
-			Attrs:   mergeOnClick(props),
-		}) {
-			{ props.Label }
-		}
-	case button.VariantGhost:
-		@button.Ghost(button.Props{
-			Size:    props.Size,
-			Href:    props.Href,
-			Icon:    props.Icon,
-			Attrs:   mergeOnClick(props),
-		}) {
-			{ props.Label }
-		}
-	default:
-		@button.Secondary(button.Props{
-			Size:    props.Size,
-			Href:    props.Href,
-			Icon:    props.Icon,
-			Attrs:   mergeOnClick(props),
-		}) {
-			{ props.Label }
-		}
+		case button.VariantPrimary:
+			@button.Primary(button.Props{
+				Size:  props.Size,
+				Href:  props.Href,
+				Icon:  props.Icon,
+				Attrs: mergeOnClick(props),
+			}) {
+				{ props.Label }
+			}
+		case button.VariantSecondary:
+			@button.Secondary(button.Props{
+				Size:  props.Size,
+				Href:  props.Href,
+				Icon:  props.Icon,
+				Attrs: mergeOnClick(props),
+			}) {
+				{ props.Label }
+			}
+		case button.VariantDanger:
+			@button.Danger(button.Props{
+				Size:  props.Size,
+				Href:  props.Href,
+				Icon:  props.Icon,
+				Attrs: mergeOnClick(props),
+			}) {
+				{ props.Label }
+			}
+		case button.VariantPrimaryOutline:
+			@button.PrimaryOutline(button.Props{
+				Size:  props.Size,
+				Href:  props.Href,
+				Icon:  props.Icon,
+				Attrs: mergeOnClick(props),
+			}) {
+				{ props.Label }
+			}
+		case button.VariantGhost:
+			@button.Ghost(button.Props{
+				Size:  props.Size,
+				Href:  props.Href,
+				Icon:  props.Icon,
+				Attrs: mergeOnClick(props),
+			}) {
+				{ props.Label }
+			}
+		default:
+			@button.Secondary(button.Props{
+				Size:  props.Size,
+				Href:  props.Href,
+				Icon:  props.Icon,
+				Attrs: mergeOnClick(props),
+			}) {
+				{ props.Label }
+			}
 	}
 }
 
@@ -88,7 +86,7 @@ func mergeAttrs(attrs1, attrs2 templ.Attributes) templ.Attributes {
 	if attrs2 == nil {
 		return attrs1
 	}
-	
+
 	merged := make(templ.Attributes)
 	for k, v := range attrs1 {
 		merged[k] = v

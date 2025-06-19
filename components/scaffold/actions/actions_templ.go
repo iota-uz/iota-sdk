@@ -8,9 +8,7 @@ package actions
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import (
-	"github.com/iota-uz/iota-sdk/components/base/button"
-)
+import "github.com/iota-uz/iota-sdk/components/base/button"
 
 // Action renders a single action button based on ActionProps
 func Action(props ActionProps) templ.Component {
@@ -51,7 +49,7 @@ func Action(props ActionProps) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 17, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 15, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -84,7 +82,7 @@ func Action(props ActionProps) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 26, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 24, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -117,7 +115,7 @@ func Action(props ActionProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 35, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 33, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -150,7 +148,7 @@ func Action(props ActionProps) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 44, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 42, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -183,7 +181,7 @@ func Action(props ActionProps) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 53, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 51, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -216,7 +214,7 @@ func Action(props ActionProps) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 62, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/actions/actions.templ`, Line: 60, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {

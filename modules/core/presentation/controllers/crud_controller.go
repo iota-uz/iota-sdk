@@ -13,8 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"html"
-	"io"
 	"log"
 	"math"
 	"net/http"
@@ -22,7 +20,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
@@ -109,7 +106,7 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 	)
 
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id}/view", c.GetView).Methods(http.MethodGet)
+	router.HandleFunc("/{id}", c.Details).Methods(http.MethodGet)
 
 	if c.enableCreate {
 		router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
@@ -186,16 +183,6 @@ const (
 	errFailedToRender   = "Errors.FailedToRender"
 )
 
-// getPrimaryKeyValue extracts primary key value from field values
-func (c *CrudController[TEntity]) getPrimaryKeyValue(fieldValues []crud.FieldValue) (any, error) {
-	for _, fv := range fieldValues {
-		if fv.Field().Key() {
-			return fv.Value(), nil
-		}
-	}
-	return nil, fmt.Errorf("primary key not found")
-}
-
 // parseIDValue converts string ID to proper type based on primary key field type
 func (c *CrudController[TEntity]) parseIDValue(id string) any {
 	switch c.primaryKeyField.Type() {
@@ -212,6 +199,9 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 		if uuidVal, err := uuid.Parse(id); err == nil {
 			return uuidVal
 		}
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+		// For all other types, return the string as-is
+		return id
 	}
 	return id
 }
@@ -276,6 +266,9 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 						formats = []string{"15:04", "15:04:05"}
 					case crud.DateTimeFieldType:
 						formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
+					case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+						// These types are handled elsewhere
+						formats = []string{}
 					}
 
 					for _, format := range formats {
@@ -302,7 +295,8 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			} else {
 				continue // Skip empty values
 			}
-		default:
+		case crud.StringFieldType, crud.TimestampFieldType:
+			// String and timestamp fields are handled as strings from forms
 			value = formValue
 		}
 
@@ -322,7 +316,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			}
 
 			// If checkbox field wasn't in form data, it means it was unchecked
-			if !found && r.Method == "POST" {
+			if !found && r.Method == http.MethodPost {
 				fieldValues = append(fieldValues, field.Value(false))
 			}
 		}
@@ -492,6 +486,28 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Localize form title
+	viewTitle, err := c.localize(
+		ctx,
+		fmt.Sprintf("%s.View.Title", c.schema.Name()),
+		fmt.Sprintf("View %s", c.schema.Name()),
+	)
+	if err != nil {
+		log.Printf("[CrudController.Details] Failed to localize title: %v", err)
+		viewTitle = fmt.Sprintf("View %s", c.schema.Name())
+	}
+
+	props := table.DefaultDrawerProps{
+		Title:       viewTitle,
+		CallbackURL: c.basePath,
+	}
+
+	templ.Handler(table.DefaultDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
 // buildTableRow creates a table row from field values
 func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues []crud.FieldValue) (table.TableRow, error) {
 	var primaryKey any
@@ -525,7 +541,7 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 		components = append(components, actions.RenderRowActions(rowActions...))
 	}
 
-	fetchUrl := fmt.Sprintf("%s/%v/view", c.basePath, primaryKey)
+	fetchUrl := fmt.Sprintf("%s/%v", c.basePath, primaryKey)
 	return table.Row(components...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
 }
 
@@ -627,145 +643,6 @@ func (c *CrudController[TEntity]) buildFormFields(ctx context.Context, fieldValu
 	}
 
 	return formFields
-}
-
-func (c *CrudController[TEntity]) GetView(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	// Create field value for the ID
-	idFieldValue := c.primaryKeyField.Value(c.parseIDValue(id))
-
-	// Fetch entity
-	entity, err := c.service.Get(ctx, idFieldValue)
-	if err != nil {
-		log.Printf("[CrudController.GetView] Failed to get entity %s: %v", id, err)
-		errorMsg, _ := c.localize(ctx, errEntityNotFound, "Entity not found")
-		http.Error(w, errorMsg, http.StatusNotFound)
-		return
-	}
-
-	// Convert entity to field values
-	fieldValues, err := c.schema.Mapper().ToFieldValues(ctx, entity)
-	if err != nil {
-		log.Printf("[CrudController.GetView] Failed to map entity: %v", err)
-		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
-		http.Error(w, errorMsg, http.StatusInternalServerError)
-		return
-	}
-
-	// Get entity title
-	titleText, _ := c.localize(ctx, fmt.Sprintf("%s.View.Title", c.schema.Name()), c.schema.Name())
-
-	// Create view content
-	viewContent := c.buildViewContent(ctx, fieldValues)
-
-	// Create wrapper component that renders drawer with content
-	drawerComponent := templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		// Generate unique ID for this drawer instance
-		drawerID := fmt.Sprintf("drawer-%d", time.Now().UnixNano())
-
-		// Write wrapper div that will be removed when drawer closes
-		fmt.Fprintf(w, `<div id="%s">`, drawerID)
-
-		// Create drawer component
-		component := dialog.StdViewDrawer(dialog.StdDrawerProps{
-			ID:     drawerID + "-dialog",
-			Title:  titleText,
-			Action: "open-view-drawer",
-			Open:   true,
-			Attrs: templ.Attributes{
-				"@closing": fmt.Sprintf("window.history.pushState({}, '', '%s')", c.basePath),
-				"@closed":  fmt.Sprintf("document.getElementById('%s').remove()", drawerID),
-			},
-		})
-
-		// Render drawer with content
-		if err := component.Render(templ.WithChildren(ctx, viewContent), w); err != nil {
-			return err
-		}
-
-		// Close wrapper div
-		fmt.Fprintf(w, `</div>`)
-
-		return nil
-	})
-
-	if err := drawerComponent.Render(ctx, w); err != nil {
-		log.Printf("[CrudController.GetView] Failed to render view: %v", err)
-		errorMsg, _ := c.localize(ctx, errFailedToRender, "Failed to render view")
-		http.Error(w, errorMsg, http.StatusInternalServerError)
-	}
-}
-
-// buildViewContent creates the content for displaying entity details
-func (c *CrudController[TEntity]) buildViewContent(_ context.Context, fieldValues []crud.FieldValue) templ.Component {
-	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		// Create field value map
-		fieldValueMap := make(map[string]crud.FieldValue, len(fieldValues))
-		var primaryKey any
-		for _, fv := range fieldValues {
-			fieldValueMap[fv.Field().Name()] = fv
-			if fv.Field().Key() {
-				primaryKey = fv.Value()
-			}
-		}
-
-		// Start the content container
-		fmt.Fprintf(w, `<div class="p-6 space-y-4">`)
-
-		// Add field details
-		fmt.Fprintf(w, `<dl class="divide-y divide-gray-100">`)
-
-		for _, field := range c.visibleFields {
-			if fv, exists := fieldValueMap[field.Name()]; exists {
-				// Localize field label
-				fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
-				if err != nil {
-					fieldLabel = field.Name()
-				}
-
-				fmt.Fprintf(w, `<div class="py-3 sm:grid sm:grid-cols-3 sm:gap-4">`)
-				fmt.Fprintf(w, `<dt class="text-sm font-medium text-gray-900">%s</dt>`, html.EscapeString(fieldLabel))
-				fmt.Fprintf(w, `<dd class="mt-1 text-sm text-gray-700 sm:col-span-2 sm:mt-0">`)
-
-				// Render field value
-				if err := c.fieldValueToTableCell(ctx, field, fv).Render(ctx, w); err != nil {
-					return err
-				}
-
-				fmt.Fprintf(w, `</dd></div>`)
-			}
-		}
-
-		fmt.Fprintf(w, `</dl>`)
-
-		// Add action buttons
-		if c.enableEdit || c.enableDelete {
-			fmt.Fprintf(w, `<div class="mt-6 flex gap-3">`)
-
-			if c.enableEdit {
-				editLabel, _ := c.localize(ctx, "Common.Edit", "Edit")
-				fmt.Fprintf(w, `<a href="%s/%v/edit" class="btn btn-primary">%s</a>`,
-					html.EscapeString(c.basePath), primaryKey, html.EscapeString(editLabel))
-			}
-
-			if c.enableDelete {
-				deleteLabel, _ := c.localize(ctx, "Common.Delete", "Delete")
-				fmt.Fprintf(w, `<button hx-delete="%s/%v" hx-confirm="%s" hx-target="closest dialog" hx-swap="outerHTML" class="btn btn-danger">%s</button>`,
-					html.EscapeString(c.basePath), primaryKey,
-					html.EscapeString("Are you sure you want to delete this item?"),
-					html.EscapeString(deleteLabel))
-			}
-
-			fmt.Fprintf(w, `</div>`)
-		}
-
-		fmt.Fprintf(w, `</div>`)
-
-		return nil
-	})
 }
 
 func (c *CrudController[TEntity]) GetEdit(w http.ResponseWriter, r *http.Request) {
@@ -871,9 +748,8 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Handle redirect
-	redirectUrl := fmt.Sprintf("%s", c.basePath)
 	if htmx.IsHxRequest(r) {
-		w.Header().Set("HX-Redirect", redirectUrl)
+		w.Header().Set("HX-Redirect", c.basePath)
 	} else {
 		http.Redirect(w, r, c.basePath, http.StatusSeeOther)
 	}
@@ -926,11 +802,10 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Handle redirect
-	redirectUrl := fmt.Sprintf("%s", c.basePath)
 	if htmx.IsHxRequest(r) {
-		w.Header().Set("HX-Redirect", redirectUrl)
+		w.Header().Set("HX-Redirect", c.basePath)
 	} else {
-		http.Redirect(w, r, redirectUrl, http.StatusSeeOther)
+		http.Redirect(w, r, c.basePath, http.StatusSeeOther)
 	}
 }
 
@@ -1234,6 +1109,27 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 				builder = builder.Default(v)
 			case uuid.UUID:
 				builder = builder.Default(v.String())
+			}
+		}
+
+		return builder.Build()
+
+	case crud.TimestampFieldType:
+		// Timestamp fields are treated like datetime fields
+		builder := form.DateTime(field.Name(), fieldLabel)
+
+		if field.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"readonly": true})
+		}
+
+		if len(field.Rules()) > 0 {
+			builder = builder.Required()
+		}
+
+		if currentValue != nil {
+			switch v := currentValue.(type) {
+			case time.Time:
+				builder = builder.Default(v)
 			}
 		}
 

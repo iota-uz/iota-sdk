@@ -79,7 +79,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		require.NoError(t, err)
 
 		list, err := rep.List(ctx, &crud.FindParams{
-			Search:  "Filter Me",
+			Query:   "Filter Me",
 			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("FilterTest")}},
 			Limit:   1,
 		})
