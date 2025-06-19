@@ -2,6 +2,9 @@ package core
 
 import (
 	"embed"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -92,6 +95,49 @@ func (m *Module) Register(app application.Application) error {
 
 	handlers.RegisterUserHandler(app)
 
+	fields := crud.NewFields([]crud.Field{
+		crud.NewStringField(
+			"code",
+			crud.WithKey(true),
+			crud.WithMaxLen(3),
+			crud.WithSearchable(true),
+		),
+		crud.NewStringField(
+			"name",
+			crud.WithMaxLen(255),
+			crud.WithSearchable(true),
+		),
+		crud.NewStringField(
+			"symbol",
+			crud.WithMaxLen(3),
+			crud.WithSearchable(true),
+		),
+		crud.NewDateTimeField("created_at",
+			crud.WithHidden(true),
+			crud.WithInitialValue(func() any {
+				return time.Now()
+			}),
+		),
+		crud.NewDateTimeField(
+			"updated_at",
+			crud.WithHidden(true),
+			crud.WithInitialValue(func() any {
+				return time.Now()
+			}),
+		),
+	})
+
+	schema := crud.NewSchema[currency.Currency](
+		"currencies",
+		fields,
+		currency.NewMapper(fields),
+	)
+
+	builder := crud.NewBuilder[currency.Currency](
+		schema,
+		app.EventPublisher(),
+	)
+
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
@@ -103,9 +149,13 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewUsersController(app),
 		controllers.NewRolesController(app),
 		controllers.NewGroupsController(app),
-		controllers.NewDIExampleController(app),
 		controllers.NewShowcaseController(app),
 		controllers.NewWebSocketController(app),
+		controllers.NewCrudController[currency.Currency](
+			"/currencies",
+			app,
+			builder,
+		),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
