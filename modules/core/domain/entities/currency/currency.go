@@ -4,12 +4,15 @@ import (
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"time"
 )
 
 type Currency struct {
-	Code   Code
-	Name   string
-	Symbol Symbol
+	Code      Code
+	Name      string
+	Symbol    Symbol
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type CreateDTO struct {

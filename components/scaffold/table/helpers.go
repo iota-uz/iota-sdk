@@ -97,6 +97,7 @@ type TableConfig struct {
 	Title      string
 	DataURL    string
 	Filters    []templ.Component
+	Actions    []templ.Component // Actions like Create button
 	Columns    []TableColumn
 	Rows       []TableRow
 	Infinite   *InfiniteScrollConfig
@@ -110,6 +111,7 @@ func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig 
 		Infinite: &InfiniteScrollConfig{},
 		Columns:  []TableColumn{},
 		Filters:  []templ.Component{},
+		Actions:  []templ.Component{},
 		Rows:     []TableRow{},
 	}
 	for _, o := range opts {
@@ -155,5 +157,10 @@ func (c *TableConfig) AddRows(rows ...TableRow) *TableConfig {
 
 func (c *TableConfig) SetSideFilter(filter templ.Component) *TableConfig {
 	c.SideFilter = filter
+	return c
+}
+
+func (c *TableConfig) AddActions(actions ...templ.Component) *TableConfig {
+	c.Actions = append(c.Actions, actions...)
 	return c
 }
