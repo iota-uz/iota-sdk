@@ -361,6 +361,144 @@ func mergeCustomOptions(options *charts.ChartOptions, customOptions map[string]i
 	}
 }
 
+// buildMetricFromResult builds a MetricValue from executor result
+func buildMetricFromResult(config lens.PanelConfig, result *executor.ExecutionResult) lens.MetricValue {
+	if len(result.Data) == 0 {
+		return lens.MetricValue{
+			Label: config.Title,
+			Value: 0,
+		}
+	}
+
+	// Use the first data point for the metric value
+	dataPoint := result.Data[0]
+
+	// Convert value to float64
+	var value float64
+	if val, ok := dataPoint.Value.(float64); ok {
+		value = val
+	} else if val, ok := dataPoint.Value.(int); ok {
+		value = float64(val)
+	} else if val, ok := dataPoint.Value.(int64); ok {
+		value = float64(val)
+	} else {
+		value = 0.0
+	}
+
+	metric := lens.MetricValue{
+		Label: config.Title,
+		Value: value,
+	}
+
+	// Extract additional metric properties from config options
+	if config.Options != nil {
+		if unit, ok := config.Options["unit"].(string); ok {
+			metric.Unit = unit
+		}
+		if color, ok := config.Options["color"].(string); ok {
+			metric.Color = color
+		}
+		if icon, ok := config.Options["icon"].(string); ok {
+			metric.Icon = icon
+		}
+		if formattedValue, ok := config.Options["formattedValue"].(string); ok {
+			metric.FormattedValue = formattedValue
+		}
+
+		// Extract trend information
+		if trendData, ok := config.Options["trend"].(map[string]interface{}); ok {
+			trend := &lens.Trend{}
+			if direction, ok := trendData["direction"].(string); ok {
+				trend.Direction = direction
+			}
+			if percentage, ok := trendData["percentage"].(float64); ok {
+				trend.Percentage = percentage
+			}
+			if isPositive, ok := trendData["isPositive"].(bool); ok {
+				trend.IsPositive = isPositive
+			}
+			metric.Trend = trend
+		}
+	}
+
+	// Try to extract label from data point labels
+	if label, exists := dataPoint.Labels["label"]; exists {
+		metric.Label = label
+	}
+
+	return metric
+}
+
+// generateMetricCardStyle generates CSS styles for metric cards
+func generateMetricCardStyle(metric lens.MetricValue) string {
+	if metric.Color == "" {
+		return ""
+	}
+	return fmt.Sprintf("--metric-color: %s;", metric.Color)
+}
+
+// formatMetricValue formats a numeric value with unit
+func formatMetricValue(value float64, unit string) string {
+	formatted := formatNumericValue(value)
+	if unit != "" {
+		return formatted + " " + unit
+	}
+	return formatted
+}
+
+// formatNumericValue formats a numeric value with appropriate precision
+func formatNumericValue(value float64) string {
+	// Handle large numbers with appropriate suffixes
+	abs := value
+	if abs < 0 {
+		abs = -abs
+	}
+
+	if abs >= 1000000000 {
+		return fmt.Sprintf("%.1fB", value/1000000000)
+	} else if abs >= 1000000 {
+		return fmt.Sprintf("%.1fM", value/1000000)
+	} else if abs >= 1000 {
+		return fmt.Sprintf("%.1fK", value/1000)
+	} else if abs >= 1 {
+		return fmt.Sprintf("%.0f", value)
+	} else {
+		return fmt.Sprintf("%.2f", value)
+	}
+}
+
+// getTrendClass returns CSS class for trend styling
+func getTrendClass(trend *lens.Trend) string {
+	if trend == nil {
+		return ""
+	}
+
+	baseClass := "metric-card__trend--"
+	if trend.IsPositive {
+		return baseClass + "positive"
+	}
+	return baseClass + "negative"
+}
+
+// getTrendIcon returns the appropriate icon for trend direction
+func getTrendIcon(direction string) string {
+	switch direction {
+	case "up":
+		return "↗"
+	case "down":
+		return "↘"
+	case "stable":
+		return "→"
+	default:
+		return "→"
+	}
+}
+
+// formatPercentage formats a percentage value
+func formatPercentage(value float64) string {
+	return fmt.Sprintf("%.1f%%", value)
+}
+
 // Helper function to create float64 pointer
 func floatPtr(f float64) *float64 {
 	return &f
