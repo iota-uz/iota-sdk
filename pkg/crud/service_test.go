@@ -76,7 +76,7 @@ func TestReportService_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		list, err := service.List(ctx, &crud.FindParams{
-			Search:  "Filter",
+			Query:   "Filter",
 			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("SvcFilter")}},
 			Limit:   1,
 		})

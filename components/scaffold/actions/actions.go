@@ -73,11 +73,11 @@ func CustomAction(label string, icon templ.Component, opts ...ActionOption) Acti
 		Variant: button.VariantSecondary,
 		Size:    button.SizeNormal,
 	}
-	
+
 	for _, opt := range opts {
 		opt(&action)
 	}
-	
+
 	return action
 }
 
@@ -123,7 +123,7 @@ func WithAttrs(attrs templ.Attributes) ActionOption {
 func EditAction(href string) ActionProps {
 	return ActionProps{
 		Type:    ActionTypeCustom,
-		Label:   "",  // No label for icon-only button
+		Label:   "", // No label for icon-only button
 		Href:    href,
 		Icon:    icons.PencilSimple(icons.Props{Size: "20"}),
 		Variant: button.VariantSecondary,
@@ -138,16 +138,16 @@ func EditAction(href string) ActionProps {
 func DeleteAction(id string) ActionProps {
 	return ActionProps{
 		Type:    ActionTypeCustom,
-		Label:   "",  // No label for icon-only button
+		Label:   "", // No label for icon-only button
 		Icon:    icons.Trash(icons.Props{Size: "20"}),
 		Variant: button.VariantDanger,
 		Size:    button.SizeSM,
 		Attrs: templ.Attributes{
-			"class":         "btn-fixed",
-			"hx-delete":     id,
-			"hx-confirm":    "Are you sure?",
-			"hx-target":     "closest tr",
-			"hx-swap":       "outerHTML swap:0.5s",
+			"class":      "btn-fixed",
+			"hx-delete":  id,
+			"hx-confirm": "Are you sure?",
+			"hx-target":  "closest tr",
+			"hx-swap":    "outerHTML swap:0.5s",
 		},
 	}
 }
