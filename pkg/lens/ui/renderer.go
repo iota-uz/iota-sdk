@@ -227,6 +227,104 @@ const cssTemplate = `
   color: #374151;
 }
 
+.metric-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.metric-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  width: 100%;
+  height: 100%;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.metric-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.metric-card--colored {
+  border-left: 4px solid var(--metric-color, #3b82f6);
+}
+
+.metric-card--has-trend .metric-card__value {
+  margin-bottom: 0.75rem;
+}
+
+.metric-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.metric-card__icon {
+  font-size: 1.25rem;
+  opacity: 0.8;
+}
+
+.metric-card__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.metric-card__value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.metric-card__trend {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.metric-card__trend--positive {
+  color: #059669;
+}
+
+.metric-card__trend--negative {
+  color: #dc2626;
+}
+
+.metric-card__trend-icon {
+  font-size: 0.875rem;
+}
+
+.metric-card__trend-value {
+  margin-left: 0.125rem;
+}
+
+.metric-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6b7280;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 1rem;
+}
+
 @media (max-width: 768px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
@@ -236,6 +334,13 @@ const cssTemplate = `
   .dashboard-panel {
     grid-column: 1 / -1;
     min-height: 200px;
+  }
+  .metric-card {
+    min-height: 120px;
+    padding: 1rem;
+  }
+  .metric-card__value {
+    font-size: 1.75rem;
   }
 }
 `

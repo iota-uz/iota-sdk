@@ -15,9 +15,6 @@ type IndexPageProps struct {
 
 templ DashboardContent(props *IndexPageProps) {
 	<div class="m-6">
-		<h1 class="text-2xl font-semibold text-gray-700 mb-6">
-			Finance Dashboard
-		</h1>
 		@templ.Raw(ui.GenerateCSS(props.Dashboard.Grid))
 		if props.DashboardResult != nil {
 			@ui.DashboardWithData(props.Dashboard, props.DashboardResult)

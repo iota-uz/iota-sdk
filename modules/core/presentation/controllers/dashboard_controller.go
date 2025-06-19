@@ -70,10 +70,87 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 		Variable("tenant_id", "current_tenant").
 		Variable("time_range", "30d").
 		Panel(
-			builder.BarChart().
+			builder.MetricCard().
+				ID("total-balance").
+				Title("Total Balance").
+				Position(0, 0).
+				Size(3, 2).
+				DataSource("postgres").
+				Query(`
+					SELECT 
+						'Total Balance' as timestamp,
+						(SUM(ma.balance) / 100.0)::float8 as value
+					FROM money_accounts ma
+				`).
+				Option("unit", "USD").
+				Option("color", "#10b981").
+				Option("icon", "💰").
+				Build(),
+		).
+		Panel(
+			builder.MetricCard().
 				ID("monthly-expenses").
 				Title("Monthly Expenses").
-				Position(0, 0).
+				Position(3, 0).
+				Size(3, 2).
+				DataSource("postgres").
+				Query(`
+					SELECT 
+						'Monthly Expenses' as timestamp,
+						(SUM(t.amount) / 100.0)::float8 as value
+					FROM transactions t
+					JOIN expenses e ON t.id = e.transaction_id
+					WHERE t.transaction_date >= DATE_TRUNC('month', NOW())
+						AND t.transaction_type = 'expense'
+				`).
+				Option("unit", "USD").
+				Option("color", "#ef4444").
+				Option("icon", "📊").
+				Build(),
+		).
+		Panel(
+			builder.MetricCard().
+				ID("monthly-income").
+				Title("Monthly Income").
+				Position(6, 0).
+				Size(3, 2).
+				DataSource("postgres").
+				Query(`
+					SELECT 
+						'Monthly Income' as timestamp,
+						(SUM(t.amount) / 100.0)::float8 as value
+					FROM transactions t
+					WHERE t.transaction_date >= DATE_TRUNC('month', NOW())
+						AND t.transaction_type = 'income'
+				`).
+				Option("unit", "USD").
+				Option("color", "#059669").
+				Option("icon", "📈").
+				Build(),
+		).
+		Panel(
+			builder.MetricCard().
+				ID("transaction-count").
+				Title("Transactions This Month").
+				Position(9, 0).
+				Size(3, 2).
+				DataSource("postgres").
+				Query(`
+					SELECT 
+						'Transaction Count' as timestamp,
+						COUNT(*)::float8 as value
+					FROM transactions t
+					WHERE t.transaction_date >= DATE_TRUNC('month', NOW())
+				`).
+				Option("color", "#3b82f6").
+				Option("icon", "🔄").
+				Build(),
+		).
+		Panel(
+			builder.BarChart().
+				ID("monthly-expenses-chart").
+				Title("Monthly Expenses Chart").
+				Position(0, 2).
 				Size(6, 4).
 				DataSource("postgres").
 				Query(`
@@ -94,7 +171,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 			builder.PieChart().
 				ID("expenses-by-category").
 				Title("Expenses by Category").
-				Position(6, 0).
+				Position(6, 2).
 				Size(6, 4).
 				DataSource("postgres").
 				Query(`
@@ -118,7 +195,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 			builder.LineChart().
 				ID("account-balances").
 				Title("Account Balances Over Time").
-				Position(0, 4).
+				Position(0, 6).
 				Size(12, 4).
 				DataSource("postgres").
 				Query(`
@@ -135,7 +212,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 			builder.AreaChart().
 				ID("revenue-trend").
 				Title("Revenue Trend").
-				Position(0, 8).
+				Position(0, 10).
 				Size(6, 4).
 				DataSource("postgres").
 				Query(`
@@ -155,7 +232,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 			builder.BarChart().
 				ID("top-counterparties").
 				Title("Top Counterparties by Transaction Volume").
-				Position(6, 8).
+				Position(6, 10).
 				Size(6, 4).
 				DataSource("postgres").
 				Query(`
@@ -176,7 +253,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 			builder.GaugeChart().
 				ID("expense-budget-usage").
 				Title("Monthly Budget Usage").
-				Position(0, 12).
+				Position(0, 14).
 				Size(4, 3).
 				DataSource("postgres").
 				Query(`
@@ -206,7 +283,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 			builder.TableChart().
 				ID("recent-transactions").
 				Title("Recent Transactions").
-				Position(4, 12).
+				Position(4, 14).
 				Size(8, 6).
 				DataSource("postgres").
 				Query(`

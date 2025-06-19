@@ -51,6 +51,8 @@ templ Panel(panel *evaluation.EvaluatedPanel) {
 			switch panel.Config.Type {
 				case lens.ChartTypeTable:
 					@TablePanel(panel)
+				case lens.ChartTypeMetric:
+					@MetricPanel(panel)
 				default:
 					@ChartPanel(panel)
 			}
@@ -78,6 +80,8 @@ templ PanelWithData(config lens.PanelConfig, result *executor.ExecutionResult) {
 				switch config.Type {
 					case lens.ChartTypeTable:
 						@TableContent(result)
+					case lens.ChartTypeMetric:
+						@MetricContent(config, result)
 					default:
 						@ChartContent(config, result)
 				}
@@ -156,6 +160,53 @@ templ ErrorContent(message string) {
 	<div class="error-container">
 		<div class="error-icon">⚠️</div>
 		<div class="error-message">{ message }</div>
+	</div>
+}
+
+// MetricPanel renders a metric panel from evaluated panel
+templ MetricPanel(panel *evaluation.EvaluatedPanel) {
+	<div class="metric-container">
+		<div class="metric-placeholder">
+			Metric data will be loaded via HTMX
+		</div>
+	</div>
+}
+
+// MetricContent renders metric card from executor results
+templ MetricContent(config lens.PanelConfig, result *executor.ExecutionResult) {
+	<div class="metric-container">
+		if len(result.Data) > 0 && len(result.Columns) >= 2 {
+			@MetricCard(buildMetricFromResult(config, result))
+		} else {
+			<div class="metric-error">
+				<span>Invalid metric data: requires at least 2 columns (label, value)</span>
+			</div>
+		}
+	</div>
+}
+
+// MetricCard renders a single metric value card
+templ MetricCard(metric lens.MetricValue) {
+	<div class={ "metric-card", templ.KV("metric-card--has-trend", metric.Trend != nil), templ.KV("metric-card--colored", metric.Color != "") } style={ generateMetricCardStyle(metric) }>
+		<div class="metric-card__header">
+			if metric.Icon != "" {
+				<div class="metric-card__icon">{ metric.Icon }</div>
+			}
+			<div class="metric-card__label">{ metric.Label }</div>
+		</div>
+		<div class="metric-card__value">
+			if metric.FormattedValue != "" {
+				{ metric.FormattedValue }
+			} else {
+				{ formatMetricValue(metric.Value, metric.Unit) }
+			}
+		</div>
+		if metric.Trend != nil {
+			<div class={ "metric-card__trend", getTrendClass(metric.Trend) }>
+				<span class="metric-card__trend-icon">{ getTrendIcon(metric.Trend.Direction) }</span>
+				<span class="metric-card__trend-value">{ formatPercentage(metric.Trend.Percentage) }</span>
+			</div>
+		}
 	</div>
 }
 

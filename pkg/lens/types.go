@@ -13,6 +13,7 @@ const (
 	ChartTypeColumn ChartType = "column"
 	ChartTypeGauge  ChartType = "gauge"
 	ChartTypeTable  ChartType = "table"
+	ChartTypeMetric ChartType = "metric"
 )
 
 // TimeRange represents a time period for data queries
@@ -66,4 +67,22 @@ type PanelLayout struct {
 	PanelID    string
 	Position   GridPosition
 	Dimensions GridDimensions
+}
+
+// MetricValue represents a single metric value with metadata
+type MetricValue struct {
+	Label          string  `json:"label"`
+	Value          float64 `json:"value"`
+	FormattedValue string  `json:"formattedValue,omitempty"`
+	Unit           string  `json:"unit,omitempty"`
+	Trend          *Trend  `json:"trend,omitempty"`
+	Color          string  `json:"color,omitempty"`
+	Icon           string  `json:"icon,omitempty"`
+}
+
+// Trend represents trend information for a metric
+type Trend struct {
+	Direction  string  `json:"direction"` // "up", "down", "stable"
+	Percentage float64 `json:"percentage"`
+	IsPositive bool    `json:"isPositive"`
 }

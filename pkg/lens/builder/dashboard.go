@@ -269,6 +269,11 @@ func TableChart() PanelBuilder {
 	return NewPanel().Type(lens.ChartTypeTable)
 }
 
+// MetricCard creates a metric card panel builder
+func MetricCard() PanelBuilder {
+	return NewPanel().Type(lens.ChartTypeMetric)
+}
+
 // Helper functions for common panel configurations
 
 // QuickPanel creates a panel with basic configuration
