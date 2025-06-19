@@ -80,6 +80,9 @@ func (s *service[TEntity]) List(ctx context.Context, params *FindParams) ([]TEnt
 func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, error) {
 	var zero TEntity
 
+	createHook := s.schema.Hooks().OnCreate()
+	updateHook := s.schema.Hooks().OnUpdate()
+
 	fieldValues, err := s.schema.Mapper().ToFieldValues(ctx, entity)
 	if err != nil {
 		return zero, errors.Wrap(err, "failed to map entity to field values for saving")
@@ -108,6 +111,23 @@ func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, e
 		} else {
 			isCreate = true
 		}
+	}
+
+	if isCreate {
+		entity, err = createHook(ctx, entity)
+		if err != nil {
+			return zero, errors.Wrap(err, "service failed to create hook")
+		}
+	} else {
+		entity, err = updateHook(ctx, entity)
+		if err != nil {
+			return zero, errors.Wrap(err, "service failed to update hook")
+		}
+	}
+
+	fieldValues, err = s.schema.Mapper().ToFieldValues(ctx, entity)
+	if err != nil {
+		return zero, errors.Wrap(err, "failed to map entity to field values for saving")
 	}
 
 	var (
@@ -155,13 +175,17 @@ func (s *service[TEntity]) Delete(ctx context.Context, value FieldValue) (TEntit
 	var zero TEntity
 
 	deletedEvent, err := NewDeletedEvent[TEntity](ctx)
+	deletedHook := s.schema.Hooks().OnDelete()
 
 	var deletedEntity TEntity
 	if err := composables.InTx(ctx, func(txCtx context.Context) error {
 		if entity, err := s.repository.Delete(txCtx, value); err != nil {
 			return errors.Wrap(err, "failed to delete entity")
 		} else {
-			deletedEntity = entity
+			deletedEntity, err = deletedHook(ctx, entity)
+			if err != nil {
+				return errors.Wrap(err, "failed to delete entity in hook")
+			}
 		}
 		return nil
 	}); err != nil {
