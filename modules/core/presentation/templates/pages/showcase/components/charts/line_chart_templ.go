@@ -9,7 +9,6 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/iota-uz/iota-sdk/components/charts"
-import "github.com/iota-uz/iota-sdk/pkg/mapping"
 
 func LineChart() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -34,40 +33,12 @@ func LineChart() templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = charts.Chart(charts.Props{
 			Class: "h-64",
-			Options: charts.ChartOptions{
-				Chart: charts.ChartConfig{
-					Type:   charts.LineChartType,
-					Height: "100%",
-					Toolbar: charts.Toolbar{
-						Show: false,
-					},
-				},
-				Series: []charts.Series{
-					{
-						Name: "Revenue",
-						Data: []interface{}{10.0, 41.0, 35.0, 51.0, 49.0, 62.0, 69.0, 91.0, 148.0},
-					},
-				},
-				XAxis: charts.XAxisConfig{
-					Categories: []string{
-						"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
-					},
-				},
-				YAxis: []charts.YAxisConfig{
-					{
-						Labels: &charts.YAxisLabelsConfig{
-							Style: &charts.YAxisLabelStyleConfig{
-								Colors:   "#64748b",
-								FontSize: mapping.Pointer("12px"),
-							},
-						},
-					},
-				},
-				Colors: []string{"#10b981"},
-				DataLabels: &charts.DataLabels{
-					Enabled: false,
-				},
-			},
+			Options: charts.NewLineChart().
+				WithSeries("Revenue", []float64{10.0, 41.0, 35.0, 51.0, 49.0, 62.0, 69.0, 91.0, 148.0}).
+				WithCategories([]string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep"}).
+				WithHeight("100%").
+				WithColors("#10b981").
+				Build(),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

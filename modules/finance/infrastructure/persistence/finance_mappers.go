@@ -236,15 +236,23 @@ func ToDomainMoneyAccount(dbAccount *models.MoneyAccount) (moneyaccount.Account,
 	}
 
 	balance := money.New(dbAccount.Balance, dbAccount.BalanceCurrencyID)
-	return moneyaccount.New(
-		dbAccount.Name,
-		balance,
+
+	opts := []moneyaccount.Option{
 		moneyaccount.WithID(uuid.MustParse(dbAccount.ID)),
 		moneyaccount.WithTenantID(tenantID),
 		moneyaccount.WithAccountNumber(dbAccount.AccountNumber),
-		moneyaccount.WithDescription(dbAccount.Description),
 		moneyaccount.WithCreatedAt(dbAccount.CreatedAt),
 		moneyaccount.WithUpdatedAt(dbAccount.UpdatedAt),
+	}
+
+	if dbAccount.Description.Valid {
+		opts = append(opts, moneyaccount.WithDescription(dbAccount.Description.String))
+	}
+
+	return moneyaccount.New(
+		dbAccount.Name,
+		balance,
+		opts...,
 	), nil
 }
 
@@ -257,7 +265,7 @@ func ToDBMoneyAccount(entity moneyaccount.Account) *models.MoneyAccount {
 		AccountNumber:     entity.AccountNumber(),
 		Balance:           balance.Amount(),
 		BalanceCurrencyID: balance.Currency().Code,
-		Description:       entity.Description(),
+		Description:       mapping.ValueToSQLNullString(entity.Description()),
 		CreatedAt:         entity.CreatedAt(),
 		UpdatedAt:         entity.UpdatedAt(),
 	}
