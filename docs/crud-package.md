@@ -56,6 +56,7 @@ The package supports various field types:
 - `IntField` - Integer fields with min/max values
 - `BoolField` - Boolean fields with custom labels
 - `FloatField` - Floating-point fields with precision
+- `DecimalField` - High-precision decimal fields for financial data
 - `DateField` - Date-only fields
 - `TimeField` - Time-only fields
 - `DateTimeField` - Combined date and time fields
@@ -67,11 +68,11 @@ The package supports various field types:
 ### String Field
 ```go
 crud.NewStringField("name",
-    crud.WithSearchable(true),  // Enable text search
+    crud.WithSearchable(),      // Enable text search
     crud.WithMinLen(3),         // Minimum length
     crud.WithMaxLen(100),       // Maximum length
     crud.WithPattern("^[A-Z]"), // Regex pattern
-    crud.WithMultiline(true),   // Textarea in forms
+    crud.WithMultiline(),       // Textarea in forms
 )
 ```
 
@@ -94,6 +95,17 @@ crud.NewBoolField("active",
 )
 ```
 
+### Decimal Field
+```go
+crud.NewDecimalField("price",
+    crud.WithPrecision(10),     // Total digits
+    crud.WithScale(2),          // Decimal places
+    crud.WithDecimalMin("0.00"),
+    crud.WithDecimalMax("999999.99"),
+    crud.WithRequired(),
+)
+```
+
 ### Date/Time Fields
 ```go
 // Date field
@@ -104,7 +116,7 @@ crud.NewDateField("birth_date",
 
 // DateTime field
 crud.NewDateTimeField("created_at",
-    crud.WithReadonly(true),
+    crud.WithReadonly(),
     crud.WithInitialValue(func() any { return time.Now() }),
 )
 ```
@@ -112,8 +124,8 @@ crud.NewDateTimeField("created_at",
 ### UUID Field
 ```go
 crud.NewUUIDField("id",
-    crud.WithKey(true),      // Primary key
-    crud.WithReadonly(true), // Auto-generated
+    crud.WithKey(),          // Primary key
+    crud.WithReadonly(),     // Auto-generated
     crud.WithInitialValue(func() any { return uuid.New() }),
 )
 ```
@@ -122,10 +134,10 @@ crud.NewUUIDField("id",
 
 Common field options:
 
-- `WithKey(bool)` - Mark as primary key
-- `WithReadonly(bool)` - Read-only in forms
-- `WithHidden(bool)` - Hide from UI
-- `WithSearchable(bool)` - Enable text search (string fields only)
+- `WithKey()` - Mark as primary key
+- `WithReadonly()` - Read-only in forms
+- `WithHidden()` - Hide from UI
+- `WithSearchable()` - Enable text search (string fields only)
 - `WithRequired()` - Add required validation
 - `WithInitialValue(func() any)` - Set default value
 - `WithRule(FieldRule)` - Add custom validation
@@ -251,22 +263,23 @@ Generated endpoints:
 ```go
 // Define fields
 fields := crud.NewFields([]crud.Field{
-    crud.NewUUIDField("id", crud.WithKey(true), crud.WithReadonly(true)),
+    crud.NewUUIDField("id", crud.WithKey(), crud.WithReadonly()),
     crud.NewStringField("name", 
         crud.WithRequired(),
-        crud.WithSearchable(true),
+        crud.WithSearchable(),
         crud.WithMinLen(3),
         crud.WithMaxLen(100),
     ),
-    crud.NewFloatField("price",
-        crud.WithFloatMin(0),
-        crud.WithPrecision(2),
+    crud.NewDecimalField("price",
+        crud.WithPrecision(10),
+        crud.WithScale(2),
+        crud.WithDecimalMin("0.00"),
     ),
     crud.NewBoolField("active",
         crud.WithInitialValue(func() any { return true }),
     ),
     crud.NewDateTimeField("created_at",
-        crud.WithReadonly(true),
+        crud.WithReadonly(),
         crud.WithInitialValue(func() any { return time.Now() }),
     ),
 })
@@ -363,11 +376,104 @@ builder := crud.NewBuilder(
 )
 ```
 
+## Field Labels and Localization
+
+The CRUD controller automatically generates field labels using internationalization (i18n) patterns:
+
+### Label Resolution Pattern
+
+Field labels are resolved using the following pattern:
+```
+{SchemaName}.Fields.{FieldName}
+```
+
+For example, with a schema named "products" and a field named "name":
+```
+products.Fields.name
+```
+
+### Setting Up Custom Labels
+
+Create translations in your module's locale files:
+
+**English** (`modules/{module}/presentation/locales/en.json`):
+```json
+{
+  "products": {
+    "Fields": {
+      "name": "Product Name",
+      "price": "Unit Price",
+      "active": "Is Active",
+      "created_at": "Date Created"
+    }
+  }
+}
+```
+
+**Russian** (`modules/{module}/presentation/locales/ru.json`):
+```json
+{
+  "products": {
+    "Fields": {
+      "name": "Название товара",
+      "price": "Цена за единицу",
+      "active": "Активен",
+      "created_at": "Дата создания"
+    }
+  }
+}
+```
+
+### Label Fallback Behavior
+
+If no translation is found, the system falls back to the field name itself:
+1. First, tries to find translation using `{SchemaName}.Fields.{FieldName}`
+2. If not found, uses the field name as-is (e.g., "name", "created_at")
+
+### Boolean Field Special Labels
+
+Boolean fields support additional custom labels for their values:
+
+```go
+crud.NewBoolField("active",
+    crud.WithTrueLabel("Active"),    // Custom label for true value
+    crud.WithFalseLabel("Inactive"), // Custom label for false value
+)
+```
+
+These labels are used in:
+- Table displays (showing "Active"/"Inactive" instead of "true"/"false")
+- Form displays
+- Detail views
+
+### Example: Complete Localization Setup
+
+```go
+// Schema definition
+schema := crud.NewSchema("products", fields, mapper)
+
+// Locale files setup required:
+// modules/mymodule/presentation/locales/en.json
+{
+  "products": {
+    "Fields": {
+      "id": "Product ID",
+      "name": "Product Name", 
+      "description": "Description",
+      "price": "Price ($)",
+      "active": "Status",
+      "created_at": "Created Date"
+    }
+  }
+}
+```
+
 ## Best Practices
 
-1. **Field Naming**: Use database column names for field names
+1. **Field Naming**: Use descriptive database column names that work as fallback labels
 2. **Validation**: Combine field rules with entity validators
 3. **Hooks**: Use hooks for timestamps and computed fields
 4. **Events**: Subscribe to events for side effects
 5. **Custom Logic**: Override repository/service for complex logic
-6. **Localization**: Provide translations for field labels and errors
+6. **Localization**: Always provide translations for field labels in all supported languages
+7. **Label Keys**: Use consistent naming patterns for translation keys across modules

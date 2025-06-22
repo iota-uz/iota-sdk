@@ -2,27 +2,27 @@ package crud
 
 import "time"
 
-func WithKey(key bool) FieldOption {
+func WithKey() FieldOption {
 	return func(field *field) {
-		field.key = key
+		field.key = true
 	}
 }
 
-func WithReadonly(readonly bool) FieldOption {
+func WithReadonly() FieldOption {
 	return func(field *field) {
-		field.readonly = readonly
+		field.readonly = true
 	}
 }
 
-func WithHidden(hidden bool) FieldOption {
+func WithHidden() FieldOption {
 	return func(field *field) {
-		field.hidden = hidden
+		field.hidden = true
 	}
 }
 
-func WithSearchable(searchable bool) FieldOption {
+func WithSearchable() FieldOption {
 	return func(field *field) {
-		field.searchable = searchable
+		field.searchable = true
 	}
 }
 
@@ -32,7 +32,7 @@ func WithInitialValue(fn func() any) FieldOption {
 	}
 }
 
-func WithRules(rules []FieldRule) FieldOption {
+func WithRules(rules ...FieldRule) FieldOption {
 	return func(field *field) {
 		field.rules = append(field.rules, rules...)
 	}
@@ -72,9 +72,9 @@ func WithMaxLen(maxLen int) FieldOption {
 	}
 }
 
-func WithMultiline(multiline bool) FieldOption {
+func WithMultiline() FieldOption {
 	return func(field *field) {
-		field.attrs[Multiline] = multiline
+		field.attrs[Multiline] = true
 	}
 }
 
@@ -108,6 +108,24 @@ func WithPrecision(precision int) FieldOption {
 	}
 }
 
+func WithScale(scale int) FieldOption {
+	return func(field *field) {
+		field.attrs[Scale] = scale
+	}
+}
+
+func WithDecimalMin(min string) FieldOption {
+	return func(field *field) {
+		field.attrs[Min] = min
+	}
+}
+
+func WithDecimalMax(max string) FieldOption {
+	return func(field *field) {
+		field.attrs[Max] = max
+	}
+}
+
 func WithMinDate(minDate time.Time) FieldOption {
 	return func(field *field) {
 		field.attrs[MinDate] = minDate
@@ -127,21 +145,21 @@ func WithPattern(pattern string) FieldOption {
 	}
 }
 
-func WithTrim(trim bool) FieldOption {
+func WithTrim() FieldOption {
 	return func(field *field) {
-		field.attrs[Trim] = trim
+		field.attrs[Trim] = true
 	}
 }
 
-func WithUppercase(uppercase bool) FieldOption {
+func WithUppercase() FieldOption {
 	return func(field *field) {
-		field.attrs[Uppercase] = uppercase
+		field.attrs[Uppercase] = true
 	}
 }
 
-func WithLowercase(lowercase bool) FieldOption {
+func WithLowercase() FieldOption {
 	return func(field *field) {
-		field.attrs[Lowercase] = lowercase
+		field.attrs[Lowercase] = true
 	}
 }
 
@@ -176,12 +194,10 @@ func WithTimezone(timezone string) FieldOption {
 	}
 }
 
-func WithWeekdaysOnly(weekdaysOnly bool) FieldOption {
+func WithWeekdaysOnly() FieldOption {
 	return func(field *field) {
-		field.attrs[WeekdaysOnly] = weekdaysOnly
-		if weekdaysOnly {
-			field.rules = append(field.rules, WeekdayRule())
-		}
+		field.attrs[WeekdaysOnly] = true
+		field.rules = append(field.rules, WeekdayRule())
 	}
 }
 

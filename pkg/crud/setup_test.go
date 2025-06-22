@@ -179,10 +179,10 @@ func (m *reportMapper) ToFieldValues(_ context.Context, r Report) ([]crud.FieldV
 
 func buildReportSchema() crud.Schema[Report] {
 	fields := crud.NewFields([]crud.Field{
-		crud.NewIntField("id", crud.WithKey(true)),
-		crud.NewStringField("title", crud.WithSearchable(true)),
-		crud.NewStringField("author", crud.WithSearchable(true)),
-		crud.NewStringField("summary", crud.WithSearchable(true)),
+		crud.NewIntField("id", crud.WithKey()),
+		crud.NewStringField("title", crud.WithSearchable()),
+		crud.NewStringField("author", crud.WithSearchable()),
+		crud.NewStringField("summary", crud.WithSearchable()),
 	})
 	return crud.NewSchema(
 		"reports",

@@ -1,8 +1,10 @@
 package crud
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +21,7 @@ type FieldValue interface {
 	AsBool() (bool, error)
 	AsFloat32() (float32, error)
 	AsFloat64() (float64, error)
+	AsDecimal() (string, error)
 	AsTime() (time.Time, error)
 	AsUUID() (uuid.UUID, error)
 }
@@ -117,6 +120,60 @@ func (fv *fieldValue) AsFloat64() (float64, error) {
 	return f, nil
 }
 
+func (fv *fieldValue) AsDecimal() (string, error) {
+	if fv.Field().Type() != DecimalFieldType {
+		return "", fv.typeMismatch("decimal")
+	}
+
+	switch v := fv.value.(type) {
+	case string:
+		return v, nil
+	case int:
+		return fmt.Sprintf("%d", v), nil
+	case int32:
+		return fmt.Sprintf("%d", v), nil
+	case int64:
+		return fmt.Sprintf("%d", v), nil
+	case float32:
+		return fmt.Sprintf("%g", v), nil
+	case float64:
+		return fmt.Sprintf("%g", v), nil
+	default:
+		// Try to use driver.Valuer interface first
+		if valuer, ok := v.(driver.Valuer); ok {
+			val, err := valuer.Value()
+			if err != nil {
+				return "", fmt.Errorf("failed to get decimal value: %w", err)
+			}
+			if val == nil {
+				return "", nil
+			}
+			// The value might be string, float64, or other numeric type
+			switch v := val.(type) {
+			case string:
+				return v, nil
+			case float64:
+				return fmt.Sprintf("%g", v), nil
+			case int64:
+				return fmt.Sprintf("%d", v), nil
+			default:
+				return fmt.Sprintf("%v", v), nil
+			}
+		}
+
+		// Try fmt.Stringer
+		if stringer, ok := v.(fmt.Stringer); ok {
+			str := stringer.String()
+			// Avoid returning internal representation
+			if !strings.HasPrefix(str, "{") {
+				return str, nil
+			}
+		}
+
+		return "", fmt.Errorf("cannot convert %T to decimal string", v)
+	}
+}
+
 func (fv *fieldValue) AsTime() (time.Time, error) {
 	switch fv.Field().Type() {
 	case DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType:
@@ -125,7 +182,7 @@ func (fv *fieldValue) AsTime() (time.Time, error) {
 			return time.Time{}, fv.valueCastError("time.Time")
 		}
 		return t, nil
-	case StringFieldType, IntFieldType, BoolFieldType, FloatFieldType, UUIDFieldType:
+	case StringFieldType, IntFieldType, BoolFieldType, FloatFieldType, DecimalFieldType, UUIDFieldType:
 		return time.Time{}, fv.typeMismatch("time.Time")
 	}
 	return time.Time{}, fv.typeMismatch("time.Time")

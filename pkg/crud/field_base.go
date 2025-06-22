@@ -21,6 +21,7 @@ const (
 	IntFieldType       FieldType = "int"
 	BoolFieldType      FieldType = "bool"
 	FloatFieldType     FieldType = "float"
+	DecimalFieldType   FieldType = "decimal"
 	DateFieldType      FieldType = "date"
 	TimeFieldType      FieldType = "time"
 	DateTimeFieldType  FieldType = "datetime"
@@ -35,6 +36,7 @@ const (
 	Min          string = "min"
 	Max          string = "max"
 	Precision    string = "precision"
+	Scale        string = "scale"
 	MinDate      string = "minDate"
 	MaxDate      string = "maxDate"
 	Pattern      string = "pattern"
@@ -72,6 +74,7 @@ type Field interface {
 	AsIntField() (IntField, error)
 	AsBoolField() (BoolField, error)
 	AsFloatField() (FloatField, error)
+	AsDecimalField() (DecimalField, error)
 	AsDateField() (DateField, error)
 	AsTimeField() (TimeField, error)
 	AsDateTimeField() (DateTimeField, error)
@@ -187,6 +190,10 @@ func (f *field) AsFloatField() (FloatField, error) {
 	return nil, fmt.Errorf("%w: field %q is %s, not %s", ErrFieldTypeMismatch, f.name, f.type_, FloatFieldType)
 }
 
+func (f *field) AsDecimalField() (DecimalField, error) {
+	return nil, fmt.Errorf("%w: field %q is %s, not %s", ErrFieldTypeMismatch, f.name, f.type_, DecimalFieldType)
+}
+
 func (f *field) AsDateField() (DateField, error) {
 	return nil, fmt.Errorf("%w: field %q is %s, not %s", ErrFieldTypeMismatch, f.name, f.type_, DateFieldType)
 }
@@ -232,6 +239,9 @@ func isValidType(fieldType FieldType, value any) bool {
 		default:
 			return false
 		}
+
+	case DecimalFieldType:
+		return true
 
 	case DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType:
 		_, ok := value.(time.Time)

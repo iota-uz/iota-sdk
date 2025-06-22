@@ -98,29 +98,29 @@ func (m *Module) Register(app application.Application) error {
 	fields := crud.NewFields([]crud.Field{
 		crud.NewStringField(
 			"code",
-			crud.WithKey(true),
+			crud.WithKey(),
 			crud.WithMaxLen(3),
-			crud.WithSearchable(true),
+			crud.WithSearchable(),
 		),
 		crud.NewStringField(
 			"name",
 			crud.WithMaxLen(255),
-			crud.WithSearchable(true),
+			crud.WithSearchable(),
 		),
 		crud.NewStringField(
 			"symbol",
 			crud.WithMaxLen(3),
-			crud.WithSearchable(true),
+			crud.WithSearchable(),
 		),
 		crud.NewDateTimeField("created_at",
-			crud.WithHidden(true),
+			crud.WithHidden(),
 			crud.WithInitialValue(func() any {
 				return time.Now()
 			}),
 		),
 		crud.NewDateTimeField(
 			"updated_at",
-			crud.WithHidden(true),
+			crud.WithHidden(),
 			crud.WithInitialValue(func() any {
 				return time.Now()
 			}),

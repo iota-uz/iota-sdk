@@ -12,7 +12,7 @@ import (
 
 func TestUUIDField(t *testing.T) {
 	t.Run("creates UUID field correctly", func(t *testing.T) {
-		field := crud.NewUUIDField("id", crud.WithKey(true))
+		field := crud.NewUUIDField("id", crud.WithKey())
 
 		assert.Equal(t, "id", field.Name())
 		assert.Equal(t, crud.UUIDFieldType, field.Type())

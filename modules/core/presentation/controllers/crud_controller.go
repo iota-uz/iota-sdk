@@ -222,6 +222,11 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			continue
 		}
 
+		// Skip readonly fields - they should not be updated from form data
+		if field.Readonly() {
+			continue
+		}
+
 		formValue := r.Form.Get(fieldName)
 		var value any
 
@@ -295,6 +300,9 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			} else {
 				continue // Skip empty values
 			}
+		case crud.DecimalFieldType:
+			// Decimal fields are stored as strings
+			value = formValue
 		case crud.StringFieldType, crud.TimestampFieldType:
 			// String and timestamp fields are handled as strings from forms
 			value = formValue
@@ -862,7 +870,10 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 	}
 	for _, f := range c.schema.Fields().Fields() {
 		if _, found := existingFields[f.Name()]; !found {
-			fieldValues = append(fieldValues, f.Value(f.InitialValue()))
+			// Skip readonly fields during creation - they should not be set from form data
+			if !f.Readonly() {
+				fieldValues = append(fieldValues, f.Value(f.InitialValue()))
+			}
 		}
 	}
 
@@ -1287,6 +1298,57 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 
 		return builder.Build()
 
+	case crud.DecimalFieldType:
+		decimalField, err := field.AsDecimalField()
+		if err != nil {
+			return nil
+		}
+
+		builder := form.NewNumberField(field.Name(), fieldLabel)
+
+		if decimalField.Min() != "" {
+			if minVal, err := strconv.ParseFloat(decimalField.Min(), 64); err == nil {
+				builder = builder.Min(minVal)
+			}
+		}
+		if decimalField.Max() != "" {
+			if maxVal, err := strconv.ParseFloat(decimalField.Max(), 64); err == nil {
+				builder = builder.Max(maxVal)
+			}
+		}
+
+		attrs := templ.Attributes{}
+		if decimalField.Scale() > 0 {
+			step := 1.0
+			for i := 0; i < decimalField.Scale(); i++ {
+				step /= 10
+			}
+			attrs["step"] = fmt.Sprintf("%f", step)
+		} else {
+			attrs["step"] = "any"
+		}
+
+		if field.Readonly() {
+			attrs["readonly"] = true
+		}
+
+		builder = builder.Attrs(attrs)
+
+		if len(field.Rules()) > 0 {
+			builder = builder.Required()
+		}
+
+		if currentValue != nil && value != nil && !value.IsZero() {
+			// Use AsDecimal to handle all possible decimal value types
+			if decimalStr, err := value.AsDecimal(); err == nil {
+				if floatVal, err := strconv.ParseFloat(decimalStr, 64); err == nil {
+					builder = builder.Default(floatVal)
+				}
+			}
+		}
+
+		return builder.Build()
+
 	default:
 		builder := form.Text(field.Name(), field.Name())
 		if currentValue != nil {
@@ -1350,6 +1412,13 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 		}
 
 		return templ.Raw(fmt.Sprintf("%f", floatVal))
+
+	case crud.DecimalFieldType:
+		decimalVal, err := value.AsDecimal()
+		if err != nil {
+			return templ.Raw("")
+		}
+		return templ.Raw(decimalVal)
 
 	case crud.DateFieldType:
 		timeVal, err := value.AsTime()

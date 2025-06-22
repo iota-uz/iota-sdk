@@ -199,6 +199,12 @@ func (rb *RequestBuilder) WithHeader(key, value string) *RequestBuilder {
 	return rb
 }
 
+// WithCookie adds a cookie to the request
+func (rb *RequestBuilder) WithCookie(name, value string) *RequestBuilder {
+	rb.headers.Add("Cookie", name+"="+value)
+	return rb
+}
+
 // HTMX marks the request as HTMX
 func (rb *RequestBuilder) HTMX() *RequestBuilder {
 	return rb.WithHeader("Hx-Request", "true")
@@ -272,6 +278,21 @@ func (ra *ResponseAssertion) RedirectTo(t *testing.T, location string) *Response
 // Body returns the response body
 func (ra *ResponseAssertion) Body() string {
 	return ra.recorder.Body.String()
+}
+
+// Header returns a header value
+func (ra *ResponseAssertion) Header(key string) string {
+	return ra.recorder.Header().Get(key)
+}
+
+// Cookies returns response cookies
+func (ra *ResponseAssertion) Cookies() []*http.Cookie {
+	return ra.recorder.Result().Cookies()
+}
+
+// Raw returns the raw HTTP response
+func (ra *ResponseAssertion) Raw() *http.Response {
+	return ra.recorder.Result()
 }
 
 // HTML parses and returns the HTML document

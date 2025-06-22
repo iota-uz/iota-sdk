@@ -22,6 +22,8 @@ func createField(name string, fieldType crud.FieldType, opts ...crud.FieldOption
 		return crud.NewBoolField(name, opts...)
 	case crud.FloatFieldType:
 		return crud.NewFloatField(name, opts...)
+	case crud.DecimalFieldType:
+		return crud.NewDecimalField(name, opts...)
 	case crud.DateFieldType:
 		return crud.NewDateField(name, opts...)
 	case crud.TimeFieldType:
@@ -1185,6 +1187,9 @@ func (m *mockField) AsTimestampField() (crud.TimestampField, error) {
 func (m *mockField) AsUUIDField() (crud.UUIDField, error) {
 	return nil, fmt.Errorf("field type mismatch: field %q is %s, not uuid", m.name, m.fieldType)
 }
+func (m *mockField) AsDecimalField() (crud.DecimalField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not decimal", m.name, m.fieldType)
+}
 
 type mockFieldValue struct {
 	field crud.Field
@@ -1235,6 +1240,12 @@ func (m *mockFieldValue) AsFloat64() (float64, error) {
 		return f, nil
 	}
 	return 0, fmt.Errorf("value is not a float64")
+}
+func (m *mockFieldValue) AsDecimal() (string, error) {
+	if s, ok := m.value.(string); ok {
+		return s, nil
+	}
+	return fmt.Sprintf("%v", m.value), nil
 }
 func (m *mockFieldValue) AsTime() (time.Time, error) {
 	if t, ok := m.value.(time.Time); ok {

@@ -12,40 +12,40 @@ import (
 
 func TestFieldOptions(t *testing.T) {
 	t.Run("WithKey", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithKey(true))
+		field := crud.NewStringField("test", crud.WithKey())
 		assert.True(t, field.Key())
 
-		field2 := crud.NewStringField("test2", crud.WithKey(false))
+		field2 := crud.NewStringField("test2")
 		assert.False(t, field2.Key())
 	})
 
 	t.Run("WithReadonly", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithReadonly(true))
+		field := crud.NewStringField("test", crud.WithReadonly())
 		assert.True(t, field.Readonly())
 
-		field2 := crud.NewStringField("test2", crud.WithReadonly(false))
+		field2 := crud.NewStringField("test2")
 		assert.False(t, field2.Readonly())
 	})
 
 	t.Run("WithHidden", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithHidden(true))
+		field := crud.NewStringField("test", crud.WithHidden())
 		assert.True(t, field.Hidden())
 
-		field2 := crud.NewStringField("test2", crud.WithHidden(false))
+		field2 := crud.NewStringField("test2")
 		assert.False(t, field2.Hidden())
 	})
 
 	t.Run("WithSearchable", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithSearchable(true))
+		field := crud.NewStringField("test", crud.WithSearchable())
 		assert.True(t, field.Searchable())
 
-		field2 := crud.NewStringField("test2", crud.WithSearchable(false))
+		field2 := crud.NewStringField("test2")
 		assert.False(t, field2.Searchable())
 	})
 
 	t.Run("WithSearchable panics for non-string fields", func(t *testing.T) {
 		assert.Panics(t, func() {
-			crud.NewIntField("test", crud.WithSearchable(true))
+			crud.NewIntField("test", crud.WithSearchable())
 		})
 	})
 
@@ -117,12 +117,12 @@ func TestStringFieldOptions(t *testing.T) {
 	})
 
 	t.Run("WithMultiline", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithMultiline(true))
+		field := crud.NewStringField("test", crud.WithMultiline())
 		stringField, err := field.AsStringField()
 		require.NoError(t, err)
 		assert.True(t, stringField.Multiline())
 
-		field2 := crud.NewStringField("test2", crud.WithMultiline(false))
+		field2 := crud.NewStringField("test2")
 		stringField2, err := field2.AsStringField()
 		require.NoError(t, err)
 		assert.False(t, stringField2.Multiline())
@@ -138,21 +138,21 @@ func TestStringFieldOptions(t *testing.T) {
 	})
 
 	t.Run("WithTrim", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithTrim(true))
+		field := crud.NewStringField("test", crud.WithTrim())
 		stringField, err := field.AsStringField()
 		require.NoError(t, err)
 		assert.True(t, stringField.Trim())
 	})
 
 	t.Run("WithUppercase", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithUppercase(true))
+		field := crud.NewStringField("test", crud.WithUppercase())
 		stringField, err := field.AsStringField()
 		require.NoError(t, err)
 		assert.True(t, stringField.Uppercase())
 	})
 
 	t.Run("WithLowercase", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithLowercase(true))
+		field := crud.NewStringField("test", crud.WithLowercase())
 		stringField, err := field.AsStringField()
 		require.NoError(t, err)
 		assert.True(t, stringField.Lowercase())
@@ -246,7 +246,7 @@ func TestDateFieldOptions(t *testing.T) {
 	})
 
 	t.Run("WithWeekdaysOnly", func(t *testing.T) {
-		field := crud.NewDateField("test", crud.WithWeekdaysOnly(true))
+		field := crud.NewDateField("test", crud.WithWeekdaysOnly())
 		dateField, err := field.AsDateField()
 		require.NoError(t, err)
 		assert.True(t, dateField.WeekdaysOnly())
@@ -505,14 +505,14 @@ func TestValidationRuleOptions(t *testing.T) {
 func TestMultipleOptions(t *testing.T) {
 	t.Run("Combining multiple options", func(t *testing.T) {
 		field := crud.NewStringField("email",
-			crud.WithKey(true),
-			crud.WithReadonly(true),
-			crud.WithSearchable(true),
+			crud.WithKey(),
+			crud.WithReadonly(),
+			crud.WithSearchable(),
 			crud.WithMinLen(5),
 			crud.WithMaxLen(100),
 			crud.WithPattern(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`),
-			crud.WithTrim(true),
-			crud.WithLowercase(true),
+			crud.WithTrim(),
+			crud.WithLowercase(),
 			crud.WithEmail(),
 			crud.WithRequired(),
 		)
@@ -562,7 +562,7 @@ func TestMultipleOptions(t *testing.T) {
 			crud.WithMinDate(minDate),
 			crud.WithMaxDate(maxDate),
 			crud.WithFormat("02/01/2006"),
-			crud.WithWeekdaysOnly(true),
+			crud.WithWeekdaysOnly(),
 			crud.WithFutureDate(),
 			crud.WithRequired(),
 		)
@@ -729,7 +729,7 @@ func TestOptionValidation(t *testing.T) {
 	})
 
 	t.Run("Date field with weekday validation", func(t *testing.T) {
-		dateField := crud.NewDateField("workday", crud.WithWeekdaysOnly(true))
+		dateField := crud.NewDateField("workday", crud.WithWeekdaysOnly())
 
 		// Monday (weekday)
 		monday := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) // January 1, 2024 is Monday

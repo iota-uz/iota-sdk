@@ -233,29 +233,39 @@ func (s *service[TEntity]) validation(ctx context.Context, entity TEntity) error
 	}
 
 	if !keyFieldVal.IsZero() && len(readonlyFieldValues) > 0 {
-		dbEntity, err := s.repository.Get(ctx, keyFieldVal)
+		// Check if entity actually exists before validating readonly fields
+		exists, err := s.repository.Exists(ctx, keyFieldVal)
 		if err != nil {
-			errs = append(errs, errors.Wrap(err, "failed to retrieve existing entity for readonly field validation"))
+			errs = append(errs, errors.Wrap(err, "failed to check if entity exists for readonly field validation"))
 			return errors.Join(errs...)
 		}
 
-		dbFieldValues, err := s.schema.Mapper().ToFieldValues(ctx, dbEntity)
-		if err != nil {
-			errs = append(errs, errors.Wrap(err, "failed to map database entity to field values for readonly validation"))
-			return errors.Join(errs...)
-		}
-
-		dbReadonlyMap := make(map[string]FieldValue, len(readonlyFieldValues))
-		for _, dbFv := range dbFieldValues {
-			if dbFv.Field().Readonly() {
-				dbReadonlyMap[dbFv.Field().Name()] = dbFv
+		// Only validate readonly fields if entity exists (update operation)
+		if exists {
+			dbEntity, err := s.repository.Get(ctx, keyFieldVal)
+			if err != nil {
+				errs = append(errs, errors.Wrap(err, "failed to retrieve existing entity for readonly field validation"))
+				return errors.Join(errs...)
 			}
-		}
 
-		for _, readonlyFv := range readonlyFieldValues {
-			if dbFv, ok := dbReadonlyMap[readonlyFv.Field().Name()]; ok {
-				if readonlyFv.Value() != dbFv.Value() {
-					errs = append(errs, errors.Errorf("readonly field %q has been modified", readonlyFv.Field().Name()))
+			dbFieldValues, err := s.schema.Mapper().ToFieldValues(ctx, dbEntity)
+			if err != nil {
+				errs = append(errs, errors.Wrap(err, "failed to map database entity to field values for readonly validation"))
+				return errors.Join(errs...)
+			}
+
+			dbReadonlyMap := make(map[string]FieldValue, len(readonlyFieldValues))
+			for _, dbFv := range dbFieldValues {
+				if dbFv.Field().Readonly() {
+					dbReadonlyMap[dbFv.Field().Name()] = dbFv
+				}
+			}
+
+			for _, readonlyFv := range readonlyFieldValues {
+				if dbFv, ok := dbReadonlyMap[readonlyFv.Field().Name()]; ok {
+					if readonlyFv.Value() != dbFv.Value() {
+						errs = append(errs, errors.Errorf("readonly field %q has been modified", readonlyFv.Field().Name()))
+					}
 				}
 			}
 		}
