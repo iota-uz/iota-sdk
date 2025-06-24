@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"net/http"
 	"net/url"
 	"testing"
 	"time"
@@ -521,7 +522,7 @@ func TestCrudController_StringKeyEntityCreation(t *testing.T) {
 	assert.Contains(t, location, "/codes")
 
 	// Verify entity was created
-	assert.Equal(t, 1, len(service.entities))
+	assert.Len(t, service.entities, 1)
 	created, exists := service.entities["PROMO-2024"]
 	assert.True(t, exists)
 	assert.Equal(t, "PROMO-2024", created.Code)
@@ -571,7 +572,7 @@ func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 		Status(t, 303)
 
 	assert.Equal(t, 1, validationCalls)
-	assert.Equal(t, 1, len(service.testService.entities))
+	assert.Len(t, service.testService.entities, 1)
 
 	// Test 2: Update existing entity (should validate readonly fields)
 	var createdID uuid.UUID
@@ -627,7 +628,7 @@ func TestCrudController_ZeroValueHandling(t *testing.T) {
 		Status(t, 303)
 
 	// Verify zero values were properly saved
-	assert.Equal(t, 1, len(service.entities))
+	assert.Len(t, service.entities, 1)
 	var created TestEntity
 	for _, e := range service.entities {
 		created = e
@@ -636,8 +637,8 @@ func TestCrudController_ZeroValueHandling(t *testing.T) {
 
 	assert.Equal(t, "Zero Value Test", created.Name)
 	assert.Equal(t, "", created.Description)
-	assert.Equal(t, float64(0), created.Amount)
-	assert.Equal(t, false, created.IsActive)
+	assert.InDelta(t, float64(0), created.Amount, 0.01)
+	assert.False(t, created.IsActive)
 }
 
 // TestCrudController_NilValueHandling tests handling of nil values
@@ -787,8 +788,14 @@ func TestCrudController_ConcurrentFormSubmissions(t *testing.T) {
 			}
 
 			resp := suite.POST("/test").WithForm(formData).Expect()
-			if resp.Raw().StatusCode != 303 {
-				errors <- fmt.Errorf("unexpected status: %d", resp.Raw().StatusCode)
+			rawResp := resp.Raw()
+			defer func() {
+				if err := rawResp.Body.Close(); err != nil {
+					errors <- fmt.Errorf("failed to close response body: %w", err)
+				}
+			}()
+			if rawResp.StatusCode != http.StatusSeeOther {
+				errors <- fmt.Errorf("unexpected status: %d", rawResp.StatusCode)
 			}
 		}(i)
 	}
@@ -805,5 +812,5 @@ func TestCrudController_ConcurrentFormSubmissions(t *testing.T) {
 	}
 
 	// All entities should be created
-	assert.Equal(t, 10, len(service.entities))
+	assert.Len(t, service.entities, 10)
 }
