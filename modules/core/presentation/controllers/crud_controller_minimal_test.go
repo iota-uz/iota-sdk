@@ -1,11 +1,13 @@
 package controllers_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCrudController_TestDataStructures(t *testing.T) {
@@ -23,7 +25,7 @@ func TestCrudController_TestDataStructures(t *testing.T) {
 	assert.NotEqual(t, uuid.Nil, entity.ID)
 	assert.Equal(t, "Test", entity.Name)
 	assert.Equal(t, "Description", entity.Description)
-	assert.Equal(t, 123.45, entity.Amount)
+	assert.InDelta(t, 123.45, entity.Amount, 0.01)
 	assert.True(t, entity.IsActive)
 }
 
@@ -40,17 +42,17 @@ func TestCrudController_TestMapper(t *testing.T) {
 		IsActive:    true,
 	}
 
-	fieldValues, err := mapper.ToFieldValues(nil, entity)
-	assert.NoError(t, err)
+	fieldValues, err := mapper.ToFieldValues(context.TODO(), entity)
+	require.NoError(t, err)
 	assert.NotEmpty(t, fieldValues)
 
 	// Test ToEntity
-	entityFromValues, err := mapper.ToEntity(nil, fieldValues)
-	assert.NoError(t, err)
+	entityFromValues, err := mapper.ToEntity(context.TODO(), fieldValues)
+	require.NoError(t, err)
 	assert.Equal(t, entity.ID, entityFromValues.ID)
 	assert.Equal(t, entity.Name, entityFromValues.Name)
 	assert.Equal(t, entity.Description, entityFromValues.Description)
-	assert.Equal(t, entity.Amount, entityFromValues.Amount)
+	assert.InDelta(t, entity.Amount, entityFromValues.Amount, 0.01)
 	assert.Equal(t, entity.IsActive, entityFromValues.IsActive)
 }
 
@@ -66,42 +68,42 @@ func TestCrudController_TestService(t *testing.T) {
 		IsActive:    true,
 	}
 
-	saved, err := service.Save(nil, entity)
-	assert.NoError(t, err)
+	saved, err := service.Save(context.TODO(), entity)
+	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, saved.ID)
 	assert.Equal(t, entity.Name, saved.Name)
 
 	// Test Get
 	idField := crud.NewUUIDField("id")
 	idValue := idField.Value(saved.ID)
-	retrieved, err := service.Get(nil, idValue)
-	assert.NoError(t, err)
+	retrieved, err := service.Get(context.TODO(), idValue)
+	require.NoError(t, err)
 	assert.Equal(t, saved.ID, retrieved.ID)
 	assert.Equal(t, saved.Name, retrieved.Name)
 
 	// Test GetAll
-	entities, err := service.GetAll(nil)
-	assert.NoError(t, err)
+	entities, err := service.GetAll(context.TODO())
+	require.NoError(t, err)
 	assert.Len(t, entities, 1)
 	assert.Equal(t, saved.ID, entities[0].ID)
 
 	// Test Count
-	count, err := service.Count(nil, &crud.FindParams{})
-	assert.NoError(t, err)
+	count, err := service.Count(context.TODO(), &crud.FindParams{})
+	require.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
 	// Test List
-	list, err := service.List(nil, &crud.FindParams{Limit: 10})
-	assert.NoError(t, err)
+	list, err := service.List(context.TODO(), &crud.FindParams{Limit: 10})
+	require.NoError(t, err)
 	assert.Len(t, list, 1)
 
 	// Test Delete
-	deleted, err := service.Delete(nil, idValue)
-	assert.NoError(t, err)
+	deleted, err := service.Delete(context.TODO(), idValue)
+	require.NoError(t, err)
 	assert.Equal(t, saved.ID, deleted.ID)
 
 	// Verify deletion
-	_, err = service.Get(nil, idValue)
+	_, err = service.Get(context.TODO(), idValue)
 	assert.Error(t, err)
 }
 
@@ -116,22 +118,22 @@ func TestCrudController_SchemaCreation(t *testing.T) {
 
 	// Check that required fields exist
 	idField, err := fields.Field("id")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, idField)
 	assert.True(t, idField.Key())
 
 	nameField, err := fields.Field("name")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, nameField)
 	assert.True(t, nameField.Searchable())
 
 	createdAtField, err := fields.Field("created_at")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, createdAtField)
 	assert.True(t, createdAtField.Readonly())
 
 	updatedAtField, err := fields.Field("updated_at")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, updatedAtField)
 	assert.True(t, updatedAtField.Readonly())
 }
@@ -149,8 +151,8 @@ func TestCrudController_BuilderInterface(t *testing.T) {
 	assert.Equal(t, "test_entities", builder.Schema().Name())
 
 	// Test service methods are accessible
-	entities, err := builder.Service().GetAll(nil)
-	assert.NoError(t, err)
+	entities, err := builder.Service().GetAll(context.TODO())
+	require.NoError(t, err)
 	assert.Empty(t, entities)
 }
 
@@ -161,34 +163,34 @@ func TestCrudController_FieldValueConversions(t *testing.T) {
 
 	// Test UUID field
 	uuidField, err := fields.Field("id")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	testUUID := uuid.New()
 	uuidValue := uuidField.Value(testUUID)
 	convertedUUID, err := uuidValue.AsUUID()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, testUUID, convertedUUID)
 
 	// Test string field
 	stringField, err := fields.Field("name")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	stringValue := stringField.Value("test string")
 	convertedString, err := stringValue.AsString()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test string", convertedString)
 
 	// Test float field
 	floatField, err := fields.Field("amount")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	floatValue := floatField.Value(123.45)
 	convertedFloat, err := floatValue.AsFloat64()
-	assert.NoError(t, err)
-	assert.Equal(t, 123.45, convertedFloat)
+	require.NoError(t, err)
+	assert.InDelta(t, 123.45, convertedFloat, 0.01)
 
 	// Test bool field
 	boolField, err := fields.Field("is_active")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	boolValue := boolField.Value(true)
 	convertedBool, err := boolValue.AsBool()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, convertedBool)
 }

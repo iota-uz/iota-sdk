@@ -194,6 +194,8 @@ func (c *CrudController[TEntity]) validateID(id string) error {
 		if _, err := uuid.Parse(id); err != nil {
 			return fmt.Errorf("invalid UUID: %s", id)
 		}
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+		// These types don't need special validation for ID format
 	}
 	return nil
 }
@@ -218,7 +220,7 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 		}
 		// If parsing fails, return nil UUID instead of nil
 		return uuid.Nil
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
 		// For all other types, return the string as-is
 		return id
 	}
@@ -290,7 +292,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 						formats = []string{"15:04", "15:04:05"}
 					case crud.DateTimeFieldType:
 						formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
-					case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+					case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
 						// These types are handled elsewhere
 						formats = []string{}
 					}
@@ -611,6 +613,9 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 					valueStr = fmt.Sprintf("%v", fv.Value())
 					fieldType = table.DetailFieldTypeText
 				case crud.FloatFieldType:
+					valueStr = fmt.Sprintf("%v", fv.Value())
+					fieldType = table.DetailFieldTypeText
+				case crud.DecimalFieldType:
 					valueStr = fmt.Sprintf("%v", fv.Value())
 					fieldType = table.DetailFieldTypeText
 				case crud.UUIDFieldType:
@@ -1636,21 +1641,14 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 
 	// Add error display at the top of the form
 	if len(fieldErrors) > 0 {
-		errorList := make([]string, 0, len(fieldErrors))
-		for fieldName, errorMsg := range fieldErrors {
-			if fieldName == "_general" {
-				errorList = append(errorList, errorMsg)
-			} else {
-				errorList = append(errorList, fmt.Sprintf("%s: %s", fieldName, errorMsg))
-			}
-		}
-
 		// For now, we'll log the errors and add a generic error indicator
 		log.Printf("[CrudController.renderCreateFormWithErrors] Field validation errors: %v", fieldErrors)
 
 		// Add a small error element that tests can find
 		errorHTML := `<small data-testid="field-error" class="text-red-500">Field validation failed</small>`
-		w.Write([]byte(errorHTML))
+		if _, err := w.Write([]byte(errorHTML)); err != nil {
+			log.Printf("[CrudController.renderCreateFormWithErrors] Failed to write error HTML: %v", err)
+		}
 	}
 
 	// Localize form title
@@ -1696,21 +1694,14 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 
 	// Add error display at the top of the form
 	if len(fieldErrors) > 0 {
-		errorList := make([]string, 0, len(fieldErrors))
-		for fieldName, errorMsg := range fieldErrors {
-			if fieldName == "_general" {
-				errorList = append(errorList, errorMsg)
-			} else {
-				errorList = append(errorList, fmt.Sprintf("%s: %s", fieldName, errorMsg))
-			}
-		}
-
 		// For now, we'll log the errors and add a generic error indicator
 		log.Printf("[CrudController.renderEditFormWithErrors] Field validation errors: %v", fieldErrors)
 
 		// Add a small error element that tests can find
 		errorHTML := `<small data-testid="field-error" class="text-red-500">Field validation failed</small>`
-		w.Write([]byte(errorHTML))
+		if _, err := w.Write([]byte(errorHTML)); err != nil {
+			log.Printf("[CrudController.renderEditFormWithErrors] Failed to write error HTML: %v", err)
+		}
 	}
 
 	// Localize form title

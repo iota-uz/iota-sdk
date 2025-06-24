@@ -212,8 +212,14 @@ func (c *ExpenseController) Export(
 		} else {
 			http.Redirect(w, r, upload.URL().String(), http.StatusSeeOther)
 		}
+	case export.ExportFormatCSV:
+		http.Error(w, "CSV export not yet implemented", http.StatusNotImplemented)
+	case export.ExportFormatJSON:
+		http.Error(w, "JSON export not yet implemented", http.StatusNotImplemented)
+	case export.ExportFormatTXT:
+		http.Error(w, "TXT export not yet implemented", http.StatusNotImplemented)
 	default:
-		http.Error(w, "Export format not yet supported", http.StatusNotImplemented)
+		http.Error(w, "Invalid export format", http.StatusBadRequest)
 	}
 }
 

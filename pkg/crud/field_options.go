@@ -114,15 +114,15 @@ func WithScale(scale int) FieldOption {
 	}
 }
 
-func WithDecimalMin(min string) FieldOption {
+func WithDecimalMin(minValue string) FieldOption {
 	return func(field *field) {
-		field.attrs[Min] = min
+		field.attrs[Min] = minValue
 	}
 }
 
-func WithDecimalMax(max string) FieldOption {
+func WithDecimalMax(maxValue string) FieldOption {
 	return func(field *field) {
-		field.attrs[Max] = max
+		field.attrs[Max] = maxValue
 	}
 }
 

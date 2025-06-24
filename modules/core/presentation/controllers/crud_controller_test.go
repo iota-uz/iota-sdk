@@ -317,7 +317,7 @@ func TestCrudController_List_Success(t *testing.T) {
 	// Check table rows (excluding hidden rows like preloaders)
 	rows := doc.Elements("//tbody/tr[not(contains(@class, 'hidden'))]")
 
-	assert.Equal(t, 5, len(rows))
+	assert.Len(t, rows, 5)
 }
 
 func TestCrudController_List_HTMX(t *testing.T) {
@@ -339,8 +339,8 @@ func TestCrudController_List_HTMX(t *testing.T) {
 	doc := suite.GET("/test").HTMX().Expect().Status(t, http.StatusOK).HTML(t)
 
 	// Should only return table body for HTMX requests
-	assert.Equal(t, 0, len(doc.Elements("//html")))
-	assert.Greater(t, len(doc.Elements("//tr")), 0)
+	assert.Empty(t, doc.Elements("//html"))
+	assert.NotEmpty(t, doc.Elements("//tr"))
 }
 
 func TestCrudController_List_Search(t *testing.T) {
@@ -372,7 +372,7 @@ func TestCrudController_List_Search(t *testing.T) {
 
 	// Check only Apple appears in results
 	rows := doc.Elements("//tbody/tr")
-	assert.Equal(t, 1, len(rows))
+	assert.Len(t, rows, 1)
 	appleElement := doc.Element("//tbody/tr[contains(., 'Apple')]")
 	appleElement.Exists(t)
 }
@@ -405,12 +405,12 @@ func TestCrudController_List_Pagination(t *testing.T) {
 	// Test first page
 	doc := suite.GET("/test?page=1").Expect().Status(t, http.StatusOK).HTML(t)
 	rows := doc.Elements("//tbody/tr")
-	assert.Equal(t, 20, len(rows)) // Default page size
+	assert.Len(t, rows, 20) // Default page size
 
 	// Test second page
 	doc2 := suite.GET("/test?page=2").Expect().Status(t, http.StatusOK).HTML(t)
 	rows2 := doc2.Elements("//tbody/tr")
-	assert.Equal(t, 5, len(rows2)) // Remaining entities
+	assert.Len(t, rows2, 5) // Remaining entities
 }
 
 func TestCrudController_GetNew(t *testing.T) {
@@ -475,7 +475,7 @@ func TestCrudController_Create_Success(t *testing.T) {
 
 	// Verify entity was created
 	assert.Equal(t, 1, service.calls["Save"])
-	assert.Equal(t, 1, len(service.entities))
+	assert.Len(t, service.entities, 1)
 
 	// Check created entity
 	var created TestEntity
@@ -485,8 +485,8 @@ func TestCrudController_Create_Success(t *testing.T) {
 	}
 	assert.Equal(t, "New Entity", created.Name)
 	assert.Equal(t, "Test Description", created.Description)
-	assert.Equal(t, 123.45, created.Amount)
-	assert.Equal(t, true, created.IsActive)
+	assert.InDelta(t, 123.45, created.Amount, 0.01)
+	assert.True(t, created.IsActive)
 }
 
 func TestCrudController_Create_ValidationError(t *testing.T) {
@@ -659,8 +659,8 @@ func TestCrudController_Update_Success(t *testing.T) {
 	updated := service.entities[entity.ID]
 	assert.Equal(t, "Updated Name", updated.Name)
 	assert.Equal(t, "Updated Description", updated.Description)
-	assert.Equal(t, 200.50, updated.Amount)
-	assert.Equal(t, true, updated.IsActive)
+	assert.InDelta(t, 200.50, updated.Amount, 0.01)
+	assert.True(t, updated.IsActive)
 
 	// TODO: Readonly field preservation during updates
 	// Currently, readonly fields are not preserved during updates because
@@ -707,7 +707,7 @@ func TestCrudController_Delete_Success(t *testing.T) {
 
 	// Verify entity was deleted
 	assert.Equal(t, 1, service.calls["Delete"])
-	assert.Equal(t, 0, len(service.entities))
+	assert.Empty(t, service.entities)
 }
 
 func TestCrudController_Delete_NotFound(t *testing.T) {
@@ -1008,7 +1008,7 @@ func TestCrudController_ReadonlyFieldExclusion(t *testing.T) {
 		Status(t, http.StatusSeeOther)
 
 	// Verify entity was created without readonly field values from form
-	assert.Equal(t, 1, len(service.entities))
+	assert.Len(t, service.entities, 1)
 	var created TestEntity
 	for _, e := range service.entities {
 		created = e
@@ -1101,15 +1101,6 @@ func TestCrudController_FormFieldBuilder(t *testing.T) {
 	doc.Element("//input[@name='description']").Exists(t)
 	doc.Element("//input[@name='amount']").Exists(t)
 	doc.Element("//input[@name='is_active']").Exists(t)
-}
-
-// errorTestService wraps testService to simulate errors
-type errorTestService struct {
-	*testService
-}
-
-func (s *errorTestService) Save(ctx context.Context, entity TestEntity) (TestEntity, error) {
-	return TestEntity{}, fmt.Errorf("save failed")
 }
 
 func TestCrudController_ErrorHandling(t *testing.T) {
