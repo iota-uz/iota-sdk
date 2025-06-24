@@ -108,13 +108,8 @@ func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Ten
 		time.Now(),
 	)
 
-	if err == nil {
-		return testTenant, nil
-	}
-
-	// If the error is not about missing table, return it
-	if !strings.Contains(err.Error(), "relation") && !strings.Contains(err.Error(), "does not exist") {
-		return nil, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test tenant: %w", err)
 	}
 
 	return testTenant, nil
