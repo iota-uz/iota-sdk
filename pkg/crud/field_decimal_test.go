@@ -48,7 +48,7 @@ func TestDecimalField(t *testing.T) {
 
 		require.NotPanics(t, func() {
 			fieldValue := field.Value(123.45)
-			assert.Equal(t, 123.45, fieldValue.Value())
+			assert.InDelta(t, 123.45, fieldValue.Value(), 0.01)
 		})
 	})
 

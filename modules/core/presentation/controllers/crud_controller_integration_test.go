@@ -74,7 +74,7 @@ func TestCrudController_ConcurrentRequests(t *testing.T) {
 	}
 
 	// Verify service wasn't corrupted
-	assert.Equal(t, 10, len(service.entities))
+	assert.Len(t, service.entities, 10)
 }
 
 // TestCrudController_LargeDataset tests performance with large datasets
@@ -121,7 +121,7 @@ func TestCrudController_LargeDataset(t *testing.T) {
 
 	// Should show correct page
 	rows := doc.Elements("//tbody/tr")
-	assert.Equal(t, 20, len(rows))
+	assert.Len(t, rows, 20)
 }
 
 // TestCrudController_FieldValidationIntegration tests field validation with service
@@ -423,7 +423,7 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 				HTML(t)
 
 			rows := doc.Elements("//tbody/tr")
-			assert.Equal(t, tc.expectedCount, len(rows))
+			assert.Len(t, rows, tc.expectedCount)
 
 			// Check that expected names appear by searching the document
 			for _, expectedName := range tc.expectedNames {
@@ -489,8 +489,8 @@ func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 	updated := service.entities[entity.ID]
 	assert.Equal(t, "Updated", updated.Name)
 	assert.Equal(t, "Updated Desc", updated.Description)
-	assert.Equal(t, float64(200), updated.Amount)
-	assert.Equal(t, false, updated.IsActive)
+	assert.InDelta(t, float64(200), updated.Amount, 0.01)
+	assert.False(t, updated.IsActive)
 
 	// Readonly fields should be preserved
 	assert.Equal(t, originalCreated.Unix(), updated.CreatedAt.Unix())
@@ -521,7 +521,7 @@ func TestCrudController_EmptyListHandling(t *testing.T) {
 
 	// Should have a row indicating no results
 	rows := doc.Elements("//tbody/tr")
-	assert.Equal(t, 1, len(rows))
+	assert.Len(t, rows, 1)
 
 	// Check for empty state message
 	emptyMessage := doc.Element("//tbody/tr").Text()
@@ -683,23 +683,4 @@ func TestCrudController_HTTPMethodSafety(t *testing.T) {
 				Status(t, tc.expectStatus)
 		})
 	}
-}
-
-// Helper function
-func contains(text, substr string) bool {
-	return len(substr) > 0 && len(text) >= len(substr) &&
-		(text == substr ||
-			(len(text) > len(substr) &&
-				(text[:len(substr)] == substr ||
-					text[len(text)-len(substr):] == substr ||
-					findSubstring(text, substr))))
-}
-
-func findSubstring(text, substr string) bool {
-	for i := 0; i <= len(text)-len(substr); i++ {
-		if text[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
