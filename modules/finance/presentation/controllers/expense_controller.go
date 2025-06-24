@@ -9,8 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/export"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expensesui "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expenses"
@@ -64,6 +68,7 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	)
 	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
+	router.HandleFunc("/export", di.H(c.Export)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
 	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
@@ -141,6 +146,74 @@ func (c *ExpenseController) List(
 		templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
+
+func (c *ExpenseController) Export(
+	r *http.Request,
+	w http.ResponseWriter,
+	excelService *coreservices.ExcelExportService,
+) {
+	if err := composables.CanUser(r.Context(), permissions.ExpenseRead); err != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	format, ok := export.GetExportFormat(r)
+	if !ok {
+		http.Error(w, "Invalid export format", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
+		return
+	}
+
+	// Export all expenses without any filters
+	query := `
+		SELECT 
+			ec.name as category_name,
+			tr.amount,
+			tr.accounting_period,
+			tr.transaction_date as date,
+			tr.comment,
+			ex.created_at,
+			ex.updated_at
+		FROM expenses ex 
+		LEFT JOIN transactions tr ON tr.id = ex.transaction_id
+		LEFT JOIN expense_categories ec ON ec.id = ex.category_id
+		WHERE ex.tenant_id = $1
+		ORDER BY ex.created_at DESC`
+
+	args := []interface{}{tenantID}
+
+	// For now, only handle Excel export (as per the example)
+	// TODO: Extend the exporter service to support other formats
+	switch format {
+	case export.ExportFormatExcel:
+		queryObj := exportconfig.NewQuery(query, args...)
+		config := exportconfig.New(exportconfig.WithFilename("expenses_export"))
+		upload, err := excelService.ExportFromQuery(
+			ctx,
+			queryObj,
+			config,
+		)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if htmx.IsHxRequest(r) {
+			htmx.Redirect(w, upload.URL().String())
+		} else {
+			http.Redirect(w, r, upload.URL().String(), http.StatusSeeOther)
+		}
+	default:
+		http.Error(w, "Export format not yet supported", http.StatusNotImplemented)
 	}
 }
 

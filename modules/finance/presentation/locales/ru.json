@@ -97,6 +97,7 @@
     },
     "List": {
       "New": "Добавить расход",
+      "Export": "Экспорт",
       "Category": "Категория",
       "Amount": "Сумма",
       "AccountingPeriod": "Учетный период", 

@@ -240,3 +240,98 @@ func convertPgxValue(val interface{}) interface{} {
 		return convertSQLValue(val)
 	}
 }
+
+// FunctionDataSource wraps a Go function as a DataSource
+type FunctionDataSource struct {
+	headers   []string
+	dataFunc  func(ctx context.Context) ([][]interface{}, error)
+	sheetName string
+}
+
+// NewFunctionDataSource creates a data source from a Go function
+func NewFunctionDataSource(headers []string, dataFunc func(ctx context.Context) ([][]interface{}, error)) *FunctionDataSource {
+	return &FunctionDataSource{
+		headers:   headers,
+		dataFunc:  dataFunc,
+		sheetName: "Sheet1",
+	}
+}
+
+// WithSheetName sets a custom sheet name
+func (f *FunctionDataSource) WithSheetName(name string) *FunctionDataSource {
+	f.sheetName = name
+	return f
+}
+
+// GetHeaders returns the column headers
+func (f *FunctionDataSource) GetHeaders() []string {
+	return f.headers
+}
+
+// GetRows returns an iterator function for fetching rows
+func (f *FunctionDataSource) GetRows(ctx context.Context) (func() ([]interface{}, error), error) {
+	data, err := f.dataFunc(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get data from function: %w", err)
+	}
+
+	index := 0
+	return func() ([]interface{}, error) {
+		if index >= len(data) {
+			return nil, nil // EOF
+		}
+		row := data[index]
+		index++
+		return row, nil
+	}, nil
+}
+
+// GetSheetName returns the sheet name
+func (f *FunctionDataSource) GetSheetName() string {
+	return f.sheetName
+}
+
+// SliceDataSource wraps Go slices as a DataSource
+type SliceDataSource struct {
+	headers   []string
+	data      [][]interface{}
+	sheetName string
+}
+
+// NewSliceDataSource creates a data source from Go slices
+func NewSliceDataSource(headers []string, data [][]interface{}) *SliceDataSource {
+	return &SliceDataSource{
+		headers:   headers,
+		data:      data,
+		sheetName: "Sheet1",
+	}
+}
+
+// WithSheetName sets a custom sheet name
+func (s *SliceDataSource) WithSheetName(name string) *SliceDataSource {
+	s.sheetName = name
+	return s
+}
+
+// GetHeaders returns the column headers
+func (s *SliceDataSource) GetHeaders() []string {
+	return s.headers
+}
+
+// GetRows returns an iterator function for fetching rows
+func (s *SliceDataSource) GetRows(ctx context.Context) (func() ([]interface{}, error), error) {
+	index := 0
+	return func() ([]interface{}, error) {
+		if index >= len(s.data) {
+			return nil, nil // EOF
+		}
+		row := s.data[index]
+		index++
+		return row, nil
+	}, nil
+}
+
+// GetSheetName returns the sheet name
+func (s *SliceDataSource) GetSheetName() string {
+	return s.sheetName
+}

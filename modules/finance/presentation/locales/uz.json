@@ -97,6 +97,7 @@
     },
     "List": {
       "New": "Xarajat qo'shish",
+      "Export": "Eksport",
       "Category": "Kategoriya",
       "Amount": "Miqdori",
       "AccountingPeriod": "Hisob davri",

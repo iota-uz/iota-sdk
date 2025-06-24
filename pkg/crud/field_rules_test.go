@@ -1020,12 +1020,12 @@ func TestPastDateRule_UnsupportedFieldType(t *testing.T) {
 
 func TestFieldRulesIntegration(t *testing.T) {
 	t.Run("multiple rules on same field", func(t *testing.T) {
-		field := createField("username", crud.StringFieldType, crud.WithRules([]crud.FieldRule{
+		field := createField("username", crud.StringFieldType, crud.WithRules(
 			crud.RequiredRule(),
 			crud.MinLengthRule(3),
 			crud.MaxLengthRule(20),
 			crud.PatternRule(`^[a-zA-Z0-9_]+$`),
-		}))
+		))
 
 		tests := []struct {
 			name    string
@@ -1081,12 +1081,12 @@ func TestFieldRulesIntegration(t *testing.T) {
 	})
 
 	t.Run("numeric field with multiple rules", func(t *testing.T) {
-		field := createField("age", crud.IntFieldType, crud.WithRules([]crud.FieldRule{
+		field := createField("age", crud.IntFieldType, crud.WithRules(
 			crud.RequiredRule(),
 			crud.MinValueRule(0),
 			crud.MaxValueRule(150),
 			crud.NonNegativeRule(),
-		}))
+		))
 
 		tests := []struct {
 			name    string

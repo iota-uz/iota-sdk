@@ -411,6 +411,12 @@
   "Remove": "O'chirish",
   "All": "Hammasi",
   "Edit": "Tahrirlash",
+  "Export": {
+    "ToExcel": "Excel ga eksport",
+    "ToCSV": "CSV ga eksport",
+    "ToJSON": "JSON ga eksport",
+    "ToTXT": "TXT ga eksport"
+  },
   "Countries": {
     "AF": "Afg'oniston",
     "AL": "Albaniya",

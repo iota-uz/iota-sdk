@@ -63,7 +63,7 @@ func TestFieldOptions(t *testing.T) {
 
 	t.Run("WithRules", func(t *testing.T) {
 		rules := []crud.FieldRule{crud.RequiredRule(), crud.EmailRule()}
-		field := crud.NewStringField("test", crud.WithRules(rules))
+		field := crud.NewStringField("test", crud.WithRules(rules...))
 		assert.Len(t, field.Rules(), 2)
 	})
 

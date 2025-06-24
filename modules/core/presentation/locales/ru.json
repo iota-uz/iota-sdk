@@ -411,6 +411,12 @@
   "Remove": "Удалить",
   "All": "Все",
   "Edit": "Редактировать",
+  "Export": {
+    "ToExcel": "Экспорт в Excel",
+    "ToCSV": "Экспорт в CSV",
+    "ToJSON": "Экспорт в JSON",
+    "ToTXT": "Экспорт в TXT"
+  },
   "Countries": {
     "AF": "Афганистан",
     "AL": "Албания",

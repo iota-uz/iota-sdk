@@ -675,3 +675,140 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 		Expect().
 		Status(t, 404)
 }
+
+func TestExpenseController_Export_Excel_Success(t *testing.T) {
+	adminUser := testutils.MockUser(
+		permissions.ExpenseRead,
+		permissions.ExpenseCreate,
+	)
+
+	suite := controllertest.New().
+		WithModules(core.NewModule(), finance.NewModule()).
+		WithUser(t, adminUser).
+		Build(t)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.RegisterController(controller)
+
+	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
+	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+
+	account := moneyAccountEntity.New(
+		"Export Test Account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
+	require.NoError(t, err)
+
+	categoryRepo := persistence.NewExpenseCategoryRepository()
+	category := expenseCategoryEntity.New(
+		"Export Test Category",
+		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
+
+	expense1 := expenseAggregate.New(
+		money.NewFromFloat(100.50, "USD"),
+		createdAccount,
+		createdCategory,
+		time.Now(),
+		expenseAggregate.WithTenantID(env.Tenant.ID),
+		expenseAggregate.WithComment("Export test expense 1"),
+	)
+
+	expense2 := expenseAggregate.New(
+		money.NewFromFloat(200.75, "USD"),
+		createdAccount,
+		createdCategory,
+		time.Now(),
+		expenseAggregate.WithTenantID(env.Tenant.ID),
+		expenseAggregate.WithComment("Export test expense 2"),
+	)
+
+	_, err = expenseService.Create(env.Ctx, expense1)
+	require.NoError(t, err)
+	_, err = expenseService.Create(env.Ctx, expense2)
+	require.NoError(t, err)
+
+	response := suite.POST(ExpenseBasePath + "/export?format=excel").
+		Expect()
+
+	// Accept either 302 or 303 status codes (both are valid for redirects)
+	statusCode := response.Raw().StatusCode
+	require.True(t, statusCode == 302 || statusCode == 303, "Expected 302 or 303, got %d", statusCode)
+
+	redirectLocation := response.Header("Location")
+	require.NotEmpty(t, redirectLocation)
+	require.Contains(t, redirectLocation, ".xlsx") // Check for Excel file extension
+}
+
+func TestExpenseController_Export_InvalidFormat(t *testing.T) {
+	adminUser := testutils.MockUser(
+		permissions.ExpenseRead,
+	)
+
+	suite := controllertest.New().
+		WithModules(core.NewModule(), finance.NewModule()).
+		WithUser(t, adminUser).
+		Build(t)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.RegisterController(controller)
+
+	suite.POST(ExpenseBasePath+"/export?format=invalid-format").
+		Expect().
+		Status(t, 400).
+		Contains(t, "Invalid export format")
+}
+
+func TestExpenseController_Export_MissingFormat(t *testing.T) {
+	adminUser := testutils.MockUser(
+		permissions.ExpenseRead,
+	)
+
+	suite := controllertest.New().
+		WithModules(core.NewModule(), finance.NewModule()).
+		WithUser(t, adminUser).
+		Build(t)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.RegisterController(controller)
+
+	suite.POST(ExpenseBasePath+"/export").
+		Expect().
+		Status(t, 400).
+		Contains(t, "Invalid export format")
+}
+
+func TestExpenseController_Export_Forbidden(t *testing.T) {
+	userWithoutPermission := testutils.MockUser()
+
+	suite := controllertest.New().
+		WithModules(core.NewModule(), finance.NewModule()).
+		WithUser(t, userWithoutPermission).
+		Build(t)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.RegisterController(controller)
+
+	suite.POST(ExpenseBasePath+"/export?format=excel").
+		Expect().
+		Status(t, 403).
+		Contains(t, "forbidden")
+}
