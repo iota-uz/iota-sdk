@@ -287,7 +287,7 @@ func (ra *ResponseAssertion) Header(key string) string {
 
 // Cookies returns response cookies
 func (ra *ResponseAssertion) Cookies() []*http.Cookie {
-	return ra.recorder.Result().Cookies()
+	return ra.recorder.Result().Cookies() //nolint:bodyclose
 }
 
 // Raw returns the raw HTTP response
