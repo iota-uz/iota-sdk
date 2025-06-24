@@ -53,7 +53,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 
 	log.Printf(
 		"See %s%s for docs\n",
-		configuration.Use().Address(),
+		configuration.Use().Origin,
 		c.basePath,
 	)
 }
