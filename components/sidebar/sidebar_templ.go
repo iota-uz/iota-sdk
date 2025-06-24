@@ -46,8 +46,13 @@ func Sidebar(props Props) templ.Component {
 			return templ_7745c5c3_Err
 		}
 
+		// For single groups, use the group's value as default, otherwise use provided default
+		defaultValue := props.TabGroups.DefaultValue
+		if len(props.TabGroups.Groups) == 1 {
+			defaultValue = props.TabGroups.Groups[0].Value
+		}
 		navTabsProps := navtabs.Props{
-			DefaultValue: props.TabGroups.DefaultValue,
+			DefaultValue: defaultValue,
 			Attrs: templ.Attributes{
 				"@tab-changed": "handleTabChange($event)",
 			},
@@ -107,7 +112,7 @@ func Sidebar(props Props) templ.Component {
 							var templ_7745c5c3_Var5 string
 							templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(group.Label)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 42, Col: 23}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 47, Col: 23}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 							if templ_7745c5c3_Err != nil {
@@ -311,7 +316,7 @@ func AccordionGroup(group Group) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(group.Text())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 109, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 114, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -441,7 +446,7 @@ func AccordionLink(link Link) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(link.Text())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 157, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 162, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {

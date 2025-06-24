@@ -88,7 +88,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create server: %v", err)
 	}
-	log.Printf("Listening on: %s\n", conf.Address())
+	log.Printf("Listening on: %s\n", conf.Origin)
 	if err := serverInstance.Start(conf.SocketAddress); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}

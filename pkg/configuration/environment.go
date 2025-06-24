@@ -135,7 +135,7 @@ type Configuration struct {
 	SocketAddress    string        `env:"-"`
 	OpenAIKey        string        `env:"OPENAI_KEY"`
 	UploadsPath      string        `env:"UPLOADS_PATH" envDefault:"static"`
-	Domain           string        `env:"DOMAIN" envDefault:"localhost"`
+	Domain           string        `env:"DOMAIN" envDefault:"localhost:3200"`
 	Origin           string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
@@ -173,10 +173,6 @@ func (c *Configuration) LogrusLogLevel() logrus.Level {
 	default:
 		return logrus.ErrorLevel
 	}
-}
-
-func (c *Configuration) Address() string {
-	return fmt.Sprintf("%s://%s:%d", c.Scheme(), c.Domain, c.ServerPort)
 }
 
 func (c *Configuration) Scheme() string {
