@@ -149,6 +149,7 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 
 func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
+
 	columns := make([]string, 0, len(values))
 	args := make([]any, 0, len(values))
 
@@ -293,7 +294,7 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 		columnOrder[i] = f
 	}
 
-	var entities []TEntity
+	var fvs [][]FieldValue
 	for rows.Next() {
 		rawValues := make([]any, len(columnOrder))
 		scanTargets := make([]any, len(columnOrder))
@@ -304,22 +305,21 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 			return nil, errors.Wrap(err, "failed to scan entity row")
 		}
 
-		var fieldValues []FieldValue
+		var values []FieldValue
 		for i, val := range rawValues {
 			fv := columnOrder[i].Value(val)
-			fieldValues = append(fieldValues, fv)
+			values = append(values, fv)
 		}
-
-		entity, err := r.schema.Mapper().ToEntity(ctx, fieldValues)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to map field values to entity")
-		}
-
-		entities = append(entities, entity)
+		fvs = append(fvs, values)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, errors.Wrap(err, "row iteration error")
+	}
+
+	entities, err := r.schema.Mapper().ToEntities(ctx, fvs...)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to convert entities")
 	}
 
 	return entities, nil

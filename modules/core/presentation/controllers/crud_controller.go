@@ -896,20 +896,15 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	existingFields := make(map[string]struct{}, len(fieldValues))
+	existingFields := make(map[string]bool, len(fieldValues))
 	for _, fv := range fieldValues {
-		existingFields[fv.Field().Name()] = struct{}{}
+		existingFields[fv.Field().Name()] = true
 	}
+
 	for _, f := range c.schema.Fields().Fields() {
-		if _, found := existingFields[f.Name()]; !found {
-			// Skip readonly fields during creation - they should not be set from form data
-			if !f.Readonly() {
-				initialValue := f.InitialValue()
-				// Only create field value if initial value is not nil
-				// Nil values will be handled by the entity mapper's default behavior
-				if initialValue != nil {
-					fieldValues = append(fieldValues, f.Value(initialValue))
-				}
+		if !existingFields[f.Name()] {
+			if initialValue := f.InitialValue(); initialValue != nil {
+				fieldValues = append(fieldValues, f.Value(initialValue))
 			}
 		}
 	}

@@ -16,7 +16,7 @@ type Hooks[TEntity any] interface {
 type Schema[TEntity any] interface {
 	Name() string
 	Fields() Fields
-	Mapper() Mapper[TEntity]
+	Mapper() FlatMapper[TEntity]
 	Validators() []Validator[TEntity]
 	Hooks() Hooks[TEntity]
 }
@@ -60,7 +60,7 @@ func NewSchema[TEntity any](
 	s := &schema[TEntity]{
 		name:       name,
 		fields:     fields,
-		mapper:     mapper,
+		mapper:     newFlatMapper(mapper),
 		validators: make([]Validator[TEntity], 0),
 		hooks: &hooks[TEntity]{
 			createHook: func(ctx context.Context, entity TEntity) (TEntity, error) {
@@ -85,7 +85,7 @@ func NewSchema[TEntity any](
 type schema[TEntity any] struct {
 	name       string
 	fields     Fields
-	mapper     Mapper[TEntity]
+	mapper     FlatMapper[TEntity]
 	validators []Validator[TEntity]
 	hooks      *hooks[TEntity]
 }
@@ -98,7 +98,7 @@ func (s *schema[TEntity]) Fields() Fields {
 	return s.fields
 }
 
-func (s *schema[TEntity]) Mapper() Mapper[TEntity] {
+func (s *schema[TEntity]) Mapper() FlatMapper[TEntity] {
 	return s.mapper
 }
 
