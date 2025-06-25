@@ -97,7 +97,7 @@ func (m *decimalMapper) ToFieldValuesList(_ context.Context, entities ...TestEnt
 		fvs, err := m.fields.FieldValues(map[string]any{
 			"id":      entity.ID,
 			"name":    entity.Name,
-			"price":   entity.Price.String(), // Ensure it's stringified
+			"price":   entity.Price, // Pass the DecimalValue directly so AsDecimal can use driver.Valuer
 			"created": entity.Created,
 			"updated": entity.Updated,
 		})
@@ -121,7 +121,7 @@ func createDecimalTestSchema() crud.Schema[TestEntityWithDecimal] {
 	return crud.NewSchema(
 		"decimal_entities",
 		fields,
-		&decimalMapper{},
+		&decimalMapper{fields: fields},
 	)
 }
 
