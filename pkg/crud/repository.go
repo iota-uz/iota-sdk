@@ -312,10 +312,14 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 		}
 		fvs = append(fvs, values)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "row iteration error")
+	}
 
 	entities, err := r.schema.Mapper().ToEntities(ctx, fvs...)
-	if err := rows.Err(); err != nil {
-		return nil, errors.Wrap(err, "mapping error")
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to convert entities")
 	}
 
 	return entities, nil
