@@ -58,11 +58,17 @@ func (fv *fieldValue) AsInt() (int, error) {
 	if fv.Field().Type() != IntFieldType {
 		return 0, fv.typeMismatch("int")
 	}
-	i, ok := fv.value.(int)
-	if !ok {
+
+	switch v := fv.value.(type) {
+	case int:
+		return v, nil
+	case int32:
+		return int(v), nil
+	case int64:
+		return int(v), nil
+	default:
 		return 0, fv.valueCastError("int")
 	}
-	return i, nil
 }
 
 func (fv *fieldValue) AsInt32() (int32, error) {

@@ -41,53 +41,73 @@ type TestEntityWithDecimal struct {
 }
 
 // decimalMapper implements crud.Mapper[TestEntityWithDecimal]
-type decimalMapper struct{}
+type decimalMapper struct {
+	fields crud.Fields
+}
 
-func (m *decimalMapper) ToEntity(ctx context.Context, values []crud.FieldValue) (TestEntityWithDecimal, error) {
-	entity := TestEntityWithDecimal{}
-	for _, fv := range values {
-		switch fv.Field().Name() {
-		case "id":
-			if !fv.IsZero() {
-				id, _ := fv.AsUUID()
-				entity.ID = id
-			}
-		case "name":
-			if !fv.IsZero() {
-				name, _ := fv.AsString()
-				entity.Name = name
-			}
-		case "price":
-			if !fv.IsZero() {
-				// Handle decimal value
-				if decStr, err := fv.AsDecimal(); err == nil {
-					entity.Price = DecimalValue{value: decStr}
+func (m *decimalMapper) ToEntities(_ context.Context, values ...[]crud.FieldValue) ([]TestEntityWithDecimal, error) {
+	result := make([]TestEntityWithDecimal, len(values))
+
+	for i, fvs := range values {
+		entity := TestEntityWithDecimal{}
+		for _, fv := range fvs {
+			switch fv.Field().Name() {
+			case "id":
+				id, err := fv.AsUUID()
+				if err != nil {
+					return result, err
 				}
-			}
-		case "created":
-			if !fv.IsZero() {
-				created, _ := fv.AsTime()
+				entity.ID = id
+			case "name":
+				name, err := fv.AsString()
+				if err != nil {
+					return result, err
+				}
+				entity.Name = name
+			case "price":
+				decStr, err := fv.AsDecimal()
+				if err != nil {
+					return result, err
+				}
+				entity.Price = DecimalValue{value: decStr}
+			case "created":
+				created, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.Created = created
-			}
-		case "updated":
-			if !fv.IsZero() {
-				updated, _ := fv.AsTime()
+			case "updated":
+				updated, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.Updated = updated
 			}
 		}
+		result[i] = entity
 	}
-	return entity, nil
+
+	return result, nil
 }
 
-func (m *decimalMapper) ToFieldValues(ctx context.Context, entity TestEntityWithDecimal) ([]crud.FieldValue, error) {
-	schema := createDecimalTestSchema()
-	return schema.Fields().FieldValues(map[string]any{
-		"id":      entity.ID,
-		"name":    entity.Name,
-		"price":   entity.Price,
-		"created": entity.Created,
-		"updated": entity.Updated,
-	})
+func (m *decimalMapper) ToFieldValuesList(_ context.Context, entities ...TestEntityWithDecimal) ([][]crud.FieldValue, error) {
+	result := make([][]crud.FieldValue, len(entities))
+
+	for i, entity := range entities {
+		fvs, err := m.fields.FieldValues(map[string]any{
+			"id":      entity.ID,
+			"name":    entity.Name,
+			"price":   entity.Price, // Pass the DecimalValue directly so AsDecimal can use driver.Valuer
+			"created": entity.Created,
+			"updated": entity.Updated,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result[i] = fvs
+	}
+
+	return result, nil
 }
 
 func createDecimalTestSchema() crud.Schema[TestEntityWithDecimal] {
@@ -101,7 +121,7 @@ func createDecimalTestSchema() crud.Schema[TestEntityWithDecimal] {
 	return crud.NewSchema(
 		"decimal_entities",
 		fields,
-		&decimalMapper{},
+		&decimalMapper{fields: fields},
 	)
 }
 
@@ -303,51 +323,73 @@ type TestEntityWithStringKey struct {
 }
 
 // stringKeyMapper implements crud.Mapper[TestEntityWithStringKey]
-type stringKeyMapper struct{}
+type stringKeyMapper struct {
+	fields crud.Fields
+}
 
-func (m *stringKeyMapper) ToEntity(ctx context.Context, values []crud.FieldValue) (TestEntityWithStringKey, error) {
-	entity := TestEntityWithStringKey{}
-	for _, fv := range values {
-		switch fv.Field().Name() {
-		case "code":
-			if !fv.IsZero() {
-				code, _ := fv.AsString()
+func (m *stringKeyMapper) ToEntities(_ context.Context, values ...[]crud.FieldValue) ([]TestEntityWithStringKey, error) {
+	result := make([]TestEntityWithStringKey, len(values))
+
+	for i, fvs := range values {
+		entity := TestEntityWithStringKey{}
+		for _, fv := range fvs {
+			switch fv.Field().Name() {
+			case "code":
+				code, err := fv.AsString()
+				if err != nil {
+					return result, err
+				}
 				entity.Code = code
-			}
-		case "name":
-			if !fv.IsZero() {
-				name, _ := fv.AsString()
+			case "name":
+				name, err := fv.AsString()
+				if err != nil {
+					return result, err
+				}
 				entity.Name = name
-			}
-		case "description":
-			if !fv.IsZero() {
-				desc, _ := fv.AsString()
+			case "description":
+				desc, err := fv.AsString()
+				if err != nil {
+					return result, err
+				}
 				entity.Description = desc
-			}
-		case "created_at":
-			if !fv.IsZero() {
-				created, _ := fv.AsTime()
+			case "created_at":
+				created, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.CreatedAt = created
-			}
-		case "updated_at":
-			if !fv.IsZero() {
-				updated, _ := fv.AsTime()
+			case "updated_at":
+				updated, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.UpdatedAt = updated
 			}
 		}
+		result[i] = entity
 	}
-	return entity, nil
+
+	return result, nil
 }
 
-func (m *stringKeyMapper) ToFieldValues(ctx context.Context, entity TestEntityWithStringKey) ([]crud.FieldValue, error) {
-	schema := createStringKeySchema()
-	return schema.Fields().FieldValues(map[string]any{
-		"code":        entity.Code,
-		"name":        entity.Name,
-		"description": entity.Description,
-		"created_at":  entity.CreatedAt,
-		"updated_at":  entity.UpdatedAt,
-	})
+func (m *stringKeyMapper) ToFieldValuesList(_ context.Context, entities ...TestEntityWithStringKey) ([][]crud.FieldValue, error) {
+	result := make([][]crud.FieldValue, len(entities))
+
+	for i, entity := range entities {
+		fvs, err := m.fields.FieldValues(map[string]any{
+			"code":        entity.Code,
+			"name":        entity.Name,
+			"description": entity.Description,
+			"created_at":  entity.CreatedAt,
+			"updated_at":  entity.UpdatedAt,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result[i] = fvs
+	}
+
+	return result, nil
 }
 
 func createStringKeySchema() crud.Schema[TestEntityWithStringKey] {
@@ -361,7 +403,9 @@ func createStringKeySchema() crud.Schema[TestEntityWithStringKey] {
 	return crud.NewSchema(
 		"string_key_entities",
 		fields,
-		&stringKeyMapper{},
+		&stringKeyMapper{
+			fields: fields,
+		},
 	)
 }
 
