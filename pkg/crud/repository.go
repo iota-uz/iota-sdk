@@ -26,8 +26,8 @@ type Repository[TEntity any] interface {
 	Exists(ctx context.Context, value FieldValue) (bool, error)
 	Count(ctx context.Context, filters *FindParams) (int64, error)
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
-	Create(ctx context.Context, values []FieldValue) (TEntity, error)
-	Update(ctx context.Context, values []FieldValue) (TEntity, error)
+	Create(ctx context.Context, values FieldValues) (TEntity, error)
+	Update(ctx context.Context, values FieldValues) (TEntity, error)
 	Delete(ctx context.Context, value FieldValue) (TEntity, error)
 }
 
@@ -147,7 +147,7 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 	return entities, nil
 }
 
-func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (TEntity, error) {
+func (r *repository[TEntity]) Create(ctx context.Context, values FieldValues) (TEntity, error) {
 	var zero TEntity
 	columns := make([]string, 0, len(values))
 	args := make([]any, 0, len(values))
@@ -177,7 +177,7 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 	return entities[0], nil
 }
 
-func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (TEntity, error) {
+func (r *repository[TEntity]) Update(ctx context.Context, values FieldValues) (TEntity, error) {
 	var zero TEntity
 
 	keyField := r.schema.Fields().KeyField()
