@@ -3,6 +3,6 @@ package crud
 import "context"
 
 type Mapper[TEntity any] interface {
-	ToEntity(ctx context.Context, values []FieldValue) (TEntity, error)
-	ToFieldValues(ctx context.Context, entity TEntity) ([]FieldValue, error)
+	ToEntities(ctx context.Context, values ...FieldValues) ([]TEntity, error)
+	ToFieldValues(ctx context.Context, entities ...TEntity) ([]FieldValues, error)
 }
