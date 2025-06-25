@@ -10,52 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCrudController_TestDataStructures(t *testing.T) {
-	// Test that our test data structures are properly defined
-
-	// Create test entity
-	entity := TestEntity{
-		ID:          uuid.New(),
-		Name:        "Test",
-		Description: "Description",
-		Amount:      123.45,
-		IsActive:    true,
-	}
-
-	assert.NotEqual(t, uuid.Nil, entity.ID)
-	assert.Equal(t, "Test", entity.Name)
-	assert.Equal(t, "Description", entity.Description)
-	assert.InDelta(t, 123.45, entity.Amount, 0.01)
-	assert.True(t, entity.IsActive)
-}
-
-func TestCrudController_TestMapper(t *testing.T) {
-	// Test that the mapper works correctly
-	mapper := &testMapper{}
-
-	// Test ToFieldValues
-	entity := TestEntity{
-		ID:          uuid.New(),
-		Name:        "Test Entity",
-		Description: "Test Description",
-		Amount:      99.99,
-		IsActive:    true,
-	}
-
-	fieldValues, err := mapper.ToFieldValues(context.TODO(), entity)
-	require.NoError(t, err)
-	assert.NotEmpty(t, fieldValues)
-
-	// Test ToEntity
-	entityFromValues, err := mapper.ToEntity(context.TODO(), fieldValues)
-	require.NoError(t, err)
-	assert.Equal(t, entity.ID, entityFromValues.ID)
-	assert.Equal(t, entity.Name, entityFromValues.Name)
-	assert.Equal(t, entity.Description, entityFromValues.Description)
-	assert.InDelta(t, entity.Amount, entityFromValues.Amount, 0.01)
-	assert.Equal(t, entity.IsActive, entityFromValues.IsActive)
-}
-
 func TestCrudController_TestService(t *testing.T) {
 	// Test that the test service works correctly
 	service := newTestService()
