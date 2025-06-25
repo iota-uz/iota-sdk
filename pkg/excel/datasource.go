@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -235,6 +236,26 @@ func convertPgxValue(val interface{}) interface{} {
 	switch v := val.(type) {
 	case []byte:
 		return string(v)
+	case pgtype.Numeric:
+		if v.Valid {
+			float64Val, err := v.Float64Value()
+			if err != nil {
+				// If conversion fails, return 0 to avoid display issues
+				return 0.0
+			}
+			return float64Val.Float64
+		}
+		return nil
+	case *pgtype.Numeric:
+		if v != nil && v.Valid {
+			float64Val, err := v.Float64Value()
+			if err != nil {
+				// If conversion fails, return 0 to avoid display issues
+				return 0.0
+			}
+			return float64Val.Float64
+		}
+		return nil
 	default:
 		// Check for sql.Null types
 		return convertSQLValue(val)
