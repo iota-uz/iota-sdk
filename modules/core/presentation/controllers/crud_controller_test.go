@@ -153,63 +153,87 @@ func (s *testService) Delete(ctx context.Context, value crud.FieldValue) (TestEn
 }
 
 // testMapper implements crud.Mapper[TestEntity]
-type testMapper struct{}
+type testMapper struct {
+	fields crud.Fields
+}
 
-func (m *testMapper) ToEntity(ctx context.Context, values []crud.FieldValue) (TestEntity, error) {
-	entity := TestEntity{}
-	for _, fv := range values {
-		switch fv.Field().Name() {
-		case "id":
-			if !fv.IsZero() {
-				id, _ := fv.AsUUID()
+func (m *testMapper) ToEntities(_ context.Context, values ...[]crud.FieldValue) ([]TestEntity, error) {
+	result := make([]TestEntity, len(values))
+
+	for i, fvs := range values {
+		entity := TestEntity{}
+		for _, fv := range fvs {
+			switch fv.Field().Name() {
+			case "id":
+				id, err := fv.AsUUID()
+				if err != nil {
+					return result, err
+				}
 				entity.ID = id
-			}
-		case "name":
-			if !fv.IsZero() {
-				name, _ := fv.AsString()
+			case "name":
+				name, err := fv.AsString()
+				if err != nil {
+					return result, err
+				}
 				entity.Name = name
-			}
-		case "description":
-			if !fv.IsZero() {
-				desc, _ := fv.AsString()
+			case "description":
+				desc, err := fv.AsString()
+				if err != nil {
+					return result, err
+				}
 				entity.Description = desc
-			}
-		case "amount":
-			if !fv.IsZero() {
-				amount, _ := fv.AsFloat64()
+			case "amount":
+				amount, err := fv.AsFloat64()
+				if err != nil {
+					return result, err
+				}
 				entity.Amount = amount
-			}
-		case "is_active":
-			if !fv.IsZero() {
-				active, _ := fv.AsBool()
+			case "is_active":
+				active, err := fv.AsBool()
+				if err != nil {
+					return result, err
+				}
 				entity.IsActive = active
-			}
-		case "created_at":
-			if !fv.IsZero() {
-				created, _ := fv.AsTime()
+			case "created_at":
+				created, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.CreatedAt = created
-			}
-		case "updated_at":
-			if !fv.IsZero() {
-				updated, _ := fv.AsTime()
+			case "updated_at":
+				updated, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.UpdatedAt = updated
 			}
 		}
+		result[i] = entity
 	}
-	return entity, nil
+
+	return result, nil
 }
 
-func (m *testMapper) ToFieldValues(ctx context.Context, entity TestEntity) ([]crud.FieldValue, error) {
-	schema := createTestSchema()
-	return schema.Fields().FieldValues(map[string]any{
-		"id":          entity.ID,
-		"name":        entity.Name,
-		"description": entity.Description,
-		"amount":      entity.Amount,
-		"is_active":   entity.IsActive,
-		"created_at":  entity.CreatedAt,
-		"updated_at":  entity.UpdatedAt,
-	})
+func (m *testMapper) ToFieldValuesList(_ context.Context, entities ...TestEntity) ([][]crud.FieldValue, error) {
+	result := make([][]crud.FieldValue, len(entities))
+
+	for i, entity := range entities {
+		fvs, err := m.fields.FieldValues(map[string]any{
+			"id":          entity.ID,
+			"name":        entity.Name,
+			"description": entity.Description,
+			"amount":      entity.Amount,
+			"is_active":   entity.IsActive,
+			"created_at":  entity.CreatedAt,
+			"updated_at":  entity.UpdatedAt,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result[i] = fvs
+	}
+
+	return result, nil
 }
 
 func createTestSchema() crud.Schema[TestEntity] {
@@ -225,7 +249,9 @@ func createTestSchema() crud.Schema[TestEntity] {
 	return crud.NewSchema(
 		"test_entities",
 		fields,
-		&testMapper{},
+		&testMapper{
+			fields: fields,
+		},
 	)
 }
 
@@ -869,61 +895,77 @@ func TestCrudController_FieldTypes(t *testing.T) {
 }
 
 // testDecimalMapper implements crud.Mapper[TestEntity] for decimal field testing
-type testDecimalMapper struct{}
+type testDecimalMapper struct {
+	fields crud.Fields
+}
 
-func (m *testDecimalMapper) ToEntity(ctx context.Context, values []crud.FieldValue) (TestEntity, error) {
-	entity := TestEntity{}
-	for _, fv := range values {
-		switch fv.Field().Name() {
-		case "id":
-			if !fv.IsZero() {
-				id, _ := fv.AsUUID()
-				entity.ID = id
-			}
-		case "name":
-			if !fv.IsZero() {
-				name, _ := fv.AsString()
-				entity.Name = name
-			}
-		case "amount":
-			if !fv.IsZero() {
-				// For decimal fields, convert from decimal string to float64
-				decimalStr, _ := fv.AsDecimal()
-				if amount, err := strconv.ParseFloat(decimalStr, 64); err == nil {
-					entity.Amount = amount
+func (m *testDecimalMapper) ToEntities(_ context.Context, values ...[]crud.FieldValue) ([]TestEntity, error) {
+	result := make([]TestEntity, len(values))
+
+	for i, fvs := range values {
+		entity := TestEntity{}
+		for _, fv := range fvs {
+			switch fv.Field().Name() {
+			case "id":
+				id, err := fv.AsUUID()
+				if err != nil {
+					return result, err
 				}
-			}
-		case "created_at":
-			if !fv.IsZero() {
-				created, _ := fv.AsTime()
+				entity.ID = id
+			case "name":
+				name, err := fv.AsString()
+				if err != nil {
+					return result, err
+				}
+				entity.Name = name
+			case "amount":
+				decimalStr, err := fv.AsDecimal()
+				if err != nil {
+					return result, err
+				}
+				amount, err := strconv.ParseFloat(decimalStr, 64)
+				if err != nil {
+					return result, err
+				}
+				entity.Amount = amount
+			case "created_at":
+				created, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.CreatedAt = created
-			}
-		case "updated_at":
-			if !fv.IsZero() {
-				updated, _ := fv.AsTime()
+			case "updated_at":
+				updated, err := fv.AsTime()
+				if err != nil {
+					return result, err
+				}
 				entity.UpdatedAt = updated
 			}
 		}
+		result[i] = entity
 	}
-	return entity, nil
+
+	return result, nil
 }
 
-func (m *testDecimalMapper) ToFieldValues(ctx context.Context, entity TestEntity) ([]crud.FieldValue, error) {
-	// Create schema that matches the decimal test schema
-	decimalFields := crud.NewFields([]crud.Field{
-		crud.NewUUIDField("id", crud.WithKey()),
-		crud.NewStringField("name"),
-		crud.NewDecimalField("amount"), // Decimal field
-		crud.NewTimestampField("created_at", crud.WithReadonly()),
-		crud.NewTimestampField("updated_at", crud.WithReadonly()),
-	})
-	return decimalFields.FieldValues(map[string]any{
-		"id":         entity.ID,
-		"name":       entity.Name,
-		"amount":     fmt.Sprintf("%.2f", entity.Amount), // Convert float64 to decimal string
-		"created_at": entity.CreatedAt,
-		"updated_at": entity.UpdatedAt,
-	})
+func (m *testDecimalMapper) ToFieldValuesList(_ context.Context, entities ...TestEntity) ([][]crud.FieldValue, error) {
+	result := make([][]crud.FieldValue, len(entities))
+
+	for i, entity := range entities {
+		fvs, err := m.fields.FieldValues(map[string]any{
+			"id":         entity.ID,
+			"name":       entity.Name,
+			"amount":     fmt.Sprintf("%.2f", entity.Amount),
+			"created_at": entity.CreatedAt,
+			"updated_at": entity.UpdatedAt,
+		})
+		if err != nil {
+			return nil, err
+		}
+		result[i] = fvs
+	}
+
+	return result, nil
 }
 
 func TestCrudController_DecimalFieldHandling(t *testing.T) {
@@ -955,7 +997,9 @@ func TestCrudController_DecimalFieldHandling(t *testing.T) {
 	decimalSchema := crud.NewSchema(
 		"test_entities",
 		decimalFields,
-		&testDecimalMapper{},
+		&testDecimalMapper{
+			fields: decimalFields,
+		},
 	)
 
 	builder := &testBuilder{

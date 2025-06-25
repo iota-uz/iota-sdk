@@ -215,6 +215,10 @@ func (f *field) AsUUIDField() (UUIDField, error) {
 }
 
 func isValidType(fieldType FieldType, value any) bool {
+	if value == nil {
+		return true
+	}
+
 	switch fieldType {
 	case StringFieldType:
 		_, ok := value.(string)
