@@ -126,55 +126,70 @@ type reportMapper struct {
 	fields crud.Fields
 }
 
-func (m *reportMapper) ToEntity(_ context.Context, values []crud.FieldValue) (Report, error) {
-	var (
-		title   string
-		options []ReportOption
-	)
+func (m *reportMapper) ToEntities(_ context.Context, values ...[]crud.FieldValue) ([]Report, error) {
+	result := make([]Report, len(values))
 
-	for _, v := range values {
-		switch v.Field().Name() {
-		case "id":
-			switch val := v.Value().(type) {
-			case int:
-				options = append(options, WithID(val))
-			case int32:
-				options = append(options, WithID(int(val)))
-			case int64:
-				options = append(options, WithID(int(val)))
-			default:
-				return nil, fmt.Errorf("unexpected type for id: %T", val)
+	for i, fvs := range values {
+		var (
+			title   string
+			options []ReportOption
+		)
+
+		for _, v := range fvs {
+			switch v.Field().Name() {
+			case "id":
+				id, err := v.AsInt()
+				if err != nil {
+					return nil, fmt.Errorf("invalid id field: %w", err)
+				}
+				options = append(options, WithID(id))
+
+			case "title":
+				str, err := v.AsString()
+				if err != nil {
+					return nil, fmt.Errorf("invalid title field: %w", err)
+				}
+				title = str
+
+			case "author":
+				str, err := v.AsString()
+				if err != nil {
+					return nil, fmt.Errorf("invalid author field: %w", err)
+				}
+				options = append(options, WithAuthor(str))
+
+			case "summary":
+				str, err := v.AsString()
+				if err != nil {
+					return nil, fmt.Errorf("invalid summary field: %w", err)
+				}
+				options = append(options, WithSummary(str))
 			}
-		case "title":
-			title = toString(v.Value())
-		case "author":
-			options = append(options, WithAuthor(toString(v.Value())))
-		case "summary":
-			options = append(options, WithSummary(toString(v.Value())))
 		}
+
+		result[i] = NewReport(title, options...)
 	}
 
-	return NewReport(title, options...), nil
+	return result, nil
 }
 
-func toString(val any) string {
-	switch v := val.(type) {
-	case string:
-		return v
-	case []byte:
-		return string(v)
-	default:
-		return fmt.Sprintf("%v", v)
+func (m *reportMapper) ToFieldValuesList(_ context.Context, entities ...Report) ([][]crud.FieldValue, error) {
+	result := make([][]crud.FieldValue, len(entities))
+
+	for i, entity := range entities {
+		fvs, err := m.fields.FieldValues(map[string]any{
+			"id":      entity.ID(),
+			"title":   entity.Title(),
+			"author":  entity.Author(),
+			"summary": entity.Summary(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		result[i] = fvs
 	}
-}
 
-func (m *reportMapper) ToFieldValues(_ context.Context, r Report) ([]crud.FieldValue, error) {
-	return m.fields.FieldValues(map[string]any{
-		"id":      r.ID(),
-		"title":   r.Title(),
-		"author":  r.Author(),
-		"summary": r.Summary(),
-	})
+	return result, nil
 }
 
 func buildReportSchema() crud.Schema[Report] {
