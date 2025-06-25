@@ -8,7 +8,7 @@ type Fields interface {
 	Searchable() []Field
 	KeyField() Field
 	Field(name string) (Field, error)
-	FieldValues(values map[string]any) ([]FieldValue, error)
+	FieldValues(values map[string]any) (FieldValues, error)
 }
 
 func NewFields(value []Field) Fields {
@@ -81,7 +81,7 @@ func (f *fields) Field(name string) (Field, error) {
 	return nil, fmt.Errorf("field %q not found", name)
 }
 
-func (f *fields) FieldValues(values map[string]any) ([]FieldValue, error) {
+func (f *fields) FieldValues(values map[string]any) (FieldValues, error) {
 	fvs := make([]FieldValue, len(f.fields))
 	for i, field := range f.fields {
 		value, ok := values[field.Name()]
@@ -92,5 +92,5 @@ func (f *fields) FieldValues(values map[string]any) ([]FieldValue, error) {
 		fvs[i] = field.Value(value)
 	}
 
-	return fvs, nil
+	return NewFieldValues(fvs), nil
 }
