@@ -903,9 +903,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 
 	for _, f := range c.schema.Fields().Fields() {
 		if !existingFields[f.Name()] {
-			if initialValue := f.InitialValue(); initialValue != nil {
-				fieldValues = append(fieldValues, f.Value(initialValue))
-			}
+			fieldValues = append(fieldValues, f.Value(f.InitialValue()))
 		}
 	}
 
