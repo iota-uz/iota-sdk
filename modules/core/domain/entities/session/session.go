@@ -8,7 +8,7 @@ import (
 )
 
 type Session struct {
-	Token     string `gorm:"primaryKey"`
+	Token     string
 	UserID    uint
 	TenantID  uuid.UUID
 	IP        string
