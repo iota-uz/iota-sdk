@@ -26,8 +26,8 @@ type Repository[TEntity any] interface {
 	Exists(ctx context.Context, value FieldValue) (bool, error)
 	Count(ctx context.Context, filters *FindParams) (int64, error)
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
-	Create(ctx context.Context, values FieldValues) (TEntity, error)
-	Update(ctx context.Context, values FieldValues) (TEntity, error)
+	Create(ctx context.Context, values []FieldValue) (TEntity, error)
+	Update(ctx context.Context, values []FieldValue) (TEntity, error)
 	Delete(ctx context.Context, value FieldValue) (TEntity, error)
 }
 
@@ -147,8 +147,9 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 	return entities, nil
 }
 
-func (r *repository[TEntity]) Create(ctx context.Context, values FieldValues) (TEntity, error) {
+func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
+
 	columns := make([]string, 0, len(values))
 	args := make([]any, 0, len(values))
 
@@ -177,7 +178,7 @@ func (r *repository[TEntity]) Create(ctx context.Context, values FieldValues) (T
 	return entities[0], nil
 }
 
-func (r *repository[TEntity]) Update(ctx context.Context, values FieldValues) (TEntity, error) {
+func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (TEntity, error) {
 	var zero TEntity
 
 	keyField := r.schema.Fields().KeyField()
@@ -293,7 +294,7 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 		columnOrder[i] = f
 	}
 
-	var entities []TEntity
+	var fvs [][]FieldValue
 	for rows.Next() {
 		rawValues := make([]any, len(columnOrder))
 		scanTargets := make([]any, len(columnOrder))
@@ -304,22 +305,17 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 			return nil, errors.Wrap(err, "failed to scan entity row")
 		}
 
-		var fieldValues []FieldValue
+		var values []FieldValue
 		for i, val := range rawValues {
 			fv := columnOrder[i].Value(val)
-			fieldValues = append(fieldValues, fv)
+			values = append(values, fv)
 		}
-
-		entity, err := r.schema.Mapper().ToEntity(ctx, fieldValues)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to map field values to entity")
-		}
-
-		entities = append(entities, entity)
+		fvs = append(fvs, values)
 	}
 
+	entities, err := r.schema.Mapper().ToEntities(ctx, fvs...)
 	if err := rows.Err(); err != nil {
-		return nil, errors.Wrap(err, "row iteration error")
+		return nil, errors.Wrap(err, "mapping error")
 	}
 
 	return entities, nil
