@@ -251,10 +251,36 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 		formValue := r.Form.Get(fieldName)
 		var value any
 
-		// Convert form value based on field type
-		switch field.Type() {
-		case crud.BoolFieldType:
-			value = formValue == "on" || formValue == "true" || formValue == "1"
+		// Check if this is a select field and handle value type accordingly
+		if selectField, ok := field.(crud.SelectField); ok {
+			// Parse value based on the select field's value type
+			fieldType := selectField.ValueType()
+			switch fieldType {
+			case crud.IntFieldType:
+				if formValue != "" {
+					if int64Val, err := strconv.ParseInt(formValue, 10, 64); err == nil {
+						if int64Val >= math.MinInt32 && int64Val <= math.MaxInt32 {
+							value = int(int64Val)
+						} else {
+							value = int64Val
+						}
+					} else {
+						return nil, fmt.Errorf("invalid integer value for select field %s: %v", fieldName, err)
+					}
+				} else {
+					continue // Skip empty values
+				}
+			case crud.BoolFieldType:
+				value = formValue == "true" || formValue == "1"
+			default:
+				// String and other types
+				value = formValue
+			}
+		} else {
+			// Convert form value based on field type
+			switch field.Type() {
+			case crud.BoolFieldType:
+				value = formValue == "on" || formValue == "true" || formValue == "1"
 		case crud.IntFieldType:
 			if formValue != "" {
 				if int64Val, err := strconv.ParseInt(formValue, 10, 64); err == nil {
@@ -328,12 +354,18 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			// String and timestamp fields are handled as strings from forms
 			value = formValue
 		}
+		}
 
 		fieldValues = append(fieldValues, field.Value(value))
 	}
 
 	// Special handling for checkboxes - they don't send data when unchecked
 	for _, field := range c.schema.Fields().Fields() {
+		// Skip select fields with bool type - they always send a value
+		if selectField, ok := field.(crud.SelectField); ok && selectField.ValueType() == crud.BoolFieldType {
+			continue
+		}
+		
 		if field.Type() == crud.BoolFieldType && !field.Hidden() && !field.Readonly() {
 			// Check if this field was already processed
 			found := false
@@ -1139,6 +1171,11 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 
 	switch field.Type() {
 	case crud.StringFieldType:
+		// Check if this is actually a select field
+		if selectField, ok := field.(crud.SelectField); ok {
+			return c.handleSelectField(ctx, selectField, fieldLabel, currentValue)
+		}
+
 		sf, err := field.AsStringField()
 		if err != nil {
 			return nil
@@ -1196,6 +1233,11 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		return builder.Build()
 
 	case crud.IntFieldType:
+		// Check if this is actually a select field with int values
+		if selectField, ok := field.(crud.SelectField); ok {
+			return c.handleSelectField(ctx, selectField, fieldLabel, currentValue)
+		}
+
 		intField, err := field.AsIntField()
 		if err != nil {
 			return nil
@@ -1232,6 +1274,11 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		return builder.Build()
 
 	case crud.BoolFieldType:
+		// Check if this is actually a select field with bool values
+		if selectField, ok := field.(crud.SelectField); ok {
+			return c.handleSelectField(ctx, selectField, fieldLabel, currentValue)
+		}
+
 		builder := form.Checkbox(field.Name(), fieldLabel)
 
 		if field.Readonly() {
@@ -1477,6 +1524,152 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		}
 		return builder.Build()
 	}
+}
+
+// handleSelectField processes select fields and returns appropriate form fields
+func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectField crud.SelectField, fieldLabel string, currentValue any) form.Field {
+	// Convert current value to string for comparison
+	var valueStr string
+	if currentValue != nil {
+		valueStr = c.convertValueToString(currentValue, selectField.ValueType())
+	}
+
+	switch selectField.SelectType() {
+	case crud.SelectTypeStatic:
+		// Get options
+		options := selectField.Options()
+		if options == nil && selectField.OptionsLoader() != nil {
+			options = selectField.OptionsLoader()()
+		}
+
+		// Convert to form options
+		formOptions := make([]form.Option, len(options))
+		for i, opt := range options {
+			// Convert value to string for HTML rendering
+			valueStr := ""
+			switch v := opt.Value.(type) {
+			case string:
+				valueStr = v
+			case int:
+				valueStr = strconv.Itoa(v)
+			case int64:
+				valueStr = strconv.FormatInt(v, 10)
+			case bool:
+				valueStr = strconv.FormatBool(v)
+			case float64:
+				valueStr = strconv.FormatFloat(v, 'f', -1, 64)
+			default:
+				valueStr = fmt.Sprintf("%v", v)
+			}
+			
+			formOptions[i] = form.Option{
+				Value: valueStr,
+				Label: opt.Label,
+			}
+		}
+
+		builder := form.Select(selectField.Name(), fieldLabel).
+			Options(formOptions)
+
+		if selectField.Placeholder() != "" {
+			// Set placeholder through attributes since the builder doesn't have a method
+			builder = builder.Attrs(templ.Attributes{"data-placeholder": selectField.Placeholder()})
+		}
+
+		if selectField.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"readonly": true})
+		}
+
+		if len(selectField.Rules()) > 0 {
+			builder = builder.Required()
+		}
+
+		if valueStr != "" {
+			builder = builder.Default(valueStr)
+		}
+
+		return builder.Build()
+
+	case crud.SelectTypeSearchable:
+		builder := form.SearchSelect().
+			Key(selectField.Name()).
+			Label(fieldLabel).
+			Endpoint(selectField.Endpoint()).
+			Placeholder(selectField.Placeholder())
+
+		if selectField.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"readonly": true})
+		}
+
+		if len(selectField.Rules()) > 0 {
+			builder = builder.WithRequired(true)
+		}
+
+		if valueStr != "" {
+			builder = builder.WithValue(valueStr)
+		}
+
+		return builder.Build()
+
+	case crud.SelectTypeCombobox:
+		builder := form.Combobox().
+			Key(selectField.Name()).
+			Label(fieldLabel).
+			Endpoint(selectField.Endpoint()).
+			Placeholder(selectField.Placeholder()).
+			Multiple(selectField.Multiple())
+
+		if selectField.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"readonly": true})
+		}
+
+		if len(selectField.Rules()) > 0 {
+			builder = builder.WithRequired(true)
+		}
+
+		if valueStr != "" {
+			builder = builder.WithValue(valueStr)
+		}
+
+		return builder.Build()
+
+	default:
+		// Fallback to regular select
+		return form.Select(selectField.Name(), fieldLabel).Build()
+	}
+}
+
+// convertValueToString converts a value to string based on field type
+func (c *CrudController[TEntity]) convertValueToString(value any, fieldType crud.FieldType) string {
+	if value == nil {
+		return ""
+	}
+
+	switch fieldType {
+	case crud.IntFieldType:
+		switch v := value.(type) {
+		case int:
+			return strconv.Itoa(v)
+		case int64:
+			return strconv.FormatInt(v, 10)
+		case int32:
+			return strconv.FormatInt(int64(v), 10)
+		}
+	case crud.BoolFieldType:
+		if v, ok := value.(bool); ok {
+			return strconv.FormatBool(v)
+		}
+	case crud.FloatFieldType:
+		switch v := value.(type) {
+		case float64:
+			return strconv.FormatFloat(v, 'f', -1, 64)
+		case float32:
+			return strconv.FormatFloat(float64(v), 'f', -1, 32)
+		}
+	}
+
+	// Default: convert to string
+	return fmt.Sprintf("%v", value)
 }
 
 func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
