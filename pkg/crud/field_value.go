@@ -47,6 +47,11 @@ func (fv *fieldValue) AsString() (string, error) {
 	if fv.Field().Type() != StringFieldType {
 		return "", fv.typeMismatch("string")
 	}
+
+	if fv.value == nil {
+		return "", nil
+	}
+
 	s, ok := fv.value.(string)
 	if !ok {
 		return "", fv.valueCastError("string")
@@ -57,6 +62,10 @@ func (fv *fieldValue) AsString() (string, error) {
 func (fv *fieldValue) AsInt() (int, error) {
 	if fv.Field().Type() != IntFieldType {
 		return 0, fv.typeMismatch("int")
+	}
+
+	if fv.value == nil {
+		return 0, nil
 	}
 
 	switch v := fv.value.(type) {
@@ -75,6 +84,11 @@ func (fv *fieldValue) AsInt32() (int32, error) {
 	if fv.Field().Type() != IntFieldType {
 		return 0, fv.typeMismatch("int32")
 	}
+
+	if fv.value == nil {
+		return 0, nil
+	}
+
 	i, ok := fv.value.(int32)
 	if !ok {
 		return 0, fv.valueCastError("int32")
@@ -86,6 +100,11 @@ func (fv *fieldValue) AsInt64() (int64, error) {
 	if fv.Field().Type() != IntFieldType {
 		return 0, fv.typeMismatch("int64")
 	}
+
+	if fv.value == nil {
+		return 0, nil
+	}
+
 	i, ok := fv.value.(int64)
 	if !ok {
 		return 0, fv.valueCastError("int64")
@@ -97,6 +116,11 @@ func (fv *fieldValue) AsBool() (bool, error) {
 	if fv.Field().Type() != BoolFieldType {
 		return false, fv.typeMismatch("bool")
 	}
+
+	if fv.value == nil {
+		return false, nil
+	}
+
 	b, ok := fv.value.(bool)
 	if !ok {
 		return false, fv.valueCastError("bool")
@@ -108,6 +132,11 @@ func (fv *fieldValue) AsFloat32() (float32, error) {
 	if fv.Field().Type() != FloatFieldType {
 		return 0, fv.typeMismatch("float32")
 	}
+
+	if fv.value == nil {
+		return 0, nil
+	}
+
 	f, ok := fv.value.(float32)
 	if !ok {
 		return 0, fv.valueCastError("float32")
@@ -119,6 +148,11 @@ func (fv *fieldValue) AsFloat64() (float64, error) {
 	if fv.Field().Type() != FloatFieldType {
 		return 0, fv.typeMismatch("float64")
 	}
+
+	if fv.value == nil {
+		return 0, nil
+	}
+
 	f, ok := fv.value.(float64)
 	if !ok {
 		return 0, fv.valueCastError("float64")
@@ -129,6 +163,10 @@ func (fv *fieldValue) AsFloat64() (float64, error) {
 func (fv *fieldValue) AsDecimal() (string, error) {
 	if fv.Field().Type() != DecimalFieldType {
 		return "", fv.typeMismatch("decimal")
+	}
+
+	if fv.value == nil {
+		return "", nil
 	}
 
 	switch v := fv.value.(type) {
@@ -183,6 +221,10 @@ func (fv *fieldValue) AsDecimal() (string, error) {
 func (fv *fieldValue) AsTime() (time.Time, error) {
 	switch fv.Field().Type() {
 	case DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType:
+		if fv.value == nil {
+			return time.Time{}, nil
+		}
+
 		t, ok := fv.value.(time.Time)
 		if !ok {
 			return time.Time{}, fv.valueCastError("time.Time")
@@ -198,6 +240,11 @@ func (fv *fieldValue) AsUUID() (uuid.UUID, error) {
 	if fv.Field().Type() != UUIDFieldType {
 		return uuid.UUID{}, fv.typeMismatch("uuid.UUID")
 	}
+
+	if fv.value == nil {
+		return uuid.Nil, nil
+	}
+
 	u, ok := fv.value.(uuid.UUID)
 	if !ok {
 		return uuid.UUID{}, fv.valueCastError("uuid.UUID")
