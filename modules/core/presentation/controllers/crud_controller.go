@@ -435,15 +435,22 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		dataURL = u.String()
 	}
 
+	// Localize table title
+	tableTitle, err := c.localize(ctx, fmt.Sprintf("%s.List.Title", c.schema.Name()), c.schema.Name())
+	if err != nil {
+		log.Printf("[CrudController.List] Failed to localize title: %v", err)
+		tableTitle = c.schema.Name()
+	}
+
 	// Create table configuration with infinity scroll support
 	var cfg *table.TableConfig
 	if htmx.IsHxRequest(r) {
 		// For HTMX requests, we only need the base URL with query params
-		cfg = table.NewTableConfig(c.schema.Name(), dataURL)
+		cfg = table.NewTableConfig(tableTitle, dataURL)
 	} else {
 		// For initial page load, enable infinity scroll
 		cfg = table.NewTableConfig(
-			c.schema.Name(),
+			tableTitle,
 			dataURL,
 			table.WithInfiniteScroll(hasMore, paginationParams.Page, paginationParams.Limit),
 		)
@@ -981,22 +988,48 @@ func (c *CrudController[TEntity]) Update(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Set the ID in field values
-	foundKeyField := false
+	var keyFieldValue crud.FieldValue
 	for i, fv := range fieldValues {
 		if fv.Field().Key() {
 			fieldValues[i] = fv.Field().Value(c.parseIDValue(id))
-			foundKeyField = true
-			break
+			keyFieldValue = fieldValues[i]
 		}
 	}
 
 	// If key field wasn't found in form data, add it
-	if !foundKeyField {
+	if keyFieldValue == nil {
 		keyField := c.primaryKeyField
 		if keyField != nil {
-			keyFieldValue := keyField.Value(c.parseIDValue(id))
+			keyFieldValue = keyField.Value(c.parseIDValue(id))
 			fieldValues = append(fieldValues, keyFieldValue)
+		}
+	}
+
+	dbEntity, err := c.service.Get(ctx, keyFieldValue)
+	if err != nil {
+		log.Printf("[CrudController.Update] Failed to get entity: %v", err)
+		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+		return
+	}
+
+	dbFvs, err := c.schema.Mapper().ToFieldValues(ctx, dbEntity)
+	if err != nil {
+		log.Printf("[CrudController.Update] Failed to map to entity: %v", err)
+		errorMsg, _ := c.localize(ctx, errInternalServer, "Internal server error")
+		http.Error(w, errorMsg, http.StatusInternalServerError)
+		return
+	}
+
+	existingFields := make(map[string]bool, len(fieldValues))
+	for _, fv := range fieldValues {
+		existingFields[fv.Field().Name()] = true
+	}
+
+	for _, fv := range dbFvs {
+		_, ok := existingFields[fv.Field().Name()]
+		if !ok {
+			fieldValues = append(fieldValues, fv)
 		}
 	}
 
