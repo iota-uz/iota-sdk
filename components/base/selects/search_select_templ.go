@@ -25,6 +25,7 @@ type SearchSelectProps struct {
 	Value       string
 	Endpoint    string
 	Attrs       templ.Attributes
+	Name        string // Field name for the hidden input
 }
 
 type SearchOptionsProps struct {
@@ -62,7 +63,7 @@ func SearchOptions(props *SearchOptionsProps) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.NothingFoundText)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 30, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 31, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -81,7 +82,7 @@ func SearchOptions(props *SearchOptionsProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("selectResult('%s', %s)", option.Label, option.Value))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 34, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 35, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -94,7 +95,7 @@ func SearchOptions(props *SearchOptionsProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 37, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 38, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -137,7 +138,7 @@ func SearchSelect(props *SearchSelectProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Endpoint)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 48, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 49, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -150,7 +151,7 @@ func SearchSelect(props *SearchSelectProps) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 50, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 51, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -163,13 +164,26 @@ func SearchSelect(props *SearchSelectProps) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.Placeholder)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 53, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 54, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" x-model=\"query\" @input.debounce.300ms=\"fetchResults\" @focus=\"open = true\" class=\"border p-2 w-full mt-1\"> <input type=\"hidden\" x-model=\"selectedId\" name=\"position_id\"><ul x-show=\"open\" id=\"results-container\" class=\"absolute border bg-white w-full mt-1 max-h-60 overflow-auto\"><!-- Server-rendered results will be injected here --></ul></div><script>\n        function fetchResults() {\n            const endpoint = document.getElementById('search-select').getAttribute('endpoint');\n            if (this.query.length < 2) {\n                document.getElementById('results-container').innerHTML = '<li class=\"p-2 text-gray-500\">No results found.</li>';\n                return;\n            }\n            fetch(`${endpoint}?q=${encodeURIComponent(this.query)}`)\n                .then((response) => response.text())\n                .then((html) => {\n                    document.getElementById('results-container').innerHTML = html;\n                })\n                .catch((error) => {\n                    console.error('Error fetching results:', error);\n                    document.getElementById('results-container').innerHTML = '<li class=\"p-2 text-gray-500\">Error loading results.</li>';\n                });\n        }\n\n        function selectResult(name, id) {\n            const input = document.querySelector('[x-model=\"query\"]');\n            input.value = name;\n            input.dispatchEvent(new Event('input', { bubbles: true }));\n            this.selectedId = id;\n            this.open = false;\n            // Handle further actions, such as navigating or updating the UI.\n        }\n    </script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" x-model=\"query\" @input.debounce.300ms=\"fetchResults\" @focus=\"open = true\" class=\"border p-2 w-full mt-1\"> <input type=\"hidden\" x-model=\"selectedId\" name=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.Name)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/selects/search_select.templ`, Line: 60, Col: 61}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"><ul x-show=\"open\" id=\"results-container\" class=\"absolute border bg-white w-full mt-1 max-h-60 overflow-auto\"><!-- Server-rendered results will be injected here --></ul></div><script>\n        function fetchResults() {\n            const endpoint = document.getElementById('search-select').getAttribute('endpoint');\n            if (this.query.length < 2) {\n                document.getElementById('results-container').innerHTML = '<li class=\"p-2 text-gray-500\">No results found.</li>';\n                return;\n            }\n            fetch(`${endpoint}?q=${encodeURIComponent(this.query)}`)\n                .then((response) => response.text())\n                .then((html) => {\n                    document.getElementById('results-container').innerHTML = html;\n                })\n                .catch((error) => {\n                    console.error('Error fetching results:', error);\n                    document.getElementById('results-container').innerHTML = '<li class=\"p-2 text-gray-500\">Error loading results.</li>';\n                });\n        }\n\n        function selectResult(name, id) {\n            const input = document.querySelector('[x-model=\"query\"]');\n            input.value = name;\n            input.dispatchEvent(new Event('input', { bubbles: true }));\n            this.selectedId = id;\n            this.open = false;\n            // Handle further actions, such as navigating or updating the UI.\n        }\n    </script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
