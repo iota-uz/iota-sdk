@@ -3,6 +3,7 @@ package controllertest
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -29,58 +30,75 @@ import (
 	"golang.org/x/text/language"
 )
 
-// Suite provides a fluent API for controller testing
+// MiddlewareFunc is a function that can modify the request context
+type MiddlewareFunc func(ctx context.Context, r *http.Request) context.Context
+
 type Suite struct {
-	env     *builder.TestEnvironment
-	router  *mux.Router
-	modules []application.Module
+	t           *testing.T
+	env         *builder.TestEnvironment
+	router      *mux.Router
+	modules     []application.Module
+	user        user.User
+	middlewares []MiddlewareFunc
 }
 
-// New creates a new controller test suite
-func New() *Suite {
-	return &Suite{}
-}
-
-// WithModule adds a module for the test
-func (s *Suite) WithModules(module ...application.Module) *Suite {
-	s.modules = append(s.modules, module...)
-	return s
-}
-
-// WithUser sets the user for the test
-func (s *Suite) WithUser(t *testing.T, u user.User) *Suite {
+func New(t *testing.T, modules ...application.Module) *Suite {
 	t.Helper()
-	s.env = builder.New().
-		WithModules(s.modules...).
-		WithUser(u).
-		Build(t)
-	return s
-}
 
-// Build finalizes the test suite setup
-func (s *Suite) Build(t *testing.T) *Suite {
-	t.Helper()
-	if s.env == nil {
-		s.env = builder.New().
-			WithModules(s.modules...).
-			Build(t)
+	s := &Suite{
+		t:           t,
+		modules:     modules,
+		middlewares: make([]MiddlewareFunc, 0),
 	}
 
+	s.env = builder.New().WithModules(modules...).Build(t)
 	s.router = mux.NewRouter()
 	s.setupMiddleware()
 
 	return s
 }
 
-// RegisterController registers a controller with the router
-func (s *Suite) RegisterController(controller interface{ Register(*mux.Router) }) *Suite {
+func (s *Suite) AsUser(u user.User) *Suite {
+	s.user = u
+	// Reuse existing environment but update the user context
+	s.env.User = u
+	s.env.Ctx = composables.WithUser(s.env.Ctx, u)
+	return s
+}
+
+func (s *Suite) Register(controller interface{ Register(*mux.Router) }) *Suite {
 	controller.Register(s.router)
 	return s
 }
 
-// Request creates a new request builder
-func (s *Suite) Request(method, path string) *RequestBuilder {
-	return &RequestBuilder{
+// WithMiddleware registers a custom middleware function that can modify the request context
+func (s *Suite) WithMiddleware(middleware MiddlewareFunc) *Suite {
+	s.middlewares = append(s.middlewares, middleware)
+	return s
+}
+
+func (s *Suite) Environment() *builder.TestEnvironment {
+	return s.env
+}
+
+func (s *Suite) GET(path string) *Request {
+	return s.newRequest(http.MethodGet, path)
+}
+
+func (s *Suite) POST(path string) *Request {
+	return s.newRequest(http.MethodPost, path)
+}
+
+func (s *Suite) PUT(path string) *Request {
+	return s.newRequest(http.MethodPut, path)
+}
+
+func (s *Suite) DELETE(path string) *Request {
+	return s.newRequest(http.MethodDelete, path)
+}
+
+func (s *Suite) newRequest(method, path string) *Request {
+	return &Request{
 		suite:   s,
 		method:  method,
 		path:    path,
@@ -88,47 +106,24 @@ func (s *Suite) Request(method, path string) *RequestBuilder {
 	}
 }
 
-// GET creates a GET request builder
-func (s *Suite) GET(path string) *RequestBuilder {
-	return s.Request(http.MethodGet, path)
-}
-
-// POST creates a POST request builder
-func (s *Suite) POST(path string) *RequestBuilder {
-	return s.Request(http.MethodPost, path)
-}
-
-// PUT creates a PUT request builder
-func (s *Suite) PUT(path string) *RequestBuilder {
-	return s.Request(http.MethodPut, path)
-}
-
-// DELETE creates a DELETE request builder
-func (s *Suite) DELETE(path string) *RequestBuilder {
-	return s.Request(http.MethodDelete, path)
-}
-
-// Environment returns the test environment
-func (s *Suite) Environment() *builder.TestEnvironment {
-	return s.env
-}
-
 func (s *Suite) setupMiddleware() {
 	s.router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			// Add all necessary context values
-			ctx = composables.WithUser(ctx, s.env.User)
+			currentUser := s.env.User
+			if s.user != nil {
+				currentUser = s.user
+			}
+
+			ctx = composables.WithUser(ctx, currentUser)
 			ctx = composables.WithPool(ctx, s.env.Pool)
-			ctx = composables.WithTx(ctx, s.env.Tx)
 			ctx = composables.WithSession(ctx, &session.Session{})
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
 			ctx = context.WithValue(ctx, constants.AppKey, s.env.App)
 			ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)
 			ctx = context.WithValue(ctx, constants.LogoKey, templ.NopComponent)
 
-			// Add logger
 			logger := logrus.New()
 			fieldsLogger := logger.WithFields(logrus.Fields{
 				"test": true,
@@ -136,17 +131,15 @@ func (s *Suite) setupMiddleware() {
 			})
 			ctx = context.WithValue(ctx, constants.LoggerKey, fieldsLogger)
 
-			// Add params
 			params := &composables.Params{
 				IP:            "127.0.0.1",
 				UserAgent:     "test-agent",
-				Authenticated: s.env.User != nil,
+				Authenticated: currentUser != nil,
 				Request:       r,
 				Writer:        w,
 			}
 			ctx = composables.WithParams(ctx, params)
 
-			// Add localizer and page context
 			localizer := i18n.NewLocalizer(s.env.App.Bundle(), "en")
 			parsedURL, _ := url.Parse(r.URL.Path)
 			ctx = composables.WithPageCtx(ctx, &types.PageContext{
@@ -155,287 +148,214 @@ func (s *Suite) setupMiddleware() {
 				Localizer: localizer,
 			})
 
+			// Execute custom middleware functions
+			for _, mw := range s.middlewares {
+				ctx = mw(ctx, r) //nolint:fatcontext
+			}
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})
 }
 
-// RequestBuilder builds HTTP requests
-type RequestBuilder struct {
-	suite         *Suite
-	method        string
-	path          string
-	body          []byte
-	headers       http.Header
-	multipartForm *MultipartFormBuilder
+type Request struct {
+	suite   *Suite
+	method  string
+	path    string
+	headers http.Header
+	body    []byte
 }
 
-// WithJSON sets JSON body
-func (rb *RequestBuilder) WithJSON(v interface{}) *RequestBuilder {
-	// Implementation would serialize v to JSON
-	return rb
-}
-
-// WithForm sets form data
-func (rb *RequestBuilder) WithForm(values url.Values) *RequestBuilder {
-	rb.body = []byte(values.Encode())
-	rb.headers.Set("Content-Type", "application/x-www-form-urlencoded")
-	return rb
-}
-
-// WithMultipartForm creates a multipart form builder
-func (rb *RequestBuilder) WithMultipartForm() *MultipartFormBuilder {
-	rb.multipartForm = &MultipartFormBuilder{
-		requestBuilder: rb,
-		fields:         make(map[string]string),
-		files:          make([]multipartFile, 0),
+func (r *Request) JSON(v interface{}) *Request {
+	data, err := json.Marshal(v)
+	if err != nil {
+		r.suite.t.Fatalf("Failed to marshal JSON: %v", err)
 	}
-	return rb.multipartForm
+	r.body = data
+	r.headers.Set("Content-Type", "application/json")
+	return r
 }
 
-// WithHeader adds a header
-func (rb *RequestBuilder) WithHeader(key, value string) *RequestBuilder {
-	rb.headers.Set(key, value)
-	return rb
+func (r *Request) Form(values url.Values) *Request {
+	r.body = []byte(values.Encode())
+	r.headers.Set("Content-Type", "application/x-www-form-urlencoded")
+	return r
 }
 
-// WithCookie adds a cookie to the request
-func (rb *RequestBuilder) WithCookie(name, value string) *RequestBuilder {
-	rb.headers.Add("Cookie", name+"="+value)
-	return rb
+func (r *Request) File(fieldName, fileName string, content []byte) *Request {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile(fieldName, fileName)
+	if err != nil {
+		r.suite.t.Fatalf("Failed to create form file: %v", err)
+	}
+
+	if _, err := part.Write(content); err != nil {
+		r.suite.t.Fatalf("Failed to write file content: %v", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		r.suite.t.Fatalf("Failed to close multipart writer: %v", err)
+	}
+
+	r.body = body.Bytes()
+	r.headers.Set("Content-Type", writer.FormDataContentType())
+	return r
 }
 
-// HTMX marks the request as HTMX
-func (rb *RequestBuilder) HTMX() *RequestBuilder {
-	return rb.WithHeader("Hx-Request", "true")
+func (r *Request) Header(key, value string) *Request {
+	r.headers.Set(key, value)
+	return r
 }
 
-// Expect executes the request and returns response assertions
-func (rb *RequestBuilder) Expect() *ResponseAssertion {
+func (r *Request) Cookie(name, value string) *Request {
+	r.headers.Add("Cookie", name+"="+value)
+	return r
+}
+
+func (r *Request) HTMX() *Request {
+	return r.Header("Hx-Request", "true")
+}
+
+func (r *Request) Expect(t *testing.T) *Response {
+	t.Helper()
+
 	var bodyReader io.Reader
-
-	if rb.multipartForm != nil {
-		// Build multipart form
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		// Add fields
-		for key, value := range rb.multipartForm.fields {
-			_ = writer.WriteField(key, value)
-		}
-
-		// Add files
-		for _, file := range rb.multipartForm.files {
-			part, _ := writer.CreateFormFile(file.fieldName, file.fileName)
-			_, _ = io.Copy(part, bytes.NewReader(file.content))
-		}
-
-		_ = writer.Close()
-
-		bodyReader = body
-		rb.headers.Set("Content-Type", writer.FormDataContentType())
-	} else if rb.body != nil {
-		bodyReader = bytes.NewReader(rb.body)
-	} else {
-		bodyReader = bytes.NewReader([]byte{})
+	if r.body != nil {
+		bodyReader = bytes.NewReader(r.body)
 	}
 
-	req := httptest.NewRequest(rb.method, rb.path, bodyReader)
-	for k, v := range rb.headers {
+	req := httptest.NewRequest(r.method, r.path, bodyReader)
+	for k, v := range r.headers {
 		req.Header[k] = v
 	}
 
-	rr := httptest.NewRecorder()
-	rb.suite.router.ServeHTTP(rr, req)
+	recorder := httptest.NewRecorder()
+	r.suite.router.ServeHTTP(recorder, req)
 
-	return &ResponseAssertion{
-		suite:    rb.suite,
-		recorder: rr,
+	return &Response{
+		suite:    r.suite,
+		recorder: recorder,
+		t:        t,
 	}
 }
 
-// ResponseAssertion provides response assertions
-type ResponseAssertion struct {
+type Response struct {
 	suite    *Suite
 	recorder *httptest.ResponseRecorder
 	doc      *html.Node
+	t        *testing.T
 }
 
-// Status asserts the response status code
-func (ra *ResponseAssertion) Status(t *testing.T, code int) *ResponseAssertion {
-	t.Helper()
-	assert.Equal(t, code, ra.recorder.Code)
-	return ra
+func (r *Response) Status(code int) *Response {
+	r.t.Helper()
+	assert.Equal(r.t, code, r.recorder.Code, "Unexpected status code. Body: %s", r.Body())
+	return r
 }
 
-// RedirectTo asserts redirect location
-func (ra *ResponseAssertion) RedirectTo(t *testing.T, location string) *ResponseAssertion {
-	t.Helper()
-	assert.Equal(t, location, ra.recorder.Header().Get("Location"))
-	return ra
+func (r *Response) RedirectTo(location string) *Response {
+	r.t.Helper()
+	assert.Equal(r.t, location, r.recorder.Header().Get("Location"))
+	return r
 }
 
-// Body returns the response body
-func (ra *ResponseAssertion) Body() string {
-	return ra.recorder.Body.String()
+func (r *Response) Contains(text string) *Response {
+	r.t.Helper()
+	assert.Contains(r.t, r.Body(), text)
+	return r
 }
 
-// Header returns a header value
-func (ra *ResponseAssertion) Header(key string) string {
-	return ra.recorder.Header().Get(key)
+func (r *Response) NotContains(text string) *Response {
+	r.t.Helper()
+	assert.NotContains(r.t, r.Body(), text)
+	return r
 }
 
-// Cookies returns response cookies
-func (ra *ResponseAssertion) Cookies() []*http.Cookie {
-	return ra.recorder.Result().Cookies() //nolint:bodyclose
+func (r *Response) Body() string {
+	return r.recorder.Body.String()
 }
 
-// Raw returns the raw HTTP response
-func (ra *ResponseAssertion) Raw() *http.Response {
-	return ra.recorder.Result()
+func (r *Response) Header(key string) string {
+	return r.recorder.Header().Get(key)
 }
 
-// HTML parses and returns the HTML document
-func (ra *ResponseAssertion) HTML(t *testing.T) *HTMLAssertion {
-	t.Helper()
-	if ra.doc == nil {
-		doc, err := htmlquery.Parse(strings.NewReader(ra.Body()))
-		require.NoError(t, err)
-		ra.doc = doc
+func (r *Response) Cookies() []*http.Cookie {
+	return r.recorder.Result().Cookies()
+}
+
+func (r *Response) Raw() *http.Response {
+	return r.recorder.Result()
+}
+
+func (r *Response) HTML() *HTML {
+	r.t.Helper()
+	if r.doc == nil {
+		doc, err := htmlquery.Parse(strings.NewReader(r.Body()))
+		require.NoError(r.t, err, "Failed to parse HTML")
+		r.doc = doc
 	}
-	return &HTMLAssertion{
-		suite: ra.suite,
-		doc:   ra.doc,
+	return &HTML{
+		suite: r.suite,
+		doc:   r.doc,
+		t:     r.t,
 	}
 }
 
-// Contains asserts the body contains text
-func (ra *ResponseAssertion) Contains(t *testing.T, text string) *ResponseAssertion {
-	t.Helper()
-	assert.Contains(t, ra.Body(), text)
-	return ra
-}
-
-// NotContains asserts the body doesn't contain text
-func (ra *ResponseAssertion) NotContains(t *testing.T, text string) *ResponseAssertion {
-	t.Helper()
-	assert.NotContains(t, ra.Body(), text)
-	return ra
-}
-
-// HTMLAssertion provides HTML-specific assertions
-type HTMLAssertion struct {
+type HTML struct {
 	suite *Suite
 	doc   *html.Node
+	t     *testing.T
 }
 
-// Element finds an element by XPath
-func (ha *HTMLAssertion) Element(xpath string) *ElementAssertion {
-	node := htmlquery.FindOne(ha.doc, xpath)
-	return &ElementAssertion{
-		suite: ha.suite,
+func (h *HTML) Element(xpath string) *Element {
+	node := htmlquery.FindOne(h.doc, xpath)
+	return &Element{
+		suite: h.suite,
 		node:  node,
 		xpath: xpath,
+		t:     h.t,
 	}
 }
 
-// Elements finds multiple elements by XPath
-func (ha *HTMLAssertion) Elements(xpath string) []*html.Node {
-	return htmlquery.Find(ha.doc, xpath)
+func (h *HTML) Elements(xpath string) []*html.Node {
+	return htmlquery.Find(h.doc, xpath)
 }
 
-// HasErrorFor checks if there's an error for a specific field
-func (ha *HTMLAssertion) HasErrorFor(fieldID string) bool {
+func (h *HTML) HasErrorFor(fieldID string) bool {
 	xpath := "//small[@data-testid='field-error' and @data-field-id='" + fieldID + "']"
-	return htmlquery.FindOne(ha.doc, xpath) != nil
+	return htmlquery.FindOne(h.doc, xpath) != nil
 }
 
-// ElementAssertion provides element-specific assertions
-type ElementAssertion struct {
+type Element struct {
 	suite *Suite
 	node  *html.Node
 	xpath string
+	t     *testing.T
 }
 
-// Exists asserts the element exists
-func (ea *ElementAssertion) Exists(t *testing.T) *ElementAssertion {
-	t.Helper()
-	assert.NotNil(t, ea.node, "Element not found: %s", ea.xpath)
-	return ea
+func (e *Element) Exists() *Element {
+	e.t.Helper()
+	assert.NotNil(e.t, e.node, "Element not found: %s", e.xpath)
+	return e
 }
 
-// NotExists asserts the element doesn't exist
-func (ea *ElementAssertion) NotExists(t *testing.T) *ElementAssertion {
-	t.Helper()
-	assert.Nil(t, ea.node, "Element should not exist: %s", ea.xpath)
-	return ea
+func (e *Element) NotExists() *Element {
+	e.t.Helper()
+	assert.Nil(e.t, e.node, "Element should not exist: %s", e.xpath)
+	return e
 }
 
-// Text returns the element's text content
-func (ea *ElementAssertion) Text() string {
-	if ea.node == nil {
+func (e *Element) Text() string {
+	if e.node == nil {
 		return ""
 	}
-	return htmlquery.InnerText(ea.node)
+	return htmlquery.InnerText(e.node)
 }
 
-// Attr returns an attribute value
-func (ea *ElementAssertion) Attr(name string) string {
-	if ea.node == nil {
+func (e *Element) Attr(name string) string {
+	if e.node == nil {
 		return ""
 	}
-	return htmlquery.SelectAttr(ea.node, name)
-}
-
-// multipartFile represents a file in a multipart form
-type multipartFile struct {
-	fieldName string
-	fileName  string
-	content   []byte
-}
-
-// MultipartFormBuilder builds multipart form requests
-type MultipartFormBuilder struct {
-	requestBuilder *RequestBuilder
-	fields         map[string]string
-	files          []multipartFile
-}
-
-// AddField adds a field to the multipart form
-func (mfb *MultipartFormBuilder) AddField(key, value string) *MultipartFormBuilder {
-	mfb.fields[key] = value
-	return mfb
-}
-
-// AddFile adds a file to the multipart form
-func (mfb *MultipartFormBuilder) AddFile(fieldName, fileName string, content []byte) *MultipartFormBuilder {
-	mfb.files = append(mfb.files, multipartFile{
-		fieldName: fieldName,
-		fileName:  fileName,
-		content:   content,
-	})
-	return mfb
-}
-
-// AddFileFromReader adds a file from an io.Reader to the multipart form
-func (mfb *MultipartFormBuilder) AddFileFromReader(fieldName, fileName string, reader io.Reader) *MultipartFormBuilder {
-	content, _ := io.ReadAll(reader)
-	return mfb.AddFile(fieldName, fileName, content)
-}
-
-// WithHeader adds a header to the request
-func (mfb *MultipartFormBuilder) WithHeader(key, value string) *MultipartFormBuilder {
-	mfb.requestBuilder.WithHeader(key, value)
-	return mfb
-}
-
-// HTMX marks the request as HTMX
-func (mfb *MultipartFormBuilder) HTMX() *MultipartFormBuilder {
-	mfb.requestBuilder.HTMX()
-	return mfb
-}
-
-// Expect executes the request and returns response assertions
-func (mfb *MultipartFormBuilder) Expect() *ResponseAssertion {
-	return mfb.requestBuilder.Expect()
+	return htmlquery.SelectAttr(e.node, name)
 }
