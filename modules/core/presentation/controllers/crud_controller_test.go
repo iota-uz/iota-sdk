@@ -265,10 +265,8 @@ func TestCrudController_List_Success(t *testing.T) {
 		user.UILanguageEN,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, testUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(testUser)
 
 	service := newTestService()
 
@@ -289,10 +287,10 @@ func TestCrudController_List_Success(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test
-	doc := suite.GET("/test").Expect().Status(t, http.StatusOK).HTML(t)
+	doc := suite.GET("/test").Expect(t).Status(http.StatusOK).HTML()
 
 	// Assertions
 	assert.Equal(t, 1, service.calls["List"])
@@ -324,19 +322,17 @@ func TestCrudController_List_HTMX(t *testing.T) {
 	t.Skip("TODO: Fix HTMX list test")
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test HTMX request
-	doc := suite.GET("/test").HTMX().Expect().Status(t, http.StatusOK).HTML(t)
+	doc := suite.GET("/test").HTMX().Expect(t).Status(http.StatusOK).HTML()
 
 	// Should only return table body for HTMX requests
 	assert.Empty(t, doc.Elements("//html"))
@@ -347,10 +343,8 @@ func TestCrudController_List_Search(t *testing.T) {
 	t.Skip("TODO: Fix search test")
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -365,26 +359,24 @@ func TestCrudController_List_Search(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test search
-	doc := suite.GET("/test?q=app").Expect().Status(t, http.StatusOK).HTML(t)
+	doc := suite.GET("/test?q=app").Expect(t).Status(http.StatusOK).HTML()
 
 	// Check only Apple appears in results
 	rows := doc.Elements("//tbody/tr")
 	assert.Len(t, rows, 1)
 	appleElement := doc.Element("//tbody/tr[contains(., 'Apple')]")
-	appleElement.Exists(t)
+	appleElement.Exists()
 }
 
 func TestCrudController_List_Pagination(t *testing.T) {
 	t.Skip("TODO: Fix pagination test")
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -400,15 +392,15 @@ func TestCrudController_List_Pagination(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test first page
-	doc := suite.GET("/test?page=1").Expect().Status(t, http.StatusOK).HTML(t)
+	doc := suite.GET("/test?page=1").Expect(t).Status(http.StatusOK).HTML()
 	rows := doc.Elements("//tbody/tr")
 	assert.Len(t, rows, 20) // Default page size
 
 	// Test second page
-	doc2 := suite.GET("/test?page=2").Expect().Status(t, http.StatusOK).HTML(t)
+	doc2 := suite.GET("/test?page=2").Expect(t).Status(http.StatusOK).HTML()
 	rows2 := doc2.Elements("//tbody/tr")
 	assert.Len(t, rows2, 5) // Remaining entities
 }
@@ -417,44 +409,40 @@ func TestCrudController_GetNew(t *testing.T) {
 	t.Skip("TODO: Fix GetNew form rendering test")
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test
-	doc := suite.GET("/test/new").Expect().Status(t, http.StatusOK).HTML(t)
+	doc := suite.GET("/test/new").Expect(t).Status(http.StatusOK).HTML()
 
 	// Check form fields
-	doc.Element("//input[@name='name']").Exists(t)
-	doc.Element("//input[@name='description']").Exists(t)
-	doc.Element("//input[@name='amount']").Exists(t)
-	doc.Element("//input[@name='is_active']").Exists(t)
+	doc.Element("//input[@name='name']").Exists()
+	doc.Element("//input[@name='description']").Exists()
+	doc.Element("//input[@name='amount']").Exists()
+	doc.Element("//input[@name='is_active']").Exists()
 
 	// Readonly fields should not be in form
-	doc.Element("//input[@name='created_at']").NotExists(t)
-	doc.Element("//input[@name='updated_at']").NotExists(t)
+	doc.Element("//input[@name='created_at']").NotExists()
+	doc.Element("//input[@name='updated_at']").NotExists()
 }
 
 func TestCrudController_Create_Success(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test
 	formData := url.Values{
@@ -465,9 +453,9 @@ func TestCrudController_Create_Success(t *testing.T) {
 	}
 
 	resp := suite.POST("/test").
-		WithForm(formData).
-		Expect().
-		Status(t, http.StatusSeeOther)
+		Form(formData).
+		Expect(t).
+		Status(http.StatusSeeOther)
 
 	// Check redirect
 	location := resp.Header("Location")
@@ -493,10 +481,8 @@ func TestCrudController_Create_ValidationError(t *testing.T) {
 	t.Skip("TODO: Fix validation error test")
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -523,7 +509,7 @@ func TestCrudController_Create_ValidationError(t *testing.T) {
 
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test with empty name
 	formData := url.Values{
@@ -533,9 +519,9 @@ func TestCrudController_Create_ValidationError(t *testing.T) {
 	}
 
 	resp := suite.POST("/test").
-		WithForm(formData).
-		Expect().
-		Status(t, http.StatusUnprocessableEntity)
+		Form(formData).
+		Expect(t).
+		Status(http.StatusUnprocessableEntity)
 
 	// Should not redirect on validation error
 	assert.Empty(t, resp.Header("Location"))
@@ -545,10 +531,8 @@ func TestCrudController_GetEdit_Success(t *testing.T) {
 	t.Skip("TODO: Fix GetEdit form rendering test")
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -567,13 +551,13 @@ func TestCrudController_GetEdit_Success(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test
 	doc := suite.GET(fmt.Sprintf("/test/%s/edit", entity.ID)).
-		Expect().
-		Status(t, http.StatusOK).
-		HTML(t)
+		Expect(t).
+		Status(http.StatusOK).
+		HTML()
 
 	// Check form is populated
 	nameInput := doc.Element("//input[@name='name']")
@@ -593,31 +577,27 @@ func TestCrudController_GetEdit_Success(t *testing.T) {
 func TestCrudController_GetEdit_NotFound(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test with non-existent ID
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("/test/%s/edit", nonExistentID)).
-		Expect().
-		Status(t, http.StatusNotFound)
+		Expect(t).
+		Status(http.StatusNotFound)
 }
 
 func TestCrudController_Update_Success(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -636,7 +616,7 @@ func TestCrudController_Update_Success(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test update
 	formData := url.Values{
@@ -647,9 +627,9 @@ func TestCrudController_Update_Success(t *testing.T) {
 	}
 
 	resp := suite.POST(fmt.Sprintf("/test/%s", entity.ID)).
-		WithForm(formData).
-		Expect().
-		Status(t, http.StatusSeeOther)
+		Form(formData).
+		Expect(t).
+		Status(http.StatusSeeOther)
 
 	// Check redirect
 	location := resp.Header("Location")
@@ -677,10 +657,8 @@ func TestCrudController_Update_Success(t *testing.T) {
 func TestCrudController_Delete_Success(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -694,12 +672,12 @@ func TestCrudController_Delete_Success(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test delete (non-HTMX request defaults to 303 redirect)
 	resp := suite.DELETE(fmt.Sprintf("/test/%s", entity.ID)).
-		Expect().
-		Status(t, http.StatusSeeOther)
+		Expect(t).
+		Status(http.StatusSeeOther)
 
 	// For non-HTMX delete, should return 303 redirect
 	location := resp.Header("Location")
@@ -713,106 +691,96 @@ func TestCrudController_Delete_Success(t *testing.T) {
 func TestCrudController_Delete_NotFound(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test delete non-existent (service error returns 500)
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("/test/%s", nonExistentID)).
-		Expect().
-		Status(t, http.StatusInternalServerError)
+		Expect(t).
+		Status(http.StatusInternalServerError)
 }
 
 func TestCrudController_InvalidUUID(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test various endpoints with invalid UUID
-	suite.GET("/test/invalid-uuid/edit").Expect().Status(t, http.StatusBadRequest)
-	suite.POST("/test/invalid-uuid").WithForm(url.Values{}).Expect().Status(t, http.StatusBadRequest)
-	suite.DELETE("/test/invalid-uuid").Expect().Status(t, http.StatusBadRequest)
+	suite.GET("/test/invalid-uuid/edit").Expect(t).Status(http.StatusBadRequest)
+	suite.POST("/test/invalid-uuid").Form(url.Values{}).Expect(t).Status(http.StatusBadRequest)
+	suite.DELETE("/test/invalid-uuid").Expect(t).Status(http.StatusBadRequest)
 }
 
 func TestCrudController_WithoutEdit(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder, controllers.WithoutEdit[TestEntity]())
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Add test entity
 	entity := TestEntity{ID: uuid.New(), Name: "Test"}
 	service.entities[entity.ID] = entity
 
 	// Edit endpoints return 405 when edit is disabled
-	suite.GET(fmt.Sprintf("/test/%s/edit", entity.ID)).Expect().Status(t, http.StatusNotFound)
-	suite.POST(fmt.Sprintf("/test/%s", entity.ID)).WithForm(url.Values{}).Expect().Status(t, http.StatusMethodNotAllowed)
+	suite.GET(fmt.Sprintf("/test/%s/edit", entity.ID)).Expect(t).Status(http.StatusNotFound)
+	suite.POST(fmt.Sprintf("/test/%s", entity.ID)).Form(url.Values{}).Expect(t).Status(http.StatusMethodNotAllowed)
 }
 
 func TestCrudController_WithoutDelete(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder, controllers.WithoutDelete[TestEntity]())
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Add test entity
 	entity := TestEntity{ID: uuid.New(), Name: "Test"}
 	service.entities[entity.ID] = entity
 
 	// Delete endpoint should return 405 (Method Not Allowed)
-	suite.DELETE(fmt.Sprintf("/test/%s", entity.ID)).Expect().Status(t, http.StatusMethodNotAllowed)
+	suite.DELETE(fmt.Sprintf("/test/%s", entity.ID)).Expect(t).Status(http.StatusMethodNotAllowed)
 }
 
 func TestCrudController_WithoutCreate(t *testing.T) {
 	// Setup
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder, controllers.WithoutCreate[TestEntity]())
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Create endpoints return 405 when create is disabled
-	suite.GET("/test/new").Expect().Status(t, http.StatusMethodNotAllowed)
-	suite.POST("/test").WithForm(url.Values{}).Expect().Status(t, http.StatusNotFound)
+	suite.GET("/test/new").Expect(t).Status(http.StatusMethodNotAllowed)
+	suite.POST("/test").Form(url.Values{}).Expect(t).Status(http.StatusNotFound)
 }
 
 func TestCrudController_FieldTypes(t *testing.T) {
@@ -839,10 +807,8 @@ func TestCrudController_FieldTypes(t *testing.T) {
 
 	// Test form rendering for each field type
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := &complexTestService{}
 	builder := &complexTestBuilder{
@@ -852,20 +818,20 @@ func TestCrudController_FieldTypes(t *testing.T) {
 
 	env := suite.Environment()
 	controller := controllers.NewCrudController[ComplexEntity]("/complex", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	doc := suite.GET("/complex/new").Expect().Status(t, http.StatusOK).HTML(t)
+	doc := suite.GET("/complex/new").Expect(t).Status(http.StatusOK).HTML()
 
 	// Check each field type renders correctly
-	doc.Element("//input[@name='string' and @type='text']").Exists(t)
-	doc.Element("//input[@name='int' and @type='number']").Exists(t)
-	doc.Element("//input[@name='bool' and @type='checkbox']").Exists(t)
-	doc.Element("//input[@name='float' and @type='number']").Exists(t)
-	doc.Element("//input[@name='decimal' and @type='number']").Exists(t)
-	doc.Element("//input[@name='date' and @type='date']").Exists(t)
-	doc.Element("//input[@name='datetime' and @type='datetime-local']").Exists(t)
-	doc.Element("//input[@name='timestamp' and @type='datetime-local']").Exists(t)
-	doc.Element("//input[@name='uuid' and @type='text']").Exists(t)
+	doc.Element("//input[@name='string' and @type='text']").Exists()
+	doc.Element("//input[@name='int' and @type='number']").Exists()
+	doc.Element("//input[@name='bool' and @type='checkbox']").Exists()
+	doc.Element("//input[@name='float' and @type='number']").Exists()
+	doc.Element("//input[@name='decimal' and @type='number']").Exists()
+	doc.Element("//input[@name='date' and @type='date']").Exists()
+	doc.Element("//input[@name='datetime' and @type='datetime-local']").Exists()
+	doc.Element("//input[@name='timestamp' and @type='datetime-local']").Exists()
+	doc.Element("//input[@name='uuid' and @type='text']").Exists()
 }
 
 // testDecimalMapper implements crud.Mapper[TestEntity] for decimal field testing
@@ -929,10 +895,8 @@ func (m *testDecimalMapper) ToFieldValues(ctx context.Context, entity TestEntity
 func TestCrudController_DecimalFieldHandling(t *testing.T) {
 	// This test specifically covers the decimal field fix
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -965,13 +929,13 @@ func TestCrudController_DecimalFieldHandling(t *testing.T) {
 
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test that decimal value is properly populated in edit form
 	doc := suite.GET(fmt.Sprintf("/test/%s/edit", entity.ID)).
-		Expect().
-		Status(t, http.StatusOK).
-		HTML(t)
+		Expect(t).
+		Status(http.StatusOK).
+		HTML()
 
 	amountInput := doc.Element("//input[@name='amount']")
 	assert.Equal(t, "123.45", amountInput.Attr("value"))
@@ -980,16 +944,14 @@ func TestCrudController_DecimalFieldHandling(t *testing.T) {
 func TestCrudController_ReadonlyFieldExclusion(t *testing.T) {
 	// This test covers the readonly field exclusion fix
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test create with readonly fields in form data
 	formData := url.Values{
@@ -1003,9 +965,9 @@ func TestCrudController_ReadonlyFieldExclusion(t *testing.T) {
 	}
 
 	suite.POST("/test").
-		WithForm(formData).
-		Expect().
-		Status(t, http.StatusSeeOther)
+		Form(formData).
+		Expect(t).
+		Status(http.StatusSeeOther)
 
 	// Verify entity was created without readonly field values from form
 	assert.Len(t, service.entities, 1)
@@ -1037,10 +999,8 @@ func (s *preAssignedTestService) Save(ctx context.Context, entity TestEntity) (T
 func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 	// Test handling of entities with pre-assigned keys (like string IDs or UUIDs)
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	baseService := newTestService()
 
@@ -1055,7 +1015,7 @@ func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 	}
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test create with pre-assigned UUID
 	preAssignedID := uuid.New()
@@ -1068,9 +1028,9 @@ func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 	}
 
 	suite.POST("/test").
-		WithForm(formData).
-		Expect().
-		Status(t, http.StatusSeeOther)
+		Form(formData).
+		Expect(t).
+		Status(http.StatusSeeOther)
 
 	// Verify entity was created with the pre-assigned ID
 	created, exists := service.entities[preAssignedID]
@@ -1082,25 +1042,23 @@ func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 func TestCrudController_FormFieldBuilder(t *testing.T) {
 	// Test the form field builder functionality
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test that form fields are properly built
-	doc := suite.GET("/test/new").Expect().Status(t, 200).HTML(t)
+	doc := suite.GET("/test/new").Expect(t).Status(200).HTML()
 
 	// Verify form has the expected fields
-	doc.Element("//input[@name='name']").Exists(t)
-	doc.Element("//input[@name='description']").Exists(t)
-	doc.Element("//input[@name='amount']").Exists(t)
-	doc.Element("//input[@name='is_active']").Exists(t)
+	doc.Element("//input[@name='name']").Exists()
+	doc.Element("//input[@name='description']").Exists()
+	doc.Element("//input[@name='amount']").Exists()
+	doc.Element("//input[@name='is_active']").Exists()
 }
 
 func TestCrudController_ErrorHandling(t *testing.T) {
@@ -1131,7 +1089,7 @@ func TestCrudController_ErrorHandling(t *testing.T) {
 
 		env := suite.Environment()
 		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-		suite.RegisterController(controller)
+		suite.Register(controller)
 
 		// Test create with service error
 		formData := url.Values{
@@ -1139,12 +1097,12 @@ func TestCrudController_ErrorHandling(t *testing.T) {
 		}
 
 		resp := suite.POST("/test").
-			WithForm(formData).
-			Expect().
-			Status(t, http.StatusInternalServerError)
+			Form(formData).
+			Expect(t).
+			Status(http.StatusInternalServerError)
 
 		// Should show error message
-		doc := resp.HTML(t)
+		doc := resp.HTML()
 		errorMsg := doc.Element("//*[@data-testid='alert-message']").Text()
 		assert.Contains(t, errorMsg, "save failed")
 	*/
