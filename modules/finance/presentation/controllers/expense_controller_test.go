@@ -464,7 +464,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 	formData.Set("Date", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
-	suite.POST(fmt.Sprintf("%s/%s", ExpenseBasePath, expense1.ID().String())).Form(formData).Expect(t).Status(http.StatusSeeOther)
+	suite.POST(fmt.Sprintf("%s/%s", ExpenseBasePath, expense1.ID().String())).Form(formData).Expect(t).Status(http.StatusFound)
 
 	updatedExpense, err := expenseService.GetByID(env.Ctx, expense1.ID())
 	require.NoError(t, err)
