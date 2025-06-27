@@ -2,70 +2,78 @@ package user
 
 import (
 	"context"
-	"errors"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
-func NewCreatedEvent(ctx context.Context, data User) (*CreatedEvent, error) {
-	sender, ok := ctx.Value(constants.UserKey).(User)
-	if !ok {
-		return nil, errors.New("no user found")
+func NewCreatedEvent(ctx context.Context, data User) *CreatedEvent {
+	var sender User
+	var sess *session.Session
+
+	if user, ok := ctx.Value(constants.UserKey).(User); ok {
+		sender = user
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-	if !ok {
-		return nil, errors.New("no session found")
+
+	if sessionValue, ok := ctx.Value(constants.SessionKey).(*session.Session); ok {
+		sess = sessionValue
 	}
+
 	return &CreatedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Data:    data,
-	}, nil
+	}
 }
 
-func NewUpdatedEvent(ctx context.Context, data User) (*UpdatedEvent, error) {
-	sender, ok := ctx.Value(constants.UserKey).(User)
-	if !ok {
-		return nil, errors.New("no user found")
+func NewUpdatedEvent(ctx context.Context, data User) *UpdatedEvent {
+	var sender User
+	var sess *session.Session
+
+	if user, ok := ctx.Value(constants.UserKey).(User); ok {
+		sender = user
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-	if !ok {
-		return nil, errors.New("no session found")
+
+	if sessionValue, ok := ctx.Value(constants.SessionKey).(*session.Session); ok {
+		sess = sessionValue
 	}
+
 	return &UpdatedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Data:    data,
-	}, nil
+	}
 }
 
-func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
-	sender, ok := ctx.Value(constants.UserKey).(User)
-	if !ok {
-		return nil, errors.New("no user found")
+func NewDeletedEvent(ctx context.Context) *DeletedEvent {
+	var sender User
+	var sess *session.Session
+
+	if user, ok := ctx.Value(constants.UserKey).(User); ok {
+		sender = user
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-	if !ok {
-		return nil, errors.New("no session found")
+
+	if sessionValue, ok := ctx.Value(constants.SessionKey).(*session.Session); ok {
+		sess = sessionValue
 	}
+
 	return &DeletedEvent{
 		Sender:  sender,
-		Session: *sess,
-	}, nil
+		Session: sess,
+	}
 }
 
 type CreatedEvent struct {
 	Sender  User
-	Session session.Session
+	Session *session.Session
 	Data    User
 	Result  User
 }
 
 type UpdatedEvent struct {
 	Sender  User
-	Session session.Session
+	Session *session.Session
 	Data    User
 	Result  User
 }
@@ -76,6 +84,6 @@ type UpdatedPasswordEvent struct {
 
 type DeletedEvent struct {
 	Sender  User
-	Session session.Session
+	Session *session.Session
 	Result  User
 }
