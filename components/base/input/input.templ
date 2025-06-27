@@ -146,6 +146,20 @@ templ Date(props *Props) {
 	}).render()
 }
 
+templ DateTime(props *Props) {
+	@newInput(&Props{
+		typ:          "datetime-local",
+		Class:        props.Class,
+		Label:        props.Label,
+		Attrs:        props.Attrs,
+		Placeholder:  props.Placeholder,
+		AddonRight:   props.AddonRight,
+		AddonLeft:    props.AddonLeft,
+		Error:        props.Error,
+		WrapperProps: props.WrapperProps,
+	}).render()
+}
+
 templ Color(props *Props) {
 	{{
 		if props.id == "" {

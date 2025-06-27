@@ -30,15 +30,13 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -60,14 +58,14 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(PaymentCategoryBasePath).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Office Supplies").
-		Contains(t, "Travel")
+	response.Contains("Office Supplies").
+		Contains("Travel")
 }
 
 func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
@@ -79,15 +77,13 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -101,9 +97,9 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 
 	suite.GET(PaymentCategoryBasePath).
 		HTMX().
-		Expect().
-		Status(t, 200).
-		Contains(t, "HTMX Test Category")
+		Expect(t).
+		Status(200).
+		Contains("HTMX Test Category")
 }
 
 func TestPaymentCategoryController_GetNew_Success(t *testing.T) {
@@ -115,25 +111,23 @@ func TestPaymentCategoryController_GetNew_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	response := suite.GET(PaymentCategoryBasePath+"/new").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(PaymentCategoryBasePath + "/new").
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//form[@hx-post]").Exists(t)
-	html.Element("//input[@name='Name']").Exists(t)
-	html.Element("//textarea[@name='Description']").Exists(t)
+	html.Element("//form[@hx-post]").Exists()
+	html.Element("//input[@name='Name']").Exists()
+	html.Element("//textarea[@name='Description']").Exists()
 }
 
 func TestPaymentCategoryController_Create_Success(t *testing.T) {
@@ -145,15 +139,13 @@ func TestPaymentCategoryController_Create_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -162,10 +154,10 @@ func TestPaymentCategoryController_Create_Success(t *testing.T) {
 	formData.Set("Description", "New category description")
 
 	suite.POST(PaymentCategoryBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, PaymentCategoryBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentCategoryBasePath)
 
 	categories, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -185,15 +177,13 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -202,11 +192,11 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 	formData.Set("Description", "Test description")
 
 	response := suite.POST(PaymentCategoryBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	categories, err := service.GetAll(env.Ctx)
@@ -223,15 +213,13 @@ func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -249,15 +237,15 @@ func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
 	require.Len(t, createdCategory, 1)
 
 	response := suite.GET(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, createdCategory[0].ID().String())).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//input[@name='Name']").Exists(t)
+	html.Element("//input[@name='Name']").Exists()
 	require.Equal(t, "Edit Test Category", html.Element("//input[@name='Name']").Attr("value"))
 
-	html.Element("//textarea[@name='Description']").Exists(t)
+	html.Element("//textarea[@name='Description']").Exists()
 	require.Equal(t, "Category to edit", html.Element("//textarea[@name='Description']").Text())
 }
 
@@ -270,20 +258,18 @@ func TestPaymentCategoryController_GetEdit_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestPaymentCategoryController_Update_Success(t *testing.T) {
@@ -295,15 +281,13 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -327,10 +311,10 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 	formData.Set("Description", "Updated description")
 
 	suite.POST(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, createdCategory.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, PaymentCategoryBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentCategoryBasePath)
 
 	updatedCategory, err := service.GetByID(env.Ctx, createdCategory.ID())
 	require.NoError(t, err)
@@ -348,15 +332,13 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -379,11 +361,11 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 	formData.Set("Description", "")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, createdCategory.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedCategory, err := service.GetByID(env.Ctx, createdCategory.ID())
@@ -400,15 +382,13 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 
@@ -431,9 +411,9 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 	require.Equal(t, "Category to Delete", existingCategory.Name())
 
 	suite.DELETE(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, createdCategory.ID().String())).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, PaymentCategoryBasePath)
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentCategoryBasePath)
 
 	_, err = service.GetByID(env.Ctx, createdCategory.ID())
 	require.Error(t, err)
@@ -448,20 +428,18 @@ func TestPaymentCategoryController_Delete_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestPaymentCategoryController_InvalidUUID(t *testing.T) {
@@ -473,17 +451,15 @@ func TestPaymentCategoryController_InvalidUUID(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewPaymentCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	suite.GET(PaymentCategoryBasePath+"/invalid-uuid").
-		Expect().
-		Status(t, 404)
+	suite.GET(PaymentCategoryBasePath + "/invalid-uuid").
+		Expect(t).
+		Status(404)
 }

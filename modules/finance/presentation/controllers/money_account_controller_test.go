@@ -43,16 +43,14 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -79,14 +77,14 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(MoneyAccountBasePath).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Test Account 1").
-		Contains(t, "Test Account 2")
+	response.Contains("Test Account 1").
+		Contains("Test Account 2")
 }
 
 func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
@@ -98,16 +96,14 @@ func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -123,9 +119,9 @@ func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
 
 	suite.GET(MoneyAccountBasePath).
 		HTMX().
-		Expect().
-		Status(t, 200).
-		Contains(t, "HTMX Test Account")
+		Expect(t).
+		Status(200).
+		Contains("HTMX Test Account")
 }
 
 func TestMoneyAccountController_GetNew_Success(t *testing.T) {
@@ -137,31 +133,29 @@ func TestMoneyAccountController_GetNew_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	response := suite.GET(MoneyAccountBasePath+"/new").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(MoneyAccountBasePath + "/new").
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//form[@hx-post]").Exists(t)
-	html.Element("//input[@name='Name']").Exists(t)
-	html.Element("//input[@name='Balance']").Exists(t)
-	html.Element("//select[@name='CurrencyCode']").Exists(t)
-	html.Element("//input[@name='AccountNumber']").Exists(t)
-	html.Element("//textarea[@name='Description']").Exists(t)
-	html.Element("//option[@value='USD']").Exists(t)
-	html.Element("//option[@value='EUR']").Exists(t)
+	html.Element("//form[@hx-post]").Exists()
+	html.Element("//input[@name='Name']").Exists()
+	html.Element("//input[@name='Balance']").Exists()
+	html.Element("//select[@name='CurrencyCode']").Exists()
+	html.Element("//input[@name='AccountNumber']").Exists()
+	html.Element("//textarea[@name='Description']").Exists()
+	html.Element("//option[@value='USD']").Exists()
+	html.Element("//option[@value='EUR']").Exists()
 }
 
 func TestMoneyAccountController_Create_Success(t *testing.T) {
@@ -173,16 +167,14 @@ func TestMoneyAccountController_Create_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -194,10 +186,10 @@ func TestMoneyAccountController_Create_Success(t *testing.T) {
 	formData.Set("Description", "New account description")
 
 	suite.POST(MoneyAccountBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, MoneyAccountBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(MoneyAccountBasePath)
 
 	accounts, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -220,16 +212,14 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -241,11 +231,11 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 	formData.Set("Description", "Test description")
 
 	response := suite.POST(MoneyAccountBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	accounts, err := service.GetAll(env.Ctx)
@@ -262,16 +252,14 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -288,18 +276,18 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(fmt.Sprintf("%s/%s", MoneyAccountBasePath, createdAccount.ID().String())).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//input[@name='Name']").Exists(t)
+	html.Element("//input[@name='Name']").Exists()
 	require.Equal(t, "Edit Test Account", html.Element("//input[@name='Name']").Attr("value"))
 
-	html.Element("//input[@name='AccountNumber']").Exists(t)
+	html.Element("//input[@name='AccountNumber']").Exists()
 	require.Equal(t, "EDIT001", html.Element("//input[@name='AccountNumber']").Attr("value"))
 
-	html.Element("//textarea[@name='Description']").Exists(t)
+	html.Element("//textarea[@name='Description']").Exists()
 	require.Equal(t, "Account to edit", html.Element("//textarea[@name='Description']").Text())
 }
 
@@ -312,21 +300,19 @@ func TestMoneyAccountController_GetEdit_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", MoneyAccountBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestMoneyAccountController_Update_Success(t *testing.T) {
@@ -338,16 +324,14 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -371,10 +355,10 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 	formData.Set("Description", "Updated description")
 
 	suite.POST(fmt.Sprintf("%s/%s", MoneyAccountBasePath, createdAccount.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, MoneyAccountBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(MoneyAccountBasePath)
 
 	updatedAccount, err := service.GetByID(env.Ctx, createdAccount.ID())
 	require.NoError(t, err)
@@ -395,16 +379,14 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -426,11 +408,11 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 	formData.Set("Description", "")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", MoneyAccountBasePath, createdAccount.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedAccount, err := service.GetByID(env.Ctx, createdAccount.ID())
@@ -447,16 +429,14 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -475,9 +455,9 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 	require.Equal(t, "Account to Delete", existingAccount.Name())
 
 	suite.DELETE(fmt.Sprintf("%s/%s", MoneyAccountBasePath, createdAccount.ID().String())).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, MoneyAccountBasePath)
+		Expect(t).
+		Status(302).
+		RedirectTo(MoneyAccountBasePath)
 
 	_, err = service.GetByID(env.Ctx, createdAccount.ID())
 	require.Error(t, err)
@@ -492,21 +472,19 @@ func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", MoneyAccountBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestMoneyAccountController_InvalidUUID(t *testing.T) {
@@ -518,18 +496,16 @@ func TestMoneyAccountController_InvalidUUID(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	suite.GET(MoneyAccountBasePath+"/invalid-uuid").
-		Expect().
-		Status(t, 404)
+	suite.GET(MoneyAccountBasePath + "/invalid-uuid").
+		Expect(t).
+		Status(404)
 }

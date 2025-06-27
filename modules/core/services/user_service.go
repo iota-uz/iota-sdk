@@ -65,19 +65,15 @@ func (s *UserService) GetPaginatedWithTotal(ctx context.Context, params *user.Fi
 }
 
 func (s *UserService) Create(ctx context.Context, data user.User) (user.User, error) {
-	err := composables.CanUser(ctx, permissions.UserCreate)
-	if err != nil {
+	if err := composables.CanUser(ctx, permissions.UserCreate); err != nil {
 		return nil, err
 	}
 
-	createdEvent, err := user.NewCreatedEvent(ctx, data)
-	if err != nil {
-		return nil, err
-	}
+	createdEvent := user.NewCreatedEvent(ctx, data)
 
 	var createdUser user.User
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err = s.validator.ValidateCreate(txCtx, data); err != nil {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := s.validator.ValidateCreate(txCtx, data); err != nil {
 			return err
 		}
 		if created, err := s.repo.Create(txCtx, data); err != nil {
@@ -118,17 +114,14 @@ func (s *UserService) Update(ctx context.Context, data user.User) (user.User, er
 		return nil, composables.ErrForbidden
 	}
 
-	updatedEvent, err := user.NewUpdatedEvent(ctx, data)
-	if err != nil {
-		return nil, err
-	}
+	updatedEvent := user.NewUpdatedEvent(ctx, data)
 
 	var updatedUser user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		if err = s.validator.ValidateUpdate(txCtx, data); err != nil {
+		if err := s.validator.ValidateUpdate(txCtx, data); err != nil {
 			return err
 		}
-		if err = s.repo.Update(txCtx, data); err != nil {
+		if err := s.repo.Update(txCtx, data); err != nil {
 			return err
 		}
 		if userAfterUpdate, err := s.repo.GetByID(txCtx, data.ID()); err != nil {
@@ -167,10 +160,7 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 		return nil, composables.ErrForbidden
 	}
 
-	deletedEvent, err := user.NewDeletedEvent(ctx)
-	if err != nil {
-		return nil, err
-	}
+	deletedEvent := user.NewDeletedEvent(ctx)
 
 	var deletedUser user.User
 	err = composables.InTx(ctx, func(txCtx context.Context) error {

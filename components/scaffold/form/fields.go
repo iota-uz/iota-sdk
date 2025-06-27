@@ -334,13 +334,12 @@ type dateTimeLocalField struct {
 func (f *dateTimeLocalField) Component() templ.Component {
 	attrs := templ.Attributes{
 		"name":  f.key,
-		"type":  string(FieldTypeDateTimeLocal),
 		"value": mapping.Or(f.value, f.defaultVal),
 	}
 	for k, v := range f.attrs {
 		attrs[k] = v
 	}
-	return input.Text(&input.Props{
+	return input.DateTime(&input.Props{
 		Placeholder: f.label,
 		Label:       f.label,
 		Attrs:       attrs,

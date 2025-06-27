@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/export"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -121,6 +122,21 @@ templ ExpensesContent(props *IndexPageProps) {
 				</div>
 				<div class="hidden md:flex gap-3">
 					@filters.CreatedAt()
+					@export.ExportDropdown(export.ExportDropdownProps{
+						Formats: []export.ExportFormat{
+							export.ExportFormatExcel,
+							export.ExportFormatCSV,
+							export.ExportFormatJSON,
+						},
+						ExportURL: "/finance/expenses/export",
+						Label:     pageCtx.T("Expenses.List.Export"),
+						Size:      button.SizeNormal,
+						Attrs: templ.Attributes{
+							"hx-include": "closest form",
+							"hx-target":  "body",
+							"hx-swap":    "none",
+						},
+					})
 					@button.Primary(button.Props{
 						Size: button.SizeNormal, Href: "/finance/expenses/new",
 						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
