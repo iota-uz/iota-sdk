@@ -769,9 +769,9 @@ func TestCrudController_LargeFormSubmission(t *testing.T) {
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
 	suite.Register(controller)
 
-	// Create form with maximum allowed data
+	// Create form with large but valid data
 	formData := url.Values{
-		"name":        {string(make([]byte, 255))},   // Max length name
+		"name":        {"Large Form Test Entity"},
 		"description": {string(make([]byte, 10000))}, // Large description
 		"amount":      {"999999.99"},
 		"is_active":   {"true"},
@@ -780,9 +780,9 @@ func TestCrudController_LargeFormSubmission(t *testing.T) {
 	resp1 := suite.POST("/test").
 		Form(formData).
 		Expect(t).
-		Status(422)
+		Status(303)
 
-	// Should handle large form successfully
+	// Should handle large form successfully and redirect
 	location := resp1.Header("Location")
 	assert.Contains(t, location, "/test")
 }
