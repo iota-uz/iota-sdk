@@ -688,9 +688,9 @@ func (b *ColorFieldBuilder) Build() ColorField {
 // SearchSelectFieldBuilder for async search select fields
 type SearchSelectFieldBuilder struct {
 	key, label, defaultVal, endpoint, placeholder string
-	required                                       bool
-	attrs                                          templ.Attributes
-	validators                                     []Validator
+	required                                      bool
+	attrs                                         templ.Attributes
+	validators                                    []Validator
 }
 
 func SearchSelect() *SearchSelectFieldBuilder {
@@ -763,9 +763,9 @@ func (b *SearchSelectFieldBuilder) Build() SearchSelectField {
 // ComboboxFieldBuilder for multi-select fields
 type ComboboxFieldBuilder struct {
 	key, label, defaultVal, endpoint, placeholder string
-	required, multiple, searchable                 bool
-	attrs                                          templ.Attributes
-	validators                                     []Validator
+	required, multiple, searchable                bool
+	attrs                                         templ.Attributes
+	validators                                    []Validator
 }
 
 func Combobox() *ComboboxFieldBuilder {

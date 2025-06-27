@@ -692,16 +692,16 @@ func (f *selectField) Component() templ.Component {
 	for k, v := range f.attrs {
 		attrs[k] = v
 	}
-	
+
 	currentValue := mapping.Or(f.value, f.defaultVal)
-	
+
 	// Create the options as a slice of components
-	var optionComponents []templ.Component
+	optionComponents := make([]templ.Component, 0, len(f.options))
 	for _, opt := range f.options {
 		optValue := opt.Value
 		optLabel := opt.Label
 		selected := optValue == currentValue
-		
+
 		optionComponents = append(optionComponents, templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
 			if selected {
 				_, err := io.WriteString(w, `<option value="`+html.EscapeString(optValue)+`" selected>`+html.EscapeString(optLabel)+`</option>`)
@@ -712,7 +712,7 @@ func (f *selectField) Component() templ.Component {
 			}
 		}))
 	}
-	
+
 	// Return component that renders the select with options
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
 		// First render the opening of the select component
@@ -729,7 +729,7 @@ func (f *selectField) Component() templ.Component {
 			}
 			return nil
 		})), w)
-		
+
 		return err
 	})
 }
@@ -808,7 +808,7 @@ func (f *searchSelectField) Component() templ.Component {
 	for k, v := range f.attrs {
 		attrs[k] = v
 	}
-	
+
 	// For now, return a placeholder component
 	// TODO: Integrate with actual selects.SearchSelect component
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
@@ -862,7 +862,7 @@ func (f *comboboxField) Component() templ.Component {
 	for k, v := range f.attrs {
 		attrs[k] = v
 	}
-	
+
 	// For now, return a placeholder component
 	// TODO: Integrate with actual base.Combobox component
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
