@@ -10,18 +10,16 @@ import (
 func TestSelectField_Creation(t *testing.T) {
 	t.Run("creates select field with default values", func(t *testing.T) {
 		field := NewSelectField("status")
-		selectField, ok := field.(SelectField)
-		require.True(t, ok, "should implement SelectField interface")
 
-		assert.Equal(t, "status", selectField.Name())
-		assert.Equal(t, StringFieldType, selectField.Type())
-		assert.Equal(t, StringFieldType, selectField.ValueType())
-		assert.Equal(t, SelectTypeStatic, selectField.SelectType())
-		assert.Empty(t, selectField.Options())
-		assert.Empty(t, selectField.Endpoint())
-		assert.Empty(t, selectField.Placeholder())
-		assert.False(t, selectField.Multiple())
-		assert.True(t, selectField.Attrs()["isSelectField"].(bool))
+		assert.Equal(t, "status", field.Name())
+		assert.Equal(t, StringFieldType, field.Type())
+		assert.Equal(t, StringFieldType, field.ValueType())
+		assert.Equal(t, SelectTypeStatic, field.SelectType())
+		assert.Empty(t, field.Options())
+		assert.Empty(t, field.Endpoint())
+		assert.Empty(t, field.Placeholder())
+		assert.False(t, field.Multiple())
+		assert.True(t, field.Attrs()["isSelectField"].(bool))
 	})
 }
 
@@ -33,10 +31,9 @@ func TestSelectField_Options(t *testing.T) {
 		}
 
 		field := NewSelectField("status").SetOptions(options)
-		selectField := field.(SelectField)
 
-		assert.Equal(t, options, selectField.Options())
-		assert.Equal(t, SelectTypeStatic, selectField.SelectType())
+		assert.Equal(t, options, field.Options())
+		assert.Equal(t, SelectTypeStatic, field.SelectType())
 	})
 
 	t.Run("sets options loader function", func(t *testing.T) {
@@ -50,10 +47,9 @@ func TestSelectField_Options(t *testing.T) {
 		}
 
 		field := NewSelectField("dynamic").SetOptionsLoader(loader)
-		selectField := field.(SelectField)
 
-		assert.NotNil(t, selectField.OptionsLoader())
-		actualOptions := selectField.OptionsLoader()()
+		assert.NotNil(t, field.OptionsLoader())
+		actualOptions := field.OptionsLoader()()
 		assert.Equal(t, expectedOptions, actualOptions)
 	})
 }
@@ -100,10 +96,10 @@ func TestSelectField_ValueTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			field := NewSelectField("test")
-			selectField := tt.setup(field.(SelectField))
+			field = tt.setup(field)
 
-			assert.Equal(t, tt.wantType, selectField.Type())
-			assert.Equal(t, tt.wantValue, selectField.ValueType())
+			assert.Equal(t, tt.wantType, field.Type())
+			assert.Equal(t, tt.wantValue, field.ValueType())
 		})
 	}
 }
@@ -111,14 +107,13 @@ func TestSelectField_ValueTypes(t *testing.T) {
 func TestSelectField_SelectTypes(t *testing.T) {
 	t.Run("searchable select via SetEndpoint", func(t *testing.T) {
 		field := NewSelectField("product").SetEndpoint("/api/products/search")
-		selectField := field.(SelectField)
 
-		assert.Equal(t, SelectTypeSearchable, selectField.SelectType())
-		assert.Equal(t, "/api/products/search", selectField.Endpoint())
+		assert.Equal(t, SelectTypeSearchable, field.SelectType())
+		assert.Equal(t, "/api/products/search", field.Endpoint())
 	})
 
 	t.Run("searchable select via AsSearchable", func(t *testing.T) {
-		field := NewSelectField("product").(SelectField).AsSearchable("/api/products/search")
+		field := NewSelectField("product").AsSearchable("/api/products/search")
 
 		assert.Equal(t, SelectTypeSearchable, field.SelectType())
 		assert.Equal(t, "/api/products/search", field.Endpoint())
@@ -126,21 +121,20 @@ func TestSelectField_SelectTypes(t *testing.T) {
 
 	t.Run("combobox via SetMultiple", func(t *testing.T) {
 		field := NewSelectField("tags").SetMultiple(true)
-		selectField := field.(SelectField)
 
-		assert.Equal(t, SelectTypeCombobox, selectField.SelectType())
-		assert.True(t, selectField.Multiple())
+		assert.Equal(t, SelectTypeCombobox, field.SelectType())
+		assert.True(t, field.Multiple())
 	})
 
 	t.Run("combobox via AsCombobox", func(t *testing.T) {
-		field := NewSelectField("tags").(SelectField).AsCombobox()
+		field := NewSelectField("tags").AsCombobox()
 
 		assert.Equal(t, SelectTypeCombobox, field.SelectType())
 		assert.True(t, field.Multiple())
 	})
 
 	t.Run("combobox via WithCombobox", func(t *testing.T) {
-		field := NewSelectField("tags").(SelectField).WithCombobox("/api/tags", true)
+		field := NewSelectField("tags").WithCombobox("/api/tags", true)
 
 		assert.Equal(t, SelectTypeCombobox, field.SelectType())
 		assert.Equal(t, "/api/tags", field.Endpoint())
@@ -160,17 +154,15 @@ func TestSelectField_FluentAPI(t *testing.T) {
 			SetPlaceholder("Select category").
 			SetOptions(options)
 
-		selectField := field.(SelectField)
-
-		assert.Equal(t, "category", selectField.Name())
-		assert.Equal(t, IntFieldType, selectField.ValueType())
-		assert.Equal(t, "Select category", selectField.Placeholder())
-		assert.Equal(t, options, selectField.Options())
-		assert.True(t, selectField.Readonly())
+		assert.Equal(t, "category", field.Name())
+		assert.Equal(t, IntFieldType, field.ValueType())
+		assert.Equal(t, "Select category", field.Placeholder())
+		assert.Equal(t, options, field.Options())
+		assert.True(t, field.Readonly())
 	})
 
 	t.Run("with static options helper", func(t *testing.T) {
-		field := NewSelectField("status").(SelectField).
+		field := NewSelectField("status").
 			WithStaticOptions(
 				SelectOption{Value: "1", Label: "Active"},
 				SelectOption{Value: "0", Label: "Inactive"},
@@ -183,7 +175,7 @@ func TestSelectField_FluentAPI(t *testing.T) {
 	})
 
 	t.Run("with search endpoint helper", func(t *testing.T) {
-		field := NewSelectField("user").(SelectField).
+		field := NewSelectField("user").
 			WithSearchEndpoint("/api/users/search")
 
 		assert.Equal(t, SelectTypeSearchable, field.SelectType())
@@ -194,9 +186,8 @@ func TestSelectField_FluentAPI(t *testing.T) {
 func TestSelectField_Placeholder(t *testing.T) {
 	t.Run("sets and gets placeholder", func(t *testing.T) {
 		field := NewSelectField("country").SetPlaceholder("Choose a country")
-		selectField := field.(SelectField)
 
-		assert.Equal(t, "Choose a country", selectField.Placeholder())
+		assert.Equal(t, "Choose a country", field.Placeholder())
 	})
 }
 
@@ -207,12 +198,10 @@ func TestSelectField_ComplexScenarios(t *testing.T) {
 			AsSearchable("/api/products/search").
 			SetPlaceholder("Search products...")
 
-		selectField := field.(SelectField)
-
-		assert.Equal(t, IntFieldType, selectField.ValueType())
-		assert.Equal(t, SelectTypeSearchable, selectField.SelectType())
-		assert.Equal(t, "/api/products/search", selectField.Endpoint())
-		assert.Equal(t, "Search products...", selectField.Placeholder())
+		assert.Equal(t, IntFieldType, field.ValueType())
+		assert.Equal(t, SelectTypeSearchable, field.SelectType())
+		assert.Equal(t, "/api/products/search", field.Endpoint())
+		assert.Equal(t, "Search products...", field.Placeholder())
 	})
 
 	t.Run("combobox with dynamic options", func(t *testing.T) {
@@ -228,12 +217,10 @@ func TestSelectField_ComplexScenarios(t *testing.T) {
 			SetOptionsLoader(loader).
 			SetPlaceholder("Select tags")
 
-		selectField := field.(SelectField)
-
-		assert.Equal(t, SelectTypeCombobox, selectField.SelectType())
-		assert.True(t, selectField.Multiple())
-		assert.NotNil(t, selectField.OptionsLoader())
-		assert.Equal(t, "Select tags", selectField.Placeholder())
+		assert.Equal(t, SelectTypeCombobox, field.SelectType())
+		assert.True(t, field.Multiple())
+		assert.NotNil(t, field.OptionsLoader())
+		assert.Equal(t, "Select tags", field.Placeholder())
 	})
 
 	t.Run("boolean select with yes/no options", func(t *testing.T) {
@@ -244,21 +231,18 @@ func TestSelectField_ComplexScenarios(t *testing.T) {
 				SelectOption{Value: "false", Label: "No"},
 			)
 
-		selectField := field.(SelectField)
-
-		assert.Equal(t, BoolFieldType, selectField.ValueType())
-		assert.Equal(t, SelectTypeStatic, selectField.SelectType())
-		assert.Len(t, selectField.Options(), 2)
+		assert.Equal(t, BoolFieldType, field.ValueType())
+		assert.Equal(t, SelectTypeStatic, field.SelectType())
+		assert.Len(t, field.Options(), 2)
 	})
 }
 
 func TestSelectField_EdgeCases(t *testing.T) {
 	t.Run("empty endpoint doesn't change select type", func(t *testing.T) {
 		field := NewSelectField("test").SetEndpoint("")
-		selectField := field.(SelectField)
 
-		assert.Equal(t, SelectTypeStatic, selectField.SelectType())
-		assert.Empty(t, selectField.Endpoint())
+		assert.Equal(t, SelectTypeStatic, field.SelectType())
+		assert.Empty(t, field.Endpoint())
 	})
 
 	t.Run("setting multiple false doesn't change combobox type", func(t *testing.T) {
@@ -266,10 +250,8 @@ func TestSelectField_EdgeCases(t *testing.T) {
 			AsCombobox().
 			SetMultiple(false)
 
-		selectField := field.(SelectField)
-
-		assert.Equal(t, SelectTypeCombobox, selectField.SelectType())
-		assert.False(t, selectField.Multiple())
+		assert.Equal(t, SelectTypeCombobox, field.SelectType())
+		assert.False(t, field.Multiple())
 	})
 
 	t.Run("can override select type after auto-setting", func(t *testing.T) {
@@ -277,10 +259,8 @@ func TestSelectField_EdgeCases(t *testing.T) {
 			SetEndpoint("/api/search"). // auto-sets to searchable
 			SetSelectType(SelectTypeStatic)
 
-		selectField := field.(SelectField)
-
-		assert.Equal(t, SelectTypeStatic, selectField.SelectType())
-		assert.Equal(t, "/api/search", selectField.Endpoint())
+		assert.Equal(t, SelectTypeStatic, field.SelectType())
+		assert.Equal(t, "/api/search", field.Endpoint())
 	})
 }
 
@@ -294,12 +274,11 @@ func TestSelectField_MixedValueTypes(t *testing.T) {
 				SelectOption{Value: 3, Label: "High"},
 			)
 
-		selectField := field.(SelectField)
-		assert.Equal(t, IntFieldType, selectField.Type())
-		assert.Equal(t, IntFieldType, selectField.ValueType())
-		
+		assert.Equal(t, IntFieldType, field.Type())
+		assert.Equal(t, IntFieldType, field.ValueType())
+
 		// Check options
-		options := selectField.Options()
+		options := field.Options()
 		assert.Len(t, options, 3)
 		assert.Equal(t, 1, options[0].Value)
 		assert.Equal(t, "Low", options[0].Label)
@@ -313,12 +292,11 @@ func TestSelectField_MixedValueTypes(t *testing.T) {
 				SelectOption{Value: false, Label: "No"},
 			)
 
-		selectField := field.(SelectField)
-		assert.Equal(t, BoolFieldType, selectField.Type())
-		assert.Equal(t, BoolFieldType, selectField.ValueType())
-		
+		assert.Equal(t, BoolFieldType, field.Type())
+		assert.Equal(t, BoolFieldType, field.ValueType())
+
 		// Check options
-		options := selectField.Options()
+		options := field.Options()
 		assert.Len(t, options, 2)
 		assert.Equal(t, true, options[0].Value)
 		assert.Equal(t, "Yes", options[0].Label)
@@ -329,14 +307,14 @@ func TestSelectField_MixedValueTypes(t *testing.T) {
 		intField := NewSelectField("level").AsIntSelect()
 		intValue := intField.Value(5)
 		val, err := intValue.AsInt()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 5, val)
 
 		// Bool field should accept bool values
 		boolField := NewSelectField("active").AsBoolSelect()
 		boolValue := boolField.Value(true)
 		bval, err := boolValue.AsBool()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, bval)
 	})
 }
