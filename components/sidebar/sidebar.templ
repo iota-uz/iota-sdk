@@ -21,8 +21,13 @@ templ Sidebar(props Props) {
 		class="flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
 	>
 		{{
+			// For single groups, use the group's value as default, otherwise use provided default
+			defaultValue := props.TabGroups.DefaultValue
+			if len(props.TabGroups.Groups) == 1 {
+				defaultValue = props.TabGroups.Groups[0].Value
+			}
 			navTabsProps := navtabs.Props{
-				DefaultValue: props.TabGroups.DefaultValue,
+				DefaultValue: defaultValue,
 				Attrs: templ.Attributes{
 					"@tab-changed": "handleTabChange($event)",
 				},

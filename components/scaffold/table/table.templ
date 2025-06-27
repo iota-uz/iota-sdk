@@ -164,6 +164,9 @@ templ TableSection(config *TableConfig) {
 							for _, filter := range config.Filters {
 								@filter
 							}
+							for _, action := range config.Actions {
+								@action
+							}
 						</div>
 					</div>
 					@Table(config)
@@ -203,6 +206,9 @@ templ Content(config *TableConfig) {
 						"@click": "$dispatch('open-filters')",
 					},
 				})
+				for _, action := range config.Actions {
+					@action
+				}
 			</div>
 		</div>
 		<div class="mt-5">

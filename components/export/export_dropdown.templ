@@ -1,0 +1,123 @@
+package export
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"net/http"
+)
+
+type ExportFormat int
+
+const (
+	ExportFormatExcel = ExportFormat(iota + 1)
+	ExportFormatCSV
+	ExportFormatJSON
+	ExportFormatTXT
+)
+
+var formatDetails = map[ExportFormat]struct {
+	Icon     templ.Component
+	LabelKey string
+	Param    string
+}{
+	ExportFormatExcel: {
+		Icon:     icons.FileXls(icons.Props{Size: "16"}),
+		LabelKey: "Export.ToExcel",
+		Param:    "excel",
+	},
+	ExportFormatCSV: {
+		Icon:     icons.FileCsv(icons.Props{Size: "16"}),
+		LabelKey: "Export.ToCSV",
+		Param:    "csv",
+	},
+	ExportFormatJSON: {
+		Icon:     icons.FileDoc(icons.Props{Size: "16"}),
+		LabelKey: "Export.ToJSON",
+		Param:    "json",
+	},
+	ExportFormatTXT: {
+		Icon:     icons.FileDoc(icons.Props{Size: "16"}),
+		LabelKey: "Export.ToTXT",
+		Param:    "txt",
+	},
+}
+
+var formatParamMap = map[string]ExportFormat{
+	"excel": ExportFormatExcel,
+	"csv":   ExportFormatCSV,
+	"json":  ExportFormatJSON,
+	"txt":   ExportFormatTXT,
+}
+
+// GetExportFormat extracts and validates the export format from an HTTP request
+func GetExportFormat(r *http.Request) (ExportFormat, bool) {
+	formatParam := r.URL.Query().Get("format")
+	if formatParam == "" {
+		return 0, false
+	}
+
+	format, exists := formatParamMap[formatParam]
+	return format, exists
+}
+
+// GetExportFormatString returns the string representation of an ExportFormat
+func GetExportFormatString(format ExportFormat) string {
+	if details, exists := formatDetails[format]; exists {
+		return details.Param
+	}
+	return ""
+}
+
+// IsValidExportFormat checks if a string is a valid export format
+func IsValidExportFormat(formatStr string) bool {
+	_, exists := formatParamMap[formatStr]
+	return exists
+}
+
+type ExportDropdownProps struct {
+	Formats   []ExportFormat
+	ExportURL string
+	Label     string
+	Size      button.Size
+	Class     string
+	Attrs     templ.Attributes
+}
+
+templ ExportDropdown(props ExportDropdownProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="relative">
+		<details class="relative z-10 peer" name="export-dropdown">
+			<summary class="list-none cursor-pointer shrink-0 btn btn-secondary btn-normal btn-with-icon flex items-center gap-2">
+				@icons.Download(icons.Props{Size: "18"})
+				if props.Label != "" {
+					{ props.Label }
+				} else {
+					{ pageCtx.T("Export") }
+				}
+				@icons.CaretDown(icons.Props{Size: "16", Class: "ml-1"})
+			</summary>
+			<ul class="flex flex-col gap-1 mt-1 absolute bg-surface-300 right-0 text-sm rounded-md w-44 overflow-hidden shadow-sm border border-secondary p-1">
+				for _, format := range props.Formats {
+					{{ details := formatDetails[format] }}
+					<li>
+						<button
+							class="flex items-center gap-2 w-full text-left p-2 duration-200 hover:bg-surface-400 rounded-md"
+							hx-post={ props.ExportURL + "?format=" + details.Param }
+							hx-target="body"
+							hx-swap="none"
+							hx-on::after-request="this.closest('details').removeAttribute('open')"
+							{ props.Attrs... }
+						>
+							@details.Icon
+							{ pageCtx.T(details.LabelKey) }
+						</button>
+					</li>
+				}
+			</ul>
+		</details>
+		<details class="hidden peer-open:block" name="export-dropdown">
+			<summary class="fixed w-full h-full left-0 top-0"></summary>
+		</details>
+	</div>
+}

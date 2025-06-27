@@ -46,7 +46,6 @@ func (c *MyController) ExportUsers(w http.ResponseWriter, r *http.Request) {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
-    
     // Redirect to download URL
     http.Redirect(w, r, upload.URL().String(), http.StatusSeeOther)
 }
@@ -197,6 +196,454 @@ func (c *MyController) ExportFinancialReport(w http.ResponseWriter, r *http.Requ
             "name": upload.Name(),
         },
     })
+}
+```
+
+## Go Function Data Sources
+
+The Excel exporter provides two powerful function-based data sources for generating custom Excel exports without requiring database queries.
+
+### 1. FunctionDataSource
+
+Use `FunctionDataSource` for dynamic data generation where you need to compute or fetch data programmatically:
+
+```go
+func (c *MyController) ExportComputedReport(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    
+    // Define headers
+    headers := []string{"Employee", "Department", "Base Salary", "Bonus", "Total Compensation"}
+    
+    // Create a function that generates data dynamically
+    dataFunc := func(ctx context.Context) ([][]interface{}, error) {
+        // Fetch base data from multiple sources
+        employees, err := c.employeeService.GetActiveEmployees(ctx)
+        if err != nil {
+            return nil, err
+        }
+        
+        var rows [][]interface{}
+        for _, emp := range employees {
+            // Calculate bonus based on business logic
+            bonus := c.calculateBonus(emp.Performance, emp.Department)
+            total := emp.BaseSalary + bonus
+            
+            row := []interface{}{
+                emp.Name,
+                emp.Department,
+                emp.BaseSalary,
+                bonus,
+                total,
+            }
+            rows = append(rows, row)
+        }
+        
+        return rows, nil
+    }
+    
+    // Create data source with custom sheet name
+    datasource := excel.NewFunctionDataSource(headers, dataFunc).
+        WithSheetName("Compensation Report")
+    
+    // Configure export options
+    config := exportconfig.New(
+        exportconfig.WithFilename("compensation_report"),
+        exportconfig.WithExportOptions(&excel.ExportOptions{
+            IncludeHeaders: true,
+            AutoFilter:     true,
+            FreezeHeader:   true,
+        }),
+    )
+    
+    // Export using the data source
+    upload, err := c.excelService.ExportFromDataSource(ctx, datasource, config)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    // Return download URL
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "downloadUrl": upload.URL().String(),
+        "filename":    upload.Name(),
+    })
+}
+```
+
+### 2. SliceDataSource
+
+Use `SliceDataSource` for static or pre-computed data:
+
+```go
+func (c *MyController) ExportStaticReport(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    
+    // Prepare static data
+    headers := []string{"Quarter", "Revenue", "Growth Rate", "Target Met"}
+    data := [][]interface{}{
+        {"Q1 2024", 1250000.00, "15.3%", "Yes"},
+        {"Q2 2024", 1380000.00, "10.4%", "Yes"},
+        {"Q3 2024", 1420000.00, "2.9%", "No"},
+        {"Q4 2024", 1650000.00, "16.2%", "Yes"},
+    }
+    
+    // Create slice data source
+    datasource := excel.NewSliceDataSource(headers, data).
+        WithSheetName("Quarterly Performance")
+    
+    // Configure with styling
+    config := exportconfig.New(
+        exportconfig.WithFilename("quarterly_report"),
+        exportconfig.WithStyleOptions(&excel.StyleOptions{
+            HeaderStyle: &excel.CellStyle{
+                Font: &excel.FontStyle{
+                    Bold: true,
+                    Size: 12,
+                },
+                Fill: &excel.FillStyle{
+                    Type:    "pattern",
+                    Pattern: 1,
+                    Color:   "#2196F3",
+                },
+            },
+            AlternateRow: true,
+        }),
+    )
+    
+    // Export
+    upload, err := c.excelService.ExportFromDataSource(ctx, datasource, config)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    // Return result
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{
+        "url": upload.URL().String(),
+    })
+}
+```
+
+### 3. Complex Data Aggregation
+
+Combine multiple data sources and complex business logic:
+
+```go
+func (c *MyController) ExportAggregatedMetrics(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    
+    // Define comprehensive headers
+    headers := []string{
+        "Product", "Category", "Units Sold", "Revenue", 
+        "Cost", "Profit", "Margin %", "Market Share %",
+    }
+    
+    // Create function for complex data aggregation
+    dataFunc := func(ctx context.Context) ([][]interface{}, error) {
+        // Fetch data from multiple services
+        products, err := c.productService.GetAllProducts(ctx)
+        if err != nil {
+            return nil, err
+        }
+        
+        sales, err := c.salesService.GetProductSales(ctx, time.Now().AddDate(0, -1, 0))
+        if err != nil {
+            return nil, err
+        }
+        
+        marketData, err := c.marketService.GetMarketShare(ctx)
+        if err != nil {
+            return nil, err
+        }
+        
+        var rows [][]interface{}
+        for _, product := range products {
+            // Aggregate sales data
+            salesData := sales[product.ID]
+            if salesData == nil {
+                continue // Skip products with no sales
+            }
+            
+            // Calculate metrics
+            revenue := salesData.UnitsSold * product.Price
+            cost := salesData.UnitsSold * product.Cost
+            profit := revenue - cost
+            margin := (profit / revenue) * 100
+            marketShare := marketData[product.ID]
+            
+            row := []interface{}{
+                product.Name,
+                product.Category,
+                salesData.UnitsSold,
+                revenue,
+                cost,
+                profit,
+                fmt.Sprintf("%.2f%%", margin),
+                fmt.Sprintf("%.2f%%", marketShare),
+            }
+            rows = append(rows, row)
+        }
+        
+        // Sort by revenue (descending)
+        sort.Slice(rows, func(i, j int) bool {
+            return rows[i][3].(float64) > rows[j][3].(float64)
+        })
+        
+        return rows, nil
+    }
+    
+    // Create data source
+    datasource := excel.NewFunctionDataSource(headers, dataFunc).
+        WithSheetName("Product Performance Analysis")
+    
+    // Configure with advanced options
+    config := exportconfig.New(
+        exportconfig.WithFilename("product_analysis"),
+        exportconfig.WithExportOptions(&excel.ExportOptions{
+            IncludeHeaders: true,
+            AutoFilter:     true,
+            FreezeHeader:   true,
+            MaxRows:        5000,
+            DateFormat:     "2006-01-02",
+        }),
+        exportconfig.WithStyleOptions(&excel.StyleOptions{
+            HeaderStyle: &excel.CellStyle{
+                Font: &excel.FontStyle{
+                    Bold: true,
+                    Size: 11,
+                },
+                Fill: &excel.FillStyle{
+                    Type:    "pattern",
+                    Pattern: 1,
+                    Color:   "#4CAF50",
+                },
+            },
+            AlternateRow: true,
+        }),
+    )
+    
+    // Export
+    upload, err := c.excelService.ExportFromDataSource(ctx, datasource, config)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    // Return detailed response
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "success":     true,
+        "downloadUrl": upload.URL().String(),
+        "filename":    upload.Name(),
+        "size":        upload.Size(),
+        "generatedAt": time.Now().Format(time.RFC3339),
+    })
+}
+```
+
+### 4. Time Series Data Export
+
+Export time-based data with custom formatting:
+
+```go
+func (c *MyController) ExportTimeSeriesData(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    
+    // Parse date range from request
+    startDate := r.URL.Query().Get("start_date")
+    endDate := r.URL.Query().Get("end_date")
+    
+    headers := []string{"Date", "Daily Users", "Page Views", "Bounce Rate", "Conversion Rate"}
+    
+    dataFunc := func(ctx context.Context) ([][]interface{}, error) {
+        // Fetch analytics data
+        analytics, err := c.analyticsService.GetDailyMetrics(ctx, startDate, endDate)
+        if err != nil {
+            return nil, err
+        }
+        
+        var rows [][]interface{}
+        for _, metric := range analytics {
+            row := []interface{}{
+                metric.Date.Format("2006-01-02"),
+                metric.DailyUsers,
+                metric.PageViews,
+                fmt.Sprintf("%.2f%%", metric.BounceRate*100),
+                fmt.Sprintf("%.2f%%", metric.ConversionRate*100),
+            }
+            rows = append(rows, row)
+        }
+        
+        return rows, nil
+    }
+    
+    datasource := excel.NewFunctionDataSource(headers, dataFunc).
+        WithSheetName("Daily Analytics")
+    
+    config := exportconfig.New(
+        exportconfig.WithFilename(fmt.Sprintf("analytics_%s_to_%s", startDate, endDate)),
+        exportconfig.WithExportOptions(&excel.ExportOptions{
+            IncludeHeaders: true,
+            AutoFilter:     true,
+            FreezeHeader:   true,
+            DateFormat:     "2006-01-02",
+        }),
+    )
+    
+    upload, err := c.excelService.ExportFromDataSource(ctx, datasource, config)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "downloadUrl": upload.URL().String(),
+        "dateRange":   fmt.Sprintf("%s to %s", startDate, endDate),
+    })
+}
+```
+
+### 5. Error Handling and Context Cancellation
+
+Both data sources properly handle context cancellation and errors:
+
+```go
+func (c *MyController) ExportWithErrorHandling(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    
+    headers := []string{"ID", "Name", "Status"}
+    
+    dataFunc := func(ctx context.Context) ([][]interface{}, error) {
+        // Check for context cancellation
+        select {
+        case <-ctx.Done():
+            return nil, ctx.Err()
+        default:
+        }
+        
+        // Simulate long-running operation
+        data, err := c.longRunningService.FetchData(ctx)
+        if err != nil {
+            return nil, fmt.Errorf("failed to fetch data: %w", err)
+        }
+        
+        // Convert to Excel format
+        var rows [][]interface{}
+        for _, item := range data {
+            // Check context again for large datasets
+            select {
+            case <-ctx.Done():
+                return nil, ctx.Err()
+            default:
+            }
+            
+            row := []interface{}{item.ID, item.Name, item.Status}
+            rows = append(rows, row)
+        }
+        
+        return rows, nil
+    }
+    
+    datasource := excel.NewFunctionDataSource(headers, dataFunc)
+    
+    config := exportconfig.New(
+        exportconfig.WithFilename("processed_data"),
+    )
+    
+    upload, err := c.excelService.ExportFromDataSource(ctx, datasource, config)
+    if err != nil {
+        switch {
+        case errors.Is(err, context.Canceled):
+            http.Error(w, "Export cancelled", http.StatusRequestTimeout)
+        case errors.Is(err, context.DeadlineExceeded):
+            http.Error(w, "Export timeout", http.StatusRequestTimeout)
+        default:
+            http.Error(w, "Export failed: "+err.Error(), http.StatusInternalServerError)
+        }
+        return
+    }
+    
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{
+        "downloadUrl": upload.URL().String(),
+    })
+}
+```
+
+### 6. Best Practices for Function Data Sources
+
+```go
+// ✅ Good practices
+func createOptimizedDataSource() excel.DataSource {
+    headers := []string{"ID", "Name", "Value"}
+    
+    dataFunc := func(ctx context.Context) ([][]interface{}, error) {
+        const batchSize = 1000
+        
+        // Process in batches to avoid memory issues
+        var allRows [][]interface{}
+        offset := 0
+        
+        for {
+            select {
+            case <-ctx.Done():
+                return nil, ctx.Err()
+            default:
+            }
+            
+            // Fetch batch
+            batch, err := fetchBatch(ctx, offset, batchSize)
+            if err != nil {
+                return nil, err
+            }
+            
+            if len(batch) == 0 {
+                break // No more data
+            }
+            
+            // Convert batch to rows
+            for _, item := range batch {
+                row := []interface{}{item.ID, item.Name, item.Value}
+                allRows = append(allRows, row)
+            }
+            
+            offset += batchSize
+            
+            // Limit total rows to prevent memory issues
+            if len(allRows) >= 50000 {
+                break
+            }
+        }
+        
+        return allRows, nil
+    }
+    
+    return excel.NewFunctionDataSource(headers, dataFunc).
+        WithSheetName("Optimized Data")
+}
+
+// ❌ Avoid loading all data at once without limits
+func createProblematicDataSource() excel.DataSource {
+    headers := []string{"ID", "Name"}
+    
+    dataFunc := func(ctx context.Context) ([][]interface{}, error) {
+        // Don't do this - could load millions of rows
+        allData, err := fetchAllDataFromDatabase(ctx)
+        if err != nil {
+            return nil, err
+        }
+        
+        var rows [][]interface{}
+        for _, item := range allData {
+            row := []interface{}{item.ID, item.Name}
+            rows = append(rows, row)
+        }
+        
+        return rows, nil
+    }
+    
+    return excel.NewFunctionDataSource(headers, dataFunc)
 }
 ```
 

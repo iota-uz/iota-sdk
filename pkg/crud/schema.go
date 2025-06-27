@@ -1,75 +1,129 @@
 package crud
 
-import (
-	"net/http"
+import "context"
 
-	"github.com/gorilla/mux"
-	formui "github.com/iota-uz/iota-sdk/components/scaffold/form"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-)
+type SchemaOption[TEntity any] func(s *schema[TEntity])
+type Validator[TEntity any] func(entity TEntity) error
 
-// Schema defines a runtime-driven CRUD resource for entity type T with identifier type ID.
-type Schema[T any, ID any] struct {
-	Service       *Service[T, ID]
-	Renderer      RenderFunc
-	middlewares   []mux.MiddlewareFunc
-	getPrimaryKey func() string
+type Hook[TEntity any] func(ctx context.Context, entity TEntity) (TEntity, error)
+
+type Hooks[TEntity any] interface {
+	OnCreate() Hook[TEntity]
+	OnUpdate() Hook[TEntity]
+	OnDelete() Hook[TEntity]
 }
 
-// Ensure Schema implements application.Controller
-var _ application.Controller = (*Schema[any, any])(nil)
+type Schema[TEntity any] interface {
+	Name() string
+	Fields() Fields
+	Mapper() FlatMapper[TEntity]
+	Validators() []Validator[TEntity]
+	Hooks() Hooks[TEntity]
+}
 
-// DefaultGetPrimaryKey returns a function that gets the primary key
-func DefaultGetPrimaryKey[T any]() func() string {
-	return func() string {
-		// Default implementation - replace with actual logic to determine primary key
-		return "ID"
+func WithValidators[TEntity any](validators []Validator[TEntity]) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.validators = append(s.validators, validators...)
 	}
 }
 
-// NewSchema constructs a new CRUD Schema and applies options
-func NewSchema[T any, ID any](
-	name, path string,
-	store DataStore[T, ID],
-	opts ...SchemaOpt[T, ID],
-) *Schema[T, ID] {
-	service := NewService[T, ID](
-		name,
-		path,
-		"ID", // Default ID field, can be overridden with options
-		store,
-		[]formui.Field{}, // Empty fields, can be added with options
-	)
+func WithValidator[TEntity any](validator Validator[TEntity]) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.validators = append(s.validators, validator)
+	}
+}
 
-	s := &Schema[T, ID]{
-		Service:       service,
-		Renderer:      DefaultRenderFunc,
-		getPrimaryKey: DefaultGetPrimaryKey[T](),
+func WithCreateHook[TEntity any](hook Hook[TEntity]) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.hooks.createHook = hook
+	}
+}
+
+func WithUpdateHook[TEntity any](hook Hook[TEntity]) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.hooks.updateHook = hook
+	}
+}
+
+func WithDeleteHook[TEntity any](hook Hook[TEntity]) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.hooks.deleteHook = hook
+	}
+}
+
+func NewSchema[TEntity any](
+	name string,
+	fields Fields,
+	mapper Mapper[TEntity],
+	opts ...SchemaOption[TEntity],
+) Schema[TEntity] {
+	s := &schema[TEntity]{
+		name:       name,
+		fields:     fields,
+		mapper:     newFlatMapper(mapper),
+		validators: make([]Validator[TEntity], 0),
+		hooks: &hooks[TEntity]{
+			createHook: func(ctx context.Context, entity TEntity) (TEntity, error) {
+				return entity, nil
+			},
+			updateHook: func(ctx context.Context, entity TEntity) (TEntity, error) {
+				return entity, nil
+			},
+			deleteHook: func(ctx context.Context, entity TEntity) (TEntity, error) {
+				return entity, nil
+			},
+		},
 	}
 
-	for _, o := range opts {
-		o(s)
+	for _, opt := range opts {
+		opt(s)
 	}
-
-	// Update the IDField from the getPrimaryKey function
-	s.Service.IDField = s.getPrimaryKey()
 
 	return s
 }
 
-// Register mounts CRUD HTTP handlers on the provided router
-func (s *Schema[T, ID]) Register(r *mux.Router) {
-	subR := r.PathPrefix(s.Service.Path).Subrouter()
-	subR.Use(s.middlewares...)
-	subR.HandleFunc("", s.listHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/new", s.newHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/", s.createHandler).Methods(http.MethodPost)
-	subR.HandleFunc("/{id}/edit", s.editHandler).Methods(http.MethodGet)
-	subR.HandleFunc("/{id}", s.updateHandler).Methods(http.MethodPut)
-	subR.HandleFunc("/{id}", s.deleteHandler).Methods(http.MethodDelete)
+type schema[TEntity any] struct {
+	name       string
+	fields     Fields
+	mapper     FlatMapper[TEntity]
+	validators []Validator[TEntity]
+	hooks      *hooks[TEntity]
 }
 
-// Key returns the base path for routing identification
-func (s *Schema[T, ID]) Key() string {
-	return s.Service.Path
+func (s *schema[TEntity]) Name() string {
+	return s.name
+}
+
+func (s *schema[TEntity]) Fields() Fields {
+	return s.fields
+}
+
+func (s *schema[TEntity]) Mapper() FlatMapper[TEntity] {
+	return s.mapper
+}
+
+func (s *schema[TEntity]) Validators() []Validator[TEntity] {
+	return s.validators
+}
+
+func (s *schema[TEntity]) Hooks() Hooks[TEntity] {
+	return s.hooks
+}
+
+type hooks[TEntity any] struct {
+	createHook Hook[TEntity]
+	updateHook Hook[TEntity]
+	deleteHook Hook[TEntity]
+}
+
+func (h *hooks[TEntity]) OnCreate() Hook[TEntity] {
+	return h.createHook
+}
+
+func (h *hooks[TEntity]) OnUpdate() Hook[TEntity] {
+	return h.updateHook
+}
+
+func (h *hooks[TEntity]) OnDelete() Hook[TEntity] {
+	return h.deleteHook
 }

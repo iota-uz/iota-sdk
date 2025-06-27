@@ -415,6 +415,12 @@
   "Remove": "Remove",
   "All": "All",
   "Edit": "Edit",
+  "Export": {
+    "ToExcel": "Export to Excel",
+    "ToCSV": "Export to CSV", 
+    "ToJSON": "Export to JSON",
+    "ToTXT": "Export to TXT"
+  },
   "Countries": {
     "AF": "Afghanistan",
     "AL": "Albania",
