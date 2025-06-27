@@ -30,15 +30,13 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -64,14 +62,14 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(CounterpartyBasePath).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Test Customer").
-		Contains(t, "Test Vendor")
+	response.Contains("Test Customer").
+		Contains("Test Vendor")
 }
 
 func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
@@ -83,15 +81,13 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -107,9 +103,9 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 
 	suite.GET(CounterpartyBasePath).
 		HTMX().
-		Expect().
-		Status(t, 200).
-		Contains(t, "HTMX Test Counterparty")
+		Expect(t).
+		Status(200).
+		Contains("HTMX Test Counterparty")
 }
 
 func TestCounterpartiesController_GetNew_Success(t *testing.T) {
@@ -121,28 +117,26 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	response := suite.GET(CounterpartyBasePath+"/new").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(CounterpartyBasePath + "/new").
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//form[@hx-post]").Exists(t)
-	html.Element("//input[@name='Name']").Exists(t)
-	html.Element("//select[@name='Type']").Exists(t)
-	html.Element("//select[@name='LegalType']").Exists(t)
-	html.Element("//input[@name='TIN']").Exists(t)
-	html.Element("//textarea[@name='LegalAddress']").Exists(t)
+	html.Element("//form[@hx-post]").Exists()
+	html.Element("//input[@name='Name']").Exists()
+	html.Element("//select[@name='Type']").Exists()
+	html.Element("//select[@name='LegalType']").Exists()
+	html.Element("//input[@name='TIN']").Exists()
+	html.Element("//textarea[@name='LegalAddress']").Exists()
 }
 
 func TestCounterpartiesController_Create_Success(t *testing.T) {
@@ -154,15 +148,13 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -173,10 +165,10 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 	formData.Set("LegalAddress", "789 New Street")
 
 	suite.POST(CounterpartyBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, CounterpartyBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(CounterpartyBasePath)
 
 	counterparties, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -198,15 +190,13 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -217,11 +207,11 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 	formData.Set("LegalAddress", "")
 
 	response := suite.POST(CounterpartyBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	counterparties, err := service.GetAll(env.Ctx)
@@ -238,15 +228,13 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -262,17 +250,17 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//input[@name='Name']").Exists(t)
+	html.Element("//input[@name='Name']").Exists()
 	require.Equal(t, "Edit Test Counterparty", html.Element("//input[@name='Name']").Attr("value"))
 
-	html.Element("//select[@name='Type']").Exists(t)
-	html.Element("//select[@name='LegalType']").Exists(t)
-	html.Element("//textarea[@name='LegalAddress']").Exists(t)
+	html.Element("//select[@name='Type']").Exists()
+	html.Element("//select[@name='LegalType']").Exists()
+	html.Element("//textarea[@name='LegalAddress']").Exists()
 	require.Equal(t, "Edit Street 123", html.Element("//textarea[@name='LegalAddress']").Text())
 }
 
@@ -285,20 +273,18 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", CounterpartyBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestCounterpartiesController_Update_Success(t *testing.T) {
@@ -310,15 +296,13 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -340,10 +324,10 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 	formData.Set("LegalAddress", "Updated Address")
 
 	suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, CounterpartyBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(CounterpartyBasePath)
 
 	updatedCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
 	require.NoError(t, err)
@@ -363,15 +347,13 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -392,11 +374,11 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	formData.Set("LegalAddress", "")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
@@ -413,15 +395,13 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -440,9 +420,9 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 	require.Equal(t, "Counterparty to Delete", existingCounterparty.Name())
 
 	suite.DELETE(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, CounterpartyBasePath)
+		Expect(t).
+		Status(302).
+		RedirectTo(CounterpartyBasePath)
 
 	_, err = service.GetByID(env.Ctx, createdCounterparty.ID())
 	require.Error(t, err)
@@ -457,20 +437,18 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", CounterpartyBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestCounterpartiesController_Search_Success(t *testing.T) {
@@ -482,15 +460,13 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
@@ -513,11 +489,11 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 	_, err = service.Create(env.Ctx, counterparty2)
 	require.NoError(t, err)
 
-	response := suite.GET(CounterpartyBasePath+"/search?q=Searchable").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(CounterpartyBasePath + "/search?q=Searchable").
+		Expect(t).
+		Status(200)
 
-	response.Contains(t, "Searchable Customer")
+	response.Contains("Searchable Customer")
 }
 
 func TestCounterpartiesController_InvalidUUID(t *testing.T) {
@@ -529,17 +505,15 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewCounterpartiesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	suite.GET(CounterpartyBasePath+"/invalid-uuid").
-		Expect().
-		Status(t, 404)
+	suite.GET(CounterpartyBasePath + "/invalid-uuid").
+		Expect(t).
+		Status(404)
 }

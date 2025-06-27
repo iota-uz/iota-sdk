@@ -27,15 +27,13 @@ func TestExpenseCategoryController_List_Success(t *testing.T) {
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -57,14 +55,14 @@ func TestExpenseCategoryController_List_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(ExpenseCategoryBasePath).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Office Supplies").
-		Contains(t, "Travel")
+	response.Contains("Office Supplies").
+		Contains("Travel")
 }
 
 func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
@@ -72,15 +70,13 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -94,9 +90,9 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 
 	suite.GET(ExpenseCategoryBasePath).
 		HTMX().
-		Expect().
-		Status(t, 200).
-		Contains(t, "HTMX Test Category")
+		Expect(t).
+		Status(200).
+		Contains("HTMX Test Category")
 }
 
 func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
@@ -104,25 +100,23 @@ func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	response := suite.GET(ExpenseCategoryBasePath+"/new").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(ExpenseCategoryBasePath + "/new").
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//form[@hx-post]").Exists(t)
-	html.Element("//input[@name='Name']").Exists(t)
-	html.Element("//textarea[@name='Description']").Exists(t)
+	html.Element("//form[@hx-post]").Exists()
+	html.Element("//input[@name='Name']").Exists()
+	html.Element("//textarea[@name='Description']").Exists()
 }
 
 func TestExpenseCategoryController_Create_Success(t *testing.T) {
@@ -130,15 +124,13 @@ func TestExpenseCategoryController_Create_Success(t *testing.T) {
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -147,10 +139,10 @@ func TestExpenseCategoryController_Create_Success(t *testing.T) {
 	formData.Set("Description", "New category description")
 
 	suite.POST(ExpenseCategoryBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, ExpenseCategoryBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(ExpenseCategoryBasePath)
 
 	categories, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -166,15 +158,13 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -183,11 +173,11 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 	formData.Set("Description", "Test description")
 
 	response := suite.POST(ExpenseCategoryBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	categories, err := service.GetAll(env.Ctx)
@@ -201,15 +191,13 @@ func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
 		permissions.ExpenseCategoryUpdate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -227,15 +215,15 @@ func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
 	require.Len(t, createdCategory, 1)
 
 	response := suite.GET(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, createdCategory[0].ID().String())).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//input[@name='Name']").Exists(t)
+	html.Element("//input[@name='Name']").Exists()
 	require.Equal(t, "Edit Test Category", html.Element("//input[@name='Name']").Attr("value"))
 
-	html.Element("//textarea[@name='Description']").Exists(t)
+	html.Element("//textarea[@name='Description']").Exists()
 	require.Equal(t, "Category to edit", html.Element("//textarea[@name='Description']").Text())
 }
 
@@ -244,20 +232,18 @@ func TestExpenseCategoryController_GetEdit_NotFound(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestExpenseCategoryController_Update_Success(t *testing.T) {
@@ -266,15 +252,13 @@ func TestExpenseCategoryController_Update_Success(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -298,10 +282,10 @@ func TestExpenseCategoryController_Update_Success(t *testing.T) {
 	formData.Set("Description", "Updated description")
 
 	suite.POST(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, createdCategory.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, ExpenseCategoryBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(ExpenseCategoryBasePath)
 
 	updatedCategory, err := service.GetByID(env.Ctx, createdCategory.ID())
 	require.NoError(t, err)
@@ -315,15 +299,13 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 		permissions.ExpenseCategoryUpdate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -346,11 +328,11 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 	formData.Set("Description", "")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, createdCategory.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedCategory, err := service.GetByID(env.Ctx, createdCategory.ID())
@@ -364,15 +346,13 @@ func TestExpenseCategoryController_Delete_Success(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService)
 
@@ -395,9 +375,9 @@ func TestExpenseCategoryController_Delete_Success(t *testing.T) {
 	require.Equal(t, "Category to Delete", existingCategory.Name())
 
 	suite.DELETE(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, createdCategory.ID().String())).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, ExpenseCategoryBasePath)
+		Expect(t).
+		Status(302).
+		RedirectTo(ExpenseCategoryBasePath)
 
 	_, err = service.GetByID(env.Ctx, createdCategory.ID())
 	require.Error(t, err)
@@ -408,20 +388,18 @@ func TestExpenseCategoryController_Delete_NotFound(t *testing.T) {
 		permissions.ExpenseCategoryDelete,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestExpenseCategoryController_InvalidUUID(t *testing.T) {
@@ -429,17 +407,15 @@ func TestExpenseCategoryController_InvalidUUID(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 
 	controller := controllers.NewExpenseCategoriesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	suite.GET(ExpenseCategoryBasePath+"/invalid-uuid").
-		Expect().
-		Status(t, 404)
+	suite.GET(ExpenseCategoryBasePath + "/invalid-uuid").
+		Expect(t).
+		Status(404)
 }
