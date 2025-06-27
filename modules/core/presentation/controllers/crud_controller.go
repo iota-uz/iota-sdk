@@ -272,8 +272,21 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				}
 			case crud.BoolFieldType:
 				value = formValue == "true" || formValue == "1"
+			case crud.FloatFieldType:
+				if formValue != "" {
+					if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
+						value = floatVal
+					} else {
+						return nil, fmt.Errorf("invalid float value for select field %s: %v", fieldName, err)
+					}
+				} else {
+					continue
+				}
+			case crud.StringFieldType, crud.DecimalFieldType, crud.DateFieldType,
+				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+				value = formValue
 			default:
-				// String and other types
+				// Default to string for any unknown types
 				value = formValue
 			}
 		} else {
@@ -281,79 +294,79 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			switch field.Type() {
 			case crud.BoolFieldType:
 				value = formValue == "on" || formValue == "true" || formValue == "1"
-		case crud.IntFieldType:
-			if formValue != "" {
-				if int64Val, err := strconv.ParseInt(formValue, 10, 64); err == nil {
-					if int64Val >= math.MinInt32 && int64Val <= math.MaxInt32 {
-						value = int(int64Val)
+			case crud.IntFieldType:
+				if formValue != "" {
+					if int64Val, err := strconv.ParseInt(formValue, 10, 64); err == nil {
+						if int64Val >= math.MinInt32 && int64Val <= math.MaxInt32 {
+							value = int(int64Val)
+						} else {
+							value = int64Val
+						}
 					} else {
-						value = int64Val
+						return nil, fmt.Errorf("invalid integer value for field %s: %v", fieldName, err)
 					}
 				} else {
-					return nil, fmt.Errorf("invalid integer value for field %s: %v", fieldName, err)
+					continue // Skip empty values
 				}
-			} else {
-				continue // Skip empty values
-			}
-		case crud.FloatFieldType:
-			if formValue != "" {
-				if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
-					value = floatVal
-				} else {
-					return nil, fmt.Errorf("invalid float value for field %s: %v", fieldName, err)
-				}
-			} else {
-				continue // Skip empty values
-			}
-		case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType:
-			if formValue != "" {
-				parsedTime, err := time.Parse(time.RFC3339, formValue)
-				if err != nil {
-					// Try common HTML5 formats based on field type
-					formats := []string{}
-					switch field.Type() {
-					case crud.DateFieldType:
-						formats = []string{"2006-01-02"}
-					case crud.TimeFieldType:
-						formats = []string{"15:04", "15:04:05"}
-					case crud.DateTimeFieldType:
-						formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
-					case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
-						// These types are handled elsewhere
-						formats = []string{}
+			case crud.FloatFieldType:
+				if formValue != "" {
+					if floatVal, err := strconv.ParseFloat(formValue, 64); err == nil {
+						value = floatVal
+					} else {
+						return nil, fmt.Errorf("invalid float value for field %s: %v", fieldName, err)
 					}
+				} else {
+					continue // Skip empty values
+				}
+			case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType:
+				if formValue != "" {
+					parsedTime, err := time.Parse(time.RFC3339, formValue)
+					if err != nil {
+						// Try common HTML5 formats based on field type
+						formats := []string{}
+						switch field.Type() {
+						case crud.DateFieldType:
+							formats = []string{"2006-01-02"}
+						case crud.TimeFieldType:
+							formats = []string{"15:04", "15:04:05"}
+						case crud.DateTimeFieldType:
+							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
+						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+							// These types are handled elsewhere
+							formats = []string{}
+						}
 
-					for _, format := range formats {
-						if parsedTime, err = time.Parse(format, formValue); err == nil {
-							break
+						for _, format := range formats {
+							if parsedTime, err = time.Parse(format, formValue); err == nil {
+								break
+							}
 						}
 					}
-				}
-				if err == nil {
-					value = parsedTime
+					if err == nil {
+						value = parsedTime
+					} else {
+						return nil, fmt.Errorf("invalid time value for field %s: %v", fieldName, err)
+					}
 				} else {
-					return nil, fmt.Errorf("invalid time value for field %s: %v", fieldName, err)
+					continue // Skip empty values
 				}
-			} else {
-				continue // Skip empty values
-			}
-		case crud.UUIDFieldType:
-			if formValue != "" {
-				if uid, err := uuid.Parse(formValue); err == nil {
-					value = uid
+			case crud.UUIDFieldType:
+				if formValue != "" {
+					if uid, err := uuid.Parse(formValue); err == nil {
+						value = uid
+					} else {
+						return nil, fmt.Errorf("invalid UUID value for field %s: %v", fieldName, err)
+					}
 				} else {
-					return nil, fmt.Errorf("invalid UUID value for field %s: %v", fieldName, err)
+					continue // Skip empty values
 				}
-			} else {
-				continue // Skip empty values
+			case crud.DecimalFieldType:
+				// Decimal fields are stored as strings
+				value = formValue
+			case crud.StringFieldType, crud.TimestampFieldType:
+				// String and timestamp fields are handled as strings from forms
+				value = formValue
 			}
-		case crud.DecimalFieldType:
-			// Decimal fields are stored as strings
-			value = formValue
-		case crud.StringFieldType, crud.TimestampFieldType:
-			// String and timestamp fields are handled as strings from forms
-			value = formValue
-		}
 		}
 
 		fieldValues = append(fieldValues, field.Value(value))
@@ -365,7 +378,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 		if selectField, ok := field.(crud.SelectField); ok && selectField.ValueType() == crud.BoolFieldType {
 			continue
 		}
-		
+
 		if field.Type() == crud.BoolFieldType && !field.Hidden() && !field.Readonly() {
 			// Check if this field was already processed
 			found := false
@@ -1546,24 +1559,24 @@ func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectF
 		formOptions := make([]form.Option, len(options))
 		for i, opt := range options {
 			// Convert value to string for HTML rendering
-			valueStr := ""
+			var optValueStr string
 			switch v := opt.Value.(type) {
 			case string:
-				valueStr = v
+				optValueStr = v
 			case int:
-				valueStr = strconv.Itoa(v)
+				optValueStr = strconv.Itoa(v)
 			case int64:
-				valueStr = strconv.FormatInt(v, 10)
+				optValueStr = strconv.FormatInt(v, 10)
 			case bool:
-				valueStr = strconv.FormatBool(v)
+				optValueStr = strconv.FormatBool(v)
 			case float64:
-				valueStr = strconv.FormatFloat(v, 'f', -1, 64)
+				optValueStr = strconv.FormatFloat(v, 'f', -1, 64)
 			default:
-				valueStr = fmt.Sprintf("%v", v)
+				optValueStr = fmt.Sprintf("%v", v)
 			}
-			
+
 			formOptions[i] = form.Option{
-				Value: valueStr,
+				Value: optValueStr,
 				Label: opt.Label,
 			}
 		}
@@ -1666,6 +1679,14 @@ func (c *CrudController[TEntity]) convertValueToString(value any, fieldType crud
 		case float32:
 			return strconv.FormatFloat(float64(v), 'f', -1, 32)
 		}
+	case crud.StringFieldType, crud.DecimalFieldType, crud.UUIDFieldType:
+		return fmt.Sprintf("%v", value)
+	case crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+		// For date/time types, format as string
+		if t, ok := value.(time.Time); ok {
+			return t.Format(time.RFC3339)
+		}
+		return fmt.Sprintf("%v", value)
 	}
 
 	// Default: convert to string

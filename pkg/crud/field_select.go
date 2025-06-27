@@ -14,7 +14,7 @@ const (
 
 // SelectOption represents a single option in a select field
 type SelectOption struct {
-	Value any    // Can be string, int, bool, etc.
+	Value any // Can be string, int, bool, etc.
 	Label string
 }
 
@@ -76,14 +76,14 @@ func NewSelectField(name string, opts ...FieldOption) SelectField {
 		selectType: SelectTypeStatic,
 		valueType:  StringFieldType, // Default to string
 	}
-	
+
 	// Create the base field with the value type
 	f := newField(
 		name,
 		sf.valueType,
 		opts...,
 	).(*field)
-	
+
 	sf.field = f
 	// Mark this as a select field in attributes for identification
 	sf.attrs["isSelectField"] = true

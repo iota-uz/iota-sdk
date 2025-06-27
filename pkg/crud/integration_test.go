@@ -30,7 +30,7 @@ func NewTestSchema() *TestSchema {
 	fieldList := []crud.Field{
 		// Add ID field
 		crud.NewStringField("ID", crud.WithKey()),
-		
+
 		// Add status select field with string values
 		crud.NewSelectField("Status").
 			WithStaticOptions(
@@ -39,7 +39,7 @@ func NewTestSchema() *TestSchema {
 				crud.SelectOption{Value: "pending", Label: "Pending"},
 			).
 			SetPlaceholder("Select status"),
-		
+
 		// Add category select field with int values
 		crud.NewSelectField("CategoryID").
 			AsIntSelect().
@@ -49,7 +49,7 @@ func NewTestSchema() *TestSchema {
 				crud.SelectOption{Value: 3, Label: "Food"},
 			).
 			SetPlaceholder("Select category"),
-		
+
 		// Add boolean select field
 		crud.NewSelectField("IsActive").
 			AsBoolSelect().
@@ -58,7 +58,7 @@ func NewTestSchema() *TestSchema {
 				crud.SelectOption{Value: false, Label: "No"},
 			),
 	}
-	
+
 	fields := crud.NewFields(fieldList)
 	return &TestSchema{fields: fields}
 }
@@ -76,95 +76,52 @@ func TestSelectField_Integration(t *testing.T) {
 		schema := NewTestSchema()
 		statusField, err := schema.Fields().Field("Status")
 		require.NoError(t, err)
-		
+
 		selectField, ok := statusField.(crud.SelectField)
 		require.True(t, ok, "Status field should be a SelectField")
-		
+
 		assert.Equal(t, crud.SelectTypeStatic, selectField.SelectType())
 		assert.Len(t, selectField.Options(), 3)
 		assert.Equal(t, "Select status", selectField.Placeholder())
 	})
-	
+
 	t.Run("int select field parses values correctly", func(t *testing.T) {
 		schema := NewTestSchema()
 		categoryField, err := schema.Fields().Field("CategoryID")
 		require.NoError(t, err)
-		
+
 		selectField, ok := categoryField.(crud.SelectField)
 		require.True(t, ok, "CategoryID field should be a SelectField")
-		
+
 		assert.Equal(t, crud.IntFieldType, selectField.ValueType())
-		
+
 		// Test value parsing
 		fieldValue := categoryField.Value(2)
 		assert.NotNil(t, fieldValue)
-		
+
 		intVal, err := fieldValue.AsInt()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 2, intVal)
 	})
-	
+
 	t.Run("bool select field handles values correctly", func(t *testing.T) {
 		schema := NewTestSchema()
 		activeField, err := schema.Fields().Field("IsActive")
 		require.NoError(t, err)
-		
+
 		selectField, ok := activeField.(crud.SelectField)
 		require.True(t, ok, "IsActive field should be a SelectField")
-		
+
 		assert.Equal(t, crud.BoolFieldType, selectField.ValueType())
-		
+
 		// Test value parsing
 		fieldValue := activeField.Value(true)
 		assert.NotNil(t, fieldValue)
-		
+
 		boolVal, err := fieldValue.AsBool()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, boolVal)
 	})
-}
-
-// Mock repository for testing
-type mockRepository struct {
-	entities []TestEntity
-}
-
-func (r *mockRepository) GetAll() ([]TestEntity, error) {
-	return r.entities, nil
-}
-
-func (r *mockRepository) GetByID(id string) (TestEntity, error) {
-	for _, e := range r.entities {
-		if e.ID == id {
-			return e, nil
-		}
-	}
-	return TestEntity{}, nil
-}
-
-func (r *mockRepository) Create(entity TestEntity) error {
-	r.entities = append(r.entities, entity)
-	return nil
-}
-
-func (r *mockRepository) Update(entity TestEntity) error {
-	for i, e := range r.entities {
-		if e.ID == entity.ID {
-			r.entities[i] = entity
-			return nil
-		}
-	}
-	return nil
-}
-
-func (r *mockRepository) Delete(id string) error {
-	for i, e := range r.entities {
-		if e.ID == id {
-			r.entities = append(r.entities[:i], r.entities[i+1:]...)
-			return nil
-		}
-	}
-	return nil
 }
 
 func TestSelectField_FormSubmission(t *testing.T) {
@@ -174,41 +131,41 @@ func TestSelectField_FormSubmission(t *testing.T) {
 		form.Set("Status", "active")
 		form.Set("CategoryID", "2")
 		form.Set("IsActive", "true")
-		
+
 		// Create request with form data
 		req := httptest.NewRequest(http.MethodPost, "/test", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		
+
 		// Parse form and extract values
 		err := req.ParseForm()
 		require.NoError(t, err)
-		
+
 		schema := NewTestSchema()
-		
+
 		// Test Status field value extraction
 		statusValue := req.Form.Get("Status")
 		assert.Equal(t, "active", statusValue)
-		
+
 		// Test CategoryID field value extraction and conversion
 		categoryField, _ := schema.Fields().Field("CategoryID")
 		categoryValue := req.Form.Get("CategoryID")
 		assert.Equal(t, "2", categoryValue)
-		
+
 		// Verify the field handles the value correctly
 		fieldValue := categoryField.Value(2) // Simulating parsed int value
 		intVal, err := fieldValue.AsInt()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 2, intVal)
-		
+
 		// Test IsActive field value extraction
 		activeField, _ := schema.Fields().Field("IsActive")
 		activeValue := req.Form.Get("IsActive")
 		assert.Equal(t, "true", activeValue)
-		
+
 		// Verify the field handles the value correctly
 		boolFieldValue := activeField.Value(true) // Simulating parsed bool value
 		boolVal, err := boolFieldValue.AsBool()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, boolVal)
 	})
 }
@@ -220,22 +177,20 @@ func TestSelectField_DynamicOptions(t *testing.T) {
 			{Value: "opt1", Label: "Option 1"},
 			{Value: "opt2", Label: "Option 2"},
 		}
-		
+
 		field := crud.NewSelectField("DynamicField").
 			SetOptionsLoader(func() []crud.SelectOption {
 				// Simulate loading options from a service
 				return dynamicOptions
 			})
-		
-		selectField := field.(crud.SelectField)
-		
+
 		// Options should be nil initially
-		assert.Nil(t, selectField.Options())
-		
+		assert.Nil(t, field.Options())
+
 		// But loader should return options
-		loader := selectField.OptionsLoader()
+		loader := field.OptionsLoader()
 		require.NotNil(t, loader)
-		
+
 		options := loader()
 		assert.Equal(t, dynamicOptions, options)
 	})
@@ -247,13 +202,11 @@ func TestSelectField_SearchableSelect(t *testing.T) {
 			AsIntSelect().
 			AsSearchable("/api/products/search").
 			SetPlaceholder("Search products...")
-		
-		selectField := field.(crud.SelectField)
-		
-		assert.Equal(t, crud.SelectTypeSearchable, selectField.SelectType())
-		assert.Equal(t, "/api/products/search", selectField.Endpoint())
-		assert.Equal(t, "Search products...", selectField.Placeholder())
-		assert.Equal(t, crud.IntFieldType, selectField.ValueType())
+
+		assert.Equal(t, crud.SelectTypeSearchable, field.SelectType())
+		assert.Equal(t, "/api/products/search", field.Endpoint())
+		assert.Equal(t, "Search products...", field.Placeholder())
+		assert.Equal(t, crud.IntFieldType, field.ValueType())
 	})
 }
 
@@ -262,12 +215,10 @@ func TestSelectField_ComboboxSelect(t *testing.T) {
 		field := crud.NewSelectField("Tags").
 			WithCombobox("/api/tags", true).
 			SetPlaceholder("Select tags")
-		
-		selectField := field.(crud.SelectField)
-		
-		assert.Equal(t, crud.SelectTypeCombobox, selectField.SelectType())
-		assert.Equal(t, "/api/tags", selectField.Endpoint())
-		assert.True(t, selectField.Multiple())
-		assert.Equal(t, "Select tags", selectField.Placeholder())
+
+		assert.Equal(t, crud.SelectTypeCombobox, field.SelectType())
+		assert.Equal(t, "/api/tags", field.Endpoint())
+		assert.True(t, field.Multiple())
+		assert.Equal(t, "Select tags", field.Placeholder())
 	})
 }
