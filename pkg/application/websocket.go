@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -107,6 +108,14 @@ func (h *huber) buildContext() context.Context {
 	return composables.WithPool(ctx, h.pool)
 }
 
+func MustParseURL(rawURL string) *url.URL {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse URL %s: %v", rawURL, err))
+	}
+	return parsedURL
+}
+
 func (h *huber) ForEach(channel string, f WsCallback) error {
 	ctx := h.buildContext()
 
@@ -127,7 +136,7 @@ func (h *huber) ForEach(channel string, f WsCallback) error {
 		localizer := i18n.NewLocalizer(h.bundle, string(usr.UILanguage()))
 		connCtx := intl.WithLocalizer(ctx, localizer)
 		connCtx = composables.WithPageCtx(connCtx, &types.PageContext{
-			URL:       nil,
+			URL:       MustParseURL("/"),
 			Locale:    language.English,
 			Localizer: localizer,
 		})

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -198,7 +199,8 @@ func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 
 	// Test export
 	ctx := context.Background()
-	result, err := excelService.ExportFromDataSource(ctx, datasource, "users", nil, nil)
+	config := exportconfig.New(exportconfig.WithFilename("users"))
+	result, err := excelService.ExportFromDataSource(ctx, datasource, config)
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -279,13 +281,12 @@ func TestExcelExportService_ExportFromDataSourceWithOptions(t *testing.T) {
 
 	// Test export with options
 	ctx := context.Background()
-	result, err := excelService.ExportFromDataSource(
-		ctx,
-		datasource,
-		"scores",
-		exportOpts,
-		styleOpts,
+	config := exportconfig.New(
+		exportconfig.WithFilename("scores"),
+		exportconfig.WithExportOptions(exportOpts),
+		exportconfig.WithStyleOptions(styleOpts),
 	)
+	result, err := excelService.ExportFromDataSource(ctx, datasource, config)
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -325,7 +326,8 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 
 	// Test export with empty filename
 	ctx := context.Background()
-	result, err := excelService.ExportFromDataSource(ctx, datasource, "", nil, nil)
+	config := exportconfig.New() // No filename provided, will use default
+	result, err := excelService.ExportFromDataSource(ctx, datasource, config)
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -353,7 +355,8 @@ func TestExcelExportService_ExportError(t *testing.T) {
 
 	// Test export with error
 	ctx := context.Background()
-	_, err := excelService.ExportFromDataSource(ctx, datasource, "test", nil, nil)
+	config := exportconfig.New(exportconfig.WithFilename("test"))
+	_, err := excelService.ExportFromDataSource(ctx, datasource, config)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to export to Excel")

@@ -567,8 +567,8 @@ let sidebar = () => ({
         this.$el.classList.add('sidebar-collapsed');
       }
 
-      // Dispatch event to restore tab if stored
-      if (this.storedTab) {
+      // Only restore tab if there are multiple tab buttons rendered
+      if (this.storedTab && this.$el.querySelector('[role="tablist"]')) {
         // Wait a bit for navTabs to initialize
         setTimeout(() => {
           this.$dispatch('restore-tab', {value: this.storedTab});

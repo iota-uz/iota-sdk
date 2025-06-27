@@ -32,16 +32,14 @@ func TestInventoryController_List_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -65,14 +63,14 @@ func TestInventoryController_List_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(InventoryBasePath).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Test Product 1").
-		Contains(t, "Test Product 2")
+	response.Contains("Test Product 1").
+		Contains("Test Product 2")
 }
 
 func TestInventoryController_List_HTMX_Request(t *testing.T) {
@@ -84,16 +82,14 @@ func TestInventoryController_List_HTMX_Request(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -109,9 +105,9 @@ func TestInventoryController_List_HTMX_Request(t *testing.T) {
 
 	suite.GET(InventoryBasePath).
 		HTMX().
-		Expect().
-		Status(t, 200).
-		Contains(t, "HTMX Test Product")
+		Expect(t).
+		Status(200).
+		Contains("HTMX Test Product")
 }
 
 func TestInventoryController_GetNew_Success(t *testing.T) {
@@ -123,31 +119,29 @@ func TestInventoryController_GetNew_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	response := suite.GET(InventoryBasePath+"/new").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(InventoryBasePath + "/new").
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//form[@hx-post]").Exists(t)
-	html.Element("//input[@name='Name']").Exists(t)
-	html.Element("//textarea[@name='Description']").Exists(t)
-	html.Element("//select[@name='CurrencyCode']").Exists(t)
-	html.Element("//input[@name='Price']").Exists(t)
-	html.Element("//input[@name='Quantity']").Exists(t)
-	html.Element("//option[@value='USD']").Exists(t)
-	html.Element("//option[@value='EUR']").Exists(t)
+	html.Element("//form[@hx-post]").Exists()
+	html.Element("//input[@name='Name']").Exists()
+	html.Element("//textarea[@name='Description']").Exists()
+	html.Element("//select[@name='CurrencyCode']").Exists()
+	html.Element("//input[@name='Price']").Exists()
+	html.Element("//input[@name='Quantity']").Exists()
+	html.Element("//option[@value='USD']").Exists()
+	html.Element("//option[@value='EUR']").Exists()
 }
 
 func TestInventoryController_Create_Success(t *testing.T) {
@@ -159,16 +153,14 @@ func TestInventoryController_Create_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -180,10 +172,10 @@ func TestInventoryController_Create_Success(t *testing.T) {
 	formData.Set("Quantity", "150")
 
 	suite.POST(InventoryBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, InventoryBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(InventoryBasePath)
 
 	items, err := service.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -206,16 +198,14 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -227,11 +217,11 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 	formData.Set("Quantity", "-5")
 
 	response := suite.POST(InventoryBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	items, err := service.GetAll(env.Ctx)
@@ -248,16 +238,14 @@ func TestInventoryController_GetEdit_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -272,20 +260,20 @@ func TestInventoryController_GetEdit_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(fmt.Sprintf("%s/%s", InventoryBasePath, createdItem.ID().String())).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//input[@name='Name']").Exists(t)
+	html.Element("//input[@name='Name']").Exists()
 	require.Equal(t, "Edit Test Product", html.Element("//input[@name='Name']").Attr("value"))
 
-	html.Element("//textarea[@name='Description']").Exists(t)
+	html.Element("//textarea[@name='Description']").Exists()
 	require.Equal(t, "Product to edit", html.Element("//textarea[@name='Description']").Text())
 
-	html.Element("//select[@name='CurrencyCode']").Exists(t)
-	html.Element("//input[@name='Price']").Exists(t)
-	html.Element("//input[@name='Quantity']").Exists(t)
+	html.Element("//select[@name='CurrencyCode']").Exists()
+	html.Element("//input[@name='Price']").Exists()
+	html.Element("//input[@name='Quantity']").Exists()
 }
 
 func TestInventoryController_GetEdit_NotFound(t *testing.T) {
@@ -297,21 +285,19 @@ func TestInventoryController_GetEdit_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", InventoryBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestInventoryController_Update_Success(t *testing.T) {
@@ -323,16 +309,14 @@ func TestInventoryController_Update_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -354,10 +338,10 @@ func TestInventoryController_Update_Success(t *testing.T) {
 	formData.Set("Quantity", "200")
 
 	suite.POST(fmt.Sprintf("%s/%s", InventoryBasePath, createdItem.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, InventoryBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(InventoryBasePath)
 
 	updatedItem, err := service.GetByID(env.Ctx, createdItem.ID())
 	require.NoError(t, err)
@@ -378,16 +362,14 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -409,11 +391,11 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 	formData.Set("Quantity", "-10")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", InventoryBasePath, createdItem.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedItem, err := service.GetByID(env.Ctx, createdItem.ID())
@@ -430,16 +412,14 @@ func TestInventoryController_Delete_Success(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	service := env.App.Service(services.InventoryService{}).(*services.InventoryService)
 
@@ -458,9 +438,9 @@ func TestInventoryController_Delete_Success(t *testing.T) {
 	require.Equal(t, "Product to Delete", existingItem.Name())
 
 	suite.DELETE(fmt.Sprintf("%s/%s", InventoryBasePath, createdItem.ID().String())).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, InventoryBasePath)
+		Expect(t).
+		Status(302).
+		RedirectTo(InventoryBasePath)
 
 	_, err = service.GetByID(env.Ctx, createdItem.ID())
 	require.Error(t, err)
@@ -475,21 +455,19 @@ func TestInventoryController_Delete_NotFound(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", InventoryBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestInventoryController_InvalidUUID(t *testing.T) {
@@ -501,18 +479,16 @@ func TestInventoryController_InvalidUUID(t *testing.T) {
 		user.WithID(1),
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	suite.GET(InventoryBasePath+"/invalid-uuid").
-		Expect().
-		Status(t, 404)
+	suite.GET(InventoryBasePath + "/invalid-uuid").
+		Expect(t).
+		Status(404)
 }

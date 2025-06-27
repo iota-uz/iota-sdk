@@ -97,6 +97,7 @@
     },
     "List": {
       "New": "Add expense",
+      "Export": "Export",
       "Category": "Category",
       "Amount": "Amount",
       "AccountingPeriod": "Accounting period",

@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"testing"
 	"time"
@@ -34,16 +35,14 @@ func TestExpenseController_List_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -90,15 +89,15 @@ func TestExpenseController_List_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(ExpenseBasePath).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "Test Category").
-		Contains(t, "100.50").
-		Contains(t, "200.75")
+	response.Contains("Test Category").
+		Contains("100.50").
+		Contains("200.75")
 }
 
 func TestExpenseController_List_HTMX_Request(t *testing.T) {
@@ -107,16 +106,14 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -153,10 +150,10 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 
 	suite.GET(ExpenseBasePath).
 		HTMX().
-		Expect().
-		Status(t, 200).
-		Contains(t, "HTMX Test Category").
-		Contains(t, "50.25")
+		Expect(t).
+		Status(200).
+		Contains("HTMX Test Category").
+		Contains("50.25")
 }
 
 func TestExpenseController_GetNew_Success(t *testing.T) {
@@ -164,16 +161,14 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 
@@ -195,19 +190,19 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 	_, err = categoryRepo.Create(env.Ctx, category)
 	require.NoError(t, err)
 
-	response := suite.GET(ExpenseBasePath+"/new").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(ExpenseBasePath + "/new").
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//form[@hx-post]").Exists(t)
-	html.Element("//input[@name='Amount']").Exists(t)
-	html.Element("//select[@name='AccountID']").Exists(t)
-	html.Element("//select[@name='CategoryID']").Exists(t)
-	html.Element("//textarea[@name='Comment']").Exists(t)
-	html.Element("//input[@name='Date']").Exists(t)
-	html.Element("//input[@name='AccountingPeriod']").Exists(t)
+	html.Element("//form[@hx-post]").Exists()
+	html.Element("//input[@name='Amount']").Exists()
+	html.Element("//select[@name='AccountID']").Exists()
+	html.Element("//select[@name='CategoryID']").Exists()
+	html.Element("//textarea[@name='Comment']").Exists()
+	html.Element("//input[@name='Date']").Exists()
+	html.Element("//input[@name='AccountingPeriod']").Exists()
 }
 
 func TestExpenseController_Create_Success(t *testing.T) {
@@ -216,16 +211,14 @@ func TestExpenseController_Create_Success(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -257,11 +250,7 @@ func TestExpenseController_Create_Success(t *testing.T) {
 	formData.Set("Date", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
-	suite.POST(ExpenseBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, ExpenseBasePath)
+	suite.POST(ExpenseBasePath).Form(formData).Expect(t).Status(302).RedirectTo(ExpenseBasePath)
 
 	expenses, err := expenseService.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -278,16 +267,14 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -320,11 +307,11 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
 	response := suite.POST(ExpenseBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	expenses, err := expenseService.GetAll(env.Ctx)
@@ -339,16 +326,14 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -389,15 +374,15 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 	createdExpense := expenses[0]
 
 	response := suite.GET(fmt.Sprintf("%s/%s", ExpenseBasePath, createdExpense.ID().String())).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//input[@name='Amount']").Exists(t)
-	html.Element("//select[@name='AccountID']").Exists(t)
-	html.Element("//select[@name='CategoryID']").Exists(t)
-	html.Element("//textarea[@name='Comment']").Exists(t)
+	html.Element("//input[@name='Amount']").Exists()
+	html.Element("//select[@name='AccountID']").Exists()
+	html.Element("//select[@name='CategoryID']").Exists()
+	html.Element("//textarea[@name='Comment']").Exists()
 	require.Equal(t, "Edit test expense", html.Element("//textarea[@name='Comment']").Text())
 }
 
@@ -406,21 +391,19 @@ func TestExpenseController_GetEdit_NotFound(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", ExpenseBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestExpenseController_Update_Success(t *testing.T) {
@@ -430,16 +413,14 @@ func TestExpenseController_Update_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -483,11 +464,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 	formData.Set("Date", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
-	suite.POST(fmt.Sprintf("%s/%s", ExpenseBasePath, expense1.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, ExpenseBasePath)
+	suite.POST(fmt.Sprintf("%s/%s", ExpenseBasePath, expense1.ID().String())).Form(formData).Expect(t).Status(http.StatusFound)
 
 	updatedExpense, err := expenseService.GetByID(env.Ctx, expense1.ID())
 	require.NoError(t, err)
@@ -503,16 +480,14 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -557,11 +532,11 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
 	response := suite.POST(fmt.Sprintf("%s/%s", ExpenseBasePath, expense1.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedExpense, err := expenseService.GetByID(env.Ctx, expense1.ID())
@@ -576,16 +551,14 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 		permissions.ExpenseCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -625,9 +598,9 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 	require.Equal(t, "Expense to Delete", existingExpense.Comment())
 
 	suite.DELETE(fmt.Sprintf("%s/%s", ExpenseBasePath, expense1.ID().String())).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, ExpenseBasePath)
+		Expect(t).
+		Status(302).
+		RedirectTo(ExpenseBasePath)
 
 	_, err = expenseService.GetByID(env.Ctx, expense1.ID())
 	require.Error(t, err)
@@ -638,21 +611,19 @@ func TestExpenseController_Delete_NotFound(t *testing.T) {
 		permissions.ExpenseDelete,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", ExpenseBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestExpenseController_InvalidUUID(t *testing.T) {
@@ -660,18 +631,147 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 		permissions.ExpenseRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	suite.GET(ExpenseBasePath+"/invalid-uuid").
-		Expect().
-		Status(t, 404)
+	suite.GET(ExpenseBasePath + "/invalid-uuid").
+		Expect(t).
+		Status(404)
+}
+
+func TestExpenseController_Export_Excel_Success(t *testing.T) {
+	adminUser := testutils.MockUser(
+		permissions.ExpenseRead,
+		permissions.ExpenseCreate,
+	)
+
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.Register(controller)
+
+	expenseService := env.App.Service(services.ExpenseService{}).(*services.ExpenseService)
+	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+
+	account := moneyAccountEntity.New(
+		"Export Test Account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
+	require.NoError(t, err)
+
+	categoryRepo := persistence.NewExpenseCategoryRepository()
+	category := expenseCategoryEntity.New(
+		"Export Test Category",
+		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	require.NoError(t, err)
+
+	expense1 := expenseAggregate.New(
+		money.NewFromFloat(100.50, "USD"),
+		createdAccount,
+		createdCategory,
+		time.Now(),
+		expenseAggregate.WithTenantID(env.Tenant.ID),
+		expenseAggregate.WithComment("Export test expense 1"),
+	)
+
+	expense2 := expenseAggregate.New(
+		money.NewFromFloat(200.75, "USD"),
+		createdAccount,
+		createdCategory,
+		time.Now(),
+		expenseAggregate.WithTenantID(env.Tenant.ID),
+		expenseAggregate.WithComment("Export test expense 2"),
+	)
+
+	_, err = expenseService.Create(env.Ctx, expense1)
+	require.NoError(t, err)
+	_, err = expenseService.Create(env.Ctx, expense2)
+	require.NoError(t, err)
+
+	response := suite.POST(ExpenseBasePath + "/export?format=excel").
+		Expect(t)
+
+	// Accept either 302 or 303 status codes (both are valid for redirects)
+	rawResponse := response.Raw()
+	defer func() { _ = rawResponse.Body.Close() }()
+	statusCode := rawResponse.StatusCode
+	require.True(t, statusCode == 302 || statusCode == 303, "Expected 302 or 303, got %d", statusCode)
+
+	redirectLocation := response.Header("Location")
+	require.NotEmpty(t, redirectLocation)
+	require.Contains(t, redirectLocation, ".xlsx") // Check for Excel file extension
+}
+
+func TestExpenseController_Export_InvalidFormat(t *testing.T) {
+	adminUser := testutils.MockUser(
+		permissions.ExpenseRead,
+	)
+
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.Register(controller)
+
+	suite.POST(ExpenseBasePath + "/export?format=invalid-format").
+		Expect(t).
+		Status(400).
+		Contains("Invalid export format")
+}
+
+func TestExpenseController_Export_MissingFormat(t *testing.T) {
+	adminUser := testutils.MockUser(
+		permissions.ExpenseRead,
+	)
+
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.Register(controller)
+
+	suite.POST(ExpenseBasePath + "/export").
+		Expect(t).
+		Status(400).
+		Contains("Invalid export format")
+}
+
+func TestExpenseController_Export_Forbidden(t *testing.T) {
+	userWithoutPermission := testutils.MockUser()
+
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(userWithoutPermission)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewExpensesController(env.App)
+	suite.Register(controller)
+
+	suite.POST(ExpenseBasePath + "/export?format=excel").
+		Expect(t).
+		Status(403).
+		Contains("forbidden")
 }

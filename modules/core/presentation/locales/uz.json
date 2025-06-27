@@ -11,7 +11,11 @@
     "emptySelect": "Qiymatni tanlang",
     "email": "Email formati noto'g'ri",
     "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
-    "custom": "{{.Field}}: {{.Error}}"
+    "custom": "{{.Field}}: {{.Error}}",
+    "uuid": "Haqiqiy UUID bo'lishi kerak",
+    "gte": "{0} dan katta yoki teng bo'lishi kerak",
+    "len": "Uzunligi {0} ga teng bo'lishi kerak",
+    "gt": "{0} dan katta bo'lishi kerak"
   },
   "Filters": {
     "CreatedAt": {
@@ -411,6 +415,12 @@
   "Remove": "O'chirish",
   "All": "Hammasi",
   "Edit": "Tahrirlash",
+  "Export": {
+    "ToExcel": "Excel ga eksport",
+    "ToCSV": "CSV ga eksport",
+    "ToJSON": "JSON ga eksport",
+    "ToTXT": "TXT ga eksport"
+  },
   "Countries": {
     "AF": "Afg'oniston",
     "AL": "Albaniya",
