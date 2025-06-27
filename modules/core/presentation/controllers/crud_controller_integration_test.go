@@ -37,16 +37,14 @@ func (b *integrationTestBuilder) Repository() crud.Repository[TestEntity] {
 func TestCrudController_ConcurrentRequests(t *testing.T) {
 	t.Skip("TODO: Fix concurrent requests test - infrastructure issue")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Add initial entities
 	for i := 0; i < 10; i++ {
@@ -64,7 +62,7 @@ func TestCrudController_ConcurrentRequests(t *testing.T) {
 			defer func() { done <- true }()
 
 			resp := suite.GET(fmt.Sprintf("/test?page=%d", page))
-			resp.Expect().Status(t, 200)
+			resp.Expect(t).Status(200)
 		}(i + 1)
 	}
 
@@ -85,10 +83,8 @@ func TestCrudController_LargeDataset(t *testing.T) {
 	}
 
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -109,11 +105,11 @@ func TestCrudController_LargeDataset(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test pagination efficiency
 	start := time.Now()
-	doc := suite.GET("/test?page=25").Expect().Status(t, 200).HTML(t)
+	doc := suite.GET("/test?page=25").Expect(t).Status(200).HTML()
 	duration := time.Since(start)
 
 	// Should complete within reasonable time
@@ -185,7 +181,7 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 
 		env := suite.Environment()
 		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-		suite.RegisterController(controller)
+		suite.Register(controller)
 
 		// Test cases for validation
 		testCases := []struct {
@@ -266,13 +262,12 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				resp := suite.POST("/test").
-					WithForm(tc.formData).
-					Expect().
-					Status(t, tc.expectedStatus)
+										WithForm(tc.formData).
+					Expect(t).
+										Status(tc.expectedStatus)
 
 				if tc.expectError {
-					doc := resp.HTML(t)
-					errorElements := doc.Elements("//small[@data-testid='field-error']")
+					doc := resp.HTML()
 					assert.NotEmpty(t, errorElements)
 					if tc.errorContains != "" {
 						// Check if any error element contains the expected text
@@ -296,10 +291,8 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 func TestCrudController_FormStatePreservation(t *testing.T) {
 	t.Skip("TODO: Fix form state preservation test")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	// Schema with validation
 	fieldsWithValidation := crud.NewFields([]crud.Field{
@@ -325,7 +318,7 @@ func TestCrudController_FormStatePreservation(t *testing.T) {
 
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Submit form with validation error but valid other fields
 	formData := url.Values{
@@ -336,10 +329,10 @@ func TestCrudController_FormStatePreservation(t *testing.T) {
 	}
 
 	doc := suite.POST("/test").
-		WithForm(formData).
-		Expect().
-		Status(t, 422).
-		HTML(t)
+		Form(formData).
+		Expect(t).
+		Status(422).
+		HTML()
 
 	// Check that other field values are preserved
 	descInput := doc.Element("//input[@name='description']")
@@ -356,10 +349,8 @@ func TestCrudController_FormStatePreservation(t *testing.T) {
 func TestCrudController_ComplexFiltering(t *testing.T) {
 	t.Skip("TODO: Fix complex filtering test")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -380,7 +371,7 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test search with filters
 	testCases := []struct {
@@ -418,9 +409,9 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			doc := suite.GET(fmt.Sprintf("/test?q=%s", url.QueryEscape(tc.query))).
-				Expect().
-				Status(t, 200).
-				HTML(t)
+				Expect(t).
+				Status(200).
+				HTML()
 
 			rows := doc.Elements("//tbody/tr")
 			assert.Len(t, rows, tc.expectedCount)
@@ -429,9 +420,9 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 			for _, expectedName := range tc.expectedNames {
 				nameElement := doc.Element(fmt.Sprintf("//tbody/tr[contains(., '%s')]", expectedName))
 				if tc.expectedCount > 0 {
-					nameElement.Exists(t)
+					nameElement.Exists()
 				} else {
-					nameElement.NotExists(t)
+					nameElement.NotExists()
 				}
 			}
 		})
@@ -442,10 +433,8 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 	t.Skip("TODO: Fix readonly fields update test")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 
@@ -467,7 +456,7 @@ func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Attempt to update with readonly fields in form
 	formData := url.Values{
@@ -481,9 +470,9 @@ func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 	}
 
 	suite.POST(fmt.Sprintf("/test/%s", entity.ID)).
-		WithForm(formData).
-		Expect().
-		Status(t, 303)
+		Form(formData).
+		Expect(t).
+		Status(303)
 
 	// Verify readonly fields were not modified
 	updated := service.entities[entity.ID]
@@ -502,22 +491,20 @@ func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 func TestCrudController_EmptyListHandling(t *testing.T) {
 	t.Skip("TODO: Fix empty list handling test")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService() // Empty service
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	doc := suite.GET("/test").Expect().Status(t, 200).HTML(t)
+	doc := suite.GET("/test").Expect(t).Status(200).HTML()
 
 	// Should show empty state
 	tbody := doc.Element("//tbody")
-	tbody.Exists(t)
+	tbody.Exists()
 
 	// Should have a row indicating no results
 	rows := doc.Elements("//tbody/tr")
@@ -532,16 +519,14 @@ func TestCrudController_EmptyListHandling(t *testing.T) {
 func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 	t.Skip("TODO: Fix special character handling test")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test creating entity with special characters
 	specialChars := []string{
@@ -565,9 +550,9 @@ func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 			}
 
 			resp := suite.POST("/test").
-				WithForm(formData).
-				Expect().
-				Status(t, 303)
+				Form(formData).
+				Expect(t).
+				Status(303)
 
 			// Should redirect successfully
 			location := resp.Header("Location")
@@ -591,16 +576,14 @@ func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 func TestCrudController_SessionHandling(t *testing.T) {
 	t.Skip("TODO: Fix session handling test")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Create entity with validation error to get form state
 	formData := url.Values{
@@ -611,9 +594,9 @@ func TestCrudController_SessionHandling(t *testing.T) {
 
 	// First request - should fail validation
 	resp1 := suite.POST("/test").
-		WithForm(formData).
-		Expect().
-		Status(t, 422)
+		Form(formData).
+		Expect(t).
+		Status(422)
 
 	// Extract any session cookies
 	cookies := resp1.Cookies()
@@ -621,11 +604,11 @@ func TestCrudController_SessionHandling(t *testing.T) {
 	// Make another request with same session
 	req := suite.GET("/test/new")
 	for _, cookie := range cookies {
-		req.WithCookie(cookie.Name, cookie.Value)
+		req.Cookie(cookie.Name, cookie.Value)
 	}
 
 	// Form should be clean, not retain previous error state
-	doc := suite.GET("/test/new").Expect().Status(t, 200).HTML(t)
+	doc := suite.GET("/test/new").Expect(t).Status(200).HTML()
 
 	descInput := doc.Element("//input[@name='description']")
 	// Should not have the previous form value
@@ -636,10 +619,8 @@ func TestCrudController_SessionHandling(t *testing.T) {
 func TestCrudController_HTTPMethodSafety(t *testing.T) {
 	t.Skip("TODO: Fix HTTP method safety test")
 	adminUser := testutils.MockUser()
-	suite := controllertest.New().
-		WithModules(core.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule()).
+		AsUser(adminUser)
 
 	service := newTestService()
 	entity := TestEntity{ID: uuid.New(), Name: "Test"}
@@ -648,7 +629,7 @@ func TestCrudController_HTTPMethodSafety(t *testing.T) {
 	builder := createTestBuilder(service)
 	env := suite.Environment()
 	controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	// Test inappropriate methods
 	testCases := []struct {
@@ -678,9 +659,21 @@ func TestCrudController_HTTPMethodSafety(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s_%s", tc.method, tc.path), func(t *testing.T) {
-			suite.Request(tc.method, tc.path).
-				Expect().
-				Status(t, tc.expectStatus)
+			var req *controllertest.Request
+			switch tc.method {
+			case "GET":
+				req = suite.GET(tc.path)
+			case "POST":
+				req = suite.POST(tc.path)
+			case "PUT":
+				req = suite.PUT(tc.path)
+			case "DELETE":
+				req = suite.DELETE(tc.path)
+			default:
+				t.Fatalf("unsupported method: %s", tc.method)
+			}
+			req.Expect(t).
+				Status(tc.expectStatus)
 		})
 	}
 }

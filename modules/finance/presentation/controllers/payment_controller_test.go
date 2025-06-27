@@ -47,16 +47,14 @@ func TestPaymentController_List_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -120,14 +118,14 @@ func TestPaymentController_List_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(PaymentBasePath).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.GreaterOrEqual(t, len(html.Elements("//table//tbody//tr")), 2)
 
-	response.Contains(t, "$150.00").
-		Contains(t, "$250.50")
+	response.Contains("$150.00").
+		Contains("$250.50")
 }
 
 func TestPaymentController_List_HTMX_Request(t *testing.T) {
@@ -136,16 +134,14 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -196,9 +192,9 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 
 	suite.GET(PaymentBasePath).
 		HTMX().
-		Expect().
-		Status(t, 200).
-		Contains(t, "$75.25")
+		Expect(t).
+		Status(200).
+		Contains("$75.25")
 }
 
 func TestPaymentController_GetNew_Success(t *testing.T) {
@@ -207,16 +203,14 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
 	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
@@ -238,21 +232,21 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 
 	_ = createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
 
-	response := suite.GET(PaymentBasePath+"/new").
-		Expect().
-		Status(t, 200)
+	response := suite.GET(PaymentBasePath + "/new").
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//form[@hx-post]").Exists(t)
-	html.Element("//input[@name='Amount']").Exists(t)
-	html.Element("//select[@name='AccountID']").Exists(t)
-	html.Element("//select[@name='PaymentCategoryID']").Exists(t)
+	html.Element("//form[@hx-post]").Exists()
+	html.Element("//input[@name='Amount']").Exists()
+	html.Element("//select[@name='AccountID']").Exists()
+	html.Element("//select[@name='PaymentCategoryID']").Exists()
 	// CounterpartyID is a combobox component which has hidden input and select
-	html.Element("//*[@name='CounterpartyID']").Exists(t)
-	html.Element("//textarea[@name='Comment']").Exists(t)
-	html.Element("//input[@name='TransactionDate']").Exists(t)
-	html.Element("//input[@name='AccountingPeriod']").Exists(t)
+	html.Element("//*[@name='CounterpartyID']").Exists()
+	html.Element("//textarea[@name='Comment']").Exists()
+	html.Element("//input[@name='TransactionDate']").Exists()
+	html.Element("//input[@name='AccountingPeriod']").Exists()
 }
 
 func TestPaymentController_Create_Success(t *testing.T) {
@@ -261,16 +255,14 @@ func TestPaymentController_Create_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -315,10 +307,10 @@ func TestPaymentController_Create_Success(t *testing.T) {
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
 	suite.POST(PaymentBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, PaymentBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentBasePath)
 
 	payments, err := paymentService.GetAll(env.Ctx)
 	require.NoError(t, err)
@@ -335,16 +327,14 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 
@@ -358,11 +348,11 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 	formData.Set("AccountingPeriod", "")
 
 	response := suite.POST(PaymentBasePath).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	payments, err := paymentService.GetAll(env.Ctx)
@@ -377,16 +367,14 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -436,17 +424,17 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	response := suite.GET(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
-		Expect().
-		Status(t, 200)
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 
-	html.Element("//input[@name='Amount']").Exists(t)
-	html.Element("//select[@name='AccountID']").Exists(t)
-	html.Element("//select[@name='PaymentCategoryID']").Exists(t)
+	html.Element("//input[@name='Amount']").Exists()
+	html.Element("//select[@name='AccountID']").Exists()
+	html.Element("//select[@name='PaymentCategoryID']").Exists()
 	// CounterpartyID is a combobox component
-	html.Element("//*[@name='CounterpartyID']").Exists(t)
-	html.Element("//textarea[@name='Comment']").Exists(t)
+	html.Element("//*[@name='CounterpartyID']").Exists()
+	html.Element("//textarea[@name='Comment']").Exists()
 	require.Equal(t, "Edit test payment", html.Element("//textarea[@name='Comment']").Text())
 }
 
@@ -456,21 +444,19 @@ func TestPaymentController_GetEdit_NotFound(t *testing.T) {
 		permissions.PaymentUpdate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.GET(fmt.Sprintf("%s/%s", PaymentBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestPaymentController_Update_Success(t *testing.T) {
@@ -480,16 +466,14 @@ func TestPaymentController_Update_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -549,10 +533,10 @@ func TestPaymentController_Update_Success(t *testing.T) {
 	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
 
 	suite.POST(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, PaymentBasePath)
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentBasePath)
 
 	updatedPayment, err := paymentService.GetByID(env.Ctx, createdPayment1.ID())
 	require.NoError(t, err)
@@ -568,16 +552,14 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -634,11 +616,11 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 	formData.Set("Comment", "")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
-		WithForm(formData).
-		Expect().
-		Status(t, 200)
+		Form(formData).
+		Expect(t).
+		Status(200)
 
-	html := response.HTML(t)
+	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
 	unchangedPayment, err := paymentService.GetByID(env.Ctx, createdPayment1.ID())
@@ -653,16 +635,14 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
 	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
@@ -716,9 +696,9 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 	require.Equal(t, "Payment to Delete", existingPayment.Comment())
 
 	suite.DELETE(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
-		Expect().
-		Status(t, 302).
-		RedirectTo(t, PaymentBasePath)
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentBasePath)
 
 	_, err = paymentService.GetByID(env.Ctx, createdPayment1.ID())
 	require.Error(t, err)
@@ -730,21 +710,19 @@ func TestPaymentController_Delete_NotFound(t *testing.T) {
 		permissions.PaymentDelete,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
 	nonExistentID := uuid.New()
 	suite.DELETE(fmt.Sprintf("%s/%s", PaymentBasePath, nonExistentID.String())).
-		Expect().
-		Status(t, 500)
+		Expect(t).
+		Status(500)
 }
 
 func TestPaymentController_InvalidUUID(t *testing.T) {
@@ -752,18 +730,16 @@ func TestPaymentController_InvalidUUID(t *testing.T) {
 		permissions.PaymentRead,
 	)
 
-	suite := controllertest.New().
-		WithModules(core.NewModule(), finance.NewModule()).
-		WithUser(t, adminUser).
-		Build(t)
+	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
 
 	env := suite.Environment()
 	createCurrencies(t, env.Ctx, &currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
-	suite.RegisterController(controller)
+	suite.Register(controller)
 
-	suite.GET(PaymentBasePath+"/invalid-uuid").
-		Expect().
-		Status(t, 404)
+	suite.GET(PaymentBasePath + "/invalid-uuid").
+		Expect(t).
+		Status(404)
 }
