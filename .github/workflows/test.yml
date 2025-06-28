@@ -22,6 +22,9 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+          -c max_connections=200
+          -c shared_buffers=256MB
+          -c effective_cache_size=512MB
 
     steps:
       - name: Checkout repository
@@ -134,8 +137,43 @@ jobs:
           go vet ./...
           make lint
 
-      - name: Run tests
-        run: go test -v ./...
+      - name: Run tests with coverage
+        run: |
+          go test -v ./... -coverprofile=coverage.out
+          
+          # Extract coverage percentage
+          COVERAGE=$(go tool cover -func=coverage.out | grep "total:" | awk '{print $3}')
+          COVERAGE_NUM=$(echo $COVERAGE | sed 's/%//')
+          
+          # Determine coverage status
+          if (( $(echo "$COVERAGE_NUM >= 80" | bc -l) )); then
+            STATUS="🟢 Good"
+            COLOR="green"
+          elif (( $(echo "$COVERAGE_NUM >= 60" | bc -l) )); then
+            STATUS="🟡 Fair"
+            COLOR="yellow"
+          else
+            STATUS="🔴 Low"
+            COLOR="red"
+          fi
+          
+          # Create GitHub job summary
+          echo "## 📊 Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total Coverage** | **$COVERAGE** |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Status** | $STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Add coverage breakdown
+          echo "### 📋 Coverage by Package" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          go tool cover -func=coverage.out | head -20 >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          
+          echo "Total Coverage: $COVERAGE"
 
       - name: Cypress run
         uses: cypress-io/github-action@v6
