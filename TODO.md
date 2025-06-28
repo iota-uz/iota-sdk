@@ -1,524 +1,280 @@
-# Dashboard System Implementation Plan
+# Lens Package API Refactoring TODO
 
 ## Overview
-Build a Grafana-like dashboard system as a pure Go package that supports configurable panels, multiple data sources, and JSON-based configuration management. The package provides core types, validation, and an evaluation engine that transforms configurations into renderable structures.
+Refactor the lens package API to be more idiomatic, intuitive, and follow Go best practices. The current API has several pain points that we'll address systematically.
 
-## Phase 1: Core Dashboard Types
+## Core Issues Identified
 
-### 1.1 Configuration Types
-**Location**: `pkg/lens/`
+### 1. **Complex Configuration Structures**
+- **Problem**: `PanelConfig` and `DashboardConfig` have deeply nested structures
+- **Example**: Event configuration requires 4+ levels of nesting
+- **Impact**: Hard to construct programmatically, verbose JSON serialization
 
-**Files to create**:
-- `config.go` - Configuration structures
-- `types.go` - Core types and enums
-- `errors.go` - Domain-specific errors
+### 2. **Inconsistent Builder API**
+- **Problem**: Builder methods mix concerns (data + events + styling)
+- **Example**: `OnDataPointClick()` vs `OnDrillDown()` - unclear which to use
+- **Impact**: Cognitive overhead, multiple ways to do the same thing
 
-**Key types**:
+### 3. **Scattered Type Definitions**
+- **Problem**: Core types spread across `types.go`, `config.go`, `errors.go`
+- **Example**: `Variable` in `types.go` but `ActionConfig` in `config.go`
+- **Impact**: Hard to find related types, import confusion
+
+### 4. **Complex Event System**
+- **Problem**: Each event type has its own wrapper struct
+- **Example**: `ClickEvent{Action: ActionConfig{...}}` - unnecessary nesting
+- **Impact**: Boilerplate code, hard to understand
+
+### 5. **No Fluent Data Source Setup**
+- **Problem**: Imperative data source registration is error-prone
+- **Example**: Manual `RegisterDataSource()` calls with error handling
+- **Impact**: Verbose setup code, easy to forget validation
+
+## Concrete API Improvements
+
+### Current API (Before):
 ```go
-// Input configuration (from JSON)
-type DashboardConfig struct {
-    ID          string       `json:"id"`
-    Name        string       `json:"name"`
-    Description string       `json:"description"`
-    Version     string       `json:"version"`
-    Grid        GridConfig   `json:"grid"`
-    Panels      []PanelConfig `json:"panels"`
-    Variables   []Variable    `json:"variables"`
+// 1. Verbose panel creation
+panel := builder.BarChart().
+    ID("sales-by-region").
+    Title("Sales by Region").
+    DataSource("main-db").
+    Query("SELECT region, sales_amount FROM sales_data").
+    Position(0, 0).
+    Size(6, 4).
+    OnDataPointClick(lens.ActionConfig{
+        Type: lens.ActionTypeDrillDown,
+        DrillDown: &lens.DrillDownAction{
+            Filters: map[string]string{
+                "region": "{label}",
+                "period": "{seriesName}",
+            },
+        },
+    }).
+    Build()
+
+// 2. Complex dashboard creation
+dashboard := builder.NewDashboard().
+    ID("sales-dashboard").
+    Title("Sales Dashboard").
+    Description("Sales metrics and analysis").
+    Grid(12, 120).
+    Variable("year", "2024").
+    Panel(panel).
+    Build()
+
+// 3. Manual executor setup
+exec := executor.NewExecutor(nil, 30*time.Second)
+pgDS, err := postgres.NewPostgreSQLDataSource(pgConfig)
+if err != nil {
+    return err
 }
-
-type PanelConfig struct {
-    ID         string                 `json:"id"`
-    Title      string                 `json:"title"`
-    Type       ChartType             `json:"type"`
-    Position   GridPosition          `json:"position"`
-    Dimensions GridDimensions        `json:"dimensions"`
-    DataSource DataSourceConfig      `json:"dataSource"`
-    Query      string                `json:"query"`
-    Options    map[string]interface{} `json:"options"`
-}
-
-type ChartType string
-const (
-    ChartTypeLine   ChartType = "line"
-    ChartTypeBar    ChartType = "bar"
-    ChartTypePie    ChartType = "pie"
-    ChartTypeArea   ChartType = "area"
-    ChartTypeColumn ChartType = "column"
-    ChartTypeGauge  ChartType = "gauge"
-    ChartTypeTable  ChartType = "table"
-)
-```
-
-### 1.2 Value Objects
-**Location**: `pkg/lens/`
-
-**Files**:
-- `grid.go` - Grid system types (GridConfig, GridPosition, GridDimensions)
-- `datasource.go` - DataSource interface and config
-- `variable.go` - Dashboard variables (for templating)
-- `timerange.go` - Time range handling
-
-### 1.3 Validation
-**Location**: `pkg/lens/validation/`
-
-**Files**:
-- `validator.go` - Main validation interface
-- `rules.go` - Validation rules
-- `errors.go` - Validation error types
-
-**Key functions**:
-```go
-func ValidateConfig(config *DashboardConfig) ValidationResult
-func ValidatePanel(panel *PanelConfig, grid GridConfig) ValidationResult
-func ValidateGridLayout(panels []PanelConfig, grid GridConfig) ValidationResult
-```
-
-## Phase 2: Evaluation Engine
-
-### 2.1 Core Evaluation
-**Location**: `pkg/lens/evaluation/`
-
-**Files**:
-- `evaluator.go` - Main evaluation engine
-- `context.go` - Evaluation context (variables, time range, etc.)
-- `result.go` - Evaluation result types
-
-**Key types**:
-```go
-// Evaluation context
-type EvaluationContext struct {
-    TimeRange TimeRange
-    Variables map[string]interface{}
-    User      UserContext // For permission-based filtering
-}
-
-// Evaluated dashboard ready for rendering
-type EvaluatedDashboard struct {
-    Config     DashboardConfig
-    Layout     Layout
-    Panels     []EvaluatedPanel
-    Errors     []EvaluationError
-}
-
-type EvaluatedPanel struct {
-    Config         PanelConfig
-    ResolvedQuery  string // Variables interpolated
-    DataSourceRef  string // Resolved data source reference
-    RenderConfig   RenderConfig
-}
-
-// What the renderer needs
-type RenderConfig struct {
-    ChartType    ChartType
-    ChartOptions map[string]interface{} // ApexCharts-ready config
-    GridCSS      GridCSS
-    RefreshRate  time.Duration
+err = exec.RegisterDataSource("main-db", pgDS)
+if err != nil {
+    return err
 }
 ```
 
-### 2.2 Query Processing
-**Location**: `pkg/lens/evaluation/`
-
-**Files**:
-- `query_processor.go` - Query variable interpolation
-- `query_validator.go` - Query validation (without execution)
-
-**Key functions**:
+### Proposed API (After):
 ```go
-func InterpolateQuery(query string, ctx EvaluationContext) (string, error)
-func ValidateQuery(query string, dataSourceType string) error
-```
+// 1. Simplified panel creation with intelligent defaults
+panel := lens.BarChart("sales-by-region", "Sales by Region").
+    Data("main-db", "SELECT region, sales_amount FROM sales_data").
+    Position(0, 0, 6, 4).  // x, y, width, height in one call
+    OnClick().DrillDown("region", "{label}", "period", "{seriesName}")
 
-### 2.3 Layout Engine
-**Location**: `pkg/lens/layout/`
+// 2. Fluent dashboard creation
+dashboard := lens.Dashboard("sales-dashboard", "Sales Dashboard").
+    Description("Sales metrics and analysis").
+    Variable("year", "2024").
+    Add(panel)
 
-**Files**:
-- `layout.go` - Layout calculation
-- `responsive.go` - Responsive breakpoint handling
-- `overlap.go` - Overlap detection and resolution
-
-**Key types**:
-```go
-type Layout struct {
-    Grid       GridConfig
-    Panels     []PanelLayout
-    Breakpoint Breakpoint
-}
-
-type PanelLayout struct {
-    PanelID    string
-    Position   GridPosition
-    Dimensions GridDimensions
-    CSS        PanelCSS // Computed CSS classes/styles
-}
-```
-
-## Phase 3: Rendering Interface
-
-### 3.1 Render Mappers
-**Location**: `pkg/lens/render/`
-
-**Files**:
-- `mapper.go` - Main mapper interface
-- `apex_mapper.go` - ApexCharts configuration mapper
-- `css_mapper.go` - CSS class mapper
-
-**Key interfaces**:
-```go
-type ChartMapper interface {
-    MapToChartConfig(panel EvaluatedPanel) ChartRenderConfig
-}
-
-type ChartRenderConfig struct {
-    Type         string                 // ApexCharts type
-    Options      map[string]interface{} // ApexCharts options
-    DataEndpoint string                 // Where to fetch data
-    RefreshRate  string                 // For HTMX polling
-}
-```
-
-### 3.2 Data Source Interface
-**Location**: `pkg/lens/datasource/`
-
-**Files**:
-- `interface.go` - DataSource interface
-- `registry.go` - DataSource registry
-
-**Interface only** (implementations live elsewhere):
-```go
-type DataSource interface {
-    Type() string
-    ValidateQuery(query string) error
-    // Note: Actual execution happens outside this package
-}
-
-type DataResult struct {
-    Columns []Column
-    Rows    [][]interface{}
-    Error   error
-}
-```
-
-## Phase 4: Builder Pattern
-
-### 4.1 Dashboard Builder
-**Location**: `pkg/lens/builder/`
-
-**Files**:
-- `builder.go` - Fluent API for building dashboards
-- `panel_builder.go` - Panel builder
-
-**Example usage**:
-```go
-dashboard := builder.NewDashboard("sales-dashboard").
-    WithName("Sales Dashboard").
-    WithGrid(12, 60). // 12 columns, 60px row height
-    AddPanel(
-        builder.NewPanel("revenue-chart").
-            WithTitle("Revenue Over Time").
-            WithType(ChartTypeLine).
-            AtPosition(0, 0).
-            WithSize(6, 4).
-            WithQuery("SELECT date, revenue FROM sales WHERE date >= :start").
-            WithDataSource("postgres", "main")
-    ).
+// 3. Fluent executor setup with validation
+exec := lens.Setup().
+    PostgreSQL("main-db", pgConfig).
+    Timeout(30*time.Second).
     Build()
 ```
 
-## Phase 5: JSON Schema & Examples
+## Implementation Plan
 
-### 5.1 Schema Definition
-**Location**: `pkg/lens/schema/`
+### Phase 1: Core Types Consolidation (2-3 hours)
+**Files to modify:**
+- `pkg/lens/types.go` - Consolidate all core types
+- `pkg/lens/config.go` - Simplify configuration structs
+- `pkg/lens/errors.go` - Add structured error types
 
-**Files**:
-- `dashboard.schema.json` - JSON Schema for validation
-- `examples/` - Example dashboard configurations
+**Key Changes:**
+1. Move all chart/panel types to `types.go`
+2. Flatten nested configuration structures
+3. Add convenience constructors for common types
+4. Improve error types with better context
 
-### 5.2 Example Dashboard
-```json
-{
-  "version": "1.0",
-  "id": "sales-dashboard",
-  "name": "Sales Dashboard",
-  "description": "Company sales metrics",
-  "grid": {
-    "columns": 12,
-    "rowHeight": 60,
-    "breakpoints": {
-      "lg": 1200,
-      "md": 996,
-      "sm": 768,
-      "xs": 480
-    }
-  },
-  "panels": [
-    {
-      "id": "revenue-line",
-      "title": "Revenue Trend",
-      "type": "line",
-      "position": {"x": 0, "y": 0},
-      "dimensions": {"width": 6, "height": 4},
-      "dataSource": {
-        "type": "postgres",
-        "ref": "main"
-      },
-      "query": "SELECT date, revenue FROM sales WHERE date >= :timeRange.start",
-      "options": {
-        "xaxis": {"type": "datetime"},
-        "yaxis": {"title": "Revenue ($)"}
-      }
-    }
-  ],
-  "variables": [
-    {
-      "name": "timeRange",
-      "type": "timeRange",
-      "default": "last7days"
-    }
-  ]
-}
-```
-
-## Phase 6: UI Rendering Package
-
-### 6.1 Dashboard UI Package
-**Location**: `pkg/lens/ui/`
-
-**Dependencies**:
-- Imports parent `pkg/lens` for types
-- Uses existing `components/charts/` for chart rendering
-
-**Files**:
-- `renderer.go` - Main rendering interface
-- `components.go` - Component definitions
-- `htmx.go` - HTMX integration helpers
-
-**Key interfaces**:
+**Example:**
 ```go
-type DashboardRenderer interface {
-    RenderDashboard(dashboard *lens.EvaluatedDashboard) templ.Component
-    RenderPanel(panel *lens.EvaluatedPanel, data DataResult) templ.Component
+// Before: Nested configuration
+type PanelConfig struct {
+    Events *PanelEvents
+}
+type PanelEvents struct {
+    DataPoint *DataPointEvent
+}
+type DataPointEvent struct {
+    Action ActionConfig
 }
 
-type UIConfig struct {
-    ChartComponents map[lens.ChartType]ChartComponent
-    GridClasses     GridClassConfig
-    RefreshStrategy RefreshStrategy // polling, websocket, sse
+// After: Flattened with builder
+type PanelConfig struct {
+    Events []EventConfig  // Single slice instead of nested structs
+}
+type EventConfig struct {
+    Trigger EventTrigger  // click, datapoint, legend, etc.
+    Action  ActionConfig
 }
 ```
 
-### 6.2 Templ Components
-**Location**: `pkg/lens/ui/templates/`
+### Phase 2: Simplified Builder API (3-4 hours)
+**Files to modify:**
+- `pkg/lens/builder/dashboard.go` - Streamline builder methods
+- Add `pkg/lens/builder/fluent.go` - New fluent API functions
 
-**Components**:
-- `dashboard.templ` - Main dashboard container
-- `panel.templ` - Panel wrapper with loading states
-- `grid.templ` - Grid layout component
-- `error.templ` - Error display component
+**Key Changes:**
+1. Add convenience constructors: `lens.BarChart()`, `lens.Dashboard()`
+2. Combine related methods: `Position(x, y, w, h)` instead of separate calls
+3. Simplify event configuration with method chaining
+4. Add validation at build time instead of runtime
 
-**Example panel component**:
+**Example:**
 ```go
-templ Panel(panel EvaluatedPanel, chartConfig ApexChartConfig) {
-    <div 
-        class={ panel.RenderConfig.GridCSS.Classes() }
-        id={ fmt.Sprintf("panel-%s", panel.Config.ID) }
-        hx-get={ fmt.Sprintf("/api/panels/%s/refresh", panel.Config.ID) }
-        hx-trigger={ fmt.Sprintf("every %s", panel.RenderConfig.RefreshRate) }
-        hx-swap="innerHTML"
-    >
-        <div class="panel-header">
-            <h3>{ panel.Config.Title }</h3>
-        </div>
-        <div class="panel-body">
-            @components.Chart(chartConfig)
-        </div>
-    </div>
-}
+// Before: Multiple method calls
+builder.BarChart().
+    ID("sales").
+    Title("Sales").
+    Position(0, 0).
+    Size(6, 4).
+    OnDataPointClick(...)
+
+// After: Combined methods with smart defaults
+lens.BarChart("sales", "Sales").  // ID and title required
+    Position(0, 0, 6, 4).         // Combined position/size
+    OnClick().DrillDown(...)      // Fluent event config
 ```
 
-### 6.3 ApexCharts Integration
-**Location**: `pkg/lens/ui/charts/`
+### Phase 3: Event System Simplification (2 hours)
+**Files to modify:**
+- `pkg/lens/config.go` - Flatten event structures
+- `pkg/lens/events.go` - Simplify event handling
 
-**Files**:
-- `apex_mapper.go` - Maps EvaluatedPanel to ApexCharts config
-- `chart_factory.go` - Creates appropriate chart components
-- `options.go` - Default chart options by type
+**Key Changes:**
+1. Remove wrapper event types (`ClickEvent`, `DataPointEvent`, etc.)
+2. Use single `EventConfig` type with trigger field
+3. Add fluent event configuration methods
+4. Simplify JavaScript integration
 
-**Mapping example**:
+**Example:**
 ```go
-func MapToApexConfig(panel *lens.EvaluatedPanel, data DataResult) ApexChartConfig {
-    return ApexChartConfig{
-        Type:    string(panel.Config.Type),
-        Series:  transformDataToSeries(data),
-        Options: mergeOptions(defaultOptions[panel.Config.Type], panel.Config.Options),
-        Height:  calculateHeight(panel.Config.Dimensions),
-    }
+// Before: Multiple wrapper types
+type ClickEvent struct {
+    Action ActionConfig
 }
+type DataPointEvent struct {
+    Action ActionConfig
+}
+
+// After: Single event type
+type EventConfig struct {
+    Trigger EventTrigger  // "click", "datapoint", "legend"
+    Action  ActionConfig
+}
+
+// Fluent API
+panel.OnClick().Navigate("/details/{label}")
+panel.OnDataPoint().DrillDown("category", "{label}")
 ```
 
-### 6.4 Grid System
-**Location**: `pkg/lens/ui/grid/`
+### Phase 4: Fluent Setup API (2 hours)
+**Files to create:**
+- `pkg/lens/setup.go` - New fluent setup API
 
-**Files**:
-- `grid.go` - Grid CSS generation
-- `responsive.go` - Breakpoint handling
+**Key Changes:**
+1. Create `Setup()` function for fluent configuration
+2. Add built-in data source registration with validation
+3. Simplify executor creation
+4. Add connection testing and error recovery
 
-**CSS Strategy**:
-- Use CSS Grid for layout
-- Generate inline styles for dynamic positioning
-- Responsive classes for breakpoints
-
-### 6.5 Data Fetching Integration
-**Location**: `pkg/lens/ui/data/`
-
-**Files**:
-- `fetcher.go` - Data fetching interface
-- `cache.go` - Client-side caching
-
-**Note**: Actual data fetching is handled by the implementing application, not the package.
-
-## Phase 7: Testing Strategy
-
-### 7.1 Core Package Tests
-**Location**: `pkg/lens/tests/`
-
-- Configuration validation tests
-- Evaluation engine tests
-- Layout calculation tests
-- Query interpolation tests
-- Grid overlap detection tests
-
-### 7.2 UI Package Tests
-**Location**: `pkg/lens/ui/tests/`
-
-- Component rendering tests
-- ApexCharts config generation tests
-- Grid CSS generation tests
-- HTMX attribute generation tests
-
-### 7.3 Test Fixtures
-**Location**: `pkg/lens/testdata/` and `pkg/lens/ui/testdata/`
-
-- Example dashboard configurations (valid and invalid)
-- Expected evaluation results
-- Sample data results for chart rendering
-- Expected ApexCharts configurations
-
-## Phase 8: Implementation Example
-
-### 8.1 Usage Example
-**How the packages work together**:
-
+**Example:**
 ```go
-// 1. Load configuration
-config := &lens.DashboardConfig{}
-json.Unmarshal(jsonData, config)
-
-// 2. Validate
-result := validation.ValidateConfig(config)
-if !result.IsValid() {
-    // Handle validation errors
-}
-
-// 3. Create evaluation context
-ctx := evaluation.EvaluationContext{
-    TimeRange: timeRange,
-    Variables: map[string]interface{}{
-        "department": "sales",
-    },
-}
-
-// 4. Evaluate dashboard
-evaluator := evaluation.NewEvaluator()
-evaluated, err := evaluator.Evaluate(config, ctx)
-
-// 5. Render UI (in the application layer)
-renderer := ui.NewRenderer(uiConfig)
-component := renderer.RenderDashboard(evaluated)
-
-// 6. Fetch data (application implements this)
-for _, panel := range evaluated.Panels {
-    data := dataFetcher.Fetch(panel.ResolvedQuery)
-    panelComponent := renderer.RenderPanel(panel, data)
-}
+// New fluent setup API
+exec := lens.Setup().
+    PostgreSQL("main-db", "postgres://...").
+    PostgreSQL("analytics", analyticsConfig).
+    Redis("cache", redisConfig).
+    Timeout(30 * time.Second).
+    TestConnections().  // Validate all connections
+    Build()
 ```
 
-### 8.2 Storage Implementation Example
-**Application-specific storage using the package**:
+### Phase 5: Documentation and Examples (1 hour)
+**Files to modify:**
+- `pkg/lens/README.md` - Update with new API examples
+- Add `pkg/lens/examples/` directory with common patterns
 
+## Breaking Changes and Migration
+
+### Breaking Changes:
+1. `builder.NewDashboard()` → `lens.Dashboard()`
+2. Event configuration structure changes
+3. Some method signatures simplified
+
+### Migration Guide:
 ```go
-// Redis storage (in application, not package)
-type RedisDashboardStore struct {
-    client *redis.Client
-}
+// Old way
+dashboard := builder.NewDashboard().
+    ID("dashboard-1").
+    Title("My Dashboard").
+    Build()
 
-func (s *RedisDashboardStore) Save(config *lens.DashboardConfig) error {
-    json, _ := json.Marshal(config)
-    return s.client.Set(ctx, fmt.Sprintf("dashboard:%s", config.ID), json, 0).Err()
-}
+// New way  
+dashboard := lens.Dashboard("dashboard-1", "My Dashboard")
 ```
 
-## Phase 9: Package Boundaries
+### Backward Compatibility:
+- Keep old builder methods as deprecated for 1 version
+- Add migration warnings in logs
+- Provide automated migration tool
 
-### 9.1 What's IN the packages
-**pkg/lens**:
-- Configuration types and validation
-- Evaluation engine
-- Layout calculations
-- Query interpolation
-- Builder API
+## Success Metrics
 
-**pkg/lens/ui**:
-- Templ components
-- ApexCharts mapping
-- Grid CSS generation
-- HTMX helpers
+### Code Quality Metrics:
+- **Reduce boilerplate**: 60% fewer lines for common use cases
+- **Type safety**: 100% compile-time validation for required fields
+- **API consistency**: Single pattern for all chart types
 
-### 9.2 What's OUT (application responsibility)
-- Data persistence (Redis, PostgreSQL, etc.)
-- Actual query execution
-- Authentication/authorization
-- HTTP routing
-- WebSocket handling
-- Caching implementation
+### Developer Experience:
+- **Learning curve**: New users can create dashboard in <10 lines
+- **Documentation**: Every public method has examples
+- **Error messages**: Actionable error messages with suggestions
 
-## Implementation Order
+### Performance:
+- **Build time**: No performance regression in builder API
+- **Memory usage**: Reduced allocations through better defaults
+- **Validation**: Faster validation through compile-time checks
 
-1. **Week 1**: Core types and validation in `pkg/lens`
-2. **Week 2**: Evaluation engine and layout system
-3. **Week 3**: UI package with templ components
-4. **Week 4**: ApexCharts integration and mappers
-5. **Week 5**: Builder API and examples
-6. **Week 6**: Testing and documentation
+## Testing Strategy
 
-## Success Criteria
+### Unit Tests:
+- Test all new convenience constructors
+- Validate backward compatibility with existing configs
+- Test error handling and validation
 
-- [ ] Configuration validation catches all invalid states
-- [ ] Evaluation engine correctly interpolates variables
-- [ ] Layout engine prevents panel overlaps
-- [ ] UI components render with correct ApexCharts config
-- [ ] Packages have zero external dependencies (except stdlib)
-- [ ] Clear separation between package and application concerns
-- [ ] Comprehensive test coverage (>90%)
-- [ ] Performance: Evaluation completes in <50ms for 20 panels
+### Integration Tests:
+- Test complete dashboard creation workflows
+- Validate JSON serialization/deserialization
+- Test with real data sources
 
-## Technical Decisions
+### Migration Tests:
+- Test old API still works (deprecated)
+- Test migration from old to new API
+- Validate no data loss during migration
 
-1. **Two packages instead of one**: Separation of concerns between logic and UI
-2. **No persistence in packages**: Maximum flexibility for applications
-3. **Evaluation engine**: Enables pre-computation and validation before rendering
-4. **Builder pattern**: Programmatic dashboard creation without JSON
-5. **Templ for UI**: Consistency with existing project patterns
-
-## Definition of Done
-
-- [ ] All types have godoc documentation
-- [ ] Validation provides field-level error paths
-- [ ] Evaluation engine handles all variable types
-- [ ] UI package generates valid HTMX attributes
-- [ ] Zero coupling between packages and application
-- [ ] Example applications demonstrate usage
-- [ ] Integration guide with code examples
-- [ ] Benchmark suite for performance validation
-
-
+This refactoring will make the lens package significantly more intuitive and reduce the learning curve for new users while maintaining all existing functionality.

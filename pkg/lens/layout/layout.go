@@ -241,7 +241,7 @@ func (e *engine) GetResponsiveLayout(layout *Layout, breakpoint Breakpoint) *Lay
 
 // ValidateLayout validates the layout configuration
 func (e *engine) ValidateLayout(panels []lens.PanelConfig, grid lens.GridConfig) []ValidationError {
-	var errors []ValidationError
+	errors := make([]ValidationError, 0, len(panels))
 
 	// Check if panels fit within grid
 	for _, panel := range panels {
@@ -288,12 +288,4 @@ type ValidationError struct {
 
 func (e ValidationError) Error() string {
 	return fmt.Sprintf("panel %s: %s", e.PanelID, e.Message)
-}
-
-// Helper function
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

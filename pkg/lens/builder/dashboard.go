@@ -62,6 +62,33 @@ type PanelBuilder interface {
 	// Option sets a custom option for the panel
 	Option(key string, value interface{}) PanelBuilder
 
+	// OnClick sets a click event handler for the panel
+	OnClick(action lens.ActionConfig) PanelBuilder
+
+	// OnDataPointClick sets a data point click event handler
+	OnDataPointClick(action lens.ActionConfig) PanelBuilder
+
+	// OnLegendClick sets a legend click event handler
+	OnLegendClick(action lens.ActionConfig) PanelBuilder
+
+	// OnMarkerClick sets a marker click event handler
+	OnMarkerClick(action lens.ActionConfig) PanelBuilder
+
+	// OnXAxisLabelClick sets an X-axis label click event handler
+	OnXAxisLabelClick(action lens.ActionConfig) PanelBuilder
+
+	// OnNavigate creates a navigation action for click events
+	OnNavigate(url string, target ...string) PanelBuilder
+
+	// OnDrillDown creates a drill-down action for click events
+	OnDrillDown(filters map[string]string, dashboard ...string) PanelBuilder
+
+	// OnModal creates a modal action for click events
+	OnModal(title, content string, url ...string) PanelBuilder
+
+	// OnCustom creates a custom JavaScript action for click events
+	OnCustom(function string, variables ...map[string]string) PanelBuilder
+
 	// Build creates the panel configuration
 	Build() lens.PanelConfig
 }
@@ -227,6 +254,127 @@ func (pb *panelBuilder) Option(key string, value interface{}) PanelBuilder {
 	return pb
 }
 
+// OnClick sets a click event handler for the panel
+func (pb *panelBuilder) OnClick(action lens.ActionConfig) PanelBuilder {
+	if pb.config.Events == nil {
+		pb.config.Events = &lens.PanelEvents{}
+	}
+	pb.config.Events.Click = &lens.ClickEvent{Action: action}
+	return pb
+}
+
+// OnDataPointClick sets a data point click event handler
+func (pb *panelBuilder) OnDataPointClick(action lens.ActionConfig) PanelBuilder {
+	if pb.config.Events == nil {
+		pb.config.Events = &lens.PanelEvents{}
+	}
+	pb.config.Events.DataPoint = &lens.DataPointEvent{Action: action}
+	return pb
+}
+
+// OnLegendClick sets a legend click event handler
+func (pb *panelBuilder) OnLegendClick(action lens.ActionConfig) PanelBuilder {
+	if pb.config.Events == nil {
+		pb.config.Events = &lens.PanelEvents{}
+	}
+	pb.config.Events.Legend = &lens.LegendEvent{Action: action}
+	return pb
+}
+
+// OnMarkerClick sets a marker click event handler
+func (pb *panelBuilder) OnMarkerClick(action lens.ActionConfig) PanelBuilder {
+	if pb.config.Events == nil {
+		pb.config.Events = &lens.PanelEvents{}
+	}
+	pb.config.Events.Marker = &lens.MarkerEvent{Action: action}
+	return pb
+}
+
+// OnXAxisLabelClick sets an X-axis label click event handler
+func (pb *panelBuilder) OnXAxisLabelClick(action lens.ActionConfig) PanelBuilder {
+	if pb.config.Events == nil {
+		pb.config.Events = &lens.PanelEvents{}
+	}
+	pb.config.Events.XAxisLabel = &lens.XAxisLabelEvent{Action: action}
+	return pb
+}
+
+// OnNavigate creates a navigation action for click events
+func (pb *panelBuilder) OnNavigate(url string, target ...string) PanelBuilder {
+	actionTarget := "_self"
+	if len(target) > 0 {
+		actionTarget = target[0]
+	}
+
+	action := lens.ActionConfig{
+		Type: lens.ActionTypeNavigation,
+		Navigation: &lens.NavigationAction{
+			URL:       url,
+			Target:    actionTarget,
+			Variables: make(map[string]string),
+		},
+	}
+
+	return pb.OnClick(action)
+}
+
+// OnDrillDown creates a drill-down action for click events
+func (pb *panelBuilder) OnDrillDown(filters map[string]string, dashboard ...string) PanelBuilder {
+	dashboardName := ""
+	if len(dashboard) > 0 {
+		dashboardName = dashboard[0]
+	}
+
+	action := lens.ActionConfig{
+		Type: lens.ActionTypeDrillDown,
+		DrillDown: &lens.DrillDownAction{
+			Dashboard: dashboardName,
+			Filters:   filters,
+			Variables: make(map[string]string),
+		},
+	}
+
+	return pb.OnClick(action)
+}
+
+// OnModal creates a modal action for click events
+func (pb *panelBuilder) OnModal(title, content string, url ...string) PanelBuilder {
+	modalURL := ""
+	if len(url) > 0 {
+		modalURL = url[0]
+	}
+
+	action := lens.ActionConfig{
+		Type: lens.ActionTypeModal,
+		Modal: &lens.ModalAction{
+			Title:     title,
+			Content:   content,
+			URL:       modalURL,
+			Variables: make(map[string]string),
+		},
+	}
+
+	return pb.OnClick(action)
+}
+
+// OnCustom creates a custom JavaScript action for click events
+func (pb *panelBuilder) OnCustom(function string, variables ...map[string]string) PanelBuilder {
+	customVars := make(map[string]string)
+	if len(variables) > 0 {
+		customVars = variables[0]
+	}
+
+	action := lens.ActionConfig{
+		Type: lens.ActionTypeCustom,
+		Custom: &lens.CustomAction{
+			Function:  function,
+			Variables: customVars,
+		},
+	}
+
+	return pb.OnClick(action)
+}
+
 // Build creates the panel configuration
 func (pb *panelBuilder) Build() lens.PanelConfig {
 	return pb.config
@@ -242,6 +390,11 @@ func LineChart() PanelBuilder {
 // BarChart creates a bar chart panel builder
 func BarChart() PanelBuilder {
 	return NewPanel().Type(lens.ChartTypeBar)
+}
+
+// StackedBarChart creates a stacked bar chart panel builder
+func StackedBarChart() PanelBuilder {
+	return NewPanel().Type(lens.ChartTypeStackedBar)
 }
 
 // PieChart creates a pie chart panel builder

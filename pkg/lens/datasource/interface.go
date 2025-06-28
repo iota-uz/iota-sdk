@@ -156,7 +156,7 @@ type QueryBuilder interface {
 	WithVariable(key string, value interface{}) QueryBuilder
 	WithTimeRange(start, end time.Time) QueryBuilder
 	WithRefreshRate(rate time.Duration) QueryBuilder
-	WithMaxDataPoints(max int) QueryBuilder
+	WithMaxDataPoints(maxPoints int) QueryBuilder
 	WithFormat(format QueryFormat) QueryBuilder
 	Build() Query
 }

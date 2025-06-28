@@ -4,7 +4,7 @@ Lens is a flexible data visualization and dashboard framework for Go application
 
 ## Features
 
-- **Multi-Data Source Support**: PostgreSQL, MongoDB, and extensible data source architecture
+- **Multi-Data Source Support**: PostgreSQL (with extensible data source architecture for future additions)
 - **Query Execution Engine**: Concurrent query execution with timeout and error handling
 - **Dashboard Builder**: Fluent API for building dashboards and panels programmatically
 - **Caching System**: In-memory caching with TTL and LRU eviction for improved performance
@@ -160,8 +160,8 @@ func setupCaching(exec executor.Executor) executor.Executor {
     return cachingExec
 }
 
-func monitorCache() {
-    stats := cache.Stats()
+func monitorCache(memCache *cache.MemoryCache) {
+    stats := memCache.Stats()
     fmt.Printf("Cache Stats: %d hits, %d misses, %.2f%% hit rate\n", 
         stats.Hits, stats.Misses, stats.HitRate)
 }
@@ -243,7 +243,7 @@ templ DashboardPage(config lens.DashboardConfig, results *executor.DashboardResu
     <html>
     <head>
         <title>{ config.Name }</title>
-        <style>{ ui.GenerateCSS(config.Grid) }</style>
+        <style>/* CSS is generated automatically by the dashboard component */</style>
     </head>
     <body>
         @ui.DashboardWithData(config, results)
@@ -343,7 +343,7 @@ if err != nil {
 Currently supported data source types:
 
 - `datasource.TypePostgreSQL` - PostgreSQL databases
-- `datasource.TypeMongoDB` - MongoDB collections (planned)
+- `datasource.TypeMongoDB` - MongoDB collections (interface defined, implementation planned)
 
 ### Chart Types
 
@@ -388,6 +388,380 @@ go test ./pkg/lens/datasource/postgres -tags=integration
 - Limit result sets with `MaxRows`
 - Consider connection pooling for high-traffic scenarios
 - Monitor cache hit rates and adjust TTL accordingly
+
+## Drilldown and Interactive Features
+
+The lens package provides comprehensive interactive functionality through an event-driven system that enables drilldown, navigation, modals, and custom interactions when users click on chart elements.
+
+### Event System Overview
+
+The event system captures user interactions and executes configured actions based on the clicked context. It supports multiple event types and four distinct action types for maximum flexibility.
+
+#### Supported Event Types
+
+- `Click` - General chart area clicks
+- `DataPoint` - Specific data point clicks (most common for drilldown)
+- `Legend` - Legend item clicks
+- `Marker` - Chart marker interactions
+- `XAxisLabel` - X-axis label clicks
+
+#### Action Types
+
+1. **Navigation** - Redirect to URLs with variable substitution
+2. **DrillDown** - Filter/update current dashboard contextually
+3. **Modal** - Display detailed information in popups
+4. **Custom** - Execute custom JavaScript functions
+
+### Basic Drilldown Configuration
+
+```go
+import (
+    "github.com/iota-uz/iota-sdk/pkg/lens"
+    "github.com/iota-uz/iota-sdk/pkg/lens/builder"
+)
+
+// Simple drilldown using convenience method
+panel := builder.BarChart().
+    ID("sales-by-region").
+    Title("Sales by Region").
+    DataSource("main-db").
+    Query("SELECT region, sales_amount FROM sales_data").
+    Position(0, 0).
+    Size(6, 4).
+    OnDrillDown(map[string]string{
+        "region": "{label}",        // Use clicked label as filter
+        "period": "{seriesName}",   // Use series name
+    }).
+    Build()
+
+// Advanced drilldown with specific event types
+panel2 := builder.BarChart().
+    ID("advanced-sales").
+    Title("Advanced Sales Chart").
+    DataSource("main-db").
+    Query("SELECT region, sales_amount FROM sales_data").
+    Position(0, 4).
+    Size(6, 4).
+    OnDataPointClick(lens.ActionConfig{
+        Type: lens.ActionTypeDrillDown,
+        DrillDown: &lens.DrillDownAction{
+            Filters: map[string]string{
+                "region": "{label}",
+                "period": "{seriesName}",
+            },
+            Variables: map[string]string{
+                "selectedRegion": "{label}",
+                "selectedValue":  "{value}",
+            },
+        },
+    }).
+    Build()
+```
+
+### Navigation Drilldown
+
+Navigate to different pages/dashboards when chart elements are clicked:
+
+```go
+// Simple navigation using convenience method
+panel := builder.LineChart().
+    ID("overview-metrics").
+    Title("System Overview").
+    OnNavigate("/dashboard/details?metric={label}&value={value}", "_blank").
+    Build()
+
+// Advanced navigation with specific event types
+panel2 := builder.LineChart().
+    ID("detailed-metrics").
+    Title("Detailed System Overview").
+    OnDataPointClick(lens.ActionConfig{
+        Type: lens.ActionTypeNavigation,
+        Navigation: &lens.NavigationAction{
+            URL:    "/dashboard/details?metric={label}&value={value}&time={dataPoint.x}",
+            Target: "_blank", // Open in new tab
+            Variables: map[string]string{
+                "source": "dashboard",
+            },
+        },
+    }).
+    OnLegendClick(lens.ActionConfig{
+        Type: lens.ActionTypeNavigation,
+        Navigation: &lens.NavigationAction{
+            URL:    "/dashboard/series/{seriesName}",
+            Target: "_self",
+            Variables: map[string]string{},
+        },
+    }).
+    Build()
+```
+
+### Modal Drilldown
+
+Display detailed information in modal popups:
+
+```go
+// Simple modal using convenience method
+panel := builder.PieChart().
+    ID("category-breakdown").
+    Title("Expense Categories").
+    OnModal("Category Details: {label}", "", "/api/category-details?category={label}&value={value}").
+    Build()
+
+// Advanced modal with variables
+panel2 := builder.PieChart().
+    ID("advanced-categories").
+    Title("Advanced Expense Categories").
+    OnDataPointClick(lens.ActionConfig{
+        Type: lens.ActionTypeModal,
+        Modal: &lens.ModalAction{
+            Title: "Category Details: {label}",
+            URL:   "/api/category-details?category={label}&value={value}",
+            Variables: map[string]string{
+                "source": "pie-chart",
+                "timestamp": "{dataPoint.x}",
+            },
+        },
+    }).
+    Build()
+```
+
+### Custom JavaScript Actions
+
+Execute custom JavaScript functions with event context:
+
+```go
+// Simple custom action using convenience method
+panel := builder.AreaChart().
+    ID("realtime-data").
+    Title("Real-time Metrics").
+    OnCustom("handleCustomDrilldown", map[string]string{
+        "panelId":    "{panelId}",
+        "dataPoint":  "{value}",
+        "timestamp":  "{dataPoint.x}",
+        "customData": "additional-context",
+    }).
+    Build()
+
+// Advanced custom action with specific event types
+panel2 := builder.AreaChart().
+    ID("advanced-realtime").
+    Title("Advanced Real-time Metrics").
+    OnDataPointClick(lens.ActionConfig{
+        Type: lens.ActionTypeCustom,
+        Custom: &lens.CustomAction{
+            Function: "handleCustomDrilldown",
+            Variables: map[string]string{
+                "panelId":    "{panelId}",
+                "dataPoint":  "{value}",
+                "timestamp":  "{dataPoint.x}",
+                "customData": "additional-context",
+            },
+        },
+    }).
+    Build()
+```
+
+### Variable Substitution
+
+The event system supports rich variable substitution for dynamic actions:
+
+#### Basic Variables
+- `{panelId}` - Panel identifier
+- `{chartType}` - Chart type (line, bar, pie, etc.)
+- `{label}` - Data point label/category
+- `{value}` - Data point value
+- `{seriesName}` - Series name
+- `{categoryName}` - Category name
+- `{seriesIndex}` - Zero-based series index
+- `{dataIndex}` - Zero-based data point index
+
+#### Data Point Variables
+- `{dataPoint.x}` - X-coordinate value
+- `{dataPoint.y}` - Y-coordinate value
+- `{dataPoint.label}` - Data point label
+
+#### Dashboard Variables
+- `{var.variableName}` - Access dashboard variables
+- `{data.customField}` - Access custom data fields
+
+### Multi-Level Drilldown Example
+
+Create a complete drill-down experience across multiple dashboard levels:
+
+```go
+// Level 1: Sales Overview Dashboard
+overviewDashboard := builder.NewDashboard().
+    Title("Sales Overview").
+    Variable("year", "2024").
+    Panel(
+        builder.BarChart().
+            ID("sales-by-region").
+            Title("Sales by Region").
+            Query(`
+                SELECT region, SUM(amount) as total_sales 
+                FROM sales 
+                WHERE year = $year 
+                GROUP BY region
+            `).
+            OnDataPointClick(lens.ActionConfig{
+                Type: lens.ActionTypeNavigation,
+                Navigation: &lens.NavigationAction{
+                    URL: "/dashboard/region-details?region={label}&year={var.year}",
+                    Target: "_self",
+                },
+            }).
+            Build(),
+    ).
+    Build()
+
+// Level 2: Region Details Dashboard
+regionDashboard := builder.NewDashboard().
+    Title("Region Sales Details").
+    Variable("region", "").
+    Variable("year", "2024").
+    Panel(
+        builder.LineChart().
+            ID("monthly-sales").
+            Title("Monthly Sales Trend").
+            Query(`
+                SELECT month, SUM(amount) as monthly_sales 
+                FROM sales 
+                WHERE region = $region AND year = $year 
+                GROUP BY month 
+                ORDER BY month
+            `).
+            OnDataPointClick(lens.ActionConfig{
+                Type: lens.ActionTypeModal,
+                Modal: &lens.ModalAction{
+                    Title: "Monthly Details: {dataPoint.x}",
+                    URL: "/api/sales-details?region={var.region}&month={dataPoint.x}&year={var.year}",
+                },
+            }).
+            Build(),
+    ).
+    Panel(
+        builder.ColumnChart().
+            ID("product-sales").
+            Title("Product Performance").
+            Query(`
+                SELECT product, SUM(amount) as product_sales 
+                FROM sales 
+                WHERE region = $region AND year = $year 
+                GROUP BY product
+            `).
+            OnDataPointClick(lens.ActionConfig{
+                Type: lens.ActionTypeDrillDown,
+                DrillDown: &lens.DrillDownAction{
+                    Filters: map[string]string{
+                        "product": "{label}",
+                    },
+                    Variables: map[string]string{
+                        "selectedProduct": "{label}",
+                    },
+                },
+            }).
+            Build(),
+    ).
+    Build()
+```
+
+### Event Handler Implementation
+
+For custom actions, implement JavaScript event handlers:
+
+```javascript
+// In your web application
+function handleCustomDrilldown(context) {
+    console.log('Custom drilldown triggered:', context);
+    
+    // Access event context
+    const panelId = context.panelId;
+    const value = context.dataPoint;
+    const timestamp = context.timestamp;
+    
+    // Perform custom logic
+    if (value > 1000) {
+        // Show alert for high values
+        showHighValueAlert(value, timestamp);
+    } else {
+        // Navigate to details page
+        window.location.href = `/details/${panelId}/${timestamp}`;
+    }
+}
+
+function showHighValueAlert(value, timestamp) {
+    alert(`High value detected: ${value} at ${timestamp}`);
+}
+```
+
+### Server-Side Event Processing
+
+Handle drilldown events in your controllers:
+
+```go
+// In your controller handling drilldown requests
+func (c *DashboardController) HandleLensEvent(ctx context.Context, panelID string, eventCtx lens.EventContext) error {
+    switch eventCtx.Action.Type {
+    case lens.ActionTypeDrillDown:
+        // Apply filters and update dashboard
+        return c.applyDrilldownFilters(ctx, eventCtx.Action.DrillDown)
+        
+    case lens.ActionTypeModal:
+        // Return modal content
+        return c.renderModalContent(ctx, eventCtx.Action.Modal, eventCtx)
+        
+    case lens.ActionTypeNavigation:
+        // Handle navigation logic if needed
+        return c.handleNavigation(ctx, eventCtx.Action.Navigation)
+        
+    default:
+        return fmt.Errorf("unsupported action type: %s", eventCtx.Action.Type)
+    }
+}
+
+func (c *DashboardController) applyDrilldownFilters(ctx context.Context, action *lens.DrillDownAction) error {
+    // Update dashboard variables and filters
+    for key, value := range action.Filters {
+        c.dashboardState.SetFilter(key, value)
+    }
+    
+    for key, value := range action.Variables {
+        c.dashboardState.SetVariable(key, value)
+    }
+    
+    // Re-execute dashboard with new filters
+    return c.refreshDashboard(ctx)
+}
+```
+
+### Best Practices
+
+#### Performance Considerations
+- Use specific event types (DataPoint, Legend) rather than generic Click for better performance
+- Implement caching for frequently accessed drilldown data
+- Consider pagination for large result sets in modals
+
+#### User Experience
+- Provide visual feedback (loading indicators) during drilldown operations
+- Use consistent navigation patterns across dashboards
+- Include breadcrumb navigation for multi-level drilldowns
+- Offer "back" functionality to return to previous levels
+
+#### Security
+- Always validate and sanitize variables before using in queries
+- Implement proper authorization checks for drilldown targets
+- Use parameterized queries to prevent SQL injection
+
+#### Error Handling
+```go
+// Graceful error handling in event processing
+func (c *Controller) HandleEventError(err error, eventCtx lens.EventContext) {
+    log.Printf("Event processing error for panel %s: %v", eventCtx.PanelID, err)
+    
+    // Return user-friendly error response
+    c.renderErrorModal("Unable to load details. Please try again.")
+}
+```
 
 ## License
 

@@ -55,7 +55,9 @@ func NewShowcaseController(app application.Application) application.Controller {
 	err = exec.RegisterDataSource("core", pgDataSource)
 	if err != nil {
 		log.Printf("Failed to register data source: %v", err)
-		pgDataSource.Close()
+		if closeErr := pgDataSource.Close(); closeErr != nil {
+			log.Printf("Failed to close data source: %v", closeErr)
+		}
 		exec = nil
 	}
 
