@@ -65,6 +65,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *EvaluatedDashboard) {
+				t.Helper()
 				assert.Equal(t, "test-dashboard", result.Config.ID)
 				require.Len(t, result.Panels, 1)
 				panel := result.Panels[0]
@@ -111,6 +112,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *EvaluatedDashboard) {
+				t.Helper()
 				require.Len(t, result.Panels, 1)
 				panel := result.Panels[0]
 				assert.Contains(t, panel.ResolvedQuery, "level = error")
@@ -152,6 +154,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *EvaluatedDashboard) {
+				t.Helper()
 				require.Len(t, result.Panels, 1)
 				panel := result.Panels[0]
 				assert.NotEmpty(t, panel.Errors)
@@ -431,6 +434,7 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, layout *Layout) {
+				t.Helper()
 				assert.Equal(t, 12, layout.Grid.Columns)
 				assert.Equal(t, 60, layout.Grid.RowHeight)
 				assert.Equal(t, BreakpointLG, layout.Breakpoint)
@@ -473,6 +477,7 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, layout *Layout) {
+				t.Helper()
 				assert.Len(t, layout.Panels, 3)
 
 				headerLayout := layout.Panels[0]
@@ -497,6 +502,7 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, layout *Layout) {
+				t.Helper()
 				assert.Empty(t, layout.Panels)
 				assert.Equal(t, 12, layout.Grid.Columns)
 				assert.Equal(t, 60, layout.Grid.RowHeight)
@@ -547,6 +553,7 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 			},
 			context: &EvaluationContext{},
 			validate: func(t *testing.T, config *RenderConfig) {
+				t.Helper()
 				assert.Equal(t, lens.ChartTypeLine, config.ChartType)
 				assert.Equal(t, "/api/panels/line-chart/data", config.DataEndpoint)
 				assert.Equal(t, 30*time.Second, config.RefreshRate)
@@ -568,6 +575,7 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 			},
 			context: &EvaluationContext{},
 			validate: func(t *testing.T, config *RenderConfig) {
+				t.Helper()
 				assert.Equal(t, lens.ChartTypeBar, config.ChartType)
 				assert.Contains(t, config.ChartOptions, "plotOptions")
 				plotOptions := config.ChartOptions["plotOptions"].(map[string]any)
@@ -585,6 +593,7 @@ func TestRenderMapper_MapToRenderConfig(t *testing.T) {
 			},
 			context: &EvaluationContext{},
 			validate: func(t *testing.T, config *RenderConfig) {
+				t.Helper()
 				assert.Equal(t, lens.ChartTypePie, config.ChartType)
 				assert.Contains(t, config.ChartOptions, "legend")
 				legend := config.ChartOptions["legend"].(map[string]any)

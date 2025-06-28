@@ -195,6 +195,15 @@ func (re *responsiveEngine) updateContainerCSS(css *LayoutCSS, breakpoint Breakp
 	case BreakpointSM:
 		css.ContainerStyles["gap"] = "0.75rem"
 		css.ContainerStyles["padding"] = "0.75rem"
+	case BreakpointMD:
+		css.ContainerStyles["gap"] = "1rem"
+		css.ContainerStyles["padding"] = "1rem"
+	case BreakpointLG:
+		css.ContainerStyles["gap"] = "1.25rem"
+		css.ContainerStyles["padding"] = "1.25rem"
+	case BreakpointXL:
+		css.ContainerStyles["gap"] = "1.5rem"
+		css.ContainerStyles["padding"] = "1.5rem"
 	default:
 		css.ContainerStyles["gap"] = "1rem"
 		css.ContainerStyles["padding"] = "1rem"
@@ -236,6 +245,16 @@ func (re *responsiveEngine) CalculateResponsiveDimensions(panel lens.PanelConfig
 			Width:  min(panel.Dimensions.Width, 4),
 			Height: panel.Dimensions.Height,
 		}
+	case BreakpointLG:
+		return lens.GridDimensions{
+			Width:  min(panel.Dimensions.Width, 8),
+			Height: panel.Dimensions.Height,
+		}
+	case BreakpointXL:
+		return lens.GridDimensions{
+			Width:  min(panel.Dimensions.Width, config.Columns),
+			Height: panel.Dimensions.Height,
+		}
 	default:
 		// For large screens, use original dimensions but ensure they fit
 		return lens.GridDimensions{
@@ -272,11 +291,4 @@ func generateGridColumns(columns int) string {
 
 func generateAutoRows(rowHeight int) string {
 	return fmt.Sprintf("minmax(%dpx, auto)", rowHeight)
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

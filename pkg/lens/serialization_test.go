@@ -146,10 +146,10 @@ func TestFromJSON_WithValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config, err := FromJSON(tt.jsonStr)
 			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, config)
+				require.Error(t, err)
+				require.Nil(t, config)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, config)
 			}
 		})

@@ -67,6 +67,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *EvaluatedDashboard) {
+				t.Helper()
 				assert.Equal(t, "test-dashboard", result.Config.ID)
 				assert.Equal(t, "Test Dashboard", result.Config.Name)
 				assert.Equal(t, 12, result.Layout.Grid.Columns)
@@ -101,6 +102,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 			},
 			expectError: false,
 			validate: func(t *testing.T, result *EvaluatedDashboard) {
+				t.Helper()
 				assert.Equal(t, "empty-dashboard", result.Config.ID)
 				assert.Empty(t, result.Panels)
 				assert.Empty(t, result.Errors)
@@ -135,6 +137,7 @@ func TestEvaluator_Evaluate(t *testing.T) {
 			context:     EvaluationContext{},
 			expectError: false,
 			validate: func(t *testing.T, result *EvaluatedDashboard) {
+				t.Helper()
 				require.Len(t, result.Panels, 2)
 
 				panel1 := result.Panels[0]

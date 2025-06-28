@@ -50,7 +50,7 @@ func TestNewPostgreSQLDataSource(t *testing.T) {
 			ds, err := NewPostgreSQLDataSource(tt.config)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, ds)
 			} else {
 				// Note: This will fail in CI without a real PostgreSQL instance
@@ -59,13 +59,15 @@ func TestNewPostgreSQLDataSource(t *testing.T) {
 				if err != nil {
 					t.Skipf("Skipping test due to database connection: %v", err)
 				}
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, ds)
 				assert.Equal(t, datasource.TypePostgreSQL, ds.GetMetadata().Type)
 
 				// Clean up
 				if ds != nil {
-					ds.Close()
+					if err := ds.Close(); err != nil {
+						t.Logf("Failed to close data source: %v", err)
+					}
 				}
 			}
 		})
@@ -82,7 +84,11 @@ func TestPostgreSQLDataSource_GetMetadata(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
-	defer ds.Close()
+	defer func() {
+		if err := ds.Close(); err != nil {
+			t.Logf("Failed to close data source: %v", err)
+		}
+	}()
 
 	metadata := ds.GetMetadata()
 	assert.Equal(t, datasource.TypePostgreSQL, metadata.Type)
@@ -101,7 +107,11 @@ func TestPostgreSQLDataSource_ValidateQuery(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
-	defer ds.Close()
+	defer func() {
+		if err := ds.Close(); err != nil {
+			t.Logf("Failed to close data source: %v", err)
+		}
+	}()
 
 	tests := []struct {
 		name        string
@@ -182,7 +192,11 @@ func TestPostgreSQLDataSource_InterpolateVariables(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
-	defer ds.Close()
+	defer func() {
+		if err := ds.Close(); err != nil {
+			t.Logf("Failed to close data source: %v", err)
+		}
+	}()
 
 	tests := []struct {
 		name      string
@@ -271,7 +285,11 @@ func TestPostgreSQLDataSource_PgTypeToDataType(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping test due to database connection: %v", err)
 	}
-	defer ds.Close()
+	defer func() {
+		if err := ds.Close(); err != nil {
+			t.Logf("Failed to close data source: %v", err)
+		}
+	}()
 
 	tests := []struct {
 		name     string
@@ -339,19 +357,21 @@ func TestFactory_Create(t *testing.T) {
 			ds, err := factory.Create(tt.config)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, ds)
 			} else {
 				// Note: This will fail without a real database
 				if err != nil {
 					t.Skipf("Skipping test due to database connection: %v", err)
 				}
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, ds)
 
 				// Clean up
 				if ds != nil {
-					ds.Close()
+					if err := ds.Close(); err != nil {
+						t.Logf("Failed to close data source: %v", err)
+					}
 				}
 			}
 		})
@@ -445,7 +465,11 @@ func TestPostgreSQLDataSource_Integration(t *testing.T) {
 	if err != nil {
 		t.Skipf("Skipping integration test - cannot connect to database: %v", err)
 	}
-	defer ds.Close()
+	defer func() {
+		if err := ds.Close(); err != nil {
+			t.Logf("Failed to close data source: %v", err)
+		}
+	}()
 
 	// Test connection
 	ctx := context.Background()

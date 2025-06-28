@@ -44,7 +44,9 @@ func NewDashboardController(app application.Application) application.Controller 
 	err = exec.RegisterDataSource("postgres", pgDataSource)
 	if err != nil {
 		log.Printf("Failed to register data source: %v", err)
-		pgDataSource.Close()
+		if closeErr := pgDataSource.Close(); closeErr != nil {
+			log.Printf("Failed to close data source: %v", closeErr)
+		}
 		exec = nil
 	}
 
@@ -155,40 +157,52 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 				DataSource("postgres").
 				Query(`
 					SELECT 
-						TO_CHAR(t.transaction_date, 'YYYY-MM') as timestamp,
+						TO_CHAR(t.transaction_date, 'YYYY-MM') as label,
 						(SUM(t.amount) / 100.0)::float8 as value
 					FROM transactions t
 					JOIN expenses e ON t.id = e.transaction_id
 					WHERE t.transaction_date >= NOW() - INTERVAL '12 months'
 						AND t.transaction_type = 'expense'
 					GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM')
-					ORDER BY timestamp
+					ORDER BY label
 				`).
 				Option("colors", []string{"#ef4444"}).
+				OnDataPointClick(lens.ActionConfig{
+					Type: lens.ActionTypeNavigation,
+					Navigation: &lens.NavigationAction{
+						URL:    "/transactions?month={month}&type=expense",
+						Target: "_blank",
+						Variables: map[string]string{
+							"month": "{label}",
+						},
+					},
+				}).
 				Build(),
 		).
 		Panel(
-			builder.PieChart().
-				ID("expenses-by-category").
-				Title("Expenses by Category").
+			builder.StackedBarChart().
+				ID("monthly-expenses-by-category").
+				Title("Monthly Expenses by Category").
 				Position(6, 2).
 				Size(6, 4).
 				DataSource("postgres").
 				Query(`
-					SELECT timestamp, value FROM (
-						SELECT 
-							ec.name as timestamp,
-							(SUM(t.amount) / 100.0)::float8 as value
-						FROM transactions t
-						JOIN expenses e ON t.id = e.transaction_id
-						JOIN expense_categories ec ON e.category_id = ec.id
-						WHERE t.transaction_date >= NOW() - INTERVAL '30 days'
-							AND t.transaction_type = 'expense'
-						GROUP BY ec.name
-					) AS aggregated_data
-					ORDER BY value DESC
+					SELECT 
+						TO_CHAR(t.transaction_date, 'YYYY-MM') as category,
+						ec.name as series,
+						(SUM(t.amount) / 100.0)::float8 as value
+					FROM transactions t
+					JOIN expenses e ON t.id = e.transaction_id
+					JOIN expense_categories ec ON e.category_id = ec.id
+					WHERE t.transaction_date >= NOW() - INTERVAL '6 months'
+						AND t.transaction_type = 'expense'
+					GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM'), ec.name
+					ORDER BY category, series
 				`).
-				Option("colors", []string{"#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#84cc16", "#f97316", "#ec4899", "#6366f1"}).
+				OnDrillDown(map[string]string{
+					"month":    "{categoryName}",
+					"category": "{seriesName}",
+				}, "expense-details").
 				Build(),
 		).
 		Panel(
@@ -200,7 +214,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 				DataSource("postgres").
 				Query(`
 					SELECT 
-						ma.name as timestamp,
+						ma.name as label,
 						(ma.balance / 100.0)::float8 as value
 					FROM money_accounts ma
 					ORDER BY ma.balance DESC
@@ -237,7 +251,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 				DataSource("postgres").
 				Query(`
 					SELECT 
-						c.name as timestamp,
+						c.name as label,
 						COUNT(p.id)::float as value
 					FROM counterparty c
 					JOIN payments p ON c.id = p.counterparty_id
@@ -247,6 +261,7 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 					ORDER BY value DESC
 				`).
 				Option("colors", []string{"#06b6d4"}).
+				OnModal("Counterparty Details", "Counterparty: {label}<br>Transaction Count: {value}", "/api/counterparty/{label}/details").
 				Build(),
 		).
 		Panel(
@@ -298,6 +313,10 @@ func (c *DashboardController) createFinanceDashboard() lens.DashboardConfig {
 					LEFT JOIN counterparty c ON p.counterparty_id = c.id
 					ORDER BY t.transaction_date DESC, t.created_at DESC
 				`).
+				OnCustom("openTransactionDetails", map[string]string{
+					"transactionId": "{rowId}",
+					"amount":        "{amount}",
+				}).
 				Build(),
 		).
 		Build()

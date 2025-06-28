@@ -177,8 +177,18 @@ func (e *executor) ExecutePanel(ctx context.Context, panel lens.PanelConfig, var
 	switch panel.Type {
 	case lens.ChartTypeTable:
 		query.Format = datasource.FormatTable
-	case lens.ChartTypeLine, lens.ChartTypeArea, lens.ChartTypeBar, lens.ChartTypeColumn:
+	case lens.ChartTypePie:
+		query.Format = datasource.FormatTable // Pie charts need categorical data, not time-series
+	case lens.ChartTypeLine, lens.ChartTypeArea:
 		query.Format = datasource.FormatTimeSeries
+	case lens.ChartTypeBar, lens.ChartTypeColumn, lens.ChartTypeStackedBar:
+		// Bar charts can be either time-series or categorical
+		// For now, default to table format to handle categorical data properly
+		query.Format = datasource.FormatTable
+	case lens.ChartTypeGauge:
+		query.Format = datasource.FormatTable
+	case lens.ChartTypeMetric:
+		query.Format = datasource.FormatTable
 	}
 
 	// Extract timeout from panel options
@@ -290,12 +300,7 @@ func generateQueryHash(query ExecutionQuery) string {
 }
 
 // DefaultExecutor is a global executor instance
-var DefaultExecutor Executor
-
-// Initialize default executor
-func init() {
-	DefaultExecutor = NewExecutor(datasource.DefaultRegistry, 30*time.Second)
-}
+var DefaultExecutor Executor = NewExecutor(datasource.DefaultRegistry, 30*time.Second)
 
 // Global convenience functions
 

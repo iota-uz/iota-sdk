@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -277,7 +278,9 @@ func (ce *CachingExecutor) Execute(ctx context.Context, query executor.Execution
 		ttl = 1 * time.Minute
 	}
 
-	ce.cache.Set(ctx, cacheKey, result, ttl)
+	if err := ce.cache.Set(ctx, cacheKey, result, ttl); err != nil {
+		log.Printf("Failed to set cache: %v", err)
+	}
 
 	return result, nil
 }
@@ -319,12 +322,7 @@ func (ce *CachingExecutor) generateCacheKey(query executor.ExecutionQuery) strin
 }
 
 // Global cache instance
-var DefaultCache Cache
-
-// Initialize default cache
-func init() {
-	DefaultCache = NewMemoryCache(1000, 5*time.Minute)
-}
+var DefaultCache Cache = NewMemoryCache(1000, 5*time.Minute)
 
 // Convenience functions for global cache
 

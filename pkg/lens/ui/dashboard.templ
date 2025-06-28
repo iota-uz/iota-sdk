@@ -1,6 +1,7 @@
 package ui
 
 import (
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/evaluation"
@@ -62,32 +63,71 @@ templ Panel(panel *evaluation.EvaluatedPanel) {
 
 // PanelWithData renders a panel using executor results
 templ PanelWithData(config lens.PanelConfig, result *executor.ExecutionResult) {
-	<div
-		id={ "panel-" + config.ID }
-		class="dashboard-panel"
-		style={ generateConfigPanelGridCSS(config) }
-	>
-		<div class="panel-header">
-			<h3 class="panel-title">{ config.Title }</h3>
-			if result.CacheHit {
-				<span class="cache-indicator">cached</span>
-			}
-		</div>
-		<div class="panel-content">
+	if config.Type == lens.ChartTypeMetric {
+		// Render metric cards directly without panel wrapper
+		<div
+			id={ "panel-" + config.ID }
+			class="dashboard-panel dashboard-panel--metric"
+			style={ generateConfigPanelGridCSS(config) }
+		>
 			if result.Error != nil {
 				@ErrorContent(result.Error.Error())
 			} else {
-				switch config.Type {
-					case lens.ChartTypeTable:
-						@TableContent(result)
-					case lens.ChartTypeMetric:
-						@MetricContent(config, result)
-					default:
-						@ChartContent(config, result)
-				}
+				@MetricContent(config, result)
 			}
 		</div>
-	</div>
+	} else {
+		// Render other panel types with wrapper and expand functionality
+		<div
+			id={ "panel-" + config.ID }
+			class="dashboard-panel"
+			style={ generateConfigPanelGridCSS(config) }
+			x-data="{ expanded: false }"
+			:class="{ 'panel-expanded': expanded }"
+		>
+			<div class="panel-header">
+				<h3 class="panel-title">{ config.Title }</h3>
+				<div class="panel-actions">
+					if result.CacheHit {
+						<span class="cache-indicator">cached</span>
+					}
+					<button
+						@click="expanded = !expanded"
+						class="btn btn-secondary btn-sm hover:bg-gray-100 transition-colors cursor-pointer flex"
+						type="button"
+						aria-label="Toggle full screen"
+					>
+						@icons.ArrowsIn(icons.Props{
+							Size:  "20",
+							Class: "text-gray-600",
+							Attributes: templ.Attributes{
+								"x-show": "expanded",
+							},
+						})
+						@icons.ArrowsOut(icons.Props{
+							Size:  "20",
+							Class: "text-gray-600",
+							Attributes: templ.Attributes{
+								"x-show": "!expanded",
+							},
+						})
+					</button>
+				</div>
+			</div>
+			<div class="panel-content">
+				if result.Error != nil {
+					@ErrorContent(result.Error.Error())
+				} else {
+					switch config.Type {
+						case lens.ChartTypeTable:
+							@TableContent(result)
+						default:
+							@ChartContent(config, result)
+					}
+				}
+			</div>
+		</div>
+	}
 }
 
 // TablePanel renders a table panel from evaluated panel
@@ -126,7 +166,7 @@ templ TableContent(result *executor.ExecutionResult) {
 // ChartPanel renders a chart panel from evaluated panel
 templ ChartPanel(panel *evaluation.EvaluatedPanel) {
 	@charts.Chart(charts.Props{
-		Class:   "h-64",
+		Class:   "h-32 sm:h-40 md:h-48 lg:h-64",
 		Options: buildChartOptionsFromPanel(panel),
 	})
 }
@@ -134,7 +174,7 @@ templ ChartPanel(panel *evaluation.EvaluatedPanel) {
 // ChartContent renders chart from executor results
 templ ChartContent(config lens.PanelConfig, result *executor.ExecutionResult) {
 	@charts.Chart(charts.Props{
-		Class:   "h-64",
+		Class:   "h-32 sm:h-40 md:h-48 lg:h-64",
 		Options: buildChartOptionsFromResult(config, result),
 	})
 }
@@ -174,15 +214,13 @@ templ MetricPanel(panel *evaluation.EvaluatedPanel) {
 
 // MetricContent renders metric card from executor results
 templ MetricContent(config lens.PanelConfig, result *executor.ExecutionResult) {
-	<div class="metric-container">
-		if len(result.Data) > 0 && len(result.Columns) >= 2 {
-			@MetricCard(buildMetricFromResult(config, result))
-		} else {
-			<div class="metric-error">
-				<span>Invalid metric data: requires at least 2 columns (label, value)</span>
-			</div>
-		}
-	</div>
+	if len(result.Data) > 0 && len(result.Columns) >= 2 {
+		@MetricCard(buildMetricFromResult(config, result))
+	} else {
+		<div class="metric-error">
+			<span>Invalid metric data: requires at least 2 columns (label, value)</span>
+		</div>
+	}
 }
 
 // MetricCard renders a single metric value card

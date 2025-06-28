@@ -322,6 +322,20 @@ func (rm *renderMapper) MapToRenderConfig(panel *lens.PanelConfig, ctx *Evaluati
 		}
 	case lens.ChartTypePie:
 		config.ChartOptions["legend"] = map[string]any{"position": "bottom"}
+	case lens.ChartTypeStackedBar:
+		config.ChartOptions["chart"] = map[string]any{"stacked": true}
+	case lens.ChartTypeArea:
+		config.ChartOptions["fill"] = map[string]any{"type": "gradient"}
+	case lens.ChartTypeColumn:
+		config.ChartOptions["plotOptions"] = map[string]any{
+			"bar": map[string]any{"horizontal": false, "columnWidth": "55%"},
+		}
+	case lens.ChartTypeGauge:
+		config.ChartOptions["chart"] = map[string]any{"type": "radialBar"}
+	case lens.ChartTypeTable:
+		// Table doesn't need chart options
+	case lens.ChartTypeMetric:
+		// Metric doesn't need chart options
 	}
 
 	return config, nil

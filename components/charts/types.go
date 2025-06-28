@@ -48,12 +48,34 @@ type ChartOptions struct {
 }
 
 type ChartConfig struct {
-	Type    ChartType `json:"type"`
-	Height  string    `json:"height,omitempty"`
-	OffsetX int       `json:"offsetX,omitempty"`
-	OffsetY int       `json:"offsetY,omitempty"`
-	Toolbar Toolbar   `json:"toolbar,omitempty"`
-	Stacked bool      `json:"stacked,omitempty"`
+	Type    ChartType    `json:"type"`
+	Height  string       `json:"height,omitempty"`
+	OffsetX int          `json:"offsetX,omitempty"`
+	OffsetY int          `json:"offsetY,omitempty"`
+	Toolbar Toolbar      `json:"toolbar,omitempty"`
+	Stacked bool         `json:"stacked,omitempty"`
+	Events  *ChartEvents `json:"events,omitempty"`
+}
+
+type ChartEvents struct {
+	AnimationEnd        templ.JSExpression `json:"animationEnd,omitempty"`
+	BeforeMount         templ.JSExpression `json:"beforeMount,omitempty"`
+	Mounted             templ.JSExpression `json:"mounted,omitempty"`
+	Updated             templ.JSExpression `json:"updated,omitempty"`
+	MouseMove           templ.JSExpression `json:"mouseMove,omitempty"`
+	MouseLeave          templ.JSExpression `json:"mouseLeave,omitempty"`
+	Click               templ.JSExpression `json:"click,omitempty"`
+	LegendClick         templ.JSExpression `json:"legendClick,omitempty"`
+	MarkerClick         templ.JSExpression `json:"markerClick,omitempty"`
+	XAxisLabelClick     templ.JSExpression `json:"xAxisLabelClick,omitempty"`
+	Selection           templ.JSExpression `json:"selection,omitempty"`
+	DataPointSelection  templ.JSExpression `json:"dataPointSelection,omitempty"`
+	DataPointMouseEnter templ.JSExpression `json:"dataPointMouseEnter,omitempty"`
+	DataPointMouseLeave templ.JSExpression `json:"dataPointMouseLeave,omitempty"`
+	BeforeZoom          templ.JSExpression `json:"beforeZoom,omitempty"`
+	BeforeResetZoom     templ.JSExpression `json:"beforeResetZoom,omitempty"`
+	Zoomed              templ.JSExpression `json:"zoomed,omitempty"`
+	Scrolled            templ.JSExpression `json:"scrolled,omitempty"`
 }
 
 type Toolbar struct {

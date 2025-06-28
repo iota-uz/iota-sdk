@@ -32,6 +32,7 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 				RowHeight: 60,
 			},
 			validate: func(t *testing.T, layout Layout, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				assert.Equal(t, 12, layout.Grid.Columns)
 				assert.Equal(t, 60, layout.Grid.RowHeight)
@@ -72,6 +73,7 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 				RowHeight: 60,
 			},
 			validate: func(t *testing.T, layout Layout, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				require.Len(t, layout.Panels, 3)
 
@@ -103,6 +105,7 @@ func TestLayoutEngine_CalculateLayout(t *testing.T) {
 				RowHeight: 60,
 			},
 			validate: func(t *testing.T, layout Layout, err error) {
+				t.Helper()
 				require.NoError(t, err)
 				assert.Empty(t, layout.Panels)
 				assert.Equal(t, "lg", layout.Breakpoint)
@@ -143,6 +146,7 @@ func TestLayoutEngine_DetectOverlaps(t *testing.T) {
 			},
 			expectErrors: 0,
 			validate: func(t *testing.T, errors []GridError) {
+				t.Helper()
 				assert.Empty(t, errors)
 			},
 		},
@@ -162,6 +166,7 @@ func TestLayoutEngine_DetectOverlaps(t *testing.T) {
 			},
 			expectErrors: 2, // Both exact position match AND area overlap are detected
 			validate: func(t *testing.T, errors []GridError) {
+				t.Helper()
 				require.Len(t, errors, 2)
 				// Should detect both exact position overlap and area overlap
 				assert.Contains(t, errors[0].Message, "panels overlap")
@@ -190,6 +195,7 @@ func TestLayoutEngine_DetectOverlaps(t *testing.T) {
 			},
 			expectErrors: 3, // panel1-panel2, panel1-panel3, panel2-panel3
 			validate: func(t *testing.T, errors []GridError) {
+				t.Helper()
 				assert.Len(t, errors, 3)
 				for _, err := range errors {
 					assert.Contains(t, err.Message, "panels overlap")
@@ -239,6 +245,7 @@ func TestLayoutEngine_GetResponsiveLayout(t *testing.T) {
 			layout:     originalLayout,
 			breakpoint: "xs",
 			validate: func(t *testing.T, result Layout) {
+				t.Helper()
 				assert.Equal(t, "xs", result.Breakpoint)
 				assert.Equal(t, originalLayout.Grid, result.Grid)
 				assert.Len(t, result.Panels, len(originalLayout.Panels))
@@ -249,6 +256,7 @@ func TestLayoutEngine_GetResponsiveLayout(t *testing.T) {
 			layout:     originalLayout,
 			breakpoint: "md",
 			validate: func(t *testing.T, result Layout) {
+				t.Helper()
 				assert.Equal(t, "md", result.Breakpoint)
 				assert.Equal(t, originalLayout.Grid, result.Grid)
 			},
@@ -258,6 +266,7 @@ func TestLayoutEngine_GetResponsiveLayout(t *testing.T) {
 			layout:     originalLayout,
 			breakpoint: "lg",
 			validate: func(t *testing.T, result Layout) {
+				t.Helper()
 				assert.Equal(t, "lg", result.Breakpoint)
 			},
 		},

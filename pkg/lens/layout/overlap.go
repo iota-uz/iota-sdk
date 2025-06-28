@@ -192,7 +192,7 @@ func (od *overlapDetector) DetectAllConflicts(panels []lens.PanelConfig) []Confl
 	}
 
 	// Convert affected panels map to slice
-	var affected []string
+	affected := make([]string, 0, len(affectedPanels))
 	for panelID := range affectedPanels {
 		affected = append(affected, panelID)
 	}
