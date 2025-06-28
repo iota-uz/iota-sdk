@@ -62,13 +62,6 @@ jobs:
       - name: Download Go dependencies
         run: go mod download
 
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
-            echo "Waiting for postgres..."
-            sleep 1
-          done
-
       - name: Test generated files are up to date
         run: |
           go generate ./...
