@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -99,8 +100,10 @@ func LogPoolStats(pool *pgxpool.Pool, label string) {
 		return
 	}
 	stat := pool.Stat()
-	fmt.Printf("[%s] Pool Stats - Total: %d, Acquired: %d, Idle: %d, Max: %d\n",
-		label, stat.TotalConns(), stat.AcquiredConns(), stat.IdleConns(), stat.MaxConns())
+	log.Printf(
+		"[%s] Pool Stats - Total: %d, Acquired: %d, Idle: %d, Max: %d\n",
+		label, stat.TotalConns(), stat.AcquiredConns(), stat.IdleConns(), stat.MaxConns(),
+	)
 }
 
 func DefaultParams() *composables.Params {
