@@ -74,11 +74,33 @@ func MockSession() *session.Session {
 func NewPool(dbOpts string) *pgxpool.Pool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, dbOpts)
+
+	config, err := pgxpool.ParseConfig(dbOpts)
+	if err != nil {
+		panic(err)
+	}
+
+	// Limit connections for tests to prevent overwhelming PostgreSQL
+	config.MaxConns = 2
+	config.MinConns = 1
+	config.MaxConnLifetime = time.Minute * 5
+	config.MaxConnIdleTime = time.Minute * 1
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		panic(err)
 	}
 	return pool
+}
+
+// LogPoolStats logs current pool connection statistics for debugging
+func LogPoolStats(pool *pgxpool.Pool, label string) {
+	if pool == nil {
+		return
+	}
+	stat := pool.Stat()
+	fmt.Printf("[%s] Pool Stats - Total: %d, Acquired: %d, Idle: %d, Max: %d\n",
+		label, stat.TotalConns(), stat.AcquiredConns(), stat.IdleConns(), stat.MaxConns())
 }
 
 func DefaultParams() *composables.Params {
