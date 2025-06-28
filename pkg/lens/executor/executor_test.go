@@ -167,9 +167,9 @@ func TestExecutor_Execute(t *testing.T) {
 
 			// Assert results
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.query.DataSourceID, result.Metadata.DataSourceID)
 			}
@@ -232,7 +232,7 @@ func TestExecutor_ExecutePanel(t *testing.T) {
 	result, err := executor.ExecutePanel(context.Background(), panel, variables)
 
 	// Assert results
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, "postgres", result.Metadata.DataSourceID)
 	assert.Len(t, result.Data, 1)
@@ -301,7 +301,7 @@ func TestExecutor_ExecuteDashboard(t *testing.T) {
 	result, err := executor.ExecuteDashboard(context.Background(), dashboard)
 
 	// Assert results
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result.PanelResults, 2)
 	assert.Contains(t, result.PanelResults, "cpu-panel")
@@ -320,7 +320,7 @@ func TestExecutor_RegisterDataSource(t *testing.T) {
 
 	// Register data source
 	err := executor.RegisterDataSource("test-ds", mockDS)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Try to register again - should succeed (overwrite)
 	err = executor.RegisterDataSource("test-ds", mockDS)
@@ -346,7 +346,7 @@ func TestExecutor_Close(t *testing.T) {
 
 	// Close executor
 	err = executor.Close()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify expectations
 	mockDS1.AssertExpectations(t)
@@ -435,7 +435,7 @@ func TestExecutor_ConcurrentExecution(t *testing.T) {
 
 	// Verify all queries succeeded
 	for i := 0; i < numQueries; i++ {
-		assert.NoError(t, errors[i], "Query %d failed", i)
+		require.NoError(t, errors[i], "Query %d failed", i)
 		assert.NotNil(t, results[i], "Result %d is nil", i)
 		assert.Equal(t, "test-ds", results[i].Metadata.DataSourceID)
 	}
@@ -485,10 +485,10 @@ func TestExecutor_TimeoutHandling(t *testing.T) {
 	duration := time.Since(start)
 
 	// Should timeout quickly
-	assert.True(t, duration < 500*time.Millisecond, "Query should have timed out quickly")
-	assert.Error(t, err)
+	assert.Less(t, duration, 500*time.Millisecond, "Query should have timed out quickly")
+	require.Error(t, err)
 	assert.NotNil(t, result)
-	assert.NotNil(t, result.Error)
+	assert.Error(t, result.Error)
 }
 
 func TestExecutor_DataSourceCaching(t *testing.T) {
@@ -514,12 +514,12 @@ func TestExecutor_DataSourceCaching(t *testing.T) {
 
 	// First execution - should fetch from registry
 	result1, err1 := executor.Execute(context.Background(), query)
-	assert.NoError(t, err1)
+	require.NoError(t, err1)
 	assert.NotNil(t, result1)
 
 	// Second execution - should use cached data source
 	result2, err2 := executor.Execute(context.Background(), query)
-	assert.NoError(t, err2)
+	require.NoError(t, err2)
 	assert.NotNil(t, result2)
 
 	// Verify registry was called only once
@@ -547,7 +547,7 @@ func TestExecutor_ErrorPropagation(t *testing.T) {
 	result, err := executor.Execute(context.Background(), query)
 
 	// Should return error but not fail completely
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, testError, result.Error)
 	assert.Equal(t, "error-ds", result.Metadata.DataSourceID)
@@ -572,8 +572,10 @@ func TestExecutor_ExecuteDashboard_PartialFailure(t *testing.T) {
 		(*datasource.QueryResult)(nil), testError)
 
 	executor := NewExecutor(mockRegistry, 30*time.Second)
-	executor.RegisterDataSource("success-ds", mockDS1)
-	executor.RegisterDataSource("error-ds", mockDS2)
+	err := executor.RegisterDataSource("success-ds", mockDS1)
+	require.NoError(t, err)
+	err = executor.RegisterDataSource("error-ds", mockDS2)
+	require.NoError(t, err)
 
 	dashboard := lens.DashboardConfig{
 		ID:   "mixed-results-dashboard",
@@ -605,7 +607,7 @@ func TestExecutor_ExecuteDashboard_PartialFailure(t *testing.T) {
 	result, err := executor.ExecuteDashboard(context.Background(), dashboard)
 
 	// Should not return error at dashboard level
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Len(t, result.PanelResults, 2)
 
@@ -616,12 +618,12 @@ func TestExecutor_ExecuteDashboard_PartialFailure(t *testing.T) {
 	// Verify individual panel results
 	successResult := result.PanelResults["success-panel"]
 	assert.NotNil(t, successResult)
-	assert.NoError(t, successResult.Error)
+	require.NoError(t, successResult.Error)
 	assert.Len(t, successResult.Data, 1)
 
 	errorResult := result.PanelResults["error-panel"]
 	assert.NotNil(t, errorResult)
-	assert.Error(t, errorResult.Error)
+	require.Error(t, errorResult.Error)
 	assert.Equal(t, testError, errorResult.Error)
 }
 
@@ -637,7 +639,8 @@ func TestExecutor_PanelOptionsParsing(t *testing.T) {
 	}, nil)
 
 	executor := NewExecutor(mockRegistry, 30*time.Second)
-	executor.RegisterDataSource("options-ds", mockDS)
+	err := executor.RegisterDataSource("options-ds", mockDS)
+	require.NoError(t, err)
 
 	panel := lens.PanelConfig{
 		ID:    "options-panel",
@@ -656,7 +659,7 @@ func TestExecutor_PanelOptionsParsing(t *testing.T) {
 
 	result, err := executor.ExecutePanel(context.Background(), panel, nil)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	mockDS.AssertExpectations(t)
 }
@@ -675,7 +678,8 @@ func BenchmarkExecutor_Execute(b *testing.B) {
 		}, nil)
 
 	executor := NewExecutor(mockRegistry, 30*time.Second)
-	executor.RegisterDataSource("test-ds", mockDS)
+	err := executor.RegisterDataSource("test-ds", mockDS)
+	require.NoError(b, err)
 
 	query := ExecutionQuery{
 		DataSourceID: "test-ds",
@@ -704,7 +708,8 @@ func BenchmarkExecutor_ExecuteDashboard(b *testing.B) {
 		}, nil)
 
 	executor := NewExecutor(mockRegistry, 30*time.Second)
-	executor.RegisterDataSource("bench-ds", mockDS)
+	err := executor.RegisterDataSource("bench-ds", mockDS)
+	require.NoError(b, err)
 
 	// Create dashboard with multiple panels
 	panels := make([]lens.PanelConfig, 10)

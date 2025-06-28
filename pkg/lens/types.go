@@ -6,14 +6,15 @@ import "time"
 type ChartType string
 
 const (
-	ChartTypeLine   ChartType = "line"
-	ChartTypeBar    ChartType = "bar"
-	ChartTypePie    ChartType = "pie"
-	ChartTypeArea   ChartType = "area"
-	ChartTypeColumn ChartType = "column"
-	ChartTypeGauge  ChartType = "gauge"
-	ChartTypeTable  ChartType = "table"
-	ChartTypeMetric ChartType = "metric"
+	ChartTypeLine       ChartType = "line"
+	ChartTypeBar        ChartType = "bar"
+	ChartTypeStackedBar ChartType = "stacked_bar"
+	ChartTypePie        ChartType = "pie"
+	ChartTypeArea       ChartType = "area"
+	ChartTypeColumn     ChartType = "column"
+	ChartTypeGauge      ChartType = "gauge"
+	ChartTypeTable      ChartType = "table"
+	ChartTypeMetric     ChartType = "metric"
 )
 
 // TimeRange represents a time period for data queries

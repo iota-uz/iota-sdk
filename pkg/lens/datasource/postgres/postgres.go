@@ -112,6 +112,12 @@ func (ds *PostgreSQLDataSource) Query(ctx context.Context, query datasource.Quer
 		return ds.executeTableQuery(queryCtx, interpolatedQuery, query)
 	case datasource.FormatTimeSeries:
 		return ds.executeTimeSeriesQuery(queryCtx, interpolatedQuery, query)
+	case datasource.FormatLogs:
+		return ds.executeTableQuery(queryCtx, interpolatedQuery, query)
+	case datasource.FormatMetrics:
+		return ds.executeTableQuery(queryCtx, interpolatedQuery, query)
+	case datasource.FormatTrace:
+		return ds.executeTableQuery(queryCtx, interpolatedQuery, query)
 	default:
 		return ds.executeTableQuery(queryCtx, interpolatedQuery, query)
 	}
@@ -137,7 +143,7 @@ func (ds *PostgreSQLDataSource) executeTableQuery(ctx context.Context, query str
 	columns := make([]datasource.ColumnInfo, len(fieldDescriptions))
 	for i, desc := range fieldDescriptions {
 		columns[i] = datasource.ColumnInfo{
-			Name: string(desc.Name),
+			Name: desc.Name,
 			Type: ds.pgTypeToDataType(desc.DataTypeOID),
 		}
 	}
@@ -214,7 +220,7 @@ func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, quer
 	columns := make([]datasource.ColumnInfo, len(fieldDescriptions))
 	for i, desc := range fieldDescriptions {
 		columns[i] = datasource.ColumnInfo{
-			Name: string(desc.Name),
+			Name: desc.Name,
 			Type: ds.pgTypeToDataType(desc.DataTypeOID),
 		}
 	}
