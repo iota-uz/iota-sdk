@@ -1552,7 +1552,7 @@ func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectF
 		// Get options
 		options := selectField.Options()
 		if options == nil && selectField.OptionsLoader() != nil {
-			options = selectField.OptionsLoader()()
+			options = selectField.OptionsLoader()(ctx)
 		}
 
 		// Convert to form options
