@@ -81,9 +81,9 @@ func NewPool(dbOpts string) *pgxpool.Pool {
 		panic(err)
 	}
 
-	// Limit connections for tests to prevent overwhelming PostgreSQL
-	config.MaxConns = 2
-	config.MinConns = 1
+	// Increase connection limits for concurrent tests
+	config.MaxConns = 10
+	config.MinConns = 2
 	config.MaxConnLifetime = time.Minute * 5
 	config.MaxConnIdleTime = time.Minute * 1
 
