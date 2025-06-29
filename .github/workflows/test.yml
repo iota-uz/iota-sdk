@@ -103,6 +103,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
+          --pull=always
           --hostname=erp_db
           --health-cmd="pg_isready -U postgres -d iota_erp"
           --health-interval=5s

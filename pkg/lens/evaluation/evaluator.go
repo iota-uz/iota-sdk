@@ -158,7 +158,6 @@ func (qp *queryProcessor) InterpolateQuery(query string, ctx *EvaluationContext)
 // ValidateQuery validates a query without executing it
 func (qp *queryProcessor) ValidateQuery(query string, dataSourceType string) error {
 	// Basic validation - check for potentially dangerous SQL
-	originalQuery := query
 	query = strings.ToLower(strings.TrimSpace(query))
 
 	// Check for basic SQL injection patterns - order matters for accurate detection
