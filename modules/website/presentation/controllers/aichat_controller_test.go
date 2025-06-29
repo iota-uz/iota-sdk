@@ -117,7 +117,7 @@ func TestAIChatController_SaveConfig_ValidationError(t *testing.T) {
 	// Check that no config was saved
 	configs, err := configService.List(env.Ctx)
 	require.NoError(t, err)
-	require.Len(t, configs, 0, "No config should be saved with validation error")
+	require.Empty(t, configs, "No config should be saved with validation error")
 }
 
 func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
