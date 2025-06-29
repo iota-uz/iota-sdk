@@ -1,32 +1,19 @@
 package controllers_test
 
 import (
-	"context"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
-	"strings"
 	"testing"
 
-	"github.com/gorilla/mux"
-	i18n "github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/iota-uz/iota-sdk/pkg/types"
-	"github.com/jackc/pgx/v5"
-	"github.com/sirupsen/logrus"
+	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/text/language"
 )
 
 var (
@@ -40,135 +27,30 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// testFixtures contains common test dependencies
-type testFixtures struct {
-	ctx     context.Context
-	tx      pgx.Tx
-	app     application.Application
-	router  *mux.Router
-	tenant  *composables.Tenant
-	service *services.AIChatConfigService
-}
-
-// setupTest initializes test dependencies
-func setupTest(t *testing.T) *testFixtures {
+// setupTest creates test suite
+func setupTest(t *testing.T) *controllertest.Suite {
 	t.Helper()
 
-	// Create test database
-	testutils.CreateDB(t.Name())
-	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+	adminUser := testutils.MockUser()
 
-	// Setup real application with required modules
-	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
-	require.NoError(t, err, "Failed to setup application")
-
-	ctx := context.Background()
-	// Create tenant first before starting transaction
-	tenant, err := testutils.CreateTestTenant(ctx, pool)
-	require.NoError(t, err, "Failed to create test tenant")
-
-	// Begin transaction after tenant creation
-	tx, err := pool.Begin(ctx)
-	require.NoError(t, err, "Failed to begin transaction")
-
-	// Add cleanup to rollback transaction
-	t.Cleanup(func() {
-		err := tx.Rollback(ctx)
-		if err != nil && err != pgx.ErrTxClosed {
-			t.Logf("Warning: failed to rollback transaction: %v", err)
-		}
-	})
-
-	// Create context with transaction and tenant
-	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithTenantID(ctx, tenant.ID)
-	ctx = composables.WithParams(ctx, testutils.DefaultParams())
-
-	// Create admin user
-	adminEmail, _ := internet.NewEmail("admin@example.com")
-	adminUser := user.New(
-		"Admin",
-		"User",
-		adminEmail,
-		user.UILanguageEN,
-		user.WithID(1),
-		user.WithTenantID(tenant.ID),
-	)
-
-	// Get service from application
-	configService := app.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
-
-	// Create controller with real application
-	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
-		BasePath: BasePath,
-		App:      app,
-	})
-
-	// Create router
-	router := mux.NewRouter()
-
-	// Apply test middleware to simulate auth and context
-	router.Use(func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Add test context values that middleware would normally add
-			reqCtx := r.Context()
-			reqCtx = composables.WithUser(reqCtx, adminUser)
-			reqCtx = context.WithValue(reqCtx, constants.UserKey, adminUser)
-			reqCtx = context.WithValue(reqCtx, constants.TxKey, tx)
-			reqCtx = composables.WithTx(reqCtx, tx)
-			reqCtx = context.WithValue(reqCtx, constants.AppKey, app)
-
-			// Important: Add tenant to context
-			reqCtx = composables.WithTenantID(reqCtx, tenant.ID)
-
-			// Add logger to context
-			logger := logrus.New()
-			fieldsLogger := logger.WithFields(logrus.Fields{
-				"test": true,
-				"path": r.URL.Path,
-			})
-			reqCtx = context.WithValue(reqCtx, constants.LoggerKey, fieldsLogger)
-
-			// Add params to context (required for auth middleware)
-			params := &composables.Params{
-				IP:            "127.0.0.1",
-				UserAgent:     "test-agent",
-				Authenticated: true, // Important for RedirectNotAuthenticated middleware
-				Request:       r,
-				Writer:        w,
-			}
-			reqCtx = composables.WithParams(reqCtx, params)
-
-			// Mock localizer context
-			localizer := i18n.NewLocalizer(app.Bundle(), "en")
-
-			// Add PageContext
-			parsedURL, _ := url.Parse("/website/ai-chat")
-			reqCtx = composables.WithPageCtx(reqCtx, &types.PageContext{
-				Locale:    language.English,
-				URL:       parsedURL,
-				Localizer: localizer,
-			})
-
-			next.ServeHTTP(w, r.WithContext(reqCtx))
-		})
-	})
-
-	controller.Register(router)
-
-	return &testFixtures{
-		ctx:     ctx,
-		tx:      tx,
-		app:     app,
-		tenant:  tenant,
-		router:  router,
-		service: configService,
-	}
+	return controllertest.New(t, modules.BuiltInModules...).
+		AsUser(adminUser)
 }
 
 func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	// Setup test environment
-	fixtures := setupTest(t)
+	suite := setupTest(t)
+	env := suite.Environment()
+
+	// Register controller
+	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
+		BasePath: BasePath,
+		App:      env.App,
+	})
+	suite.Register(controller)
+
+	// Get service
+	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
 
 	// Prepare form data
 	formData := url.Values{}
@@ -180,25 +62,13 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 	formData.Set("BaseURL", "https://api.openai.com/v1")
 	formData.Set("AccessToken", "test-api-key")
 
-	req := httptest.NewRequest(http.MethodPost, "/website/ai-chat/config", strings.NewReader(formData.Encode()))
-	req = req.WithContext(fixtures.ctx)
-	req.Header.Set("Hx-Request", "true")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	// Create response recorder
-	rr := httptest.NewRecorder()
-
 	// Execute request
-	fixtures.router.ServeHTTP(rr, req)
+	resp := suite.POST("/website/ai-chat/config").Form(formData).HTMX().Expect(t)
 
-	if rr.Code != http.StatusOK {
-		t.Logf("Response body: %s", rr.Body.String())
-		t.Logf("Response headers: %v", rr.Header())
-	}
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, BasePath, rr.Header().Get("Hx-Redirect"))
+	resp.Status(http.StatusOK)
+	assert.Equal(t, BasePath, resp.Header("Hx-Redirect"))
 
-	configs, err := fixtures.service.List(fixtures.ctx)
+	configs, err := configService.List(env.Ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1, "One config should be saved")
 
@@ -215,36 +85,55 @@ func TestAIChatController_SaveConfig_Success(t *testing.T) {
 
 func TestAIChatController_SaveConfig_ValidationError(t *testing.T) {
 	// Setup test environment
-	fixtures := setupTest(t)
+	suite := setupTest(t)
+	env := suite.Environment()
 
-	// Prepare invalid form data
+	// Register controller
+	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
+		BasePath: BasePath,
+		App:      env.App,
+	})
+	suite.Register(controller)
+
+	// Get service
+	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
+
+	// Prepare form data with invalid MaxTokens
 	formData := url.Values{}
-	formData.Set("ModelName", "") // Required field is empty
+	formData.Set("ModelName", "gpt-4")
 	formData.Set("ModelType", string(aichatconfig.AIModelTypeOpenAI))
 	formData.Set("SystemPrompt", "You are a helpful assistant.")
-	formData.Set("Temperature", "3.0") // Invalid temperature (should be 0.0-2.0)
-	formData.Set("MaxTokens", "abc")   // Invalid number
-	formData.Set("BaseURL", "")        // Required field is empty
-
-	// Create request with form data
-	req := httptest.NewRequest(http.MethodPost, "/website/ai-chat/config", strings.NewReader(formData.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	// Create response recorder
-	rr := httptest.NewRecorder()
+	formData.Set("Temperature", "0.7")
+	formData.Set("MaxTokens", "abc") // Invalid integer
+	formData.Set("BaseURL", "https://api.openai.com/v1")
+	formData.Set("AccessToken", "test-api-key")
 
 	// Execute request
-	fixtures.router.ServeHTTP(rr, req)
+	resp := suite.POST("/website/ai-chat/config").Form(formData).HTMX().Expect(t)
 
-	if rr.Code != http.StatusBadRequest {
-		t.Logf("Response body: %s", rr.Body.String())
-		t.Logf("Response headers: %v", rr.Header())
-	}
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	// Should return 400 Bad Request for validation errors
+	resp.Status(http.StatusBadRequest)
+
+	// Check that no config was saved
+	configs, err := configService.List(env.Ctx)
+	require.NoError(t, err)
+	require.Len(t, configs, 0, "No config should be saved with validation error")
 }
 
 func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
-	fixtures := setupTest(t)
+	// Setup test environment
+	suite := setupTest(t)
+	env := suite.Environment()
+
+	// Register controller
+	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
+		BasePath: BasePath,
+		App:      env.App,
+	})
+	suite.Register(controller)
+
+	// Get service
+	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
 
 	// First, create an initial configuration
 	options := []aichatconfig.Option{
@@ -253,7 +142,7 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 		aichatconfig.WithMaxTokens(512),
 		aichatconfig.WithAccessToken("initial-key"),
 		aichatconfig.WithIsDefault(true),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(env.Tenant.ID),
 	}
 
 	initialConfig, err := aichatconfig.New(
@@ -264,7 +153,7 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = fixtures.service.Save(fixtures.ctx, initialConfig)
+	_, err = configService.Save(env.Ctx, initialConfig)
 	require.NoError(t, err)
 
 	formData := url.Values{}
@@ -276,23 +165,13 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 	formData.Set("BaseURL", "https://api.openai.com/v1")
 	formData.Set("AccessToken", "updated-key")
 
-	// Create request with form data
-	req := httptest.NewRequest(http.MethodPost, "/website/ai-chat/config", strings.NewReader(formData.Encode()))
-	req.Header.Set("Hx-Request", "true")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Execute request
+	resp := suite.POST("/website/ai-chat/config").Form(formData).HTMX().Expect(t)
 
-	rr := httptest.NewRecorder()
+	resp.Status(http.StatusOK)
+	assert.Equal(t, BasePath, resp.Header("Hx-Redirect"))
 
-	fixtures.router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Logf("Response body: %s", rr.Body.String())
-		t.Logf("Response headers: %v", rr.Header())
-	}
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, BasePath, rr.Header().Get("Hx-Redirect"))
-
-	updatedConfig, err := fixtures.service.GetDefault(fixtures.ctx)
+	updatedConfig, err := configService.GetDefault(env.Ctx)
 	require.NoError(t, err)
 
 	assert.Equal(t, "updated-model", updatedConfig.ModelName())
@@ -305,10 +184,21 @@ func TestAIChatController_SaveConfig_UpdateExisting(t *testing.T) {
 
 func TestAIChatController_SaveConfig_FirstConfigSetsDefault(t *testing.T) {
 	// Setup test environment
-	fixtures := setupTest(t)
+	suite := setupTest(t)
+	env := suite.Environment()
+
+	// Register controller
+	controller := controllers.NewAIChatController(controllers.AIChatControllerConfig{
+		BasePath: BasePath,
+		App:      env.App,
+	})
+	suite.Register(controller)
+
+	// Get service
+	configService := env.App.Service(services.AIChatConfigService{}).(*services.AIChatConfigService)
 
 	// Ensure no configs exist initially
-	configs, err := fixtures.service.List(fixtures.ctx)
+	configs, err := configService.List(env.Ctx)
 	require.NoError(t, err)
 	require.Empty(t, configs, "No configs should exist initially")
 
@@ -322,27 +212,18 @@ func TestAIChatController_SaveConfig_FirstConfigSetsDefault(t *testing.T) {
 	formData.Set("BaseURL", "https://api.openai.com/v1")
 	formData.Set("AccessToken", "test-api-key")
 
-	// Create request with form data
-	req := httptest.NewRequest(http.MethodPost, "/website/ai-chat/config", strings.NewReader(formData.Encode()))
-	req.Header.Set("Hx-Request", "true")
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Execute request
+	resp := suite.POST("/website/ai-chat/config").Form(formData).HTMX().Expect(t)
 
-	rr := httptest.NewRecorder()
-	fixtures.router.ServeHTTP(rr, req)
+	resp.Status(http.StatusOK)
+	assert.Equal(t, BasePath, resp.Header("Hx-Redirect"))
 
-	if rr.Code != http.StatusOK {
-		t.Logf("Response body: %s", rr.Body.String())
-		t.Logf("Response headers: %v", rr.Header())
-	}
-	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, BasePath, rr.Header().Get("Hx-Redirect"))
-
-	configs, err = fixtures.service.List(fixtures.ctx)
+	configs, err = configService.List(env.Ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1, "One config should be created")
 
 	// Get default config and verify it was set
-	defaultConfig, err := fixtures.service.GetDefault(fixtures.ctx)
+	defaultConfig, err := configService.GetDefault(env.Ctx)
 	require.NoError(t, err)
 	assert.Equal(t, "gpt-4", defaultConfig.ModelName())
 	assert.True(t, defaultConfig.IsDefault())
