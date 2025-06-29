@@ -29,7 +29,7 @@ import (
 // Global semaphore to limit concurrent database operations
 // This prevents PostgreSQL "too many clients" errors during parallel test execution
 // Default limit is conservative but can be adjusted based on PostgreSQL max_connections
-var dbTestSemaphore = make(chan struct{}, getOptimalSemaphoreSize())
+var dbTestSemaphore = make(chan struct{}, 5)
 
 type TestFixtures struct {
 	SQLDB   *sql.DB
