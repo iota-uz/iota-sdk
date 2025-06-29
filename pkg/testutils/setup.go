@@ -78,6 +78,9 @@ func Setup(t *testing.T, modules ...application.Module) *TestEnv {
 		// Log final state
 		LogPoolStats(pool, "Before close")
 		pool.Close()
+
+		// Release the semaphore
+		<-dbTestSemaphore
 	})
 
 	return &TestEnv{

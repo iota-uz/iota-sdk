@@ -355,6 +355,7 @@ func TestExecutor_Close(t *testing.T) {
 
 func TestGenerateQueryID(t *testing.T) {
 	id1 := generateQueryID()
+	time.Sleep(time.Nanosecond) // Ensure different timestamp
 	id2 := generateQueryID()
 
 	assert.NotEmpty(t, id1)
