@@ -684,3 +684,170 @@ func (b *ColorFieldBuilder) Build() ColorField {
 		validators: b.validators,
 	}
 }
+
+// SearchSelectFieldBuilder for async search select fields
+type SearchSelectFieldBuilder struct {
+	key, label, defaultVal, endpoint, placeholder string
+	required                                      bool
+	attrs                                         templ.Attributes
+	validators                                    []Validator
+}
+
+func SearchSelect() *SearchSelectFieldBuilder {
+	return &SearchSelectFieldBuilder{attrs: templ.Attributes{}}
+}
+
+func (b *SearchSelectFieldBuilder) Key(key string) *SearchSelectFieldBuilder {
+	b.key = key
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Label(label string) *SearchSelectFieldBuilder {
+	b.label = label
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Default(val string) *SearchSelectFieldBuilder {
+	b.defaultVal = val
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Endpoint(endpoint string) *SearchSelectFieldBuilder {
+	b.endpoint = endpoint
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Placeholder(placeholder string) *SearchSelectFieldBuilder {
+	b.placeholder = placeholder
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Required(required bool) *SearchSelectFieldBuilder {
+	b.required = required
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) WithRequired(required bool) *SearchSelectFieldBuilder {
+	b.required = required
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) WithValue(value string) *SearchSelectFieldBuilder {
+	// This is handled in the field itself
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Attrs(a templ.Attributes) *SearchSelectFieldBuilder {
+	b.attrs = a
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Validators(v []Validator) *SearchSelectFieldBuilder {
+	b.validators = v
+	return b
+}
+
+func (b *SearchSelectFieldBuilder) Build() SearchSelectField {
+	return &searchSelectField{
+		key:         b.key,
+		label:       b.label,
+		defaultVal:  b.defaultVal,
+		endpoint:    b.endpoint,
+		placeholder: b.placeholder,
+		required:    b.required,
+		attrs:       b.attrs,
+		validators:  b.validators,
+	}
+}
+
+// ComboboxFieldBuilder for multi-select fields
+type ComboboxFieldBuilder struct {
+	key, label, defaultVal, endpoint, placeholder string
+	required, multiple, searchable                bool
+	attrs                                         templ.Attributes
+	validators                                    []Validator
+}
+
+func Combobox() *ComboboxFieldBuilder {
+	return &ComboboxFieldBuilder{attrs: templ.Attributes{}, searchable: true}
+}
+
+func (b *ComboboxFieldBuilder) Key(key string) *ComboboxFieldBuilder {
+	b.key = key
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Label(label string) *ComboboxFieldBuilder {
+	b.label = label
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Default(val string) *ComboboxFieldBuilder {
+	b.defaultVal = val
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Endpoint(endpoint string) *ComboboxFieldBuilder {
+	b.endpoint = endpoint
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Placeholder(placeholder string) *ComboboxFieldBuilder {
+	b.placeholder = placeholder
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Multiple(multiple bool) *ComboboxFieldBuilder {
+	b.multiple = multiple
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Searchable(searchable bool) *ComboboxFieldBuilder {
+	b.searchable = searchable
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Required(required bool) *ComboboxFieldBuilder {
+	b.required = required
+	return b
+}
+
+func (b *ComboboxFieldBuilder) WithRequired(required bool) *ComboboxFieldBuilder {
+	b.required = required
+	return b
+}
+
+func (b *ComboboxFieldBuilder) WithMultiple(multiple bool) *ComboboxFieldBuilder {
+	b.multiple = multiple
+	return b
+}
+
+func (b *ComboboxFieldBuilder) WithValue(value string) *ComboboxFieldBuilder {
+	// This is handled in the field itself
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Attrs(a templ.Attributes) *ComboboxFieldBuilder {
+	b.attrs = a
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Validators(v []Validator) *ComboboxFieldBuilder {
+	b.validators = v
+	return b
+}
+
+func (b *ComboboxFieldBuilder) Build() ComboboxField {
+	return &comboboxField{
+		key:         b.key,
+		label:       b.label,
+		defaultVal:  b.defaultVal,
+		endpoint:    b.endpoint,
+		placeholder: b.placeholder,
+		multiple:    b.multiple,
+		searchable:  b.searchable,
+		required:    b.required,
+		attrs:       b.attrs,
+		validators:  b.validators,
+	}
+}

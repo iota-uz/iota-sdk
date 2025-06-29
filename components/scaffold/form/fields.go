@@ -2,7 +2,9 @@ package form
 
 import (
 	"context"
+	"html"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
@@ -148,6 +150,22 @@ type URLField interface {
 type SelectField interface {
 	GenericField[string]
 	Options() []Option
+}
+
+// SearchSelectField for async search dropdowns
+type SearchSelectField interface {
+	GenericField[string]
+	Endpoint() string
+	Placeholder() string
+}
+
+// ComboboxField for multi-select dropdowns
+type ComboboxField interface {
+	GenericField[string]
+	Endpoint() string
+	Multiple() bool
+	Searchable() bool
+	Placeholder() string
 }
 
 // --- Implementations of Field interfaces ---
@@ -666,16 +684,53 @@ type selectField struct {
 
 func (f *selectField) Component() templ.Component {
 	attrs := templ.Attributes{
-		"name":  f.key,
-		"value": mapping.Or(f.value, f.defaultVal),
+		"name": f.key,
+	}
+	if f.required {
+		attrs["required"] = true
 	}
 	for k, v := range f.attrs {
 		attrs[k] = v
 	}
-	return base.Select(&base.SelectProps{
-		Label:       f.label,
-		Placeholder: f.label,
-		Attrs:       attrs,
+
+	currentValue := mapping.Or(f.value, f.defaultVal)
+
+	// Create the options as a slice of components
+	optionComponents := make([]templ.Component, 0, len(f.options))
+	for _, opt := range f.options {
+		optValue := opt.Value
+		optLabel := opt.Label
+		selected := optValue == currentValue
+
+		optionComponents = append(optionComponents, templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			if selected {
+				_, err := io.WriteString(w, `<option value="`+html.EscapeString(optValue)+`" selected>`+html.EscapeString(optLabel)+`</option>`)
+				return err
+			} else {
+				_, err := io.WriteString(w, `<option value="`+html.EscapeString(optValue)+`">`+html.EscapeString(optLabel)+`</option>`)
+				return err
+			}
+		}))
+	}
+
+	// Return component that renders the select with options
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		// First render the opening of the select component
+		err := base.Select(&base.SelectProps{
+			Label:       f.label,
+			Placeholder: f.label,
+			Attrs:       attrs,
+		}).Render(templ.WithChildren(ctx, templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			// Render all options
+			for _, optComp := range optionComponents {
+				if err := optComp.Render(ctx, w); err != nil {
+					return err
+				}
+			}
+			return nil
+		})), w)
+
+		return err
 	})
 }
 func (f *selectField) Key() string             { return f.key }
@@ -727,6 +782,109 @@ func (f *colorField) Attrs() templ.Attributes { return f.attrs }
 func (f *colorField) Validators() []Validator { return f.validators }
 func (f *colorField) Default() string         { return f.defaultVal }
 func (f *colorField) WithValue(value string) GenericField[string] {
+	newField := *f // Create a copy
+	newField.value = value
+	return &newField
+}
+
+// searchSelectField implementation
+type searchSelectField struct {
+	key         string
+	label       string
+	value       string
+	defaultVal  string
+	endpoint    string
+	placeholder string
+	required    bool
+	attrs       templ.Attributes
+	validators  []Validator
+}
+
+func (f *searchSelectField) Component() templ.Component {
+	attrs := templ.Attributes{}
+	if f.required {
+		attrs["required"] = true
+	}
+	for k, v := range f.attrs {
+		attrs[k] = v
+	}
+
+	// For now, return a placeholder component
+	// TODO: Integrate with actual selects.SearchSelect component
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		// Render search select component placeholder
+		_, err := io.WriteString(w, `<div class="search-select-wrapper" data-name="`+html.EscapeString(f.key)+`" data-endpoint="`+html.EscapeString(f.endpoint)+`" data-placeholder="`+html.EscapeString(f.placeholder)+`" data-value="`+html.EscapeString(f.value)+`">SearchSelect: `+html.EscapeString(f.label)+`</div>`)
+		return err
+	})
+}
+
+func (f *searchSelectField) Key() string             { return f.key }
+func (f *searchSelectField) Label() string           { return f.label }
+func (f *searchSelectField) Type() FieldType         { return FieldTypeSelect }
+func (f *searchSelectField) Value() string           { return f.value }
+func (f *searchSelectField) Required() bool          { return f.required }
+func (f *searchSelectField) Attrs() templ.Attributes { return f.attrs }
+func (f *searchSelectField) Validators() []Validator { return f.validators }
+func (f *searchSelectField) Default() string         { return f.defaultVal }
+func (f *searchSelectField) Endpoint() string        { return f.endpoint }
+func (f *searchSelectField) Placeholder() string     { return f.placeholder }
+func (f *searchSelectField) WithValue(value string) GenericField[string] {
+	newField := *f // Create a copy
+	newField.value = value
+	return &newField
+}
+
+// comboboxField implementation
+type comboboxField struct {
+	key         string
+	label       string
+	value       string
+	defaultVal  string
+	endpoint    string
+	placeholder string
+	multiple    bool
+	searchable  bool
+	required    bool
+	attrs       templ.Attributes
+	validators  []Validator
+}
+
+func (f *comboboxField) Component() templ.Component {
+	attrs := templ.Attributes{
+		"name": f.key,
+	}
+	if f.required {
+		attrs["required"] = true
+	}
+	if f.multiple {
+		attrs["multiple"] = true
+	}
+	for k, v := range f.attrs {
+		attrs[k] = v
+	}
+
+	// For now, return a placeholder component
+	// TODO: Integrate with actual base.Combobox component
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		// Render combobox component placeholder
+		_, err := io.WriteString(w, `<div class="combobox-wrapper" data-name="`+html.EscapeString(f.key)+`" data-endpoint="`+html.EscapeString(f.endpoint)+`" data-multiple="`+strconv.FormatBool(f.multiple)+`" data-searchable="`+strconv.FormatBool(f.searchable)+`">Combobox: `+html.EscapeString(f.label)+`</div>`)
+		return err
+	})
+}
+
+func (f *comboboxField) Key() string             { return f.key }
+func (f *comboboxField) Label() string           { return f.label }
+func (f *comboboxField) Type() FieldType         { return FieldTypeSelect }
+func (f *comboboxField) Value() string           { return f.value }
+func (f *comboboxField) Required() bool          { return f.required }
+func (f *comboboxField) Attrs() templ.Attributes { return f.attrs }
+func (f *comboboxField) Validators() []Validator { return f.validators }
+func (f *comboboxField) Default() string         { return f.defaultVal }
+func (f *comboboxField) Endpoint() string        { return f.endpoint }
+func (f *comboboxField) Placeholder() string     { return f.placeholder }
+func (f *comboboxField) Multiple() bool          { return f.multiple }
+func (f *comboboxField) Searchable() bool        { return f.searchable }
+func (f *comboboxField) WithValue(value string) GenericField[string] {
 	newField := *f // Create a copy
 	newField.value = value
 	return &newField
