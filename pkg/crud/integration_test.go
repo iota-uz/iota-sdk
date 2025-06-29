@@ -1,6 +1,7 @@
 package crud_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -179,7 +180,7 @@ func TestSelectField_DynamicOptions(t *testing.T) {
 		}
 
 		field := crud.NewSelectField("DynamicField").
-			SetOptionsLoader(func() []crud.SelectOption {
+			SetOptionsLoader(func(ctx context.Context) []crud.SelectOption {
 				// Simulate loading options from a service
 				return dynamicOptions
 			})
@@ -191,7 +192,7 @@ func TestSelectField_DynamicOptions(t *testing.T) {
 		loader := field.OptionsLoader()
 		require.NotNil(t, loader)
 
-		options := loader()
+		options := loader(context.Background())
 		assert.Equal(t, dynamicOptions, options)
 	})
 }
