@@ -95,20 +95,18 @@ jobs:
     services:
       postgres:
         image: postgres:16
+        ports:
+          - 5432:5432
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: iota_erp
-          POSTGRES_INITDB_ARGS: "-c max_connections=200 -c shared_buffers=512MB"
-        ports:
-          - 5432:5432
+          POSTGRES_INITDB_ARGS: "-c max_connections=200 -c shared_buffers=512MB \
+                                 -c fsync=off -c synchronous_commit=off"
         options: >-
-          --pull=always
-          --hostname=erp_db
+          --tmpfs /var/lib/postgresql/data:rw,size=1g
           --health-cmd="pg_isready -U postgres -d iota_erp"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=5
+          --health-interval=5s --health-timeout=5s --health-retries=5
 
     steps:
       - name: Checkout repository
