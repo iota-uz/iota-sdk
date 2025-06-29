@@ -104,7 +104,7 @@ jobs:
           POSTGRES_INITDB_ARGS: "-c max_connections=200 -c shared_buffers=512MB \
                                  -c fsync=off -c synchronous_commit=off"
         options: >-
-          --tmpfs /var/lib/postgresql/data:rw,size=1g
+          --tmpfs /var/lib/postgresql/data:rw,size=3g
           --health-cmd="pg_isready -U postgres -d iota_erp"
           --health-interval=5s --health-timeout=5s --health-retries=5
 
