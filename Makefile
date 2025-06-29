@@ -42,7 +42,7 @@ coverage-score:
 report:
 	go tool cover -html=coverage.out -o ./coverage/cover.html
 
-# Run PostgreSQL
+# Run PostgreSQL with PgBouncer
 localdb:
 	docker compose -f compose.dev.yml up
 

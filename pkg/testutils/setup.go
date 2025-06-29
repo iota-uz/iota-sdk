@@ -55,9 +55,6 @@ func Setup(t *testing.T, modules ...application.Module) *TestEnv {
 
 	// Cleanup with proper connection handling
 	t.Cleanup(func() {
-		// Log initial state for debugging
-		LogPoolStats(pool, "Before cleanup")
-
 		// Rollback transaction first
 		if err := tx.Rollback(ctx); err != nil {
 			// Only log if transaction is still active
@@ -76,11 +73,9 @@ func Setup(t *testing.T, modules ...application.Module) *TestEnv {
 		}
 
 		// Log final state
-		LogPoolStats(pool, "Before close")
 		pool.Close()
 
-		// Release the semaphore
-		<-DbTestSemaphore
+		// Pool cleanup handled by Close()
 	})
 
 	return &TestEnv{
