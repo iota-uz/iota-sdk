@@ -22,7 +22,7 @@ generate:
 
 # Run tests
 test:
-	go test -v ./... -p 8 -coverprofile=./coverage/coverage.out
+	go test -v ./... -p 1 -coverprofile=./coverage/coverage.out
 
 # Run tests with file watching
 test-watch:
