@@ -104,7 +104,7 @@ jobs:
           POSTGRES_INITDB_ARGS: "-c max_connections=500 -c shared_buffers=512MB \
                                  -c fsync=off -c synchronous_commit=off"
         options: >-
-          --tmpfs /var/lib/postgresql/data:rw,size=3g
+          --tmpfs /var/lib/postgresql/data:rw,size=4g
           --health-cmd="pg_isready -U postgres -d iota_erp"
           --health-interval=5s --health-timeout=5s --health-retries=5
 
@@ -186,6 +186,17 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
           echo "Total Coverage: $COVERAGE"
+
+      - name: Drop test databases
+        if: always()
+        run: |
+          # Connect to postgres and drop all test databases
+          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c "
+            SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";'
+            FROM pg_database 
+            WHERE datname NOT IN ('postgres', 'template0', 'template1', 'iota_erp')
+            AND datname ~ '^test'
+          " -t | PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres
 
       - name: Cypress E2E Tests
         uses: cypress-io/github-action@v6
