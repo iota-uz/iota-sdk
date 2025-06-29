@@ -26,6 +26,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// Global semaphore to limit concurrent database operations
+// This prevents PostgreSQL "too many clients" errors during parallel test execution
+// Default limit is conservative but can be adjusted based on PostgreSQL max_connections
+var dbTestSemaphore = make(chan struct{}, getOptimalSemaphoreSize())
+
 type TestFixtures struct {
 	SQLDB   *sql.DB
 	Pool    *pgxpool.Pool
@@ -73,24 +78,35 @@ func MockSession() *session.Session {
 }
 
 func NewPool(dbOpts string) *pgxpool.Pool {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	// Acquire semaphore to limit concurrent database operations
+	dbTestSemaphore <- struct{}{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	config, err := pgxpool.ParseConfig(dbOpts)
 	if err != nil {
+		<-dbTestSemaphore // Release semaphore on error
 		panic(err)
 	}
 
-	// Increase connection limits for concurrent tests
-	config.MaxConns = 10
-	config.MinConns = 2
-	config.MaxConnLifetime = time.Minute * 5
-	config.MaxConnIdleTime = time.Minute * 1
+	// Conservative connection limits for concurrent tests
+	config.MaxConns = 3
+	config.MinConns = 1
+	config.MaxConnLifetime = time.Minute * 2
+	config.MaxConnIdleTime = time.Second * 30
+
+	log.Printf("Creating pool with MaxConns=%d, MinConns=%d for DB: %s",
+		config.MaxConns, config.MinConns, config.ConnConfig.Database)
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
+		<-dbTestSemaphore // Release semaphore on error
 		panic(err)
 	}
+
+	// Log initial pool stats
+	LogPoolStats(pool, "Pool created")
 	return pool
 }
 
