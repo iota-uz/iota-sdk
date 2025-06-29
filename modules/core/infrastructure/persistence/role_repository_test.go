@@ -14,7 +14,7 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 
 	permissionRepository := persistence.NewPermissionRepository()
 	roleRepository := persistence.NewRoleRepository()
-	if err := permissionRepository.Save(f.ctx, permissions.PositionCreate); err != nil {
+	if err := permissionRepository.Save(f.Ctx, permissions.PositionCreate); err != nil {
 		t.Fatal(err)
 	}
 
@@ -23,14 +23,14 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 		role.WithDescription("test"),
 		role.WithPermissions([]*permission.Permission{permissions.PositionCreate}),
 	)
-	roleEntity, err := roleRepository.Create(f.ctx, data)
+	roleEntity, err := roleRepository.Create(f.Ctx, data)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Run(
 		"Update", func(t *testing.T) {
-			updatedRole, err := roleRepository.Update(f.ctx, roleEntity.SetName("updated"))
+			updatedRole, err := roleRepository.Update(f.Ctx, roleEntity.SetName("updated"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -54,10 +54,10 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := roleRepository.Delete(f.ctx, 1); err != nil {
+			if err := roleRepository.Delete(f.Ctx, 1); err != nil {
 				t.Fatal(err)
 			}
-			_, err := roleRepository.GetByID(f.ctx, 1)
+			_, err := roleRepository.GetByID(f.Ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}

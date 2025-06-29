@@ -4,24 +4,9 @@ on:
   - push
 
 jobs:
-  test:
-    runs-on: blacksmith-8vcpu-ubuntu-2204	
-
-    services:
-      postgres:
-        image: postgres:15.1
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: iota_erp
-        ports:
-          - 5432:5432
-        options: >-
-          --hostname=erp_db
-          --health-cmd="pg_isready -U postgres -d iota_erp"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+  lint-and-format:
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+    name: Code Quality & Formatting
 
     steps:
       - name: Checkout repository
@@ -32,27 +17,116 @@ jobs:
         with:
           go-version: "1.23.2"
 
-      - name: Install golangci-lint
+      - name: Install tools
         run: |
+          # Install golangci-lint
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
           golangci-lint version
 
-      - name: Install templ
-        run: |
+          # Install templ
           go install github.com/a-h/templ/cmd/templ@v0.3.857
           templ --help
 
-      - name: Install TailwindCSS
-        run: |
+          # Install TailwindCSS
           echo "Installing TailwindCSS for x64 architecture..."
           mkdir -p downloaded
           curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
           chmod +x downloaded/tailwindcss
           echo "$PWD/downloaded" >> $GITHUB_PATH
 
-      - name: Verify TailwindCSS installation
+          # Install pg_formatter for SQL formatting
+          sudo apt-get update
+          sudo apt-get install -y pgformatter
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Test generated files are up to date
         run: |
-          tailwindcss -h
+          go generate ./...
+          make generate
+          git diff --exit-code
+
+      - name: Check translation files
+        run: make check-tr
+
+      - name: Check Go files formatting
+        run: |
+          go fmt ./...
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Error: Some Go files are not properly formatted"
+            git diff
+            exit 1
+          fi
+          echo "All Go files are properly formatted"
+
+      - name: Check templ files formatting
+        run: |
+          templ fmt .
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Error: Some templ files are not properly formatted"
+            git diff
+            exit 1
+          fi
+          echo "All templ files are properly formatted"
+
+      - name: Check SQL files formatting
+        run: |
+          mkdir -p /tmp/formatted
+          find modules -name "*.sql" -type f | while read -r sqlfile; do
+            pg_format "$sqlfile" > "/tmp/formatted/$(basename "$sqlfile")"
+            if ! diff -q "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")" > /dev/null; then
+              echo "Error: $sqlfile is not properly formatted"
+              diff "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")"
+              exit 1
+            fi
+          done
+          echo "All SQL files are properly formatted"
+
+      - name: Run lint and vet
+        run: |
+          go vet ./...
+          make lint
+
+  test-and-integration:
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+    name: Tests & Integration
+
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+          POSTGRES_INITDB_ARGS: "-c max_connections=500 -c shared_buffers=512MB \
+                                 -c fsync=off -c synchronous_commit=off"
+        options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=4g
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=5s --health-timeout=5s --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Install tools
+        run: |
+          # Install templ (needed for CSS generation)
+          go install github.com/a-h/templ/cmd/templ@v0.3.857
+
+          # Install TailwindCSS
+          mkdir -p downloaded
+          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
+          chmod +x downloaded/tailwindcss
+          echo "$PWD/downloaded" >> $GITHUB_PATH
 
       - name: Install PNPM
         uses: pnpm/action-setup@v4
@@ -69,75 +143,62 @@ jobs:
             sleep 1
           done
 
-      - name: Test generated files are up to date
-        run: |
-          go generate ./...
-          make generate
-          git diff --exit-code
-
-      - name: Check translation files
-        run: make check-tr
-
       - name: Test Makefile targets
-        # running migrations and seeds twice to verify that they are idempotent
         run: |
+          make generate
           make migrate up
           make migrate up
           make seed
           make seed
           make css
 
-      - name: Check SQL files are properly formatted
-        # Install pg_formatter and verify all SQL files are properly formatted
+      - name: Run tests with coverage
         run: |
-          sudo apt-get update
-          sudo apt-get install -y pgformatter
-          # Create a temporary directory for formatted files
-          mkdir -p /tmp/formatted
-          # Format each SQL file and check for differences
-          find modules -name "*.sql" -type f | while read -r sqlfile; do
-            pg_format "$sqlfile" > "/tmp/formatted/$(basename "$sqlfile")"
-            if ! diff -q "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")" > /dev/null; then
-              echo "Error: $sqlfile is not properly formatted"
-              diff "$sqlfile" "/tmp/formatted/$(basename "$sqlfile")"
-              exit 1
-            fi
-          done
-          echo "All SQL files are properly formatted"
+          go test -v ./... -coverprofile=coverage.out
 
-      - name: Check templ files formatting
-        run: |
-          # Run templ fmt on the whole project
-          templ fmt .
-          # Check if any files were changed
-          if [ -n "$(git diff --name-only)" ]; then
-            echo "Error: Some templ files are not properly formatted"
-            git diff
-            exit 1
+          # Extract coverage percentage
+          COVERAGE=$(go tool cover -func=coverage.out | grep "total:" | awk '{print $3}')
+          COVERAGE_NUM=$(echo $COVERAGE | sed 's/%//')
+
+          # Determine coverage status
+          if (( $(echo "$COVERAGE_NUM >= 80" | bc -l) )); then
+            STATUS="🟢 Good"
+          elif (( $(echo "$COVERAGE_NUM >= 60" | bc -l) )); then
+            STATUS="🟡 Fair"
+          else
+            STATUS="🔴 Low"
           fi
-          echo "All templ files are properly formatted"
 
-      - name: Check Go files formatting
+          # Create GitHub job summary
+          echo "## 📊 Test Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Total Coverage** | **$COVERAGE** |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Status** | $STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add coverage breakdown
+          echo "### 📋 Coverage by Package" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          go tool cover -func=coverage.out | head -20 >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+          echo "Total Coverage: $COVERAGE"
+
+      - name: Drop test databases
+        if: always()
         run: |
-          # Run go fmt on the whole project
-          go fmt ./...
-          # Check if any files were changed
-          if [ -n "$(git diff --name-only)" ]; then
-            echo "Error: Some Go files are not properly formatted"
-            git diff
-            exit 1
-          fi
-          echo "All Go files are properly formatted"
+          # Connect to postgres and drop all test databases
+          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c "
+            SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";'
+            FROM pg_database 
+            WHERE datname NOT IN ('postgres', 'template0', 'template1', 'iota_erp')
+            AND datname ~ '^test'
+          " -t | PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres
 
-      - name: Run lint and vet
-        run: |
-          go vet ./...
-          make lint
-
-      - name: Run tests
-        run: go test -v ./...
-
-      - name: Cypress run
+      - name: Cypress E2E Tests
         uses: cypress-io/github-action@v6
         env:
           SESSION_DURATION: 720h
@@ -149,7 +210,6 @@ jobs:
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
           GO_APP_ENV: production
-
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
@@ -162,7 +222,4 @@ jobs:
           browser: chrome
 
       - name: Test database migrate down
-        # e2e tests require database to have the seed data. We can only down the migrations after cypress.
-        run: |
-          make migrate down
-
+        run: make migrate down

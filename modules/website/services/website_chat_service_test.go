@@ -14,12 +14,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // setupChatTest extends the setupTest with WebsiteChatService
-func setupChatTest(t *testing.T) (*testFixtures, *services.WebsiteChatService, client.Repository) {
+func setupChatTest(t *testing.T) (*builder.TestEnvironment, *services.WebsiteChatService, client.Repository) {
 	t.Helper()
 
 	fixtures := setupTest(t)
@@ -54,7 +55,7 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 	phoneStr := "+12126647665" // Valid US number format
 
 	// Create thread
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
@@ -63,13 +64,13 @@ func TestWebsiteChatService_CreateThread_WithPhone(t *testing.T) {
 
 	// Verify thread
 	assert.NotZero(t, thread.ID())
-	chatEntity, err := chatRepo.GetByID(fixtures.ctx, thread.ChatID())
+	chatEntity, err := chatRepo.GetByID(fixtures.Ctx, thread.ChatID())
 	require.NoError(t, err)
 	assert.NotEmpty(t, chatEntity.Members())
 
 	// Verify client was created
 	p, _ := phone.NewFromE164(phoneStr)
-	client, err := clientRepo.GetByPhone(fixtures.ctx, p.Value())
+	client, err := clientRepo.GetByPhone(fixtures.Ctx, p.Value())
 	require.NoError(t, err)
 	assert.Equal(t, p.Value(), client.Phone().Value())
 
@@ -83,7 +84,7 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Get tenant ID for the client
-	tenant, err := composables.UseTenantID(fixtures.ctx)
+	tenant, err := composables.UseTenantID(fixtures.Ctx)
 	require.NoError(t, err)
 
 	// Create an existing client first with phone
@@ -98,18 +99,18 @@ func TestWebsiteChatService_CreateThread_ExistingClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
+	savedClient, err := clientRepo.Save(fixtures.Ctx, existingClient)
 	require.NoError(t, err)
 
 	// Create thread with existing client's phone
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
-	chatEntity, err := chatRepo.GetByID(fixtures.ctx, thread.ChatID())
+	chatEntity, err := chatRepo.GetByID(fixtures.Ctx, thread.ChatID())
 	require.NoError(t, err)
 	assert.Equal(t, savedClient.ID(), chatEntity.ClientID())
 }
@@ -120,7 +121,7 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	fixtures, sut, clientRepo := setupChatTest(t)
 
 	// Get tenant ID for the client
-	tenant, err := composables.UseTenantID(fixtures.ctx)
+	tenant, err := composables.UseTenantID(fixtures.Ctx)
 	require.NoError(t, err)
 
 	// 1. Create a client and get the client ID
@@ -134,11 +135,11 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedClient, err := clientRepo.Save(fixtures.ctx, existingClient)
+	savedClient, err := clientRepo.Save(fixtures.Ctx, existingClient)
 	require.NoError(t, err)
 
 	// 2. Create first thread with the client's phone
-	firstThread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	firstThread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
@@ -146,14 +147,14 @@ func TestWebsiteChatService_CreateThread_NewThreadEachTime(t *testing.T) {
 	require.NotNil(t, firstThread)
 
 	// 3. Create a second thread with the same phone
-	secondThread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	secondThread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, secondThread)
 
-	chatEntity, err := chatRepo.GetByID(fixtures.ctx, secondThread.ChatID())
+	chatEntity, err := chatRepo.GetByID(fixtures.Ctx, secondThread.ChatID())
 	require.NoError(t, err)
 	// 4. Verify both threads have different IDs but same client ID
 	assert.NotEqual(t, firstThread.ID(), secondThread.ID(), "Creating a thread with the same phone should create a new thread")
@@ -168,7 +169,7 @@ func TestWebsiteChatService_CreateThread_InvalidPhone(t *testing.T) {
 	invalidPhone := "not-a-phone-number"
 
 	// Should fail
-	_, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	_, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   invalidPhone,
 		Country: country.UnitedStates,
 	})
@@ -215,7 +216,7 @@ func TestWebsiteChatService_CreateThread_WithDifferentPhones(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+			thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 				Phone:   tt.phone,
 				Country: country.UnitedStates,
 			})
@@ -237,7 +238,7 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 
 	// Create a thread first
 	phoneStr := "+12126647670" // Valid US number
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
@@ -251,7 +252,7 @@ func TestWebsiteChatService_SendMessageToThread(t *testing.T) {
 	}
 
 	// Send message
-	updatedThread, err := sut.SendMessageToThread(fixtures.ctx, dto)
+	updatedThread, err := sut.SendMessageToThread(fixtures.Ctx, dto)
 	require.NoError(t, err)
 	require.NotNil(t, updatedThread)
 
@@ -275,7 +276,7 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 
 	// Create a thread first
 	phoneStr := "+12126647671" // Valid US number
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
@@ -288,7 +289,7 @@ func TestWebsiteChatService_SendMessageToThread_EmptyMessage(t *testing.T) {
 	}
 
 	// Should fail
-	_, err = sut.SendMessageToThread(fixtures.ctx, dto)
+	_, err = sut.SendMessageToThread(fixtures.Ctx, dto)
 	require.Error(t, err)
 	assert.Equal(t, chat.ErrEmptyMessage, err)
 }
@@ -301,19 +302,19 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 
 	// Create a thread first
 	phoneStr := "+12126647672" // Valid US number
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, thread)
 
-	createdUser, err := userRepo.Create(fixtures.ctx, user.New(
+	createdUser, err := userRepo.Create(fixtures.Ctx, user.New(
 		"Support",
 		"Agent",
 		internet.MustParseEmail("test@gmail.com"),
 		user.UILanguageEN,
-		user.WithTenantID(fixtures.tenant.ID),
+		user.WithTenantID(fixtures.TenantID()),
 	))
 	require.NoError(t, err)
 
@@ -325,7 +326,7 @@ func TestWebsiteChatService_ReplyToThread(t *testing.T) {
 	}
 
 	// Send reply
-	repliedThread, err := sut.ReplyToThread(fixtures.ctx, dto)
+	repliedThread, err := sut.ReplyToThread(fixtures.Ctx, dto)
 	require.NoError(t, err)
 	require.NotNil(t, repliedThread)
 
@@ -351,14 +352,14 @@ func TestWebsiteChatService_ReplyToThread_EmptyMessage(t *testing.T) {
 	fixtures, sut, _ := setupChatTest(t)
 
 	phoneStr := "+12126647673" // Valid US number
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
 	require.NoError(t, err)
 
 	// Should fail
-	_, err = sut.ReplyToThread(fixtures.ctx, services.ReplyToThreadDTO{
+	_, err = sut.ReplyToThread(fixtures.Ctx, services.ReplyToThreadDTO{
 		ThreadID: thread.ID(),
 		UserID:   1,
 		Message:  "",
@@ -373,7 +374,7 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 
 	// Create a thread first
 	phoneStr := "+12126647674" // Valid US number
-	thread, err := sut.CreateThread(fixtures.ctx, services.CreateThreadDTO{
+	thread, err := sut.CreateThread(fixtures.Ctx, services.CreateThreadDTO{
 		Phone:   phoneStr,
 		Country: country.UnitedStates,
 	})
@@ -387,7 +388,7 @@ func TestWebsiteChatService_ReplyToThread_UserNotFound(t *testing.T) {
 	}
 
 	// Should fail because user is not a member
-	_, err = sut.ReplyToThread(fixtures.ctx, dto)
+	_, err = sut.ReplyToThread(fixtures.Ctx, dto)
 	require.Error(t, err)
 	require.ErrorIs(t, err, corePersistence.ErrUserNotFound)
 }

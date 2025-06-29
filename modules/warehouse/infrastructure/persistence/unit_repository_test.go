@@ -14,7 +14,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 	unitRepo := persistence.NewUnitRepository()
 
 	if err := unitRepo.Create(
-		f.ctx,
+		f.Ctx,
 		&unit.Unit{
 			ID:         1,
 			Title:      "test",
@@ -28,7 +28,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Count", func(t *testing.T) {
-			count, err := unitRepo.Count(f.ctx)
+			count, err := unitRepo.Count(f.Ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +40,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetPaginated", func(t *testing.T) {
-			accounts, err := unitRepo.GetPaginated(f.ctx, &unit.FindParams{Limit: 1})
+			accounts, err := unitRepo.GetPaginated(f.Ctx, &unit.FindParams{Limit: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -52,7 +52,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetAll", func(t *testing.T) {
-			units, err := unitRepo.GetAll(f.ctx)
+			units, err := unitRepo.GetAll(f.Ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,7 +67,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			unitEntity, err := unitRepo.GetByID(f.ctx, 1)
+			unitEntity, err := unitRepo.GetByID(f.Ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -78,7 +78,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 	)
 
 	t.Run("GetByTitleOrShortTitle", func(t *testing.T) {
-		u1, err := unitRepo.GetByTitleOrShortTitle(f.ctx, "test")
+		u1, err := unitRepo.GetByTitleOrShortTitle(f.Ctx, "test")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -91,7 +91,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 			t.Errorf("expected t, got %s", u1.ShortTitle)
 		}
 
-		u2, err := unitRepo.GetByTitleOrShortTitle(f.ctx, "t")
+		u2, err := unitRepo.GetByTitleOrShortTitle(f.Ctx, "t")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +100,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 			t.Errorf("expected t, got %s", u2.ShortTitle)
 		}
 
-		u3, err := unitRepo.GetByTitleOrShortTitle(f.ctx, "test2")
+		u3, err := unitRepo.GetByTitleOrShortTitle(f.Ctx, "test2")
 		if err == nil {
 			t.Errorf("expected error, got %v", u3)
 		}
@@ -113,7 +113,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := unitRepo.Update(
-				f.ctx, &unit.Unit{
+				f.Ctx, &unit.Unit{
 					ID:         1,
 					Title:      "test2",
 					ShortTitle: "t2",
@@ -123,7 +123,7 @@ func TestGormUnitRepository_CRUD(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			unitEntity, err := unitRepo.GetByID(f.ctx, 1)
+			unitEntity, err := unitRepo.GetByID(f.Ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}

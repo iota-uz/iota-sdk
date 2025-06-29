@@ -16,11 +16,11 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 	currencyRepository := persistence.NewCurrencyRepository()
 	accountRepository := financepersistence.NewMoneyAccountRepository()
 
-	if err := currencyRepository.Create(f.ctx, &currency.USD); err != nil {
+	if err := currencyRepository.Create(f.Ctx, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
 	createdAccount, err := accountRepository.Create(
-		f.ctx,
+		f.Ctx,
 		moneyaccount.New(
 			"test",
 			money.New(10000, "USD"),
@@ -33,7 +33,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Count", func(t *testing.T) {
-			count, err := accountRepository.Count(f.ctx)
+			count, err := accountRepository.Count(f.Ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -45,7 +45,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetPaginated", func(t *testing.T) {
-			accounts, err := accountRepository.GetPaginated(f.ctx, &moneyaccount.FindParams{Limit: 1})
+			accounts, err := accountRepository.GetPaginated(f.Ctx, &moneyaccount.FindParams{Limit: 1})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,7 +60,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetAll", func(t *testing.T) {
-			accounts, err := accountRepository.GetAll(f.ctx)
+			accounts, err := accountRepository.GetAll(f.Ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,7 +75,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			accountEntity, err := accountRepository.GetByID(f.ctx, createdAccount.ID())
+			accountEntity, err := accountRepository.GetByID(f.Ctx, createdAccount.ID())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -96,10 +96,10 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 				moneyaccount.WithID(createdAccount.ID()),
 				moneyaccount.WithAccountNumber("123"),
 			)
-			if _, err := accountRepository.Update(f.ctx, updatedAccount); err != nil {
+			if _, err := accountRepository.Update(f.Ctx, updatedAccount); err != nil {
 				t.Fatal(err)
 			}
-			accountEntity, err := accountRepository.GetByID(f.ctx, createdAccount.ID())
+			accountEntity, err := accountRepository.GetByID(f.Ctx, createdAccount.ID())
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -18,6 +18,7 @@ var (
 	htmxStream  = "/assets/" + assets.HashFS.HashName("js/lib/htmx-stream.js")
 	htmxPreload = "/assets/" + assets.HashFS.HashName("js/lib/htmx.preload.js")
 	apexJs      = "/assets/" + assets.HashFS.HashName("js/lib/apexcharts.min.js")
+	chartEvents = "/assets/" + assets.HashFS.HashName("js/lib/chart-events.js")
 	htmxWS      = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
 )
 
@@ -35,6 +36,7 @@ templ DefaultHead() {
 	<script src={ htmxSSE }></script>
 	<script src={ htmxStream }></script>
 	<script src={ apexJs }></script>
+	<script defer src={ chartEvents }></script>
 	<script src={ htmxWS }></script>
 }
 

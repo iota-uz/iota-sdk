@@ -25,6 +25,14 @@ script graph(id string, options templ.JSExpression) {
 	document.addEventListener('sdk:rerenderCharts', () => renderChart());
 }
 
+script ensureChartEvents() {
+	// Ensure chart events are initialized
+	// The chart-events.js file is loaded globally via base template
+	if (typeof window.initializeChartEvents === 'function') {
+		window.initializeChartEvents();
+	}
+}
+
 // Props defines the configuration options for a Chart component.
 type Props struct {
 	Class   string       // Additional CSS classes to apply
@@ -47,4 +55,5 @@ templ Chart(props Props) {
 		class={ props.Class }
 	></div>
 	@graph(id, templ.JSExpression(opts))
+	@ensureChartEvents()
 }

@@ -217,8 +217,9 @@ type testFixtures struct {
 func setupTest(t *testing.T) *testFixtures {
 	t.Helper()
 
-	testutils.CreateDB(t.Name())
-	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+	// Use DatabaseManager for proper semaphore handling
+	dm := testutils.NewDatabaseManager(t)
+	pool := dm.Pool()
 
 	ctx := composables.WithPool(context.Background(), pool)
 
@@ -234,7 +235,6 @@ func setupTest(t *testing.T) *testFixtures {
 		if err := tx.Commit(ctx); err != nil {
 			t.Fatal(err)
 		}
-		pool.Close()
 	})
 
 	ctx = composables.WithTx(ctx, tx)
