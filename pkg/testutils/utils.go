@@ -27,11 +27,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Global semaphore to limit concurrent database operations
-// This prevents PostgreSQL "too many clients" errors during parallel test execution
-// Default limit is conservative but can be adjusted based on PostgreSQL max_connections
-var DbTestSemaphore = make(chan struct{}, 10)
-
 type TestFixtures struct {
 	SQLDB   *sql.DB
 	Pool    *pgxpool.Pool
@@ -79,47 +74,29 @@ func MockSession() *session.Session {
 }
 
 func NewPool(dbOpts string) *pgxpool.Pool {
-	// Acquire semaphore to limit concurrent database operations with timeout
-	semCtx, semCancel := context.WithTimeout(context.Background(), time.Second*30)
-	defer semCancel()
-
-	select {
-	case DbTestSemaphore <- struct{}{}:
-		// Successfully acquired semaphore
-	case <-semCtx.Done():
-		panic("timeout waiting for database semaphore - too many concurrent tests")
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
 	config, err := pgxpool.ParseConfig(dbOpts)
 	if err != nil {
-		<-DbTestSemaphore // Release semaphore on error
 		panic(err)
 	}
 
-	// Optimized connection limits for parallel tests
-	config.MaxConns = 8
-	config.MinConns = 2
+	// With increased PostgreSQL max_connections (500), we can use reasonable limits
+	config.MaxConns = 4
+	config.MinConns = 1
 	config.MaxConnLifetime = time.Minute * 5
-	config.MaxConnIdleTime = time.Second * 10
-
-	log.Printf("Creating pool with MaxConns=%d, MinConns=%d for DB: %s",
-		config.MaxConns, config.MinConns, config.ConnConfig.Database)
+	config.MaxConnIdleTime = time.Second * 30
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		<-DbTestSemaphore // Release semaphore on error
-		panic(err)
+		panic(fmt.Errorf("failed to create database pool: %w", err))
 	}
 
-	// Log initial pool stats
-	LogPoolStats(pool, "Pool created")
 	return pool
 }
 
-// DatabaseManager handles database lifecycle for tests including semaphore management
+// DatabaseManager handles database lifecycle for tests
 type DatabaseManager struct {
 	pool   *pgxpool.Pool
 	dbName string
@@ -138,7 +115,7 @@ func NewDatabaseManager(t *testing.T) *DatabaseManager {
 		dbName: dbName,
 	}
 
-	// Register cleanup that handles semaphore release automatically
+	// Register cleanup
 	t.Cleanup(func() {
 		dm.Close()
 	})
@@ -151,27 +128,12 @@ func (dm *DatabaseManager) Pool() *pgxpool.Pool {
 	return dm.pool
 }
 
-// Close closes the pool and releases the semaphore
+// Close closes the pool
 func (dm *DatabaseManager) Close() {
 	if dm.pool != nil {
-		LogPoolStats(dm.pool, "Before close")
 		dm.pool.Close()
 		dm.pool = nil
-		// Release the semaphore
-		<-DbTestSemaphore
 	}
-}
-
-// LogPoolStats logs current pool connection statistics for debugging
-func LogPoolStats(pool *pgxpool.Pool, label string) {
-	if pool == nil {
-		return
-	}
-	stat := pool.Stat()
-	log.Printf(
-		"[%s] Pool Stats - Total: %d, Acquired: %d, Idle: %d, Max: %d\n",
-		label, stat.TotalConns(), stat.AcquiredConns(), stat.IdleConns(), stat.MaxConns(),
-	)
 }
 
 func DefaultParams() *composables.Params {
@@ -226,7 +188,7 @@ func CreateDB(name string) {
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			panic(err)
+			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
 	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))

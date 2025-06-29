@@ -98,8 +98,6 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 			tb.Logf("Warning: failed to rollback transaction: %v", err)
 		}
 		tc.pool.Close()
-		// Release the database semaphore acquired in NewPool
-		<-testutils.DbTestSemaphore
 	})
 
 	return &TestEnvironment{
