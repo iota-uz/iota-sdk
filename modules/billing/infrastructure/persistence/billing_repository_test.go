@@ -35,12 +35,12 @@ func TestBillingRepository_Create(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	tx := createTestClickTransaction("click-merchant-1", tenant)
 
-	created, err := repo.Save(f.ctx, tx)
+	created, err := repo.Save(f.Ctx, tx)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, uuid.Nil, created.ID())
@@ -57,21 +57,21 @@ func TestBillingRepository_GetByID(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	tx := createTestClickTransaction("click-merchant-2", tenant)
-	created, err := repo.Save(f.ctx, tx)
+	created, err := repo.Save(f.Ctx, tx)
 	require.NoError(t, err)
 
 	t.Run("found", func(t *testing.T) {
-		fetched, err := repo.GetByID(f.ctx, created.ID())
+		fetched, err := repo.GetByID(f.Ctx, created.ID())
 		require.NoError(t, err)
 		assert.Equal(t, created.ID(), fetched.ID())
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := repo.GetByID(f.ctx, uuid.New())
+		_, err := repo.GetByID(f.Ctx, uuid.New())
 		require.ErrorIs(t, err, persistence.ErrTransactionNotFound)
 	})
 }
@@ -81,11 +81,11 @@ func TestBillingRepository_GetByDetailsField(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	tx := createTestClickTransaction("click-merchant-3", tenant)
-	created, err := repo.Save(f.ctx, tx)
+	created, err := repo.Save(f.Ctx, tx)
 	require.NoError(t, err)
 
 	filters := []billing.DetailsFieldFilter{
@@ -96,7 +96,7 @@ func TestBillingRepository_GetByDetailsField(t *testing.T) {
 		},
 	}
 
-	foundList, err := repo.GetByDetailsFields(f.ctx, billing.Click, filters)
+	foundList, err := repo.GetByDetailsFields(f.Ctx, billing.Click, filters)
 	require.NoError(t, err)
 	require.Len(t, foundList, 1)
 
@@ -112,15 +112,15 @@ func TestBillingRepository_Update(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	tx := createTestClickTransaction("click-merchant-4", tenant)
-	created, err := repo.Save(f.ctx, tx)
+	created, err := repo.Save(f.Ctx, tx)
 	require.NoError(t, err)
 
 	updated := created.SetStatus(billing.Completed)
-	result, err := repo.Save(f.ctx, updated)
+	result, err := repo.Save(f.Ctx, updated)
 	require.NoError(t, err)
 
 	assert.Equal(t, billing.Completed, result.Status())
@@ -133,17 +133,17 @@ func TestBillingRepository_Delete(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	tx := createTestClickTransaction("click-merchant-5", tenant)
-	created, err := repo.Save(f.ctx, tx)
+	created, err := repo.Save(f.Ctx, tx)
 	require.NoError(t, err)
 
-	err = repo.Delete(f.ctx, created.ID())
+	err = repo.Delete(f.Ctx, created.ID())
 	require.NoError(t, err)
 
-	_, err = repo.GetByID(f.ctx, created.ID())
+	_, err = repo.GetByID(f.Ctx, created.ID())
 	require.ErrorIs(t, err, persistence.ErrTransactionNotFound)
 }
 
@@ -152,10 +152,10 @@ func TestBillingRepository_Count(t *testing.T) {
 	f := setupTest(t)
 	bRepo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
-	initial, err := bRepo.Count(f.ctx, &billing.FindParams{
+	initial, err := bRepo.Count(f.Ctx, &billing.FindParams{
 		Filters: []billing.Filter{
 			{
 				Column: billing.TenantIDField,
@@ -165,10 +165,10 @@ func TestBillingRepository_Count(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = bRepo.Save(f.ctx, createTestClickTransaction("click-merchant-6", tenant))
+	_, err = bRepo.Save(f.Ctx, createTestClickTransaction("click-merchant-6", tenant))
 	require.NoError(t, err)
 
-	after, err := bRepo.Count(f.ctx, &billing.FindParams{})
+	after, err := bRepo.Count(f.Ctx, &billing.FindParams{})
 	require.NoError(t, err)
 
 	assert.Equal(t, initial+1, after)
@@ -179,13 +179,13 @@ func TestBillingRepository_GetAll(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
-	_, err = repo.Save(f.ctx, createTestClickTransaction("click-merchant-7", tenant))
+	_, err = repo.Save(f.Ctx, createTestClickTransaction("click-merchant-7", tenant))
 	require.NoError(t, err)
 
-	all, err := repo.GetAll(f.ctx)
+	all, err := repo.GetAll(f.Ctx)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, all)
@@ -196,12 +196,12 @@ func TestBillingRepository_GetPaginated(t *testing.T) {
 	f := setupTest(t)
 	repo := persistence.NewBillingRepository()
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	for i := 0; i < 4; i++ {
 		id := "click-merchant-" + uuid.New().String()
-		_, err := repo.Save(f.ctx, createTestClickTransaction(id, tenant))
+		_, err := repo.Save(f.Ctx, createTestClickTransaction(id, tenant))
 		require.NoError(t, err)
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -215,7 +215,7 @@ func TestBillingRepository_GetPaginated(t *testing.T) {
 			},
 		}
 
-		page, err := repo.GetPaginated(f.ctx, params)
+		page, err := repo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 		assert.Len(t, page, 2)
 	})

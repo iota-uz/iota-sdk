@@ -1,17 +1,12 @@
 package services_test
 
 import (
-	"context"
 	"os"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
+	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
 )
 
 func TestMain(m *testing.M) {
@@ -21,60 +16,16 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// testFixtures contains common test dependencies
-type testFixtures struct {
-	ctx            context.Context
-	pool           *pgxpool.Pool
-	app            application.Application
-	billingService *services.BillingService
-}
-
 // setupTest creates all necessary dependencies for tests
-func setupTest(t *testing.T) *testFixtures {
+func setupTest(t *testing.T) *builder.TestEnvironment {
 	t.Helper()
 
-	testutils.CreateDB(t.Name())
-	pool := testutils.NewPool(testutils.DbOpts(t.Name()))
+	return builder.New().
+		WithModules(modules.BuiltInModules...).
+		Build(t)
+}
 
-	ctx := context.Background()
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Cleanup(func() {
-		if err := tx.Rollback(ctx); err != nil {
-			t.Fatal(err)
-		}
-		pool.Close()
-	})
-
-	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithPool(ctx, pool)
-	ctx = composables.WithParams(ctx, testutils.DefaultParams())
-
-	// Setup application and run migrations
-	app, err := testutils.SetupApplication(pool, modules.BuiltInModules...)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Run migrations first to create all tables including tenants
-	if err := app.Migrations().Run(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create a test tenant and add it to the context
-	tenant, err := testutils.CreateTestTenant(ctx, pool)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx = composables.WithTenantID(ctx, tenant.ID)
-
-	return &testFixtures{
-		ctx:            ctx,
-		pool:           pool,
-		app:            app,
-		billingService: app.Service(services.BillingService{}).(*services.BillingService),
-	}
+// Helper function to get BillingService from TestEnvironment
+func getBillingService(env *builder.TestEnvironment) *services.BillingService {
+	return env.Service(services.BillingService{}).(*services.BillingService)
 }

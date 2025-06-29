@@ -13,7 +13,7 @@ import (
 
 func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	repo := persistence.NewAIChatConfigRepository()
 
@@ -21,7 +21,7 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 		aichatconfig.WithSystemPrompt("You are a helpful assistant"),
 		aichatconfig.WithTemperature(0.8),
 		aichatconfig.WithMaxTokens(2048),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config, err := aichatconfig.New(
@@ -33,7 +33,7 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, config)
 
-	savedConfig, err := repo.Save(fixtures.ctx, config)
+	savedConfig, err := repo.Save(f.Ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, savedConfig)
 
@@ -50,7 +50,7 @@ func TestAIChatConfigRepository_Save_Create(t *testing.T) {
 
 func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -60,7 +60,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 		aichatconfig.WithSystemPrompt("Original system prompt"),
 		aichatconfig.WithTemperature(0.7),
 		aichatconfig.WithMaxTokens(1024),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	originalConfig, err := aichatconfig.New(
@@ -71,7 +71,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedConfig, err := repo.Save(fixtures.ctx, originalConfig)
+	savedConfig, err := repo.Save(f.Ctx, originalConfig)
 	require.NoError(t, err)
 	require.NotNil(t, savedConfig)
 
@@ -83,7 +83,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 	require.NoError(t, err)
 
 	// Save the updated config
-	finalConfig, err := repo.Save(fixtures.ctx, updatedConfigFinal)
+	finalConfig, err := repo.Save(f.Ctx, updatedConfigFinal)
 	require.NoError(t, err)
 	require.NotNil(t, finalConfig)
 
@@ -99,7 +99,7 @@ func TestAIChatConfigRepository_Save_Update(t *testing.T) {
 }
 
 func TestAIChatConfigRepository_GetByID(t *testing.T) {
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -109,7 +109,7 @@ func TestAIChatConfigRepository_GetByID(t *testing.T) {
 		aichatconfig.WithSystemPrompt("Test system prompt"),
 		aichatconfig.WithTemperature(0.8),
 		aichatconfig.WithMaxTokens(2048),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config, err := aichatconfig.New(
@@ -120,12 +120,12 @@ func TestAIChatConfigRepository_GetByID(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedConfig, err := repo.Save(fixtures.ctx, config)
+	savedConfig, err := repo.Save(f.Ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, savedConfig)
 
 	// Get the config by ID
-	retrievedConfig, err := repo.GetByID(fixtures.ctx, savedConfig.ID())
+	retrievedConfig, err := repo.GetByID(f.Ctx, savedConfig.ID())
 	require.NoError(t, err)
 	require.NotNil(t, retrievedConfig)
 
@@ -142,19 +142,19 @@ func TestAIChatConfigRepository_GetByID(t *testing.T) {
 
 func TestAIChatConfigRepository_GetByID_NotFound(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Try to get a non-existent config
-	_, err := repo.GetByID(fixtures.ctx, uuid.New())
+	_, err := repo.GetByID(f.Ctx, uuid.New())
 	assert.ErrorIs(t, err, aichatconfig.ErrConfigNotFound)
 }
 
 func TestAIChatConfigRepository_List(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -162,7 +162,7 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 	// Create and save multiple configs
 	options1 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 1 system prompt"),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config1, err := aichatconfig.New(
@@ -176,7 +176,7 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 	options2 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 2 system prompt"),
 		aichatconfig.WithTemperature(0.9),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config2, err := aichatconfig.New(
@@ -187,14 +187,14 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedConfig1, err := repo.Save(fixtures.ctx, config1)
+	savedConfig1, err := repo.Save(f.Ctx, config1)
 	require.NoError(t, err)
 
-	savedConfig2, err := repo.Save(fixtures.ctx, config2)
+	savedConfig2, err := repo.Save(f.Ctx, config2)
 	require.NoError(t, err)
 
 	// List all configs
-	configs, err := repo.List(fixtures.ctx)
+	configs, err := repo.List(f.Ctx)
 	require.NoError(t, err)
 	require.NotNil(t, configs)
 
@@ -221,7 +221,7 @@ func TestAIChatConfigRepository_List(t *testing.T) {
 
 func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -229,7 +229,7 @@ func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 	// Create and save a new config
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config, err := aichatconfig.New(
@@ -240,16 +240,16 @@ func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedConfig, err := repo.Save(fixtures.ctx, config)
+	savedConfig, err := repo.Save(f.Ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, savedConfig)
 
 	// Set the config as default
-	err = repo.SetDefault(fixtures.ctx, savedConfig.ID())
+	err = repo.SetDefault(f.Ctx, savedConfig.ID())
 	require.NoError(t, err)
 
 	// Get the default config
-	defaultConfig, err := repo.GetDefault(fixtures.ctx)
+	defaultConfig, err := repo.GetDefault(f.Ctx)
 	require.NoError(t, err)
 	require.NotNil(t, defaultConfig)
 
@@ -261,7 +261,7 @@ func TestAIChatConfigRepository_SetDefault(t *testing.T) {
 
 func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -269,7 +269,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 	// Create and save two configs
 	options1 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 1 system prompt"),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config1, err := aichatconfig.New(
@@ -282,7 +282,7 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 
 	options2 := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Config 2 system prompt"),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config2, err := aichatconfig.New(
@@ -293,28 +293,28 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedConfig1, err := repo.Save(fixtures.ctx, config1)
+	savedConfig1, err := repo.Save(f.Ctx, config1)
 	require.NoError(t, err)
 
-	savedConfig2, err := repo.Save(fixtures.ctx, config2)
+	savedConfig2, err := repo.Save(f.Ctx, config2)
 	require.NoError(t, err)
 
 	// Set the first config as default
-	err = repo.SetDefault(fixtures.ctx, savedConfig1.ID())
+	err = repo.SetDefault(f.Ctx, savedConfig1.ID())
 	require.NoError(t, err)
 
 	// Verify the first config is default
-	defaultConfig, err := repo.GetDefault(fixtures.ctx)
+	defaultConfig, err := repo.GetDefault(f.Ctx)
 	require.NoError(t, err)
 	assert.Equal(t, savedConfig1.ID(), defaultConfig.ID())
 	assert.True(t, defaultConfig.IsDefault())
 
 	// Set the second config as default
-	err = repo.SetDefault(fixtures.ctx, savedConfig2.ID())
+	err = repo.SetDefault(f.Ctx, savedConfig2.ID())
 	require.NoError(t, err)
 
 	// Verify the second config is now default
-	defaultConfig, err = repo.GetDefault(fixtures.ctx)
+	defaultConfig, err = repo.GetDefault(f.Ctx)
 	require.NoError(t, err)
 	assert.Equal(t, savedConfig2.ID(), defaultConfig.ID())
 	assert.True(t, defaultConfig.IsDefault())
@@ -322,19 +322,19 @@ func TestAIChatConfigRepository_SetDefault_MultipleTimes(t *testing.T) {
 
 func TestAIChatConfigRepository_SetDefault_NonExistentConfig(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Try to set a non-existent config as default
-	err := repo.SetDefault(fixtures.ctx, uuid.New())
+	err := repo.SetDefault(f.Ctx, uuid.New())
 	assert.ErrorIs(t, err, aichatconfig.ErrConfigNotFound)
 }
 
 func TestAIChatConfigRepository_Delete(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -342,7 +342,7 @@ func TestAIChatConfigRepository_Delete(t *testing.T) {
 	// Create and save a new config
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config, err := aichatconfig.New(
@@ -353,22 +353,22 @@ func TestAIChatConfigRepository_Delete(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedConfig, err := repo.Save(fixtures.ctx, config)
+	savedConfig, err := repo.Save(f.Ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, savedConfig)
 
 	// Delete the config
-	err = repo.Delete(fixtures.ctx, savedConfig.ID())
+	err = repo.Delete(f.Ctx, savedConfig.ID())
 	require.NoError(t, err)
 
 	// Try to get the deleted config
-	_, err = repo.GetByID(fixtures.ctx, savedConfig.ID())
+	_, err = repo.GetByID(f.Ctx, savedConfig.ID())
 	assert.ErrorIs(t, err, aichatconfig.ErrConfigNotFound)
 }
 
 func TestAIChatConfigRepository_Delete_DefaultConfig(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -376,7 +376,7 @@ func TestAIChatConfigRepository_Delete_DefaultConfig(t *testing.T) {
 	// Create and save a new config
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config, err := aichatconfig.New(
@@ -387,40 +387,40 @@ func TestAIChatConfigRepository_Delete_DefaultConfig(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	savedConfig, err := repo.Save(fixtures.ctx, config)
+	savedConfig, err := repo.Save(f.Ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, savedConfig)
 
 	// Set the config as default
-	err = repo.SetDefault(fixtures.ctx, savedConfig.ID())
+	err = repo.SetDefault(f.Ctx, savedConfig.ID())
 	require.NoError(t, err)
 
 	// Try to delete the default config
-	err = repo.Delete(fixtures.ctx, savedConfig.ID())
+	err = repo.Delete(f.Ctx, savedConfig.ID())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot delete default config")
 
 	// Verify the config still exists
-	retrievedConfig, err := repo.GetByID(fixtures.ctx, savedConfig.ID())
+	retrievedConfig, err := repo.GetByID(f.Ctx, savedConfig.ID())
 	require.NoError(t, err)
 	assert.Equal(t, savedConfig.ID(), retrievedConfig.ID())
 }
 
 func TestAIChatConfigRepository_Delete_NonExistentConfig(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
 
 	// Try to delete a non-existent config
-	err := repo.Delete(fixtures.ctx, uuid.New())
+	err := repo.Delete(f.Ctx, uuid.New())
 	assert.ErrorIs(t, err, aichatconfig.ErrConfigNotFound)
 }
 
 func TestAIChatConfigRepository_GetDefault_NoDefaultConfig(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -428,7 +428,7 @@ func TestAIChatConfigRepository_GetDefault_NoDefaultConfig(t *testing.T) {
 	// Create and save a new config without setting it as default
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config, err := aichatconfig.New(
@@ -439,17 +439,17 @@ func TestAIChatConfigRepository_GetDefault_NoDefaultConfig(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = repo.Save(fixtures.ctx, config)
+	_, err = repo.Save(f.Ctx, config)
 	require.NoError(t, err)
 
 	// Try to get the default config when none is set
-	_, err = repo.GetDefault(fixtures.ctx)
+	_, err = repo.GetDefault(f.Ctx)
 	assert.ErrorIs(t, err, aichatconfig.ErrConfigNotFound)
 }
 
 func TestAIChatConfigRepository_SaveWithIsDefault(t *testing.T) {
 	t.Parallel()
-	fixtures := setupTest(t)
+	f := setupTest(t)
 
 	// Create a new repository instance
 	repo := persistence.NewAIChatConfigRepository()
@@ -458,7 +458,7 @@ func TestAIChatConfigRepository_SaveWithIsDefault(t *testing.T) {
 	options := []aichatconfig.Option{
 		aichatconfig.WithSystemPrompt("Test system prompt"),
 		aichatconfig.WithIsDefault(true),
-		aichatconfig.WithTenantID(fixtures.tenant.ID),
+		aichatconfig.WithTenantID(f.TenantID()),
 	}
 
 	config, err := aichatconfig.New(
@@ -471,7 +471,7 @@ func TestAIChatConfigRepository_SaveWithIsDefault(t *testing.T) {
 	require.True(t, config.IsDefault())
 
 	// Save the config
-	savedConfig, err := repo.Save(fixtures.ctx, config)
+	savedConfig, err := repo.Save(f.Ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, savedConfig)
 
@@ -479,7 +479,7 @@ func TestAIChatConfigRepository_SaveWithIsDefault(t *testing.T) {
 	assert.True(t, savedConfig.IsDefault())
 
 	// Get the default config and verify it's the same one
-	defaultConfig, err := repo.GetDefault(fixtures.ctx)
+	defaultConfig, err := repo.GetDefault(f.Ctx)
 	require.NoError(t, err)
 	require.NotNil(t, defaultConfig)
 	assert.Equal(t, savedConfig.ID(), defaultConfig.ID())

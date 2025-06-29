@@ -47,7 +47,7 @@ func (tc *TestContext) WithUser(u user.User) *TestContext {
 }
 
 // WithDBName sets a custom database name
-func (tc *TestContext) WithDBName(t *testing.T, name string) *TestContext {
+func (tc *TestContext) WithDBName(t testing.TB, name string) *TestContext {
 	t.Helper()
 	if tc.dbName == "" {
 		tc.dbName = name
@@ -56,7 +56,7 @@ func (tc *TestContext) WithDBName(t *testing.T, name string) *TestContext {
 }
 
 // Build creates the test context with all dependencies
-func (tc *TestContext) Build(t *testing.T) *TestEnvironment {
+func (tc *TestContext) Build(t testing.TB) *TestEnvironment {
 	t.Helper()
 
 	// Set default db name if not set
@@ -143,7 +143,7 @@ func (te *TestEnvironment) Service(service interface{}) interface{} {
 }
 
 // AssertNoError fails the test if err is not nil
-func (te *TestEnvironment) AssertNoError(t *testing.T, err error) {
+func (te *TestEnvironment) AssertNoError(t testing.TB, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)

@@ -22,8 +22,9 @@ func TestBillingService_CreateTransaction_Click(t *testing.T) {
 	t.Helper()
 	t.Parallel()
 	f := setupTest(t)
+	billingService := getBillingService(f)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	cmd := &services.CreateTransactionCommand{
@@ -37,7 +38,7 @@ func TestBillingService_CreateTransaction_Click(t *testing.T) {
 		),
 	}
 
-	result, err := f.billingService.Create(f.ctx, cmd)
+	result, err := billingService.Create(f.Ctx, cmd)
 	require.NoError(t, err, "Create should succeed")
 	require.NotNil(t, result, "Transaction should not be nil")
 
@@ -52,8 +53,9 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 	t.Helper()
 	t.Parallel()
 	f := setupTest(t)
+	billingService := getBillingService(f)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	for i := 1; i <= 40; i++ {
@@ -76,7 +78,7 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 				),
 			}
 
-			result, err := f.billingService.Create(f.ctx, cmd)
+			result, err := billingService.Create(f.Ctx, cmd)
 			require.NoError(t, err, "Create should succeed")
 			require.NotNil(t, result, "Transaction should not be nil")
 
