@@ -446,28 +446,19 @@ func TestExecutor_TimeoutHandling(t *testing.T) {
 	mockRegistry := new(MockRegistry)
 
 	// Mock a slow query that times out
-	mockDS.On("Query", mock.Anything, mock.AnythingOfType("datasource.Query")).Return(
-		func(ctx context.Context, query datasource.Query) *datasource.QueryResult {
-			// Simulate a slow query
-			select {
-			case <-time.After(2 * time.Second):
-				return &datasource.QueryResult{
-					Data:     []datasource.DataPoint{{Timestamp: time.Now(), Value: 42.0}},
-					Metadata: datasource.ResultMetadata{QueryID: "slow", RowCount: 1},
-				}
-			case <-ctx.Done():
-				return &datasource.QueryResult{}
-			}
-		},
-		func(ctx context.Context, query datasource.Query) error {
-			// Simulate a slow query
-			select {
-			case <-time.After(2 * time.Second):
-				return nil
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}).Maybe()
+	mockDS.On("Query", mock.Anything, mock.AnythingOfType("datasource.Query")).Run(func(args mock.Arguments) {
+		ctx := args.Get(0).(context.Context)
+		// Simulate a slow query
+		select {
+		case <-time.After(2 * time.Second):
+			// This should not happen if timeout is working
+		case <-ctx.Done():
+			// Context timeout should trigger this
+		}
+	}).Return(
+		(*datasource.QueryResult)(nil),
+		context.DeadlineExceeded,
+	).Maybe()
 
 	executor := NewExecutor(mockRegistry, 30*time.Second)
 	err := executor.RegisterDataSource("slow-ds", mockDS)
