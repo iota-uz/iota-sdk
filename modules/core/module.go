@@ -141,6 +141,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
+		controllers.NewLensEventsController(app),
 		controllers.NewLoginController(app),
 		controllers.NewSpotlightController(app),
 		controllers.NewAccountController(app),

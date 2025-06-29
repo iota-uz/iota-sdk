@@ -27,9 +27,10 @@ const (
 
 type ChartOptions struct {
 	Chart       ChartConfig    `json:"chart"`
-	Series      []Series       `json:"series"`
+	Series      interface{}    `json:"series"`
+	Labels      []string       `json:"labels,omitempty"`
 	XAxis       XAxisConfig    `json:"xaxis"`
-	YAxis       []YAxisConfig  `json:"yaxis"` // YAxis can be an array for multiple y-axes
+	YAxis       []YAxisConfig  `json:"yaxis"`
 	Colors      []string       `json:"colors,omitempty"`
 	DataLabels  *DataLabels    `json:"dataLabels,omitempty"`
 	Grid        *GridConfig    `json:"grid,omitempty"`
@@ -37,22 +38,44 @@ type ChartOptions struct {
 	Tooltip     *TooltipConfig `json:"tooltip,omitempty"`
 	Title       *TitleConfig   `json:"title,omitempty"`
 	Theme       *ThemeConfig   `json:"theme,omitempty"`
-	Stroke      *StrokeConfig  `json:"stroke,omitempty"`      // Added based on common ApexCharts options
-	Markers     *MarkersConfig `json:"markers,omitempty"`     // Added based on common ApexCharts options
-	Legend      *LegendConfig  `json:"legend,omitempty"`      // Added based on common ApexCharts options
-	NoData      *NoDataConfig  `json:"noData,omitempty"`      // Added based on common ApexCharts options
-	States      *StatesConfig  `json:"states,omitempty"`      // Added based on common ApexCharts options
-	Fill        *FillConfig    `json:"fill,omitempty"`        // Added based on common ApexCharts options
-	Annotations *Annotations   `json:"annotations,omitempty"` // Added based on common ApexCharts options
+	Stroke      *StrokeConfig  `json:"stroke,omitempty"`
+	Markers     *MarkersConfig `json:"markers,omitempty"`
+	Legend      *LegendConfig  `json:"legend,omitempty"`
+	NoData      *NoDataConfig  `json:"noData,omitempty"`
+	States      *StatesConfig  `json:"states,omitempty"`
+	Fill        *FillConfig    `json:"fill,omitempty"`
+	Annotations *Annotations   `json:"annotations,omitempty"`
 }
 
 type ChartConfig struct {
-	Type    ChartType `json:"type"`
-	Height  string    `json:"height,omitempty"`
-	OffsetX int       `json:"offsetX,omitempty"`
-	OffsetY int       `json:"offsetY,omitempty"`
-	Toolbar Toolbar   `json:"toolbar,omitempty"`
-	Stacked bool      `json:"stacked,omitempty"`
+	Type    ChartType    `json:"type"`
+	Height  string       `json:"height,omitempty"`
+	OffsetX int          `json:"offsetX,omitempty"`
+	OffsetY int          `json:"offsetY,omitempty"`
+	Toolbar Toolbar      `json:"toolbar,omitempty"`
+	Stacked bool         `json:"stacked,omitempty"`
+	Events  *ChartEvents `json:"events,omitempty"`
+}
+
+type ChartEvents struct {
+	AnimationEnd        templ.JSExpression `json:"animationEnd,omitempty"`
+	BeforeMount         templ.JSExpression `json:"beforeMount,omitempty"`
+	Mounted             templ.JSExpression `json:"mounted,omitempty"`
+	Updated             templ.JSExpression `json:"updated,omitempty"`
+	MouseMove           templ.JSExpression `json:"mouseMove,omitempty"`
+	MouseLeave          templ.JSExpression `json:"mouseLeave,omitempty"`
+	Click               templ.JSExpression `json:"click,omitempty"`
+	LegendClick         templ.JSExpression `json:"legendClick,omitempty"`
+	MarkerClick         templ.JSExpression `json:"markerClick,omitempty"`
+	XAxisLabelClick     templ.JSExpression `json:"xAxisLabelClick,omitempty"`
+	Selection           templ.JSExpression `json:"selection,omitempty"`
+	DataPointSelection  templ.JSExpression `json:"dataPointSelection,omitempty"`
+	DataPointMouseEnter templ.JSExpression `json:"dataPointMouseEnter,omitempty"`
+	DataPointMouseLeave templ.JSExpression `json:"dataPointMouseLeave,omitempty"`
+	BeforeZoom          templ.JSExpression `json:"beforeZoom,omitempty"`
+	BeforeResetZoom     templ.JSExpression `json:"beforeResetZoom,omitempty"`
+	Zoomed              templ.JSExpression `json:"zoomed,omitempty"`
+	Scrolled            templ.JSExpression `json:"scrolled,omitempty"`
 }
 
 type Toolbar struct {
@@ -139,6 +162,7 @@ type BarConfig struct {
 	BorderRadius int       `json:"borderRadius,omitempty"`
 	ColumnWidth  string    `json:"columnWidth,omitempty"`
 	DataLabels   BarLabels `json:"dataLabels,omitempty"`
+	Horizontal   *bool     `json:"horizontal,omitempty"`
 }
 
 type BarLabels struct {

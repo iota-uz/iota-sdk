@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,13 +74,66 @@ func MockSession() *session.Session {
 }
 
 func NewPool(dbOpts string) *pgxpool.Pool {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, dbOpts)
+
+	config, err := pgxpool.ParseConfig(dbOpts)
 	if err != nil {
 		panic(err)
 	}
+
+	// With increased PostgreSQL max_connections (500), we can use reasonable limits
+	config.MaxConns = 4
+	config.MinConns = 1
+	config.MaxConnLifetime = time.Minute * 5
+	config.MaxConnIdleTime = time.Second * 30
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		panic(fmt.Errorf("failed to create database pool: %w", err))
+	}
+
 	return pool
+}
+
+// DatabaseManager handles database lifecycle for tests
+type DatabaseManager struct {
+	pool   *pgxpool.Pool
+	dbName string
+}
+
+// NewDatabaseManager creates a new database and returns a manager that handles cleanup automatically
+func NewDatabaseManager(t *testing.T) *DatabaseManager {
+	t.Helper()
+
+	dbName := t.Name()
+	CreateDB(dbName)
+	pool := NewPool(DbOpts(dbName))
+
+	dm := &DatabaseManager{
+		pool:   pool,
+		dbName: dbName,
+	}
+
+	// Register cleanup
+	t.Cleanup(func() {
+		dm.Close()
+	})
+
+	return dm
+}
+
+// Pool returns the database pool
+func (dm *DatabaseManager) Pool() *pgxpool.Pool {
+	return dm.pool
+}
+
+// Close closes the pool
+func (dm *DatabaseManager) Close() {
+	if dm.pool != nil {
+		dm.pool.Close()
+		dm.pool = nil
+	}
 }
 
 func DefaultParams() *composables.Params {
@@ -133,7 +188,7 @@ func CreateDB(name string) {
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			panic(err)
+			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
 	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
