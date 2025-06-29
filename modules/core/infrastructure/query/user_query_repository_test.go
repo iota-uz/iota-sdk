@@ -23,7 +23,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			Offset: 0,
 		}
 
-		users, count, err := userQueryRepo.FindUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.FindUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -39,7 +39,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			Search: "admin",
 		}
 
-		users, count, err := userQueryRepo.SearchUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.SearchUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -50,7 +50,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 		fixtures := setupTest(t)
 
 		// Since we don't have a user yet, this should return an error
-		user, err := userQueryRepo.FindUserByID(fixtures.ctx, 999999)
+		user, err := userQueryRepo.FindUserByID(fixtures.Ctx, 999999)
 		require.Error(t, err)
 		require.Nil(t, user)
 	})
@@ -70,7 +70,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users, count, err := userQueryRepo.FindUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.FindUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -90,7 +90,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users, count, err := userQueryRepo.FindUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.FindUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -111,7 +111,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users, count, err := userQueryRepo.FindUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.FindUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -131,7 +131,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users, count, err := userQueryRepo.FindUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.FindUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -152,7 +152,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users, count, err := userQueryRepo.SearchUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.SearchUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -178,7 +178,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users, count, err := userQueryRepo.FindUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.FindUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -199,7 +199,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users, count, err := userQueryRepo.FindUsers(fixtures.ctx, params)
+		users, count, err := userQueryRepo.FindUsers(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, users)
 		require.GreaterOrEqual(t, count, 0)
@@ -220,7 +220,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users1, count1, err := userQueryRepo.FindUsers(fixtures.ctx, params1)
+		users1, count1, err := userQueryRepo.FindUsers(fixtures.Ctx, params1)
 		require.NoError(t, err)
 		require.NotNil(t, users1)
 
@@ -235,7 +235,7 @@ func TestPgUserQueryRepository_FindUsers(t *testing.T) {
 			},
 		}
 
-		users2, count2, err := userQueryRepo.FindUsers(fixtures.ctx, params2)
+		users2, count2, err := userQueryRepo.FindUsers(fixtures.Ctx, params2)
 		require.NoError(t, err)
 		require.NotNil(t, users2)
 

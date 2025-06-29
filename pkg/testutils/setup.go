@@ -80,7 +80,7 @@ func Setup(t *testing.T, modules ...application.Module) *TestEnv {
 		pool.Close()
 
 		// Release the semaphore
-		<-dbTestSemaphore
+		<-DbTestSemaphore
 	})
 
 	return &TestEnv{
