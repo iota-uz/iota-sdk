@@ -28,11 +28,11 @@ func TestGroupService_GetByID(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	// Create test permission
-	err = permissionRepository.Save(f.ctx, permissions.UserRead)
+	err = permissionRepository.Save(f.Ctx, permissions.UserRead)
 	require.NoError(t, err)
 
 	// Create test data
@@ -44,11 +44,11 @@ func TestGroupService_GetByID(t *testing.T) {
 	service := services.NewGroupService(groupRepository, bus)
 
 	// Add the group to the repository
-	savedGroup, err := groupRepository.Save(f.ctx, testGroup)
+	savedGroup, err := groupRepository.Save(f.Ctx, testGroup)
 	require.NoError(t, err)
 
 	// Execute
-	result, err := service.GetByID(f.ctx, savedGroup.ID())
+	result, err := service.GetByID(f.Ctx, savedGroup.ID())
 
 	// Assert
 	require.NoError(t, err)
@@ -67,11 +67,11 @@ func TestGroupService_Count(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	// Create test permission
-	err = permissionRepository.Save(f.ctx, permissions.UserRead)
+	err = permissionRepository.Save(f.Ctx, permissions.UserRead)
 	require.NoError(t, err)
 
 	// Setup service
@@ -82,12 +82,12 @@ func TestGroupService_Count(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		groupName := "Group " + string(rune(i+64)) // A, B, C, D, E
 		groupEntity := group.New(groupName, group.WithID(uuid.New()), group.WithTenantID(tenant))
-		_, err := groupRepository.Save(f.ctx, groupEntity)
+		_, err := groupRepository.Save(f.Ctx, groupEntity)
 		require.NoError(t, err)
 	}
 
 	// Execute
-	result, err := service.Count(f.ctx, &group.FindParams{})
+	result, err := service.Count(f.Ctx, &group.FindParams{})
 
 	// Assert
 	require.NoError(t, err)
@@ -105,11 +105,11 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	// Create test permission
-	err = permissionRepository.Save(f.ctx, permissions.UserRead)
+	err = permissionRepository.Save(f.Ctx, permissions.UserRead)
 	require.NoError(t, err)
 
 	// Setup service
@@ -134,9 +134,9 @@ func TestGroupService_GetPaginated(t *testing.T) {
 		group.WithTenantID(tenant),
 	)
 
-	_, err = groupRepository.Save(f.ctx, groupOlder)
+	_, err = groupRepository.Save(f.Ctx, groupOlder)
 	require.NoError(t, err)
-	_, err = groupRepository.Save(f.ctx, groupNewer)
+	_, err = groupRepository.Save(f.Ctx, groupNewer)
 	require.NoError(t, err)
 
 	// Test pagination
@@ -151,7 +151,7 @@ func TestGroupService_GetPaginated(t *testing.T) {
 	}
 
 	// Execute
-	result, err := service.GetPaginated(f.ctx, params)
+	result, err := service.GetPaginated(f.Ctx, params)
 
 	// Assert
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestGroupService_GetPaginated(t *testing.T) {
 
 	// Test reverse sorting
 	params.SortBy.Fields[0].Ascending = false
-	result, err = service.GetPaginated(f.ctx, params)
+	result, err = service.GetPaginated(f.Ctx, params)
 
 	// Assert
 	require.NoError(t, err)

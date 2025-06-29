@@ -1,0 +1,254 @@
+package ui
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/evaluation"
+	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
+)
+
+// Dashboard renders a complete dashboard with panels
+templ Dashboard(dashboard *evaluation.EvaluatedDashboard) {
+	<div class="dashboard-container" style={ generateGridCSS(&dashboard.Layout) }>
+		for _, panel := range dashboard.Panels {
+			@Panel(&panel)
+		}
+	</div>
+}
+
+// DashboardWithData renders a dashboard using executor results
+templ DashboardWithData(config lens.DashboardConfig, results *executor.DashboardResult) {
+	<div class="dashboard-wrapper">
+		<div class="dashboard-header">
+			<h1 class="dashboard-title">{ config.Name }</h1>
+			if config.Description != "" {
+				<p class="dashboard-description">{ config.Description }</p>
+			}
+		</div>
+		<div class="dashboard-panels" style={ generateDashboardGridCSS(config) }>
+			for _, panelConfig := range config.Panels {
+				if result, exists := results.PanelResults[panelConfig.ID]; exists {
+					@PanelWithData(panelConfig, result)
+				} else {
+					@PanelError(panelConfig, "No data available")
+				}
+			}
+		</div>
+	</div>
+}
+
+// Panel renders a single evaluated panel
+templ Panel(panel *evaluation.EvaluatedPanel) {
+	<div
+		id={ "panel-" + panel.Config.ID }
+		class="dashboard-panel"
+		style={ generatePanelGridCSS(panel) }
+	>
+		<div class="panel-header">
+			<h3 class="panel-title">{ panel.Config.Title }</h3>
+		</div>
+		<div class="panel-content">
+			switch panel.Config.Type {
+				case lens.ChartTypeTable:
+					@TablePanel(panel)
+				case lens.ChartTypeMetric:
+					@MetricPanel(panel)
+				default:
+					@ChartPanel(panel)
+			}
+		</div>
+	</div>
+}
+
+// PanelWithData renders a panel using executor results
+templ PanelWithData(config lens.PanelConfig, result *executor.ExecutionResult) {
+	if config.Type == lens.ChartTypeMetric {
+		// Render metric cards directly without panel wrapper
+		<div
+			id={ "panel-" + config.ID }
+			class="dashboard-panel dashboard-panel--metric"
+			style={ generateConfigPanelGridCSS(config) }
+		>
+			if result.Error != nil {
+				@ErrorContent(result.Error.Error())
+			} else {
+				@MetricContent(config, result)
+			}
+		</div>
+	} else {
+		// Render other panel types with wrapper and expand functionality
+		<div
+			id={ "panel-" + config.ID }
+			class="dashboard-panel"
+			style={ generateConfigPanelGridCSS(config) }
+			x-data="{ expanded: false }"
+			:class="{ 'panel-expanded': expanded }"
+		>
+			<div class="panel-header">
+				<h3 class="panel-title">{ config.Title }</h3>
+				<div class="panel-actions">
+					if result.CacheHit {
+						<span class="cache-indicator">cached</span>
+					}
+					<button
+						@click="expanded = !expanded"
+						class="btn btn-secondary btn-sm hover:bg-gray-100 transition-colors cursor-pointer flex"
+						type="button"
+						aria-label="Toggle full screen"
+					>
+						@icons.ArrowsIn(icons.Props{
+							Size:  "20",
+							Class: "text-gray-600",
+							Attributes: templ.Attributes{
+								"x-show": "expanded",
+							},
+						})
+						@icons.ArrowsOut(icons.Props{
+							Size:  "20",
+							Class: "text-gray-600",
+							Attributes: templ.Attributes{
+								"x-show": "!expanded",
+							},
+						})
+					</button>
+				</div>
+			</div>
+			<div class="panel-content">
+				if result.Error != nil {
+					@ErrorContent(result.Error.Error())
+				} else {
+					switch config.Type {
+						case lens.ChartTypeTable:
+							@TableContent(result)
+						default:
+							@ChartContent(config, result)
+					}
+				}
+			</div>
+		</div>
+	}
+}
+
+// TablePanel renders a table panel from evaluated panel
+templ TablePanel(panel *evaluation.EvaluatedPanel) {
+	<div class="table-container">
+		<div class="table-placeholder">
+			Table data will be loaded via HTMX
+		</div>
+	</div>
+}
+
+// TableContent renders table data from executor results
+templ TableContent(result *executor.ExecutionResult) {
+	<div class="table-container">
+		<table class="dashboard-table">
+			<thead>
+				<tr>
+					for _, col := range result.Columns {
+						<th>{ col.Name }</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				for _, row := range result.Data {
+					<tr>
+						for _, col := range result.Columns {
+							<td>{ formatValue(row.Fields[col.Name]) }</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// ChartPanel renders a chart panel from evaluated panel
+templ ChartPanel(panel *evaluation.EvaluatedPanel) {
+	@charts.Chart(charts.Props{
+		Class:   "h-32 sm:h-40 md:h-48 lg:h-64",
+		Options: buildChartOptionsFromPanel(panel),
+	})
+}
+
+// ChartContent renders chart from executor results
+templ ChartContent(config lens.PanelConfig, result *executor.ExecutionResult) {
+	@charts.Chart(charts.Props{
+		Class:   "h-32 sm:h-40 md:h-48 lg:h-64",
+		Options: buildChartOptionsFromResult(config, result),
+	})
+}
+
+// PanelError renders error state for a panel
+templ PanelError(config lens.PanelConfig, message string) {
+	<div
+		id={ "panel-" + config.ID }
+		class="dashboard-panel panel-error"
+		style={ generateConfigPanelGridCSS(config) }
+	>
+		<div class="panel-header">
+			<h3 class="panel-title">{ config.Title }</h3>
+		</div>
+		<div class="panel-content">
+			@ErrorContent(message)
+		</div>
+	</div>
+}
+
+// ErrorContent renders error message
+templ ErrorContent(message string) {
+	<div class="error-container">
+		<div class="error-icon">⚠️</div>
+		<div class="error-message">{ message }</div>
+	</div>
+}
+
+// MetricPanel renders a metric panel from evaluated panel
+templ MetricPanel(panel *evaluation.EvaluatedPanel) {
+	<div class="metric-container">
+		<div class="metric-placeholder">
+			Metric data will be loaded via HTMX
+		</div>
+	</div>
+}
+
+// MetricContent renders metric card from executor results
+templ MetricContent(config lens.PanelConfig, result *executor.ExecutionResult) {
+	if len(result.Data) > 0 && len(result.Columns) >= 2 {
+		@MetricCard(buildMetricFromResult(config, result))
+	} else {
+		<div class="metric-error">
+			<span>Invalid metric data: requires at least 2 columns (label, value)</span>
+		</div>
+	}
+}
+
+// MetricCard renders a single metric value card
+templ MetricCard(metric lens.MetricValue) {
+	<div class={ "metric-card", templ.KV("metric-card--has-trend", metric.Trend != nil), templ.KV("metric-card--colored", metric.Color != "") } style={ generateMetricCardStyle(metric) }>
+		<div class="metric-card__header">
+			if metric.Icon != "" {
+				<div class="metric-card__icon">{ metric.Icon }</div>
+			}
+			<div class="metric-card__label">{ metric.Label }</div>
+		</div>
+		<div class="metric-card__value">
+			if metric.FormattedValue != "" {
+				{ metric.FormattedValue }
+			} else {
+				{ formatMetricValue(metric.Value, metric.Unit) }
+			}
+		</div>
+		if metric.Trend != nil {
+			<div class={ "metric-card__trend", getTrendClass(metric.Trend) }>
+				<span class="metric-card__trend-icon">{ getTrendIcon(metric.Trend.Direction) }</span>
+				<span class="metric-card__trend-value">{ formatPercentage(metric.Trend.Percentage) }</span>
+			</div>
+		}
+	</div>
+}
+
+// Grid renders just the grid layout
+templ Grid(layout *evaluation.Layout) {
+	<div class="dashboard-grid" style={ generateLayoutCSS(layout) }></div>
+}

@@ -1,7 +1,10 @@
 # CLAUDE.md - IOTA SDK Guide
 
-## Overview
-DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
+## Rules
+- DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
+- Use `pkg/htmx` for all UI interactions
+- Use existing components from `components/` package before creating new ones
+- DO NOT USE `sed` for file manipulation
 
 ## Module Architecture
 
@@ -15,37 +18,37 @@ modules/{module}/
 │   │   ├── {entity}_impl.go    # Entity implementation
 │   │   ├── {entity}_events.go  # Domain events
 │   │   └── {entity}_repository.go # Repository interface
-│   ├── entities/{entity}/      # Simpler domain entities
+│   ├── entities/{entity}/
 │   └── value_objects/          # Immutable domain concepts
 ├── infrastructure/             # External concerns
 │   └── persistence/
 │       ├── models/models.go    # Database models
 │       ├── {entity}_repository.go # Repository implementations
-│       ├── {module}_mappers.go # Domain-to-DB mapping
+│       ├── {module}_mappers.go # Domain-to-DB/DB-to-Domain mapping
 │       ├── schema/{module}-schema.sql # SQL schema
-│       └── setup_test.go       # Test utilities
+│       └── setup_test.go
 ├── services/                   # Business logic orchestration
-│   ├── {entity}_service.go     # Service implementation
-│   ├── {entity}_service_test.go # Service tests
-│   └── setup_test.go           # Test setup
-├── presentation/               # UI and API layer
+│   ├── {entity}_service.go
+│   ├── {entity}_service_test.go
+│   └── setup_test.go
+├── presentation/
 │   ├── controllers/
-│   │   ├── {entity}_controller.go # HTTP handlers
-│   │   ├── {entity}_controller_test.go # Controller tests
-│   │   ├── dtos/{entity}_dto.go # Data transfer objects
-│   │   └── setup_test.go       # Test utilities
+│   │   ├── {entity}_controller.go
+│   │   ├── {entity}_controller_test.go
+│   │   ├── dtos/{entity}_dto.go
+│   │   └── setup_test.go
 │   ├── templates/
-│   │   ├── pages/{entity}/     # Entity-specific pages
-│   │   │   ├── list.templ      # List view
-│   │   │   ├── edit.templ      # Edit form
-│   │   │   └── new.templ       # Create form
+│   │   ├── pages/{entity}/
+│   │   │   ├── list.templ
+│   │   │   ├── edit.templ
+│   │   │   └── new.templ
 │   │   └── components/         # Reusable UI components
 │   ├── viewmodels/             # Presentation models
 │   ├── mappers/mappers.go      # Domain-to-presentation mapping
-│   └── locales/                # Internationalization
-│       ├── en.json             # English translations
-│       ├── ru.json             # Russian translations
-│       └── uz.json             # Uzbek translations
+│   └── locales/
+│       ├── en.json
+│       ├── ru.json
+│       └── uz.json
 ├── module.go                   # Module registration
 ├── links.go                    # Navigation items
 └── permissions/constants.go    # RBAC permissions
@@ -77,7 +80,7 @@ modules/{module}/
 ### 5. Templates (if needed)
 - Create templ files in `modules/{module}/presentation/templates/pages/{entity_name}/`
 - Common templates: `list.templ`, `edit.templ`, `new.templ`
-- Run `templ generate` after creating/modifying .templ files
+- Run `templ generate` after creating/modifying `.templ` files
 
 ### 6. Localization
 - Add translations to all locale files in `modules/{module}/presentation/locales/`
@@ -90,37 +93,25 @@ modules/{module}/
   - Add controller to `app.RegisterControllers()` call  
   - Add quick links to `app.QuickLinks().Add()` call
 
-### 8. Verification
-- Run `go vet ./...` to verify compilation
-- Run `templ generate && make css` if templates were modified
-
-## Tool use
-- DO NOT USE `sed` for file manipulation
-
 ## Build/Lint/Test Commands
-- After changes to css or .templ files: `templ generate && make css`
-- After changes to Go code: `go vet ./...` (Do NOT run `go build` as it is not needed)
-- Run all tests: `make test` or `go test -v ./...` 
+- After changes to `.css` or `.templ` files: `make css`
+- Apply migrations: `make migrate up`
+- After changes to .templ files: `templ generate`
+- After changes to Go code: `go vet ./...` 
+- Do NOT run `go build`, as it does the same thing as `go vet`
+- Run all tests: `make test` or `go test -v ./...`
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
 - Linting translation files: `make check-tr`
-- Apply migrations: `make migrate up`
 
 ## Code Style Guidelines
 - Use `go fmt` for formatting. Do not indent code manually.
 - Use Go v1.23.2 and follow standard Go idioms
-- File organization: group related functionality in modules/ or pkg/ directories
 - Naming: use camelCase for variables, PascalCase for exported functions/types
 - Testing: table-driven tests with descriptive names (TestFunctionName_Scenario), use the `require` and `assert` packages from `github.com/stretchr/testify`
 - Error handling: use pkg/serrors for standard error types
-- Type safety: use strong typing and avoid interface{} where possible
-- Follow existing patterns for database operations with jmoiron/sqlx
+- Type safety: use strong typing and avoid `interface{}/any` where possible
+- Follow existing patterns for database operations with `jmoiron/sqlx`
 - For UI components, follow the existing templ/htmx patterns
-- NEVER read *_templ.go files, they contain no useful information since they are generated by templ generate (make generate) command from .templ files
-
-## UI Implementation Guidelines
-
-### HTMX Best Practices
-- Use `htmx.IsHxRequest(r)` to check if a request is from HTMX
-- Use `htmx.SetTrigger(w, "eventName", payload)` for setting HTMX response triggers
+- NEVER read `*_templ.go` files, they contain little useful information since they are generated by `templ generate` command from `.templ` files
 

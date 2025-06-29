@@ -11,9 +11,9 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
-	positionService := f.app.Service(positionservice.PositionService{}).(*positionservice.PositionService)
+	positionService := f.App.Service(positionservice.PositionService{}).(*positionservice.PositionService)
 
-	if err := positionService.LoadFromFilePath(f.ctx, TestFilePath); err != nil {
+	if err := positionService.LoadFromFilePath(f.Ctx, TestFilePath); err != nil {
 		t.Fatal(err)
 	}
 
@@ -21,7 +21,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository()
 
-	positions, err := positionRepo.GetAll(f.ctx)
+	positions, err := positionRepo.GetAll(f.Ctx)
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,7 +41,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		t.Errorf("position with title 'Дрель Молоток N.C.V (900W)' not found")
 	}
 
-	units, err := unitRepo.GetAll(f.ctx)
+	units, err := unitRepo.GetAll(f.Ctx)
 	if err != nil {
 		t.Error(err)
 	}
@@ -58,7 +58,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 		t.Errorf("expected short title %s, got %s", "шт", units[0].ShortTitle)
 	}
 
-	products, err := productRepo.GetAll(f.ctx)
+	products, err := productRepo.GetAll(f.Ctx)
 	if err != nil {
 		t.Error(err)
 	}

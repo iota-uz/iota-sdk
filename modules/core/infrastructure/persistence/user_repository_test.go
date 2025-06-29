@@ -30,10 +30,10 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
 	// Create roles for testing
-	err := permissionRepository.Save(f.ctx, permissions.UserRead)
+	err := permissionRepository.Save(f.Ctx, permissions.UserRead)
 	require.NoError(t, err)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	// First role
@@ -47,7 +47,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	roleEntity, err := roleRepository.Create(f.ctx, roleData)
+	roleEntity, err := roleRepository.Create(f.Ctx, roleData)
 	require.NoError(t, err)
 
 	// Second role for testing role filtering
@@ -60,7 +60,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		role.WithTenantID(tenant),
 	)
 
-	secondRoleEntity, err := roleRepository.Create(f.ctx, secondRoleData)
+	secondRoleEntity, err := roleRepository.Create(f.Ctx, secondRoleData)
 	require.NoError(t, err)
 
 	// Create a group to test filtering
@@ -71,7 +71,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		group.WithDescription("Test group description"),
 		group.WithTenantID(tenant),
 	)
-	_, err = groupRepository.Save(f.ctx, groupEntity)
+	_, err = groupRepository.Save(f.Ctx, groupEntity)
 	require.NoError(t, err)
 
 	// Second group
@@ -82,7 +82,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		group.WithDescription("Second group description"),
 		group.WithTenantID(tenant),
 	)
-	_, err = groupRepository.Save(f.ctx, secondGroupEntity)
+	_, err = groupRepository.Save(f.Ctx, secondGroupEntity)
 	require.NoError(t, err)
 
 	t.Run("Create", func(t *testing.T) {
@@ -99,7 +99,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUser, err := userRepository.Create(f.ctx, userEntity)
+		createdUser, err := userRepository.Create(f.Ctx, userEntity)
 		require.NoError(t, err)
 		assert.NotEqual(t, uint(0), createdUser.ID())
 		assert.Equal(t, "John", createdUser.FirstName())
@@ -130,7 +130,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUserWithRoles, err := userRepository.Create(f.ctx, userWithRoles)
+		createdUserWithRoles, err := userRepository.Create(f.Ctx, userWithRoles)
 		require.NoError(t, err)
 		assert.Len(t, createdUserWithRoles.Roles(), 1)
 		assert.Equal(t, roleEntity.ID(), createdUserWithRoles.Roles()[0].ID())
@@ -148,7 +148,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUserWithGroup, err := userRepository.Create(f.ctx, userWithGroup)
+		createdUserWithGroup, err := userRepository.Create(f.Ctx, userWithGroup)
 		require.NoError(t, err)
 		assert.Len(t, createdUserWithGroup.GroupIDs(), 1)
 		assert.Equal(t, groupID, createdUserWithGroup.GroupIDs()[0])
@@ -166,10 +166,10 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUser, err := userRepository.Create(f.ctx, userEntity)
+		createdUser, err := userRepository.Create(f.Ctx, userEntity)
 		require.NoError(t, err)
 
-		retrievedUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		retrievedUser, err := userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 		assert.Equal(t, createdUser.ID(), retrievedUser.ID())
 		assert.Equal(t, "Get", retrievedUser.FirstName())
@@ -190,10 +190,10 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		_, err = userRepository.Create(f.ctx, userEntity)
+		_, err = userRepository.Create(f.Ctx, userEntity)
 		require.NoError(t, err)
 
-		retrievedUser, err := userRepository.GetByEmail(f.ctx, emailStr)
+		retrievedUser, err := userRepository.GetByEmail(f.Ctx, emailStr)
 		require.NoError(t, err)
 		assert.Equal(t, "Get", retrievedUser.FirstName())
 		assert.Equal(t, "ByEmail", retrievedUser.LastName())
@@ -212,14 +212,14 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUser, err := userRepository.Create(f.ctx, userEntity)
+		createdUser, err := userRepository.Create(f.Ctx, userEntity)
 		require.NoError(t, err)
 
 		updatedUser := createdUser.SetName("After", "Updated", createdUser.MiddleName())
-		err = userRepository.Update(f.ctx, updatedUser)
+		err = userRepository.Update(f.Ctx, updatedUser)
 		require.NoError(t, err)
 
-		retrievedUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		retrievedUser, err := userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 		assert.Equal(t, "After", retrievedUser.FirstName())
 		assert.Equal(t, "Updated", retrievedUser.LastName())
@@ -237,35 +237,35 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUser, err := userRepository.Create(f.ctx, userEntity)
+		createdUser, err := userRepository.Create(f.Ctx, userEntity)
 		require.NoError(t, err)
 		assert.Empty(t, createdUser.Roles())
 
 		// Add a role
 		updatedUser := createdUser.AddRole(roleEntity)
-		err = userRepository.Update(f.ctx, updatedUser)
+		err = userRepository.Update(f.Ctx, updatedUser)
 		require.NoError(t, err)
 
-		retrievedUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		retrievedUser, err := userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 		assert.Len(t, retrievedUser.Roles(), 1)
 		assert.Equal(t, roleEntity.ID(), retrievedUser.Roles()[0].ID())
 
 		// Add another role
 		updatedUser = retrievedUser.AddRole(secondRoleEntity)
-		err = userRepository.Update(f.ctx, updatedUser)
+		err = userRepository.Update(f.Ctx, updatedUser)
 		require.NoError(t, err)
 
-		retrievedUser, err = userRepository.GetByID(f.ctx, createdUser.ID())
+		retrievedUser, err = userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 		assert.Len(t, retrievedUser.Roles(), 2)
 
 		// Remove a role
 		updatedUser = retrievedUser.RemoveRole(roleEntity)
-		err = userRepository.Update(f.ctx, updatedUser)
+		err = userRepository.Update(f.Ctx, updatedUser)
 		require.NoError(t, err)
 
-		retrievedUser, err = userRepository.GetByID(f.ctx, createdUser.ID())
+		retrievedUser, err = userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 		assert.Len(t, retrievedUser.Roles(), 1)
 		assert.Equal(t, secondRoleEntity.ID(), retrievedUser.Roles()[0].ID())
@@ -283,26 +283,26 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUser, err := userRepository.Create(f.ctx, userEntity)
+		createdUser, err := userRepository.Create(f.Ctx, userEntity)
 		require.NoError(t, err)
 		assert.Empty(t, createdUser.GroupIDs())
 
 		// Add a group
 		updatedUser := createdUser.SetGroupIDs([]uuid.UUID{groupID})
-		err = userRepository.Update(f.ctx, updatedUser)
+		err = userRepository.Update(f.Ctx, updatedUser)
 		require.NoError(t, err)
 
-		retrievedUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		retrievedUser, err := userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 		assert.Len(t, retrievedUser.GroupIDs(), 1)
 		assert.Equal(t, groupID, retrievedUser.GroupIDs()[0])
 
 		// Change to a different group
 		updatedUser = retrievedUser.SetGroupIDs([]uuid.UUID{secondGroupID})
-		err = userRepository.Update(f.ctx, updatedUser)
+		err = userRepository.Update(f.Ctx, updatedUser)
 		require.NoError(t, err)
 
-		retrievedUser, err = userRepository.GetByID(f.ctx, createdUser.ID())
+		retrievedUser, err = userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 		assert.Len(t, retrievedUser.GroupIDs(), 1)
 		assert.Equal(t, secondGroupID, retrievedUser.GroupIDs()[0])
@@ -323,7 +323,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			Offset: 0,
 		}
 
-		users, err := userRepository.GetPaginated(f.ctx, params)
+		users, err := userRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Verify all returned users have the role
@@ -354,7 +354,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			Offset: 0,
 		}
 
-		users, err := userRepository.GetPaginated(f.ctx, params)
+		users, err := userRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Verify none of the returned users have the role
@@ -385,7 +385,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			Offset: 0,
 		}
 
-		users, err := userRepository.GetPaginated(f.ctx, params)
+		users, err := userRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Verify all returned users have one of the roles
@@ -416,7 +416,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			Offset: 0,
 		}
 
-		users, err := userRepository.GetPaginated(f.ctx, params)
+		users, err := userRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Verify all returned users have the group
@@ -434,24 +434,24 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 
 	t.Run("GetPaginated_TenantFiltering", func(t *testing.T) {
 		// Create a second tenant for testing cross-tenant isolation
-		secondTenant, err := testutils.CreateTestTenant(f.ctx, f.pool)
+		secondTenant, err := testutils.CreateTestTenant(f.Ctx, f.Pool)
 		require.NoError(t, err)
 
 		// Create users in the first tenant (current context tenant)
 		email1, err := internet.NewEmail("tenant1user1@gmail.com")
 		require.NoError(t, err)
 		user1 := user.New("Tenant1", "User1", email1, user.UILanguageEN, user.WithTenantID(tenant))
-		_, err = userRepository.Create(f.ctx, user1)
+		_, err = userRepository.Create(f.Ctx, user1)
 		require.NoError(t, err)
 
 		email2, err := internet.NewEmail("tenant1user2@gmail.com")
 		require.NoError(t, err)
 		user2 := user.New("Tenant1", "User2", email2, user.UILanguageEN, user.WithTenantID(tenant))
-		_, err = userRepository.Create(f.ctx, user2)
+		_, err = userRepository.Create(f.Ctx, user2)
 		require.NoError(t, err)
 
 		// Create users in the second tenant by temporarily switching context
-		secondTenantCtx := composables.WithTenantID(f.ctx, secondTenant.ID)
+		secondTenantCtx := composables.WithTenantID(f.Ctx, secondTenant.ID)
 
 		email3, err := internet.NewEmail("tenant2user1@gmail.com")
 		require.NoError(t, err)
@@ -474,7 +474,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			Offset: 0,
 		}
 
-		firstTenantUsers, err := userRepository.GetPaginated(f.ctx, params)
+		firstTenantUsers, err := userRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Verify all returned users belong to the first tenant
@@ -529,13 +529,13 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 			user.WithTenantID(tenant),
 		)
 
-		createdUser, err := userRepository.Create(f.ctx, userEntity)
+		createdUser, err := userRepository.Create(f.Ctx, userEntity)
 		require.NoError(t, err)
 
-		err = userRepository.Delete(f.ctx, createdUser.ID())
+		err = userRepository.Delete(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 
-		_, err = userRepository.GetByID(f.ctx, createdUser.ID())
+		_, err = userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.Error(t, err)
 		require.ErrorIs(t, err, persistence.ErrUserNotFound)
 	})

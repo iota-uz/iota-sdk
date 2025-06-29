@@ -47,8 +47,8 @@ func (tc *TestContext) WithUser(u user.User) *TestContext {
 }
 
 // WithDBName sets a custom database name
-func (tc *TestContext) WithDBName(t *testing.T, name string) *TestContext {
-	t.Helper()
+func (tc *TestContext) WithDBName(tb testing.TB, name string) *TestContext {
+	tb.Helper()
 	if tc.dbName == "" {
 		tc.dbName = name
 	}
@@ -56,12 +56,12 @@ func (tc *TestContext) WithDBName(t *testing.T, name string) *TestContext {
 }
 
 // Build creates the test context with all dependencies
-func (tc *TestContext) Build(t *testing.T) *TestEnvironment {
-	t.Helper()
+func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
+	tb.Helper()
 
 	// Set default db name if not set
 	if tc.dbName == "" {
-		tc.dbName = t.Name()
+		tc.dbName = tb.Name()
 	}
 
 	// Create test database
@@ -71,21 +71,21 @@ func (tc *TestContext) Build(t *testing.T) *TestEnvironment {
 	// Setup application
 	app, err := testutils.SetupApplication(tc.pool, tc.modules...)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	tc.app = app
 
 	// Create tenant
 	tenant, err := testutils.CreateTestTenant(tc.ctx, tc.pool)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	tc.tenant = tenant
 
 	// Begin transaction
 	tx, err := tc.pool.Begin(tc.ctx)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	tc.tx = tx
 
@@ -93,9 +93,9 @@ func (tc *TestContext) Build(t *testing.T) *TestEnvironment {
 	tc.ctx = tc.buildContext()
 
 	// Setup cleanup
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if err := tx.Rollback(tc.ctx); err != nil && err != pgx.ErrTxClosed {
-			t.Logf("Warning: failed to rollback transaction: %v", err)
+			tb.Logf("Warning: failed to rollback transaction: %v", err)
 		}
 		tc.pool.Close()
 	})
@@ -141,10 +141,10 @@ func (te *TestEnvironment) Service(service interface{}) interface{} {
 }
 
 // AssertNoError fails the test if err is not nil
-func (te *TestEnvironment) AssertNoError(t *testing.T, err error) {
-	t.Helper()
+func (te *TestEnvironment) AssertNoError(tb testing.TB, err error) {
+	tb.Helper()
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 }
 
