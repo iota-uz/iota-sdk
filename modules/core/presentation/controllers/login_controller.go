@@ -175,6 +175,8 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		logger.Error("Failed to authenticate user", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
+		} else if errors.Is(err, persistence.ErrUserNotFound) {
+			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
