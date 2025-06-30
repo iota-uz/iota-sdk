@@ -639,27 +639,420 @@ categoryField := crud.NewSelectField("category_id").
 
 ### Example: Complete Localization Setup
 
+The CRUD controller uses the following localization keys for all UI elements:
+
 ```go
 // Schema definition
 schema := crud.NewSchema("products", fields, mapper)
+```
 
-// Locale files setup required:
-// modules/mymodule/presentation/locales/en.json
+**Complete Locale File Structure**
+
+**English** (`modules/{module}/presentation/locales/en.json`):
+```json
 {
   "products": {
     "Fields": {
       "id": "Product ID",
-      "name": "Product Name", 
+      "name": "Product Name",
       "description": "Description",
-      "price": "Price ($)",
+      "price": "Price",
       "category_id": "Category",
       "status": "Status",
-      "active": "Status",
-      "created_at": "Created Date"
+      "is_active": "Active",
+      "created_at": "Created Date",
+      "updated_at": "Last Updated"
+    },
+    "List": {
+      "Title": "Products",
+      "New": "New Product"
+    },
+    "New": {
+      "Title": "Create New Product",
+      "SubmitLabel": "Create"
+    },
+    "Edit": {
+      "Title": "Edit Product",
+      "SubmitLabel": "Update"
+    },
+    "View": {
+      "Title": "Product Details"
     }
+  },
+  "Common": {
+    "Actions": "Actions",
+    "Edit": "Edit",
+    "Delete": "Delete",
+    "Save": "Save",
+    "Cancel": "Cancel",
+    "Back": "Back",
+    "Search": "Search",
+    "Filter": "Filter",
+    "Yes": "Yes",
+    "No": "No",
+    "ConfirmDelete": "Are you sure you want to delete this item?"
+  },
+  "Errors": {
+    "InvalidFormData": "Invalid form data",
+    "InvalidQueryParams": "Invalid query parameters",
+    "FailedToRetrieve": "Failed to retrieve data",
+    "FailedToSave": "Failed to save data",
+    "FailedToUpdate": "Failed to update data",
+    "FailedToDelete": "Failed to delete data",
+    "EntityNotFound": "Item not found",
+    "InternalServer": "Internal server error",
+    "FailedToRender": "Failed to render page"
   }
 }
 ```
+
+**Russian** (`modules/{module}/presentation/locales/ru.json`):
+```json
+{
+  "products": {
+    "Fields": {
+      "id": "ID продукта",
+      "name": "Название продукта",
+      "description": "Описание",
+      "price": "Цена",
+      "category_id": "Категория",
+      "status": "Статус",
+      "is_active": "Активен",
+      "created_at": "Дата создания",
+      "updated_at": "Последнее обновление"
+    },
+    "List": {
+      "Title": "Продукты",
+      "New": "Новый продукт"
+    },
+    "New": {
+      "Title": "Создать новый продукт",
+      "SubmitLabel": "Создать"
+    },
+    "Edit": {
+      "Title": "Редактировать продукт",
+      "SubmitLabel": "Обновить"
+    },
+    "View": {
+      "Title": "Детали продукта"
+    }
+  },
+  "Common": {
+    "Actions": "Действия",
+    "Edit": "Редактировать",
+    "Delete": "Удалить",
+    "Save": "Сохранить",
+    "Cancel": "Отмена",
+    "Back": "Назад",
+    "Search": "Поиск",
+    "Filter": "Фильтр",
+    "Yes": "Да",
+    "No": "Нет",
+    "ConfirmDelete": "Вы уверены, что хотите удалить этот элемент?"
+  },
+  "Errors": {
+    "InvalidFormData": "Неверные данные формы",
+    "InvalidQueryParams": "Неверные параметры запроса",
+    "FailedToRetrieve": "Не удалось получить данные",
+    "FailedToSave": "Не удалось сохранить данные",
+    "FailedToUpdate": "Не удалось обновить данные",
+    "FailedToDelete": "Не удалось удалить данные",
+    "EntityNotFound": "Элемент не найден",
+    "InternalServer": "Внутренняя ошибка сервера",
+    "FailedToRender": "Не удалось отобразить страницу"
+  }
+}
+```
+
+**Uzbek** (`modules/{module}/presentation/locales/uz.json`):
+```json
+{
+  "products": {
+    "Fields": {
+      "id": "Mahsulot ID",
+      "name": "Mahsulot nomi",
+      "description": "Tavsif",
+      "price": "Narx",
+      "category_id": "Kategoriya",
+      "status": "Holat",
+      "is_active": "Faol",
+      "created_at": "Yaratilgan sana",
+      "updated_at": "Oxirgi yangilanish"
+    },
+    "List": {
+      "Title": "Mahsulotlar",
+      "New": "Yangi mahsulot"
+    },
+    "New": {
+      "Title": "Yangi mahsulot yaratish",
+      "SubmitLabel": "Yaratish"
+    },
+    "Edit": {
+      "Title": "Mahsulotni tahrirlash",
+      "SubmitLabel": "Yangilash"
+    },
+    "View": {
+      "Title": "Mahsulot tafsilotlari"
+    }
+  },
+  "Common": {
+    "Actions": "Harakatlar",
+    "Edit": "Tahrirlash",
+    "Delete": "O'chirish",
+    "Save": "Saqlash",
+    "Cancel": "Bekor qilish",
+    "Back": "Orqaga",
+    "Search": "Qidirish",
+    "Filter": "Filtr",
+    "Yes": "Ha",
+    "No": "Yo'q",
+    "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?"
+  },
+  "Errors": {
+    "InvalidFormData": "Noto'g'ri forma ma'lumotlari",
+    "InvalidQueryParams": "Noto'g'ri so'rov parametrlari",
+    "FailedToRetrieve": "Ma'lumotlarni olishda xatolik",
+    "FailedToSave": "Ma'lumotlarni saqlashda xatolik",
+    "FailedToUpdate": "Ma'lumotlarni yangilashda xatolik",
+    "FailedToDelete": "Ma'lumotlarni o'chirishda xatolik",
+    "EntityNotFound": "Element topilmadi",
+    "InternalServer": "Ichki server xatosi",
+    "FailedToRender": "Sahifani ko'rsatishda xatolik"
+  }
+}
+```
+
+### Localization Key Patterns
+
+The CRUD controller uses these patterns for localization:
+
+1. **Field Labels**: `{SchemaName}.Fields.{FieldName}`
+2. **List Page**: 
+   - Title: `{SchemaName}.List.Title`
+   - New Button: `{SchemaName}.List.New`
+3. **Create Page**:
+   - Title: `{SchemaName}.New.Title`
+   - Submit Button: `{SchemaName}.New.SubmitLabel`
+4. **Edit Page**:
+   - Title: `{SchemaName}.Edit.Title`
+   - Submit Button: `{SchemaName}.Edit.SubmitLabel`
+5. **Details Page**:
+   - Title: `{SchemaName}.View.Title`
+6. **Common UI Elements**: `Common.{Key}`
+7. **Error Messages**: `Errors.{ErrorType}`
+
+### Custom Validation Messages
+
+For field validation messages, add them to your locale files:
+
+```json
+{
+  "Validation": {
+    "Required": "This field is required",
+    "MinLength": "Minimum length is {{.Min}} characters",
+    "MaxLength": "Maximum length is {{.Max}} characters",
+    "MinValue": "Minimum value is {{.Min}}",
+    "MaxValue": "Maximum value is {{.Max}}",
+    "InvalidEmail": "Please enter a valid email address",
+    "InvalidDate": "Please enter a valid date",
+    "InvalidNumber": "Please enter a valid number"
+  }
+}
+```
+
+### Implementing Custom Labels for Select Options
+
+For select fields with dynamic options, you can localize the labels:
+
+```go
+categoryField := crud.NewSelectField("category_id").
+    AsIntSelect().
+    SetOptionsLoader(func(ctx context.Context) []crud.SelectOption {
+        // Get localizer from context
+        l, _ := intl.UseLocalizer(ctx)
+        
+        return []crud.SelectOption{
+            {
+                Value: 1,
+                Label: l.MustLocalize(&i18n.LocalizeConfig{
+                    MessageID: "Categories.Electronics",
+                    DefaultMessage: &i18n.Message{
+                        ID:    "Categories.Electronics",
+                        Other: "Electronics",
+                    },
+                }),
+            },
+            {
+                Value: 2,
+                Label: l.MustLocalize(&i18n.LocalizeConfig{
+                    MessageID: "Categories.Clothing",
+                    DefaultMessage: &i18n.Message{
+                        ID:    "Categories.Clothing",
+                        Other: "Clothing",
+                    },
+                }),
+            },
+        }
+    })
+```
+
+### Navigation Links
+
+Don't forget to add translations for navigation items in your module:
+
+```go
+// In your module's links.go
+func ProductsNavItem() navitem.NavItem {
+    return navitem.NavItem{
+        Title: navitem.Title{
+            MessageID: "NavigationLinks.Products",
+        },
+        Href: "/products",
+        Icon: icons.Package,
+    }
+}
+```
+
+And in locale files:
+```json
+{
+  "NavigationLinks": {
+    "Products": "Products"
+  }
+}
+```
+
+### Additional UI Elements
+
+The CRUD controller also uses these common translations that should be available in your base locale files:
+
+```json
+{
+  "Table": {
+    "NoData": "No data available",
+    "Loading": "Loading...",
+    "ShowMore": "Show more",
+    "ShowLess": "Show less"
+  },
+  "Pagination": {
+    "Previous": "Previous",
+    "Next": "Next",
+    "Page": "Page",
+    "Of": "of",
+    "Items": "items",
+    "ItemsPerPage": "Items per page",
+    "ShowingXtoYofZ": "Showing {{.Start}} to {{.End}} of {{.Total}} items"
+  },
+  "Search": {
+    "Placeholder": "Search...",
+    "Clear": "Clear search",
+    "NoResults": "No results found"
+  },
+  "Form": {
+    "Required": "Required field",
+    "Optional": "Optional",
+    "ChooseFile": "Choose file",
+    "NoFileChosen": "No file chosen",
+    "RemoveFile": "Remove file"
+  }
+}
+```
+
+### Complete Working Example
+
+Here's a complete example of setting up a CRUD module with full localization:
+
+```go
+// modules/inventory/module.go
+package inventory
+
+import (
+    "github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+    "github.com/iota-uz/iota-sdk/pkg/application"
+    "github.com/iota-uz/iota-sdk/pkg/crud"
+)
+
+func NewModule(app application.Application) application.Module {
+    return &module{app: app}
+}
+
+type module struct {
+    app application.Application
+}
+
+func (m *module) Register() error {
+    // Define product schema
+    fields := crud.NewFields([]crud.Field{
+        crud.NewUUIDField("id", crud.WithKey(), crud.WithReadonly()),
+        crud.NewStringField("sku", 
+            crud.WithRequired(),
+            crud.WithSearchable(),
+            crud.WithMaxLen(50),
+        ),
+        crud.NewStringField("name", 
+            crud.WithRequired(),
+            crud.WithSearchable(),
+            crud.WithMinLen(3),
+            crud.WithMaxLen(200),
+        ),
+        crud.NewSelectField("category_id").
+            AsIntSelect().
+            WithStaticOptions(
+                crud.SelectOption{Value: 1, Label: "Electronics"},
+                crud.SelectOption{Value: 2, Label: "Clothing"},
+                crud.SelectOption{Value: 3, Label: "Books"},
+            ),
+        crud.NewSelectField("status").
+            WithStaticOptions(
+                crud.SelectOption{Value: "available", Label: "Available"},
+                crud.SelectOption{Value: "out_of_stock", Label: "Out of Stock"},
+                crud.SelectOption{Value: "discontinued", Label: "Discontinued"},
+            ),
+        crud.NewDecimalField("price",
+            crud.WithPrecision(10),
+            crud.WithScale(2),
+            crud.WithRequired(),
+        ),
+        crud.NewIntField("quantity",
+            crud.WithMin(0),
+            crud.WithRequired(),
+        ),
+        crud.NewBoolField("is_featured",
+            crud.WithTrueLabel("Featured"),
+            crud.WithFalseLabel("Not Featured"),
+        ),
+        crud.NewDateTimeField("created_at",
+            crud.WithReadonly(),
+        ),
+        crud.NewDateTimeField("updated_at",
+            crud.WithReadonly(),
+        ),
+    })
+
+    schema := crud.NewSchema(
+        "products",
+        fields,
+        NewProductMapper(fields),
+    )
+
+    builder := crud.NewBuilder(schema, m.app.EventBus())
+
+    // Register service and controller
+    m.app.RegisterServices(builder.Service())
+    m.app.RegisterControllers(
+        controllers.NewCrudController("/inventory/products", m.app, builder),
+    )
+
+    return nil
+}
+```
+
+With corresponding locale files structured as shown in the examples above. This provides:
+- Fully localized field labels
+- Localized page titles and buttons
+- Localized error messages
+- Localized common UI elements
+- Support for multiple languages
 
 ## Best Practices
 
