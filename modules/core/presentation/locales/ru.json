@@ -4,7 +4,16 @@
     "BadRequest": "Некорректный запрос: {{.Error}}",
     "NotFound": "Ресурс не найден: {{.Error}}",
     "Unauthorized": "Неавторизован: {{.Error}}",
-    "Forbidden": "Доступ запрещен: {{.Error}}"
+    "Forbidden": "Доступ запрещен: {{.Error}}",
+    "InvalidFormData": "Неверные данные формы",
+    "InvalidQueryParams": "Неверные параметры запроса",
+    "FailedToRetrieve": "Не удалось получить данные",
+    "FailedToSave": "Не удалось сохранить данные",
+    "FailedToUpdate": "Не удалось обновить данные",
+    "FailedToDelete": "Не удалось удалить данные",
+    "EntityNotFound": "Элемент не найден",
+    "InternalServer": "Внутренняя ошибка сервера",
+    "FailedToRender": "Не удалось отобразить страницу"
   },
   "ValidationErrors": {
     "required": "Это поле обязательно для заполнения",
