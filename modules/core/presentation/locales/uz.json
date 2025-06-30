@@ -392,7 +392,16 @@
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
       "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
-      "UserNotFound": "Foydalanuvchi topilmadi"
+      "UserNotFound": "Foydalanuvchi topilmadi",
+      "InvalidFormData": "Noto'g'ri forma ma'lumotlari",
+      "InvalidQueryParams": "Noto'g'ri so'rov parametrlari",
+      "FailedToRetrieve": "Ma'lumotlarni olishda xatolik",
+      "FailedToSave": "Ma'lumotlarni saqlashda xatolik",
+      "FailedToUpdate": "Ma'lumotlarni yangilashda xatolik",
+      "FailedToDelete": "Ma'lumotlarni o'chirishda xatolik",
+      "EntityNotFound": "Element topilmadi",
+      "InternalServer": "Ichki server xatosi",
+      "FailedToRender": "Sahifani ko'rsatishda xatolik"
     }
   },
   "Home": {
