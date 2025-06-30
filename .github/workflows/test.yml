@@ -178,6 +178,11 @@ jobs:
             AND datname ~ '^test'
           " -t | PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres
 
+      - name: Install PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
       - name: Cypress E2E Tests
         uses: cypress-io/github-action@v6
         env:
