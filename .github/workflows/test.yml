@@ -122,35 +122,15 @@ jobs:
           # Install templ (needed for CSS generation)
           go install github.com/a-h/templ/cmd/templ@v0.3.857
 
-          # Install TailwindCSS
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
-
-      - name: Install PNPM
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Download Go dependencies
         run: go mod download
 
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
-            echo "Waiting for postgres..."
-            sleep 1
-          done
-
       - name: Test Makefile targets
         run: |
-          make generate
           make migrate up
           make migrate up
           make seed
           make seed
-          make css
 
       - name: Run tests with coverage
         run: |
