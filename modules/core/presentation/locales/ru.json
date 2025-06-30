@@ -392,7 +392,16 @@
       "OauthStateNotFound": "Состояние oAuth не найдено. Пожалуйста, попробуйте еще раз.",
       "OauthStateInvalid": "Недопустимое состояние oAuth. Пожалуйста, попробуйте еще раз.",
       "OauthCodeNotFound": "Код oAuth не найден. Пожалуйста, попробуйте еще раз.",
-      "UserNotFound": "Пользователь не найден"
+      "UserNotFound": "Пользователь не найден",
+      "InvalidFormData": "Неверные данные формы",
+      "InvalidQueryParams": "Неверные параметры запроса",
+      "FailedToRetrieve": "Не удалось получить данные",
+      "FailedToSave": "Не удалось сохранить данные",
+      "FailedToUpdate": "Не удалось обновить данные",
+      "FailedToDelete": "Не удалось удалить данные",
+      "EntityNotFound": "Элемент не найден",
+      "InternalServer": "Внутренняя ошибка сервера",
+      "FailedToRender": "Не удалось отобразить страницу"
     }
   },
   "Home": {
