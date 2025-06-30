@@ -1,6 +1,9 @@
 package controllers
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -41,9 +44,9 @@ func (c *UploadController) Key() string {
 
 func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
-	// TODO: middleware
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
+	router.Use(middleware.ProvideLocalizer(c.app.Bundle()))
 	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
@@ -122,5 +125,26 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		Form:    formName,
 		Name:    name,
 	}
-	templ.Handler(components.UploadPreview(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+	// Create a component that includes both the preview and form update
+	component := templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		// Render the preview
+		if err := components.UploadPreview(props).Render(ctx, w); err != nil {
+			return err
+		}
+
+		// If we have uploads and field name, render an out-of-band update for the form field
+		if len(props.Uploads) > 0 && props.Name != "" {
+			upload := props.Uploads[0]
+			oobHTML := fmt.Sprintf(`<div id="field-%s" hx-swap-oob="true"><input type="hidden" name="%s" value="%s"/></div>`,
+				props.Name, props.Name, upload.ID)
+			if _, err := w.Write([]byte(oobHTML)); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
 }

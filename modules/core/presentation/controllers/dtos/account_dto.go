@@ -66,3 +66,32 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 	}
 	return updated, nil
 }
+
+type SaveLogosDTO struct {
+	LogoID        int `validate:"omitempty,min=1"`
+	LogoCompactID int `validate:"omitempty,min=1"`
+}
+
+func (d *SaveLogosDTO) Ok(ctx context.Context) (map[string]string, bool) {
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		panic(intl.ErrNoLocalizer)
+	}
+	errorMessages := map[string]string{}
+	errs := constants.Validate.Struct(d)
+	if errs == nil {
+		return errorMessages, true
+	}
+	for _, err := range errs.(validator.ValidationErrors) {
+		translatedFieldName := l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("Account.Logo.%s", err.Field()),
+		})
+		errorMessages[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
+			MessageID: fmt.Sprintf("ValidationErrors.%s", err.Tag()),
+			TemplateData: map[string]string{
+				"Field": translatedFieldName,
+			},
+		})
+	}
+	return errorMessages, len(errorMessages) == 0
+}
