@@ -33,6 +33,13 @@ var GroupsLink = types.NavigationItem{
 	Children: nil,
 }
 
+var SettingsLink = types.NavigationItem{
+	Name:     "NavigationLinks.Settings",
+	Icon:     nil,
+	Href:     "/settings/logo",
+	Children: nil,
+}
+
 var AdministrationLink = types.NavigationItem{
 	Name: "NavigationLinks.Administration",
 	Icon: icons.AirTrafficControl(icons.Props{Size: "20"}),
@@ -41,6 +48,7 @@ var AdministrationLink = types.NavigationItem{
 		UsersLink,
 		RolesLink,
 		GroupsLink,
+		SettingsLink,
 	},
 }
 

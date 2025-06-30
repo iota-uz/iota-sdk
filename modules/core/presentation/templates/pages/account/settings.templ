@@ -117,6 +117,9 @@ templ SidebarSettingsForm(props *SettingsPageProps) {
 				@tab.Link("/account/sidebar", true) {
 					{ pageCtx.T("Account.Tabs.Sidebar") }
 				}
+				@tab.Link("/account/logo", false) {
+					{ pageCtx.T("Account.Tabs.Logo") }
+				}
 			}
 			@card.Card(card.Props{
 				Class: "p-0",

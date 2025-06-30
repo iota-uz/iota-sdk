@@ -111,6 +111,7 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
+		middleware.ProvideDynamicLogo(c.app),
 		middleware.Tabs(),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
