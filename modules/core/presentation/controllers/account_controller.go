@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/account"
+
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -19,18 +20,22 @@ import (
 )
 
 type AccountController struct {
-	app         application.Application
-	userService *services.UserService
-	tabService  *services.TabService
-	basePath    string
+	app           application.Application
+	userService   *services.UserService
+	tabService    *services.TabService
+	tenantService *services.TenantService
+	uploadService *services.UploadService
+	basePath      string
 }
 
 func NewAccountController(app application.Application) application.Controller {
 	return &AccountController{
-		app:         app,
-		userService: app.Service(services.UserService{}).(*services.UserService),
-		tabService:  app.Service(services.TabService{}).(*services.TabService),
-		basePath:    "/account",
+		app:           app,
+		userService:   app.Service(services.UserService{}).(*services.UserService),
+		tabService:    app.Service(services.TabService{}).(*services.TabService),
+		tenantService: app.Service(services.TenantService{}).(*services.TenantService),
+		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
+		basePath:      "/account",
 	}
 }
 
@@ -43,6 +48,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
+		middleware.ProvideDynamicLogo(c.app),
 		middleware.Tabs(),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),

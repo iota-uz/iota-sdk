@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 var (
@@ -16,7 +17,7 @@ var (
 )
 
 const (
-	tenantFindQuery = `SELECT id, name, domain, is_active, created_at, updated_at FROM tenants`
+	tenantFindQuery = `SELECT id, name, domain, is_active, logo_id, logo_compact_id, created_at, updated_at FROM tenants`
 )
 
 type TenantRepository struct{}
@@ -55,8 +56,8 @@ func (r *TenantRepository) GetByDomain(ctx context.Context, domain string) (*ten
 
 func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) (*tenant.Tenant, error) {
 	query := `
-		INSERT INTO tenants (id, name, domain, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO tenants (id, name, domain, is_active, logo_id, logo_compact_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`
 	tx, err := composables.UseTx(ctx)
@@ -72,6 +73,8 @@ func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) (*tenan
 		t.Name(),
 		t.Domain(),
 		t.IsActive(),
+		mapping.PointerToSQLNullInt32(t.LogoID()),
+		mapping.PointerToSQLNullInt32(t.LogoCompactID()),
 		t.CreatedAt(),
 		t.UpdatedAt(),
 	).Scan(&idStr); err != nil {
@@ -89,8 +92,8 @@ func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) (*tenan
 func (r *TenantRepository) Update(ctx context.Context, t *tenant.Tenant) (*tenant.Tenant, error) {
 	query := `
 		UPDATE tenants
-		SET name = $1, domain = $2, is_active = $3, updated_at = $4
-		WHERE id = $5
+		SET name = $1, domain = $2, is_active = $3, logo_id = $4, logo_compact_id = $5, updated_at = $6
+		WHERE id = $7
 		RETURNING id
 	`
 	tx, err := composables.UseTx(ctx)
@@ -105,6 +108,8 @@ func (r *TenantRepository) Update(ctx context.Context, t *tenant.Tenant) (*tenan
 		t.Name(),
 		t.Domain(),
 		t.IsActive(),
+		mapping.PointerToSQLNullInt32(t.LogoID()),
+		mapping.PointerToSQLNullInt32(t.LogoCompactID()),
 		t.UpdatedAt(),
 		t.ID().String(),
 	).Scan(&idStr); err != nil {
@@ -154,6 +159,8 @@ func (r *TenantRepository) queryTenants(ctx context.Context, query string, args 
 			&t.Name,
 			&t.Domain,
 			&t.IsActive,
+			&t.LogoID,
+			&t.LogoCompactID,
 			&t.CreatedAt,
 			&t.UpdatedAt,
 		); err != nil {
@@ -181,6 +188,8 @@ func toDomainTenant(t *models.Tenant) *tenant.Tenant {
 		tenant.WithID(id),
 		tenant.WithDomain(t.Domain.String),
 		tenant.WithIsActive(t.IsActive),
+		tenant.WithLogoID(mapping.SQLNullInt32ToPointer(t.LogoID)),
+		tenant.WithLogoCompactID(mapping.SQLNullInt32ToPointer(t.LogoCompactID)),
 		tenant.WithCreatedAt(t.CreatedAt),
 		tenant.WithUpdatedAt(t.UpdatedAt),
 	)
