@@ -26,10 +26,9 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 		user.UILanguageEN,
 	)
 
-	suite := controllertest.New(t, core.NewModule()).
-		AsUser(testUser)
-
 	t.Run("displays labels in list view", func(t *testing.T) {
+		suite := controllertest.New(t, core.NewModule()).
+			AsUser(testUser)
 		// Create schema with select fields
 		fields := crud.NewFields([]crud.Field{
 			crud.NewUUIDField("id", crud.WithKey()),
@@ -99,11 +98,11 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 		}
 
 		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test-list", env.App, builder)
 		suite.Register(controller)
 
 		// Make request
-		resp := suite.GET("/test").Expect(t).Status(http.StatusOK)
+		resp := suite.GET("/test-list").Expect(t).Status(http.StatusOK)
 		body := resp.Body()
 
 		// Verify labels are displayed instead of raw values
@@ -134,6 +133,8 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("displays labels in details view", func(t *testing.T) {
+		suite := controllertest.New(t, core.NewModule()).
+			AsUser(testUser)
 		// Create schema with select fields
 		fields := crud.NewFields([]crud.Field{
 			crud.NewUUIDField("id", crud.WithKey()),
@@ -182,11 +183,11 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 		}
 
 		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test-details", env.App, builder)
 		suite.Register(controller)
 
 		// Make request
-		resp := suite.GET(fmt.Sprintf("/test/%s/details", entity.ID)).
+		resp := suite.GET(fmt.Sprintf("/test-details/%s/details", entity.ID)).
 			Expect(t).
 			Status(http.StatusOK)
 
@@ -202,6 +203,8 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("handles dynamic options loader", func(t *testing.T) {
+		suite := controllertest.New(t, core.NewModule()).
+			AsUser(testUser)
 		// Create schema with dynamic select field
 		fields := crud.NewFields([]crud.Field{
 			crud.NewUUIDField("id", crud.WithKey()),
@@ -244,11 +247,11 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 		}
 
 		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/dynamic", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test-dynamic", env.App, builder)
 		suite.Register(controller)
 
 		// Make request
-		resp := suite.GET("/dynamic").Expect(t).Status(http.StatusOK)
+		resp := suite.GET("/test-dynamic").Expect(t).Status(http.StatusOK)
 		body := resp.Body()
 
 		// Verify dynamic label is displayed
@@ -257,6 +260,8 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("displays raw value when no matching option", func(t *testing.T) {
+		suite := controllertest.New(t, core.NewModule()).
+			AsUser(testUser)
 		// Create schema with select fields
 		fields := crud.NewFields([]crud.Field{
 			crud.NewUUIDField("id", crud.WithKey()),
@@ -305,11 +310,11 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 		}
 
 		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test-raw", env.App, builder)
 		suite.Register(controller)
 
 		// Make request
-		resp := suite.GET("/test").Expect(t).Status(http.StatusOK)
+		resp := suite.GET("/test-raw").Expect(t).Status(http.StatusOK)
 		body := resp.Body()
 
 		// Verify raw values are displayed as fallback
