@@ -4,7 +4,16 @@
     "BadRequest": "Bad request: {{.Error}}",
     "NotFound": "Resource not found: {{.Error}}",
     "Unauthorized": "Unauthorized: {{.Error}}",
-    "Forbidden": "Forbidden: {{.Error}}"
+    "Forbidden": "Forbidden: {{.Error}}",
+    "InvalidFormData": "Invalid form data",
+    "InvalidQueryParams": "Invalid query parameters",
+    "FailedToRetrieve": "Failed to retrieve data",
+    "FailedToSave": "Failed to save data",
+    "FailedToUpdate": "Failed to update data",
+    "FailedToDelete": "Failed to delete data",
+    "EntityNotFound": "Item not found",
+    "InternalServer": "Internal server error",
+    "FailedToRender": "Failed to render page"
   },
   "ValidationErrors": {
     "required": "This field is required",
