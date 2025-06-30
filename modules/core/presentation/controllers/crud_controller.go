@@ -515,7 +515,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 		// Add actions column if edit or delete is enabled
 		if c.enableEdit || c.enableDelete {
-			actionsLabel, _ := c.localize(ctx, "Common.Actions", "Actions")
+			actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
 			columns = append(columns, table.Column("actions", actionsLabel))
 		}
 
