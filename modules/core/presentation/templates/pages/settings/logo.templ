@@ -18,7 +18,7 @@ type LogoPageProps struct {
 
 templ LogoForm(props *LogoPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div id="logo-page-content" class="flex flex-col justify-between h-full">
+	<div id="logo-form-fields">
 		<div class="flex flex-col gap-5 p-6">
 			@card.Card(card.Props{
 				Class: "grid grid-cols-1 gap-6",
@@ -32,7 +32,6 @@ templ LogoForm(props *LogoPageProps) {
 							Placeholder: pageCtx.T("Account.Logo.FullLogoPlaceholder"),
 							Name:        "LogoID",
 							Accept:      "image/*",
-							Form:        "",
 							Uploads:     []*viewmodels.Upload{},
 						})
 					} else {
@@ -41,7 +40,6 @@ templ LogoForm(props *LogoPageProps) {
 							Placeholder: pageCtx.T("Account.Logo.FullLogoPlaceholder"),
 							Name:        "LogoID",
 							Accept:      "image/*",
-							Form:        "",
 							Uploads:     []*viewmodels.Upload{props.LogoUpload},
 						})
 					}
@@ -58,7 +56,6 @@ templ LogoForm(props *LogoPageProps) {
 							Placeholder: pageCtx.T("Account.Logo.CompactLogoPlaceholder"),
 							Name:        "LogoCompactID",
 							Accept:      "image/*",
-							Form:        "",
 							Uploads:     []*viewmodels.Upload{},
 						})
 					} else {
@@ -67,7 +64,6 @@ templ LogoForm(props *LogoPageProps) {
 							Placeholder: pageCtx.T("Account.Logo.CompactLogoPlaceholder"),
 							Name:        "LogoCompactID",
 							Accept:      "image/*",
-							Form:        "",
 							Uploads:     []*viewmodels.Upload{props.LogoCompactUpload},
 						})
 					}
@@ -77,32 +73,6 @@ templ LogoForm(props *LogoPageProps) {
 				</div>
 			}
 		</div>
-		<form
-			id="logo-form"
-			hx-post={ props.PostPath }
-			hx-swap="outerHTML"
-			hx-target="#logo-page-content"
-		>
-			<div id="field-LogoID">
-				if props.LogoUpload != nil {
-					<input type="hidden" name="LogoID" value={ props.LogoUpload.ID }/>
-				}
-			</div>
-			<div id="field-LogoCompactID">
-				if props.LogoCompactUpload != nil {
-					<input type="hidden" name="LogoCompactID" value={ props.LogoCompactUpload.ID }/>
-				}
-			</div>
-			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
-				@button.Primary(button.Props{
-					Attrs: templ.Attributes{
-						"type": "submit",
-					}},
-				) {
-					{ pageCtx.T("Account.Save") }
-				}
-			</div>
-		</form>
 	</div>
 }
 
@@ -111,6 +81,28 @@ templ Logo(props *LogoPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Logo.Title")},
 	}) {
-		@LogoForm(props)
+		<div id="logo-page-content" class="flex flex-col justify-between h-full">
+			<form
+				id="logo-form"
+				hx-post={ props.PostPath }
+				hx-swap="outerHTML"
+				hx-target="#logo-form-fields"
+			>
+				@LogoForm(props)
+			</form>
+			<div
+				class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+			>
+				@button.Primary(button.Props{
+					Attrs: templ.Attributes{
+						"type":  "submit",
+						"form":  "logo-form",
+						"class": "ml-auto",
+					},
+				}) {
+					{ pageCtx.T("Account.Save") }
+				}
+			</div>
+		</div>
 	}
 }

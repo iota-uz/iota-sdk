@@ -32,8 +32,8 @@ func newUploadInput(props *UploadInputProps) *UploadInputProps {
 	return props
 }
 
-templ UploadPreview(p *UploadInputProps) {
-	<div id={ fmt.Sprintf("target-%s", p.ID) } class="flex gap-2">
+templ UploadTarget(p *UploadInputProps) {
+	<div class="flex gap-2">
 		for _, upload := range p.Uploads {
 			if upload.URL != "" {
 				<img class="w-20 h-20 object-contain rounded-md" src={ upload.URL } alt="Uploaded image"/>
@@ -45,6 +45,9 @@ templ UploadPreview(p *UploadInputProps) {
 			}
 		}
 	</div>
+	if len(p.Uploads) > 0 {
+		<input type="hidden" name={ p.Name } value={ p.Uploads[0].ID }/>
+	}
 }
 
 templ (p *UploadInputProps) render() {
@@ -60,16 +63,15 @@ templ (p *UploadInputProps) render() {
 					hx-target={ fmt.Sprintf("#target-%s", p.ID) }
 					hx-post="/uploads"
 					hx-encoding="multipart/form-data"
-					hx-include={ fmt.Sprintf("#upload-form-%s", p.ID) }
+					hx-vals={ fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s"}`, p.ID, p.Form, p.Name) }
 					name="file"
 					multiple?={ p.Multiple }
 					hx-on::after-request="this.value = ''"
 				/>
-				<input type="hidden" name="_id" value={ p.ID }/>
-				<input type="hidden" name="_formName" value={ p.Form }/>
-				<input type="hidden" name="_name" value={ p.Name }/>
 			</div>
-			@UploadPreview(p)
+			<div id={ fmt.Sprintf("target-%s", p.ID) }>
+				@UploadTarget(p)
+			</div>
 			<div class="flex gap-1 items-center mt-4 mb-1.5">
 				@button.PrimaryOutline(button.Props{Size: button.SizeXS, Attrs: templ.Attributes{"type": "button"}}) {
 					<label for={ p.ID } class="cursor-pointer">

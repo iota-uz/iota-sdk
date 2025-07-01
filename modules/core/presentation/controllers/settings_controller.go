@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type SettingsController struct {
@@ -36,12 +38,23 @@ func (c *SettingsController) Key() string {
 }
 
 func (c *SettingsController) Register(r *mux.Router) {
-	r.HandleFunc(c.basePath+"/logo", c.GetLogo).Methods(http.MethodGet)
-	r.HandleFunc(c.basePath+"/logo", c.PostLogo).Methods(http.MethodPost)
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
+		middleware.Authorize(),
+		middleware.RedirectNotAuthenticated(),
+		middleware.ProvideUser(),
+		middleware.ProvideDynamicLogo(c.app),
+		middleware.Tabs(),
+		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.NavItems(),
+		middleware.WithPageContext(),
+	)
+	router.HandleFunc("/logo", c.GetLogo).Methods(http.MethodGet)
+	router.HandleFunc("/logo", c.PostLogo).Methods(http.MethodPost)
 }
 
 func (c *SettingsController) GetLogo(w http.ResponseWriter, r *http.Request) {
-	props, err := c.logoProps(r, nil)
+	props, err := c.logoProps(r, nil, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -60,7 +73,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
-		props, err := c.logoProps(r, errors)
+		props, err := c.logoProps(r, errors, nil)
 		if err != nil {
 			logger.WithError(err).Error("failed to get logo props")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -123,7 +136,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props, err := c.logoProps(r, nil)
+	props, err := c.logoProps(r, nil, tenant)
 	if err != nil {
 		logger.WithError(err).Error("failed to get logo props")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -132,20 +145,22 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
 }
 
-func (c *SettingsController) logoProps(r *http.Request, errors map[string]string) (*settings.LogoPageProps, error) {
+func (c *SettingsController) logoProps(r *http.Request, errors map[string]string, tenant *tenant.Tenant) (*settings.LogoPageProps, error) {
 	nonNilErrors := make(map[string]string)
 	if errors != nil {
 		nonNilErrors = errors
 	}
 
-	u, err := composables.UseUser(r.Context())
-	if err != nil {
-		return nil, err
-	}
+	if tenant == nil {
+		u, err := composables.UseUser(r.Context())
+		if err != nil {
+			return nil, err
+		}
 
-	tenant, err := c.tenantService.GetByID(r.Context(), u.TenantID())
-	if err != nil {
-		return nil, err
+		tenant, err = c.tenantService.GetByID(r.Context(), u.TenantID())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var logoUpload *viewmodels.Upload
