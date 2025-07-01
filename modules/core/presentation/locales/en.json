@@ -437,6 +437,9 @@
   "Remove": "Remove",
   "All": "All",
   "Edit": "Edit",
+  "Yes": "Yes",
+  "No": "No",
+  "ConfirmDelete": "Are you sure you want to delete this item?",
   "Export": {
     "ToExcel": "Export to Excel",
     "ToCSV": "Export to CSV", 
