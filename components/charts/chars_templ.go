@@ -43,6 +43,20 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	}
 }
 
+func ensureChartEvents() templ.ComponentScript {
+	return templ.ComponentScript{
+		Name: `__templ_ensureChartEvents_a334`,
+		Function: `function __templ_ensureChartEvents_a334(){// Ensure chart events are initialized
+	// The chart-events.js file is loaded globally via base template
+	if (typeof window.initializeChartEvents === 'function') {
+		window.initializeChartEvents();
+	}
+}`,
+		Call:       templ.SafeScript(`__templ_ensureChartEvents_a334`),
+		CallInline: templ.SafeScriptInline(`__templ_ensureChartEvents_a334`),
+	}
+}
+
 // Props defines the configuration options for a Chart component.
 type Props struct {
 	Class   string       // Additional CSS classes to apply
@@ -91,7 +105,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 46, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 54, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -115,6 +129,10 @@ func Chart(props Props) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = graph(id, templ.JSExpression(opts)).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = ensureChartEvents().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

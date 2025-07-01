@@ -141,6 +141,7 @@ func (m *Module) Register(app application.Application) error {
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
+		controllers.NewLensEventsController(app),
 		controllers.NewLoginController(app),
 		controllers.NewSpotlightController(app),
 		controllers.NewAccountController(app),
@@ -151,6 +152,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewGroupsController(app),
 		controllers.NewShowcaseController(app),
 		controllers.NewWebSocketController(app),
+		controllers.NewSettingsController(app),
 		controllers.NewCrudController[currency.Currency](
 			"/currencies",
 			app,

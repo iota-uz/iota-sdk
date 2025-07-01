@@ -6,6 +6,7 @@ Cypress.Commands.add("login", (email, password) => {
 		cy.get("[type=email]").type(email);
 		cy.get("[type=password]").type(password);
 		cy.get("[type=submit]").click();
+		cy.url().should("not.include", "/login");
 	});
 });
 

@@ -41,9 +41,9 @@ func (c *UploadController) Key() string {
 
 func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
-	// TODO: middleware
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
+	router.Use(middleware.ProvideLocalizer(c.app.Bundle()))
 	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
@@ -69,7 +69,6 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 
 	id := r.FormValue("_id")
 	name := r.FormValue("_name")
-	formName := r.FormValue("_formName")
 
 	dtos := make([]*upload.CreateDTO, 0, len(files))
 	for _, header := range files {
@@ -101,10 +100,9 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 				ID:      id,
 				Uploads: nil,
 				Error:   "",
-				Form:    formName,
 				Name:    name,
 			}
-			templ.Handler(components.UploadPreview(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		dtos = append(dtos, dto)
@@ -119,8 +117,8 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	props := &components.UploadInputProps{
 		ID:      id,
 		Uploads: mapping.MapViewModels(uploadEntities, mappers.UploadToViewModel),
-		Form:    formName,
 		Name:    name,
 	}
-	templ.Handler(components.UploadPreview(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+	templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

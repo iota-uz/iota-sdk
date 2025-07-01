@@ -15,7 +15,7 @@ seed:
 
 # Generate code documentation
 docs:
-	go run cmd/document/main.go -dir . -out docs/LLMS.md -recursive -exclude "vendor,node_modules,tmp,e2e,py-embed,cmd,modules"
+	go run cmd/document/main.go -dir . -out docs/LLMS.md -recursive -exclude "vendor,node_modules,tmp,e2e,py-embed,cmd"
 
 generate:
 	go generate ./... && templ generate
@@ -42,7 +42,7 @@ coverage-score:
 report:
 	go tool cover -html=coverage.out -o ./coverage/cover.html
 
-# Run PostgreSQL
+# Run PostgreSQL with PgBouncer
 localdb:
 	docker compose -f compose.dev.yml up
 
@@ -67,7 +67,6 @@ css:
 
 # Run linter
 lint:
-	make fmt
 	golangci-lint run ./...
 
 # Release - assume Alpine Linux as target

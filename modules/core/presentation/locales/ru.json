@@ -4,7 +4,16 @@
     "BadRequest": "Некорректный запрос: {{.Error}}",
     "NotFound": "Ресурс не найден: {{.Error}}",
     "Unauthorized": "Неавторизован: {{.Error}}",
-    "Forbidden": "Доступ запрещен: {{.Error}}"
+    "Forbidden": "Доступ запрещен: {{.Error}}",
+    "InvalidFormData": "Неверные данные формы",
+    "InvalidQueryParams": "Неверные параметры запроса",
+    "FailedToRetrieve": "Не удалось получить данные",
+    "FailedToSave": "Не удалось сохранить данные",
+    "FailedToUpdate": "Не удалось обновить данные",
+    "FailedToDelete": "Не удалось удалить данные",
+    "EntityNotFound": "Элемент не найден",
+    "InternalServer": "Внутренняя ошибка сервера",
+    "FailedToRender": "Не удалось отобразить страницу"
   },
   "ValidationErrors": {
     "required": "Это поле обязательно для заполнения",
@@ -165,6 +174,7 @@
     "Users": "Пользователи",
     "Roles": "Роли",
     "Groups": "Группы",
+    "Settings": "Настройки",
     "KnowledgeBase": "База знаний",
     "Operations": "Операции",
     "Settings": "Настройки",
@@ -346,6 +356,9 @@
       },
       "Settings": {
         "Title": "Настройки аккаунта"
+      },
+      "Logo": {
+        "Title": "Настройки логотипа"
       }
     },
     "BrowseFilesystem": "Выбрать изображение",
@@ -373,7 +386,16 @@
     "Save": "Сохранить",
     "Tabs": {
       "Profile": "Настройки профиля",
-      "Sidebar": "Настройки боковой панели"
+      "Sidebar": "Настройки боковой панели",
+      "Logo": "Настройки логотипа"
+    },
+    "Logo": {
+      "FullLogo": "Полный логотип",
+      "FullLogoDescription": "Этот логотип будет отображаться при развернутой боковой панели",
+      "FullLogoPlaceholder": "Выберите полный логотип компании (PNG, JPG, SVG)",
+      "CompactLogo": "Компактный логотип",
+      "CompactLogoDescription": "Этот логотип будет отображаться при свернутой боковой панели",
+      "CompactLogoPlaceholder": "Выберите компактный логотип компании (PNG, JPG, SVG)"
     }
   },
   "Login": {
@@ -415,6 +437,9 @@
   "Remove": "Удалить",
   "All": "Все",
   "Edit": "Редактировать",
+  "Yes": "Да",
+  "No": "Нет",
+  "ConfirmDelete": "Вы уверены, что хотите удалить этот элемент?",
   "Export": {
     "ToExcel": "Экспорт в Excel",
     "ToCSV": "Экспорт в CSV",

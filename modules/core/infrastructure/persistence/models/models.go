@@ -6,12 +6,14 @@ import (
 )
 
 type Tenant struct {
-	ID        string
-	Name      string
-	Domain    sql.NullString
-	IsActive  bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID            string
+	Name          string
+	Domain        sql.NullString
+	IsActive      bool
+	LogoID        sql.NullInt32
+	LogoCompactID sql.NullInt32
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Upload struct {

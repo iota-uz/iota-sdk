@@ -30,10 +30,10 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 	groupRepository := persistence.NewGroupRepository(userRepository, roleRepository)
 
 	// Create roles for testing
-	err := permissionRepository.Save(f.ctx, permissions.UserRead)
+	err := permissionRepository.Save(f.Ctx, permissions.UserRead)
 	require.NoError(t, err)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	// First role
@@ -46,7 +46,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		role.WithTenantID(tenant),
 	)
 
-	roleEntity, err := roleRepository.Create(f.ctx, roleData)
+	roleEntity, err := roleRepository.Create(f.Ctx, roleData)
 	require.NoError(t, err)
 
 	// Second role for testing role filtering
@@ -59,7 +59,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		role.WithTenantID(tenant),
 	)
 
-	secondRoleEntity, err := roleRepository.Create(f.ctx, secondRoleData)
+	secondRoleEntity, err := roleRepository.Create(f.Ctx, secondRoleData)
 	require.NoError(t, err)
 
 	// Create users for testing
@@ -74,7 +74,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		user.WithTenantID(tenant),
 	)
 
-	createdUser, err := userRepository.Create(f.ctx, userEntity)
+	createdUser, err := userRepository.Create(f.Ctx, userEntity)
 	require.NoError(t, err)
 
 	secondEmail, err := internet.NewEmail("jane@gmail.com")
@@ -88,7 +88,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		user.WithTenantID(tenant),
 	)
 
-	secondCreatedUser, err := userRepository.Create(f.ctx, secondUserEntity)
+	secondCreatedUser, err := userRepository.Create(f.Ctx, secondUserEntity)
 	require.NoError(t, err)
 
 	// Test group creation
@@ -105,7 +105,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		)
 
 		// Save the group
-		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
+		savedGroup, err := groupRepository.Save(f.Ctx, groupEntity)
 		require.NoError(t, err)
 		assert.Equal(t, "Test Group", savedGroup.Name())
 		assert.Equal(t, "Test group description", savedGroup.Description())
@@ -115,7 +115,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.Equal(t, roleEntity.ID(), savedGroup.Roles()[0].ID())
 
 		// Get the user again to check if the group ID was added to user
-		updatedUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		updatedUser, err := userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 
 		// Verify that the user has this group ID
@@ -140,7 +140,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithTenantID(tenant),
 		)
 
-		secondSavedGroup, err := groupRepository.Save(f.ctx, secondGroupEntity)
+		secondSavedGroup, err := groupRepository.Save(f.Ctx, secondGroupEntity)
 		require.NoError(t, err)
 		assert.Equal(t, "Second Group", secondSavedGroup.Name())
 		assert.Equal(t, "Second group description", secondSavedGroup.Description())
@@ -162,11 +162,11 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithTenantID(tenant),
 		)
 
-		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
+		savedGroup, err := groupRepository.Save(f.Ctx, groupEntity)
 		require.NoError(t, err)
 
 		// Test getting by ID
-		retrievedGroup, err := groupRepository.GetByID(f.ctx, savedGroup.ID())
+		retrievedGroup, err := groupRepository.GetByID(f.Ctx, savedGroup.ID())
 		require.NoError(t, err)
 		assert.Equal(t, savedGroup.ID(), retrievedGroup.ID())
 		assert.Equal(t, savedGroup.Name(), retrievedGroup.Name())
@@ -178,7 +178,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 		// Test with non-existent ID
 		nonExistentID := uuid.New()
-		_, err = groupRepository.GetByID(f.ctx, nonExistentID)
+		_, err = groupRepository.GetByID(f.Ctx, nonExistentID)
 		require.Error(t, err)
 		require.ErrorIs(t, err, persistence.ErrGroupNotFound)
 	})
@@ -195,7 +195,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithTenantID(tenant),
 		)
 
-		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
+		savedGroup, err := groupRepository.Save(f.Ctx, groupEntity)
 		require.NoError(t, err)
 
 		// Update the group
@@ -206,7 +206,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		updatedGroup = updatedGroup.AssignRole(secondRoleEntity)
 
 		// Save the updated group
-		savedUpdatedGroup, err := groupRepository.Save(f.ctx, updatedGroup)
+		savedUpdatedGroup, err := groupRepository.Save(f.Ctx, updatedGroup)
 		require.NoError(t, err)
 
 		// Verify the updates
@@ -255,15 +255,15 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithTenantID(tenant),
 		)
 
-		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
+		savedGroup, err := groupRepository.Save(f.Ctx, groupEntity)
 		require.NoError(t, err)
 		assert.Len(t, savedGroup.Users(), 2)
 		assert.Len(t, savedGroup.Roles(), 2)
 
 		// Verify that both users have this group ID
-		firstUser, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		firstUser, err := userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
-		secondUser, err := userRepository.GetByID(f.ctx, secondCreatedUser.ID())
+		secondUser, err := userRepository.GetByID(f.Ctx, secondCreatedUser.ID())
 		require.NoError(t, err)
 
 		// Check if both users have the group ID
@@ -291,7 +291,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		updatedGroup = updatedGroup.RemoveRole(roleEntity)
 
 		// Save the updated group
-		savedUpdatedGroup, err := groupRepository.Save(f.ctx, updatedGroup)
+		savedUpdatedGroup, err := groupRepository.Save(f.Ctx, updatedGroup)
 		require.NoError(t, err)
 
 		// Verify the updates
@@ -301,7 +301,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.Equal(t, secondRoleEntity.ID(), savedUpdatedGroup.Roles()[0].ID())
 
 		// Check if the removed user no longer has this group ID
-		firstUserAfterRemoval, err := userRepository.GetByID(f.ctx, createdUser.ID())
+		firstUserAfterRemoval, err := userRepository.GetByID(f.Ctx, createdUser.ID())
 		require.NoError(t, err)
 
 		hasGroupID = false
@@ -314,7 +314,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		assert.False(t, hasGroupID, "First user should no longer have the group ID after removal")
 
 		// Check if the second user still has the group ID
-		secondUserAfterUpdate, err := userRepository.GetByID(f.ctx, secondCreatedUser.ID())
+		secondUserAfterUpdate, err := userRepository.GetByID(f.Ctx, secondCreatedUser.ID())
 		require.NoError(t, err)
 
 		hasGroupID = false
@@ -344,7 +344,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithTenantID(tenant),
 		)
 
-		_, err := groupRepository.Save(f.ctx, customTimeGroupEntity)
+		_, err := groupRepository.Save(f.Ctx, customTimeGroupEntity)
 		require.NoError(t, err)
 
 		// Test filtering by created_at with Gt expression
@@ -365,7 +365,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Get groups created after yesterday
-		groups, err := groupRepository.GetPaginated(f.ctx, params)
+		groups, err := groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Should return groups created after yesterday
@@ -391,7 +391,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Get groups created before yesterday
-		groups, err = groupRepository.GetPaginated(f.ctx, params)
+		groups, err = groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Should return groups created before yesterday
@@ -417,7 +417,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Get groups created on or after yesterday
-		groups, err = groupRepository.GetPaginated(f.ctx, params)
+		groups, err = groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Should return groups created on or after yesterday
@@ -444,7 +444,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Get groups created on or before yesterday
-		groups, err = groupRepository.GetPaginated(f.ctx, params)
+		groups, err = groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 
 		// Should return groups created on or before yesterday
@@ -466,7 +466,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			Offset: 0,
 		}
 
-		groups, err := groupRepository.GetPaginated(f.ctx, params)
+		groups, err := groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 2, "Should return at least 2 groups")
 
@@ -479,7 +479,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 		// Test sorting by created_at descending
 		params.SortBy.Fields[0].Ascending = false
-		groups, err = groupRepository.GetPaginated(f.ctx, params)
+		groups, err = groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 2, "Should return at least 2 groups")
 
@@ -492,7 +492,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 
 		// Test sorting by updated_at
 		params.SortBy.Fields = []repo.SortByField[group.Field]{{Field: group.UpdatedAtField, Ascending: true}}
-		groups, err = groupRepository.GetPaginated(f.ctx, params)
+		groups, err = groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(groups), 2, "Should return at least 2 groups")
 
@@ -517,7 +517,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 				group.WithTenantID(tenant),
 			)
 
-			_, err := groupRepository.Save(f.ctx, groupEntity)
+			_, err := groupRepository.Save(f.Ctx, groupEntity)
 			require.NoError(t, err)
 		}
 
@@ -533,13 +533,13 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Get first page
-		firstPage, err := groupRepository.GetPaginated(f.ctx, params)
+		firstPage, err := groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 		assert.Len(t, firstPage, 3, "First page should return 3 groups")
 
 		// Get second page
 		params.Offset = 3
-		secondPage, err := groupRepository.GetPaginated(f.ctx, params)
+		secondPage, err := groupRepository.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(secondPage), 1, "Second page should return at least 1 group")
 
@@ -551,7 +551,7 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 		}
 
 		// Test total count
-		count, err := groupRepository.Count(f.ctx, &group.FindParams{})
+		count, err := groupRepository.Count(f.Ctx, &group.FindParams{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, count, int64(8), "Total count should be at least 8 groups")
 	})
@@ -568,15 +568,15 @@ func TestPgGroupRepository_CRUD(t *testing.T) {
 			group.WithTenantID(tenant),
 		)
 
-		savedGroup, err := groupRepository.Save(f.ctx, groupEntity)
+		savedGroup, err := groupRepository.Save(f.Ctx, groupEntity)
 		require.NoError(t, err)
 
 		// Delete the group
-		err = groupRepository.Delete(f.ctx, savedGroup.ID())
+		err = groupRepository.Delete(f.Ctx, savedGroup.ID())
 		require.NoError(t, err)
 
 		// Verify the group was deleted
-		_, err = groupRepository.GetByID(f.ctx, savedGroup.ID())
+		_, err = groupRepository.GetByID(f.Ctx, savedGroup.ID())
 		require.Error(t, err)
 		require.ErrorIs(t, err, persistence.ErrGroupNotFound)
 	})
