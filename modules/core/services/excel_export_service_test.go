@@ -76,6 +76,11 @@ func (m *MockUploadRepository) Count(ctx context.Context) (int64, error) {
 	return args.Get(0).(int64), args.Error(1)
 }
 
+func (m *MockUploadRepository) Exists(ctx context.Context, id uint) (bool, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(bool), args.Error(1)
+}
+
 type MockUploadStorage struct {
 	mock.Mock
 }

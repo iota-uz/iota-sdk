@@ -61,7 +61,7 @@ templ SidebarContent(props Props) {
 	<div class="relative mb-4">
 		<button
 			@click="toggle(); $dispatch('sidebar-toggle')"
-			class="btn btn-ghost btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex"
+			class="btn btn-sidebar-toggle btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex"
 		>
 			<div x-show="!isCollapsed">
 				@icons.CaretLeft(icons.Props{Size: "16"})

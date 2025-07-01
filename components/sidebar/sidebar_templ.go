@@ -179,7 +179,7 @@ func SidebarContent(props Props) templ.Component {
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"relative mb-4\"><button @click=\"toggle(); $dispatch(&#39;sidebar-toggle&#39;)\" class=\"btn btn-ghost btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex\"><div x-show=\"!isCollapsed\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"relative mb-4\"><button @click=\"toggle(); $dispatch(&#39;sidebar-toggle&#39;)\" class=\"btn btn-sidebar-toggle btn-sm btn-fixed btn-rounded absolute -right-3 top-0 z-10 hidden lg:flex\"><div x-show=\"!isCollapsed\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

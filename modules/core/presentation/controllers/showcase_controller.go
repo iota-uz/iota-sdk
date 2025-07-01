@@ -78,6 +78,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
 		middleware.ProvideUser(),
+		middleware.ProvideDynamicLogo(c.app),
 		middleware.Tabs(),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
