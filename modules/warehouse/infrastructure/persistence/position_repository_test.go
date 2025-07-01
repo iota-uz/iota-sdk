@@ -24,7 +24,7 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 	uploadRepository := core.NewUploadRepository()
 
 	if err := unitRepository.Create(
-		f.ctx,
+		f.Ctx,
 		&unit.Unit{
 			ID:         1,
 			Title:      "Unit 1",
@@ -39,7 +39,7 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 	uploads := make([]upload.Upload, 0, 1000)
 	for i := 0; i < 1000; i++ {
 		entity, err := uploadRepository.Create(
-			f.ctx,
+			f.Ctx,
 			upload.NewWithID(
 				0,
 				uuid.Nil, // tenant_id will be set correctly in repository
@@ -62,7 +62,7 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 	for range b.N {
 		b.StartTimer()
 		if err := positionRepository.Create(
-			f.ctx,
+			f.Ctx,
 			&position.Position{
 				ID:        1,
 				Title:     "Position 1",
@@ -88,7 +88,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	uploadRepository := core.NewUploadRepository()
 
 	if err := unitRepository.Create(
-		f.ctx,
+		f.Ctx,
 		&unit.Unit{
 			ID:         1,
 			Title:      "Unit 1",
@@ -100,7 +100,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	createdUpload, err := uploadRepository.Create(
-		f.ctx,
+		f.Ctx,
 		upload.NewWithID(
 			1,
 			uuid.Nil, // tenant_id will be set correctly in repository
@@ -119,7 +119,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	}
 
 	if err := positionRepository.Create(
-		f.ctx, &position.Position{
+		f.Ctx, &position.Position{
 			ID:        1,
 			Title:     "Position 1",
 			Barcode:   "3141592653589",
@@ -133,7 +133,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"GetByID", func(t *testing.T) {
-			positionEntity, err := positionRepository.GetByID(f.ctx, 1)
+			positionEntity, err := positionRepository.GetByID(f.Ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -149,7 +149,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 	t.Run(
 		"Update", func(t *testing.T) {
 			if err := positionRepository.Update(
-				f.ctx,
+				f.Ctx,
 				&position.Position{
 					ID:      1,
 					Title:   "Updated Position 1",
@@ -160,7 +160,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			positionEntity, err := positionRepository.GetByID(f.ctx, 1)
+			positionEntity, err := positionRepository.GetByID(f.Ctx, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -172,10 +172,10 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Delete", func(t *testing.T) {
-			if err := positionRepository.Delete(f.ctx, 1); err != nil {
+			if err := positionRepository.Delete(f.Ctx, 1); err != nil {
 				t.Fatal(err)
 			}
-			_, err := positionRepository.GetByID(f.ctx, 1)
+			_, err := positionRepository.GetByID(f.Ctx, 1)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}

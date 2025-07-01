@@ -24,7 +24,7 @@ func TestTransactionMapping(t *testing.T) {
 	id := uuid.New()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	tenant, err := composables.UseTenantID(f.ctx)
+	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
 	tests := []struct {

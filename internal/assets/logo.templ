@@ -1,15 +1,26 @@
 package assets
 
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+
 var (
 	companyLogo        = "/assets/" + HashFS.HashName("images/logo.webp")
 	companyLogoCompact = "/assets/" + HashFS.HashName("images/logo-compact.webp")
 )
 
-templ DefaultLogo() {
+type LogoProps struct {
+	LogoUpload        *viewmodels.Upload
+	LogoCompactUpload *viewmodels.Upload
+}
+
+templ DynamicLogo(props *LogoProps) {
 	<!-- Collapsed view: compact logo -->
 	<img
 		x-show="isCollapsed"
-		src={ companyLogoCompact }
+		if props != nil && props.LogoCompactUpload != nil {
+			src={ props.LogoCompactUpload.URL }
+		} else {
+			src={ companyLogoCompact }
+		}
 		alt="Logo"
 		width="48"
 		height="48"
@@ -18,9 +29,17 @@ templ DefaultLogo() {
 	<!-- Expanded view: full logo -->
 	<img
 		x-show="!isCollapsed"
-		src={ companyLogo }
+		if props != nil && props.LogoUpload != nil {
+			src={ props.LogoUpload.URL }
+		} else {
+			src={ companyLogo }
+		}
 		alt="Logo"
 		width="150"
 		height="50"
 	/>
+}
+
+templ DefaultLogo() {
+	@DynamicLogo(nil)
 }

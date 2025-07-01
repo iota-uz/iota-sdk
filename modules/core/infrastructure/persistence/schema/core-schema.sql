@@ -3,6 +3,8 @@ CREATE TABLE tenants (
     name varchar(255) NOT NULL UNIQUE,
     domain varchar(255),
     is_active boolean NOT NULL DEFAULT TRUE,
+    logo_id int REFERENCES uploads (id) ON DELETE SET NULL,
+    logo_compact_id int REFERENCES uploads (id) ON DELETE SET NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );

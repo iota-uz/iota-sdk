@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/money"
+	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -18,10 +19,11 @@ import (
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
 )
 
 // setupTestData creates necessary test data and returns account and counterparty
-func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) (moneyaccount.Account, counterparty.Counterparty) {
+func setupTestData(ctx context.Context, t *testing.T, f *builder.TestEnvironment) (moneyaccount.Account, counterparty.Counterparty) {
 	t.Helper()
 
 	// Create currency
@@ -36,7 +38,7 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) (moneyacc
 		money.New(10000, "USD"),
 		moneyaccount.WithAccountNumber("123"),
 	)
-	account, err := f.accountService.Create(ctx, account)
+	account, err := getAccountService(f).Create(ctx, account)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,8 +50,9 @@ func setupTestData(ctx context.Context, t *testing.T, f *testFixtures) (moneyacc
 		t.Fatal(err)
 	}
 
-	// Create the counterparty - the repository itself will set the tenant ID
-	testTenantID := uuid.New()
+	// Get tenant ID from context
+	testTenantID, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
 	createdCounterparty, err := counterpartyRepo.Create(ctx, counterparty.New(
 		"Test",
 		counterparty.Customer,
@@ -73,12 +76,14 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		permissions.PaymentUpdate,
 		permissions.PaymentDelete,
 	)
-	account, createdCounterparty := setupTestData(f.ctx, t, f)
+	account, createdCounterparty := setupTestData(f.Ctx, t, f)
 	accountRepository := persistence.NewMoneyAccountRepository()
 
 	// Create payment category with tenant ID
-	category := paymentcategory.New("Test Category", paymentcategory.WithTenantID(f.tenantID))
-	createdCategory, err := f.paymentCategoryService.Create(f.ctx, category)
+	tenantID, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+	category := paymentcategory.New("Test Category", paymentcategory.WithTenantID(tenantID))
+	createdCategory, err := getPaymentCategoryService(f).Create(f.Ctx, category)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,19 +92,19 @@ func TestPaymentsService_CRUD(t *testing.T) {
 	paymentEntity := payment.New(
 		money.New(10000, "USD"),
 		createdCategory,
-		payment.WithTenantID(f.tenantID),
+		payment.WithTenantID(tenantID),
 		payment.WithCounterpartyID(createdCounterparty.ID()),
 		payment.WithTransactionDate(time.Now()),
 		payment.WithAccountingPeriod(time.Now()),
 		payment.WithAccount(account),
 	)
 
-	_, err = f.paymentsService.Create(f.ctx, paymentEntity)
+	_, err = getPaymentService(f).Create(f.Ctx, paymentEntity)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	accountEntity, err := accountRepository.GetByID(f.ctx, account.ID())
+	accountEntity, err := accountRepository.GetByID(f.Ctx, account.ID())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,6 +17,7 @@ type SearchSelectProps struct {
 	Value       string
 	Endpoint    string
 	Attrs       templ.Attributes
+	Name        string // Field name for the hidden input
 }
 
 type SearchOptionsProps struct {
@@ -56,7 +57,7 @@ templ SearchSelect(props *SearchSelectProps) {
 			@focus="open = true"
 			class="border p-2 w-full mt-1"
 		/>
-		<input type="hidden" x-model="selectedId" name="position_id"/>
+		<input type="hidden" x-model="selectedId" name={ props.Name }/>
 		<ul
 			x-show="open"
 			id="results-container"

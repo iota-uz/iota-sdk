@@ -31,6 +31,10 @@ func (s *UploadService) GetByID(ctx context.Context, id uint) (upload.Upload, er
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *UploadService) Exists(ctx context.Context, id uint) (bool, error) {
+	return s.repo.Exists(ctx, id)
+}
+
 func (s *UploadService) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {
 	return s.repo.GetByHash(ctx, hash)
 }
