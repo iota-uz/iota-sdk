@@ -838,6 +838,7 @@ type SearchSelectProps struct {
     Value string
     Endpoint string
     Attrs templ.Attributes
+    Name string
 }
 ```
 
@@ -3025,6 +3026,54 @@ ColorField for color inputs
 
 - `func (ColorFieldBuilder) Validators(v []Validator) *ColorFieldBuilder`
 
+#### ComboboxField
+
+ComboboxField for multi-select dropdowns
+
+
+##### Interface Methods
+
+- `<?>`
+- `Endpoint() string`
+- `Multiple() bool`
+- `Searchable() bool`
+- `Placeholder() string`
+
+#### ComboboxFieldBuilder
+
+ComboboxFieldBuilder for multi-select fields
+
+
+##### Methods
+
+- `func (ComboboxFieldBuilder) Attrs(a templ.Attributes) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Build() ComboboxField`
+
+- `func (ComboboxFieldBuilder) Default(val string) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Endpoint(endpoint string) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Key(key string) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Label(label string) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Multiple(multiple bool) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Placeholder(placeholder string) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Required(required bool) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Searchable(searchable bool) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) Validators(v []Validator) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) WithMultiple(multiple bool) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) WithRequired(required bool) *ComboboxFieldBuilder`
+
+- `func (ComboboxFieldBuilder) WithValue(value string) *ComboboxFieldBuilder`
+
 #### DateField
 
 DateField for date inputs
@@ -3276,6 +3325,46 @@ RadioFieldBuilder builds a RadioField
 - `func (RadioFieldBuilder) Required() *RadioFieldBuilder`
 
 - `func (RadioFieldBuilder) Validators(v []Validator) *RadioFieldBuilder`
+
+#### SearchSelectField
+
+SearchSelectField for async search dropdowns
+
+
+##### Interface Methods
+
+- `<?>`
+- `Endpoint() string`
+- `Placeholder() string`
+
+#### SearchSelectFieldBuilder
+
+SearchSelectFieldBuilder for async search select fields
+
+
+##### Methods
+
+- `func (SearchSelectFieldBuilder) Attrs(a templ.Attributes) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) Build() SearchSelectField`
+
+- `func (SearchSelectFieldBuilder) Default(val string) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) Endpoint(endpoint string) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) Key(key string) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) Label(label string) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) Placeholder(placeholder string) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) Required(required bool) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) Validators(v []Validator) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) WithRequired(required bool) *SearchSelectFieldBuilder`
+
+- `func (SearchSelectFieldBuilder) WithValue(value string) *SearchSelectFieldBuilder`
 
 #### SelectField
 
@@ -3848,9 +3937,22 @@ It displays all supported languages with their verbose names.
 templ: version: v0.3.857
 
 
+### Types
+
+#### LogoProps
+
+```go
+type LogoProps struct {
+    LogoUpload *viewmodels.Upload
+    LogoCompactUpload *viewmodels.Upload
+}
+```
+
 ### Functions
 
 #### `func DefaultLogo() templ.Component`
+
+#### `func DynamicLogo(props *LogoProps) templ.Component`
 
 ### Variables and Constants
 
@@ -5283,6 +5385,8 @@ type RefundTransactionCommand struct {
 
 - Var: `[RolesLink]`
 
+- Var: `[SettingsLink]`
+
 - Var: `[UsersLink]`
 
 ---
@@ -6321,7 +6425,15 @@ type TelegramSession struct {
 
 - `func (Tenant) IsActive() bool`
 
+- `func (Tenant) LogoCompactID() *int`
+
+- `func (Tenant) LogoID() *int`
+
 - `func (Tenant) Name() string`
+
+- `func (Tenant) SetLogoCompactID(logoCompactID *int)`
+
+- `func (Tenant) SetLogoID(logoID *int)`
 
 - `func (Tenant) UpdatedAt() time.Time`
 
@@ -6395,6 +6507,7 @@ type FindParams struct {
 - `GetPaginated(ctx context.Context, params *FindParams) ([]Upload, error)`
 - `GetByID(ctx context.Context, id uint) (Upload, error)`
 - `GetByHash(ctx context.Context, hash string) (Upload, error)`
+- `Exists(ctx context.Context, id uint) (bool, error)`
 - `Create(ctx context.Context, data Upload) (Upload, error)`
 - `Update(ctx context.Context, data Upload) error`
 - `Delete(ctx context.Context, id uint) error`
@@ -6732,6 +6845,8 @@ Tin - Taxpayer Identification Number (ИНН - Идентификационны�
 - `func (GormUploadRepository) Create(ctx context.Context, data upload.Upload) (upload.Upload, error)`
 
 - `func (GormUploadRepository) Delete(ctx context.Context, id uint) error`
+
+- `func (GormUploadRepository) Exists(ctx context.Context, id uint) (bool, error)`
 
 - `func (GormUploadRepository) GetAll(ctx context.Context) ([]upload.Upload, error)`
 
@@ -7122,6 +7237,8 @@ type Tenant struct {
     Name string
     Domain sql.NullString
     IsActive bool
+    LogoID sql.NullInt32
+    LogoCompactID sql.NullInt32
     CreatedAt time.Time
     UpdatedAt time.Time
 }
@@ -7688,6 +7805,18 @@ type LoginDTO struct {
 
 - `func (RolesController) Update(r *http.Request, w http.ResponseWriter, logger *logrus.Entry, roleService *services.RoleService)`
 
+#### SettingsController
+
+##### Methods
+
+- `func (SettingsController) GetLogo(w http.ResponseWriter, r *http.Request)`
+
+- `func (SettingsController) Key() string`
+
+- `func (SettingsController) PostLogo(w http.ResponseWriter, r *http.Request)`
+
+- `func (SettingsController) Register(r *mux.Router)`
+
 #### ShowcaseController
 
 ##### Methods
@@ -7797,6 +7926,8 @@ NewLensEventsController creates a new lens events controller
 
 #### `func NewRolesController(app application.Application) application.Controller`
 
+#### `func NewSettingsController(app application.Application) application.Controller`
+
 #### `func NewShowcaseController(app application.Application) application.Controller`
 
 #### `func NewSpotlightController(app application.Application) application.Controller`
@@ -7892,6 +8023,19 @@ type SaveAccountDTO struct {
 - `func (SaveAccountDTO) Apply(u user.User) (user.User, error)`
 
 - `func (SaveAccountDTO) Ok(ctx context.Context) (map[string]string, bool)`
+
+#### SaveLogosDTO
+
+```go
+type SaveLogosDTO struct {
+    LogoID int `validate:"omitempty,min=1"`
+    LogoCompactID int `validate:"omitempty,min=1"`
+}
+```
+
+##### Methods
+
+- `func (SaveLogosDTO) Ok(ctx context.Context) (map[string]string, bool)`
 
 #### UpdateGroupDTO
 
@@ -8380,6 +8524,34 @@ type SharedProps struct {
 #### `func RolesContent(props *IndexPageProps) templ.Component`
 
 #### `func RolesTable(props *IndexPageProps) templ.Component`
+
+### Variables and Constants
+
+---
+
+## Package `settings` (modules/core/presentation/templates/pages/settings)
+
+templ: version: v0.3.857
+
+
+### Types
+
+#### LogoPageProps
+
+```go
+type LogoPageProps struct {
+    LogoUpload *viewmodels.Upload
+    LogoCompactUpload *viewmodels.Upload
+    Errors map[string]string
+    PostPath string
+}
+```
+
+### Functions
+
+#### `func Logo(props *LogoPageProps) templ.Component`
+
+#### `func LogoForm(props *LogoPageProps) templ.Component`
 
 ### Variables and Constants
 
@@ -9224,6 +9396,8 @@ type UhrProps struct {
 - `func (UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]upload.Upload, error)`
 
 - `func (UploadService) Delete(ctx context.Context, id uint) (upload.Upload, error)`
+
+- `func (UploadService) Exists(ctx context.Context, id uint) (bool, error)`
 
 - `func (UploadService) GetAll(ctx context.Context) ([]upload.Upload, error)`
 
@@ -17901,6 +18075,54 @@ type FindParams struct {
 
 #### SchemaOption
 
+#### SelectField
+
+SelectField interface extends Field with select-specific functionality
+
+
+##### Interface Methods
+
+- `Field`
+- `SelectType() SelectType`
+- `SetSelectType(SelectType) SelectField`
+- `Options() []SelectOption`
+- `SetOptions([]SelectOption) SelectField`
+- `OptionsLoader() (func(ctx context.Context) []SelectOption)`
+- `SetOptionsLoader(func(ctx context.Context) []SelectOption) SelectField`
+- `Endpoint() string`
+- `SetEndpoint(string) SelectField`
+- `Placeholder() string`
+- `SetPlaceholder(string) SelectField`
+- `Multiple() bool`
+- `SetMultiple(bool) SelectField`
+- `ValueType() FieldType`
+- `SetValueType(FieldType) SelectField`
+- `AsIntSelect() SelectField`
+- `AsStringSelect() SelectField`
+- `AsBoolSelect() SelectField`
+- `AsSearchable(endpoint string) SelectField`
+- `AsCombobox() SelectField`
+- `WithStaticOptions(options ...SelectOption) SelectField`
+- `WithSearchEndpoint(endpoint string) SelectField`
+- `WithCombobox(endpoint string, multiple bool) SelectField`
+
+#### SelectOption
+
+SelectOption represents a single option in a select field
+
+
+```go
+type SelectOption struct {
+    Value any
+    Label string
+}
+```
+
+#### SelectType
+
+SelectType defines how the select field behaves in the UI
+
+
 #### Service
 
 ##### Interface Methods
@@ -20058,7 +20280,7 @@ QueryBuilder provides a fluent interface for building queries
 - `WithVariable(key string, value interface{}) QueryBuilder`
 - `WithTimeRange(start, end time.Time) QueryBuilder`
 - `WithRefreshRate(rate time.Duration) QueryBuilder`
-- `WithMaxDataPoints(max int) QueryBuilder`
+- `WithMaxDataPoints(maxPoints int) QueryBuilder`
 - `WithFormat(format QueryFormat) QueryBuilder`
 - `Build() Query`
 
@@ -21458,9 +21680,13 @@ Pointer is a utility function that returns a pointer to the given value.
 PointerSlice is a utility function that returns a slice of pointers from a slice of values.
 
 
+#### `func PointerToSQLNullInt32(i *int) sql.NullInt32`
+
 #### `func PointerToSQLNullString(s *string) sql.NullString`
 
 #### `func PointerToSQLNullTime(t *time.Time) sql.NullTime`
+
+#### `func SQLNullInt32ToPointer(v sql.NullInt32) *int`
 
 #### `func SQLNullStringToUUID(ns sql.NullString) uuid.UUID`
 
@@ -21537,6 +21763,8 @@ type LoggerOptions struct {
 #### `func NavItems() mux.MiddlewareFunc`
 
 #### `func Provide(k constants.ContextKey, v any) mux.MiddlewareFunc`
+
+#### `func ProvideDynamicLogo(app application.Application) mux.MiddlewareFunc`
 
 #### `func ProvideLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc`
 
@@ -22352,6 +22580,21 @@ Spotlight streams items matching a query over a channel.
 
 ### Types
 
+#### DatabaseManager
+
+DatabaseManager handles database lifecycle for tests
+
+
+##### Methods
+
+- `func (DatabaseManager) Close()`
+  Close closes the pool
+  
+
+- `func (DatabaseManager) Pool() *pgxpool.Pool`
+  Pool returns the database pool
+  
+
 #### TestEnv
 
 TestEnv holds common test dependencies
@@ -22418,11 +22661,11 @@ TestContext provides a fluent API for building test contexts
 
 ##### Methods
 
-- `func (TestContext) Build(t *testing.T) *TestEnvironment`
+- `func (TestContext) Build(tb testing.TB) *TestEnvironment`
   Build creates the test context with all dependencies
   
 
-- `func (TestContext) WithDBName(t *testing.T, name string) *TestContext`
+- `func (TestContext) WithDBName(tb testing.TB, name string) *TestContext`
   WithDBName sets a custom database name
   
 
@@ -22452,7 +22695,7 @@ type TestEnvironment struct {
 
 ##### Methods
 
-- `func (TestEnvironment) AssertNoError(t *testing.T, err error)`
+- `func (TestEnvironment) AssertNoError(tb testing.TB, err error)`
   AssertNoError fails the test if err is not nil
   
 
