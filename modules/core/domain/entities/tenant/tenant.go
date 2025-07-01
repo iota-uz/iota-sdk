@@ -7,12 +7,14 @@ import (
 )
 
 type Tenant struct {
-	id        uuid.UUID
-	name      string
-	domain    string
-	isActive  bool
-	createdAt time.Time
-	updatedAt time.Time
+	id            uuid.UUID
+	name          string
+	domain        string
+	isActive      bool
+	logoID        *int
+	logoCompactID *int
+	createdAt     time.Time
+	updatedAt     time.Time
 }
 
 type Option func(*Tenant)
@@ -44,6 +46,18 @@ func WithCreatedAt(createdAt time.Time) Option {
 func WithUpdatedAt(updatedAt time.Time) Option {
 	return func(t *Tenant) {
 		t.updatedAt = updatedAt
+	}
+}
+
+func WithLogoID(logoID *int) Option {
+	return func(t *Tenant) {
+		t.logoID = logoID
+	}
+}
+
+func WithLogoCompactID(logoCompactID *int) Option {
+	return func(t *Tenant) {
+		t.logoCompactID = logoCompactID
 	}
 }
 
@@ -83,4 +97,22 @@ func (t *Tenant) CreatedAt() time.Time {
 
 func (t *Tenant) UpdatedAt() time.Time {
 	return t.updatedAt
+}
+
+func (t *Tenant) LogoID() *int {
+	return t.logoID
+}
+
+func (t *Tenant) LogoCompactID() *int {
+	return t.logoCompactID
+}
+
+func (t *Tenant) SetLogoID(logoID *int) {
+	t.logoID = logoID
+	t.updatedAt = time.Now()
+}
+
+func (t *Tenant) SetLogoCompactID(logoCompactID *int) {
+	t.logoCompactID = logoCompactID
+	t.updatedAt = time.Now()
 }
