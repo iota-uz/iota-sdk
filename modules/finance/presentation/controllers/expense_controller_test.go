@@ -30,6 +30,7 @@ var (
 )
 
 func TestExpenseController_List_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 		permissions.ExpenseCreate,
@@ -101,6 +102,7 @@ func TestExpenseController_List_Success(t *testing.T) {
 }
 
 func TestExpenseController_List_HTMX_Request(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 		permissions.ExpenseCreate,
@@ -157,6 +159,7 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestExpenseController_GetNew_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 	)
@@ -206,6 +209,7 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 }
 
 func TestExpenseController_Create_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCreate,
 		permissions.ExpenseRead,
@@ -262,6 +266,7 @@ func TestExpenseController_Create_Success(t *testing.T) {
 }
 
 func TestExpenseController_Create_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCreate,
 		permissions.ExpenseRead,
@@ -320,6 +325,7 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 }
 
 func TestExpenseController_GetEdit_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 		permissions.ExpenseUpdate,
@@ -387,6 +393,7 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 }
 
 func TestExpenseController_GetEdit_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 	)
@@ -407,6 +414,7 @@ func TestExpenseController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestExpenseController_Update_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseUpdate,
 		permissions.ExpenseRead,
@@ -474,6 +482,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 }
 
 func TestExpenseController_Update_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseUpdate,
 		permissions.ExpenseRead,
@@ -545,6 +554,7 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 }
 
 func TestExpenseController_Delete_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseDelete,
 		permissions.ExpenseRead,
@@ -607,6 +617,7 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 }
 
 func TestExpenseController_Delete_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseDelete,
 	)
@@ -627,6 +638,7 @@ func TestExpenseController_Delete_NotFound(t *testing.T) {
 }
 
 func TestExpenseController_InvalidUUID(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 	)
@@ -646,6 +658,7 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 }
 
 func TestExpenseController_Export_Excel_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 		permissions.ExpenseCreate,
@@ -719,6 +732,7 @@ func TestExpenseController_Export_Excel_Success(t *testing.T) {
 }
 
 func TestExpenseController_Export_InvalidFormat(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 	)
@@ -739,6 +753,7 @@ func TestExpenseController_Export_InvalidFormat(t *testing.T) {
 }
 
 func TestExpenseController_Export_MissingFormat(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseRead,
 	)
@@ -759,6 +774,7 @@ func TestExpenseController_Export_MissingFormat(t *testing.T) {
 }
 
 func TestExpenseController_Export_Forbidden(t *testing.T) {
+	t.Parallel()
 	userWithoutPermission := testutils.MockUser()
 
 	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).

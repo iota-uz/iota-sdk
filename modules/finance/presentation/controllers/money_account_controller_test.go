@@ -35,6 +35,7 @@ func createCurrencies(t *testing.T, ctx context.Context, currencies ...*currency
 }
 
 func TestMoneyAccountController_List_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -88,6 +89,7 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 }
 
 func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -125,6 +127,7 @@ func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestMoneyAccountController_GetNew_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -159,6 +162,7 @@ func TestMoneyAccountController_GetNew_Success(t *testing.T) {
 }
 
 func TestMoneyAccountController_Create_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -204,6 +208,7 @@ func TestMoneyAccountController_Create_Success(t *testing.T) {
 }
 
 func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -244,6 +249,7 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 }
 
 func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -292,6 +298,7 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 }
 
 func TestMoneyAccountController_GetEdit_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -316,6 +323,7 @@ func TestMoneyAccountController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestMoneyAccountController_Update_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -371,6 +379,7 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 }
 
 func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -421,6 +430,7 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 }
 
 func TestMoneyAccountController_Delete_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -464,6 +474,7 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 }
 
 func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -488,6 +499,7 @@ func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
 }
 
 func TestMoneyAccountController_InvalidUUID(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
