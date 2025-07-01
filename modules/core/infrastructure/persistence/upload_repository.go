@@ -35,6 +35,8 @@ const (
                           WHERE id = $8 AND tenant_id = $9`
 
 	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1 AND tenant_id = $2`
+
+	existsUploadQuery = `SELECT EXISTS(SELECT 1 FROM uploads WHERE id = $1 AND tenant_id = $2)`
 )
 
 type GormUploadRepository struct {
@@ -173,6 +175,24 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (uplo
 		return nil, ErrUploadNotFound
 	}
 	return uploads[0], nil
+}
+
+func (g *GormUploadRepository) Exists(ctx context.Context, id uint) (bool, error) {
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	var exists bool
+	if err := pool.QueryRow(ctx, existsUploadQuery, id, tenantID.String()).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
 }
 
 func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (upload.Upload, error) {

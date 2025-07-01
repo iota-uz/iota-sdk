@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
@@ -107,6 +108,9 @@ func (s *Suite) newRequest(method, path string) *Request {
 }
 
 func (s *Suite) setupMiddleware() {
+	// Use the standard middleware for i18n/localizer setup
+	s.router.Use(middleware.ProvideLocalizer(s.env.App.Bundle()))
+
 	s.router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()

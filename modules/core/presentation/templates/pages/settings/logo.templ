@@ -1,0 +1,116 @@
+package settings
+
+import (
+	"github.com/iota-uz/iota-sdk/components"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type LogoPageProps struct {
+	LogoUpload        *viewmodels.Upload
+	LogoCompactUpload *viewmodels.Upload
+	Errors            map[string]string
+	PostPath          string
+}
+
+templ LogoForm(props *LogoPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id="logo-page-content" class="flex flex-col justify-between h-full">
+		<div class="flex flex-col gap-5 p-6">
+			@card.Card(card.Props{
+				Class: "grid grid-cols-1 gap-6",
+			}) {
+				<div class="space-y-4">
+					<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Logo.FullLogo") }</h3>
+					<p class="text-sm text-gray-600">{ pageCtx.T("Account.Logo.FullLogoDescription") }</p>
+					if props.LogoUpload == nil {
+						@components.UploadInput(&components.UploadInputProps{
+							Label:       pageCtx.T("Account.BrowseFilesystem"),
+							Placeholder: pageCtx.T("Account.Logo.FullLogoPlaceholder"),
+							Name:        "LogoID",
+							Accept:      "image/*",
+							Form:        "",
+							Uploads:     []*viewmodels.Upload{},
+						})
+					} else {
+						@components.UploadInput(&components.UploadInputProps{
+							Label:       pageCtx.T("Account.BrowseFilesystem"),
+							Placeholder: pageCtx.T("Account.Logo.FullLogoPlaceholder"),
+							Name:        "LogoID",
+							Accept:      "image/*",
+							Form:        "",
+							Uploads:     []*viewmodels.Upload{props.LogoUpload},
+						})
+					}
+					if props.Errors["LogoID"] != "" {
+						<p class="text-red-500 text-sm">{ props.Errors["LogoID"] }</p>
+					}
+				</div>
+				<div class="space-y-4">
+					<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Logo.CompactLogo") }</h3>
+					<p class="text-sm text-gray-600">{ pageCtx.T("Account.Logo.CompactLogoDescription") }</p>
+					if props.LogoCompactUpload == nil {
+						@components.UploadInput(&components.UploadInputProps{
+							Label:       pageCtx.T("Account.BrowseFilesystem"),
+							Placeholder: pageCtx.T("Account.Logo.CompactLogoPlaceholder"),
+							Name:        "LogoCompactID",
+							Accept:      "image/*",
+							Form:        "",
+							Uploads:     []*viewmodels.Upload{},
+						})
+					} else {
+						@components.UploadInput(&components.UploadInputProps{
+							Label:       pageCtx.T("Account.BrowseFilesystem"),
+							Placeholder: pageCtx.T("Account.Logo.CompactLogoPlaceholder"),
+							Name:        "LogoCompactID",
+							Accept:      "image/*",
+							Form:        "",
+							Uploads:     []*viewmodels.Upload{props.LogoCompactUpload},
+						})
+					}
+					if props.Errors["LogoCompactID"] != "" {
+						<p class="text-red-500 text-sm">{ props.Errors["LogoCompactID"] }</p>
+					}
+				</div>
+			}
+		</div>
+		<form
+			id="logo-form"
+			hx-post={ props.PostPath }
+			hx-swap="outerHTML"
+			hx-target="#logo-page-content"
+		>
+			<div id="field-LogoID">
+				if props.LogoUpload != nil {
+					<input type="hidden" name="LogoID" value={ props.LogoUpload.ID }/>
+				}
+			</div>
+			<div id="field-LogoCompactID">
+				if props.LogoCompactUpload != nil {
+					<input type="hidden" name="LogoCompactID" value={ props.LogoCompactUpload.ID }/>
+				}
+			</div>
+			<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+				@button.Primary(button.Props{
+					Attrs: templ.Attributes{
+						"type": "submit",
+					}},
+				) {
+					{ pageCtx.T("Account.Save") }
+				}
+			</div>
+		</form>
+	</div>
+}
+
+templ Logo(props *LogoPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Logo.Title")},
+	}) {
+		@LogoForm(props)
+	}
+}
