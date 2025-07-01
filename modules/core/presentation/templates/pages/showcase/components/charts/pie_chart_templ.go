@@ -33,37 +33,14 @@ func PieChart() templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = charts.Chart(charts.Props{
 			Class: "h-64",
-			Options: charts.ChartOptions{
-				Chart: charts.ChartConfig{
-					Type:   charts.PieChartType,
-					Height: "380px",
-					Toolbar: charts.Toolbar{
-						Show: false,
-					},
-				},
-				Series: []charts.Series{
-					{
-						Name: "Market Share",
-						Data: []interface{}{44.0, 55.0, 13.0, 43.0, 22.0},
-					},
-				},
-				// Include empty categories for XAxis to avoid null reference
-				XAxis: charts.XAxisConfig{
-					Categories: []string{"Team A", "Team B", "Team C", "Team D", "Team E"},
-				},
-				Colors: []string{"#3b82f6", "#10b981", "#6366f1", "#f59e0b", "#ef4444"},
-				DataLabels: &charts.DataLabels{
-					Enabled: true,
-					DropShadow: &charts.DropShadow{
-						Enabled: false,
-					},
-				},
-				YAxis: []charts.YAxisConfig{
-					{
-						// Default YAxis config
-					},
-				},
-			},
+			Options: charts.NewPieChart(
+				[]float64{44, 55, 13, 43, 22},
+				[]string{"Team A", "Team B", "Team C", "Team D", "Team E"},
+			).
+				WithHeight("380px").
+				WithColors("#3b82f6", "#10b981", "#6366f1", "#f59e0b", "#ef4444").
+				WithDataLabels(true).
+				Build(),
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

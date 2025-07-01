@@ -23,7 +23,7 @@ const (
 		g.id, g.type, g.tenant_id, g.name, g.description,
 		g.created_at, g.updated_at
 	FROM user_groups g
-	WHERE g.id = $1`
+	WHERE g.id = $1 AND g.tenant_id = $2`
 
 	selectGroupUsersSQL = `SELECT
 		u.id, u.tenant_id, u.type, u.first_name, u.last_name, u.middle_name,
@@ -31,7 +31,7 @@ const (
 		u.created_at, u.updated_at
 	FROM users u
 	JOIN group_users gu ON u.id = gu.user_id
-	WHERE gu.group_id = $1`
+	WHERE gu.group_id = $1 AND u.tenant_id = $2`
 
 	selectGroupRolesSQL = `SELECT
 		r.id, r.type, r.name, r.description, r.created_at, r.updated_at
@@ -83,13 +83,15 @@ func (r *pgGroupQueryRepository) fieldMapping() map[Field]string {
 	}
 }
 
-func (r *pgGroupQueryRepository) filtersToSQL(filters []GroupFilter) ([]string, []interface{}) {
-	if len(filters) == 0 {
+func (r *pgGroupQueryRepository) filtersToSQL(ctx context.Context, filters []GroupFilter) ([]string, []interface{}) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
 		return []string{}, []interface{}{}
 	}
 
-	var conditions []string
-	var args []interface{}
+	// Always include tenant filter as first condition
+	conditions := []string{"g.tenant_id = $1"}
+	args := []interface{}{tenantID}
 
 	for _, f := range filters {
 		fieldName := r.fieldMapping()[f.Column]
@@ -112,7 +114,7 @@ func (r *pgGroupQueryRepository) FindGroups(ctx context.Context, params *GroupFi
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
 	}
 
-	conditions, args := r.filtersToSQL(params.Filters)
+	conditions, args := r.filtersToSQL(ctx, params.Filters)
 	whereClause := ""
 	if len(conditions) > 0 {
 		whereClause = " WHERE " + strings.Join(conditions, " AND ")
@@ -178,8 +180,13 @@ func (r *pgGroupQueryRepository) FindGroupByID(ctx context.Context, groupID stri
 		return nil, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant ID")
+	}
+
 	query := selectGroupByIDSQL
-	args := []interface{}{groupID}
+	args := []interface{}{groupID, tenantID}
 
 	var dbGroup models.Group
 	err = tx.QueryRow(ctx, query, args...).Scan(
@@ -210,31 +217,39 @@ func (r *pgGroupQueryRepository) SearchGroups(ctx context.Context, params *Group
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to get tenant ID")
+	}
+
 	searchQuery := strings.TrimSpace(params.Search)
-	baseQuery := selectGroupsSQL + ` WHERE (
-		g.name ILIKE $1 OR
-		g.description ILIKE $1
+	baseQuery := selectGroupsSQL + ` WHERE g.tenant_id = $1 AND (
+		g.name ILIKE $2 OR
+		g.description ILIKE $2
 	)`
 
-	args := []interface{}{"%" + searchQuery + "%"}
-	argIndex := 2
+	args := []interface{}{tenantID, "%" + searchQuery + "%"}
+	argIndex := 3
 
 	// Add additional filters if any
-	conditions, filterArgs := r.filtersToSQL(params.Filters)
-	if len(conditions) > 0 {
+	conditions, filterArgs := r.filtersToSQL(ctx, params.Filters)
+	// Skip the first condition since it's the tenant filter we already added
+	if len(conditions) > 1 {
+		additionalConditions := conditions[1:]
 		// Update arg positions in conditions
-		for i, cond := range conditions {
-			for j := 1; j <= len(filterArgs); j++ {
+		for i, cond := range additionalConditions {
+			for j := 2; j <= len(filterArgs); j++ {
 				oldPlaceholder := fmt.Sprintf("$%d", j)
 				newPlaceholder := fmt.Sprintf("$%d", argIndex)
-				conditions[i] = strings.Replace(cond, oldPlaceholder, newPlaceholder, 1)
-				if strings.Contains(conditions[i], newPlaceholder) {
+				additionalConditions[i] = strings.Replace(cond, oldPlaceholder, newPlaceholder, 1)
+				if strings.Contains(additionalConditions[i], newPlaceholder) {
 					argIndex++
 				}
 			}
 		}
-		baseQuery += " AND " + strings.Join(conditions, " AND ")
-		args = append(args, filterArgs...)
+		baseQuery += " AND " + strings.Join(additionalConditions, " AND ")
+		// Skip the first arg (tenant ID) since we already added it
+		args = append(args, filterArgs[1:]...)
 	}
 
 	// Count query - extract the WHERE clause from baseQuery
@@ -294,8 +309,13 @@ func (r *pgGroupQueryRepository) loadGroupUsersAndRoles(ctx context.Context, gro
 		return errors.Wrap(err, "failed to get transaction")
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant ID")
+	}
+
 	// Load users
-	userRows, err := tx.Query(ctx, selectGroupUsersSQL, group.ID)
+	userRows, err := tx.Query(ctx, selectGroupUsersSQL, group.ID, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to query group users")
 	}

@@ -10,17 +10,18 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
 )
 
 // Create a client and return its ID to use in chat tests
-func createClientForTest(t *testing.T, f *testFixtures) client.Client {
+func createClientForTest(t *testing.T, f *builder.TestEnvironment) client.Client {
 	t.Helper()
 	repo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
 
-	testClient := createTestClient(t, f.tenant.ID, false)
-	created, err := repo.Save(f.ctx, testClient)
+	testClient := createTestClient(t, f.TenantID(), false)
+	created, err := repo.Save(f.Ctx, testClient)
 	require.NoError(t, err, "Failed to create client for chat test")
 
 	return created
@@ -33,9 +34,9 @@ func TestChatRepository_Create(t *testing.T) {
 
 	t.Run("Create chat without messages", func(t *testing.T) {
 		clientID := createClientForTest(t, f).ID()
-		testChat := chat.New(clientID, chat.WithTenantID(f.tenant.ID))
+		testChat := chat.New(clientID, chat.WithTenantID(f.TenantID()))
 
-		created, err := repo.Save(f.ctx, testChat)
+		created, err := repo.Save(f.Ctx, testChat)
 		require.NoError(t, err, "Failed to create chat")
 
 		assert.NotZero(t, created.ID(), "Created chat should have a non-zero ID")
@@ -47,7 +48,7 @@ func TestChatRepository_Create(t *testing.T) {
 
 	t.Run("Create chat with messages", func(t *testing.T) {
 		client_ := createClientForTest(t, f)
-		testChat := chat.New(client_.ID(), chat.WithTenantID(f.tenant.ID))
+		testChat := chat.New(client_.ID(), chat.WithTenantID(f.TenantID()))
 		member := chat.NewMember(
 			chat.NewClientSender(
 				client_.ID(),
@@ -56,14 +57,14 @@ func TestChatRepository_Create(t *testing.T) {
 				"1234567890",
 			),
 			chat.TelegramTransport,
-			chat.WithMemberTenantID(f.tenant.ID),
+			chat.WithMemberTenantID(f.Tenant.ID),
 		)
 
 		// Add a message to the chat
 		message := chat.NewMessage("Hello, world!", member)
 		testChat = testChat.AddMessage(message)
 
-		created, err := repo.Save(f.ctx, testChat)
+		created, err := repo.Save(f.Ctx, testChat)
 		require.NoError(t, err, "Failed to create chat with message")
 
 		assert.NotZero(t, created.ID(), "Created chat should have a non-zero ID")
@@ -80,12 +81,12 @@ func TestChatRepository_GetByID(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	clientID := createClientForTest(t, f).ID()
-	testChat := chat.New(clientID, chat.WithTenantID(f.tenant.ID))
-	created, err := repo.Save(f.ctx, testChat)
+	testChat := chat.New(clientID, chat.WithTenantID(f.Tenant.ID))
+	created, err := repo.Save(f.Ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	t.Run("Get existing chat by ID", func(t *testing.T) {
-		retrieved, err := repo.GetByID(f.ctx, created.ID())
+		retrieved, err := repo.GetByID(f.Ctx, created.ID())
 		require.NoError(t, err, "Failed to get chat by ID")
 
 		assert.Equal(t, created.ID(), retrieved.ID(), "Chat ID should match")
@@ -93,7 +94,7 @@ func TestChatRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("Get non-existent chat by ID", func(t *testing.T) {
-		_, err := repo.GetByID(f.ctx, 9999)
+		_, err := repo.GetByID(f.Ctx, 9999)
 
 		require.Error(t, err, "Expected error when getting non-existent chat")
 		assert.ErrorIs(t, err, persistence.ErrChatNotFound, "Error should be ErrNotFound")
@@ -106,12 +107,12 @@ func TestChatRepository_GetByClientID(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	clientID := createClientForTest(t, f).ID()
-	testChat := chat.New(clientID, chat.WithTenantID(f.tenant.ID))
-	created, err := repo.Save(f.ctx, testChat)
+	testChat := chat.New(clientID, chat.WithTenantID(f.Tenant.ID))
+	created, err := repo.Save(f.Ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	t.Run("Get existing chat by client ID", func(t *testing.T) {
-		retrieved, err := repo.GetByClientID(f.ctx, clientID)
+		retrieved, err := repo.GetByClientID(f.Ctx, clientID)
 		require.NoError(t, err, "Failed to get chat by client ID")
 
 		assert.Equal(t, created.ID(), retrieved.ID(), "Chat ID should match")
@@ -119,7 +120,7 @@ func TestChatRepository_GetByClientID(t *testing.T) {
 	})
 
 	t.Run("Get non-existent chat by client ID", func(t *testing.T) {
-		_, err := repo.GetByClientID(f.ctx, 9999)
+		_, err := repo.GetByClientID(f.Ctx, 9999)
 
 		require.Error(t, err, "Expected error when getting non-existent chat")
 		assert.ErrorIs(t, err, persistence.ErrChatNotFound, "Error should be ErrChatNotFound")
@@ -135,8 +136,8 @@ func TestChatRepository_AddMessageThroughUpdate(t *testing.T) {
 
 	// Create a chat first
 	client_ := createClientForTest(t, f)
-	testChat := chat.New(client_.ID(), chat.WithTenantID(f.tenant.ID))
-	created, err := repo.Save(f.ctx, testChat)
+	testChat := chat.New(client_.ID(), chat.WithTenantID(f.Tenant.ID))
+	created, err := repo.Save(f.Ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message to the chat domain entity
@@ -148,12 +149,12 @@ func TestChatRepository_AddMessageThroughUpdate(t *testing.T) {
 			client_.LastName(),
 		),
 		chat.TelegramTransport,
-		chat.WithMemberTenantID(f.tenant.ID),
+		chat.WithMemberTenantID(f.Tenant.ID),
 	))
 	updatedChat := created.AddMessage(message)
 
 	// Update the chat with the new message
-	result, err := repo.Save(f.ctx, updatedChat)
+	result, err := repo.Save(f.Ctx, updatedChat)
 	require.NoError(t, err, "Failed to update chat with new message")
 
 	// Verify the message was added
@@ -175,11 +176,11 @@ func TestChatRepository_Update(t *testing.T) {
 	clientRepo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
 	)
-	_, err := clientRepo.Save(f.ctx, testClient)
+	_, err := clientRepo.Save(f.Ctx, testClient)
 	require.NoError(t, err, "Failed to save test client")
 
-	testChat := chat.New(testClient.ID(), chat.WithTenantID(f.tenant.ID))
-	created, err := repo.Save(f.ctx, testChat)
+	testChat := chat.New(testClient.ID(), chat.WithTenantID(f.Tenant.ID))
+	created, err := repo.Save(f.Ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Add a message
@@ -191,12 +192,12 @@ func TestChatRepository_Update(t *testing.T) {
 			testClient.LastName(),
 		),
 		chat.TelegramTransport,
-		chat.WithMemberTenantID(f.tenant.ID),
+		chat.WithMemberTenantID(f.Tenant.ID),
 	))
 	updatedChat := created.AddMessage(message)
 
 	// Update the chat
-	updated, err := repo.Save(f.ctx, updatedChat)
+	updated, err := repo.Save(f.Ctx, updatedChat)
 	require.NoError(t, err, "Failed to update chat")
 
 	// Verify the chat was updated
@@ -213,11 +214,11 @@ func TestChatRepository_Update(t *testing.T) {
 			testClient.LastName(),
 		),
 		chat.TelegramTransport,
-		chat.WithMemberTenantID(f.tenant.ID),
+		chat.WithMemberTenantID(f.Tenant.ID),
 	))
 	chatWithTwoMessages := updated.AddMessage(secondMessage)
 
-	secondUpdate, err := repo.Save(f.ctx, chatWithTwoMessages)
+	secondUpdate, err := repo.Save(f.Ctx, chatWithTwoMessages)
 	require.NoError(t, err, "Failed to update chat with second message")
 
 	// Verify both messages are there
@@ -232,7 +233,7 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		testClient := createClientForTest(t, f)
-		testChat := chat.New(testClient.ID(), chat.WithTenantID(f.tenant.ID))
+		testChat := chat.New(testClient.ID(), chat.WithTenantID(f.Tenant.ID))
 
 		// Add a message with the client's ID in it
 		message := chat.NewMessage("Message for client "+string('0'+byte(i)), chat.NewMember(
@@ -243,11 +244,11 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 				testClient.LastName(),
 			),
 			chat.TelegramTransport,
-			chat.WithMemberTenantID(f.tenant.ID),
+			chat.WithMemberTenantID(f.Tenant.ID),
 		))
 		testChat = testChat.AddMessage(message)
 
-		_, err := chatRepo.Save(f.ctx, testChat)
+		_, err := chatRepo.Save(f.Ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
 	}
 
@@ -265,7 +266,7 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 			},
 		}
 
-		chats, err := chatRepo.GetPaginated(f.ctx, params)
+		chats, err := chatRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err, "Failed to get paginated chats")
 		assert.Len(t, chats, 2, "Expected 2 chats")
 	})
@@ -284,7 +285,7 @@ func TestChatRepository_GetPaginated(t *testing.T) {
 			},
 		}
 
-		chats, err := chatRepo.GetPaginated(f.ctx, params)
+		chats, err := chatRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err, "Failed to get paginated chats")
 		require.NotEmpty(t, chats, "Expected at least one chat")
 
@@ -306,20 +307,20 @@ func TestChatRepository_Count(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	// Get initial count
-	initialCount, err := repo.Count(f.ctx)
+	initialCount, err := repo.Count(f.Ctx)
 	require.NoError(t, err, "Failed to get initial chat count")
 
 	// Create a few chats
 	numChats := 3
 	for i := 0; i < numChats; i++ {
 		clientID := createClientForTest(t, f).ID()
-		testChat := chat.New(clientID, chat.WithTenantID(f.tenant.ID))
-		_, err := repo.Save(f.ctx, testChat)
+		testChat := chat.New(clientID, chat.WithTenantID(f.Tenant.ID))
+		_, err := repo.Save(f.Ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
 	}
 
 	// Get new count
-	newCount, err := repo.Count(f.ctx)
+	newCount, err := repo.Count(f.Ctx)
 	require.NoError(t, err, "Failed to get updated chat count")
 
 	expectedCount := initialCount + int64(numChats)
@@ -332,19 +333,19 @@ func TestChatRepository_GetAll(t *testing.T) {
 	repo := persistence.NewChatRepository()
 
 	// Create a known number of chats
-	initialCount, err := repo.Count(f.ctx)
+	initialCount, err := repo.Count(f.Ctx)
 	require.NoError(t, err, "Failed to get initial chat count")
 
 	numNewChats := 2
 	for i := 0; i < numNewChats; i++ {
 		clientID := createClientForTest(t, f).ID()
-		testChat := chat.New(clientID, chat.WithTenantID(f.tenant.ID))
-		_, err := repo.Save(f.ctx, testChat)
+		testChat := chat.New(clientID, chat.WithTenantID(f.Tenant.ID))
+		_, err := repo.Save(f.Ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat %d", i)
 	}
 
 	// Get all chats
-	allChats, err := repo.GetPaginated(f.ctx, &chat.FindParams{})
+	allChats, err := repo.GetPaginated(f.Ctx, &chat.FindParams{})
 	require.NoError(t, err, "Failed to get all chats")
 
 	expectedCount := int(initialCount) + numNewChats
@@ -358,7 +359,7 @@ func TestChatRepository_Delete(t *testing.T) {
 
 	// Create a chat
 	testClient := createClientForTest(t, f)
-	testChat := chat.New(testClient.ID(), chat.WithTenantID(f.tenant.ID))
+	testChat := chat.New(testClient.ID(), chat.WithTenantID(f.Tenant.ID))
 
 	// Add a message to test cascade deletion
 	message := chat.NewMessage("Message to be deleted", chat.NewMember(
@@ -369,19 +370,19 @@ func TestChatRepository_Delete(t *testing.T) {
 			testClient.LastName(),
 		),
 		chat.TelegramTransport,
-		chat.WithMemberTenantID(f.tenant.ID),
+		chat.WithMemberTenantID(f.Tenant.ID),
 	))
 	testChat = testChat.AddMessage(message)
 
-	created, err := repo.Save(f.ctx, testChat)
+	created, err := repo.Save(f.Ctx, testChat)
 	require.NoError(t, err, "Failed to create test chat")
 
 	// Delete the chat
-	err = repo.Delete(f.ctx, created.ID())
+	err = repo.Delete(f.Ctx, created.ID())
 	require.NoError(t, err, "Failed to delete chat")
 
 	// Verify chat was deleted
-	_, err = repo.GetByID(f.ctx, created.ID())
+	_, err = repo.GetByID(f.Ctx, created.ID())
 	require.Error(t, err, "Expected error when getting deleted chat")
 	assert.ErrorIs(t, err, persistence.ErrChatNotFound, "Error should be ErrChatNotFound")
 }
@@ -393,8 +394,8 @@ func TestChatRepository_Search(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		testClient := createClientForTest(t, f)
-		testChat := chat.New(testClient.ID(), chat.WithTenantID(f.tenant.ID))
-		_, err := chatRepo.Save(f.ctx, testChat)
+		testChat := chat.New(testClient.ID(), chat.WithTenantID(f.Tenant.ID))
+		_, err := chatRepo.Save(f.Ctx, testChat)
 		require.NoError(t, err, "Failed to create test chat for client %d", i)
 	}
 
@@ -413,7 +414,7 @@ func TestChatRepository_Search(t *testing.T) {
 			},
 		}
 
-		_, err := chatRepo.GetPaginated(f.ctx, params)
+		_, err := chatRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err, "Failed to search chats by first name")
 	})
 
@@ -432,7 +433,7 @@ func TestChatRepository_Search(t *testing.T) {
 			},
 		}
 
-		_, err := chatRepo.GetPaginated(f.ctx, params)
+		_, err := chatRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err, "Failed to search chats by last name")
 	})
 
@@ -451,7 +452,7 @@ func TestChatRepository_Search(t *testing.T) {
 			},
 		}
 
-		_, err := chatRepo.GetPaginated(f.ctx, params)
+		_, err := chatRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err, "Failed to search chats by phone number")
 	})
 
@@ -468,7 +469,7 @@ func TestChatRepository_Search(t *testing.T) {
 			},
 		}
 
-		chats, err := chatRepo.GetPaginated(f.ctx, params)
+		chats, err := chatRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err, "Failed to execute search with no expected matches")
 		assert.Empty(t, chats, "Expected no chats for non-existent name")
 	})

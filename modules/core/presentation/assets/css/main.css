@@ -862,6 +862,16 @@
     display: none !important;
   }
 
+  /* Prevent sidebar flicker during initial load */
+  .sidebar-container:not([data-alpine-loaded]) {
+    opacity: 0;
+    transition: opacity 0.1s ease-in;
+  }
+
+  .sidebar-container[data-alpine-loaded] {
+    opacity: 1;
+  }
+
   /* Sidebar collapsed styles */
   .sidebar-collapsed {
     width: 4rem !important;
@@ -900,7 +910,6 @@
   /* Toggle button styling */
   .btn-ghost {
     --text-color: var(--gray-600);
-    --bg-color: var(--white);
   }
 
   .btn-ghost:hover {
@@ -911,12 +920,23 @@
   /* Toggle button in collapsed state */
   .sidebar-collapsed .btn-ghost {
     --text-color: var(--gray-600);
-    --bg-color: var(--white);
   }
 
   .sidebar-collapsed .btn-ghost:hover {
     --text-color: var(--gray-400);
     --bg-color: var(--gray-200);
+  }
+
+  /* Sidebar toggle button styling */
+  .btn-sidebar-toggle {
+    --text-color: var(--gray-600);
+    --bg-color: var(--white);
+    --border-color: var(--transparent);
+  }
+
+  .btn-sidebar-toggle:hover {
+    --text-color: var(--gray-400);
+    --bg-color: var(--gray-100);
   }
 }
 

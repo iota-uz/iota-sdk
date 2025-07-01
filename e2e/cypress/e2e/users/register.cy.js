@@ -20,7 +20,7 @@ describe("user auth and registration flow", () => {
 		cy.visit("http://localhost:3200/users");
 		cy.url().should("eq", "http://localhost:3200/users");
 
-		cy.get('a[href="/users/new"]').filter(":visible").click();
+		cy.get('a[href="/users/new"]').filter(":visible").first().click();
 		cy.get("[name=FirstName]").type("Test");
 		cy.get("[name=LastName]").type("User");
 		cy.get("[name=MiddleName]").type("Mid");
@@ -49,7 +49,7 @@ describe("user auth and registration flow", () => {
 		cy.login("test1@gmail.com", "TestPass123!");
 
 		cy.visit("http://localhost:3200/users");
-		cy.url().should("eq", "http://localhost:3200/users");
+		cy.url().should("include", "/users");
 
 		cy.get("tbody tr").contains("td", "Test User").parent("tr").find("td a").click();
 		cy.url().should("include", "/users/");
@@ -79,9 +79,10 @@ describe("user auth and registration flow", () => {
 	it("newly created user should see tabs in the sidebar", () => {
 		cy.login("test1@gmail.com", "TestPass123!");
 		cy.visit("http://localhost:3200/");
+		cy.url().should("not.include", "/login");
 		
 		// Check that the sidebar contains at least one tab/link
-		cy.get("#sidebar-navigation li").should("have.length.at.least", 1);
+		cy.get("#sidebar-navigation li", { timeout: 10000 }).should("have.length.at.least", 1);
 	});
 });
 

@@ -14,11 +14,11 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	currencyRepository := corepersistence.NewCurrencyRepository()
 	categoryRepository := persistence.NewExpenseCategoryRepository()
 
-	if err := currencyRepository.Create(f.ctx, &currency.USD); err != nil {
+	if err := currencyRepository.Create(f.Ctx, &currency.USD); err != nil {
 		t.Fatal(err)
 	}
 	createdCategory, err := categoryRepository.Create(
-		f.ctx,
+		f.Ctx,
 		category.New(
 			"test", // name
 			category.WithDescription("test"),
@@ -29,7 +29,7 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	}
 
 	t.Run("Count", func(t *testing.T) {
-		count, err := categoryRepository.Count(f.ctx, &category.FindParams{})
+		count, err := categoryRepository.Count(f.Ctx, &category.FindParams{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +39,7 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetPaginated", func(t *testing.T) {
-		categories, err := categoryRepository.GetPaginated(f.ctx, &category.FindParams{})
+		categories, err := categoryRepository.GetPaginated(f.Ctx, &category.FindParams{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -49,7 +49,7 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		categories, err := categoryRepository.GetAll(f.ctx)
+		categories, err := categoryRepository.GetAll(f.Ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -59,14 +59,14 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetByID", func(t *testing.T) {
-		_, err := categoryRepository.GetByID(f.ctx, createdCategory.ID())
+		_, err := categoryRepository.GetByID(f.Ctx, createdCategory.ID())
 		if err != nil {
 			t.Fatal(err)
 		}
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		updatedCategory, err := categoryRepository.Update(f.ctx, createdCategory)
+		updatedCategory, err := categoryRepository.Update(f.Ctx, createdCategory)
 		if err != nil {
 			t.Fatal(err)
 		}

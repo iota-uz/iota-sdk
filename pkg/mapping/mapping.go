@@ -162,3 +162,24 @@ func SQLNullStringToUUID(ns sql.NullString) uuid.UUID {
 	}
 	return id
 }
+
+func PointerToSQLNullInt32(i *int) sql.NullInt32 {
+	if i != nil {
+		return sql.NullInt32{
+			Int32: int32(*i),
+			Valid: true,
+		}
+	}
+	return sql.NullInt32{
+		Int32: 0,
+		Valid: false,
+	}
+}
+
+func SQLNullInt32ToPointer(v sql.NullInt32) *int {
+	if v.Valid {
+		val := int(v.Int32)
+		return &val
+	}
+	return nil
+}

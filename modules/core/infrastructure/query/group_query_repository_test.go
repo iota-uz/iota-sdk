@@ -23,7 +23,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			Offset: 0,
 		}
 
-		groups, count, err := groupQueryRepo.FindGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.FindGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -39,7 +39,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			Search: "admin",
 		}
 
-		groups, count, err := groupQueryRepo.SearchGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.SearchGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -50,7 +50,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 		fixtures := setupTest(t)
 
 		// Since we don't have a group yet, this should return an error
-		group, err := groupQueryRepo.FindGroupByID(fixtures.ctx, "non-existent-id")
+		group, err := groupQueryRepo.FindGroupByID(fixtures.Ctx, "non-existent-id")
 		require.Error(t, err)
 		require.Nil(t, group)
 	})
@@ -70,7 +70,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups, count, err := groupQueryRepo.FindGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.FindGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -90,7 +90,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups, count, err := groupQueryRepo.FindGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.FindGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -111,7 +111,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups, count, err := groupQueryRepo.FindGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.FindGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -131,7 +131,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups, count, err := groupQueryRepo.FindGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.FindGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -152,7 +152,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups, count, err := groupQueryRepo.SearchGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.SearchGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -178,7 +178,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups, count, err := groupQueryRepo.FindGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.FindGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -199,7 +199,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups, count, err := groupQueryRepo.FindGroups(fixtures.ctx, params)
+		groups, count, err := groupQueryRepo.FindGroups(fixtures.Ctx, params)
 		require.NoError(t, err)
 		require.NotNil(t, groups)
 		require.GreaterOrEqual(t, count, 0)
@@ -220,7 +220,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups1, count1, err := groupQueryRepo.FindGroups(fixtures.ctx, params1)
+		groups1, count1, err := groupQueryRepo.FindGroups(fixtures.Ctx, params1)
 		require.NoError(t, err)
 		require.NotNil(t, groups1)
 
@@ -235,7 +235,7 @@ func TestPgGroupQueryRepository_FindGroups(t *testing.T) {
 			},
 		}
 
-		groups2, count2, err := groupQueryRepo.FindGroups(fixtures.ctx, params2)
+		groups2, count2, err := groupQueryRepo.FindGroups(fixtures.Ctx, params2)
 		require.NoError(t, err)
 		require.NotNil(t, groups2)
 

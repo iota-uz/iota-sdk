@@ -20,9 +20,9 @@ func TestOrderService(t *testing.T) {
 	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository()
 	orderRepo := persistence.NewOrderRepository(productRepo)
-	orderService := orderservice.NewOrderService(f.app.EventPublisher(), orderRepo, productRepo)
+	orderService := orderservice.NewOrderService(f.App.EventPublisher(), orderRepo, productRepo)
 
-	if err := unitRepo.Create(f.ctx, &unit.Unit{
+	if err := unitRepo.Create(f.Ctx, &unit.Unit{
 		ID:         1,
 		Title:      "Test Unit",
 		ShortTitle: "TU",
@@ -41,7 +41,7 @@ func TestOrderService(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}
 
-	if err := positionRepo.Create(f.ctx, positionEntity); err != nil {
+	if err := positionRepo.Create(f.Ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
@@ -53,16 +53,16 @@ func TestOrderService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := orderRepo.Create(f.ctx, domainOrder); err != nil {
+	if err := orderRepo.Create(f.Ctx, domainOrder); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := orderService.Complete(f.ctx, 1)
+	_, err := orderService.Complete(f.Ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	orderEntity, err := orderRepo.GetByID(f.ctx, 1)
+	orderEntity, err := orderRepo.GetByID(f.Ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

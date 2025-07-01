@@ -47,6 +47,11 @@ func RenderAction(props ActionProps) templ.Component {
 			classes += " btn-normal"
 		}
 
+		// Add btn-with-icon class if icon is present
+		if props.Icon != nil {
+			classes += " btn-with-icon"
+		}
+
 		// Add custom classes from attrs
 		if customClass, ok := props.Attrs["class"]; ok {
 			classes += " " + customClass.(string)
