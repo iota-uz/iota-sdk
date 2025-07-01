@@ -1,9 +1,6 @@
 package controllers
 
 import (
-	"context"
-	"fmt"
-	"io"
 	"log"
 	"mime/multipart"
 	"net/http"
@@ -72,7 +69,6 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 
 	id := r.FormValue("_id")
 	name := r.FormValue("_name")
-	formName := r.FormValue("_formName")
 
 	dtos := make([]*upload.CreateDTO, 0, len(files))
 	for _, header := range files {
@@ -104,10 +100,9 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 				ID:      id,
 				Uploads: nil,
 				Error:   "",
-				Form:    formName,
 				Name:    name,
 			}
-			templ.Handler(components.UploadPreview(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 		dtos = append(dtos, dto)
@@ -122,29 +117,8 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	props := &components.UploadInputProps{
 		ID:      id,
 		Uploads: mapping.MapViewModels(uploadEntities, mappers.UploadToViewModel),
-		Form:    formName,
 		Name:    name,
 	}
 
-	// Create a component that includes both the preview and form update
-	component := templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		// Render the preview
-		if err := components.UploadPreview(props).Render(ctx, w); err != nil {
-			return err
-		}
-
-		// If we have uploads and field name, render an out-of-band update for the form field
-		if len(props.Uploads) > 0 && props.Name != "" {
-			upload := props.Uploads[0]
-			oobHTML := fmt.Sprintf(`<div id="field-%s" hx-swap-oob="true"><input type="hidden" name="%s" value="%s"/></div>`,
-				props.Name, props.Name, upload.ID)
-			if _, err := w.Write([]byte(oobHTML)); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
