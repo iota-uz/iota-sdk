@@ -122,8 +122,18 @@ jobs:
           # Install templ (needed for CSS generation)
           go install github.com/a-h/templ/cmd/templ@v0.3.857
 
+          # Install TailwindCSS
+          echo "Installing TailwindCSS for x64 architecture..."
+          mkdir -p downloaded
+          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
+          chmod +x downloaded/tailwindcss
+          echo "$PWD/downloaded" >> $GITHUB_PATH
+
       - name: Download Go dependencies
         run: go mod download
+
+      - name: Generate CSS files
+        run: make css
 
       - name: Test Makefile targets
         run: |
