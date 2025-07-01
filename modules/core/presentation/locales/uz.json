@@ -437,6 +437,9 @@
   "Remove": "O'chirish",
   "All": "Hammasi",
   "Edit": "Tahrirlash",
+  "Yes": "Ha",
+  "No": "Yo'q",
+  "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Export": {
     "ToExcel": "Excel ga eksport",
     "ToCSV": "CSV ga eksport",

@@ -717,7 +717,7 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 	var actions []table.DetailAction
 
 	if c.enableEdit {
-		editLabel, _ := c.localize(ctx, "Common.Edit", "Edit")
+		editLabel, _ := c.localize(ctx, "Edit", "Edit")
 		actions = append(actions, table.DetailAction{
 			Label:  editLabel,
 			URL:    fmt.Sprintf("%s/%v/edit", c.basePath, primaryKey),
@@ -727,8 +727,8 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 	}
 
 	if c.enableDelete {
-		deleteLabel, _ := c.localize(ctx, "Common.Delete", "Delete")
-		confirmMsg, _ := c.localize(ctx, "Common.ConfirmDelete", "Are you sure?")
+		deleteLabel, _ := c.localize(ctx, "Delete", "Delete")
+		confirmMsg, _ := c.localize(ctx, "ConfirmDelete", "Are you sure?")
 		actions = append(actions, table.DetailAction{
 			Label:   deleteLabel,
 			URL:     fmt.Sprintf("%s/%v", c.basePath, primaryKey),
@@ -1880,10 +1880,10 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 		}
 
 		if boolVal {
-			yes, _ := c.localize(ctx, "Common.Yes", "Yes")
+			yes, _ := c.localize(ctx, "Yes", "Yes")
 			return templ.Raw(yes)
 		}
-		no, _ := c.localize(ctx, "Common.No", "No")
+		no, _ := c.localize(ctx, "No", "No")
 		return templ.Raw(no)
 
 	case crud.FloatFieldType:
