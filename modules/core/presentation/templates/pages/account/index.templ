@@ -33,9 +33,6 @@ templ ProfileForm(props *ProfilePageProps) {
 				@tab.Link("/account/sidebar", false) {
 					{ pageCtx.T("Account.Tabs.Sidebar") }
 				}
-				@tab.Link("/account/logo", false) {
-					{ pageCtx.T("Account.Tabs.Logo") }
-				}
 			}
 			@card.Card(card.Props{
 				Class: "grid grid-cols-3 gap-4",
