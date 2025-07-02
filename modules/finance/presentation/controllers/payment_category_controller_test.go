@@ -22,6 +22,7 @@ var (
 )
 
 func TestPaymentCategoryController_List_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -69,6 +70,7 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 }
 
 func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -103,6 +105,7 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestPaymentCategoryController_GetNew_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -131,6 +134,7 @@ func TestPaymentCategoryController_GetNew_Success(t *testing.T) {
 }
 
 func TestPaymentCategoryController_Create_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -169,6 +173,7 @@ func TestPaymentCategoryController_Create_Success(t *testing.T) {
 }
 
 func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -205,6 +210,7 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 }
 
 func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -250,6 +256,7 @@ func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
 }
 
 func TestPaymentCategoryController_GetEdit_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -273,6 +280,7 @@ func TestPaymentCategoryController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestPaymentCategoryController_Update_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -324,6 +332,7 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 }
 
 func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -374,6 +383,7 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 }
 
 func TestPaymentCategoryController_Delete_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -420,6 +430,7 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 }
 
 func TestPaymentCategoryController_Delete_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -443,6 +454,7 @@ func TestPaymentCategoryController_Delete_NotFound(t *testing.T) {
 }
 
 func TestPaymentCategoryController_InvalidUUID(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
