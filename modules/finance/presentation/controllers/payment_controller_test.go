@@ -42,6 +42,7 @@ func createPaymentCategory(
 }
 
 func TestPaymentController_List_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
@@ -129,6 +130,7 @@ func TestPaymentController_List_Success(t *testing.T) {
 }
 
 func TestPaymentController_List_HTMX_Request(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
@@ -198,6 +200,7 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestPaymentController_GetNew_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
@@ -250,6 +253,7 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 }
 
 func TestPaymentController_Create_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
@@ -322,6 +326,7 @@ func TestPaymentController_Create_Success(t *testing.T) {
 }
 
 func TestPaymentController_Create_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
@@ -361,6 +366,7 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 }
 
 func TestPaymentController_GetEdit_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
@@ -439,6 +445,7 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 }
 
 func TestPaymentController_GetEdit_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
@@ -460,6 +467,7 @@ func TestPaymentController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestPaymentController_Update_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
@@ -546,6 +554,7 @@ func TestPaymentController_Update_Success(t *testing.T) {
 }
 
 func TestPaymentController_Update_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
@@ -629,6 +638,7 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 }
 
 func TestPaymentController_Delete_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentDelete,
@@ -705,6 +715,7 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 }
 
 func TestPaymentController_Delete_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 		permissions.PaymentDelete,
@@ -726,6 +737,7 @@ func TestPaymentController_Delete_NotFound(t *testing.T) {
 }
 
 func TestPaymentController_InvalidUUID(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.PaymentRead,
 	)

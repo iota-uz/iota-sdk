@@ -24,6 +24,7 @@ var (
 )
 
 func TestInventoryController_List_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -74,6 +75,7 @@ func TestInventoryController_List_Success(t *testing.T) {
 }
 
 func TestInventoryController_List_HTMX_Request(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -111,6 +113,7 @@ func TestInventoryController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestInventoryController_GetNew_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -145,6 +148,7 @@ func TestInventoryController_GetNew_Success(t *testing.T) {
 }
 
 func TestInventoryController_Create_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -190,6 +194,7 @@ func TestInventoryController_Create_Success(t *testing.T) {
 }
 
 func TestInventoryController_Create_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -230,6 +235,7 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 }
 
 func TestInventoryController_GetEdit_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -277,6 +283,7 @@ func TestInventoryController_GetEdit_Success(t *testing.T) {
 }
 
 func TestInventoryController_GetEdit_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -301,6 +308,7 @@ func TestInventoryController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestInventoryController_Update_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -354,6 +362,7 @@ func TestInventoryController_Update_Success(t *testing.T) {
 }
 
 func TestInventoryController_Update_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -404,6 +413,7 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 }
 
 func TestInventoryController_Delete_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -447,6 +457,7 @@ func TestInventoryController_Delete_Success(t *testing.T) {
 }
 
 func TestInventoryController_Delete_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -471,6 +482,7 @@ func TestInventoryController_Delete_NotFound(t *testing.T) {
 }
 
 func TestInventoryController_InvalidUUID(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",

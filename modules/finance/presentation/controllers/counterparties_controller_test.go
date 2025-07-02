@@ -22,6 +22,7 @@ var (
 )
 
 func TestCounterpartiesController_List_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -73,6 +74,7 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 }
 
 func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -109,6 +111,7 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestCounterpartiesController_GetNew_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -140,6 +143,7 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 }
 
 func TestCounterpartiesController_Create_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -182,6 +186,7 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 }
 
 func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -220,6 +225,7 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 }
 
 func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -265,6 +271,7 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 }
 
 func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -288,6 +295,7 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestCounterpartiesController_Update_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -339,6 +347,7 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 }
 
 func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -387,6 +396,7 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 }
 
 func TestCounterpartiesController_Delete_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -429,6 +439,7 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 }
 
 func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -452,6 +463,7 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 }
 
 func TestCounterpartiesController_Search_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
@@ -497,6 +509,7 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 }
 
 func TestCounterpartiesController_InvalidUUID(t *testing.T) {
+	t.Parallel()
 	adminUser := user.New(
 		"Admin",
 		"User",
