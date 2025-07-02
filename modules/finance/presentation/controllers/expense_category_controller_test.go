@@ -22,6 +22,7 @@ var (
 )
 
 func TestExpenseCategoryController_List_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryRead,
 		permissions.ExpenseCategoryCreate,
@@ -66,6 +67,7 @@ func TestExpenseCategoryController_List_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryRead,
 	)
@@ -96,6 +98,7 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryRead,
 	)
@@ -120,6 +123,7 @@ func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Create_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryCreate,
 	)
@@ -154,6 +158,7 @@ func TestExpenseCategoryController_Create_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryCreate,
 	)
@@ -186,6 +191,7 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 }
 
 func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryRead,
 		permissions.ExpenseCategoryUpdate,
@@ -228,6 +234,7 @@ func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_GetEdit_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryRead,
 	)
@@ -247,6 +254,7 @@ func TestExpenseCategoryController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Update_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryUpdate,
 		permissions.ExpenseCategoryRead,
@@ -295,6 +303,7 @@ func TestExpenseCategoryController_Update_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryUpdate,
 	)
@@ -341,6 +350,7 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Delete_Success(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryDelete,
 		permissions.ExpenseCategoryRead,
@@ -384,6 +394,7 @@ func TestExpenseCategoryController_Delete_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Delete_NotFound(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryDelete,
 	)
@@ -403,6 +414,7 @@ func TestExpenseCategoryController_Delete_NotFound(t *testing.T) {
 }
 
 func TestExpenseCategoryController_InvalidUUID(t *testing.T) {
+	t.Parallel()
 	adminUser := testutils.MockUser(
 		permissions.ExpenseCategoryRead,
 	)
