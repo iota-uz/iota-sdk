@@ -386,8 +386,7 @@
     "Save": "Save",
     "Tabs": {
       "Profile": "Profile settings",
-      "Sidebar": "Sidebar settings",
-      "Logo": "Logo settings"
+      "Sidebar": "Sidebar settings"
     },
     "Logo": {
       "FullLogo": "Full Logo",
@@ -442,7 +441,7 @@
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Export": {
     "ToExcel": "Export to Excel",
-    "ToCSV": "Export to CSV", 
+    "ToCSV": "Export to CSV",
     "ToJSON": "Export to JSON",
     "ToTXT": "Export to TXT"
   },
