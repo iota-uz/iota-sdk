@@ -94,24 +94,18 @@ func (c *EmployeeController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
-	entity, err := employee.New(
+	entity := employee.New(
 		"",
 		"",
 		"",
 		"",
 		nil,
 		money.NewFromFloat(0, string(currency.UsdCode)),
-		nil,
-		nil,
-		nil,
+		tax.NilTin,
+		tax.NilPin,
+		employee.NewLanguage("", ""),
 		time.Now(),
-		nil,
-		0, "",
 	)
-	if err != nil {
-		http.Error(w, "Error creating employee", http.StatusInternalServerError)
-		return
-	}
 	props := &employees.CreatePageProps{
 		Errors:   map[string]string{},
 		Employee: mappers.EmployeeToViewModel(entity),
