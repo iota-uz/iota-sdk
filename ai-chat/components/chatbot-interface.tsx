@@ -563,7 +563,7 @@ export default function ChatbotInterface({
   };
 
   // Calculate chat dimensions
-  const chatWidth = isMobile ? '100%' : 450;
+  const chatWidth = isOpen ? (isMobile ? '100%' : 450) : 0;
   const headerHeight = 60;
   const maxChatHeight = isMobile ? '100%' : (windowHeight ? Math.min(windowHeight * 0.8, 700) : 600);
   const contentHeight = isMobile ? `calc(100vh - ${headerHeight}px)` : (maxChatHeight as number) - headerHeight;
