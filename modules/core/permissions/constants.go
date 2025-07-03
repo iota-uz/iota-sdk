@@ -69,6 +69,34 @@ var (
 		Action:   permission.ActionDelete,
 		Modifier: permission.ModifierAll,
 	}
+	UploadCreate = &permission.Permission{
+		ID:       uuid.MustParse("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
+		Name:     "Upload.Create",
+		Resource: ResourceUpload,
+		Action:   permission.ActionCreate,
+		Modifier: permission.ModifierAll,
+	}
+	UploadRead = &permission.Permission{
+		ID:       uuid.MustParse("b2c3d4e5-f6a7-8901-bcde-f23456789012"),
+		Name:     "Upload.Read",
+		Resource: ResourceUpload,
+		Action:   permission.ActionRead,
+		Modifier: permission.ModifierAll,
+	}
+	UploadUpdate = &permission.Permission{
+		ID:       uuid.MustParse("c3d4e5f6-a7b8-9012-cdef-345678901234"),
+		Name:     "Upload.Update",
+		Resource: ResourceUpload,
+		Action:   permission.ActionUpdate,
+		Modifier: permission.ModifierAll,
+	}
+	UploadDelete = &permission.Permission{
+		ID:       uuid.MustParse("d4e5f6a7-b8c9-0123-defa-456789012345"),
+		Name:     "Upload.Delete",
+		Resource: ResourceUpload,
+		Action:   permission.ActionDelete,
+		Modifier: permission.ModifierAll,
+	}
 )
 
 var Permissions = []*permission.Permission{
@@ -80,4 +108,8 @@ var Permissions = []*permission.Permission{
 	RoleRead,
 	RoleUpdate,
 	RoleDelete,
+	UploadCreate,
+	UploadRead,
+	UploadUpdate,
+	UploadDelete,
 }
