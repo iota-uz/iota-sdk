@@ -1,8 +1,6 @@
 package position
 
 import (
-	"time"
-
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -48,32 +46,21 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (d *CreateDTO) ToEntity() (*Position, error) {
+func (d *CreateDTO) ToEntity() (Position, error) {
 	images := make([]upload.Upload, len(d.ImageIDs))
 	// TODO: implement mapping from ImageIDs to Upload entities
-	return &Position{
-		ID:        0,
-		Title:     d.Title,
-		Barcode:   d.Barcode,
-		InStock:   0,
-		UnitID:    d.UnitID,
-		Unit:      &unit.Unit{ID: d.UnitID}, //nolint:exhaustruct
-		Images:    images,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, nil
+	return New(d.Title, d.Barcode, 
+		WithUnitID(d.UnitID),
+		WithUnit(&unit.Unit{ID: d.UnitID}), //nolint:exhaustruct
+		WithImages(images),
+	), nil
 }
 
-func (d *UpdateDTO) ToEntity(id uint) (*Position, error) {
-	return &Position{
-		ID:        id,
-		Title:     d.Title,
-		Barcode:   d.Barcode,
-		InStock:   0,
-		UnitID:    d.UnitID,
-		Unit:      &unit.Unit{ID: d.UnitID}, //nolint:exhaustruct
-		Images:    []upload.Upload{},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, nil
+func (d *UpdateDTO) ToEntity(id uint) (Position, error) {
+	return New(d.Title, d.Barcode,
+		WithID(id),
+		WithUnitID(d.UnitID),
+		WithUnit(&unit.Unit{ID: d.UnitID}), //nolint:exhaustruct
+		WithImages([]upload.Upload{}),
+	), nil
 }
