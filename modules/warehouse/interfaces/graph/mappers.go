@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ProductsToGraphModel           = fp.Map[*product.Product, *model.Product](mappers.ProductToGraphModel)
-	ProductsToTags                 = fp.Map[*product.Product, string](func(p *product.Product) string { return p.Rfid })
+	ProductsToGraphModel           = fp.Map[product.Product, *model.Product](mappers.ProductToGraphModel)
+	ProductsToTags                 = fp.Map[product.Product, string](func(p product.Product) string { return p.Rfid() })
 	InventoryPositionsToGraphModel = fp.Map[*inventory.Position, *model.InventoryPosition](mappers.InventoryPositionToGraphModel)
 )
