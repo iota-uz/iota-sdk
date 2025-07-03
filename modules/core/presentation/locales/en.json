@@ -76,7 +76,8 @@
     "unit": "Unit",
     "position": "Position",
     "order": "Order",
-    "inventory": "Inventory"
+    "inventory": "Inventory",
+    "upload": "Upload"
   },
   "Permissions": {
     "User": {
@@ -166,6 +167,12 @@
       "Read": "Read inventory",
       "Update": "Update inventory",
       "Delete": "Delete inventory"
+    },
+    "Upload": {
+      "Create": "Create upload",
+      "Read": "Read upload",
+      "Update": "Update upload",
+      "Delete": "Delete upload"
     }
   },
   "NavigationLinks": {
