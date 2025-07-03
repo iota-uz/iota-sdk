@@ -30,7 +30,7 @@ func FormatWithStyle(phone Phone, style DisplayStyle) string {
 
 func formatByCountry(e164 string, c country.Country, style DisplayStyle) string {
 	cleaned := Strip(e164)
-	
+
 	switch c {
 	case country.Uzbekistan:
 		return formatUzbek(cleaned, style)
@@ -53,13 +53,13 @@ func formatUzbek(phone string, style DisplayStyle) string {
 	if len(phone) != 12 || !strings.HasPrefix(phone, "998") {
 		return "+" + phone
 	}
-	
+
 	prefix := phone[:3]
 	code := phone[3:5]
 	part1 := phone[5:8]
 	part2 := phone[8:10]
 	part3 := phone[10:12]
-	
+
 	switch style {
 	case StyleParentheses:
 		return "+" + prefix + "(" + code + ")" + part1 + "-" + part2 + "-" + part3
@@ -76,12 +76,12 @@ func formatNorthAmerican(phone string, style DisplayStyle) string {
 		// For invalid North American numbers, use default formatting
 		return formatDefault(phone, style)
 	}
-	
+
 	prefix := phone[:1]
 	area := phone[1:4]
 	exchange := phone[4:7]
 	number := phone[7:11]
-	
+
 	switch style {
 	case StyleParentheses:
 		return "+" + prefix + "(" + area + ")" + exchange + "-" + number
@@ -97,12 +97,12 @@ func formatUK(phone string, style DisplayStyle) string {
 	if len(phone) < 10 || !strings.HasPrefix(phone, "44") {
 		return "+" + phone
 	}
-	
+
 	prefix := phone[:2]
 	area := phone[2:4]
 	part1 := phone[4:8]
 	part2 := phone[8:]
-	
+
 	switch style {
 	case StyleParentheses:
 		return "+" + prefix + "(" + area + ")" + part1 + "-" + part2
@@ -118,12 +118,12 @@ func formatGerman(phone string, style DisplayStyle) string {
 	if len(phone) < 10 || !strings.HasPrefix(phone, "49") {
 		return "+" + phone
 	}
-	
+
 	prefix := phone[:2]
 	area := phone[2:5]
 	part1 := phone[5:8]
 	part2 := phone[8:]
-	
+
 	switch style {
 	case StyleParentheses:
 		return "+" + prefix + "(" + area + ")" + part1 + "-" + part2
@@ -139,13 +139,13 @@ func formatFrench(phone string, style DisplayStyle) string {
 	if len(phone) < 10 || !strings.HasPrefix(phone, "33") {
 		return "+" + phone
 	}
-	
+
 	prefix := phone[:2]
 	part1 := phone[2:4]
 	part2 := phone[4:6]
 	part3 := phone[6:8]
 	part4 := phone[8:]
-	
+
 	switch style {
 	case StyleParentheses:
 		return "+" + prefix + "(" + part1 + ")" + part2 + "-" + part3 + "-" + part4
@@ -161,13 +161,13 @@ func formatRussian(phone string, style DisplayStyle) string {
 	if len(phone) < 10 || !strings.HasPrefix(phone, "7") {
 		return "+" + phone
 	}
-	
+
 	prefix := phone[:1]
 	area := phone[1:4]
 	part1 := phone[4:7]
 	part2 := phone[7:9]
 	part3 := phone[9:]
-	
+
 	switch style {
 	case StyleParentheses:
 		return "+" + prefix + "(" + area + ")" + part1 + "-" + part2 + "-" + part3
@@ -183,7 +183,7 @@ func formatDefault(phone string, style DisplayStyle) string {
 	if len(phone) < 7 {
 		return "+" + phone
 	}
-	
+
 	switch style {
 	case StyleSpaces:
 		return "+" + insertSpaces(phone, 3)
@@ -223,11 +223,11 @@ func FormatString(phoneStr string) string {
 	if phoneStr == "" {
 		return ""
 	}
-	
+
 	phone, err := NewFromE164(phoneStr)
 	if err != nil {
 		return phoneStr
 	}
-	
+
 	return FormatForDisplay(phone)
 }
