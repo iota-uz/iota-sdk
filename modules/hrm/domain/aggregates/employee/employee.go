@@ -11,9 +11,67 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/money"
 )
 
+type Option func(e *employee)
+
 type Language interface {
 	Primary() string
 	Secondary() string
+}
+
+// --- Option setters ---
+
+func WithID(id uint) Option {
+	return func(e *employee) {
+		e.id = id
+	}
+}
+
+func WithTenantID(tenantID uuid.UUID) Option {
+	return func(e *employee) {
+		e.tenantID = tenantID
+	}
+}
+
+func WithAvatarID(avatarID uint) Option {
+	return func(e *employee) {
+		e.avatarID = avatarID
+	}
+}
+
+func WithBirthDate(birthDate time.Time) Option {
+	return func(e *employee) {
+		e.birthDate = birthDate
+	}
+}
+
+func WithPassport(passport passport.Passport) Option {
+	return func(e *employee) {
+		e.passport = passport
+	}
+}
+
+func WithResignationDate(resignationDate *time.Time) Option {
+	return func(e *employee) {
+		e.resignationDate = resignationDate
+	}
+}
+
+func WithNotes(notes string) Option {
+	return func(e *employee) {
+		e.notes = notes
+	}
+}
+
+func WithCreatedAt(createdAt time.Time) Option {
+	return func(e *employee) {
+		e.createdAt = createdAt
+	}
+}
+
+func WithUpdatedAt(updatedAt time.Time) Option {
+	return func(e *employee) {
+		e.updatedAt = updatedAt
+	}
 }
 
 type Employee interface {
@@ -36,8 +94,8 @@ type Employee interface {
 	ResignationDate() *time.Time
 
 	// Behavioral methods
-	UpdateName(firstName, lastName, middleName string)
-	MarkAsResigned(date time.Time)
+	UpdateName(firstName, lastName, middleName string) Employee
+	MarkAsResigned(date time.Time) Employee
 
 	// Timestamps
 	CreatedAt() time.Time
@@ -56,12 +114,9 @@ func NewWithID(
 	pin tax.Pin,
 	language Language,
 	hireDate time.Time,
-	resignationDate *time.Time,
-	avatarID uint,
-	notes string,
-	createdAt, updatedAt time.Time,
+	opts ...Option,
 ) Employee {
-	return &employee{
+	e := &employee{
 		id:              id,
 		tenantID:        tenantID,
 		firstName:       firstName,
@@ -73,13 +128,17 @@ func NewWithID(
 		tin:             tin,
 		pin:             pin,
 		language:        language,
-		avatarID:        avatarID,
+		avatarID:        0,
 		hireDate:        hireDate,
-		resignationDate: resignationDate,
-		notes:           notes,
-		createdAt:       createdAt,
-		updatedAt:       updatedAt,
+		resignationDate: nil,
+		notes:           "",
+		createdAt:       time.Now(),
+		updatedAt:       time.Now(),
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
 }
 
 func New(
@@ -90,11 +149,9 @@ func New(
 	pin tax.Pin,
 	language Language,
 	hireDate time.Time,
-	resignationDate *time.Time,
-	avatarID uint,
-	notes string,
-) (Employee, error) {
-	return &employee{
+	opts ...Option,
+) Employee {
+	e := &employee{
 		id:              0,
 		tenantID:        uuid.Nil, // Will be set in repository
 		firstName:       firstName,
@@ -106,13 +163,17 @@ func New(
 		tin:             tin,
 		pin:             pin,
 		language:        language,
-		avatarID:        avatarID,
+		avatarID:        0,
 		hireDate:        hireDate,
-		resignationDate: resignationDate,
-		notes:           notes,
+		resignationDate: nil,
+		notes:           "",
 		createdAt:       time.Now(),
 		updatedAt:       time.Now(),
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
 }
 
 type employee struct {
@@ -201,16 +262,20 @@ func (e *employee) ResignationDate() *time.Time {
 	return e.resignationDate
 }
 
-func (e *employee) UpdateName(firstName, lastName, middleName string) {
-	e.firstName = firstName
-	e.lastName = lastName
-	e.middleName = middleName
-	e.updatedAt = time.Now()
+func (e *employee) UpdateName(firstName, lastName, middleName string) Employee {
+	result := *e
+	result.firstName = firstName
+	result.lastName = lastName
+	result.middleName = middleName
+	result.updatedAt = time.Now()
+	return &result
 }
 
-func (e *employee) MarkAsResigned(date time.Time) {
-	e.resignationDate = &date
-	e.updatedAt = time.Now()
+func (e *employee) MarkAsResigned(date time.Time) Employee {
+	result := *e
+	result.resignationDate = &date
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (e *employee) Notes() string {
