@@ -54,11 +54,15 @@ func ParseCountry(phoneNumber string) (country.Country, error) {
 
 				// For shared codes (like +1), we need to check area codes
 				for _, countryCode := range countryCodes {
-					if len(countryCode.AreaCodes) > 0 && len(cleaned) >= 3 {
-						areaCode := cleaned[len(prefix) : len(prefix)+3]
-						for _, validAreaCode := range countryCode.AreaCodes {
-							if areaCode == validAreaCode {
-								return countryCode.Country, nil
+					if len(countryCode.AreaCodes) > 0 {
+						// Check if we have enough digits for the area code
+						minAreaCodeLen := len(countryCode.AreaCodes[0])
+						if len(cleaned) >= len(prefix)+minAreaCodeLen {
+							areaCode := cleaned[len(prefix) : len(prefix)+minAreaCodeLen]
+							for _, validAreaCode := range countryCode.AreaCodes {
+								if areaCode == validAreaCode {
+									return countryCode.Country, nil
+								}
 							}
 						}
 					}
