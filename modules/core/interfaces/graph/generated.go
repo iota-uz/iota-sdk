@@ -55,6 +55,7 @@ type ComplexityRoot struct {
 		Add                func(childComplexity int, a int, b int) int
 		Authenticate       func(childComplexity int, email string, password string) int
 		DeleteSession      func(childComplexity int, token string) int
+		DeleteUpload       func(childComplexity int, id int64) int
 		GoogleAuthenticate func(childComplexity int) int
 		UploadFile         func(childComplexity int, file *graphql.Upload) int
 	}
@@ -113,6 +114,7 @@ type MutationResolver interface {
 	GoogleAuthenticate(ctx context.Context) (string, error)
 	DeleteSession(ctx context.Context, token string) (bool, error)
 	UploadFile(ctx context.Context, file *graphql.Upload) (*model.Upload, error)
+	DeleteUpload(ctx context.Context, id int64) (bool, error)
 }
 type QueryResolver interface {
 	Hello(ctx context.Context, name *string) (*string, error)
@@ -179,6 +181,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeleteSession(childComplexity, args["token"].(string)), true
+
+	case "Mutation.deleteUpload":
+		if e.complexity.Mutation.DeleteUpload == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteUpload_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteUpload(childComplexity, args["id"].(int64)), true
 
 	case "Mutation.googleAuthenticate":
 		if e.complexity.Mutation.GoogleAuthenticate == nil {
@@ -715,6 +729,38 @@ func (ec *executionContext) field_Mutation_deleteSession_argsToken(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteUpload_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_deleteUpload_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_deleteUpload_argsID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (int64, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["id"]
+	if !ok {
+		var zeroVal int64
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2int64(ctx, tmp)
+	}
+
+	var zeroVal int64
 	return zeroVal, nil
 }
 
@@ -1353,6 +1399,61 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_uploadFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteUpload(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteUpload(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteUpload(rctx, fc.Args["id"].(int64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteUpload(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteUpload_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4799,6 +4900,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "uploadFile":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_uploadFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteUpload":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteUpload(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
