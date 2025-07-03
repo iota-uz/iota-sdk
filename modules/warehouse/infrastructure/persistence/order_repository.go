@@ -315,7 +315,7 @@ func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]*product.Product, error) {
+func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]product.Product, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -327,7 +327,7 @@ func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, a
 	}
 	defer rows.Close()
 
-	var products []*product.Product
+	var products []product.Product
 
 	for rows.Next() {
 		var wp models.WarehouseProduct
@@ -417,7 +417,8 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 			return nil, err
 		}
 		for _, p := range domainProducts {
-			if err := domainOrder.AddItem(p.Position, p); err != nil {
+			domainOrder, err = domainOrder.AddItem(p.Position(), p)
+			if err != nil {
 				return nil, err
 			}
 		}
