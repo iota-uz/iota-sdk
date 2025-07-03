@@ -1,8 +1,6 @@
 package product
 
 import (
-	"time"
-
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -50,32 +48,18 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 	return errors, len(errors) == 0
 }
 
-func (d *CreateDTO) ToEntity() (*Product, error) {
+func (d *CreateDTO) ToEntity() (Product, error) {
 	s, err := NewStatus(d.Status)
 	if err != nil {
 		return nil, err
 	}
-	return &Product{
-		ID:         0,
-		PositionID: d.PositionID,
-		Rfid:       d.Rfid,
-		Status:     s,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}, nil
+	return New(d.Rfid, s, WithPositionID(d.PositionID)), nil
 }
 
-func (d *UpdateDTO) ToEntity(id uint) (*Product, error) {
+func (d *UpdateDTO) ToEntity(id uint) (Product, error) {
 	s, err := NewStatus(d.Status)
 	if err != nil {
 		return nil, err
 	}
-	return &Product{
-		ID:         id,
-		PositionID: d.PositionID,
-		Rfid:       d.Rfid,
-		Status:     s,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
-	}, nil
+	return New(d.Rfid, s, WithID(id), WithPositionID(d.PositionID)), nil
 }

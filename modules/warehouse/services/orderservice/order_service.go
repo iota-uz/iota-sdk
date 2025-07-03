@@ -49,7 +49,7 @@ func (s *OrderService) GetPaginated(ctx context.Context, params *order.FindParam
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *OrderService) FindByPositionID(ctx context.Context, queryOpts *product.FindByPositionParams) ([]*product.Product, error) {
+func (s *OrderService) FindByPositionID(ctx context.Context, queryOpts *product.FindByPositionParams) ([]product.Product, error) {
 	return s.productRepo.FindByPositionID(ctx, queryOpts)
 }
 
@@ -75,13 +75,14 @@ func (s *OrderService) Complete(ctx context.Context, id uint) (order.Order, erro
 	if err != nil {
 		return nil, err
 	}
-	if err := entity.Complete(); err != nil {
+	completedEntity, err := entity.Complete()
+	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Update(ctx, entity); err != nil {
+	if err := s.repo.Update(ctx, completedEntity); err != nil {
 		return nil, err
 	}
-	return entity, nil
+	return completedEntity, nil
 }
 
 func (s *OrderService) Update(ctx context.Context, id uint, data order.UpdateDTO) error {

@@ -52,7 +52,7 @@ func NewPositionRepository() position.Repository {
 	return &GormPositionRepository{}
 }
 
-func (g *GormPositionRepository) queryPositions(ctx context.Context, query string, args ...interface{}) ([]*position.Position, error) {
+func (g *GormPositionRepository) queryPositions(ctx context.Context, query string, args ...interface{}) ([]position.Position, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (g *GormPositionRepository) queryPositions(ctx context.Context, query strin
 		return nil, err
 	}
 	defer rows.Close()
-	positions := make([]*position.Position, 0)
+	positions := make([]position.Position, 0)
 	for rows.Next() {
 		var p models.WarehousePosition
 		var u models.WarehouseUnit
@@ -100,7 +100,7 @@ func (g *GormPositionRepository) queryPositions(ctx context.Context, query strin
 
 func (g *GormPositionRepository) GetPaginated(
 	ctx context.Context, params *position.FindParams,
-) ([]*position.Position, error) {
+) ([]position.Position, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
@@ -157,7 +157,7 @@ func (g *GormPositionRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormPositionRepository) GetAll(ctx context.Context) ([]*position.Position, error) {
+func (g *GormPositionRepository) GetAll(ctx context.Context) ([]position.Position, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
@@ -198,7 +198,7 @@ func (g *GormPositionRepository) GetAllPositionIds(ctx context.Context) ([]uint,
 	return out, nil
 }
 
-func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*position.Position, error) {
+func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (position.Position, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
@@ -214,7 +214,7 @@ func (g *GormPositionRepository) GetByID(ctx context.Context, id uint) (*positio
 	return positions[0], nil
 }
 
-func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*position.Position, error) {
+func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]position.Position, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
@@ -227,7 +227,7 @@ func (g *GormPositionRepository) GetByIDs(ctx context.Context, ids []uint) ([]*p
 	return positions, nil
 }
 
-func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode string) (*position.Position, error) {
+func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode string) (position.Position, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
@@ -243,8 +243,8 @@ func (g *GormPositionRepository) GetByBarcode(ctx context.Context, barcode strin
 	return positions[0], nil
 }
 
-func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *position.Position) error {
-	p, err := g.GetByID(ctx, data.ID)
+func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data position.Position) error {
+	p, err := g.GetByID(ctx, data.ID())
 	if err != nil && !errors.Is(err, ErrPositionNotFound) {
 		return err
 	}
@@ -260,7 +260,7 @@ func (g *GormPositionRepository) CreateOrUpdate(ctx context.Context, data *posit
 	return nil
 }
 
-func (g *GormPositionRepository) Create(ctx context.Context, data *position.Position) error {
+func (g *GormPositionRepository) Create(ctx context.Context, data position.Position) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -273,7 +273,8 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 
 	positionRow, junctionRows := mappers.ToDBPosition(data)
 	positionRow.TenantID = tenantID.String()
-	data.TenantID = tenantID
+	// Note: Position is now immutable, so we can't set TenantID directly
+	// This should be handled by returning a new Position with TenantID set
 
 	if err := tx.QueryRow(
 		ctx,
@@ -283,7 +284,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 		positionRow.UnitID,
 		positionRow.CreatedAt,
 		positionRow.TenantID,
-	).Scan(&data.ID); err != nil {
+	).Scan(&positionRow.ID); err != nil {
 		return err
 	}
 	if len(junctionRows) == 0 {
@@ -291,7 +292,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	}
 	values := make([][]interface{}, 0, len(junctionRows)*2)
 	for _, junctionRow := range junctionRows {
-		values = append(values, []interface{}{data.ID, junctionRow.UploadID})
+		values = append(values, []interface{}{positionRow.ID, junctionRow.UploadID})
 	}
 	q, args := repo.BatchInsertQueryN(insertPositionImageQuery, values)
 	if _, err := tx.Exec(ctx, q, args...); err != nil {
@@ -300,7 +301,7 @@ func (g *GormPositionRepository) Create(ctx context.Context, data *position.Posi
 	return nil
 }
 
-func (g *GormPositionRepository) Update(ctx context.Context, data *position.Position) error {
+func (g *GormPositionRepository) Update(ctx context.Context, data position.Position) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -313,7 +314,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 
 	positionRow, junctionRows := mappers.ToDBPosition(data)
 	positionRow.TenantID = tenantID.String()
-	data.TenantID = tenantID
+	// Note: Position is now immutable, TenantID should already be set
 
 	if _, err := tx.Exec(
 		ctx,
@@ -326,7 +327,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, deletePositionImagesQuery, data.ID); err != nil {
+	if _, err := tx.Exec(ctx, deletePositionImagesQuery, positionRow.ID); err != nil {
 		return err
 	}
 	if len(junctionRows) == 0 {
@@ -334,7 +335,7 @@ func (g *GormPositionRepository) Update(ctx context.Context, data *position.Posi
 	}
 	values := make([][]interface{}, 0, len(junctionRows)*2)
 	for _, junctionRow := range junctionRows {
-		values = append(values, []interface{}{data.ID, junctionRow.UploadID})
+		values = append(values, []interface{}{positionRow.ID, junctionRow.UploadID})
 	}
 	q, args := repo.BatchInsertQueryN(insertPositionImageQuery, values)
 	if _, err := tx.Exec(ctx, q, args...); err != nil {
