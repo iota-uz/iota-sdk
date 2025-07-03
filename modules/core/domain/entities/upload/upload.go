@@ -61,7 +61,7 @@ func New(
 	mimetype *mimetype.MIME,
 ) Upload {
 	var t UploadType
-	if strings.HasPrefix(mimetype.String(), "image") {
+	if mimetype != nil && strings.HasPrefix(mimetype.String(), "image") {
 		t = UploadTypeImage
 	} else {
 		t = UploadTypeDocument
@@ -155,7 +155,7 @@ func (u *upload) URL() *url.URL {
 
 func (u *upload) PreviewURL() string {
 	// TODO: this is gotta be implemented better
-	if slices.Contains([]string{".xls", ".xlsx", ".csv"}, u.mimetype.Extension()) {
+	if u.mimetype != nil && slices.Contains([]string{".xls", ".xlsx", ".csv"}, u.mimetype.Extension()) {
 		return "/assets/" + assets.HashFS.HashName("images/excel-logo.svg")
 	}
 
@@ -163,7 +163,7 @@ func (u *upload) PreviewURL() string {
 }
 
 func (u *upload) IsImage() bool {
-	return strings.HasPrefix(u.mimetype.String(), "image")
+	return u.mimetype != nil && strings.HasPrefix(u.mimetype.String(), "image")
 }
 
 func (u *upload) Mimetype() *mimetype.MIME {
