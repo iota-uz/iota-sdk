@@ -76,7 +76,8 @@
     "unit": "O'lchov birligi",
     "position": "Lavozim",
     "order": "Buyurtma",
-    "inventory": "Inventar"
+    "inventory": "Inventar",
+    "upload": "Yuklash"
   },
   "Permissions": {
     "User": {
@@ -166,6 +167,12 @@
       "Read": "Inventarni ko'rish",
       "Update": "Inventarni tahrirlash",
       "Delete": "Inventarni o'chirish"
+    },
+    "Upload": {
+      "Create": "Yuklash yaratish",
+      "Read": "Yuklashni ko'rish",
+      "Update": "Yuklashni tahrirlash",
+      "Delete": "Yuklashni o'chirish"
     }
   },
   "NavigationLinks": {
