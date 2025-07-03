@@ -10,11 +10,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 // Create a client and return its ID to use in chat tests
-func createClientForTest(t *testing.T, f *builder.TestEnvironment) client.Client {
+func createClientForTest(t *testing.T, f *itf.TestEnvironment) client.Client {
 	t.Helper()
 	repo := persistence.NewClientRepository(
 		corepersistence.NewPassportRepository(),
