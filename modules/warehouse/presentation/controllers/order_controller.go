@@ -190,14 +190,14 @@ func (c *OrdersController) ViewOrder(w http.ResponseWriter, r *http.Request) {
 	countByPositionID := make(map[uint]int)
 	for _, item := range entity.Items() {
 		count, err := c.productService.CountInStock(r.Context(), &product.CountParams{
-			PositionID: item.Position().ID,
+			PositionID: item.Position().ID(),
 			Status:     status,
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		countByPositionID[item.Position().ID] = int(count)
+		countByPositionID[item.Position().ID()] = int(count)
 	}
 
 	viewModel := mappers.OrderToViewModel(entity, countByPositionID)
@@ -271,7 +271,7 @@ func (c *OrdersController) CreateInOrder(w http.ResponseWriter, r *http.Request)
 			items[i].Error = intl.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT")
 		}
 		for _, p := range products {
-			dto.ProductIDs = append(dto.ProductIDs, p.ID)
+			dto.ProductIDs = append(dto.ProductIDs, p.ID())
 		}
 	}
 
@@ -336,7 +336,7 @@ func (c *OrdersController) CreateOutOrder(w http.ResponseWriter, r *http.Request
 			items[i].Error = intl.MustT(r.Context(), "Errors.ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK")
 		}
 		for _, p := range products {
-			dto.ProductIDs = append(dto.ProductIDs, p.ID)
+			dto.ProductIDs = append(dto.ProductIDs, p.ID())
 		}
 	}
 	if hasErrors {
@@ -364,22 +364,22 @@ func (c *OrdersController) orderItems(ctx context.Context, dto *dtos.CreateOrder
 	items := make([]OrderItem, len(positionEntities))
 	for i, position := range positionEntities {
 		inStock, err := c.productService.CountInStock(ctx, &product.CountParams{
-			PositionID: position.ID,
+			PositionID: position.ID(),
 			Status:     status,
 		})
 		if err != nil {
 			return nil, err
 		}
-		quantity, ok := dto.Quantity[position.ID]
+		quantity, ok := dto.Quantity[position.ID()]
 		if !ok {
 			quantity = 1
 		}
 		items[i] = OrderItem{
-			PositionID:    position.ID,
-			PositionTitle: position.Title,
-			Barcode:       position.Barcode,
+			PositionID:    position.ID(),
+			PositionTitle: position.Title(),
+			Barcode:       position.Barcode(),
 			Quantity:      quantity,
-			Unit:          position.Unit.Title,
+			Unit:          position.Unit().Title,
 			InStock:       uint(inStock),
 			Error:         "",
 		}
