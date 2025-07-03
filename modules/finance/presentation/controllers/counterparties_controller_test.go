@@ -7,13 +7,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,15 +21,9 @@ var (
 
 func TestCounterpartiesController_List_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -75,15 +67,9 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 
 func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -112,15 +98,9 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 
 func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -144,15 +124,9 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 
 func TestCounterpartiesController_Create_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -187,15 +161,9 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 
 func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -226,15 +194,9 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 
 func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -272,15 +234,9 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 
 func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -296,15 +252,9 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 
 func TestCounterpartiesController_Update_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -348,15 +298,9 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 
 func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -397,15 +341,9 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 
 func TestCounterpartiesController_Delete_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -440,15 +378,9 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 
 func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -464,15 +396,9 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 
 func TestCounterpartiesController_Search_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -510,15 +436,9 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 
 func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 	t.Parallel()
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

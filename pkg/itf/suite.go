@@ -1,4 +1,4 @@
-package controllertest
+package itf
 
 import (
 	"bytes"
@@ -22,7 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -34,25 +33,30 @@ import (
 // MiddlewareFunc is a function that can modify the request context
 type MiddlewareFunc func(ctx context.Context, r *http.Request) context.Context
 
+// HookFunc is a function that runs before each test
+type HookFunc func(ctx context.Context) context.Context
+
 type Suite struct {
-	t           *testing.T
-	env         *builder.TestEnvironment
+	t           testing.TB
+	env         *TestEnvironment
 	router      *mux.Router
 	modules     []application.Module
 	user        user.User
 	middlewares []MiddlewareFunc
+	beforeEach  []HookFunc
 }
 
-func New(t *testing.T, modules ...application.Module) *Suite {
+func NewSuite(t testing.TB, modules ...application.Module) *Suite {
 	t.Helper()
 
 	s := &Suite{
 		t:           t,
 		modules:     modules,
 		middlewares: make([]MiddlewareFunc, 0),
+		beforeEach:  make([]HookFunc, 0),
 	}
 
-	s.env = builder.New().WithModules(modules...).Build(t)
+	s.env = NewTestContext().WithModules(modules...).Build(t)
 	s.router = mux.NewRouter()
 	s.setupMiddleware()
 
@@ -78,7 +82,18 @@ func (s *Suite) WithMiddleware(middleware MiddlewareFunc) *Suite {
 	return s
 }
 
-func (s *Suite) Environment() *builder.TestEnvironment {
+// BeforeEach registers a hook function that runs before each test request
+func (s *Suite) BeforeEach(hook HookFunc) *Suite {
+	s.beforeEach = append(s.beforeEach, hook)
+	return s
+}
+
+func (s *Suite) Environment() *TestEnvironment {
+	return s.env
+}
+
+// Env is a shorthand for Environment()
+func (s *Suite) Env() *TestEnvironment {
 	return s.env
 }
 
@@ -115,12 +130,19 @@ func (s *Suite) setupMiddleware() {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
+			// Execute BeforeEach hooks
+			for _, hook := range s.beforeEach {
+				ctx = hook(ctx) //nolint:fatcontext
+			}
+
 			currentUser := s.env.User
 			if s.user != nil {
 				currentUser = s.user
 			}
 
-			ctx = composables.WithUser(ctx, currentUser)
+			if currentUser != nil {
+				ctx = composables.WithUser(ctx, currentUser)
+			}
 			ctx = composables.WithPool(ctx, s.env.Pool)
 			ctx = composables.WithSession(ctx, &session.Session{})
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
@@ -222,7 +244,7 @@ func (r *Request) HTMX() *Request {
 	return r.Header("Hx-Request", "true")
 }
 
-func (r *Request) Expect(t *testing.T) *Response {
+func (r *Request) Expect(t testing.TB) *Response {
 	t.Helper()
 
 	var bodyReader io.Reader
@@ -249,7 +271,7 @@ type Response struct {
 	suite    *Suite
 	recorder *httptest.ResponseRecorder
 	doc      *html.Node
-	t        *testing.T
+	t        testing.TB
 }
 
 func (r *Response) Status(code int) *Response {
@@ -309,7 +331,7 @@ func (r *Response) HTML() *HTML {
 type HTML struct {
 	suite *Suite
 	doc   *html.Node
-	t     *testing.T
+	t     testing.TB
 }
 
 func (h *HTML) Element(xpath string) *Element {
@@ -335,7 +357,7 @@ type Element struct {
 	suite *Suite
 	node  *html.Node
 	xpath string
-	t     *testing.T
+	t     testing.TB
 }
 
 func (e *Element) Exists() *Element {

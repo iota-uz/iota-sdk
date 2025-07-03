@@ -1,4 +1,4 @@
-package builder
+package itf
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -27,7 +26,7 @@ type TestContext struct {
 }
 
 // New creates a new TestContext builder
-func New() *TestContext {
+func NewTestContext() *TestContext {
 	return &TestContext{
 		ctx:     context.Background(),
 		modules: []application.Module{},
@@ -65,18 +64,18 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	}
 
 	// Create test database
-	testutils.CreateDB(tc.dbName)
-	tc.pool = testutils.NewPool(testutils.DbOpts(tc.dbName))
+	CreateDB(tc.dbName)
+	tc.pool = NewPool(DbOpts(tc.dbName))
 
 	// Setup application
-	app, err := testutils.SetupApplication(tc.pool, tc.modules...)
+	app, err := SetupApplication(tc.pool, tc.modules...)
 	if err != nil {
 		tb.Fatal(err)
 	}
 	tc.app = app
 
 	// Create tenant
-	tenant, err := testutils.CreateTestTenant(tc.ctx, tc.pool)
+	tenant, err := CreateTestTenant(tc.ctx, tc.pool)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -114,7 +113,7 @@ func (tc *TestContext) buildContext() context.Context {
 	ctx := tc.ctx
 	ctx = composables.WithPool(ctx, tc.pool)
 	ctx = composables.WithTenantID(ctx, tc.tenant.ID)
-	ctx = composables.WithParams(ctx, testutils.DefaultParams())
+	ctx = composables.WithParams(ctx, DefaultParams())
 
 	if tc.user != nil {
 		ctx = composables.WithUser(ctx, tc.user)
@@ -140,6 +139,16 @@ func (te *TestEnvironment) Service(service interface{}) interface{} {
 	return te.App.Service(service)
 }
 
+// GetService is a generic helper that retrieves and casts a service
+func GetService[T any](te *TestEnvironment) *T {
+	var zero T
+	service := te.App.Service(zero)
+	if service == nil {
+		return nil
+	}
+	return service.(*T)
+}
+
 // AssertNoError fails the test if err is not nil
 func (te *TestEnvironment) AssertNoError(tb testing.TB, err error) {
 	tb.Helper()
@@ -151,4 +160,9 @@ func (te *TestEnvironment) AssertNoError(tb testing.TB, err error) {
 // TenantID returns the test tenant ID
 func (te *TestEnvironment) TenantID() uuid.UUID {
 	return te.Tenant.ID
+}
+
+// WithTx returns a new context with the test transaction
+func (te *TestEnvironment) WithTx(ctx context.Context) context.Context {
+	return composables.WithTx(ctx, te.Tx)
 }

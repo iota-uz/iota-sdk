@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 func TestMain(m *testing.M) {
@@ -17,10 +17,8 @@ func TestMain(m *testing.M) {
 }
 
 // setupTest creates all necessary dependencies for tests
-func setupTest(t *testing.T) *builder.TestEnvironment {
+func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
 
-	return builder.New().
-		WithModules(modules.BuiltInModules...).
-		Build(t)
+	return itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 }

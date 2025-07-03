@@ -7,9 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -45,11 +43,11 @@ func TestMain(m *testing.M) {
 }
 
 // setupTest creates all necessary dependencies for tests
-func setupTest(t *testing.T) *builder.TestEnvironment {
+func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
 
-	suite := controllertest.New(t, modules.BuiltInModules...)
-	suite.AsUser(testutils.MockUser(permissions.PositionCreate, permissions.PositionRead, permissions.ProductCreate, permissions.ProductRead, permissions.UnitCreate, permissions.UnitRead))
+	suite := itf.HTTP(t, modules.BuiltInModules...)
+	suite.AsUser(itf.User(permissions.PositionCreate, permissions.PositionRead, permissions.ProductCreate, permissions.ProductRead, permissions.UnitCreate, permissions.UnitRead))
 	return suite.Environment()
 }
 

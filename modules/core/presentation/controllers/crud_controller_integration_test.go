@@ -10,8 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,8 +35,8 @@ func (b *integrationTestBuilder) Repository() crud.Repository[TestEntity] {
 // TestCrudController_ConcurrentRequests tests handling of concurrent requests
 func TestCrudController_ConcurrentRequests(t *testing.T) {
 	t.Skip("TODO: Fix concurrent requests test - infrastructure issue")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -82,8 +81,8 @@ func TestCrudController_LargeDataset(t *testing.T) {
 		t.Skip("Skipping large dataset test in short mode")
 	}
 
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -129,11 +128,9 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 	// because the validation error handling is not complete.
 
 	/*
-		adminUser := testutils.MockUser()
-		suite := controllertest.New().
-			WithModules(core.NewModule()).
-			WithUser(t, adminUser).
-			Build(t)
+		adminUser := itf.User()
+		suite := itf.HTTP(t, core.NewModule()).
+			AsUser(adminUser)
 
 		// Create schema with comprehensive validation
 		validatedFields := crud.NewFields([]crud.Field{
@@ -290,8 +287,8 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 // TestCrudController_FormStatePreservation tests that form state is preserved on validation errors
 func TestCrudController_FormStatePreservation(t *testing.T) {
 	t.Skip("TODO: Fix form state preservation test")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	// Schema with validation
@@ -348,8 +345,8 @@ func TestCrudController_FormStatePreservation(t *testing.T) {
 // TestCrudController_ComplexFiltering tests complex filtering scenarios
 func TestCrudController_ComplexFiltering(t *testing.T) {
 	t.Skip("TODO: Fix complex filtering test")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -432,8 +429,8 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 // TestCrudController_UpdateWithReadonlyFields tests that readonly fields are preserved during updates
 func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 	t.Skip("TODO: Fix readonly fields update test")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -490,8 +487,8 @@ func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 // TestCrudController_EmptyListHandling tests proper handling of empty entity lists
 func TestCrudController_EmptyListHandling(t *testing.T) {
 	t.Skip("TODO: Fix empty list handling test")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService() // Empty service
@@ -518,8 +515,8 @@ func TestCrudController_EmptyListHandling(t *testing.T) {
 // TestCrudController_SpecialCharacterHandling tests handling of special characters
 func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 	t.Skip("TODO: Fix special character handling test")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -575,8 +572,8 @@ func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 // TestCrudController_SessionHandling tests that controller properly handles session state
 func TestCrudController_SessionHandling(t *testing.T) {
 	t.Skip("TODO: Fix session handling test")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -618,8 +615,8 @@ func TestCrudController_SessionHandling(t *testing.T) {
 // TestCrudController_HTTPMethodSafety tests that only appropriate HTTP methods are accepted
 func TestCrudController_HTTPMethodSafety(t *testing.T) {
 	t.Skip("TODO: Fix HTTP method safety test")
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -659,7 +656,7 @@ func TestCrudController_HTTPMethodSafety(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%s_%s", tc.method, tc.path), func(t *testing.T) {
-			var req *controllertest.Request
+			var req *itf.Request
 			switch tc.method {
 			case "GET":
 				req = suite.GET(tc.path)
