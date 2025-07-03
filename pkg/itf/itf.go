@@ -2,23 +2,27 @@ package itf
 
 import (
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/jackc/pgx/v5"
 )
 
 // Setup creates a new test harness with database and application setup
-func Setup(t testing.TB, opts ...Option) *TestEnvironment {
-	t.Helper()
-	return NewTestContext().applyOptions(opts...).Build(t)
+func Setup(tb testing.TB, opts ...Option) *TestEnvironment {
+	tb.Helper()
+	return NewTestContext().applyOptions(opts...).Build(tb)
 }
 
-// HTTP is an alias for Scenario for clearer intent
-func HTTP(t testing.TB, modules ...application.Module) *Suite {
-	t.Helper()
-	return NewSuite(t, modules...)
+// HTTP creates a new test suite for HTTP handlers
+func HTTP(tb testing.TB, modules ...application.Module) *Suite {
+	tb.Helper()
+	return NewSuite(tb, modules...)
 }
 
 // Excel creates a new Excel file builder
@@ -28,19 +32,42 @@ func Excel() *TestExcelBuilder {
 
 // User creates a test user with the given permissions
 func User(permissions ...*permission.Permission) user.User {
-	return MockUser(permissions...)
+	r := role.New(
+		"admin",
+		role.WithID(1),
+		role.WithPermissions(permissions),
+		role.WithCreatedAt(time.Now()),
+		role.WithUpdatedAt(time.Now()),
+		role.WithTenantID(uuid.Nil), // tenant_id will be set correctly in repository
+	)
+
+	email, err := internet.NewEmail("test@example.com")
+	if err != nil {
+		panic(err)
+	}
+
+	return user.New(
+		"", // firstName
+		"", // lastName
+		email,
+		"", // uiLanguage
+		user.WithID(1),
+		user.WithRoles([]role.Role{r}),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
+	)
 }
 
 // Transaction begins a new transaction for testing
-func Transaction(t testing.TB, env *TestEnvironment) pgx.Tx {
-	t.Helper()
+func Transaction(tb testing.TB, env *TestEnvironment) pgx.Tx {
+	tb.Helper()
 	tx, err := env.Pool.Begin(env.Ctx)
 	if err != nil {
-		t.Fatalf("Failed to begin transaction: %v", err)
+		tb.Fatalf("Failed to begin transaction: %v", err)
 	}
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		if err := tx.Rollback(env.Ctx); err != nil && err != pgx.ErrTxClosed {
-			t.Logf("Warning: failed to rollback transaction: %v", err)
+			tb.Logf("Warning: failed to rollback transaction: %v", err)
 		}
 	})
 	return tx
