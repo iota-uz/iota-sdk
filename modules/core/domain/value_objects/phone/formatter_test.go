@@ -65,10 +65,10 @@ func TestFormatForDisplay(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
-			
+
 			phoneObj, err := phone.NewFromE164(tt.input)
 			require.NoError(t, err)
-			
+
 			result := phone.FormatForDisplay(phoneObj)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -154,7 +154,7 @@ func TestFormatWithStyle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			phoneObj, err := phone.NewFromE164(tt.input)
 			require.NoError(t, err)
-			
+
 			result := phone.FormatWithStyle(phoneObj, tt.style)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -273,9 +273,9 @@ func TestFormatByCountry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// This is testing the internal formatByCountry function indirectly
-			phoneObj, err := phone.NewFromE164("+"+tt.phone)
+			phoneObj, err := phone.NewFromE164("+" + tt.phone)
 			require.NoError(t, err)
-			
+
 			result := phone.FormatWithStyle(phoneObj, tt.style)
 			assert.Equal(t, tt.expected, result)
 		})
