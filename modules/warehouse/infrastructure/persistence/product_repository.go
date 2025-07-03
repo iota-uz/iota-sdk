@@ -225,7 +225,7 @@ func (g *GormProductRepository) GetByRfidMany(ctx context.Context, tags []string
 	})
 }
 
-func (g *GormProductRepository) Create(ctx context.Context, data *product.Product) error {
+func (g *GormProductRepository) Create(ctx context.Context, data product.Product) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -242,8 +242,9 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 	}
 
 	dbProduct.TenantID = tenantID.String()
-	data.TenantID = tenantID
+	// Note: TenantID is set via constructor options, not direct assignment
 
+	var newID uint
 	if err := tx.QueryRow(
 		ctx,
 		productInsertQuery,
@@ -252,7 +253,7 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 		dbProduct.Rfid,
 		dbProduct.Status,
 		dbProduct.CreatedAt,
-	).Scan(&data.ID); err != nil {
+	).Scan(&newID); err != nil {
 		return err
 	}
 	return nil
@@ -267,8 +268,8 @@ func (g *GormProductRepository) BulkCreate(ctx context.Context, data []product.P
 	return nil
 }
 
-func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *product.Product) error {
-	p, err := g.GetByID(ctx, data.ID)
+func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data product.Product) error {
+	p, err := g.GetByID(ctx, data.ID())
 	if err != nil && !errors.Is(err, ErrProductNotFound) {
 		return err
 	}
@@ -278,7 +279,7 @@ func (g *GormProductRepository) CreateOrUpdate(ctx context.Context, data *produc
 	return g.Create(ctx, data)
 }
 
-func (g *GormProductRepository) Update(ctx context.Context, data *product.Product) error {
+func (g *GormProductRepository) Update(ctx context.Context, data product.Product) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get tenant from context: %w", err)
@@ -290,7 +291,7 @@ func (g *GormProductRepository) Update(ctx context.Context, data *product.Produc
 	}
 
 	dbProduct.TenantID = tenantID.String()
-	data.TenantID = tenantID
+	// Note: TenantID is set via constructor options, not direct assignment
 
 	return g.execQuery(
 		ctx,
