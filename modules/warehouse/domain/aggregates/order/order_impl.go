@@ -76,7 +76,7 @@ func (o *order) AddItem(position position.Position, products ...product.Product)
 			return nil, NewErrProductIsShipped(p.Status())
 		}
 	}
-	
+
 	result := *o
 	result.items = append(result.items, &item{
 		position: position,
@@ -89,13 +89,13 @@ func (o *order) Complete() (Order, error) {
 	if o.status == Complete {
 		return nil, NewErrOrderIsComplete(o.status)
 	}
-	
+
 	result := *o
 	result.status = Complete
-	
+
 	// Note: Product status changes should be handled by the domain service
 	// that coordinates between Order and Product aggregates
-	
+
 	return &result, nil
 }
 

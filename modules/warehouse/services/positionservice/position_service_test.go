@@ -32,7 +32,7 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 
 	found := false
 	for _, pos := range positions {
-		if pos.Title == "Дрель Молоток N.C.V (900W)" {
+		if pos.Title() == "Дрель Молоток N.C.V (900W)" {
 			found = true
 			break
 		}
