@@ -51,11 +51,12 @@ func toDomainEmployee(dbEmployee *models.Employee, dbMeta *models.EmployeeMeta) 
 		pin,
 		employee.NewLanguage(dbMeta.PrimaryLanguage.String, dbMeta.SecondaryLanguage.String),
 		dbMeta.HireDate.Time,
-		mapping.SQLNullTimeToPointer(dbMeta.ResignationDate),
-		avatarID,
-		dbMeta.Notes.String,
-		dbEmployee.CreatedAt,
-		dbEmployee.UpdatedAt,
+		employee.WithAvatarID(avatarID),
+		employee.WithBirthDate(dbMeta.BirthDate.Time),
+		employee.WithResignationDate(mapping.SQLNullTimeToPointer(dbMeta.ResignationDate)),
+		employee.WithNotes(dbMeta.Notes.String),
+		employee.WithCreatedAt(dbEmployee.CreatedAt),
+		employee.WithUpdatedAt(dbEmployee.UpdatedAt),
 	), nil
 }
 
