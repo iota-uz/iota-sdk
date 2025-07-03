@@ -1,12 +1,10 @@
 package controllers
 
 import (
-	"fmt"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"log"
 	"net/http"
-	"path/filepath"
-
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"path"
 
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -53,7 +51,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		if schema.ExecutorCb != nil {
 			schema.ExecutorCb(exec)
 		}
-		router.Handle(filepath.Join(fmt.Sprintf("/query/%s", schema.BasePath)), graphql.NewHandler(exec))
+		router.Handle(path.Join("/query", schema.BasePath), graphql.NewHandler(exec))
 	}
 	log.Printf("See %s/playground for GraphQL playground", configuration.Use().Origin)
 }
