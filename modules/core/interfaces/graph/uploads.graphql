@@ -37,6 +37,7 @@ input UploadFilter {
 
 extend type Mutation {
   uploadFile(file: File): Upload!
+  deleteUpload(id: ID!): Boolean!
 }
 
 extend type Query {
