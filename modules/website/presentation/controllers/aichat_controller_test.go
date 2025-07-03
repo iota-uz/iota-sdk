@@ -10,8 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,12 +27,12 @@ func TestMain(m *testing.M) {
 }
 
 // setupTest creates test suite
-func setupTest(t *testing.T) *controllertest.Suite {
+func setupTest(t *testing.T) *itf.Suite {
 	t.Helper()
 
-	adminUser := testutils.MockUser()
+	adminUser := itf.User()
 
-	return controllertest.New(t, modules.BuiltInModules...).
+	return itf.HTTP(t, modules.BuiltInModules...).
 		AsUser(adminUser)
 }
 

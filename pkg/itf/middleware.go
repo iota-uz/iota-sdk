@@ -1,4 +1,4 @@
-package testutils
+package itf
 
 import (
 	"context"
@@ -18,13 +18,13 @@ import (
 )
 
 // TestMiddleware creates middleware that adds all required context values for controller tests
-func TestMiddleware(env *TestEnv, user user.User) mux.MiddlewareFunc {
+func TestMiddleware(env *TestEnvironment, u user.User) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			// Add composables
-			ctx = composables.WithUser(ctx, user)
+			ctx = composables.WithUser(ctx, u)
 			ctx = composables.WithPool(ctx, env.Pool)
 			ctx = composables.WithTx(ctx, env.Tx)
 			ctx = composables.WithTenantID(ctx, env.Tenant.ID)

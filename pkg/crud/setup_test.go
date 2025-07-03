@@ -7,7 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -218,7 +218,7 @@ func setupTest(t *testing.T) *testFixtures {
 	t.Helper()
 
 	// Use DatabaseManager for proper semaphore handling
-	dm := testutils.NewDatabaseManager(t)
+	dm := itf.NewDatabaseManager(t)
 	pool := dm.Pool()
 
 	ctx := composables.WithPool(context.Background(), pool)

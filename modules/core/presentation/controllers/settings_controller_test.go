@@ -20,7 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,9 +28,9 @@ import (
 // 1x1 transparent PNG
 const PngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
-func setupSettingsControllerTest(t *testing.T) (*controllertest.Suite, *services.TenantService, *services.UploadService) {
+func setupSettingsControllerTest(t *testing.T) (*itf.Suite, *services.TenantService, *services.UploadService) {
 	t.Helper()
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(user.New("Test", "User", internet.MustParseEmail("test@example.com"), user.UILanguageEN))
 
 	suite.WithMiddleware(func(ctx context.Context, r *http.Request) context.Context {

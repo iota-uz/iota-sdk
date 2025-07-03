@@ -14,13 +14,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // setupChatTest extends the setupTest with WebsiteChatService
-func setupChatTest(t *testing.T) (*builder.TestEnvironment, *services.WebsiteChatService, client.Repository) {
+func setupChatTest(t *testing.T) (*itf.TestEnvironment, *services.WebsiteChatService, client.Repository) {
 	t.Helper()
 
 	fixtures := setupTest(t)
