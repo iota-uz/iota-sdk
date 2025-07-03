@@ -49,7 +49,7 @@ func (d *UpdateDTO) Ok(l ut.Translator) (map[string]string, bool) {
 func (d *CreateDTO) ToEntity() (Position, error) {
 	images := make([]upload.Upload, len(d.ImageIDs))
 	// TODO: implement mapping from ImageIDs to Upload entities
-	return New(d.Title, d.Barcode, 
+	return New(d.Title, d.Barcode,
 		WithUnitID(d.UnitID),
 		WithUnit(&unit.Unit{ID: d.UnitID}), //nolint:exhaustruct
 		WithImages(images),
