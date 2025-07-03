@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	positions2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/positions"
@@ -235,10 +234,10 @@ func (c *PositionsController) Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := mapping.MapViewModels(entities, func(pos *position.Position) *base.ComboboxOption {
+	props := mapping.MapViewModels(entities, func(pos position.Position) *base.ComboboxOption {
 		return &base.ComboboxOption{
-			Value: strconv.FormatUint(uint64(pos.ID), 10),
-			Label: pos.Title,
+			Value: strconv.FormatUint(uint64(pos.ID()), 10),
+			Label: pos.Title(),
 		}
 	})
 	templ.Handler(base.ComboboxOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -295,12 +294,10 @@ func (c *PositionsController) GetNew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	props := &positions2.CreatePageProps{
-		Errors: map[string]string{},
-		Position: mappers.PositionToViewModel(&position.Position{
-			Unit: &unit.Unit{},
-		}),
-		SaveURL: c.basePath,
-		Units:   unitViewModels,
+		Errors:   map[string]string{},
+		Position: mappers.PositionToViewModel(position.New("", "")),
+		SaveURL:  c.basePath,
+		Units:    unitViewModels,
 	}
 	templ.Handler(positions2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
