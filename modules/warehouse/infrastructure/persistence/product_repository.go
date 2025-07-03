@@ -258,7 +258,7 @@ func (g *GormProductRepository) Create(ctx context.Context, data *product.Produc
 	return nil
 }
 
-func (g *GormProductRepository) BulkCreate(ctx context.Context, data []*product.Product) error {
+func (g *GormProductRepository) BulkCreate(ctx context.Context, data []product.Product) error {
 	for _, p := range data {
 		if err := g.Create(ctx, p); err != nil {
 			return err
