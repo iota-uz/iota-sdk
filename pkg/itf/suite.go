@@ -208,17 +208,80 @@ func (r *Request) Form(values url.Values) *Request {
 	return r
 }
 
+type MultipartFile struct {
+	FieldName string
+	FileName  string
+	Content   []byte
+}
+
+type MultipartData struct {
+	files      []MultipartFile
+	formValues url.Values
+}
+
+func NewMultipart() *MultipartData {
+	return &MultipartData{}
+}
+
+func (m *MultipartData) AddFile(fieldName, fileName string, content []byte) *MultipartData {
+	m.files = append(m.files, MultipartFile{
+		FieldName: fieldName,
+		FileName:  fileName,
+		Content:   content,
+	})
+	return m
+}
+
+func (m *MultipartData) AddField(key, value string) *MultipartData {
+	if m.formValues == nil {
+		m.formValues = make(url.Values)
+	}
+	m.formValues.Add(key, value)
+	return m
+}
+
+func (m *MultipartData) AddForm(formValues url.Values) *MultipartData {
+	if m.formValues == nil {
+		m.formValues = make(url.Values)
+	}
+	for key, values := range formValues {
+		for _, value := range values {
+			m.formValues.Add(key, value)
+		}
+	}
+	return m
+}
+
+// Deprecated: Use MultipartData with NewMultipart() instead for more flexibility
 func (r *Request) File(fieldName, fileName string, content []byte) *Request {
+	return r.MultipartData(NewMultipart().AddFile(fieldName, fileName, content))
+}
+
+func (r *Request) MultipartData(data *MultipartData) *Request {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	part, err := writer.CreateFormFile(fieldName, fileName)
-	if err != nil {
-		r.suite.t.Fatalf("Failed to create form file: %v", err)
+	// Add files
+	for _, file := range data.files {
+		part, err := writer.CreateFormFile(file.FieldName, file.FileName)
+		if err != nil {
+			r.suite.t.Fatalf("Failed to create form file: %v", err)
+		}
+
+		if _, err := part.Write(file.Content); err != nil {
+			r.suite.t.Fatalf("Failed to write file content: %v", err)
+		}
 	}
 
-	if _, err := part.Write(content); err != nil {
-		r.suite.t.Fatalf("Failed to write file content: %v", err)
+	// Add form fields
+	if data.formValues != nil {
+		for key, values := range data.formValues {
+			for _, value := range values {
+				if err := writer.WriteField(key, value); err != nil {
+					r.suite.t.Fatalf("Failed to write form field %s: %v", key, err)
+				}
+			}
+		}
 	}
 
 	if err := writer.Close(); err != nil {
