@@ -14,6 +14,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
@@ -34,6 +36,20 @@ func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload)
 	}
 
 	return mappers.UploadToGraphModel(uploadEntity), nil
+}
+
+// DeleteUpload is the resolver for the deleteUpload field.
+func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (bool, error) {
+	if err := composables.CanUser(ctx, permissions.UploadDelete); err != nil {
+		return false, err
+	}
+
+	_, err := r.uploadService.Delete(ctx, uint(id))
+	if err != nil {
+		return false, fmt.Errorf("failed to delete upload: %w", err)
+	}
+
+	return true, nil
 }
 
 // Uploads is the resolver for the uploads field.
