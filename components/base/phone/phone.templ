@@ -1,0 +1,83 @@
+package phone
+
+import (
+	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
+)
+
+type DisplayStyle int
+
+const (
+	StyleParentheses DisplayStyle = iota
+	StyleDashes
+	StyleSpaces
+)
+
+type Props struct {
+	Phone    string
+	Class    string
+	Style    DisplayStyle
+	ShowIcon bool
+	Attrs    templ.Attributes
+}
+
+templ Link(props Props) {
+	if props.Phone != "" {
+		<a
+			href={ templ.SafeURL("tel:" + phone.Strip(props.Phone)) }
+			class={ twmerge.Merge("inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 hover:underline", props.Class) }
+			{ props.Attrs... }
+		>
+			if props.ShowIcon {
+				@icons.Phone(icons.Props{Size: "16"})
+			}
+			{ formatPhoneDisplay(props.Phone, props.Style) }
+		</a>
+	}
+}
+
+templ Text(props Props) {
+	if props.Phone != "" {
+		<span
+			class={ twmerge.Merge("inline-flex items-center gap-1", props.Class) }
+			{ props.Attrs... }
+		>
+			if props.ShowIcon {
+				@icons.Phone(icons.Props{Size: "16"})
+			}
+			{ formatPhoneDisplay(props.Phone, props.Style) }
+		</span>
+	}
+}
+
+func formatPhoneDisplay(phoneStr string, style DisplayStyle) string {
+	if phoneStr == "" {
+		return ""
+	}
+	
+	if style == StyleParentheses {
+		return phone.FormatString(phoneStr)
+	}
+	
+	phoneObj, err := phone.NewFromE164(phoneStr)
+	if err != nil {
+		return phoneStr
+	}
+	
+	phoneStyle := toPhoneDisplayStyle(style)
+	return phone.FormatWithStyle(phoneObj, phoneStyle)
+}
+
+func toPhoneDisplayStyle(style DisplayStyle) phone.DisplayStyle {
+	switch style {
+	case StyleParentheses:
+		return phone.StyleParentheses
+	case StyleDashes:
+		return phone.StyleDashes
+	case StyleSpaces:
+		return phone.StyleSpaces
+	default:
+		return phone.StyleParentheses
+	}
+}
