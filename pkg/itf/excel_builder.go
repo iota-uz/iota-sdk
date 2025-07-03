@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/xuri/excelize/v2"
 )
 
@@ -56,12 +56,18 @@ func (b *TestExcelBuilder) Build(t *testing.T) string {
 	t.Helper()
 
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Logf("Warning: failed to close Excel file: %v", err)
+		}
+	}()
 
 	// Create headers
 	for i, header := range b.headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		f.SetCellValue(b.sheet, cell, header)
+		if err := f.SetCellValue(b.sheet, cell, header); err != nil {
+			t.Logf("Warning: failed to set header cell value: %v", err)
+		}
 	}
 
 	// Add data rows
@@ -69,18 +75,22 @@ func (b *TestExcelBuilder) Build(t *testing.T) string {
 		for colIdx, header := range b.headers {
 			if value, ok := row[header]; ok {
 				cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
-				f.SetCellValue(b.sheet, cell, value)
+				if err := f.SetCellValue(b.sheet, cell, value); err != nil {
+					t.Logf("Warning: failed to set cell value: %v", err)
+				}
 			}
 		}
 	}
 
 	tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("test_excel_%d.xlsx", time.Now().UnixNano()))
 	err := f.SaveAs(tempFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Register cleanup
 	t.Cleanup(func() {
-		os.Remove(tempFile)
+		if err := os.Remove(tempFile); err != nil {
+			t.Logf("Warning: failed to remove temp file: %v", err)
+		}
 	})
 
 	return tempFile
@@ -92,7 +102,7 @@ func (b *TestExcelBuilder) BuildBytes(t *testing.T) []byte {
 
 	filePath := b.Build(t)
 	content, err := os.ReadFile(filePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return content
 }
@@ -102,14 +112,20 @@ func BuildEmptyExcel(t *testing.T) string {
 	t.Helper()
 
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Logf("Warning: failed to close Excel file: %v", err)
+		}
+	}()
 
 	tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("empty_%d.xlsx", time.Now().UnixNano()))
 	err := f.SaveAs(tempFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		os.Remove(tempFile)
+		if err := os.Remove(tempFile); err != nil {
+			t.Logf("Warning: failed to remove temp file: %v", err)
+		}
 	})
 
 	return tempFile
@@ -121,7 +137,7 @@ func BuildEmptyExcelBytes(t *testing.T) []byte {
 
 	filePath := BuildEmptyExcel(t)
 	content, err := os.ReadFile(filePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return content
 }
@@ -136,20 +152,28 @@ func BuildWithCustomHeaders(t *testing.T, headers []string) string {
 	t.Helper()
 
 	f := excelize.NewFile()
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Logf("Warning: failed to close Excel file: %v", err)
+		}
+	}()
 
 	// Create headers
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		f.SetCellValue("Sheet1", cell, header)
+		if err := f.SetCellValue("Sheet1", cell, header); err != nil {
+			t.Logf("Warning: failed to set header cell value: %v", err)
+		}
 	}
 
 	tempFile := filepath.Join(os.TempDir(), fmt.Sprintf("headers_only_%d.xlsx", time.Now().UnixNano()))
 	err := f.SaveAs(tempFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		os.Remove(tempFile)
+		if err := os.Remove(tempFile); err != nil {
+			t.Logf("Warning: failed to remove temp file: %v", err)
+		}
 	})
 
 	return tempFile
@@ -161,7 +185,7 @@ func BuildWithCustomHeadersBytes(t *testing.T, headers []string) []byte {
 
 	filePath := BuildWithCustomHeaders(t, headers)
 	content, err := os.ReadFile(filePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return content
 }

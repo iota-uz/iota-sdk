@@ -11,11 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -33,33 +29,6 @@ type TestFixtures struct {
 	Context context.Context
 	Tx      pgx.Tx
 	App     application.Application
-}
-
-func MockUser(permissions ...*permission.Permission) user.User {
-	r := role.New(
-		"admin",
-		role.WithID(1),
-		role.WithPermissions(permissions),
-		role.WithCreatedAt(time.Now()),
-		role.WithUpdatedAt(time.Now()),
-		role.WithTenantID(uuid.Nil), // tenant_id will be set correctly in repository
-	)
-
-	email, err := internet.NewEmail("test@example.com")
-	if err != nil {
-		panic(err)
-	}
-
-	return user.New(
-		"", // firstName
-		"", // lastName
-		email,
-		"", // uiLanguage
-		user.WithID(1),
-		user.WithRoles([]role.Role{r}),
-		user.WithCreatedAt(time.Now()),
-		user.WithUpdatedAt(time.Now()),
-	)
 }
 
 func MockSession() *session.Session {

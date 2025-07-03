@@ -46,17 +46,17 @@ type Suite struct {
 	beforeEach  []HookFunc
 }
 
-func NewSuite(t testing.TB, modules ...application.Module) *Suite {
-	t.Helper()
+func NewSuite(tb testing.TB, modules ...application.Module) *Suite {
+	tb.Helper()
 
 	s := &Suite{
-		t:           t,
+		t:           tb,
 		modules:     modules,
 		middlewares: make([]MiddlewareFunc, 0),
 		beforeEach:  make([]HookFunc, 0),
 	}
 
-	s.env = NewTestContext().WithModules(modules...).Build(t)
+	s.env = NewTestContext().WithModules(modules...).Build(tb)
 	s.router = mux.NewRouter()
 	s.setupMiddleware()
 
@@ -244,8 +244,8 @@ func (r *Request) HTMX() *Request {
 	return r.Header("Hx-Request", "true")
 }
 
-func (r *Request) Expect(t testing.TB) *Response {
-	t.Helper()
+func (r *Request) Expect(tb testing.TB) *Response {
+	tb.Helper()
 
 	var bodyReader io.Reader
 	if r.body != nil {
@@ -263,7 +263,7 @@ func (r *Request) Expect(t testing.TB) *Response {
 	return &Response{
 		suite:    r.suite,
 		recorder: recorder,
-		t:        t,
+		t:        tb,
 	}
 }
 
