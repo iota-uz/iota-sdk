@@ -39,28 +39,28 @@ func NewPositionService(
 	}
 }
 
-func (s *PositionService) GetByID(ctx context.Context, id uint) (*position.Position, error) {
+func (s *PositionService) GetByID(ctx context.Context, id uint) (position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *PositionService) GetAll(ctx context.Context) ([]*position.Position, error) {
+func (s *PositionService) GetAll(ctx context.Context) ([]position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetAll(ctx)
 }
 
-func (s *PositionService) GetPaginated(ctx context.Context, params *position.FindParams) ([]*position.Position, error) {
+func (s *PositionService) GetPaginated(ctx context.Context, params *position.FindParams) ([]position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *PositionService) GetByIDs(ctx context.Context, ids []uint) ([]*position.Position, error) {
+func (s *PositionService) GetByIDs(ctx context.Context, ids []uint) ([]position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionRead); err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (s *PositionService) createPosition(ctx context.Context, posRow *XlsRow, un
 	products := make([]*product.CreateDTO, 0)
 	for i := 0; i < posRow.Quantity; i++ {
 		products = append(products, &product.CreateDTO{
-			PositionID: pos.ID,
+			PositionID: pos.ID(),
 			Status:     string(product.InStock),
 		})
 	}
@@ -137,7 +137,7 @@ func (s *PositionService) LoadFromFilePath(ctx context.Context, path string) err
 				UnitID:  unitID,
 				Barcode: row.Barcode,
 			}
-			if err := s.Update(ctx, entity.ID, pos); err != nil {
+			if err := s.Update(ctx, entity.ID(), pos); err != nil {
 				return err
 			}
 		}
@@ -156,7 +156,7 @@ func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error
 	return s.LoadFromFilePath(ctx, uploadEntity.Path())
 }
 
-func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (*position.Position, error) {
+func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) 
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return nil, err
 	}
-	createdEvent, err := position.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := position.NewCreatedEvent(ctx, *data, entity)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (s *PositionService) Update(ctx context.Context, id uint, data *position.Up
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := position.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := position.NewUpdatedEvent(ctx, *data, entity)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (s *PositionService) Update(ctx context.Context, id uint, data *position.Up
 	return nil
 }
 
-func (s *PositionService) Delete(ctx context.Context, id uint) (*position.Position, error) {
+func (s *PositionService) Delete(ctx context.Context, id uint) (position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionDelete); err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func (s *PositionService) Delete(ctx context.Context, id uint) (*position.Positi
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := position.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := position.NewDeletedEvent(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
