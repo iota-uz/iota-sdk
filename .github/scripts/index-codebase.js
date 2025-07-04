@@ -13,7 +13,24 @@ async function indexCodebase() {
   
   const indexer = new CodeIndexer({
     embedding,
-    vectorDatabase
+    vectorDatabase,
+    // Include only relevant file extensions for this project
+    supportedExtensions: [
+      '.go',          // Go source files
+      '.templ',       // Templ template files
+      '.sql',         // SQL schema and migration files
+      '.js',          // JavaScript files
+      '.ts', '.tsx',  // TypeScript files (for e2e tests)
+      '.md',          // Markdown documentation
+      '.yml', '.yaml' // Configuration files
+    ],
+    // Exclude ai-chat directory and generated files from indexing
+    ignorePatterns: [
+      'ai-chat/**',
+      '**/*_templ.go',
+      '**/graph/generated.go',
+      'modules/core/presentation/assets/js/lib/**'
+    ]
   });
   
   console.log('Starting incremental codebase indexing...');

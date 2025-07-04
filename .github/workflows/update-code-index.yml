@@ -8,7 +8,7 @@ jobs:
     runs-on: blacksmith-8vcpu-ubuntu-2204
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Cache code indexer merkle data
         uses: useblacksmith/cache@v5
         with:
@@ -17,13 +17,23 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-codeindexer-staging
             ${{ runner.os }}-codeindexer-
-      
+
       - uses: useblacksmith/setup-node@v5
         with: { node-version: '20' }
-      
+
       - run: |
+          # Create cache directory if it doesn't exist
+          mkdir -p ~/.codeindexer
+
+          # Install dependencies
           npm install @code-indexer/core
+
+          # Run indexing
           node .github/scripts/index-codebase.js
+
+          # Debug: Check if cache directory has any contents
+          echo "Cache directory contents:"
+          ls -la ~/.codeindexer || echo "Cache directory is empty"
     env:
       MILVUS_ADDRESS: ${{ secrets.MILVUS_ADDRESS }}
       MILVUS_TOKEN:   ${{ secrets.MILVUS_TOKEN }}
