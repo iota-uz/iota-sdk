@@ -1,8 +1,9 @@
 package crud_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/crud"
 
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/assert"

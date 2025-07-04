@@ -1,8 +1,9 @@
 package mapping_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
 func TestValue(t *testing.T) {

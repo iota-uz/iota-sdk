@@ -1,9 +1,10 @@
 package billing
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
-	"time"
 )
 
 type Option func(t *transaction)

@@ -26,6 +26,11 @@
     "gt": "Должно быть больше {0}",
     "custom": "{{.Field}}: {{.Error}}"
   },
+  "Import": {
+    "Error": {
+      "ValidationError": "Ошибка валидации"
+    }
+  },
   "Filters": {
     "CreatedAt": {
       "AllTime": "Все время",

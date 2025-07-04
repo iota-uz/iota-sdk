@@ -3,6 +3,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"log"
+	"math"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -13,12 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"log"
-	"math"
-	"net/http"
-	"net/url"
-	"strconv"
-	"time"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
