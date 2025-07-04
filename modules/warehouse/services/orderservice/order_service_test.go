@@ -38,7 +38,7 @@ func TestOrderService(t *testing.T) {
 		position.WithCreatedAt(time.Now()),
 		position.WithUpdatedAt(time.Now()))
 
-	if err := positionRepo.Create(f.Ctx, positionEntity); err != nil {
+	if _, err := positionRepo.Create(f.Ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
