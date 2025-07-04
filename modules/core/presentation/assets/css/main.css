@@ -408,6 +408,109 @@
     opacity: 0.5;
   }
 
+  .form-control-input[readonly] {
+    cursor: not-allowed;
+    opacity: 0.7;
+    background-color: oklch(var(--gray-100));
+    pointer-events: none;
+  }
+
+  .dark .form-control-input[readonly] {
+    background-color: oklch(var(--gray-700));
+  }
+
+  /* Also apply styles to readonly select and textarea elements */
+  select.form-control-input[readonly],
+  textarea.form-control-input[readonly] {
+    cursor: not-allowed;
+    opacity: 0.7;
+    background-color: oklch(var(--gray-100));
+    pointer-events: none;
+  }
+
+  .dark select.form-control-input[readonly],
+  .dark textarea.form-control-input[readonly] {
+    background-color: oklch(var(--gray-700));
+  }
+
+  /* For disabled select elements */
+  select.form-control-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+    background-color: oklch(var(--gray-100));
+  }
+
+  .dark select.form-control-input:disabled {
+    background-color: oklch(var(--gray-700));
+  }
+
+  /* For checkboxes that are readonly */
+  input[type="checkbox"][readonly] {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  /* For disabled checkboxes */
+  input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  /* Special handling for readonly form controls in a wrapper */
+  .form-control:has(input[readonly]),
+  .form-control:has(select[readonly]),
+  .form-control:has(textarea[readonly]) {
+    pointer-events: none;
+  }
+
+  /* Allow labels to remain clickable */
+  .form-control:has(input[readonly]) label,
+  .form-control:has(select[readonly]) label,
+  .form-control:has(textarea[readonly]) label {
+    pointer-events: auto;
+    cursor: default;
+  }
+
+  /* Fallback for browsers without :has support */
+  .form-control[data-readonly="true"] {
+    pointer-events: none;
+  }
+
+  .form-control[data-readonly="true"] label {
+    pointer-events: auto;
+    cursor: default;
+  }
+
+  /* Additional readonly styles for better visual feedback */
+  .form-control-input[readonly]:focus {
+    border-color: oklch(var(--border-color));
+    outline: none;
+    box-shadow: none;
+  }
+
+  select.form-control-input[readonly]:focus,
+  textarea.form-control-input[readonly]:focus {
+    border-color: oklch(var(--border-color));
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* Style for readonly date/time inputs */
+  input[type="date"][readonly],
+  input[type="time"][readonly],
+  input[type="datetime-local"][readonly] {
+    cursor: not-allowed;
+    opacity: 0.7;
+    background-color: oklch(var(--gray-100));
+    pointer-events: none;
+  }
+
+  .dark input[type="date"][readonly],
+  .dark input[type="time"][readonly],
+  .dark input[type="datetime-local"][readonly] {
+    background-color: oklch(var(--gray-700));
+  }
+
   .form-control-label {
     color: var(--clr-form-control-label);
     font-size: 0.875rem;
