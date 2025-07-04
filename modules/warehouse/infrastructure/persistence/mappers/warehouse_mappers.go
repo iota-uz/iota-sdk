@@ -38,15 +38,15 @@ func ToDomainUnit(dbUnit *models.WarehouseUnit) (*unit.Unit, error) {
 	}, nil
 }
 
-func ToDBProduct(entity *product.Product) (*models.WarehouseProduct, error) {
+func ToDBProduct(entity product.Product) (*models.WarehouseProduct, error) {
 	return &models.WarehouseProduct{
-		ID:         entity.ID,
-		TenantID:   entity.TenantID.String(),
-		PositionID: entity.PositionID,
-		Rfid:       mapping.ValueToSQLNullString(entity.Rfid),
-		Status:     string(entity.Status),
-		CreatedAt:  entity.CreatedAt,
-		UpdatedAt:  entity.UpdatedAt,
+		ID:         entity.ID(),
+		TenantID:   entity.TenantID().String(),
+		PositionID: entity.PositionID(),
+		Rfid:       mapping.ValueToSQLNullString(entity.Rfid()),
+		Status:     string(entity.Status()),
+		CreatedAt:  entity.CreatedAt(),
+		UpdatedAt:  entity.UpdatedAt(),
 	}, nil
 }
 
@@ -54,7 +54,7 @@ func ToDomainProduct(
 	dbProduct *models.WarehouseProduct,
 	dbPosition *models.WarehousePosition,
 	dbUnit *models.WarehouseUnit,
-) (*product.Product, error) {
+) (product.Product, error) {
 	status, err := product.NewStatus(dbProduct.Status)
 	if err != nil {
 		return nil, err
@@ -67,19 +67,17 @@ func ToDomainProduct(
 	if err != nil {
 		return nil, err
 	}
-	return &product.Product{
-		ID:         dbProduct.ID,
-		TenantID:   tenantID,
-		PositionID: dbProduct.PositionID,
-		Rfid:       dbProduct.Rfid.String,
-		Position:   pos,
-		Status:     status,
-		CreatedAt:  dbProduct.CreatedAt,
-		UpdatedAt:  dbProduct.UpdatedAt,
-	}, nil
+	return product.New(dbProduct.Rfid.String, status,
+		product.WithID(dbProduct.ID),
+		product.WithTenantID(tenantID),
+		product.WithPositionID(dbProduct.PositionID),
+		product.WithPosition(pos),
+		product.WithCreatedAt(dbProduct.CreatedAt),
+		product.WithUpdatedAt(dbProduct.UpdatedAt),
+	), nil
 }
 
-func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.WarehouseUnit) (*position.Position, error) {
+func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.WarehouseUnit) (position.Position, error) {
 	// TODO: decouple
 	images := make([]upload.Upload, 0, len(dbPosition.Images))
 	for _, img := range dbPosition.Images {
@@ -97,37 +95,35 @@ func ToDomainPosition(dbPosition *models.WarehousePosition, dbUnit *models.Wareh
 	if err != nil {
 		return nil, err
 	}
-	return &position.Position{
-		ID:        dbPosition.ID,
-		TenantID:  tenantID,
-		Title:     dbPosition.Title,
-		Barcode:   dbPosition.Barcode,
-		UnitID:    uint(dbPosition.UnitID.Int32),
-		Unit:      unit,
-		Images:    images,
-		CreatedAt: dbPosition.CreatedAt,
-		UpdatedAt: dbPosition.UpdatedAt,
-	}, nil
+	return position.New(dbPosition.Title, dbPosition.Barcode,
+		position.WithID(dbPosition.ID),
+		position.WithTenantID(tenantID),
+		position.WithUnitID(uint(dbPosition.UnitID.Int32)),
+		position.WithUnit(unit),
+		position.WithImages(images),
+		position.WithCreatedAt(dbPosition.CreatedAt),
+		position.WithUpdatedAt(dbPosition.UpdatedAt),
+	), nil
 }
 
-func ToDBPosition(entity *position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage) {
-	junctionRows := make([]*models.WarehousePositionImage, 0, len(entity.Images))
-	for _, image := range entity.Images {
+func ToDBPosition(entity position.Position) (*models.WarehousePosition, []*models.WarehousePositionImage) {
+	junctionRows := make([]*models.WarehousePositionImage, 0, len(entity.Images()))
+	for _, image := range entity.Images() {
 		junctionRows = append(
 			junctionRows, &models.WarehousePositionImage{
-				WarehousePositionID: entity.ID,
+				WarehousePositionID: entity.ID(),
 				UploadID:            image.ID(),
 			},
 		)
 	}
 	dbPosition := &models.WarehousePosition{
-		ID:        entity.ID,
-		TenantID:  entity.TenantID.String(),
-		Title:     entity.Title,
-		Barcode:   entity.Barcode,
-		UnitID:    mapping.ValueToSQLNullInt32(int32(entity.UnitID)),
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
+		ID:        entity.ID(),
+		TenantID:  entity.TenantID().String(),
+		Title:     entity.Title(),
+		Barcode:   entity.Barcode(),
+		UnitID:    mapping.ValueToSQLNullInt32(int32(entity.UnitID())),
+		CreatedAt: entity.CreatedAt(),
+		UpdatedAt: entity.UpdatedAt(),
 	}
 	return dbPosition, junctionRows
 }

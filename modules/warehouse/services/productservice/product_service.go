@@ -40,14 +40,14 @@ func (s *ProductService) CountInStock(ctx context.Context, params *product.Count
 	return s.repo.Count(ctx, params)
 }
 
-func (s *ProductService) GetByID(ctx context.Context, id uint) (*product.Product, error) {
+func (s *ProductService) GetByID(ctx context.Context, id uint) (product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ProductService) GetAll(ctx context.Context) ([]*product.Product, error) {
+func (s *ProductService) GetAll(ctx context.Context) ([]product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *ProductService) GetAll(ctx context.Context) ([]*product.Product, error)
 
 func (s *ProductService) GetPaginated(
 	ctx context.Context, params *product.FindParams,
-) ([]*product.Product, error) {
+) ([]product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) er
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := product.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := product.NewCreatedEvent(ctx, *data, entity)
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (s *ProductService) Create(ctx context.Context, data *product.CreateDTO) er
 
 func (s *ProductService) CreateProductsFromTags(
 	ctx context.Context, data *product.CreateProductsFromTagsDTO,
-) ([]*product.Product, error) {
+) ([]product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (s *ProductService) CreateProductsFromTags(
 	return entities, nil
 }
 
-func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([]*product.Product, []*product.Product, error) {
+func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([]product.Product, []product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductUpdate); err != nil {
 		return nil, nil, err
 	}
@@ -117,12 +117,12 @@ func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([
 	if err != nil {
 		return nil, nil, err
 	}
-	var valid []*product.Product
-	var invalid []*product.Product
+	var valid []product.Product
+	var invalid []product.Product
 	for _, entity := range entities {
-		if entity.Status == product.InDevelopment {
+		if entity.Status() == product.InDevelopment {
 			valid = append(valid, entity)
-			entity.Status = product.Approved
+			entity = entity.SetStatus(product.Approved)
 		} else {
 			invalid = append(invalid, entity)
 		}
@@ -133,11 +133,11 @@ func (s *ProductService) ValidateProducts(ctx context.Context, tags []string) ([
 	return valid, invalid, nil
 }
 
-func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateDTO) ([]*product.Product, error) {
+func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateDTO) ([]product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductCreate); err != nil {
 		return nil, err
 	}
-	entities := make([]*product.Product, len(data))
+	entities := make([]product.Product, len(data))
 	for i, d := range data {
 		entity, err := d.ToEntity()
 		if err != nil {
@@ -149,7 +149,7 @@ func (s *ProductService) BulkCreate(ctx context.Context, data []*product.CreateD
 		return nil, err
 	}
 	for i, d := range data {
-		createdEvent, err := product.NewCreatedEvent(ctx, *d, *entities[i])
+		createdEvent, err := product.NewCreatedEvent(ctx, *d, entities[i])
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +163,7 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product.Upda
 		return err
 	}
 	existing, err := s.repo.GetByRfid(ctx, data.Rfid)
-	if existing != nil && existing.ID != id {
+	if existing != nil && existing.ID() != id {
 		return NewErrDuplicateRfid(data.Rfid)
 	} else if err != nil && !errors.Is(err, persistence.ErrProductNotFound) {
 		return err
@@ -175,7 +175,7 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product.Upda
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := product.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := product.NewUpdatedEvent(ctx, *data, entity)
 	if err != nil {
 		return err
 	}
@@ -183,7 +183,7 @@ func (s *ProductService) Update(ctx context.Context, id uint, data *product.Upda
 	return nil
 }
 
-func (s *ProductService) Delete(ctx context.Context, id uint) (*product.Product, error) {
+func (s *ProductService) Delete(ctx context.Context, id uint) (product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductDelete); err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (s *ProductService) Delete(ctx context.Context, id uint) (*product.Product,
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := product.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := product.NewDeletedEvent(ctx, entity)
 	if err != nil {
 		return nil, err
 	}

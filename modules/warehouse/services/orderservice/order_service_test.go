@@ -32,24 +32,22 @@ func TestOrderService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	positionEntity := &position.Position{
-		ID:        1,
-		Title:     "Test Position",
-		Barcode:   "1234567890",
-		UnitID:    1,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
+	positionEntity := position.New("Test Position", "1234567890",
+		position.WithID(1),
+		position.WithUnitID(1),
+		position.WithCreatedAt(time.Now()),
+		position.WithUpdatedAt(time.Now()))
 
 	if err := positionRepo.Create(f.Ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
-	domainOrder := order.New(order.TypeIn, order.Pending)
-	if err := domainOrder.AddItem(
+	domainOrder := order.New(order.TypeIn, order.WithStatus(order.Pending))
+	domainOrder, err := domainOrder.AddItem(
 		positionEntity,
-		product.New("EPS:1234567890", 1, product.Approved, positionEntity),
-	); err != nil {
+		product.New("EPS:1234567890", product.InStock, product.WithPosition(positionEntity)),
+	)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -57,7 +55,7 @@ func TestOrderService(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := orderService.Complete(f.Ctx, 1)
+	_, err = orderService.Complete(f.Ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +70,7 @@ func TestOrderService(t *testing.T) {
 	}
 
 	item := orderEntity.Items()[0]
-	if item.Products()[0].Status != product.InStock {
-		t.Fatalf("expected %s, got %s", product.InStock, item.Products()[0].Status)
+	if item.Products()[0].Status() != product.InStock {
+		t.Fatalf("expected %s, got %s", product.InStock, item.Products()[0].Status())
 	}
 }
