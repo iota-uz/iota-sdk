@@ -19,12 +19,12 @@ func NewMultiErrorProcessor(uploadService UploadService, fileReader FileReader) 
 	}
 }
 
-// ValidationErrors holds all validation errors from processing
-type ValidationErrors struct {
+// MultiValidationError holds all validation errors from processing
+type MultiValidationError struct {
 	Errors []error
 }
 
-func (v *ValidationErrors) Error() string {
+func (v *MultiValidationError) Error() string {
 	if len(v.Errors) == 0 {
 		return ""
 	}
@@ -32,12 +32,12 @@ func (v *ValidationErrors) Error() string {
 }
 
 // Add adds an error to the collection
-func (v *ValidationErrors) Add(err error) {
+func (v *MultiValidationError) Add(err error) {
 	v.Errors = append(v.Errors, err)
 }
 
 // HasErrors returns true if there are any errors
-func (v *ValidationErrors) HasErrors() bool {
+func (v *MultiValidationError) HasErrors() bool {
 	return len(v.Errors) > 0
 }
 
@@ -56,7 +56,7 @@ func (p *MultiErrorProcessor) ProcessFileWithAllErrors(ctx context.Context, file
 	}
 
 	// Validate all rows and collect errors
-	validationErrors := &ValidationErrors{}
+	validationErrors := &MultiValidationError{}
 	validRows := make(map[int][]string)
 
 	// Skip header row (index 0)

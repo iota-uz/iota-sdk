@@ -13,6 +13,7 @@ jobs:
               --milvus $MILVUS_ADDRESS \
               --milvus-token $MILVUS_TOKEN \
               --openai-key $OPENAI_API_KEY \
+              --sync \
               --once          # exits after indexing
     env:
       MILVUS_ADDRESS: ${{ secrets.MILVUS_ADDRESS }}

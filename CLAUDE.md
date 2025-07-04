@@ -20,6 +20,7 @@
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
 - Linting translation files: `make check-tr`
+- Linting code: `make lint`
 
 ## Code Style Guidelines
 - Use Go v1.23.2 and follow standard Go idioms

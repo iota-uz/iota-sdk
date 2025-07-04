@@ -19,7 +19,12 @@ func (r *ExcelFileReader) ReadExcelRows(filePath string) ([][]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't fail the operation
+			_ = err // Explicitly ignore the error as it's handled
+		}
+	}()
 
 	sheets := file.GetSheetList()
 	if len(sheets) == 0 {

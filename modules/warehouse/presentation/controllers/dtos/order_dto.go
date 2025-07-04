@@ -59,7 +59,7 @@ func (d *CreateOrderDTO) Ok(ctx context.Context) (map[string]string, bool) {
 
 func (d *UpdateOrderDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	l, ok := intl.UseLocalizer(ctx)
-	if ok {
+	if !ok {
 		panic(intl.ErrNoLocalizer)
 	}
 	errorMessages := map[string]string{}
