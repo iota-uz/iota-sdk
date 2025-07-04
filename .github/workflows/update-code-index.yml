@@ -8,13 +8,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
       - run: |
-          npx -y @code-indexer/mcp@latest \
-              --repo . \
-              --milvus $MILVUS_ADDRESS \
-              --milvus-token $MILVUS_TOKEN \
-              --openai-key $OPENAI_API_KEY \
-              --sync \
-              --once          # exits after indexing
+          npm install @code-indexer/core
+          node .github/scripts/index-codebase.js
     env:
       MILVUS_ADDRESS: ${{ secrets.MILVUS_ADDRESS }}
       MILVUS_TOKEN:   ${{ secrets.MILVUS_TOKEN }}
