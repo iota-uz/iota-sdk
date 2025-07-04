@@ -45,6 +45,20 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@beta
         with:
-          allowed_tools: "Bash(templ:*),Bash(go:*),Bash(make:*),Bash(gh:*),Edit,Replace,NotebookEditCell"
+          allowed_tools: "Bash(templ:*),Bash(go:*),Bash(make:*),Bash(gh:*),Edit,Replace,NotebookEditCell,mcp__context7__resolve-library-id,mcp__context7__get-library-docs,mcp__godoc-mcp__get_doc"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          mcp_config: |
+            {
+              "mcpServers": {
+                "context7": {
+                  "type": "url",
+                  "url": "https://mcp.context7.com/sse",
+                  "name": "context7"
+                },
+                "godoc-mcp": {
+                  "command": "go",
+                  "args": ["run", "github.com/mrjoshuak/godoc-mcp@latest"]
+                }
+              }
+            }
 

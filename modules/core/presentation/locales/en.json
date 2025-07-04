@@ -26,6 +26,11 @@
     "uuid": "{{.Field}} must be a valid UUID",
     "custom": "{{.Field}}: {{.Error}}"
   },
+  "Import": {
+    "Error": {
+      "ValidationError": "Validation Error"
+    }
+  },
   "Filters": {
     "CreatedAt": {
       "AllTime": "All the time",

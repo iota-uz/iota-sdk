@@ -3,6 +3,8 @@ package crud_test
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
@@ -10,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type ReportOption = func(r *report)

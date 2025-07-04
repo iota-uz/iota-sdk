@@ -1,10 +1,11 @@
 package controllers
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"log"
 	"net/http"
 	"path"
+
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/playground"
