@@ -16,7 +16,15 @@ async function indexCodebase() {
     vectorDatabase
   });
   
-  console.log('Starting codebase indexing...');
+  console.log('Starting incremental codebase indexing...');
+  
+  const hasIndex = await indexer.hasIndex('.');
+  if (hasIndex) {
+    console.log('Existing index found, performing incremental sync...');
+  } else {
+    console.log('No existing index found, performing full indexing...');
+  }
+  
   const stats = await indexer.indexCodebase('.', (progress) => {
     console.log(`${progress.phase} - ${progress.percentage}%`);
   });
