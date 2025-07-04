@@ -11,7 +11,6 @@ import (
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	positions2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/positions"
@@ -183,7 +182,7 @@ func (c *PositionsController) HandleUpload(
 
 	if err := excelProcessor.ProcessFileWithAllErrors(r.Context(), dto.FileID, rowHandler); err != nil {
 		// Check if it's a validation errors collection
-		if validationErrors, ok := err.(*importpkg.ValidationErrors); ok {
+		if validationErrors, ok := err.(*importpkg.MultiValidationError); ok {
 			// Create namespaced context for error localization
 			pageCtx := composables.UsePageCtx(r.Context())
 			namespacedPageCtx := pageCtx.Namespace("WarehousePositions.Import")
@@ -549,7 +548,6 @@ func (c *PositionsController) DownloadTemplate(
 	logger *logrus.Entry,
 	localizer *i18n.Localizer,
 ) {
-
 	// Set response headers for Excel file download
 	filename := fmt.Sprintf("warehouse_positions_template_%s.xlsx", time.Now().Format("20060102_150405"))
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -583,7 +581,9 @@ func (c *PositionsController) DownloadTemplate(
 	// Set header row
 	for i, header := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		f.SetCellValue("Sheet1", cell, header)
+		if err := f.SetCellValue("Sheet1", cell, header); err != nil {
+			logger.WithError(err).Error("Failed to set cell value")
+		}
 	}
 
 	// Add sample data (matching the config's ExampleRows)
@@ -598,7 +598,9 @@ func (c *PositionsController) DownloadTemplate(
 	for rowIdx, row := range sampleData {
 		for colIdx, value := range row {
 			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
-			f.SetCellValue("Sheet1", cell, value)
+			if err := f.SetCellValue("Sheet1", cell, value); err != nil {
+				logger.WithError(err).Error("Failed to set cell value")
+			}
 		}
 	}
 
@@ -622,14 +624,18 @@ func (c *PositionsController) DownloadTemplate(
 	if err == nil {
 		for i := range headers {
 			cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-			f.SetCellStyle("Sheet1", cell, cell, headerStyle)
+			if err := f.SetCellStyle("Sheet1", cell, cell, headerStyle); err != nil {
+				logger.WithError(err).Error("Failed to set cell style")
+			}
 		}
 	}
 
 	// Auto-fit columns
 	for i := range headers {
 		col, _ := excelize.ColumnNumberToName(i + 1)
-		f.SetColWidth("Sheet1", col, col, 20)
+		if err := f.SetColWidth("Sheet1", col, col, 20); err != nil {
+			logger.WithError(err).Error("Failed to set column width")
+		}
 	}
 
 	// Write to response
