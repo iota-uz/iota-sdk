@@ -406,10 +406,10 @@ func (c *PositionsController) Search(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	props := mapping.MapViewModels(entities, func(pos *position.Position) *base.ComboboxOption {
+	props := mapping.MapViewModels(entities, func(pos position.Position) *base.ComboboxOption {
 		return &base.ComboboxOption{
-			Value: strconv.FormatUint(uint64(pos.ID), 10),
-			Label: pos.Title,
+			Value: strconv.FormatUint(uint64(pos.ID()), 10),
+			Label: pos.Title(),
 		}
 	})
 	templ.Handler(base.ComboboxOptions(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -475,12 +475,10 @@ func (c *PositionsController) GetNew(
 		return
 	}
 	props := &positions2.CreatePageProps{
-		Errors: map[string]string{},
-		Position: mappers.PositionToViewModel(&position.Position{
-			Unit: &unit.Unit{},
-		}),
-		SaveURL: c.basePath,
-		Units:   unitViewModels,
+		Errors:   map[string]string{},
+		Position: mappers.PositionToViewModel(position.New("", "")),
+		SaveURL:  c.basePath,
+		Units:    unitViewModels,
 	}
 	templ.Handler(positions2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

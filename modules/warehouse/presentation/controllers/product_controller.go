@@ -192,12 +192,18 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 	if err := c.productService.Update(r.Context(), id, dto); err != nil {
 		var vErr serrors.Base
 		if errors.As(err, &vErr) {
-			entity.Rfid = dto.Rfid
+			// Create a new product with the invalid RFID for display purposes
+			entityWithInvalidRfid := product.New(dto.Rfid, entity.Status(),
+				product.WithID(entity.ID()),
+				product.WithTenantID(entity.TenantID()),
+				product.WithPosition(entity.Position()),
+				product.WithCreatedAt(entity.CreatedAt()),
+				product.WithUpdatedAt(entity.UpdatedAt()))
 			props := &products.EditPageProps{
 				Errors: map[string]string{
 					"Rfid": vErr.Localize(localizer),
 				},
-				Product: mappers.ProductToViewModel(entity),
+				Product: mappers.ProductToViewModel(entityWithInvalidRfid),
 			}
 			c.renderTemplate(w, r, products.EditForm(props))
 			return
@@ -211,7 +217,7 @@ func (c *ProductsController) Update(w http.ResponseWriter, r *http.Request) {
 func (c *ProductsController) GetNew(w http.ResponseWriter, r *http.Request) {
 	props := &products.CreatePageProps{
 		Errors:  map[string]string{},
-		Product: mappers.ProductToViewModel(&product.Product{}),
+		Product: mappers.ProductToViewModel(product.New("", product.InStock)),
 		SaveURL: c.basePath,
 	}
 	c.renderTemplate(w, r, products.New(props))
