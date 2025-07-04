@@ -102,10 +102,7 @@ func TestReadonlyFieldsCSS(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.True(t,
-				strings.Contains(cssContent, tc.cssRule),
-				"%s: %s", tc.description, tc.cssRule,
-			)
+			assert.Contains(t, cssContent, tc.cssRule, tc.description)
 		})
 	}
 
