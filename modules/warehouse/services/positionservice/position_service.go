@@ -192,7 +192,8 @@ func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, entity); err != nil {
+	entity, err = s.repo.Create(ctx, entity)
+	if err != nil {
 		return nil, err
 	}
 	createdEvent, err := position.NewCreatedEvent(ctx, *data, entity)
@@ -211,7 +212,8 @@ func (s *PositionService) Update(ctx context.Context, id uint, data *position.Up
 	if err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, entity); err != nil {
+	entity, err = s.repo.Update(ctx, entity)
+	if err != nil {
 		return err
 	}
 	updatedEvent, err := position.NewUpdatedEvent(ctx, *data, entity)
