@@ -39,13 +39,15 @@ func TestErrorFormatting(t *testing.T) {
 	t.Run("Localization_ExcelFormat", func(t *testing.T) {
 		// Create a mock localizer with test messages
 		bundle := i18n.NewBundle(language.English)
-		bundle.AddMessages(language.English, &i18n.Message{
+		if err := bundle.AddMessages(language.English, &i18n.Message{
 			ID:    "ERR_INVALID_CELL",
 			Other: "{{.Col}}:{{.Row}} - This field is required and cannot be empty",
 		}, &i18n.Message{
 			ID:    "Error.ERR_VALIDATION",
 			Other: "{{.Col}}:{{.RowNum}} - {{.Message}} (found value: '{{.Value}}')",
-		})
+		}); err != nil {
+			t.Fatal(err)
+		}
 
 		localizer := i18n.NewLocalizer(bundle, "en")
 
