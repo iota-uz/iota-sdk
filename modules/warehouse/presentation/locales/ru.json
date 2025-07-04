@@ -1,6 +1,5 @@
 {
   "Errors": {
-    "ERR_INVALID_CELL": "Ошибка при обработке ячейки \"{{.Col}}:{{.Row}}\"",
     "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} уже существует",
     "ERR_DUPLICATE_BARCODE": "Артикул {{.Barcode}} уже существует",
     "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Недостаточно продукции на складе",
@@ -61,7 +60,7 @@
         "Title": "Наименования"
       },
       "New": "Новое наименование",
-      "Upload": "Загрузить .xlsx",
+      "Import": "Загрузить .xlsx",
       "Position": "Наименование",
       "Barcode": "Артикул",
       "Unit": "Единица измерения",
@@ -98,23 +97,35 @@
       "DeleteConfirmation": "Вы уверены, что хотите удалить это наименование?",
       "NothingFound": "Ничего не найдено"
     },
-    "Upload": {
+    "Import": {
       "Meta": {
         "Title": "Загрузить .xlsx"
       },
       "Title": "Загрузка наименований",
+      "_Description": "Импорт наименований из Excel файла",
       "Example": {
         "Title": "Загрузка Excel",
         "_Description": "Последовательность ячеек в Excel должна быть следующая:",
         "ItemName": "Наименование",
+        "ItemNameDesc": "Полное наименование товара",
         "ItemCode": "Артикул",
+        "ItemCodeDesc": "Уникальный артикул или код товара",
         "Unit": "Ед. измерения",
+        "UnitDesc": "Единица измерения (например, шт, кг, м)",
         "Quantity": "Кол-во",
+        "QuantityDesc": "Количество товара для импорта",
         "Below": "Ниже приведен пример файла Excel для загрузки"
       },
       "UploadLabel": "Выбрать файл",
       "UploadPlaceholder": "Выберите файл",
-      "Submit": "Загрузить"
+      "Submit": "Загрузить",
+      "DownloadTemplate": "Скачать шаблон",
+      "Error": {
+        "ValidationError": "Обнаружены ошибки валидации",
+        "Issues": "ошибок",
+        "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Это поле обязательно и не может быть пустым",
+        "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (найденное значение: '{{.Value}}')"
+      }
     }
   },
   "WarehouseUnits": {

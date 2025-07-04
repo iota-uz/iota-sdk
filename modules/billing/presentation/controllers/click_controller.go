@@ -2,6 +2,9 @@ package controllers
 
 import (
 	"encoding/json"
+	"log"
+	"net/http"
+
 	"github.com/gorilla/mux"
 	clickapi "github.com/iota-uz/click"
 	clickauth "github.com/iota-uz/click/auth"
@@ -11,8 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"log"
-	"net/http"
 )
 
 type ClickController struct {

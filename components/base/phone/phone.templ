@@ -55,16 +55,16 @@ func formatPhoneDisplay(phoneStr string, style DisplayStyle) string {
 	if phoneStr == "" {
 		return ""
 	}
-	
+
 	if style == StyleParentheses {
 		return phone.FormatString(phoneStr)
 	}
-	
+
 	phoneObj, err := phone.NewFromE164(phoneStr)
 	if err != nil {
 		return phoneStr
 	}
-	
+
 	phoneStyle := toPhoneDisplayStyle(style)
 	return phone.FormatWithStyle(phoneObj, phoneStyle)
 }

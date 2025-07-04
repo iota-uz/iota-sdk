@@ -1,10 +1,11 @@
 package persistence_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -156,6 +156,34 @@ func (s *PositionService) UpdateWithFile(ctx context.Context, fileID uint) error
 	return s.LoadFromFilePath(ctx, uploadEntity.Path())
 }
 
+// CreatePositionFromXlsRow creates a position from a single Excel row
+func (s *PositionService) CreatePositionFromXlsRow(ctx context.Context, xlsRow *XlsRow) error {
+	// Find or create unit
+	unitEntity, err := s.findOrCreateUnit(ctx, xlsRow.Unit)
+	if err != nil {
+		return err
+	}
+
+	// Check if position already exists
+	entity, err := s.repo.GetByBarcode(ctx, xlsRow.Barcode)
+	if err != nil && !errors.Is(err, persistence.ErrPositionNotFound) {
+		return err
+	}
+
+	if errors.Is(err, persistence.ErrPositionNotFound) {
+		// Create new position
+		return s.createPosition(ctx, xlsRow, unitEntity.ID)
+	} else {
+		// Update existing position
+		pos := &position.UpdateDTO{
+			Title:   xlsRow.Title,
+			UnitID:  unitEntity.ID,
+			Barcode: xlsRow.Barcode,
+		}
+		return s.Update(ctx, entity.ID, pos)
+	}
+}
+
 func (s *PositionService) Create(ctx context.Context, data *position.CreateDTO) (*position.Position, error) {
 	if err := composables.CanUser(ctx, permissions.PositionCreate); err != nil {
 		return nil, err

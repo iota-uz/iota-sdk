@@ -3,6 +3,12 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"math"
+	"net/http"
+	"sort"
+	"time"
+
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
@@ -11,11 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	paymeapi "github.com/iota-uz/payme"
 	paymeauth "github.com/iota-uz/payme/auth"
-	"log"
-	"math"
-	"net/http"
-	"sort"
-	"time"
 )
 
 type PaymeController struct {
