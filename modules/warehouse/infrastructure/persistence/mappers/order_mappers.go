@@ -41,7 +41,11 @@ func ToDomainOrder(dbOrder *models.WarehouseOrder) (order.Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	orderEntity := order.NewWithID(dbOrder.ID, orderType, status, dbOrder.CreatedAt)
-	orderEntity.SetTenantID(tenantID)
+	orderEntity := order.New(orderType,
+		order.WithID(dbOrder.ID),
+		order.WithTenantID(tenantID),
+		order.WithStatus(status),
+		order.WithCreatedAt(dbOrder.CreatedAt),
+	)
 	return orderEntity, nil
 }
