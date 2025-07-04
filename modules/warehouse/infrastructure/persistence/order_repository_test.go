@@ -35,7 +35,7 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 		position.WithUnitID(1),
 		position.WithCreatedAt(time.Now()),
 		position.WithUpdatedAt(time.Now()))
-	if err := positionRepository.Create(f.Ctx, positionEntity); err != nil {
+	if _, err := positionRepository.Create(f.Ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 

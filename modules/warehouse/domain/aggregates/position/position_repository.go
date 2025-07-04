@@ -26,8 +26,8 @@ type Repository interface {
 	GetByID(ctx context.Context, id uint) (Position, error)
 	GetByIDs(ctx context.Context, ids []uint) ([]Position, error)
 	GetByBarcode(ctx context.Context, barcode string) (Position, error)
-	Create(ctx context.Context, data Position) error
-	CreateOrUpdate(ctx context.Context, data Position) error
-	Update(ctx context.Context, data Position) error
+	Create(ctx context.Context, data Position) (Position, error)
+	CreateOrUpdate(ctx context.Context, data Position) (Position, error)
+	Update(ctx context.Context, data Position) (Position, error)
 	Delete(ctx context.Context, id uint) error
 }
