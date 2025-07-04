@@ -209,6 +209,43 @@ Try running:
 make tunnel
 ```
 
+## 🤖 Using AI
+
+### Claude Code Setup
+
+1. **Install Claude Code**:
+   ```bash
+   npm install -g @anthropic-ai/claude-code
+   ```
+   
+   See [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code/overview) for more details.
+
+2. **Add MCP servers**:
+   ```bash
+   # Context7 (documentation and API references)
+   claude mcp add -s user --transport http context7 https://mcp.context7.com/mcp
+
+   # Puppeteer (browser automation)
+   claude mcp add -s user puppeteer -e 'PUPPETEER_LAUNCH_OPTIONS={"headless":false,"args":["--remote-debugging-port=9222","--remote-debugging-address=127.0.0.1","--user-data-dir=/tmp/mcp-profile","--no-sandbox","--disable-setuid-sandbox"]}' -- npx -y puppeteer-mcp-server@0.7.2 --stdio
+
+   # Go documentation (install first)
+   go install github.com/mrjoshuak/godoc-mcp@latest
+   claude mcp add -s user godoc-mcp $(go env GOPATH)/bin/godoc-mcp
+   ```
+
+3. **Usage**:
+   ```bash
+   # List configured MCP servers
+   claude mcp list
+   
+   # Start Claude Code (MCP auto-enabled)
+   claude
+   ```
+
+### Code Indexing
+
+The repository uses automated code indexing for semantic search. When you push changes, the GitHub Actions workflow automatically indexes the codebase using the `@code-indexer/core` package with OpenAI embeddings.
+
 ## 🤝 Communication Guidelines
 
 Contributors should close conversations when complete. Reviewers may reopen if needed.

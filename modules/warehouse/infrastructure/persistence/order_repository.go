@@ -405,12 +405,17 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 		orders = append(orders, domainOrder)
 	}
 
-	for _, domainOrder := range orders {
+	for i, domainOrder := range orders {
+		tenantID, err := composables.UseTenantID(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+		}
 		domainProducts, err := g.queryProducts(ctx,
 			repo.Join(
 				selectOrderProductsQuery,
-				"WHERE wp.id IN (SELECT warehouse_product_id FROM warehouse_order_items WHERE warehouse_order_id = $1)",
+				"WHERE wp.tenant_id = $1 AND wp.id IN (SELECT warehouse_product_id FROM warehouse_order_items WHERE warehouse_order_id = $2)",
 			),
+			tenantID,
 			domainOrder.ID(),
 		)
 		if err != nil {
@@ -422,6 +427,7 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 				return nil, err
 			}
 		}
+		orders[i] = domainOrder
 	}
 
 	if err := rows.Err(); err != nil {

@@ -61,7 +61,7 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 
 	for range b.N {
 		b.StartTimer()
-		if err := positionRepository.Create(
+		if _, err := positionRepository.Create(
 			f.Ctx,
 			position.New("Position 1", random.String(13, random.LowerCharSet),
 				position.WithID(1),
@@ -115,7 +115,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := positionRepository.Create(
+	if _, err := positionRepository.Create(
 		f.Ctx, position.New("Position 1", "3141592653589",
 			position.WithID(1),
 			position.WithUnitID(1),
@@ -142,7 +142,7 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Update", func(t *testing.T) {
-			if err := positionRepository.Update(
+			if _, err := positionRepository.Update(
 				f.Ctx,
 				position.New("Updated Position 1", "3141592653589",
 					position.WithID(1),
