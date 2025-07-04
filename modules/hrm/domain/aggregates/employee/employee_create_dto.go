@@ -122,6 +122,21 @@ func (d *CreateDTO) ToEntity() (Employee, error) {
 	if err != nil {
 		return nil, err
 	}
+	var opts []Option
+	if d.AvatarID != 0 {
+		opts = append(opts, WithAvatarID(d.AvatarID))
+	}
+	if d.Notes != "" {
+		opts = append(opts, WithNotes(d.Notes))
+	}
+	if !time.Time(d.ResignationDate).IsZero() {
+		resignationDate := time.Time(d.ResignationDate)
+		opts = append(opts, WithResignationDate(&resignationDate))
+	}
+	if !time.Time(d.BirthDate).IsZero() {
+		opts = append(opts, WithBirthDate(time.Time(d.BirthDate)))
+	}
+
 	return New(
 		d.FirstName,
 		d.LastName,
@@ -133,8 +148,6 @@ func (d *CreateDTO) ToEntity() (Employee, error) {
 		pin,
 		NewLanguage(d.PrimaryLanguage, d.SecondaryLanguage),
 		time.Time(d.HireDate),
-		(*time.Time)(&d.ResignationDate),
-		0,
-		"",
-	)
+		opts...,
+	), nil
 }
