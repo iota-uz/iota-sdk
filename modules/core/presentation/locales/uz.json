@@ -26,6 +26,11 @@
     "len": "Uzunligi {0} ga teng bo'lishi kerak",
     "gt": "{0} dan katta bo'lishi kerak"
   },
+  "Import": {
+    "Error": {
+      "ValidationError": "Tekshirish xatosi"
+    }
+  },
   "Filters": {
     "CreatedAt": {
       "AllTime": "Barcha vaqt",

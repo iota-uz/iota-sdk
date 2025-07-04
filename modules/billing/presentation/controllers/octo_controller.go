@@ -3,6 +3,9 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"net/http"
+
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
@@ -12,8 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	octoapi "github.com/iota-uz/octo"
 	octoauth "github.com/iota-uz/octo/auth"
-	"log"
-	"net/http"
 )
 
 type OctoController struct {

@@ -3,10 +3,11 @@ package crud
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"strings"
 )
 
 type SortBy = repo.SortBy[string]

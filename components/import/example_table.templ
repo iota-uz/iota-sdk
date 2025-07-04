@@ -1,0 +1,40 @@
+package importcomponents
+
+import "strconv"
+
+templ ExampleTable(props *ImportPageProps) {
+	{{ columns := props.Config.GetColumns() }}
+	{{ exampleRows := props.Config.GetExampleRows() }}
+	<div class="overflow-x-auto">
+		<table class="table-auto border-collapse border border-gray-300 w-full text-sm">
+			<thead>
+				<tr>
+					<th class="border border-gray-300 bg-gray-100"></th>
+					for i := range columns {
+						<th class="border border-gray-300 px-4 py-2 bg-gray-100 text-center font-semibold">
+							{ string(rune('A' + i)) }
+						</th>
+					}
+				</tr>
+				<tr class="bg-gray-200 text-left">
+					<th class="border border-gray-300 px-4 py-2 text-center bg-gray-100">1</th>
+					for _, column := range columns {
+						<th class="border border-gray-300 px-4 py-2">
+							{ column.Header }
+						</th>
+					}
+				</tr>
+			</thead>
+			<tbody>
+				for rowIndex, row := range exampleRows {
+					<tr>
+						<td class="border border-gray-300 px-4 py-2 text-center bg-gray-100 font-semibold">{ strconv.Itoa(rowIndex + 2) }</td>
+						for _, cell := range row {
+							<td class="border border-gray-300 px-4 py-2">{ cell }</td>
+						}
+					</tr>
+				}
+			</tbody>
+		</table>
+	</div>
+}

@@ -2,10 +2,11 @@ package evaluation
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 )
 
 // Evaluator evaluates dashboard configurations into renderable structures
