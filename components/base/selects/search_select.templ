@@ -56,6 +56,8 @@ templ SearchSelect(props *SearchSelectProps) {
 			@input.debounce.300ms="fetchResults"
 			@focus="open = true"
 			class="border p-2 w-full mt-1"
+			disabled?={ p.Attrs["readonly"] == true || p.Attrs["disabled"] == true }
+			{ props.Attrs... }
 		/>
 		<input type="hidden" x-model="selectedId" name={ props.Name }/>
 		<ul
