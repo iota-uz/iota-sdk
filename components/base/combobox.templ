@@ -75,9 +75,9 @@ templ SelectedValues() {
 
 // helper to know if combobox should be disabled
 func isDisabled(props ComboboxProps) bool {
-    return props.Disabled ||
-           props.Attrs["readonly"] == true ||
-           props.Attrs["disabled"] == true
+	return props.Disabled ||
+		props.Attrs["readonly"] == true ||
+		props.Attrs["disabled"] == true
 }
 
 templ Combobox(props ComboboxProps) {
