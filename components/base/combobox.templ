@@ -74,7 +74,11 @@ templ SelectedValues() {
 }
 
 // helper to know if combobox should be disabled
-{{ isDisabled := func(p *ComboboxProps) bool { return p.Disabled || p.Attrs["readonly"] == true || p.Attrs["disabled"] == true } }}
+func isDisabled(props ComboboxProps) bool {
+    return props.Disabled ||
+           props.Attrs["readonly"] == true ||
+           props.Attrs["disabled"] == true
+}
 
 templ Combobox(props ComboboxProps) {
 	<div
@@ -96,7 +100,7 @@ templ Combobox(props ComboboxProps) {
 			:id="$id('combobox')"
 			multiple?={ props.Multiple }
 			name={ props.Name }
-			disabled?={ isDisabled(&props) }
+			disabled?={ isDisabled(props) }
 			if props.Form != "" {
 				form={ props.Form }
 			}
