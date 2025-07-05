@@ -233,7 +233,9 @@ make tunnel
    claude mcp add -s user godoc-mcp $(go env GOPATH)/bin/godoc-mcp
    
    # Code Indexer (semantic code search)
-   claude mcp add code-indexer -e OPENAI_API_KEY=your-openai-api-key -e MILVUS_ADDRESS=https://in03-2c743230eb1daa2.serverless.gcp-us-west1.cloud.zilliz.com -e MILVUS_TOKEN=your-milvus-token -- npx @code-indexer/mcp@latest
+   # Requires OPENAI_API_KEY and MILVUS_TOKEN environment variables
+   # Contact team lead for MILVUS_TOKEN if you don't have it
+   claude mcp add code-indexer -e OPENAI_API_KEY=$OPENAI_API_KEY -e MILVUS_ADDRESS=https://in03-2c743230eb1daa2.serverless.gcp-us-west1.cloud.zilliz.com -e MILVUS_TOKEN=$MILVUS_TOKEN -- npx @code-indexer/mcp@latest
    ```
 
 3. **Usage**:
