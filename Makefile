@@ -93,8 +93,12 @@ build-docker-prod:
 tunnel:
 	cloudflared tunnel --url http://localhost:3200 --loglevel debug
 
+# Run development tools TUI
+devtools:
+	go run cmd/devhub/main.go
+
 # Prevents make from treating the argument as an undefined target
 %:
 	@:
 
-.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup run-iota-linter clean-iota-linter collect-migrations docs seed
+.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup run-iota-linter clean-iota-linter collect-migrations docs seed devtools
