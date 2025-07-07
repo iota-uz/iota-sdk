@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/iota-uz/iota-sdk/pkg/devhub"
 )
@@ -18,7 +21,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := hub.Run(); err != nil {
+	// Create a context that cancels on interrupt signal
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle interrupt signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		cancel()
+	}()
+
+	if err := hub.Run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running DevHub: %v\n", err)
 		os.Exit(1)
 	}
