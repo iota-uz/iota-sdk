@@ -1,23 +1,40 @@
-services:
-  - name: "Dev Server"
-    description: "Development server (Air)"
-    port: "3200"
-    command: "air"
-    args: ["-c", ".air.toml"]
-  - name: "Templ Watcher"
-    description: "Template file watcher"
-    command: "templ"
-    args: ["generate", "--watch"]
-  - name: "CSS Watcher"
-    description: "CSS file watcher"
-    command: "tailwindcss"
-    args: ["-c", "tailwind.config.js", "-i", "modules/core/presentation/assets/css/main.css", "-o", "modules/core/presentation/assets/css/main.min.css", "--minify", "--watch"]
-  - name: "PostgreSQL"
-    description: "Local PostgreSQL database"
-    port: "5432"
-    command: "docker"
-    args: ["compose", "-f", "compose.dev.yml", "up", "db"]
-  - name: "Cloudflare Tunnel"
-    description: "Cloudflare tunnel for local development"
-    command: "cloudflared"
-    args: ["tunnel", "--url", "http://localhost:3200", "--loglevel", "debug"]
+# DevHub Configuration
+# Simple, clean format with sensible defaults
+
+postgres:
+  desc: Database container
+  port: 5432
+  run: docker compose -f compose.dev.yml up db
+  health:
+    tcp: 5432
+    wait: 20s
+
+server:
+  desc: Hot-reload Go app
+  port: 3200
+  run: air -c .air.toml
+  needs: [postgres]
+  health:
+    http: http://localhost:3200/health
+    wait: 10s
+  os:
+    windows: air.exe -c .air.toml
+
+templ:
+  desc: Auto-compile templates
+  run: templ generate --watch
+  os:
+    windows: templ.exe generate --watch
+
+css:
+  desc: Build Tailwind CSS
+  run: tailwindcss -c tailwind.config.js -i modules/core/presentation/assets/css/main.css -o modules/core/presentation/assets/css/main.min.css --minify --watch
+  os:
+    windows: tailwindcss.exe -c tailwind.config.js -i modules/core/presentation/assets/css/main.css -o modules/core/presentation/assets/css/main.min.css --minify --watch
+
+tunnel:
+  desc: Cloudflare tunnel
+  run: cloudflared tunnel --url http://localhost:3200 --loglevel debug
+  needs: [server]
+  os:
+    windows: cloudflared.exe tunnel --url http://localhost:3200 --loglevel debug
