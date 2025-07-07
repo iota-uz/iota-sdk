@@ -1,6 +1,9 @@
 package crud
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 // SelectType defines how the select field behaves in the UI
 type SelectType string
@@ -66,6 +69,8 @@ type selectField struct {
 	selectType    SelectType
 	options       []SelectOption
 	optionsLoader func(ctx context.Context) []SelectOption
+	cachedOptions []SelectOption
+	optionsOnce   sync.Once
 	endpoint      string
 	placeholder   string
 	multiple      bool
@@ -121,7 +126,12 @@ func (f *selectField) OptionsLoader() func(ctx context.Context) []SelectOption {
 
 // SetOptionsLoader sets a function to dynamically load options
 func (f *selectField) SetOptionsLoader(loader func(ctx context.Context) []SelectOption) SelectField {
-	f.optionsLoader = loader
+	f.optionsLoader = func(ctx context.Context) []SelectOption {
+		f.optionsOnce.Do(func() {
+			f.cachedOptions = loader(ctx)
+		})
+		return f.cachedOptions
+	}
 	return f
 }
 
