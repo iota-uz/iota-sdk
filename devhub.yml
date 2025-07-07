@@ -1,0 +1,23 @@
+services:
+  - name: "Dev Server"
+    description: "Development server (Air)"
+    port: "3200"
+    command: "air"
+    args: ["-c", ".air.toml"]
+  - name: "Templ Watcher"
+    description: "Template file watcher"
+    command: "templ"
+    args: ["generate", "--watch"]
+  - name: "CSS Watcher"
+    description: "CSS file watcher"
+    command: "tailwindcss"
+    args: ["-c", "tailwind.config.js", "-i", "modules/core/presentation/assets/css/main.css", "-o", "modules/core/presentation/assets/css/main.min.css", "--minify", "--watch"]
+  - name: "PostgreSQL"
+    description: "Local PostgreSQL database"
+    port: "5432"
+    command: "docker"
+    args: ["compose", "-f", "compose.dev.yml", "up", "db"]
+  - name: "Cloudflare Tunnel"
+    description: "Cloudflare tunnel for local development"
+    command: "cloudflared"
+    args: ["tunnel", "--url", "http://localhost:3200", "--loglevel", "debug"]
