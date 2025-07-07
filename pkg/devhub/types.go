@@ -5,47 +5,27 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/iota-uz/iota-sdk/pkg/devhub/services"
 )
-
-type ServiceStatus int
-
-const (
-	StatusStopped ServiceStatus = iota
-	StatusStarting
-	StatusRunning
-	StatusStopping
-	StatusError
-)
-
-func (s ServiceStatus) String() string {
-	switch s {
-	case StatusStopped:
-		return "Stopped"
-	case StatusStarting:
-		return "Starting"
-	case StatusRunning:
-		return "Running"
-	case StatusStopping:
-		return "Stopping"
-	case StatusError:
-		return "Error"
-	default:
-		return "Unknown"
-	}
-}
 
 type ServiceInfo struct {
-	Name        string
-	Description string
-	Status      ServiceStatus
-	Port        string
-	LastUpdate  time.Time
-	ErrorMsg    string
+	Name         string
+	Description  string
+	Status       services.ServiceStatus
+	Port         string
+	LastUpdate   time.Time
+	ErrorMsg     string
+	PID          int
+	StartTime    *time.Time
+	CPUPercent   float64
+	MemoryMB     float64
+	HealthStatus services.HealthStatus
+	DependsOn    []string
 }
 
 type StatusUpdateMsg struct {
 	ServiceName string
-	Status      ServiceStatus
+	Status      services.ServiceStatus
 	ErrorMsg    string
 }
 
@@ -56,7 +36,8 @@ type BatchStatusUpdateMsg struct {
 type TickMsg time.Time
 
 func tickCmd() tea.Cmd {
-	return tea.Tick(time.Millisecond*80, func(t time.Time) tea.Msg {
+	// Faster frequency for spinner animation
+	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return TickMsg(t)
 	})
 }
@@ -68,30 +49,62 @@ const (
 	LogView
 )
 
+// UIState manages UI-specific state
+type UIState struct {
+	Width         int
+	Height        int
+	SelectedIndex int
+	ViewMode      ViewMode
+	Spinner       spinner.Model
+	SpinnerFrame  int
+}
+
+// LogViewState manages log view specific state
+type LogViewState struct {
+	ServiceIndex int // Index of the service whose logs are being viewed
+	ScrollPos    int
+	AutoScroll   bool     // Whether to auto-scroll to bottom of logs
+	Lines        []string // Cached parsed log lines for efficiency
+}
+
+// SearchState manages search functionality
+type SearchState struct {
+	Active       bool
+	Query        string
+	Matches      []int // Indices of lines that match the search
+	CurrentMatch int   // Current match index for navigation
+}
+
+// SystemStats holds system-wide resource usage
+type SystemStats struct {
+	CPUPercent    float64
+	MemoryMB      float64
+	MemoryPercent float64
+}
+
 type Model struct {
-	Services         []ServiceInfo
-	SelectedIndex    int
-	Width            int
-	Height           int
-	ServiceManager   *ServiceManager
-	Spinner          spinner.Model
-	SpinnerFrame     int
-	ViewMode         ViewMode
-	LogViewService   int // Index of the service whose logs are being viewed
-	LogViewScrollPos int
-	AutoScroll       bool     // Whether to auto-scroll to bottom of logs
-	LogLines         []string // Cached parsed log lines for efficiency
-	// Search-related fields
-	SearchMode    bool
-	SearchQuery   string
-	SearchMatches []int // Indices of lines that match the search
-	CurrentMatch  int   // Current match index for navigation
+	// Core business logic
+	Services       []ServiceInfo
+	ServiceManager *ServiceManager
+	StateManager   *StateManager
+
+	// UI state
+	UI UIState
+
+	// View-specific states
+	LogView LogViewState
+	Search  SearchState
+
+	// Performance optimizations
+	LogCache *LogCache
+
+	// System-wide stats
+	SystemStats SystemStats
 }
 
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tickCmd(),
-		m.ServiceManager.StartMonitoring(),
-		m.Spinner.Tick,
+		m.UI.Spinner.Tick,
 	)
 }

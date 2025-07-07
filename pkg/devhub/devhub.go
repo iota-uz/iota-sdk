@@ -1,6 +1,8 @@
 package devhub
 
 import (
+	"context"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -8,7 +10,8 @@ import (
 
 // NewDevHub creates a new DevHub instance with all configured services
 func NewDevHub(configPath string) (*Model, error) {
-	serviceManager, err := NewServiceManager(configPath)
+	loader := NewFileConfigLoader(configPath)
+	serviceManager, err := NewServiceManager(loader)
 	if err != nil {
 		return nil, err
 	}
@@ -17,21 +20,49 @@ func NewDevHub(configPath string) (*Model, error) {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	// Create state manager for async updates
+	stateManager := NewStateManager(serviceManager)
+	stateManager.Start()
+
 	return &Model{
-		Services:       serviceManager.GetServices(),
-		SelectedIndex:  0,
+		Services:       stateManager.GetServices(),
 		ServiceManager: serviceManager,
-		Spinner:        s,
+		StateManager:   stateManager,
+		UI: UIState{
+			SelectedIndex: 0,
+			Spinner:       s,
+			ViewMode:      ServiceView,
+		},
+		LogView: LogViewState{
+			AutoScroll: true,
+		},
+		Search: SearchState{
+			Active: false,
+		},
+		LogCache: NewLogCache(),
 	}, nil
 }
 
 // Run starts the DevHub TUI interface
-func (m *Model) Run() error {
+func (m *Model) Run(ctx context.Context) error {
+	// Create cancellable context for the program
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Handle context cancellation
+	go func() {
+		<-runCtx.Done()
+		m.StateManager.Stop()
+		m.ServiceManager.Shutdown()
+	}()
+
 	p := tea.NewProgram(*m, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		return err
 	}
 
+	m.StateManager.Stop()
+	m.ServiceManager.Shutdown()
 	return nil
 }
