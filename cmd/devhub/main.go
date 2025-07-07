@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -8,10 +9,17 @@ import (
 )
 
 func main() {
-	hub := devhub.NewDevHub()
-	
+	configPath := flag.String("config", "devhub.yml", "Path to the devhub.yml config file")
+	flag.Parse()
+
+	hub, err := devhub.NewDevHub(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating DevHub: %v\n", err)
+		os.Exit(1)
+	}
+
 	if err := hub.Run(); err != nil {
-		fmt.Printf("Error running DevHub: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error running DevHub: %v\n", err)
 		os.Exit(1)
 	}
 }
