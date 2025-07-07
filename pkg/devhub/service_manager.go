@@ -2,10 +2,13 @@ package devhub
 
 import (
 	"context"
+	"os"
 	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"gopkg.in/yaml.v3"
+
 	"github.com/iota-uz/iota-sdk/pkg/devhub/services"
 )
 
@@ -16,20 +19,45 @@ type ServiceManager struct {
 	cancel   context.CancelFunc
 }
 
-func NewServiceManager() *ServiceManager {
+func NewServiceManager(configPath string) (*ServiceManager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &ServiceManager{
-		services: []services.Service{
-			services.NewDevServerService(),
-			services.NewTemplWatcherService(),
-			services.NewCSSWatcherService(),
-			services.NewPostgresService(),
-			services.NewTunnelService(),
-		},
-		ctx:    ctx,
-		cancel: cancel,
+	cfg, err := loadConfig(configPath)
+	if err != nil {
+		cancel()
+		return nil, err
 	}
+
+	serviceList := make([]services.Service, 0, len(cfg.Services))
+	for _, srvCfg := range cfg.Services {
+		serviceList = append(serviceList, services.NewCmdService(
+			srvCfg.Name,
+			srvCfg.Description,
+			srvCfg.Port,
+			srvCfg.Command,
+			srvCfg.Args,
+		))
+	}
+
+	return &ServiceManager{
+		services: serviceList,
+		ctx:      ctx,
+		cancel:   cancel,
+	}, nil
+}
+
+func loadConfig(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
 }
 
 func (sm *ServiceManager) GetServices() []ServiceInfo {
@@ -57,6 +85,17 @@ func (sm *ServiceManager) GetServices() []ServiceInfo {
 	return infos
 }
 
+func (sm *ServiceManager) Logs(index int) []byte {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	if index < 0 || index >= len(sm.services) {
+		return nil
+	}
+
+	return sm.services[index].Logs()
+}
+
 func (sm *ServiceManager) ToggleService(index int) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
@@ -73,6 +112,17 @@ func (sm *ServiceManager) ToggleService(index int) error {
 	return service.Start(sm.ctx)
 }
 
+func (sm *ServiceManager) ClearLogs(index int) {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	if index < 0 || index >= len(sm.services) {
+		return
+	}
+
+	sm.services[index].ClearLogs()
+}
+
 func (sm *ServiceManager) StartMonitoring() tea.Cmd {
 	return func() tea.Msg {
 		ticker := time.NewTicker(time.Second)
@@ -83,14 +133,17 @@ func (sm *ServiceManager) StartMonitoring() tea.Cmd {
 			case <-sm.ctx.Done():
 				return nil
 			case <-ticker.C:
+				// Return a batch update for all services
 				services := sm.GetServices()
-				for _, service := range services {
-					return StatusUpdateMsg{
+				updates := make([]StatusUpdateMsg, len(services))
+				for i, service := range services {
+					updates[i] = StatusUpdateMsg{
 						ServiceName: service.Name,
 						Status:      service.Status,
 						ErrorMsg:    service.ErrorMsg,
 					}
 				}
+				return BatchStatusUpdateMsg{Updates: updates}
 			}
 		}
 	}
@@ -105,7 +158,7 @@ func (sm *ServiceManager) Shutdown() {
 	for _, service := range sm.services {
 		if service.IsRunning() {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			service.Stop(ctx)
+			_ = service.Stop(ctx)
 			cancel()
 		}
 	}
