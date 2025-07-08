@@ -97,6 +97,23 @@ Ensure these tools are installed before you begin:
      - Password: `TestPass123!`
    - GraphQL: [http://localhost:3200/query](http://localhost:3200/query)
 
+### Development Tools Manager
+
+For a more convenient development experience, use the DevHub TUI tool to manage all development services from a single interface:
+
+```bash
+make devtools
+```
+
+The DevHub allows you to:
+- Start/stop the development server
+- Toggle template file watching (`templ generate --watch`)
+- Toggle CSS file watching (TailwindCSS watch mode)
+- Manage local PostgreSQL database
+- Start/stop Cloudflare tunnel
+
+Navigate with arrow keys, toggle services with Space/Enter, and quit with 'q'.
+
 ## 🧪 Running Tests
 
 To run end-to-end Cypress tests:
