@@ -97,8 +97,16 @@ tunnel:
 devtools:
 	go run cmd/devhub/main.go
 
+# Build devhub CLI locally
+devhub:
+	go build -ldflags="-s -w -X main.version=$${VERSION:-dev} -X main.commit=$${COMMIT:-$$(git rev-parse --short HEAD)} -X main.date=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o bin/devhub cmd/devhub/main.go
+
+# Install devhub using go install
+devhub-install:
+	go install ./cmd/devhub
+
 # Prevents make from treating the argument as an undefined target
 %:
 	@:
 
-.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup run-iota-linter clean-iota-linter collect-migrations docs seed devtools
+.PHONY: default deps test test-watch localdb clear-localdb reset-localdb migrate-up migrate-down dev css-watch css lint release release-local clean setup run-iota-linter clean-iota-linter collect-migrations docs seed devtools devhub devhub-install
