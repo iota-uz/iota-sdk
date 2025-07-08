@@ -113,6 +113,48 @@ os:
   windows: my-tool.exe              # Windows
 ```
 
+## Installation
+
+### Using go install
+
+Install DevHub using Go's built-in install command:
+
+```bash
+go install github.com/iota-uz/iota-sdk/cmd/devhub@latest
+```
+
+This will install the `devhub` binary to your `$GOPATH/bin` directory. Make sure `$GOPATH/bin` is in your `PATH`.
+
+### From Source
+
+```bash
+# Clone the repository
+git clone https://github.com/iota-uz/iota-sdk.git
+cd iota-sdk
+
+# Build the binary
+make devhub
+
+# Install locally
+make devhub-install
+```
+
+## Usage
+
+```bash
+# Run with default config file (devhub.yml in current directory)
+devhub
+
+# Run with custom config file
+devhub --config /path/to/devhub.yml
+
+# Show version information
+devhub --version
+
+# Set log level
+devhub --log-level debug
+```
+
 ## How It Works
 
 DevHub is composed of several core components that work together to provide a seamless experience:
