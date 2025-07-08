@@ -59,7 +59,7 @@ migrate:
 
 # Compile TailwindCSS (with watch)
 css-watch:
-	npx tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify --watch
+	tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify --watch
 
 # Compile TailwindCSS (without watch)
 css:
