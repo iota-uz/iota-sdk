@@ -1,0 +1,35 @@
+package importcomponents
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+templ ImportFormFields(props *ImportPageProps) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	{{ config := props.Config }}
+	<div class="mt-6">
+		@components.UploadInput(&components.UploadInputProps{
+			Label:       pgCtx.T("UploadLabel"),
+			Placeholder: pgCtx.T("UploadPlaceholder"),
+			Error:       props.Errors["FileID"],
+			Accept:      config.GetAcceptedFileTypes(),
+			Name:        "FileID",
+			Class:       "col-span-3",
+			Form:        "import-form",
+		})
+	</div>
+}
+
+templ DownloadTemplateButton(downloadURL string) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	@button.Secondary(button.Props{
+		Size: button.SizeNormal,
+		Icon: icons.FileXls(icons.Props{Size: "18"}),
+		Href: downloadURL,
+	}) {
+		{ pgCtx.T("DownloadTemplate") }
+	}
+}

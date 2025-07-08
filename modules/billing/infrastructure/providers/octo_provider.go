@@ -3,12 +3,13 @@ package providers
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	octoapi "github.com/iota-uz/octo"
-	"log"
-	"net/http"
 )
 
 type OctoConfig struct {

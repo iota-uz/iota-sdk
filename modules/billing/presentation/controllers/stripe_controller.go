@@ -3,6 +3,12 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log"
+	"net/http"
+	"strings"
+	"sync"
+
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
@@ -11,11 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/stripe/stripe-go/v82"
 	"github.com/stripe/stripe-go/v82/webhook"
-	"io"
-	"log"
-	"net/http"
-	"strings"
-	"sync"
 )
 
 type StripeController struct {

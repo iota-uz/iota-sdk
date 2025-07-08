@@ -13,7 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +27,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	)
 
 	//t.Run("displays labels in list view", func(t *testing.T) {
-	//	suite := controllertest.New(t, core.NewModule()).
+	//	suite := itf.HTTP(t, core.NewModule()).
 	//		AsUser(testUser)
 	//	// Create schema with select fields
 	//	fields := crud.NewFields([]crud.Field{
@@ -133,7 +133,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	//})
 
 	t.Run("displays labels in details view", func(t *testing.T) {
-		suite := controllertest.New(t, core.NewModule()).
+		suite := itf.HTTP(t, core.NewModule()).
 			AsUser(testUser)
 		// Create schema with select fields
 		fields := crud.NewFields([]crud.Field{
@@ -203,7 +203,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("handles dynamic options loader", func(t *testing.T) {
-		suite := controllertest.New(t, core.NewModule()).
+		suite := itf.HTTP(t, core.NewModule()).
 			AsUser(testUser)
 		// Create schema with dynamic select field
 		fields := crud.NewFields([]crud.Field{
@@ -260,7 +260,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	})
 
 	t.Run("displays raw value when no matching option", func(t *testing.T) {
-		suite := controllertest.New(t, core.NewModule()).
+		suite := itf.HTTP(t, core.NewModule()).
 			AsUser(testUser)
 		// Create schema with select fields
 		fields := crud.NewFields([]crud.Field{

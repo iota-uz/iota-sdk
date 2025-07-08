@@ -71,7 +71,7 @@ var PhoneCodeToCountry = map[string][]AreaCode{
 		{Country: country.SaintVincentAndTheGrenadines, AreaCodes: []string{"784"}, CodeLength: 10},
 	},
 	"7": {
-		{Country: country.Russia, AreaCodes: []string{"3", "4", "8", "9"}, CodeLength: 11},
+		{Country: country.Russia, AreaCodes: []string{"903", "904", "905", "906", "908", "909", "910", "911", "912", "913", "914", "915", "916", "917", "918", "919", "920", "921", "922", "923", "924", "925", "926", "927", "928", "929", "930", "931", "932", "933", "934", "936", "937", "938", "939", "950", "951", "952", "953", "954", "955", "956", "958", "960", "961", "962", "963", "964", "965", "966", "967", "968", "969", "970", "971", "977", "978", "980", "981", "982", "983", "984", "985", "986", "987", "988", "989", "991", "992", "993", "994", "995", "996", "997", "999"}, CodeLength: 11},
 		{Country: country.Kazakhstan, AreaCodes: []string{"6", "7"}, CodeLength: 11},
 	},
 	"20":  {{Country: country.Egypt, CodeLength: 10}},

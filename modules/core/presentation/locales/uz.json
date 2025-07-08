@@ -26,6 +26,11 @@
     "len": "Uzunligi {0} ga teng bo'lishi kerak",
     "gt": "{0} dan katta bo'lishi kerak"
   },
+  "Import": {
+    "Error": {
+      "ValidationError": "Tekshirish xatosi"
+    }
+  },
   "Filters": {
     "CreatedAt": {
       "AllTime": "Barcha vaqt",
@@ -76,7 +81,8 @@
     "unit": "O'lchov birligi",
     "position": "Lavozim",
     "order": "Buyurtma",
-    "inventory": "Inventar"
+    "inventory": "Inventar",
+    "upload": "Yuklash"
   },
   "Permissions": {
     "User": {
@@ -166,6 +172,12 @@
       "Read": "Inventarni ko'rish",
       "Update": "Inventarni tahrirlash",
       "Delete": "Inventarni o'chirish"
+    },
+    "Upload": {
+      "Create": "Yuklash yaratish",
+      "Read": "Yuklashni ko'rish",
+      "Update": "Yuklashni tahrirlash",
+      "Delete": "Yuklashni o'chirish"
     }
   },
   "NavigationLinks": {
@@ -386,8 +398,7 @@
     "Save": "Saqlash",
     "Tabs": {
       "Profile": "Profil sozlamalari",
-      "Sidebar": "Yon panel sozlamalari",
-      "Logo": "Logo sozlamalari"
+      "Sidebar": "Yon panel sozlamalari"
     },
     "Logo": {
       "FullLogo": "To'liq logo",

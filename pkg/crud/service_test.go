@@ -1,11 +1,12 @@
 package crud_test
 
 import (
+	"testing"
+
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestReportService_CRUD(t *testing.T) {

@@ -1,9 +1,10 @@
 package crud_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/crud"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

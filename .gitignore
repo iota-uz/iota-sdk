@@ -1,6 +1,5 @@
 .idea
 .DS_Store
-__pycache__
 postgres-data/
 tmp/
 .env

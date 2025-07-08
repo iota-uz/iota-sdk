@@ -3,6 +3,13 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"log"
+	"math"
+	"net/http"
+	"net/url"
+	"strconv"
+	"time"
+
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -13,12 +20,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"log"
-	"math"
-	"net/http"
-	"net/url"
-	"strconv"
-	"time"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
@@ -1238,7 +1239,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 			}
 
 			if field.Readonly() {
-				textareaBuilder = textareaBuilder.Attrs(templ.Attributes{"readonly": true})
+				textareaBuilder = textareaBuilder.Attrs(templ.Attributes{"disabled": true})
 			}
 
 			if len(field.Rules()) > 0 {
@@ -1255,7 +1256,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		}
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1291,7 +1292,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		}
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1320,7 +1321,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		builder := form.Checkbox(field.Name(), fieldLabel)
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1358,7 +1359,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		}
 
 		if field.Readonly() {
-			attrs["readonly"] = true
+			attrs["disabled"] = true
 		}
 
 		builder = builder.Attrs(attrs)
@@ -1389,7 +1390,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		}
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1408,7 +1409,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		builder := form.Time(field.Name(), fieldLabel)
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1437,7 +1438,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		}
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1456,7 +1457,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		builder := form.Text(field.Name(), fieldLabel)
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1479,7 +1480,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		builder := form.DateTime(field.Name(), fieldLabel)
 
 		if field.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(field.Rules()) > 0 {
@@ -1526,7 +1527,7 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		}
 
 		if field.Readonly() {
-			attrs["readonly"] = true
+			attrs["disabled"] = true
 		}
 
 		// Set decimal value if present
@@ -1615,7 +1616,7 @@ func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectF
 		}
 
 		if selectField.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -1636,7 +1637,7 @@ func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectF
 			Placeholder(selectField.Placeholder())
 
 		if selectField.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -1658,7 +1659,7 @@ func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectF
 			Multiple(selectField.Multiple())
 
 		if selectField.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"readonly": true})
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
 		}
 
 		if len(selectField.Rules()) > 0 {

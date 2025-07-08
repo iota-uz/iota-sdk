@@ -1,0 +1,120 @@
+package importcomponents
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	importpkg "github.com/iota-uz/iota-sdk/pkg/import"
+)
+
+type ImportPageProps struct {
+	Config importpkg.ImportPageConfig
+	Errors map[string]string
+}
+
+templ ImportPage(props *ImportPageProps) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: props.Config.GetTitle()},
+	}) {
+		<div id={ props.Config.GetHTMXConfig().Target[1:] } class="h-full">
+			@ImportContent(props)
+		</div>
+	}
+}
+
+templ ImportPageContent(props *ImportPageProps) {
+	<div id={ props.Config.GetHTMXConfig().Target[1:] } class="h-full">
+		@ImportContent(props)
+	</div>
+}
+
+templ ImportContent(props *ImportPageProps) {
+	{{ downloadURL := props.Config.GetTemplateDownloadURL() }}
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	{{ config := props.Config }}
+	{{ htmxConfig := config.GetHTMXConfig() }}
+	<form
+		id="import-form"
+		class="h-full flex flex-col"
+		hx-post={ config.GetSaveURL() }
+		hx-target={ htmxConfig.Target }
+		hx-swap={ htmxConfig.Swap }
+		hx-indicator={ htmxConfig.Indicator }
+	>
+		<div class="flex-1 overflow-y-auto">
+			<div class="px-6 pt-6">
+				<h1 class="text-2xl font-bold mb-4">
+					{ props.Config.GetTitle() }
+				</h1>
+			</div>
+			@card.Card(card.Props{WrapperClass: "mx-6 mb-6"}) {
+				<div class="flex justify-between items-start mb-4">
+					<p class="text-gray-700">
+						{ props.Config.GetDescription() }
+					</p>
+					if downloadURL != "" {
+						@DownloadTemplateButton(downloadURL)
+					}
+				</div>
+				@ColumnList(props)
+				@ImportErrors(props.Errors)
+				@ExampleSection(props)
+				@ImportFormFields(props)
+			}
+		</div>
+		<div class="bg-white border-t border-gray-200 shadow-lg">
+			<div class="px-6 py-4 flex justify-end gap-4">
+				@button.Secondary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"type":    "button",
+						"onclick": "history.back()",
+					},
+				}) {
+					Cancel
+				}
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Icon: icons.CloudArrowUp(icons.Props{Size: "20"}),
+					Attrs: templ.Attributes{
+						"id":   htmxConfig.Indicator[1:],
+						"type": "submit",
+					},
+				}) {
+					{ pgCtx.T("Submit") }
+				}
+			</div>
+		</div>
+	</form>
+}
+
+templ ColumnList(props *ImportPageProps) {
+	{{ columns := props.Config.GetColumns() }}
+	if len(columns) > 0 {
+		<ul class="list-disc list-inside text-gray-700 mb-4 space-y-2">
+			for _, column := range columns {
+				<li>
+					<span class="font-medium">{ column.Header }</span>
+					if column.Description != "" {
+						<span class="text-gray-600">- { column.Description }</span>
+					}
+					if column.Required {
+						<span class="text-red-500">*</span>
+					}
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ ExampleSection(props *ImportPageProps) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	<div class="mt-6">
+		<p class="text-base mb-3">
+			{ pgCtx.T("Example.Below") }
+		</p>
+		@ExampleTable(props)
+	</div>
+}

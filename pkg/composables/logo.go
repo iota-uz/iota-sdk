@@ -3,6 +3,7 @@ package composables
 import (
 	"context"
 	"errors"
+
 	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
