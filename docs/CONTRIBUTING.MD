@@ -97,6 +97,23 @@ Ensure these tools are installed before you begin:
      - Password: `TestPass123!`
    - GraphQL: [http://localhost:3200/query](http://localhost:3200/query)
 
+### Development Tools Manager
+
+For a more convenient development experience, use the DevHub TUI tool to manage all development services from a single interface:
+
+```bash
+make devtools
+```
+
+The DevHub allows you to:
+- Start/stop the development server
+- Toggle template file watching (`templ generate --watch`)
+- Toggle CSS file watching (TailwindCSS watch mode)
+- Manage local PostgreSQL database
+- Start/stop Cloudflare tunnel
+
+Navigate with arrow keys, toggle services with Space/Enter, and quit with 'q'.
+
 ## 🧪 Running Tests
 
 To run end-to-end Cypress tests:
@@ -208,6 +225,48 @@ Try running:
 ```bash
 make tunnel
 ```
+
+## 🤖 Using AI
+
+### Claude Code Setup
+
+1. **Install Claude Code**:
+   ```bash
+   npm install -g @anthropic-ai/claude-code
+   ```
+   
+   See [Claude Code docs](https://docs.anthropic.com/en/docs/claude-code/overview) for more details.
+
+2. **Add MCP servers**:
+   ```bash
+   # Context7 (documentation and API references)
+   claude mcp add -s user --transport http context7 https://mcp.context7.com/mcp
+
+   # Puppeteer (browser automation)
+   claude mcp add -s user puppeteer -e 'PUPPETEER_LAUNCH_OPTIONS={"headless":false,"args":["--remote-debugging-port=9222","--remote-debugging-address=127.0.0.1","--user-data-dir=/tmp/mcp-profile","--no-sandbox","--disable-setuid-sandbox"]}' -- npx -y puppeteer-mcp-server@0.7.2 --stdio
+
+   # Go documentation (install first)
+   go install github.com/mrjoshuak/godoc-mcp@latest
+   claude mcp add -s user godoc-mcp $(go env GOPATH)/bin/godoc-mcp
+   
+   # Code Indexer (semantic code search)
+   # Requires OPENAI_API_KEY and MILVUS_TOKEN environment variables
+   # Contact team lead for MILVUS_TOKEN if you don't have it
+   claude mcp add code-indexer -e OPENAI_API_KEY=$OPENAI_API_KEY -e MILVUS_ADDRESS=https://in03-2c743230eb1daa2.serverless.gcp-us-west1.cloud.zilliz.com -e MILVUS_TOKEN=$MILVUS_TOKEN -- npx @code-indexer/mcp@latest
+   ```
+
+3. **Usage**:
+   ```bash
+   # List configured MCP servers
+   claude mcp list
+   
+   # Start Claude Code (MCP auto-enabled)
+   claude
+   ```
+
+### Code Indexing
+
+The repository uses automated code indexing for semantic search. When you push changes, the GitHub Actions workflow automatically indexes the codebase using the `@code-indexer/core` package with OpenAI embeddings.
 
 ## 🤝 Communication Guidelines
 

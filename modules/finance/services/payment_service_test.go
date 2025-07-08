@@ -19,11 +19,11 @@ import (
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/builder"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 // setupTestData creates necessary test data and returns account and counterparty
-func setupTestData(ctx context.Context, t *testing.T, f *builder.TestEnvironment) (moneyaccount.Account, counterparty.Counterparty) {
+func setupTestData(ctx context.Context, t *testing.T, f *itf.TestEnvironment) (moneyaccount.Account, counterparty.Counterparty) {
 	t.Helper()
 
 	// Create currency

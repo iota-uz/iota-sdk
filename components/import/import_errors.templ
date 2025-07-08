@@ -1,0 +1,34 @@
+package importcomponents
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+templ ImportErrors(errors map[string]string) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	{{ hasErrors := false }}
+	for key, errorMsg := range errors {
+		if key != "FileID" && errorMsg != "" {
+			{{ hasErrors = true }}
+		}
+	}
+	if hasErrors {
+		<div class="bg-red-100 text-red-700 py-3 px-4 text-sm font-medium rounded-md mb-4">
+			<div class="flex items-center space-x-2">
+				@icons.WarningCircle(icons.Props{Size: "20", Class: "text-red-600"})
+				<span class="font-semibold">{ pgCtx.T("Error.ValidationError") }</span>
+			</div>
+			<div class="mt-2 space-y-1">
+				for key, errorMsg := range errors {
+					if key != "FileID" && errorMsg != "" {
+						<div class="flex items-start space-x-2 text-sm">
+							<span class="text-red-500 mt-0.5">•</span>
+							<span>{ errorMsg }</span>
+						</div>
+					}
+				}
+			</div>
+		</div>
+	}
+}

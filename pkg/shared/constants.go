@@ -1,8 +1,9 @@
 package shared
 
 import (
-	"github.com/go-playground/form"
 	"time"
+
+	"github.com/go-playground/form"
 )
 
 var Decoder = initDecoder()
