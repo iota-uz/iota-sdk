@@ -45,7 +45,7 @@ type CheckResult struct {
 	ID               uint
 	TenantID         uuid.UUID
 	PositionID       uint
-	Position         *position.Position
+	Position         position.Position
 	ExpectedQuantity int
 	ActualQuantity   int
 	Difference       int

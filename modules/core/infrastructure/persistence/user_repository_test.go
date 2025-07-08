@@ -12,8 +12,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	permissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -434,7 +434,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 
 	t.Run("GetPaginated_TenantFiltering", func(t *testing.T) {
 		// Create a second tenant for testing cross-tenant isolation
-		secondTenant, err := testutils.CreateTestTenant(f.Ctx, f.Pool)
+		secondTenant, err := itf.CreateTestTenant(f.Ctx, f.Pool)
 		require.NoError(t, err)
 
 		// Create users in the first tenant (current context tenant)

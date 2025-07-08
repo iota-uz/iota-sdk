@@ -17,8 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -291,7 +290,7 @@ func TestCrudController_List_Success(t *testing.T) {
 		user.UILanguageEN,
 	)
 
-	suite := controllertest.New(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(testUser)
 
 	service := newTestService()
@@ -347,8 +346,8 @@ func TestCrudController_List_Success(t *testing.T) {
 func TestCrudController_List_HTMX(t *testing.T) {
 	t.Skip("TODO: Fix HTMX list test")
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -368,8 +367,8 @@ func TestCrudController_List_HTMX(t *testing.T) {
 func TestCrudController_List_Search(t *testing.T) {
 	t.Skip("TODO: Fix search test")
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -400,8 +399,8 @@ func TestCrudController_List_Search(t *testing.T) {
 func TestCrudController_List_Pagination(t *testing.T) {
 	t.Skip("TODO: Fix pagination test")
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -434,8 +433,8 @@ func TestCrudController_List_Pagination(t *testing.T) {
 func TestCrudController_GetNew(t *testing.T) {
 	t.Skip("TODO: Fix GetNew form rendering test")
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -460,8 +459,8 @@ func TestCrudController_GetNew(t *testing.T) {
 
 func TestCrudController_Create_Success(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -506,8 +505,8 @@ func TestCrudController_Create_Success(t *testing.T) {
 func TestCrudController_Create_ValidationError(t *testing.T) {
 	t.Skip("TODO: Fix validation error test")
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -556,8 +555,8 @@ func TestCrudController_Create_ValidationError(t *testing.T) {
 func TestCrudController_GetEdit_Success(t *testing.T) {
 	t.Skip("TODO: Fix GetEdit form rendering test")
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -602,8 +601,8 @@ func TestCrudController_GetEdit_Success(t *testing.T) {
 
 func TestCrudController_GetEdit_NotFound(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -621,8 +620,8 @@ func TestCrudController_GetEdit_NotFound(t *testing.T) {
 
 func TestCrudController_Update_Success(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -682,8 +681,8 @@ func TestCrudController_Update_Success(t *testing.T) {
 
 func TestCrudController_Delete_Success(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -716,8 +715,8 @@ func TestCrudController_Delete_Success(t *testing.T) {
 
 func TestCrudController_Delete_NotFound(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -735,8 +734,8 @@ func TestCrudController_Delete_NotFound(t *testing.T) {
 
 func TestCrudController_InvalidUUID(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -753,8 +752,8 @@ func TestCrudController_InvalidUUID(t *testing.T) {
 
 func TestCrudController_WithoutEdit(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -774,8 +773,8 @@ func TestCrudController_WithoutEdit(t *testing.T) {
 
 func TestCrudController_WithoutDelete(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -794,8 +793,8 @@ func TestCrudController_WithoutDelete(t *testing.T) {
 
 func TestCrudController_WithoutCreate(t *testing.T) {
 	// Setup
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -832,8 +831,8 @@ func TestCrudController_FieldTypes(t *testing.T) {
 	)
 
 	// Test form rendering for each field type
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := &complexTestService{}
@@ -936,8 +935,8 @@ func (m *testDecimalMapper) ToFieldValuesList(_ context.Context, entities ...Tes
 
 func TestCrudController_DecimalFieldHandling(t *testing.T) {
 	// This test specifically covers the decimal field fix
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -987,8 +986,8 @@ func TestCrudController_DecimalFieldHandling(t *testing.T) {
 
 func TestCrudController_ReadonlyFieldExclusion(t *testing.T) {
 	// This test covers the readonly field exclusion fix
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -1042,8 +1041,8 @@ func (s *preAssignedTestService) Save(ctx context.Context, entity TestEntity) (T
 
 func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 	// Test handling of entities with pre-assigned keys (like string IDs or UUIDs)
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	baseService := newTestService()
@@ -1085,8 +1084,8 @@ func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 
 func TestCrudController_FormFieldBuilder(t *testing.T) {
 	// Test the form field builder functionality
-	adminUser := testutils.MockUser()
-	suite := controllertest.New(t, core.NewModule()).
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -1113,11 +1112,9 @@ func TestCrudController_ErrorHandling(t *testing.T) {
 
 	/*
 		// Test various error scenarios
-		adminUser := testutils.MockUser()
-		suite := controllertest.New().
-			WithModules(core.NewModule()).
-			WithUser(t, adminUser).
-			Build(t)
+		adminUser := itf.User()
+		suite := itf.HTTP(t, core.NewModule()).
+			AsUser(adminUser)
 
 		baseService := newTestService()
 

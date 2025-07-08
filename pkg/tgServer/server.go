@@ -3,8 +3,9 @@ package tgserver
 import (
 	"context"
 	"errors"
-	"github.com/iota-uz/utils/env"
 	"strconv"
+
+	"github.com/iota-uz/utils/env"
 
 	"github.com/gotd/td/telegram"
 	"github.com/jmoiron/sqlx"

@@ -7,15 +7,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,15 +22,10 @@ var (
 )
 
 func TestInventoryController_List_Success(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -74,15 +67,10 @@ func TestInventoryController_List_Success(t *testing.T) {
 }
 
 func TestInventoryController_List_HTMX_Request(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -111,15 +99,10 @@ func TestInventoryController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestInventoryController_GetNew_Success(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -145,15 +128,10 @@ func TestInventoryController_GetNew_Success(t *testing.T) {
 }
 
 func TestInventoryController_Create_Success(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -190,15 +168,10 @@ func TestInventoryController_Create_Success(t *testing.T) {
 }
 
 func TestInventoryController_Create_ValidationError(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -230,15 +203,10 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 }
 
 func TestInventoryController_GetEdit_Success(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -277,15 +245,10 @@ func TestInventoryController_GetEdit_Success(t *testing.T) {
 }
 
 func TestInventoryController_GetEdit_NotFound(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -301,15 +264,10 @@ func TestInventoryController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestInventoryController_Update_Success(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -354,15 +312,10 @@ func TestInventoryController_Update_Success(t *testing.T) {
 }
 
 func TestInventoryController_Update_ValidationError(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -404,15 +357,10 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 }
 
 func TestInventoryController_Delete_Success(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -447,15 +395,10 @@ func TestInventoryController_Delete_Success(t *testing.T) {
 }
 
 func TestInventoryController_Delete_NotFound(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -471,15 +414,10 @@ func TestInventoryController_Delete_NotFound(t *testing.T) {
 }
 
 func TestInventoryController_InvalidUUID(t *testing.T) {
-	adminUser := user.New(
-		"Admin",
-		"User",
-		internet.MustParseEmail("admin@example.com"),
-		user.UILanguageEN,
-		user.WithID(1),
-	)
+	t.Parallel()
+	adminUser := itf.User()
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

@@ -30,23 +30,21 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 		}); err != nil {
 		t.Fatal(err)
 	}
-	positionEntity := &position.Position{
-		ID:        1,
-		Title:     "Position 1",
-		Barcode:   "3141592653589",
-		UnitID:    1,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-	if err := positionRepository.Create(f.Ctx, positionEntity); err != nil {
+	positionEntity := position.New("Position 1", "3141592653589",
+		position.WithID(1),
+		position.WithUnitID(1),
+		position.WithCreatedAt(time.Now()),
+		position.WithUpdatedAt(time.Now()))
+	if _, err := positionRepository.Create(f.Ctx, positionEntity); err != nil {
 		t.Fatal(err)
 	}
 
-	orderEntity := order.New(order.TypeIn, order.Pending)
-	if err := orderEntity.AddItem(
+	orderEntity := order.New(order.TypeIn, order.WithStatus(order.Pending))
+	orderEntity, err := orderEntity.AddItem(
 		positionEntity,
-		product.New("EPS:242323", 1, product.Approved, positionEntity),
-	); err != nil {
+		product.New("EPS:242323", product.InStock, product.WithPosition(positionEntity)),
+	)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := orderRepository.Create(f.Ctx, orderEntity); err != nil {
@@ -124,7 +122,8 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := entity.Complete(); err != nil {
+			entity, err = entity.Complete()
+			if err != nil {
 				t.Fatal(err)
 			}
 			if err := orderRepository.Update(f.Ctx, entity); err != nil {
@@ -141,8 +140,8 @@ func TestGormOrderRepository_CRUD(t *testing.T) {
 				t.Fatalf("expected 1, got %d", len(updatedOrder.Items()))
 			}
 			item := updatedOrder.Items()[0]
-			if item.Products()[0].Status != product.InStock {
-				t.Errorf("expected %s, got %s", product.InStock, item.Products()[0].Status)
+			if item.Products()[0].Status() != product.InStock {
+				t.Errorf("expected %s, got %s", product.InStock, item.Products()[0].Status())
 			}
 		},
 	)

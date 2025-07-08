@@ -1,8 +1,9 @@
 package evaluation
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 )
 
 // EvaluationContext provides context for dashboard evaluation

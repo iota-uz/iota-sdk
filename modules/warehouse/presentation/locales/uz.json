@@ -1,6 +1,5 @@
 {
   "Errors": {
-    "ERR_INVALID_CELL": "\"{{.Col}}:{{.Row}}\" katakchani qayta ishlashda xatolik",
     "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} allaqachon mavjud",
     "ERR_DUPLICATE_BARCODE": "Artikul {{.Barcode}} allaqachon mavjud",
     "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "Omborda mahsulot yetarli emas",
@@ -61,7 +60,7 @@
         "Title": "Nomlar"
       },
       "New": "Yangi nom",
-      "Upload": ".xlsx yuklash",
+      "Import": ".xlsx yuklash",
       "Position": "Nomi",
       "Barcode": "Artikul",
       "Unit": "O'lchov birligi",
@@ -98,23 +97,35 @@
       "DeleteConfirmation": "Ushbu nomni o'chirishni xohlaysizmi?",
       "NothingFound": "Hech narsa topilmadi"
     },
-    "Upload": {
+    "Import": {
       "Meta": {
         "Title": ".xlsx yuklash"
       },
       "Title": "Nomlarni yuklash",
+      "_Description": "Excel fayldan ombor nomlarini import qilish",
       "Example": {
         "Title": "Excel yuklash",
         "_Description": "Excel katakchalarining ketma-ketligi quyidagicha bo'lishi kerak:",
         "ItemName": "Nomi",
+        "ItemNameDesc": "Mahsulotning to'liq nomi",
         "ItemCode": "Artikul",
+        "ItemCodeDesc": "Noyob artikul yoki mahsulot kodi",
         "Unit": "O'lchov birligi",
+        "UnitDesc": "O'lchov birligi (masalan, dona, kg, m)",
         "Quantity": "Miqdori",
+        "QuantityDesc": "Import qilinadigan mahsulot miqdori",
         "Below": "Quyida yuklash uchun Excel fayl namunasi keltirilgan"
       },
       "UploadLabel": "Faylni tanlang",
       "UploadPlaceholder": "Faylni tanlang",
-      "Submit": "Yuklash"
+      "Submit": "Yuklash",
+      "DownloadTemplate": "Shablonni yuklash",
+      "Error": {
+        "ValidationError": "Tekshirish xatolari topildi",
+        "Issues": "xatolar",
+        "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Bu maydon majburiy va bo'sh bo'lishi mumkin emas",
+        "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (topilgan qiymat: '{{.Value}}')"
+      }
     }
   },
   "WarehouseUnits": {

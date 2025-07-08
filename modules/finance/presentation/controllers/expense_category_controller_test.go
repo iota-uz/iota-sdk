@@ -12,8 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,12 +21,13 @@ var (
 )
 
 func TestExpenseCategoryController_List_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -66,11 +66,12 @@ func TestExpenseCategoryController_List_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -96,11 +97,12 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -120,11 +122,12 @@ func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Create_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -154,11 +157,12 @@ func TestExpenseCategoryController_Create_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -186,12 +190,13 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 }
 
 func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
 		permissions.ExpenseCategoryUpdate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -228,11 +233,12 @@ func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_GetEdit_NotFound(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -247,12 +253,13 @@ func TestExpenseCategoryController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Update_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryUpdate,
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -295,11 +302,12 @@ func TestExpenseCategoryController_Update_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryUpdate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -341,12 +349,13 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Delete_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryDelete,
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -384,11 +393,12 @@ func TestExpenseCategoryController_Delete_Success(t *testing.T) {
 }
 
 func TestExpenseCategoryController_Delete_NotFound(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryDelete,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -403,11 +413,12 @@ func TestExpenseCategoryController_Delete_NotFound(t *testing.T) {
 }
 
 func TestExpenseCategoryController_InvalidUUID(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

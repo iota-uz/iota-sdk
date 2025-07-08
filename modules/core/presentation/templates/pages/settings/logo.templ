@@ -21,11 +21,13 @@ templ LogoForm(props *LogoPageProps) {
 	<div id="logo-form-fields">
 		<div class="flex flex-col gap-5 p-6">
 			@card.Card(card.Props{
-				Class: "grid grid-cols-1 gap-6",
+				Class: "grid grid-cols-1 lg:grid-cols-2 gap-6",
 			}) {
 				<div class="space-y-4">
-					<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Logo.FullLogo") }</h3>
-					<p class="text-sm text-gray-600">{ pageCtx.T("Account.Logo.FullLogoDescription") }</p>
+					<div class="space-y-1">
+						<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Logo.FullLogo") }</h3>
+						<p class="text-sm text-gray-600">{ pageCtx.T("Account.Logo.FullLogoDescription") }</p>
+					</div>
 					if props.LogoUpload == nil {
 						@components.UploadInput(&components.UploadInputProps{
 							Label:       pageCtx.T("Account.BrowseFilesystem"),
@@ -48,8 +50,10 @@ templ LogoForm(props *LogoPageProps) {
 					}
 				</div>
 				<div class="space-y-4">
-					<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Logo.CompactLogo") }</h3>
-					<p class="text-sm text-gray-600">{ pageCtx.T("Account.Logo.CompactLogoDescription") }</p>
+					<div class="space-y-1">
+						<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Logo.CompactLogo") }</h3>
+						<p class="text-sm text-gray-600">{ pageCtx.T("Account.Logo.CompactLogoDescription") }</p>
+					</div>
 					if props.LogoCompactUpload == nil {
 						@components.UploadInput(&components.UploadInputProps{
 							Label:       pageCtx.T("Account.BrowseFilesystem"),

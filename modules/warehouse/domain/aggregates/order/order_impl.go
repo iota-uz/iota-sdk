@@ -8,113 +8,110 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 )
 
-func New(orderType Type, status Status) Order {
-	return &orderImpl{
+// --- Implementation ---
+
+func New(orderType Type, opts ...Option) Order {
+	o := &order{
+		id:        0,
+		tenantID:  uuid.Nil,
 		_type:     orderType,
-		status:    status,
-		tenantID:  uuid.Nil, // Will be set in repository
+		status:    Pending,
 		items:     make([]Item, 0),
 		createdAt: time.Now(),
+		events:    make([]interface{}, 0),
 	}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
 }
 
-func NewWithID(id uint, orderType Type, status Status, createdAt time.Time) Order {
-	return &orderImpl{
-		id:        id,
-		tenantID:  uuid.Nil, // Will be set in repository
-		_type:     orderType,
-		status:    status,
-		items:     make([]Item, 0),
-		createdAt: createdAt,
-	}
-}
-
-type orderImpl struct {
+type order struct {
 	id        uint
 	tenantID  uuid.UUID
 	_type     Type
 	status    Status
 	items     []Item
 	createdAt time.Time
+	events    []interface{}
 }
 
-func (o *orderImpl) SetID(id uint) {
-	o.id = id
-}
-
-func (o *orderImpl) SetTenantID(id uuid.UUID) {
-	o.tenantID = id
-}
-
-func (o *orderImpl) ID() uint {
+func (o *order) ID() uint {
 	return o.id
 }
 
-func (o *orderImpl) TenantID() uuid.UUID {
+func (o *order) TenantID() uuid.UUID {
 	return o.tenantID
 }
 
-func (o *orderImpl) Type() Type {
+func (o *order) Type() Type {
 	return o._type
 }
 
-func (o *orderImpl) Status() Status {
+func (o *order) Status() Status {
 	return o.status
 }
 
-func (o *orderImpl) Items() []Item {
+func (o *order) Items() []Item {
 	return o.items
 }
 
-func (o *orderImpl) CreatedAt() time.Time {
+func (o *order) CreatedAt() time.Time {
 	return o.createdAt
 }
 
-func (o *orderImpl) AddItem(position *position.Position, products ...*product.Product) error {
+func (o *order) Events() []interface{} {
+	return o.events
+}
+
+func (o *order) SetTenantID(tenantID uuid.UUID) Order {
+	result := *o
+	result.tenantID = tenantID
+	return &result
+}
+
+func (o *order) AddItem(position position.Position, products ...product.Product) (Order, error) {
 	for _, p := range products {
-		if p.Status == product.Shipped {
-			return NewErrProductIsShipped(p.Status)
+		if p.Status() == product.Shipped {
+			return nil, NewErrProductIsShipped(p.Status())
 		}
 	}
-	o.items = append(o.items, &itemImpl{
+
+	result := *o
+	result.items = append(result.items, &item{
 		position: position,
 		products: products,
 	})
-	return nil
+	return &result, nil
 }
 
-func (o *orderImpl) Complete() error {
+func (o *order) Complete() (Order, error) {
 	if o.status == Complete {
-		return NewErrOrderIsComplete(o.status)
+		return nil, NewErrOrderIsComplete(o.status)
 	}
-	var status product.Status
-	if o._type == TypeIn {
-		status = product.InStock
-	} else {
-		status = product.Approved
-	}
-	for _, item := range o.items {
-		for _, p := range item.Products() {
-			p.Status = status
-		}
-	}
-	o.status = Complete
-	return nil
+
+	result := *o
+	result.status = Complete
+
+	// Note: Product status changes should be handled by the domain service
+	// that coordinates between Order and Product aggregates
+
+	return &result, nil
 }
 
-type itemImpl struct {
-	position *position.Position
-	products []*product.Product
+type item struct {
+	position position.Position
+	products []product.Product
 }
 
-func (i *itemImpl) Position() *position.Position {
+func (i *item) Position() position.Position {
 	return i.position
 }
 
-func (i *itemImpl) Products() []*product.Product {
+func (i *item) Products() []product.Product {
 	return i.products
 }
 
-func (i *itemImpl) Quantity() int {
+func (i *item) Quantity() int {
 	return len(i.products)
 }
