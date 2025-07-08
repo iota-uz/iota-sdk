@@ -9,16 +9,36 @@ import (
 	"syscall"
 
 	"github.com/iota-uz/iota-sdk/pkg/devhub"
+	"github.com/sirupsen/logrus"
+)
+
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
 )
 
 func main() {
 	configPath := flag.String("config", "devhub.yml", "Path to the devhub.yml config file")
+	showVersion := flag.Bool("version", false, "Show version information")
+	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("DevHub CLI\nVersion: %s\nCommit: %s\nBuilt: %s\n", version, commit, date)
+		os.Exit(0)
+	}
+
+	level, err := logrus.ParseLevel(*logLevel)
+	if err != nil {
+		logrus.WithError(err).Warn("Invalid log level, defaulting to info")
+		level = logrus.InfoLevel
+	}
+	logrus.SetLevel(level)
 
 	hub, err := devhub.NewDevHub(*configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating DevHub: %v\n", err)
-		os.Exit(1)
+		logrus.WithError(err).Fatal("Failed to create DevHub")
 	}
 
 	// Create a context that cancels on interrupt signal
@@ -30,11 +50,13 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-sigChan
+		logrus.Info("Received interrupt signal, shutting down...")
 		cancel()
 	}()
 
 	if err := hub.Run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running DevHub: %v\n", err)
-		os.Exit(1)
+		logrus.WithError(err).Fatal("DevHub exited with error")
 	}
+
+	logrus.Info("DevHub shut down successfully")
 }

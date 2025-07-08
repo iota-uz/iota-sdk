@@ -268,9 +268,8 @@ func (s *BaseService) runCommand(ctx context.Context, command string, args ...st
 	s.cmd.Dir = wd
 
 	// Create a new process group so we can kill all child processes
-	s.cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
+	s.cmd.SysProcAttr = &syscall.SysProcAttr{}
+	setSysProcAttr(s.cmd.SysProcAttr)
 
 	// Create pipes for stdout and stderr
 	stdout, err := s.cmd.StdoutPipe()
@@ -447,7 +446,7 @@ func (s *BaseService) Stop(ctx context.Context) error {
 			// Timeout - force kill the process group
 			if runtime.GOOS != "windows" && pid > 0 {
 				// Kill the entire process group
-				if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+				if err := killProcessGroup(pid); err != nil {
 					// Process might already be gone
 					if !errors.Is(err, syscall.ESRCH) {
 						return fmt.Errorf("failed to kill process group: %w", err)
