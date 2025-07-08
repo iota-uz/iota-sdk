@@ -43,6 +43,7 @@ templ EditForm(props *EditPageProps) {
 					"name":  "Balance",
 					"value": props.Account.Balance,
 					"form":  "save-form",
+					"step":  "any",
 				},
 				Error: props.Errors["Balance"],
 			})
