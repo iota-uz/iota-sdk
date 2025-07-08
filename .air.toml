@@ -1,30 +1,12 @@
-# ------------------------------------------------------------
-#  .air.debug.toml — hot-reload + Delve
-# ------------------------------------------------------------
-# 1) air -c .air.debug.toml
-# 2) В IDE → Run | Edit Configurations → Go Remote
-#       Host: localhost, Port: 40001, Mode: Connect
-# ------------------------------------------------------------
-
-root         = "."
+root = "."
 testdata_dir = "testdata"
-tmp_dir      = "tmp"
+tmp_dir = "tmp"
 
 [build]
-# Компилируем без оптимизаций
-cmd = "go build -gcflags=\"all=-N -l\" -o ./tmp/main cmd/server/main.go"
+args_bin = []
 bin = "./tmp/main"
-
-# Запускаем бинарь через Delve (headless)
-full_bin = "dlv exec --log --headless --listen=:40001 --api-version=2 --accept-multiclient ./tmp/main"
-
-delay       = 1000         # мс задержка после изменения файлов
-kill_delay  = "1s"         # время на корректное завершение
-rerun       = false
-rerun_delay = 500
-args_bin    = []           # аргументы для ./tmp/main
-
-# ── Исключения ───────────────────────────────────────────────
+cmd = "go build -o ./tmp/main cmd/server/main.go"
+delay = 1000
 exclude_dir = [
   "tmp",
   "vendor",
@@ -41,39 +23,43 @@ exclude_file = [
   "compose.dev.yml",
   "compose.testing.yml",
 ]
-exclude_regex     = ["_test.go"]
+exclude_regex = ["_test.go"]
 exclude_unchanged = false
-follow_symlink    = false
-include_dir       = []
-include_ext       = ["go", "html", "json", "js", "css", "toml", "yml", "yaml"]
-include_file      = []
-log               = "build-errors.log"
-poll              = false
-poll_interval     = 0
-post_cmd          = []
-pre_cmd           = []
-send_interrupt    = false
-stop_on_error     = false
+follow_symlink = false
+full_bin = ""
+include_dir = []
+include_ext = ["go", "html", "json", "js", "css", "toml", "yml", "yaml"]
+include_file = []
+kill_delay = "0s"
+log = "build-errors.log"
+poll = false
+poll_interval = 0
+post_cmd = []
+pre_cmd = []
+rerun = false
+rerun_delay = 500
+send_interrupt = false
+stop_on_error = false
 
 [color]
-app     = ""
-build   = "yellow"
-main    = "magenta"
-runner  = "green"
+app = ""
+build = "yellow"
+main = "magenta"
+runner = "green"
 watcher = "cyan"
 
 [proxy]
-enabled    = true
+enabled = true
 proxy_port = 8090
-app_port   = 3200
+app_port = 3200
 
 [log]
 main_only = false
-time      = false
+time = false
 
 [misc]
 clean_on_exit = false
 
 [screen]
 clear_on_rebuild = false
-keep_scroll      = true
+keep_scroll = true
