@@ -25,7 +25,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("DevHub CLI\nVersion: %s\nCommit: %s\nBuilt: %s\n", version, commit, date)
+		_, _ = fmt.Fprintf(os.Stdout, "DevHub CLI\nVersion: %s\nCommit: %s\nBuilt: %s\n", version, commit, date)
 		os.Exit(0)
 	}
 
