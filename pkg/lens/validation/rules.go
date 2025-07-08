@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 )
 

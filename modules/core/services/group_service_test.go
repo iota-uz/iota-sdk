@@ -1,9 +1,10 @@
 package services_test
 
 import (
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"

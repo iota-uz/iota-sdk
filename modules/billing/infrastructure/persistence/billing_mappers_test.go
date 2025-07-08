@@ -2,9 +2,10 @@ package persistence_test
 
 import (
 	"encoding/json"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"testing"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -18,10 +18,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
-	"github.com/iota-uz/iota-sdk/pkg/testutils"
-	"github.com/iota-uz/iota-sdk/pkg/testutils/controllertest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,12 +41,13 @@ func createPaymentCategory(
 }
 
 func TestPaymentController_List_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -129,12 +129,13 @@ func TestPaymentController_List_Success(t *testing.T) {
 }
 
 func TestPaymentController_List_HTMX_Request(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -198,12 +199,13 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 }
 
 func TestPaymentController_GetNew_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -250,12 +252,13 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 }
 
 func TestPaymentController_Create_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -322,12 +325,13 @@ func TestPaymentController_Create_Success(t *testing.T) {
 }
 
 func TestPaymentController_Create_ValidationError(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -361,13 +365,14 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 }
 
 func TestPaymentController_GetEdit_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -439,12 +444,13 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 }
 
 func TestPaymentController_GetEdit_NotFound(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -460,13 +466,14 @@ func TestPaymentController_GetEdit_NotFound(t *testing.T) {
 }
 
 func TestPaymentController_Update_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -546,13 +553,14 @@ func TestPaymentController_Update_Success(t *testing.T) {
 }
 
 func TestPaymentController_Update_ValidationError(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentUpdate,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -629,13 +637,14 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 }
 
 func TestPaymentController_Delete_Success(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentDelete,
 		permissions.PaymentCreate,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -705,12 +714,13 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 }
 
 func TestPaymentController_Delete_NotFound(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 		permissions.PaymentDelete,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -726,11 +736,12 @@ func TestPaymentController_Delete_NotFound(t *testing.T) {
 }
 
 func TestPaymentController_InvalidUUID(t *testing.T) {
-	adminUser := testutils.MockUser(
+	t.Parallel()
+	adminUser := itf.User(
 		permissions.PaymentRead,
 	)
 
-	suite := controllertest.New(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
