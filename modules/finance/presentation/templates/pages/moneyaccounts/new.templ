@@ -37,7 +37,7 @@ templ CreateForm(props *CreatePageProps) {
 			})
 			@input.Number(&input.Props{
 				Label: pageCtx.T("MoneyAccounts.Single.Balance"),
-				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance},
+				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance, "step": "any"},
 				Error: props.Errors["Balance"],
 			})
 			@components.CurrencySelect(&components.CurrencySelectProps{
