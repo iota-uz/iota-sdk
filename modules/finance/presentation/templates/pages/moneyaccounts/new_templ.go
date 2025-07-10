@@ -91,7 +91,7 @@ func CreateForm(props *CreatePageProps) templ.Component {
 			}
 			templ_7745c5c3_Err = input.Number(&input.Props{
 				Label: pageCtx.T("MoneyAccounts.Single.Balance"),
-				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance},
+				Attrs: templ.Attributes{"name": "Balance", "value": props.Account.Balance, "step": "any"},
 				Error: props.Errors["Balance"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
