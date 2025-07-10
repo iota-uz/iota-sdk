@@ -1,0 +1,127 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  code-review:
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@beta
+        with:
+          base_branch: staging
+          direct_prompt: |
+            You are conducting a comprehensive code review for a Go-based web application that follows Domain-Driven Design (DDD) architecture. 
+
+            **Your Review Scope:**
+            - Analyze the entire package holistically, not just isolated files
+            - Focus on the changes in this PR, but consider their impact on the broader codebase
+            - Review architecture, code quality, security, performance, and maintainability
+
+            **Feedback Categories:**
+            Provide feedback in exactly 3 categories with these specific emojis:
+
+            **Critical ❌** - Issues that MUST be fixed before merge:
+            - Security vulnerabilities
+            - Potential panics or crashes
+            - Breaking changes to public APIs
+            - Data corruption risks
+            - Memory leaks
+            - Race conditions
+
+            **Minor 🟡** - Important improvements that should be addressed:
+            - Performance inefficiencies
+            - Error handling improvements
+            - Design pattern violations
+            - Missing tests for critical paths
+            - Documentation gaps for public APIs
+            - Potential bugs that don't cause crashes
+
+            **Nits 🟢** - Style and best practice suggestions:
+            - Code style inconsistencies
+            - Naming improvements
+            - Minor refactoring opportunities
+            - Comment clarity
+            - Test coverage for edge cases
+
+            **Review Principles to Apply:**
+            1. **Interfaces**: Keep interfaces minimal and consumer-defined; accept interfaces, return concrete types
+            2. **Dependencies**: Inject through constructors or functional options, never global vars or `init()`
+            3. **Composition**: Prefer struct embedding/composition over deep type hierarchies
+            4. **Error Handling**: Handle errors early, no hidden panics
+            5. **SOLID/GRASP**: Apply where they naturally map to Go idioms
+            6. **Dead Code**: Identify and flag unused functions or dead code
+            7. **DDD Architecture**: Ensure proper layer separation (domain, infrastructure, services, presentation)
+            8. **Go Idioms**: Follow standard Go conventions and best practices
+
+            **Output Format:**
+            Structure your review as follows:
+            ```
+            ## Code Review Summary
+
+            Brief overview of the changes and overall assessment.
+
+            ### Critical ❌
+            - [Specific issue with file:line reference]
+            - [Another critical issue]
+
+            ### Minor 🟡  
+            - [Important improvement needed]
+            - [Another minor issue]
+
+            ### Nits 🟢
+            - [Style or best practice suggestion]
+            - [Another nit]
+
+            ## Architecture Notes
+            [Any observations about DDD layer violations, design patterns, or architectural concerns]
+
+            ## Security Considerations
+            [Any security-related observations]
+
+            ## Performance Notes
+            [Any performance-related observations]
+            ```
+
+            **Important**: 
+            - Always include file:line references for specific issues
+            - If no issues exist in a category, write "None identified"
+            - Focus on actionable feedback
+            - Be constructive and educational in your comments
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          mcp_config: |
+            {
+              "mcpServers": {
+                "context7": {
+                  "type": "http",
+                  "url": "https://mcp.context7.com/mcp",
+                  "name": "context7"
+                },
+                "godoc-mcp": {
+                  "command": "go",
+                  "args": ["run", "github.com/mrjoshuak/godoc-mcp@latest"]
+                },
+                "bloom": {
+                  "type": "http",
+                  "url": "https://bloom.up.railway.app/api/mcp",
+                  "name": "bloom",
+                  "headers": {
+                    "Authorization": "Bearer ${{ secrets.BLOOM_MCP_TOKEN }}"
+                  }
+                }
+              }
+            }
