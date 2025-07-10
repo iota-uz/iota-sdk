@@ -53,8 +53,8 @@ jobs:
             {
               "mcpServers": {
                 "context7": {
-                  "type": "url",
-                  "url": "https://mcp.context7.com/sse",
+                  "type": "http",
+                  "url": "https://mcp.context7.com/mcp",
                   "name": "context7"
                 },
                 "godoc-mcp": {
@@ -62,7 +62,7 @@ jobs:
                   "args": ["run", "github.com/mrjoshuak/godoc-mcp@latest"]
                 },
                 "bloom": {
-                  "type": "url",
+                  "type": "http",
                   "url": "https://bloom.up.railway.app/api/mcp",
                   "name": "bloom",
                   "headers": {
