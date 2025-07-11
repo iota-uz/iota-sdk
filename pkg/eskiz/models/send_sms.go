@@ -6,7 +6,6 @@ type SendSMS interface {
 	Message() string
 	PhoneNumber() string
 	From() string
-	CallbackUrl() string
 }
 
 func SendSmsWithFrom(from string) SendSMSOption {
@@ -15,17 +14,11 @@ func SendSmsWithFrom(from string) SendSMSOption {
 	}
 }
 
-func SendSmsWithCallbackUrl(callbackUrl string) SendSMSOption {
-	return func(s *sendSMS) {
-		s.callbackUrl = callbackUrl
-	}
-}
-
 func NewSendSMS(
 	phoneNumber string,
 	message string,
 	opts ...SendSMSOption,
-) SendSMS {
+) (SendSMS, error) {
 	s := &sendSMS{
 		message: message,
 		phone:   phoneNumber,
@@ -35,14 +28,13 @@ func NewSendSMS(
 		opt(s)
 	}
 
-	return s
+	return s, nil
 }
 
 type sendSMS struct {
-	message     string
-	phone       string
-	from        string
-	callbackUrl string
+	message string
+	phone   string
+	from    string
 }
 
 func (s *sendSMS) Message() string {
@@ -55,8 +47,4 @@ func (s *sendSMS) PhoneNumber() string {
 
 func (s *sendSMS) From() string {
 	return s.from
-}
-
-func (s *sendSMS) CallbackUrl() string {
-	return s.callbackUrl
 }

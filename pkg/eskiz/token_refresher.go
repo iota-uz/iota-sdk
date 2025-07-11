@@ -35,26 +35,42 @@ func (r *tokenRefresher) RefreshToken(ctx context.Context) (string, error) {
 }
 
 func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error) {
+	if ctx == nil {
+		return "", errors.New("context cannot be nil")
+	}
+
 	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
 			delay := time.Duration(attempt) * baseDelay
-			time.Sleep(delay)
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-time.After(delay):
+			}
 		}
 
-		resp, _, err := r.client.DefaultApi.
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		default:
+		}
+
+		resp, httpResp, err := r.client.DefaultApi.
 			Login(ctx).
 			Email(r.cfg.Email()).
 			Password(r.cfg.Password()).
 			Execute()
 
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
 		if resp == nil {
 			lastErr = errors.New("received nil response from Eskiz auth API")
+			continue
+		} else {
+			_ = httpResp.Body.Close()
+		}
+
+		if err != nil {
+			lastErr = err
 			continue
 		}
 
@@ -65,9 +81,14 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			continue
 		}
 
-		r.token = data.GetToken()
+		token := data.GetToken()
+		if token == "" {
+			lastErr = errors.New("received empty token from Eskiz auth API")
+			continue
+		}
 
-		return r.token, nil
+		r.token = token
+		return token, nil
 	}
 
 	return "", lastErr
