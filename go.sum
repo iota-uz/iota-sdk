@@ -259,6 +259,8 @@ github.com/imkira/go-interpol v1.1.0/go.mod h1:z0h2/2T3XF8kyEPpRgJ3kmNv+C43p+I/C
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/iota-uz/click v1.0.4 h1:XOiUWByPWpCEbGnuEV2kyOrf2UuXUYFqbXnBOjwOn6M=
 github.com/iota-uz/click v1.0.4/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
+github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049 h1:rcV6DDYg68P/PAn1oshQGHQsFoZcRquMeN8+OvHshyQ=
+github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049/go.mod h1:AQhBUxkNnq/mVuJQY+WTt1KfHaM/UoRV4m1sFxadUr0=
 github.com/iota-uz/go-i18n/v2 v2.6.1 h1:TqeZQAjlc7jSOuCgvulH9HvNXjeaKrbEXxXicx9Sfv8=
 github.com/iota-uz/go-i18n/v2 v2.6.1/go.mod h1:Qt4UWzI9Hh93eRZyRWEi4A8RZ5i1kZpltEazsn61Y4s=
 github.com/iota-uz/icons v0.0.2 h1:vJuYL5/f1rkfG2KKDKju9VGpWq1ABI7bhDpFOkxheXo=
