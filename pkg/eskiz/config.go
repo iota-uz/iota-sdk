@@ -29,7 +29,7 @@ func NewConfig(
 	email string,
 	password string,
 	opts ...ConfigOption,
-) (Config, error) {
+) Config {
 	cfg := &config{
 		url:            url,
 		email:          email,
@@ -41,7 +41,7 @@ func NewConfig(
 		opt(cfg)
 	}
 
-	return cfg, nil
+	return cfg
 }
 
 type config struct {

@@ -92,7 +92,7 @@ func (s *service) SendSMS(ctx context.Context, model models.SendSMS) (models.Sen
 		_ = httpResp.Body.Close()
 	}
 	if err != nil {
-		return nil, ErrNilResponse
+		return nil, err
 	}
 
 	return models.NewSendSMSResult(res), nil
