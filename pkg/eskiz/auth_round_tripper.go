@@ -13,6 +13,18 @@ type authRoundTripper struct {
 }
 
 func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	if rt.Refresher == nil {
+		return nil, fmt.Errorf("token refresher is not initialized")
+	}
+
+	if rt.Base == nil {
+		return nil, fmt.Errorf("base round tripper is not initialized")
+	}
+
 	token := rt.Refresher.CurrentToken()
 	if token == "" {
 		var err error
@@ -22,13 +34,27 @@ func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 		}
 	}
 
-	ctx := context.WithValue(context.Background(), eskizapi.ContextAccessToken, token)
+	ctx := context.WithValue(req.Context(), eskizapi.ContextAccessToken, token)
 	req1 := req.Clone(ctx)
-	req1.Header.Set("Authorization", fmt.Sprintf("%s %s", "Bearer", token))
+	if req1 == nil {
+		return nil, fmt.Errorf("failed to clone request")
+	}
+	req1.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp, err := rt.Base.RoundTrip(req1)
-	if err != nil || resp.StatusCode != http.StatusUnauthorized {
-		return resp, err
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		return resp, nil
+	}
+
+	if resp.Body != nil {
+		err := resp.Body.Close()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	token, err = rt.Refresher.RefreshToken(req.Context())
@@ -36,10 +62,17 @@ func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 		return nil, fmt.Errorf("failed to refresh token after 401: %w", err)
 	}
 
-	ctx = context.WithValue(context.Background(), eskizapi.ContextAccessToken, token)
+	ctx = context.WithValue(req.Context(), eskizapi.ContextAccessToken, token)
 	req2 := req.Clone(ctx)
-	req2.Header.Set("Authorization", fmt.Sprintf("%s %s", "Bearer", token))
+	if req2 == nil {
+		return nil, fmt.Errorf("failed to clone request for retry")
+	}
+	req2.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
-	return rt.Base.RoundTrip(req2)
+	resp2, err := rt.Base.RoundTrip(req2)
+	if err != nil {
+		return nil, fmt.Errorf("retry request failed: %w", err)
+	}
 
+	return resp2, nil
 }

@@ -4,16 +4,12 @@ import (
 	"context"
 	eskizapi "github.com/iota-uz/eskiz"
 	"github.com/iota-uz/iota-sdk/pkg/eskiz/models"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	"time"
 )
 
 const (
-	logRequestBody  = true
-	logResponseBody = true
-	apiTimeout      = 30 * time.Second
+	apiTimeout = 30 * time.Second
 )
 
 type Service interface {
@@ -22,7 +18,6 @@ type Service interface {
 
 func NewService(
 	cfg Config,
-	logger *logrus.Logger,
 ) Service {
 	httpClient := &http.Client{
 		Timeout: apiTimeout,
@@ -43,11 +38,7 @@ func NewService(
 	authClient := &http.Client{
 		Timeout: apiTimeout,
 		Transport: &authRoundTripper{
-			Base: middleware.NewLogTransport(
-				logger,
-				logRequestBody,
-				logResponseBody,
-			),
+			Base:      http.DefaultTransport,
 			Refresher: refresher,
 		},
 	}
@@ -70,6 +61,20 @@ type service struct {
 }
 
 func (s *service) SendSMS(ctx context.Context, model models.SendSMS) (models.SendSMSResult, error) {
+	if ctx == nil {
+		return nil, ErrNilContext
+	}
+
+	if model.PhoneNumber() == "" {
+		return nil, ErrInvalidPhoneNumber
+	}
+	if model.Message() == "" {
+		return nil, ErrInvalidMessage
+	}
+	if len(model.Message()) > s.cfg.MaxMessageSize() {
+		return nil, ErrMessageTooLong
+	}
+
 	req := s.client.DefaultApi.
 		SendSms(ctx).
 		MobilePhone(model.PhoneNumber()).
@@ -78,13 +83,16 @@ func (s *service) SendSMS(ctx context.Context, model models.SendSMS) (models.Sen
 	if model.From() != "" {
 		req = req.From(model.From())
 	}
-	if model.CallbackUrl() != "" {
-		req = req.CallbackUrl(model.CallbackUrl())
+	if s.cfg.CallbackUrl() != "" {
+		req = req.CallbackUrl(s.cfg.CallbackUrl())
 	}
 
-	res, _, err := req.Execute()
+	res, httpResp, err := req.Execute()
+	if httpResp != nil {
+		_ = httpResp.Body.Close()
+	}
 	if err != nil {
-		return nil, err
+		return nil, ErrNilResponse
 	}
 
 	return models.NewSendSMSResult(res), nil
