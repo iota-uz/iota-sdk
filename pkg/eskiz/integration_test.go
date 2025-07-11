@@ -17,9 +17,7 @@ func TestIntegration_RealAPI(t *testing.T) {
 	email := "your-email@example.com"
 	password := "your-password"
 
-	cfg, err := NewConfig(url, email, password)
-	require.NoError(t, err)
-
+	cfg := NewConfig(url, email, password)
 	service := NewService(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

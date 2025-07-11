@@ -36,9 +36,6 @@ func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 
 	ctx := context.WithValue(req.Context(), eskizapi.ContextAccessToken, token)
 	req1 := req.Clone(ctx)
-	if req1 == nil {
-		return nil, fmt.Errorf("failed to clone request")
-	}
 	req1.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp, err := rt.Base.RoundTrip(req1)
@@ -64,9 +61,6 @@ func (rt *authRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 
 	ctx = context.WithValue(req.Context(), eskizapi.ContextAccessToken, token)
 	req2 := req.Clone(ctx)
-	if req2 == nil {
-		return nil, fmt.Errorf("failed to clone request for retry")
-	}
 	req2.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 	resp2, err := rt.Base.RoundTrip(req2)

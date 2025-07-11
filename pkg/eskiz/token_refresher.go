@@ -62,10 +62,7 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			Password(r.cfg.Password()).
 			Execute()
 
-		if resp == nil {
-			lastErr = errors.New("received nil response from Eskiz auth API")
-			continue
-		} else {
+		if httpResp != nil {
 			_ = httpResp.Body.Close()
 		}
 
@@ -77,7 +74,7 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 		data := resp.GetData()
 
 		if data.Token == nil {
-			lastErr = errors.New("access token is null in response")
+			lastErr = errors.New("access token is null in response from Eskiz auth API")
 			continue
 		}
 
