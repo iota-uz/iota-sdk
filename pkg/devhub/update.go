@@ -56,7 +56,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) updateServiceView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
-		m.ServiceManager.Shutdown()
 		return m, tea.Quit
 
 	case "up", "k":
