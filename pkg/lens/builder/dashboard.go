@@ -2,8 +2,9 @@ package builder
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 )
 
 // DashboardBuilder provides a fluent API for building dashboards

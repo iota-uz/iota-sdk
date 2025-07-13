@@ -61,17 +61,14 @@ func BenchmarkGormPositionRepository_Create(b *testing.B) {
 
 	for range b.N {
 		b.StartTimer()
-		if err := positionRepository.Create(
+		if _, err := positionRepository.Create(
 			f.Ctx,
-			&position.Position{
-				ID:        1,
-				Title:     "Position 1",
-				Barcode:   random.String(13, random.LowerCharSet),
-				UnitID:    1,
-				Images:    uploads,
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			},
+			position.New("Position 1", random.String(13, random.LowerCharSet),
+				position.WithID(1),
+				position.WithUnitID(1),
+				position.WithImages(uploads),
+				position.WithCreatedAt(time.Now()),
+				position.WithUpdatedAt(time.Now())),
 		); err != nil {
 			b.Fatal(err)
 		}
@@ -118,16 +115,13 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := positionRepository.Create(
-		f.Ctx, &position.Position{
-			ID:        1,
-			Title:     "Position 1",
-			Barcode:   "3141592653589",
-			UnitID:    1,
-			Images:    []upload.Upload{createdUpload},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}); err != nil {
+	if _, err := positionRepository.Create(
+		f.Ctx, position.New("Position 1", "3141592653589",
+			position.WithID(1),
+			position.WithUnitID(1),
+			position.WithImages([]upload.Upload{createdUpload}),
+			position.WithCreatedAt(time.Now()),
+			position.WithUpdatedAt(time.Now()))); err != nil {
 		t.Fatal(err)
 	}
 
@@ -137,26 +131,23 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if positionEntity.Title != "Position 1" {
-				t.Errorf("expected %s, got %s", "Position 1", positionEntity.Title)
+			if positionEntity.Title() != "Position 1" {
+				t.Errorf("expected %s, got %s", "Position 1", positionEntity.Title())
 			}
-			if positionEntity.Barcode != "3141592653589" {
-				t.Errorf("expected %s, got %s", "3141592653589", positionEntity.Barcode)
+			if positionEntity.Barcode() != "3141592653589" {
+				t.Errorf("expected %s, got %s", "3141592653589", positionEntity.Barcode())
 			}
 		},
 	)
 
 	t.Run(
 		"Update", func(t *testing.T) {
-			if err := positionRepository.Update(
+			if _, err := positionRepository.Update(
 				f.Ctx,
-				&position.Position{
-					ID:      1,
-					Title:   "Updated Position 1",
-					Barcode: "3141592653589",
-					UnitID:  1,
-					Images:  []upload.Upload{},
-				},
+				position.New("Updated Position 1", "3141592653589",
+					position.WithID(1),
+					position.WithUnitID(1),
+					position.WithImages([]upload.Upload{})),
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -164,8 +155,8 @@ func TestGormPositionRepository_CRUD(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if positionEntity.Title != "Updated Position 1" {
-				t.Errorf("expected %s, got %s", "Updated Position 1", positionEntity.Title)
+			if positionEntity.Title() != "Updated Position 1" {
+				t.Errorf("expected %s, got %s", "Updated Position 1", positionEntity.Title())
 			}
 		},
 	)
