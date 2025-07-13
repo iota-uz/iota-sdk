@@ -29,6 +29,9 @@ type StateManager struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
+	
+	// Prevent multiple stops
+	stopOnce sync.Once
 }
 
 type StatusUpdate struct {
@@ -297,8 +300,10 @@ func (sm *StateManager) GetSystemStats() SystemStats {
 
 // Stop gracefully shuts down the state manager
 func (sm *StateManager) Stop() {
-	sm.cancel()
-	close(sm.statusUpdateCh)
-	close(sm.resourceUpdateCh)
-	close(sm.systemUpdateCh)
+	sm.stopOnce.Do(func() {
+		sm.cancel()
+		close(sm.statusUpdateCh)
+		close(sm.resourceUpdateCh)
+		close(sm.systemUpdateCh)
+	})
 }
