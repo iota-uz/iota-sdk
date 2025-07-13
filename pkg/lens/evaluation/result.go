@@ -2,8 +2,9 @@ package evaluation
 
 import (
 	"fmt"
-	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 )
 
 // EvaluatedDashboard represents a dashboard ready for rendering

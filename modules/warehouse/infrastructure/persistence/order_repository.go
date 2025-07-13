@@ -315,7 +315,7 @@ func (g *GormOrderRepository) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]*product.Product, error) {
+func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]product.Product, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -327,7 +327,7 @@ func (g *GormOrderRepository) queryProducts(ctx context.Context, query string, a
 	}
 	defer rows.Close()
 
-	var products []*product.Product
+	var products []product.Product
 
 	for rows.Next() {
 		var wp models.WarehouseProduct
@@ -405,22 +405,29 @@ func (g *GormOrderRepository) queryOrders(ctx context.Context, query string, arg
 		orders = append(orders, domainOrder)
 	}
 
-	for _, domainOrder := range orders {
+	for i, domainOrder := range orders {
+		tenantID, err := composables.UseTenantID(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+		}
 		domainProducts, err := g.queryProducts(ctx,
 			repo.Join(
 				selectOrderProductsQuery,
-				"WHERE wp.id IN (SELECT warehouse_product_id FROM warehouse_order_items WHERE warehouse_order_id = $1)",
+				"WHERE wp.tenant_id = $1 AND wp.id IN (SELECT warehouse_product_id FROM warehouse_order_items WHERE warehouse_order_id = $2)",
 			),
+			tenantID,
 			domainOrder.ID(),
 		)
 		if err != nil {
 			return nil, err
 		}
 		for _, p := range domainProducts {
-			if err := domainOrder.AddItem(p.Position, p); err != nil {
+			domainOrder, err = domainOrder.AddItem(p.Position(), p)
+			if err != nil {
 				return nil, err
 			}
 		}
+		orders[i] = domainOrder
 	}
 
 	if err := rows.Err(); err != nil {

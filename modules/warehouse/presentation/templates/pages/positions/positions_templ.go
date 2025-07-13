@@ -392,7 +392,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			var templ_7745c5c3_Var19 string
-			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("WarehousePositions.List.Upload"))
+			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("WarehousePositions.List.Import"))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/positions/positions.templ`, Line: 87, Col: 49}
 			}
@@ -403,7 +403,7 @@ func PositionsContent(props *IndexPageProps) templ.Component {
 			return nil
 		})
 		templ_7745c5c3_Err = button.Primary(button.Props{
-			Size: button.SizeNormal, Href: "/warehouse/positions/upload",
+			Size: button.SizeNormal, Href: "/warehouse/positions/import",
 			Icon: icons.FileXls(icons.Props{Size: "18"}),
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

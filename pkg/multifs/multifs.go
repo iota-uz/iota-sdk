@@ -2,9 +2,10 @@
 package multifs
 
 import (
-	"github.com/benbjohnson/hashfs"
 	"net/http"
 	"os"
+
+	"github.com/benbjohnson/hashfs"
 )
 
 type MultiHashFS struct {

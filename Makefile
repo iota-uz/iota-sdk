@@ -7,7 +7,7 @@ deps:
 	go get ./...
 
 fmt:
-	go fmt ./... && templ fmt . && go mod tidy
+	goimports -w . && templ fmt . && go mod tidy
 
 # Seed database
 seed:
@@ -15,7 +15,7 @@ seed:
 
 # Generate code documentation
 docs:
-	go run cmd/document/main.go -dir . -out docs/LLMS.md -recursive -exclude "vendor,node_modules,tmp,e2e,py-embed,cmd"
+	go run cmd/document/main.go -dir . -out docs/LLMS.md -recursive -exclude "vendor,node_modules,tmp,e2e,cmd"
 
 generate:
 	go generate ./... && templ generate

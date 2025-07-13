@@ -81,10 +81,10 @@ templ PositionsContent(props *IndexPageProps) {
 				{ pageCtx.T("NavigationLinks.WarehousePositions") }
 			</h1>
 			@button.Primary(button.Props{
-				Size: button.SizeNormal, Href: "/warehouse/positions/upload",
+				Size: button.SizeNormal, Href: "/warehouse/positions/import",
 				Icon: icons.FileXls(icons.Props{Size: "18"}),
 			}) {
-				{ pageCtx.T("WarehousePositions.List.Upload") }
+				{ pageCtx.T("WarehousePositions.List.Import") }
 			}
 		</div>
 		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">

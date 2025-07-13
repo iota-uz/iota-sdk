@@ -1,6 +1,11 @@
 package crud
 
-import "context"
+import (
+	"context"
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
 // SelectType defines how the select field behaves in the UI
 type SelectType string
@@ -59,6 +64,10 @@ type SelectField interface {
 	WithStaticOptions(options ...SelectOption) SelectField
 	WithSearchEndpoint(endpoint string) SelectField
 	WithCombobox(endpoint string, multiple bool) SelectField
+
+	// Cache control
+	InvalidateOptionsCache()
+	SetOptionsCacheTTL(ttl time.Duration) SelectField
 }
 
 type selectField struct {
@@ -66,6 +75,10 @@ type selectField struct {
 	selectType    SelectType
 	options       []SelectOption
 	optionsLoader func(ctx context.Context) []SelectOption
+	cachedOptions []SelectOption
+	cacheTime     atomic.Int64
+	cacheTTL      atomic.Int64
+	cacheMu       sync.RWMutex
 	endpoint      string
 	placeholder   string
 	multiple      bool
@@ -78,6 +91,8 @@ func NewSelectField(name string, opts ...FieldOption) SelectField {
 		selectType: SelectTypeStatic,
 		valueType:  StringFieldType, // Default to string
 	}
+	// Default cache TTL: 5 minutes
+	sf.cacheTTL.Store(int64(5 * time.Minute))
 
 	// Create the base field with the value type
 	f := newField(
@@ -121,7 +136,46 @@ func (f *selectField) OptionsLoader() func(ctx context.Context) []SelectOption {
 
 // SetOptionsLoader sets a function to dynamically load options
 func (f *selectField) SetOptionsLoader(loader func(ctx context.Context) []SelectOption) SelectField {
-	f.optionsLoader = loader
+	// Wrap loader with TTL-based caching & invalidation support.
+	f.optionsLoader = func(ctx context.Context) []SelectOption {
+		// Fast path under read lock
+		f.cacheMu.RLock()
+		if f.cachedOptions != nil {
+			ttl := time.Duration(f.cacheTTL.Load())
+			if ttl <= 0 || time.Since(time.Unix(0, f.cacheTime.Load())) < ttl {
+				opts := f.cachedOptions
+				f.cacheMu.RUnlock()
+				return opts
+			}
+		}
+		f.cacheMu.RUnlock()
+
+		// Need to refresh cache under write lock
+		f.cacheMu.Lock()
+		defer f.cacheMu.Unlock()
+		if f.cachedOptions == nil || (time.Duration(f.cacheTTL.Load()) > 0 && time.Since(time.Unix(0, f.cacheTime.Load())) >= time.Duration(f.cacheTTL.Load())) {
+			f.cachedOptions = loader(ctx)
+			f.cacheTime.Store(time.Now().UnixNano())
+		}
+		return f.cachedOptions
+	}
+	return f
+}
+
+// InvalidateOptionsCache clears the cached options forcing the next call to
+// OptionsLoader to reload them.
+func (f *selectField) InvalidateOptionsCache() {
+	f.cacheMu.Lock()
+	defer f.cacheMu.Unlock()
+	f.cachedOptions = nil
+	f.cacheTime.Store(0)
+}
+
+// SetOptionsCacheTTL sets the time-to-live for the cached options. A zero or
+// negative duration disables TTL (cache never expires until invalidated
+// manually). Returns the same SelectField for chaining.
+func (f *selectField) SetOptionsCacheTTL(ttl time.Duration) SelectField {
+	f.cacheTTL.Store(int64(ttl))
 	return f
 }
 

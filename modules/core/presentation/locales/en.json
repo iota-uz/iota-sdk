@@ -26,6 +26,11 @@
     "uuid": "{{.Field}} must be a valid UUID",
     "custom": "{{.Field}}: {{.Error}}"
   },
+  "Import": {
+    "Error": {
+      "ValidationError": "Validation Error"
+    }
+  },
   "Filters": {
     "CreatedAt": {
       "AllTime": "All the time",
@@ -76,7 +81,8 @@
     "unit": "Unit",
     "position": "Position",
     "order": "Order",
-    "inventory": "Inventory"
+    "inventory": "Inventory",
+    "upload": "Upload"
   },
   "Permissions": {
     "User": {
@@ -166,6 +172,12 @@
       "Read": "Read inventory",
       "Update": "Update inventory",
       "Delete": "Delete inventory"
+    },
+    "Upload": {
+      "Create": "Create upload",
+      "Read": "Read upload",
+      "Update": "Update upload",
+      "Delete": "Delete upload"
     }
   },
   "NavigationLinks": {
@@ -386,8 +398,7 @@
     "Save": "Save",
     "Tabs": {
       "Profile": "Profile settings",
-      "Sidebar": "Sidebar settings",
-      "Logo": "Logo settings"
+      "Sidebar": "Sidebar settings"
     },
     "Logo": {
       "FullLogo": "Full Logo",
@@ -442,7 +453,7 @@
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Export": {
     "ToExcel": "Export to Excel",
-    "ToCSV": "Export to CSV", 
+    "ToCSV": "Export to CSV",
     "ToJSON": "Export to JSON",
     "ToTXT": "Export to TXT"
   },
