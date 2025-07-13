@@ -132,11 +132,6 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 	}
 }
 
-
-
-
-
-
 // RateLimitPeriod creates a rate limiting middleware with custom time period
 func RateLimitPeriod(requests int, period time.Duration, keyFunc func(r *http.Request) string) mux.MiddlewareFunc {
 	return RateLimit(RateLimitConfig{
@@ -162,4 +157,3 @@ func IPRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc {
 func UserRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc {
 	return RateLimitPeriod(requests, period, UserKeyFunc)
 }
-
