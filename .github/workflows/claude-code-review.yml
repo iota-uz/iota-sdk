@@ -117,7 +117,7 @@ jobs:
                 },
                 "bloom": {
                   "type": "http",
-                  "url": "https://bloom.up.railway.app/api/mcp",
+                  "url": "https://api.bloom.pw/api/mcp",
                   "name": "bloom",
                   "headers": {
                     "Authorization": "Bearer ${{ secrets.BLOOM_MCP_TOKEN }}"
