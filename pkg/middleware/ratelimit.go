@@ -12,14 +12,15 @@ import (
 	"github.com/ulule/limiter/v3/drivers/store/memory"
 	"github.com/ulule/limiter/v3/drivers/store/redis"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 // RateLimitConfig holds configuration for rate limiting
 type RateLimitConfig struct {
-	// RequestsPerSecond defines the number of requests allowed per second
-	RequestsPerSecond int
-	// BurstSize defines the maximum burst size (optional, defaults to RPS if not set)
+	// RequestsPerPeriod defines the number of requests allowed per time period
+	RequestsPerPeriod int
+	// BurstSize defines the maximum burst size (optional, defaults to RequestsPerPeriod if not set)
 	BurstSize int
 	// Period defines the time window for rate limiting (optional, defaults to 1 second)
 	Period time.Duration
@@ -38,10 +39,16 @@ func DefaultKeyFunc(r *http.Request) string {
 
 // UserKeyFunc returns a key based on user ID if authenticated, falls back to IP
 func UserKeyFunc(r *http.Request) string {
-	// Try to get user ID from context first
-	// This would need to be integrated with your auth system
-	// For now, fallback to IP-based limiting
-	return DefaultKeyFunc(r)
+	// Try to get session from context first
+	ctx := r.Context()
+	sess, err := composables.UseSession(ctx)
+	if err != nil {
+		// No authenticated session, fall back to IP-based limiting
+		return DefaultKeyFunc(r)
+	}
+
+	// Use user ID for rate limiting if session is available
+	return fmt.Sprintf("user:%d", sess.UserID)
 }
 
 // EndpointKeyFunc returns a key based on endpoint and IP
@@ -82,7 +89,7 @@ func NewRedisStore(redisURL string) (limiter.Store, error) {
 func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 	// Set defaults
 	if config.BurstSize == 0 {
-		config.BurstSize = config.RequestsPerSecond
+		config.BurstSize = config.RequestsPerPeriod
 	}
 	if config.Period == 0 {
 		config.Period = time.Second
@@ -100,7 +107,7 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 	// Create rate limit with configurable period
 	rate := limiter.Rate{
 		Period: config.Period,
-		Limit:  int64(config.RequestsPerSecond),
+		Limit:  int64(config.RequestsPerPeriod),
 	}
 
 	instance := limiter.New(config.Store, rate, limiter.WithClientIPHeader("X-Real-IP"))
@@ -135,7 +142,7 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 // RateLimitPeriod creates a rate limiting middleware with custom time period
 func RateLimitPeriod(requests int, period time.Duration, keyFunc func(r *http.Request) string) mux.MiddlewareFunc {
 	return RateLimit(RateLimitConfig{
-		RequestsPerSecond: requests,
+		RequestsPerPeriod: requests,
 		Period:            period,
 		KeyFunc:           keyFunc,
 	})
