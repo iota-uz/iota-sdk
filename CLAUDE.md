@@ -11,6 +11,55 @@
 -   When writing a mapper function, always use utilities from `pkg/mapping` to ensure consistency
 -   PREFER `mcp__bloom__search_code` for semantic search over manual file searching when you don't know exact file names or when exploring the codebase to understand functionality
 
+## DevHub MCP Tools
+
+DevHub is a development environment orchestrator that manages all development services (database, server, CSS builds, etc.) configured in `devhub.yml`. When DevHub is running, use these MCP tools to monitor and control the development environment:
+
+### Available MCP Tools:
+1. **list_services** - Check status of all development services
+   - Shows postgres, server, templ, css, tunnel, etc. configured in devhub.yml
+   - Use this to verify all required services are running before starting work
+
+2. **get_logs** - Retrieve logs from a specific service
+   - Args: `service` (required), `lines` (optional, default: 50), `offset` (optional, default: 0)
+   - Examples: 
+     - `get_logs("server")` for latest Air hot-reload logs
+     - `get_logs("postgres", lines=100)` for last 100 DB logs
+     - `get_logs("server", lines=50, offset=100)` to see older logs
+   - Essential for debugging build errors, database issues, or server crashes
+
+3. **service_control** - Start, stop, or restart development services
+   - Args: `service` (required), `action` (required: "start", "stop", "restart")
+   - Examples: 
+     - `service_control("server", "restart")` if Air gets stuck or after fixing a panic
+     - `service_control("postgres", "stop")` to free up resources
+     - `service_control("templ", "restart")` if templ watcher stops working
+
+4. **health_check** - Get detailed health status of a service
+   - Args: `service` (required)
+   - Returns status, health, uptime, CPU/memory usage
+   - Use to check if postgres is ready, server is healthy, etc.
+
+5. **search_logs** - Search for patterns in service logs
+   - Args: `service` (required), `pattern` (required), `context_lines` (optional, default: 2), `max_results` (optional, default: 50)
+   - Examples:
+     - `search_logs("server", "panic")` to find panics in server logs
+     - `search_logs("templ", "error")` to find template compilation errors
+     - `search_logs("server", "404", context_lines=5)` to debug missing routes with more context
+   - Case-insensitive search with context lines before/after matches
+
+### Common DevHub Workflows:
+- **Templ compilation errors**: Use `get_logs("templ")` to see syntax errors in .templ files
+- **Server runtime errors/panics**: Use `search_logs("server", "panic")` to quickly find panic stack traces
+- **Server not responding**: Use `health_check("server")` to check if it crashed, then `get_logs("server")` for the error
+- **Database connection issues**: Use `health_check("postgres")` to verify it's ready
+- **Before running tests**: Use `list_services` to ensure postgres and server are healthy
+- **After fixing a panic**: Use `service_control("server", "restart")` to restart the server
+- **Debugging template issues**: Check `get_logs("templ")` for compilation errors, then `get_logs("server")` for runtime template errors
+- **Finding specific errors**: Use `search_logs("server", "error", context_lines=5)` to find all errors with context
+- **Debugging 404s**: Use `search_logs("server", "404")` to find missing route errors
+- **Reviewing older logs**: Use `get_logs("server", lines=100, offset=200)` to see logs from earlier in the session
+
 ## Build/Lint/Test Commands
 - Format code and remove unused imports: `make fmt`
 - Apply migrations: `make migrate up`
