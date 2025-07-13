@@ -66,11 +66,9 @@ func NewMemoryStore() limiter.Store {
 // NewRedisStore creates a new Redis store for rate limiting
 func NewRedisStore(redisURL string) (limiter.Store, error) {
 	if redisURL == "" {
-		redisURL = "redis://localhost:6379"
+		return nil, fmt.Errorf("redis URL cannot be empty")
 	}
 
-	// Parse Redis URL and create a redis client
-	// For now, we'll use a simple approach - in production you might want more sophisticated parsing
 	client := redisClient.NewClient(&redisClient.Options{
 		Addr: redisURL,
 	})

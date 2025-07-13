@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
@@ -84,6 +85,7 @@ func (c *LoginController) Register(r *mux.Router) {
 	setRouter.Use(
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.WithTransaction(),
+		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
 }

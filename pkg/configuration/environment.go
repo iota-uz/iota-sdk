@@ -118,13 +118,10 @@ type StripeOptions struct {
 }
 
 type RateLimitOptions struct {
-	Enabled        bool     `env:"RATE_LIMIT_ENABLED" envDefault:"true"`
-	GlobalRPS      int      `env:"RATE_LIMIT_GLOBAL_RPS" envDefault:"1000"`
-	APIRPS         int      `env:"RATE_LIMIT_API_RPS" envDefault:"100"`
-	AuthRPS        int      `env:"RATE_LIMIT_AUTH_RPS" envDefault:"10"`
-	Storage        string   `env:"RATE_LIMIT_STORAGE" envDefault:"memory"` // memory or redis
-	RedisURL       string   `env:"RATE_LIMIT_REDIS_URL"`
-	TrustedProxies []string `env:"RATE_LIMIT_TRUSTED_PROXIES" envSeparator:","`
+	Enabled   bool   `env:"RATE_LIMIT_ENABLED" envDefault:"true"`
+	GlobalRPS int    `env:"RATE_LIMIT_GLOBAL_RPS" envDefault:"1000"`
+	Storage   string `env:"RATE_LIMIT_STORAGE" envDefault:"memory"` // memory or redis
+	RedisURL  string `env:"RATE_LIMIT_REDIS_URL"`
 }
 
 type Configuration struct {
