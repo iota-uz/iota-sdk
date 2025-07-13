@@ -29,31 +29,68 @@ RATE_LIMIT_REDIS_URL=redis://localhost:6379
 
 ## Usage Examples
 
-### Basic IP-based Rate Limiting
+### API Protection Use Cases
+
+#### General API Rate Limiting
+Protect your API endpoints from excessive usage:
 
 ```go
 import "github.com/iota-uz/iota-sdk/pkg/middleware"
 
-// Limit to 100 requests per minute per IP
+// General API protection: 100 requests per minute per IP
 router.Use(middleware.IPRateLimitPeriod(100, time.Minute))
+
+// High-traffic API: 1000 requests per hour per IP
+router.Use(middleware.IPRateLimitPeriod(1000, time.Hour))
 ```
 
-### Global Rate Limiting
+#### Authentication & Security Use Cases
+Protect sensitive endpoints like login, registration, and password reset:
 
 ```go
-// Limit to 1000 requests per minute globally (shared across all clients)
-router.Use(middleware.GlobalRateLimitPeriod(1000, time.Minute))
+// Login protection: 10 attempts per minute per IP
+loginRouter := r.PathPrefix("/login").Subrouter()
+loginRouter.Use(middleware.IPRateLimitPeriod(10, time.Minute))
+
+// Registration: 5 accounts per hour per IP
+regRouter := r.PathPrefix("/register").Subrouter()
+regRouter.Use(middleware.IPRateLimitPeriod(5, time.Hour))
+
+// Password reset: 3 attempts per hour per IP
+resetRouter := r.PathPrefix("/reset-password").Subrouter()
+resetRouter.Use(middleware.IPRateLimitPeriod(3, time.Hour))
 ```
 
-### Authentication Rate Limiting
+#### User-based Rate Limiting
+Rate limit authenticated users by their user ID instead of IP:
 
 ```go
-// Add rate limiting directly to authentication controllers
-setRouter := r.PathPrefix("/login").Subrouter()
-setRouter.Use(middleware.IPRateLimitPeriod(10, time.Minute)) // 10 login attempts per minute per IP
+// Authenticated API endpoints: 1000 requests per hour per user
+apiRouter := r.PathPrefix("/api").Subrouter()
+apiRouter.Use(middleware.Authorize())  // Ensure user is authenticated first
+apiRouter.Use(middleware.UserRateLimitPeriod(1000, time.Hour))
+
+// Premium user endpoints: 5000 requests per hour per user
+premiumRouter := r.PathPrefix("/api/premium").Subrouter()
+premiumRouter.Use(middleware.Authorize())
+premiumRouter.Use(middleware.UserRateLimitPeriod(5000, time.Hour))
 ```
 
-### Custom Rate Limiting Configuration
+#### Global Protection Use Cases
+Protect your entire application from overload:
+
+```go
+// Global protection: 10,000 requests per hour across all clients
+router.Use(middleware.GlobalRateLimitPeriod(10000, time.Hour))
+
+// DDoS protection: 50,000 requests per minute globally
+router.Use(middleware.GlobalRateLimitPeriod(50000, time.Minute))
+```
+
+### Advanced Configuration
+
+#### Custom Rate Limiting with Redis
+For production deployments with multiple instances:
 
 ```go
 import (
@@ -67,13 +104,13 @@ if err != nil {
 }
 
 customMiddleware := middleware.RateLimit(middleware.RateLimitConfig{
-    RequestsPerSecond: 50,
+    RequestsPerPeriod: 50,
     Period:           time.Minute,
     BurstSize:        100,  // Allow bursts up to 100 requests
     Store:           store,
     KeyFunc: func(r *http.Request) string {
-        // Custom key function - e.g., by user ID
-        return "user:" + getUserID(r)
+        // Custom key function - e.g., by API key
+        return "api_key:" + r.Header.Get("X-API-Key")
     },
     OnLimitReached: func(w http.ResponseWriter, r *http.Request) {
         // Custom response when rate limit is exceeded
@@ -159,13 +196,15 @@ go test -v ./pkg/middleware -run TestRateLimit
 This implementation uses integer values with custom time periods instead of fixed per-second rates. This provides more flexibility and clearer configuration:
 
 ```go
-// Custom time periods for different scenarios
+// Time-based rate limiting patterns
 middleware.IPRateLimitPeriod(100, time.Minute)     // ✅ 100 requests per minute per IP
 middleware.IPRateLimitPeriod(10, time.Second)      // ✅ 10 requests per second per IP
 middleware.GlobalRateLimitPeriod(1000, time.Hour)  // ✅ 1000 requests per hour globally
 
-// Authentication rate limiting example
-middleware.IPRateLimitPeriod(10, time.Minute)      // ✅ 10 login attempts per minute per IP
+// Use case specific examples
+middleware.IPRateLimitPeriod(10, time.Minute)      // ✅ Login protection
+middleware.UserRateLimitPeriod(1000, time.Hour)    // ✅ Authenticated user limits
+middleware.GlobalRateLimitPeriod(50000, time.Minute) // ✅ DDoS protection
 ```
 
-This pattern makes the API more intuitive and allows for precise rate limiting configuration based on your specific requirements and time windows.
+This pattern makes the API more intuitive and allows for precise rate limiting configuration based on your specific requirements and time windows. The middleware automatically handles authentication context for user-based rate limiting and falls back to IP-based limiting for unauthenticated requests.

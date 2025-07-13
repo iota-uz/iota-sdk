@@ -65,7 +65,7 @@ func TestCustomRateLimitConfig(t *testing.T) {
 	// Create router with custom rate limiting configuration
 	router := mux.NewRouter()
 	router.Use(RateLimit(RateLimitConfig{
-		RequestsPerSecond: 2,
+		RequestsPerPeriod: 2,
 		BurstSize:         3,
 		KeyFunc:           customKeyFunc,
 		OnLimitReached:    customLimitReached,
