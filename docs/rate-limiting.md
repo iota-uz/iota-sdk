@@ -21,15 +21,10 @@ RATE_LIMIT_ENABLED=true
 
 # Rate limits (requests per second)
 RATE_LIMIT_GLOBAL_RPS=1000      # Global rate limit for all requests
-RATE_LIMIT_API_RPS=100          # API-specific rate limit  
-RATE_LIMIT_AUTH_RPS=10          # Authentication endpoints rate limit
 
 # Storage backend (memory or redis)
 RATE_LIMIT_STORAGE=memory       # Use 'redis' for production
 RATE_LIMIT_REDIS_URL=redis://localhost:6379
-
-# Trusted proxies (comma-separated list)
-RATE_LIMIT_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 ```
 
 ## Usage Examples
@@ -39,35 +34,23 @@ RATE_LIMIT_TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 ```go
 import "github.com/iota-uz/iota-sdk/pkg/middleware"
 
-// Limit to 100 requests per second per IP
-router.Use(middleware.IPRateLimit(100))
+// Limit to 100 requests per minute per IP
+router.Use(middleware.IPRateLimitPeriod(100, time.Minute))
 ```
 
 ### Global Rate Limiting
 
 ```go
-// Limit to 1000 requests per second globally (shared across all clients)
-router.Use(middleware.GlobalRateLimit(1000))
+// Limit to 1000 requests per minute globally (shared across all clients)
+router.Use(middleware.GlobalRateLimitPeriod(1000, time.Minute))
 ```
 
-### Endpoint-specific Rate Limiting
+### Authentication Rate Limiting
 
 ```go
-// Different limits for different endpoints
-apiRouter := router.PathPrefix("/api").Subrouter()
-apiRouter.Use(middleware.EndpointRateLimit("/api", 50))
-
-authRouter := router.PathPrefix("/auth").Subrouter()
-authRouter.Use(middleware.EndpointRateLimit("/auth", 5))
-```
-
-### API Rate Limiting with Integer RPS
-
-```go
-// Simple integer-based RPS configuration
-router.Use(middleware.APIRateLimit(100))  // 100 requests per second
-router.Use(middleware.APIRateLimit(50))   // 50 requests per second
-router.Use(middleware.APIRateLimit(10))   // 10 requests per second
+// Add rate limiting directly to authentication controllers
+setRouter := r.PathPrefix("/login").Subrouter()
+setRouter.Use(middleware.IPRateLimitPeriod(10, time.Minute)) // 10 login attempts per minute per IP
 ```
 
 ### Custom Rate Limiting Configuration
@@ -85,6 +68,7 @@ if err != nil {
 
 customMiddleware := middleware.RateLimit(middleware.RateLimitConfig{
     RequestsPerSecond: 50,
+    Period:           time.Minute,
     BurstSize:        100,  // Allow bursts up to 100 requests
     Store:           store,
     KeyFunc: func(r *http.Request) string {
@@ -170,18 +154,18 @@ go test -v ./pkg/middleware -run TestRateLimit
 - **Key selection**: Choose efficient key functions to minimize overhead
 - **Rate limit values**: Set appropriate limits based on your application's capacity
 
-## Migration from String-based Levels
+## Configuration Pattern
 
-This implementation uses integer RPS values instead of predefined string levels like "moderate" or "strict". This provides more flexibility and clearer configuration:
+This implementation uses integer values with custom time periods instead of fixed per-second rates. This provides more flexibility and clearer configuration:
 
 ```go
-// Old approach (not supported)
-// middleware.APIRateLimit("moderate")  // ❌
+// Custom time periods for different scenarios
+middleware.IPRateLimitPeriod(100, time.Minute)     // ✅ 100 requests per minute per IP
+middleware.IPRateLimitPeriod(10, time.Second)      // ✅ 10 requests per second per IP
+middleware.GlobalRateLimitPeriod(1000, time.Hour)  // ✅ 1000 requests per hour globally
 
-// New approach (supported)
-middleware.APIRateLimit(100)  // ✅ 100 requests per second
-middleware.APIRateLimit(10)   // ✅ 10 requests per second
-middleware.APIRateLimit(1000) // ✅ 1000 requests per second
+// Authentication rate limiting example
+middleware.IPRateLimitPeriod(10, time.Minute)      // ✅ 10 login attempts per minute per IP
 ```
 
-This change makes the API more intuitive and allows for precise rate limiting configuration based on your specific requirements.
+This pattern makes the API more intuitive and allows for precise rate limiting configuration based on your specific requirements and time windows.
