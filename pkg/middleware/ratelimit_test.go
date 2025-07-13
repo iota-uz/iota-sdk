@@ -43,11 +43,6 @@ func TestNewMemoryStore(t *testing.T) {
 	assert.NotNil(t, store)
 }
 
-
-
-
-
-
 func TestCustomRateLimitConfig(t *testing.T) {
 	// Create a test handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,7 +129,6 @@ func TestRateLimitHeaders(t *testing.T) {
 	assert.Greater(t, resetInt, time.Now().Unix())
 }
 
-
 func TestRateLimitWithCustomPeriod(t *testing.T) {
 	// Create a test handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -192,4 +186,3 @@ func TestGlobalRateLimitWithCustomPeriod(t *testing.T) {
 		assert.Equal(t, "100", rr.Header().Get("X-Ratelimit-Limit"))
 	}
 }
-
