@@ -134,44 +134,10 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 	}
 }
 
-// GlobalRateLimit creates a global rate limiting middleware (all requests share the same limit)
-func GlobalRateLimit(requestsPerSecond int) mux.MiddlewareFunc {
-	return RateLimit(RateLimitConfig{
-		RequestsPerSecond: requestsPerSecond,
-		KeyFunc: func(r *http.Request) string {
-			return "global"
-		},
-	})
-}
 
-// IPRateLimit creates an IP-based rate limiting middleware
-func IPRateLimit(requestsPerSecond int) mux.MiddlewareFunc {
-	return RateLimit(RateLimitConfig{
-		RequestsPerSecond: requestsPerSecond,
-		KeyFunc:           DefaultKeyFunc,
-	})
-}
 
-// UserRateLimit creates a user-based rate limiting middleware (falls back to IP if no user)
-func UserRateLimit(requestsPerSecond int) mux.MiddlewareFunc {
-	return RateLimit(RateLimitConfig{
-		RequestsPerSecond: requestsPerSecond,
-		KeyFunc:           UserKeyFunc,
-	})
-}
 
-// EndpointRateLimit creates an endpoint-specific rate limiting middleware
-func EndpointRateLimit(endpoint string, requestsPerSecond int) mux.MiddlewareFunc {
-	return RateLimit(RateLimitConfig{
-		RequestsPerSecond: requestsPerSecond,
-		KeyFunc:           EndpointKeyFunc(endpoint),
-	})
-}
 
-// APIRateLimit creates an API rate limiting middleware with different tiers based on RPS
-func APIRateLimit(requestsPerSecond int) mux.MiddlewareFunc {
-	return IPRateLimit(requestsPerSecond)
-}
 
 // RateLimitPeriod creates a rate limiting middleware with custom time period
 func RateLimitPeriod(requests int, period time.Duration, keyFunc func(r *http.Request) string) mux.MiddlewareFunc {
@@ -199,7 +165,3 @@ func UserRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc 
 	return RateLimitPeriod(requests, period, UserKeyFunc)
 }
 
-// EndpointRateLimitPeriod creates an endpoint-specific rate limiting middleware with custom time period
-func EndpointRateLimitPeriod(endpoint string, requests int, period time.Duration) mux.MiddlewareFunc {
-	return RateLimitPeriod(requests, period, EndpointKeyFunc(endpoint))
-}
