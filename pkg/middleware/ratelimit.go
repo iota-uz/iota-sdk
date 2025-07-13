@@ -21,6 +21,8 @@ type RateLimitConfig struct {
 	RequestsPerSecond int
 	// BurstSize defines the maximum burst size (optional, defaults to RPS if not set)
 	BurstSize int
+	// Period defines the time window for rate limiting (optional, defaults to 1 second)
+	Period time.Duration
 	// KeyFunc defines how to generate keys for rate limiting (e.g., by IP, user, etc.)
 	KeyFunc func(r *http.Request) string
 	// Store defines the storage backend (memory or redis)
@@ -53,7 +55,7 @@ func EndpointKeyFunc(endpoint string) func(r *http.Request) string {
 func DefaultOnLimitReached(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusTooManyRequests)
-	w.Write([]byte(`{"error":"Rate limit exceeded","message":"Too many requests"}`))
+	_, _ = w.Write([]byte(`{"error":"Rate limit exceeded","message":"Too many requests"}`))
 }
 
 // NewMemoryStore creates a new in-memory store for rate limiting
@@ -84,6 +86,9 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 	if config.BurstSize == 0 {
 		config.BurstSize = config.RequestsPerSecond
 	}
+	if config.Period == 0 {
+		config.Period = time.Second
+	}
 	if config.KeyFunc == nil {
 		config.KeyFunc = DefaultKeyFunc
 	}
@@ -94,9 +99,9 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 		config.OnLimitReached = DefaultOnLimitReached
 	}
 
-	// Create rate limit string (requests per second)
+	// Create rate limit with configurable period
 	rate := limiter.Rate{
-		Period: time.Second,
+		Period: config.Period,
 		Limit:  int64(config.RequestsPerSecond),
 	}
 
@@ -113,9 +118,9 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 			}
 
 			// Set rate limit headers
-			w.Header().Set("X-RateLimit-Limit", strconv.FormatInt(context.Limit, 10))
-			w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(context.Remaining, 10))
-			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(context.Reset, 10))
+			w.Header().Set("X-Ratelimit-Limit", strconv.FormatInt(context.Limit, 10))
+			w.Header().Set("X-Ratelimit-Remaining", strconv.FormatInt(context.Remaining, 10))
+			w.Header().Set("X-Ratelimit-Reset", strconv.FormatInt(context.Reset, 10))
 
 			// Check if rate limit is exceeded
 			if context.Reached {
@@ -166,4 +171,35 @@ func EndpointRateLimit(endpoint string, requestsPerSecond int) mux.MiddlewareFun
 // APIRateLimit creates an API rate limiting middleware with different tiers based on RPS
 func APIRateLimit(requestsPerSecond int) mux.MiddlewareFunc {
 	return IPRateLimit(requestsPerSecond)
+}
+
+// RateLimitPeriod creates a rate limiting middleware with custom time period
+func RateLimitPeriod(requests int, period time.Duration, keyFunc func(r *http.Request) string) mux.MiddlewareFunc {
+	return RateLimit(RateLimitConfig{
+		RequestsPerSecond: requests,
+		Period:            period,
+		KeyFunc:           keyFunc,
+	})
+}
+
+// GlobalRateLimitPeriod creates a global rate limiting middleware with custom time period
+func GlobalRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc {
+	return RateLimitPeriod(requests, period, func(r *http.Request) string {
+		return "global"
+	})
+}
+
+// IPRateLimitPeriod creates an IP-based rate limiting middleware with custom time period
+func IPRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc {
+	return RateLimitPeriod(requests, period, DefaultKeyFunc)
+}
+
+// UserRateLimitPeriod creates a user-based rate limiting middleware with custom time period
+func UserRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc {
+	return RateLimitPeriod(requests, period, UserKeyFunc)
+}
+
+// EndpointRateLimitPeriod creates an endpoint-specific rate limiting middleware with custom time period
+func EndpointRateLimitPeriod(endpoint string, requests int, period time.Duration) mux.MiddlewareFunc {
+	return RateLimitPeriod(requests, period, EndpointKeyFunc(endpoint))
 }
