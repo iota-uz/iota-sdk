@@ -117,6 +117,16 @@ type StripeOptions struct {
 	SigningSecret string `env:"STRIPE_SIGNING_SECRET"`
 }
 
+type RateLimitOptions struct {
+	Enabled        bool     `env:"RATE_LIMIT_ENABLED" envDefault:"true"`
+	GlobalRPS      int      `env:"RATE_LIMIT_GLOBAL_RPS" envDefault:"1000"`
+	APIRPS         int      `env:"RATE_LIMIT_API_RPS" envDefault:"100"`
+	AuthRPS        int      `env:"RATE_LIMIT_AUTH_RPS" envDefault:"10"`
+	Storage        string   `env:"RATE_LIMIT_STORAGE" envDefault:"memory"` // memory or redis
+	RedisURL       string   `env:"RATE_LIMIT_REDIS_URL"`
+	TrustedProxies []string `env:"RATE_LIMIT_TRUSTED_PROXIES" envSeparator:","`
+}
+
 type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
@@ -127,6 +137,7 @@ type Configuration struct {
 	Payme         PaymeOptions
 	Octo          OctoOptions
 	Stripe        StripeOptions
+	RateLimit     RateLimitOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
