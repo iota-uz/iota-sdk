@@ -2,7 +2,7 @@ package ui
 
 import (
 	"fmt"
-	
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/charts"
@@ -32,7 +32,7 @@ func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageC
 			percentages = append(percentages, category.Percentage)
 		}
 	}
-	
+
 	// If no data, return empty chart options
 	if len(series) == 0 {
 		return charts.ChartOptions{}
@@ -57,7 +57,7 @@ func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageC
 			Show:     &[]bool{true}[0],
 		},
 		DataLabels: &charts.DataLabels{
-			Enabled: true,
+			Enabled:   true,
 			Formatter: templ.JSExpression(getPercentageFormatterWithData(percentages)),
 		},
 		Tooltip: &charts.TooltipConfig{},
@@ -74,7 +74,7 @@ func getPercentageFormatterWithData(percentages []string) string {
 		percentagesJson += fmt.Sprintf(`"%s"`, p)
 	}
 	percentagesJson += "]"
-	
+
 	return fmt.Sprintf(`function(value, opts) {
 		var percentages = %s;
 		var index = opts.seriesIndex;
@@ -118,13 +118,12 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 					</div>
 				</div>
 			</div>
-
 			<!-- Tabs Section with Navigation -->
 			<div class="bg-white border border-gray-200 rounded-lg shadow-sm">
 				<div class="border-b border-gray-200">
 					<div class="flex items-center justify-between px-6">
 						<!-- Left Arrow -->
-						{{ 
+						{{
 							prevDate := config.Date.AddDate(0, 0, -1).Format("02.01")
 							nextDate := config.Date.AddDate(0, 0, 1).Format("02.01")
 						}}
@@ -136,7 +135,6 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 							@icons.CaretLeft(icons.Props{Size: "16"})
 							<span class="text-sm font-medium">{ prevDate }</span>
 						</a>
-
 						<!-- Centered Tabs -->
 						<nav class="-mb-px flex space-x-12" aria-label="Tabs">
 							{{
@@ -163,7 +161,6 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 								{ pgCtx.T("Analytics.Count") }
 							</a>
 						</nav>
-
 						<!-- Right Arrow -->
 						<a
 							href={ templ.URL(fmt.Sprintf("%s/%s/%s", config.BaseURL, config.DataType, nextDate)) }
@@ -176,23 +173,22 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 					</div>
 				</div>
 			</div>
-
 			<!-- Content Section -->
 			<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 				<!-- Chart Section -->
 				<div class="lg:col-span-8">
-					{{ 
+					{{
 						headerTitle := pgCtx.T("Analytics.RevenueByCategory")
 						if config.DataType != "revenue" {
 							headerTitle = pgCtx.T("Analytics.CountByCategory")
 						}
 					}}
 					@card.Card(card.Props{
-						Header: card.DefaultHeader(headerTitle),
+						Header:       card.DefaultHeader(headerTitle),
 						WrapperClass: "h-full",
 					}) {
 						<div class="flex items-center justify-center min-h-[400px]">
-							{{ 
+							{{
 								hasVisibleData := false
 								for _, category := range config.Categories {
 									if category.Value > 0 {
@@ -216,11 +212,10 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 						</div>
 					}
 				</div>
-
 				<!-- Statistics Section -->
 				<div class="lg:col-span-4">
 					@card.Card(card.Props{
-						Header: card.DefaultHeader(pgCtx.T("Analytics.CategoryBreakdown")),
+						Header:       card.DefaultHeader(pgCtx.T("Analytics.CategoryBreakdown")),
 						WrapperClass: "h-full",
 					}) {
 						<div class="space-y-4">
