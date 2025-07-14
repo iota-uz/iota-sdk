@@ -41,7 +41,7 @@ type AnalyticsDetailConfig struct {
 
 // AnalyticsPieChartOptions prepares pie chart options for analytics categories
 func AnalyticsPieChartOptions(categories []AnalyticsCategory, dataType string) map[string]interface{} {
-	if categories == nil || len(categories) == 0 {
+	if len(categories) == 0 {
 		return map[string]interface{}{}
 	}
 
