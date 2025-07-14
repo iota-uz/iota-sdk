@@ -10,6 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	"strings"
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/card"
@@ -21,15 +22,15 @@ import (
 
 // preparePieChartData formats analytics categories for pie chart display
 func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageContext) charts.ChartOptions {
-	if len(categories) == 0 {
+	if categories == nil || len(categories) == 0 {
 		return charts.ChartOptions{}
 	}
 
-	// Extract data based on categories - only include categories with data
-	var series []float64
-	var labels []string
-	var colors []string
-	var percentages []string
+	// Pre-allocate slices for better performance
+	series := make([]float64, 0, len(categories))
+	labels := make([]string, 0, len(categories))
+	colors := make([]string, 0, len(categories))
+	percentages := make([]string, 0, len(categories))
 
 	for _, category := range categories {
 		// Only include categories that have data
@@ -74,8 +75,20 @@ func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageC
 
 // getPercentageFormatterWithData returns a formatter that uses pre-calculated percentages
 func getPercentageFormatterWithData(percentages []string) string {
-	percentagesJson := "["
+	// Escape percentages to prevent XSS
+	escapedPercentages := make([]string, len(percentages))
 	for i, p := range percentages {
+		// Replace any quotes and backslashes to prevent JS injection
+		escaped := strings.ReplaceAll(p, `\`, `\\`)
+		escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+		escaped = strings.ReplaceAll(escaped, `'`, `\'`)
+		escaped = strings.ReplaceAll(escaped, `<`, `\u003C`)
+		escaped = strings.ReplaceAll(escaped, `>`, `\u003E`)
+		escapedPercentages[i] = escaped
+	}
+
+	percentagesJson := "["
+	for i, p := range escapedPercentages {
 		if i > 0 {
 			percentagesJson += ","
 		}
@@ -86,7 +99,7 @@ func getPercentageFormatterWithData(percentages []string) string {
 	return fmt.Sprintf(`function(value, opts) {
 		var percentages = %s;
 		var index = opts.seriesIndex;
-		return percentages[index];
+		return percentages[index] || '';
 	}`, percentagesJson)
 }
 
@@ -135,7 +148,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(config.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 103, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 116, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -148,7 +161,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(config.Date.Format("02 January 2006"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 106, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 119, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -174,7 +187,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Back"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 116, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 129, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -203,7 +216,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.PreviousDay"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 133, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 146, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -224,7 +237,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(prevDate)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 136, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 149, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -280,7 +293,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.Revenue"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 154, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 167, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -328,7 +341,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.Count"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 161, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 174, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -350,7 +363,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.NextDay"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 168, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 181, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -363,7 +376,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(nextDate)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 170, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 183, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -418,7 +431,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.NoDataTitle"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 202, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 215, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
@@ -431,7 +444,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 				var templ_7745c5c3_Var22 string
 				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.NoDataDescription"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 203, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 216, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
@@ -444,7 +457,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s: %d", pgCtx.T("Analytics.Categories"), len(config.Categories)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 204, Col: 127}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 217, Col: 127}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -507,7 +520,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(templ.SafeCSS("background-color: " + category.Color))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 230, Col: 72}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 243, Col: 72}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -520,7 +533,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T(category.Key))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 234, Col: 36}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 247, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -533,7 +546,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(category.Percentage)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 237, Col: 34}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 250, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {
@@ -546,7 +559,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 					var templ_7745c5c3_Var28 string
 					templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(category.FormattedValue)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 243, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 256, Col: 37}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 					if templ_7745c5c3_Err != nil {
@@ -566,7 +579,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.NoDataTitle"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 251, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 264, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -579,7 +592,7 @@ func AnalyticsDetail(config lens.AnalyticsDetailConfig) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(pgCtx.T("Analytics.NoDataDescription"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 252, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/ui/analytics_detail.templ`, Line: 265, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
