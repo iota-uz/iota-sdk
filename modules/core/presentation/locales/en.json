@@ -654,5 +654,17 @@
     "VC": "Saint Vincent and the Grenadines",
     "SR": "Suriname",
     "TR": "Turkey"
+  },
+  "Analytics": {
+    "PreviousDay": "Previous day",
+    "NextDay": "Next day",
+    "Revenue": "Revenue",
+    "Count": "Count",
+    "RevenueByCategory": "Revenue by Category",
+    "CountByCategory": "Count by Category",
+    "CategoryBreakdown": "Category Breakdown",
+    "NoDataTitle": "No data available",
+    "NoDataDescription": "No data available for the selected date",
+    "Categories": "Categories"
   }
 }
