@@ -61,7 +61,7 @@ func Default(options *DefaultOptions) (*server.HTTPServer, error) {
 		middlewares = append(middlewares,
 			middleware.TracedMiddleware("rateLimit"),
 			middleware.RateLimit(middleware.RateLimitConfig{
-				RequestsPerSecond: options.Configuration.RateLimit.GlobalRPS,
+				RequestsPerPeriod: options.Configuration.RateLimit.GlobalRPS,
 				Store:             store,
 			}),
 		)
