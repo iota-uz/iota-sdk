@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/card"
@@ -13,15 +14,15 @@ import (
 
 // preparePieChartData formats analytics categories for pie chart display
 func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageContext) charts.ChartOptions {
-	if len(categories) == 0 {
+	if categories == nil || len(categories) == 0 {
 		return charts.ChartOptions{}
 	}
 
-	// Extract data based on categories - only include categories with data
-	var series []float64
-	var labels []string
-	var colors []string
-	var percentages []string
+	// Pre-allocate slices for better performance
+	series := make([]float64, 0, len(categories))
+	labels := make([]string, 0, len(categories))
+	colors := make([]string, 0, len(categories))
+	percentages := make([]string, 0, len(categories))
 
 	for _, category := range categories {
 		// Only include categories that have data
@@ -66,8 +67,20 @@ func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageC
 
 // getPercentageFormatterWithData returns a formatter that uses pre-calculated percentages
 func getPercentageFormatterWithData(percentages []string) string {
-	percentagesJson := "["
+	// Escape percentages to prevent XSS
+	escapedPercentages := make([]string, len(percentages))
 	for i, p := range percentages {
+		// Replace any quotes and backslashes to prevent JS injection
+		escaped := strings.ReplaceAll(p, `\`, `\\`)
+		escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+		escaped = strings.ReplaceAll(escaped, `'`, `\'`)
+		escaped = strings.ReplaceAll(escaped, `<`, `\u003C`)
+		escaped = strings.ReplaceAll(escaped, `>`, `\u003E`)
+		escapedPercentages[i] = escaped
+	}
+
+	percentagesJson := "["
+	for i, p := range escapedPercentages {
 		if i > 0 {
 			percentagesJson += ","
 		}
@@ -78,7 +91,7 @@ func getPercentageFormatterWithData(percentages []string) string {
 	return fmt.Sprintf(`function(value, opts) {
 		var percentages = %s;
 		var index = opts.seriesIndex;
-		return percentages[index];
+		return percentages[index] || '';
 	}`, percentagesJson)
 }
 
