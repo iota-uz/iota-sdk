@@ -653,5 +653,17 @@
     "YE": "Йемен",
     "ZM": "Замбия",
     "ZW": "Зимбабве"
+  },
+  "Analytics": {
+    "PreviousDay": "Предыдущий день",
+    "NextDay": "Следующий день",
+    "Revenue": "Выручка",
+    "Count": "Количество",
+    "RevenueByCategory": "Выручка по категориям",
+    "CountByCategory": "Количество по категориям",
+    "CategoryBreakdown": "Разбивка по категориям",
+    "NoDataTitle": "Нет данных для отображения",
+    "NoDataDescription": "За выбранную дату данные отсутствуют",
+    "Categories": "Категорий"
   }
 }

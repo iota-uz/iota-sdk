@@ -653,5 +653,17 @@
     "YE": "Yaman",
     "ZM": "Zambiya",
     "ZW": "Zimbabve"
+  },
+  "Analytics": {
+    "PreviousDay": "Oldingi kun",
+    "NextDay": "Keyingi kun",
+    "Revenue": "Daromad",
+    "Count": "Soni",
+    "RevenueByCategory": "Toifalar bo'yicha daromad",
+    "CountByCategory": "Toifalar bo'yicha soni",
+    "CategoryBreakdown": "Toifalar bo'yicha taqsimlash",
+    "NoDataTitle": "Ma'lumot mavjud emas",
+    "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
+    "Categories": "Toifalar"
   }
 }
