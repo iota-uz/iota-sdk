@@ -3,8 +3,9 @@ package eskiz
 import (
 	"context"
 	"fmt"
-	eskizapi "github.com/iota-uz/eskiz"
 	"net/http"
+
+	eskizapi "github.com/iota-uz/eskiz"
 )
 
 type authRoundTripper struct {
