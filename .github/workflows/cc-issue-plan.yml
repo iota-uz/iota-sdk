@@ -45,11 +45,8 @@ jobs:
           direct_prompt: |
             Create a detailed implementation plan for this issue. Use the codebase search tools to understand the current implementation and web tools to research any external libraries or patterns mentioned.
 
-            **Important:** You are in read-only mode and cannot edit files. Focus on analyzing and planning only.
+            **IMPORTANT:** You are in read-only mode and cannot edit files. Focus on analyzing and planning only.
 
-            **Issue Title:** ${{ github.event.issue.title }}
-            **Issue Body:** 
-            ${{ github.event.issue.body }}
             **Current Labels:** ${{ join(github.event.issue.labels.*.name, ', ') }}
 
             ## Your Task:
