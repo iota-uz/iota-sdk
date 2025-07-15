@@ -2,7 +2,7 @@ name: Claude Issue Implementation Plan
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [opened]
 
 jobs:
   implementation-plan:
