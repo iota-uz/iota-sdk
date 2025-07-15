@@ -11,15 +11,18 @@ var (
 	apexCss      = "/assets/" + assets.HashFS.HashName("css/apexcharts.css")
 	flatpickrCss = "/assets/" + assets.HashFS.HashName("css/flatpickr.css")
 	mainCss      = "/assets/" + assets.HashFS.HashName("css/main.min.css")
+	tippyCss     = "/assets/" + assets.HashFS.HashName("css/tippy.css")
+	tippyAnimCss = "/assets/" + assets.HashFS.HashName("css/tippy-animations.css")
 
-	alpine      = "/assets/" + assets.HashFS.HashName("js/alpine.js")
-	htmx        = "/assets/" + assets.HashFS.HashName("js/lib/htmx.min.js")
-	htmxSSE     = "/assets/" + assets.HashFS.HashName("js/lib/htmx-sse.js")
-	htmxStream  = "/assets/" + assets.HashFS.HashName("js/lib/htmx-stream.js")
-	htmxPreload = "/assets/" + assets.HashFS.HashName("js/lib/htmx.preload.js")
-	apexJs      = "/assets/" + assets.HashFS.HashName("js/lib/apexcharts.min.js")
-	chartEvents = "/assets/" + assets.HashFS.HashName("js/lib/chart-events.js")
-	htmxWS      = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
+	alpine        = "/assets/" + assets.HashFS.HashName("js/alpine.js")
+	htmx          = "/assets/" + assets.HashFS.HashName("js/lib/htmx.min.js")
+	htmxSSE       = "/assets/" + assets.HashFS.HashName("js/lib/htmx-sse.js")
+	htmxStream    = "/assets/" + assets.HashFS.HashName("js/lib/htmx-stream.js")
+	htmxPreload   = "/assets/" + assets.HashFS.HashName("js/lib/htmx.preload.js")
+	apexJs        = "/assets/" + assets.HashFS.HashName("js/lib/apexcharts.min.js")
+	chartEvents   = "/assets/" + assets.HashFS.HashName("js/lib/chart-events.js")
+	htmxWS        = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
+	alpineTooltip = "/assets/" + assets.HashFS.HashName("js/lib/alpine-tooltip.min.js")
 )
 
 templ DefaultHead() {
@@ -27,9 +30,12 @@ templ DefaultHead() {
 	<link rel="stylesheet" href={ apexCss }/>
 	<link rel="stylesheet" href={ flatpickrCss }/>
 	<link rel="stylesheet" href={ mainCss }/>
+	<link rel="stylesheet" href={ tippyCss }/>
+	<link rel="stylesheet" href={ tippyAnimCss }/>
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Regular.woff2" as="font" type="font/woff2" crossorigin/>
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Medium.woff2" as="font" type="font/woff2" crossorigin/>
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Semibold.woff2" as="font" type="font/woff2" crossorigin/>
+	<script src={ alpineTooltip } defer></script>
 	<script defer type="module" src={ alpine }></script>
 	<script src={ htmx }></script>
 	<script src={ htmxPreload }></script>
