@@ -77,17 +77,10 @@ DevHub is a powerful Terminal User Interface (TUI) for managing development serv
 
 **Installation:**
 ```bash
-go install github.com/iota-uz/iota-sdk/cmd/devhub@latest
+go install github.com/iota-uz/devhub/cmd/devhub@latest
 ```
 
-**Features:**
-- Service dependency management
-- Real-time log viewing
-- Resource monitoring (CPU/Memory)
-- Health checks
-- Cross-platform support
-
-Learn more in the [DevHub documentation](pkg/devhub/README.md).
+Learn more in the [DevHub documentation](https://github.com/iota-uz/devhub).
 
 ---  
 
