@@ -6,8 +6,6 @@ on:
 
 jobs:
   implementation-plan:
-    # Run when issue has at least one label
-    if: github.event.issue.labels.length > 0
     runs-on: blacksmith-8vcpu-ubuntu-2204
     permissions:
       contents: read
@@ -36,6 +34,8 @@ jobs:
             Bash(tail:*)
             Bash(wc:*)
             Bash(tree:*)
+            Bash(gh:label:*)
+            Bash(gh:issue:*)
           disallowed_tools: |
             Edit
             MultiEdit
@@ -44,15 +44,19 @@ jobs:
           direct_prompt: |
             Create a detailed implementation plan for this issue. Use the codebase search tools to understand the current implementation and web tools to research any external libraries or patterns mentioned.
 
+            **Important:** You are in read-only mode and cannot edit files. Focus on analyzing and planning only.
+
             **Issue Title:** ${{ github.event.issue.title }}
             **Issue Body:** 
             ${{ github.event.issue.body }}
+            **Current Labels:** ${{ join(github.event.issue.labels.*.name, ', ') }}
 
             ## Your Task:
             1. Analyze the issue thoroughly
             2. Search the codebase to understand current implementation
             3. For any external libraries or technologies mentioned, use WebSearch and WebFetch to gather relevant documentation
             4. Create a detailed plan listing exactly which files need to be modified and how
+            5. If the issue doesn't have any labels yet, apply appropriate labels using `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`. First check available labels with `gh label list --repo ${{ github.repository }}` and only use existing labels
 
             ## Required Output Format:
 
