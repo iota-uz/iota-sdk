@@ -2,10 +2,11 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, ready_for_review]
 
 jobs:
   code-review:
+    if: github.event.pull_request.draft == false
     runs-on: blacksmith-8vcpu-ubuntu-2204
     permissions:
       contents: read

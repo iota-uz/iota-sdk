@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/sidebar"
-	showcaseui "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
+	showcase "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
@@ -89,6 +89,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/components/other", di.H(c.Other)).Methods(http.MethodGet)
 	router.HandleFunc("/components/loaders", di.H(c.Loaders)).Methods(http.MethodGet)
 	router.HandleFunc("/components/charts", di.H(c.Charts)).Methods(http.MethodGet)
+	router.HandleFunc("/components/tooltips", di.H(c.Tooltips)).Methods(http.MethodGet)
 	router.HandleFunc("/lens", di.H(c.Lens)).Methods(http.MethodGet)
 
 	log.Printf(
@@ -109,6 +110,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 				sidebar.NewLink(fmt.Sprintf("%s/components/form", c.basePath), "Form", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/loaders", c.basePath), "Loaders", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
 			},
 		),
@@ -135,10 +137,10 @@ func (c *ShowcaseController) Overview(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	props := showcaseui.IndexPageProps{
+	props := showcase.IndexPageProps{
 		SidebarProps: c.getSidebarProps(),
 	}
-	templ.Handler(showcaseui.OverviewPage(props)).ServeHTTP(w, r)
+	templ.Handler(showcase.OverviewPage(props)).ServeHTTP(w, r)
 }
 
 func (c *ShowcaseController) Form(
@@ -146,10 +148,10 @@ func (c *ShowcaseController) Form(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	props := showcaseui.IndexPageProps{
+	props := showcase.IndexPageProps{
 		SidebarProps: c.getSidebarProps(),
 	}
-	templ.Handler(showcaseui.FormPage(props)).ServeHTTP(w, r)
+	templ.Handler(showcase.FormPage(props)).ServeHTTP(w, r)
 }
 
 func (c *ShowcaseController) Other(
@@ -157,10 +159,10 @@ func (c *ShowcaseController) Other(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	props := showcaseui.IndexPageProps{
+	props := showcase.IndexPageProps{
 		SidebarProps: c.getSidebarProps(),
 	}
-	templ.Handler(showcaseui.OtherPage(props)).ServeHTTP(w, r)
+	templ.Handler(showcase.OtherPage(props)).ServeHTTP(w, r)
 }
 
 func (c *ShowcaseController) Loaders(
@@ -168,10 +170,10 @@ func (c *ShowcaseController) Loaders(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	props := showcaseui.IndexPageProps{
+	props := showcase.IndexPageProps{
 		SidebarProps: c.getSidebarProps(),
 	}
-	templ.Handler(showcaseui.LoadersPage(props)).ServeHTTP(w, r)
+	templ.Handler(showcase.LoadersPage(props)).ServeHTTP(w, r)
 }
 
 func (c *ShowcaseController) Charts(
@@ -179,10 +181,21 @@ func (c *ShowcaseController) Charts(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 ) {
-	props := showcaseui.IndexPageProps{
+	props := showcase.IndexPageProps{
 		SidebarProps: c.getSidebarProps(),
 	}
-	templ.Handler(showcaseui.ChartsPage(props)).ServeHTTP(w, r)
+	templ.Handler(showcase.ChartsPage(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Tooltips(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcase.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcase.TooltipsPage(props)).ServeHTTP(w, r)
 }
 
 func (c *ShowcaseController) Lens(
@@ -295,10 +308,10 @@ func (c *ShowcaseController) Lens(
 		}
 	}
 
-	props := showcaseui.LensPageProps{
+	props := showcase.LensPageProps{
 		SidebarProps:    c.getSidebarProps(),
 		Dashboard:       dashboard,
 		DashboardResult: dashboardResult,
 	}
-	templ.Handler(showcaseui.LensPage(props)).ServeHTTP(w, r)
+	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
 }

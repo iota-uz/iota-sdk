@@ -2,10 +2,11 @@ package eskiz
 
 import (
 	"context"
-	eskizapi "github.com/iota-uz/eskiz"
-	"github.com/iota-uz/iota-sdk/pkg/eskiz/models"
 	"net/http"
 	"time"
+
+	eskizapi "github.com/iota-uz/eskiz"
+	"github.com/iota-uz/iota-sdk/pkg/eskiz/models"
 )
 
 const (

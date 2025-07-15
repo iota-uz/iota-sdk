@@ -47,7 +47,26 @@ jobs:
         with:
           base_branch: staging
           custom_instructions: "ALWAYS run `make fmt`, `make lint`, `make generate` before pushing code"
-          allowed_tools: "Bash(templ:*),Bash(go:*),Bash(make:*),Bash(gh:*),Edit,Replace,NotebookEditCell,mcp__context7__resolve-library-id,mcp__context7__get-library-docs,mcp__godoc-mcp__get_doc,mcp__bloom__search_code"
+          allowed_tools: |
+            Bash(templ:*)
+            Bash(go:*)
+            Bash(make:*)
+            Bash(gh:*)
+            Bash(find:*)
+            Bash(grep:*)
+            Bash(ls:*)
+            Bash(cat:*)
+            Bash(head:*)
+            Bash(tail:*)
+            Bash(wc:*)
+            Bash(tree:*)
+            Edit
+            Replace
+            NotebookEditCell
+            mcp__context7__resolve-library-id
+            mcp__context7__get-library-docs
+            mcp__godoc-mcp__get_doc
+            mcp__bloom__search_code
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           mcp_config: |
             {
