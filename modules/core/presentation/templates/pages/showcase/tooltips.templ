@@ -1,0 +1,400 @@
+package showcase
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipsContent() {
+	<div
+		class="flex flex-col gap-5 p-5"
+		x-data="{ 
+			tooltip: 'This is a dynamic tooltip!',
+			enabled: true,
+			count: 0,
+			email: '',
+			emailError: '',
+			items: [
+				{ id: 1, name: 'Alpine.js', description: 'A rugged, minimal framework for composing JavaScript behavior' },
+				{ id: 2, name: 'HTMX', description: 'High power tools for HTML' },
+				{ id: 3, name: 'Templ', description: 'A language for writing HTML user interfaces in Go' }
+			]
+		}"
+	>
+		<header class="mb-4 pb-4 border-b border-surface-200">
+			<h1 class="text-2xl font-medium text-100">Alpine Tooltip Component</h1>
+			<p class="text-50 text-sm mt-2">
+				Powerful tooltip directive for Alpine.js powered by Tippy.js
+			</p>
+		</header>
+		<!-- Basic Usage Section -->
+		<section class="mb-8">
+			<h2 class="text-lg font-medium mb-4">Basic Usage</h2>
+			<div class="card p-6 space-y-4">
+				<div class="flex items-center space-x-4">
+					@button.Primary(button.Props{
+						Attrs: templ.Attributes{
+							"x-tooltip": "tooltip",
+						},
+					}) {
+						Dynamic Tooltip
+					}
+					@button.Secondary(button.Props{
+						Attrs: templ.Attributes{
+							"x-tooltip.raw": "This is a static tooltip!",
+						},
+					}) {
+						Static Tooltip
+					}
+					@button.Secondary(button.Props{
+						Attrs: templ.Attributes{
+							"x-tooltip": "enabled ? 'Tooltip is enabled' : ''",
+							"@click":    "enabled = !enabled",
+						},
+					}) {
+						Toggle Tooltip (<span x-text="enabled ? 'ON' : 'OFF'"></span>)
+					}
+				</div>
+				<div class="mt-4 flex items-center space-x-4">
+					<label class="text-sm">Dynamic tooltip text:</label>
+					<input
+						type="text"
+						x-model="tooltip"
+						class="input input-sm"
+						placeholder="Enter tooltip text"
+					/>
+				</div>
+			</div>
+		</section>
+		<!-- Placement Section -->
+		<section class="mb-8">
+			<h2 class="text-lg font-medium mb-4">Placement Options</h2>
+			<div class="card p-6">
+				<div class="grid grid-cols-3 gap-4 max-w-md mx-auto">
+					<div></div>
+					@button.Primary(button.Props{
+						Size: button.SizeSM,
+						Attrs: templ.Attributes{
+							"x-tooltip.placement.top.raw": "Top",
+						},
+					}) {
+						Top
+					}
+					<div></div>
+					@button.Primary(button.Props{
+						Size: button.SizeSM,
+						Attrs: templ.Attributes{
+							"x-tooltip.placement.left.raw": "Left",
+						},
+					}) {
+						Left
+					}
+					@button.Primary(button.Props{
+						Size: button.SizeSM,
+						Attrs: templ.Attributes{
+							"x-tooltip.raw": "Center (default)",
+						},
+					}) {
+						Center
+					}
+					@button.Primary(button.Props{
+						Size: button.SizeSM,
+						Attrs: templ.Attributes{
+							"x-tooltip.placement.right.raw": "Right",
+						},
+					}) {
+						Right
+					}
+					<div></div>
+					@button.Primary(button.Props{
+						Size: button.SizeSM,
+						Attrs: templ.Attributes{
+							"x-tooltip.placement.bottom.raw": "Bottom",
+						},
+					}) {
+						Bottom
+					}
+					<div></div>
+				</div>
+			</div>
+		</section>
+		<!-- Trigger Events Section -->
+		<section class="mb-8">
+			<h2 class="text-lg font-medium mb-4">Trigger Events</h2>
+			<div class="card p-6 flex items-center space-x-4">
+				@button.Secondary(button.Props{
+					Attrs: templ.Attributes{
+						"x-tooltip.on.mouseenter.raw": "Hover me (default)",
+					},
+				}) {
+					Hover
+				}
+				@button.Secondary(button.Props{
+					Attrs: templ.Attributes{
+						"x-tooltip.on.click.raw": "Click me to show tooltip",
+					},
+				}) {
+					Click
+				}
+				@button.Secondary(button.Props{
+					Attrs: templ.Attributes{
+						"x-tooltip.on.focus.raw": "Focus me (tab to me)",
+					},
+				}) {
+					Focus
+				}
+			</div>
+		</section>
+		<!-- Animations Section -->
+		<section class="mb-8">
+			<h2 class="text-lg font-medium mb-4">Animations</h2>
+			<div class="card p-6 flex items-center space-x-4">
+				@button.Primary(button.Props{
+					Attrs: templ.Attributes{
+						"x-tooltip.animation.scale.raw": "Scale animation",
+					},
+				}) {
+					Scale
+				}
+				@button.Primary(button.Props{
+					Attrs: templ.Attributes{
+						"x-tooltip.animation.shift-away.raw": "Shift away animation",
+					},
+				}) {
+					Shift Away
+				}
+				@button.Primary(button.Props{
+					Attrs: templ.Attributes{
+						"x-tooltip.animation.shift-toward.raw": "Shift toward animation",
+					},
+				}) {
+					Shift Toward
+				}
+				@button.Primary(button.Props{
+					Attrs: templ.Attributes{
+						"x-tooltip.animation.perspective.raw": "Perspective animation",
+					},
+				}) {
+					Perspective
+				}
+			</div>
+		</section>
+		<!-- Advanced Features Section -->
+		<section class="mb-8">
+			<h2 class="text-lg font-medium mb-4">Advanced Features</h2>
+			<div class="card p-6 space-y-6">
+				<!-- Timing Controls -->
+				<div>
+					<h3 class="font-medium mb-3">Timing Controls</h3>
+					<div class="flex items-center space-x-4">
+						@button.PrimaryOutline(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.delay.1000.raw": "1 second delay",
+							},
+						}) {
+							Delayed (1s)
+						}
+						@button.PrimaryOutline(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.duration.2000.raw": "2 second duration",
+							},
+						}) {
+							Slow (2s)
+						}
+						@button.PrimaryOutline(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.delay.500-0.raw": "500ms show, instant hide",
+							},
+						}) {
+							Custom Delay
+						}
+					</div>
+				</div>
+				<!-- Interactive Tooltip -->
+				<div>
+					<h3 class="font-medium mb-3">Interactive Tooltips</h3>
+					<div class="flex items-center space-x-4">
+						@button.Secondary(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.interactive.html.raw": `<div class='p-2'><strong>Interactive Tooltip</strong><br>You can hover over this tooltip!</div>`,
+							},
+						}) {
+							Interactive HTML
+						}
+						<template x-ref="counter">
+							<div class="p-4 bg-surface-100 rounded">
+								<p class="text-lg mb-2">Click counter: <span x-text="count" class="font-bold"></span></p>
+								<button @click="count++" class="px-3 py-1 bg-primary-500 text-white rounded hover:bg-primary-600">
+									Increment
+								</button>
+								<button @click="count = 0" class="px-3 py-1 bg-danger-500 text-white rounded hover:bg-danger-600 ml-2">
+									Reset
+								</button>
+							</div>
+						</template>
+						@button.Secondary(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip": `{
+										content: () => $refs.counter.innerHTML,
+										allowHTML: true,
+										interactive: true,
+										trigger: 'click',
+										placement: 'right',
+										appendTo: $root
+									}`,
+							},
+						}) {
+							Click for Counter
+						}
+					</div>
+				</div>
+				<!-- Cursor Following -->
+				<div>
+					<h3 class="font-medium mb-3">Cursor Following</h3>
+					<div class="flex items-center space-x-4">
+						@button.Primary(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.cursor.raw": "Following your cursor!",
+							},
+						}) {
+							Follow Cursor
+						}
+						@button.Primary(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.cursor.x.raw": "Following X axis only",
+							},
+						}) {
+							Follow X Only
+						}
+						@button.Primary(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.cursor.initial.raw": "Shows at initial cursor position",
+							},
+						}) {
+							Initial Position
+						}
+					</div>
+				</div>
+				<!-- Programmatic Usage -->
+				<div>
+					<h3 class="font-medium mb-3">Programmatic Usage ($tooltip)</h3>
+					<div class="flex items-center space-x-4">
+						@button.Danger(button.Props{
+							Attrs: templ.Attributes{
+								"@click": "$tooltip('Quick tooltip!')",
+							},
+						}) {
+							Quick Tooltip (2s)
+						}
+						@button.Danger(button.Props{
+							Attrs: templ.Attributes{
+								"@click": "$tooltip('This shows for 5 seconds', { timeout: 5000 })",
+							},
+						}) {
+							5 Second Tooltip
+						}
+						@button.Danger(button.Props{
+							Attrs: templ.Attributes{
+								"@click": `$tooltip('Custom styled tooltip', { 
+										placement: 'top',
+										animation: 'scale',
+										theme: 'light',
+										arrow: false
+									})`,
+							},
+						}) {
+							Styled Tooltip
+						}
+					</div>
+				</div>
+			</div>
+		</section>
+		<!-- Practical Examples Section -->
+		<section class="mb-8">
+			<h2 class="text-lg font-medium mb-4">Practical Examples</h2>
+			<div class="card p-6 space-y-6">
+				<!-- Form Validation -->
+				<div>
+					<h3 class="font-medium mb-3">Form Validation</h3>
+					<div class="max-w-md">
+						<label class="block text-sm font-medium mb-1">Email Address</label>
+						<input
+							type="email"
+							x-model="email"
+							@blur="emailError = !email.includes('@') && email.length > 0 ? 'Please enter a valid email' : ''"
+							x-tooltip="emailError"
+							x-tooltip.placement.right
+							x-tooltip.theme.light
+							class="input w-full"
+							:class="emailError ? 'input-error' : ''"
+							placeholder="Enter your email"
+						/>
+					</div>
+				</div>
+				<!-- List with Tooltips -->
+				<div>
+					<h3 class="font-medium mb-3">List with Descriptions</h3>
+					<ul class="space-y-2 max-w-md">
+						<template x-for="item in items" :key="item.id">
+							<li
+								x-tooltip="item.description"
+								x-tooltip.placement.right
+								class="px-3 py-2 bg-surface-100 rounded hover:bg-surface-200 cursor-pointer transition-colors"
+								x-text="item.name"
+							></li>
+						</template>
+					</ul>
+				</div>
+				<!-- Themes -->
+				<div>
+					<h3 class="font-medium mb-3">Themes</h3>
+					<div class="flex items-center space-x-4">
+						@button.Primary(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.raw": "Dark theme (default)",
+							},
+						}) {
+							Dark Theme
+						}
+						@button.PrimaryOutline(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.theme.light.raw": "Light theme",
+							},
+						}) {
+							Light Theme
+						}
+						@button.PrimaryOutline(button.Props{
+							Attrs: templ.Attributes{
+								"x-tooltip.theme.light.arrowless.raw": "Light theme without arrow",
+							},
+						}) {
+							Light + No Arrow
+						}
+					</div>
+				</div>
+			</div>
+		</section>
+		<!-- Documentation Link -->
+		<section class="mb-8">
+			<div class="card p-6 bg-surface-100">
+				<h3 class="font-medium mb-2">Documentation</h3>
+				<p class="text-sm text-50 mb-4">
+					For complete documentation and more examples, check out the README file:
+				</p>
+				<a
+					href="/components/alpine-tooltip/README.md"
+					target="_blank"
+					class="text-primary-500 hover:text-primary-600 underline"
+				>
+					View Alpine Tooltip Documentation
+				</a>
+			</div>
+		</section>
+	</div>
+}
+
+templ TooltipsPage(props IndexPageProps) {
+	@Layout(LayoutProps{
+		Title:        "Tooltip Components",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@TooltipsContent()
+	}
+}
