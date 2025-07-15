@@ -1,0 +1,121 @@
+{
+  "name": "IOTA-SDK Dev Container",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/tailscale/devcontainer-feature:1": {}
+  },
+  "postCreateCommand": "bash -c 'go mod download && if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi'",
+  "forwardPorts": [
+    3200,
+    5432,
+    9000,
+    4000
+  ],
+  "portsAttributes": {
+    "3200": {
+      "label": "Application",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    },
+    "9000": {
+      "label": "Air Proxy",
+      "onAutoForward": "silent"
+    },
+    "4000": {
+      "label": "Tunnel",
+      "onAutoForward": "silent"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "a-h.templ",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "redhat.vscode-yaml",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg",
+        "mikestead.dotenv",
+        "foxundermoon.shell-format",
+        "EditorConfig.EditorConfig",
+        "eamodio.gitlens",
+        "usernamehw.errorlens",
+        "streetsidesoftware.code-spell-checker"
+      ],
+      "settings": {
+        "go.toolsManagement.checkForUpdates": "local",
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintOnSave": "workspace",
+        "go.formatTool": "goimports",
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "[templ]": {
+          "editor.defaultFormatter": "a-h.templ"
+        },
+        "files.watcherExclude": {
+          "**/.git/objects/**": true,
+          "**/.git/subtree-cache/**": true,
+          "**/node_modules/*/**": true,
+          "**/.air.toml": true,
+          "**/*_templ.go": true
+        },
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "tailwindCSS.includeLanguages": {
+          "templ": "html"
+        },
+        "tailwindCSS.files.exclude": [
+          "**/.git/**",
+          "**/node_modules/**",
+          "**/.hg/**",
+          "**/.svn/**"
+        ]
+      }
+    }
+  },
+  "containerEnv": {
+    "GO111MODULE": "on",
+    "CGO_ENABLED": "1",
+    "GOPATH": "/go",
+    "AIR_SILENT": "true"
+  },
+  "remoteUser": "vscode",
+  "mounts": [
+    "source=go-modules,target=/go/pkg,type=volume",
+    "source=vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume",
+    "source=postgres-data,target=/var/lib/postgresql/data,type=volume",
+    "source=${localWorkspaceFolder}/.env.example,target=/workspace/.env.example,type=bind,consistency=cached"
+  ],
+  "runArgs": [
+    "--init",
+    "--privileged"
+  ],
+  "onCreateCommand": "echo '✅ Dev container created successfully!'",
+  "updateContentCommand": "go mod download",
+  "postStartCommand": "git config --global --add safe.directory /workspace",
+  "capAdd": ["SYS_PTRACE", "NET_ADMIN"],
+  "securityOpt": ["seccomp=unconfined"],
+  "waitFor": "postCreateCommand",
+  "hostRequirements": {
+    "cpus": 2,
+    "memory": "4gb",
+    "storage": "32gb"
+  }
+}
