@@ -36,6 +36,7 @@ jobs:
             Bash(tree:*)
             Bash(gh:label:*)
             Bash(gh:issue:*)
+            Bash(gh:project:*)
           disallowed_tools: |
             Edit
             MultiEdit
@@ -57,6 +58,7 @@ jobs:
             3. For any external libraries or technologies mentioned, use WebSearch and WebFetch to gather relevant documentation
             4. Create a detailed plan listing exactly which files need to be modified and how
             5. If the issue doesn't have any labels yet, apply appropriate labels using `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`. First check available labels with `gh label list --repo ${{ github.repository }}` and only use existing labels
+            6. Set the issue type and project using GitHub CLI commands if not already set. Use `gh issue edit` to set custom fields and `gh project item-add` to add to projects
 
             ## Required Output Format:
 
