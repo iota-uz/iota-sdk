@@ -1,0 +1,11 @@
+**/.git
+**/.vscode
+**/node_modules
+**/.env
+**/.env.local
+**/tmp
+**/dist
+**/.air.toml
+**/*_templ.go
+**/coverage.out
+**/*.log
