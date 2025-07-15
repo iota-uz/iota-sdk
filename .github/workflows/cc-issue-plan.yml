@@ -34,9 +34,9 @@ jobs:
             Bash(tail:*)
             Bash(wc:*)
             Bash(tree:*)
-            Bash(gh:label:*)
-            Bash(gh:issue:*)
-            Bash(gh:project:*)
+            Bash(gh label:*)
+            Bash(gh issue:*)
+            Bash(gh project:*)
           disallowed_tools: |
             Edit
             MultiEdit
