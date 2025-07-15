@@ -3,9 +3,10 @@ package eskiz
 import (
 	"context"
 	"errors"
-	eskizapi "github.com/iota-uz/eskiz"
 	"sync"
 	"time"
+
+	eskizapi "github.com/iota-uz/eskiz"
 )
 
 const (
