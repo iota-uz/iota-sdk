@@ -67,6 +67,91 @@ modules/scripts/
 └── module.go
 ```
 
+### System Interaction Diagram (Mermaid)
+
+This diagram illustrates the flow of control and data through the JavaScript Runtime system. This version is optimized for clarity and a less cluttered layout in renderers like Excalidraw.
+
+```mermaid
+graph LR
+    %% Define node styles
+    style User fill:#d4e6f1,stroke:#333,stroke-width:2px
+    style Cron fill:#f5e1d3,stroke:#333,stroke-width:2px
+    style CoreEventBus fill:#f5e1d3,stroke:#333,stroke-width:2px
+    style Database fill:#e8f8f5,stroke:#333,stroke-width:2px
+    style ExternalAPI fill:#fef9e7,stroke:#333,stroke-width:2px
+    style JSCode fill:#fff2cc,stroke:#d6b656,stroke-width:2px
+
+    %% Column 1: External Triggers
+    subgraph "Initiators"
+        direction TB
+        User("[👤 User]");
+        Cron["[⏰ Cron Scheduler]"];
+        CoreEventBus["[🔔 Core Event Bus]"];
+    end
+
+    %% Column 2: Application Entry Points
+    subgraph "Entry & Routing"
+        direction TB
+        Controller["Presentation Layer<br>(ScriptController)"];
+        EventRouter["Event Router"];
+    end
+
+    %% Column 3: Service Layer (Core Logic)
+    subgraph "Service Layer"
+        direction TB
+        ScriptService["ScriptService"];
+        ExecutionService["ExecutionService"];
+    end
+    
+    %% Invisible link to align services
+    ScriptService ~~~ ExecutionService
+
+    %% Column 4: JS Runtime
+    subgraph "JS Runtime"
+        direction TB
+        JSRuntime["jsruntime<br>(Goja VM Pool & Sandbox)"];
+        JSCode["User JavaScript Code"];
+    end
+
+    %% Column 5: Domain & Data
+    subgraph "Domain & Persistence"
+        direction TB
+        Aggregates["Domain Aggregates<br>(Script, Execution)"];
+        Repositories["Repositories"];
+    end
+
+    %% Column 6: External Dependencies
+    subgraph "SDK Core & External Systems"
+        direction TB
+        OtherServices["Other IOTA Services<br>(Clients, Billing, etc.)"];
+        Database["[📦 PostgreSQL]"];
+        ExternalAPI["[☁️ External API]"];
+    end
+    
+    %% Define Connections
+    User -- "1. HTTP Request" --> Controller
+    Controller -- "2. Calls" --> ScriptService & ExecutionService
+
+    Cron -- "1a. Triggers" --> ExecutionService
+    CoreEventBus -- "1b. Notifies" --> EventRouter
+    EventRouter -- "2b. Triggers" --> ExecutionService
+
+    ScriptService -- "Uses" --> Aggregates
+    ExecutionService -- "Uses" --> Aggregates
+    
+    ExecutionService -- "3. Delegates To" --> JSRuntime
+    JSRuntime -- "4. Executes" --> JSCode
+
+    JSCode -- "5. Calls Bridge To" --> OtherServices
+    JSCode -- "6. Publishes To" --> CoreEventBus
+    JSCode -- "7. HTTP Call To" --> ExternalAPI
+
+    Aggregates -- "Managed By" --> Repositories
+    Repositories -- "8. Reads/Writes" --> Database
+```
+
+## 5. Implementation Plan
+
 ## 5. Implementation Plan
 
 This project will be implemented in logical phases to ensure iterative development, testing, and delivery.
