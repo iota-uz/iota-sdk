@@ -109,9 +109,9 @@
   "securityOpt": ["seccomp=unconfined"],
   "waitFor": "postCreateCommand",
   "hostRequirements": {
-    "cpus": 2,
-    "memory": "4gb",
-    "storage": "32gb"
+    "cpus": 8,
+    "memory": "32gb",
+    "storage": "64gb"
   }
 }
 
