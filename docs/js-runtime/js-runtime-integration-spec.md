@@ -150,6 +150,9 @@ graph LR
     Repositories -- "8. Reads/Writes" --> Database
 ```
 
+<img width="3908" height="628" alt="image" src="https://github.com/user-attachments/assets/87cc94f0-48c0-46a3-bfdf-e71c66cf9b2c" />
+
+
 ## 5. Implementation Plan
 
 ## 5. Implementation Plan
