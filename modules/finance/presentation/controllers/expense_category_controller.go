@@ -1,21 +1,24 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
-	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	expense_categories2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expense_categories"
-	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 
-	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -26,11 +29,6 @@ type ExpenseCategoriesController struct {
 	app                    application.Application
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
-}
-
-type ExpenseCategoryPaginatedResponse struct {
-	Categories      []*viewmodels2.ExpenseCategory
-	PaginationState *pagination.State
 }
 
 func NewExpenseCategoriesController(app application.Application) application.Controller {
@@ -60,14 +58,17 @@ func (c *ExpenseCategoriesController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(commonMiddleware...)
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", c.GetEditDrawer).Methods(http.MethodGet)
+	router.HandleFunc("/new/drawer", c.GetNewDrawer).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
-func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request) (*ExpenseCategoryPaginatedResponse, error) {
+func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	pageCtx := composables.UsePageCtx(ctx)
+
 	paginationParams := composables.UsePaginated(r)
 	params := &category.FindParams{
 		Limit:  paginationParams.Limit,
@@ -82,48 +83,115 @@ func (c *ExpenseCategoriesController) viewModelExpenseCategories(r *http.Request
 		},
 	}
 
-	// Use query parameters for additional filtering
-	queryParams := r.URL.Query()
-	if search := queryParams.Get("search"); search != "" {
+	if search := table.UseSearchQuery(r); search != "" {
 		params.Search = search
 	}
 
-	expenseEntities, err := c.expenseCategoryService.GetPaginated(r.Context(), params)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving expenses")
+	if from := r.URL.Query().Get("CreatedAt.From"); from != "" {
+		if to := r.URL.Query().Get("CreatedAt.To"); to != "" {
+			fromTime, err := time.Parse(time.RFC3339, from)
+			if err != nil {
+				http.Error(w, "Invalid from date format", http.StatusBadRequest)
+				return
+			}
+			toTime, err := time.Parse(time.RFC3339, to)
+			if err != nil {
+				http.Error(w, "Invalid to date format", http.StatusBadRequest)
+				return
+			}
+			params.Filters = append(params.Filters, category.Filter{
+				Column: category.CreatedAt,
+				Filter: repo.Between(fromTime, toTime),
+			})
+		}
 	}
-	viewCategories := mapping.MapViewModels(expenseEntities, mappers.ExpenseCategoryToViewModel)
 
-	total, err := c.expenseCategoryService.Count(r.Context(), params)
+	expenseEntities, err := c.expenseCategoryService.GetPaginated(ctx, params)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error counting expenses")
-	}
-
-	return &ExpenseCategoryPaginatedResponse{
-		Categories:      viewCategories,
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
-	}, nil
-}
-
-func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Request) {
-	paginated, err := c.viewModelExpenseCategories(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error retrieving expense categories", http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &expense_categories2.IndexPageProps{
-		Categories:      paginated.Categories,
-		PaginationState: paginated.PaginationState,
+
+	total, err := c.expenseCategoryService.Count(ctx, params)
+	if err != nil {
+		http.Error(w, "Error counting expense categories", http.StatusInternalServerError)
+		return
 	}
-	if isHxRequest {
-		templ.Handler(expense_categories2.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+	hasMore := int64(paginationParams.Offset+paginationParams.Limit) < int64(total)
+
+	tableTitle := pageCtx.T("ExpenseCategories.Meta.List.Title")
+	dataURL := c.basePath
+
+	var cfg *table.TableConfig
+	if htmx.IsHxRequest(r) {
+		cfg = table.NewTableConfig(tableTitle, dataURL)
 	} else {
-		templ.Handler(expense_categories2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		cfg = table.NewTableConfig(
+			tableTitle,
+			dataURL,
+			table.WithInfiniteScroll(hasMore, paginationParams.Page, paginationParams.Limit),
+		)
+	}
+
+	if !htmx.IsHxRequest(r) {
+		columns := []table.TableColumn{
+			table.Column("name", pageCtx.T("ExpenseCategories.List.Name")),
+			table.Column("description", pageCtx.T("ExpenseCategories.Single._Description")),
+			table.Column("created_at", pageCtx.T("CreatedAt")),
+		}
+		cfg.AddCols(columns...)
+
+		createAction := actions.CreateAction(
+			pageCtx.T("ExpenseCategories.List.New"),
+			"",
+		)
+		createAction.Attrs = templ.Attributes{
+			"hx-get":    c.basePath + "/new/drawer",
+			"hx-target": "#view-drawer",
+			"hx-swap":   "innerHTML",
+		}
+		cfg.AddActions(actions.RenderAction(createAction))
+
+		cfg.AddFilters(
+			filters.CreatedAt(),
+		)
+	}
+
+	viewCategories := mapping.MapViewModels(expenseEntities, mappers.ExpenseCategoryToViewModel)
+	rows := make([]table.TableRow, 0, len(viewCategories))
+
+	for _, cat := range viewCategories {
+		createdAt, err := time.Parse("2006-01-02T15:04:05Z07:00", cat.CreatedAt)
+		if err != nil {
+			createdAt, err = time.Parse("2006-01-02 15:04:05", cat.CreatedAt)
+			if err != nil {
+				createdAt = time.Now()
+			}
+		}
+
+		cells := []templ.Component{
+			templ.Raw(cat.Name),
+			templ.Raw(cat.Description),
+			table.DateTime(createdAt),
+		}
+
+		row := table.Row(cells...).ApplyOpts(
+			table.WithDrawer(fmt.Sprintf("%s/%s/drawer", c.basePath, cat.ID)),
+		)
+		rows = append(rows, row)
+	}
+
+	cfg.AddRows(rows...)
+
+	if htmx.IsHxRequest(r) {
+		templ.Handler(table.Rows(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		templ.Handler(table.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
-func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
+func (c *ExpenseCategoriesController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -135,11 +203,11 @@ func (c *ExpenseCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
-	props := &expense_categories2.EditPageProps{
+	props := &expense_categories2.DrawerEditProps{
 		Category: mappers.ExpenseCategoryToViewModel(entity),
 		Errors:   map[string]string{},
 	}
-	templ.Handler(expense_categories2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expense_categories2.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +221,7 @@ func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	shared.Redirect(w, r, c.basePath)
 }
 
@@ -167,6 +236,9 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	isDrawer := r.Header.Get("HX-Target") != "" && r.Header.Get("HX-Target") != "edit-content"
+
 	if errorsMap, ok := dto.Ok(r.Context()); ok {
 		existing, err := c.expenseCategoryService.GetByID(r.Context(), id)
 		if err != nil {
@@ -183,29 +255,34 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Always redirect to refresh the table
+		shared.Redirect(w, r, c.basePath)
 	} else {
 		entity, err := c.expenseCategoryService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 			return
 		}
-		props := &expense_categories2.EditPageProps{
-			Category: mappers.ExpenseCategoryToViewModel(entity),
-			Errors:   errorsMap,
+
+		if isDrawer {
+			props := &expense_categories2.DrawerEditProps{
+				Category: mappers.ExpenseCategoryToViewModel(entity),
+				Errors:   errorsMap,
+			}
+			templ.Handler(expense_categories2.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			http.Error(w, "Edit form not supported - use drawer", http.StatusBadRequest)
 		}
-		templ.Handler(expense_categories2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		return
 	}
-	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ExpenseCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
-	props := &expense_categories2.CreatePageProps{
+func (c *ExpenseCategoriesController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
+	props := &expense_categories2.DrawerCreateProps{
 		Errors:   map[string]string{},
 		Category: dtos.ExpenseCategoryCreateDTO{},
-		PostPath: c.basePath,
 	}
-	templ.Handler(expense_categories2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expense_categories2.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
@@ -215,13 +292,18 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	isDrawer := htmx.IsHxRequest(r) && r.Header.Get("HX-Target") == "expense-category-create-drawer"
+
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		props := &expense_categories2.CreatePageProps{
-			Errors:   errorsMap,
-			Category: *dto,
-			PostPath: c.basePath,
+		if isDrawer {
+			props := &expense_categories2.DrawerCreateProps{
+				Errors:   errorsMap,
+				Category: *dto,
+			}
+			templ.Handler(expense_categories2.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			http.Error(w, "Create form not supported - use drawer", http.StatusBadRequest)
 		}
-		templ.Handler(expense_categories2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
