@@ -16,8 +16,7 @@
   "forwardPorts": [
     3200,
     5432,
-    9000,
-    4000
+    9000
   ],
   "portsAttributes": {
     "3200": {
@@ -30,10 +29,6 @@
     },
     "9000": {
       "label": "Air Proxy",
-      "onAutoForward": "silent"
-    },
-    "4000": {
-      "label": "Tunnel",
       "onAutoForward": "silent"
     }
   },
@@ -119,3 +114,4 @@
     "storage": "32gb"
   }
 }
+

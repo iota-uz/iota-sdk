@@ -14,6 +14,9 @@ RUN go install github.com/a-h/templ/cmd/templ@v0.3.857 \
     && go install github.com/loov/goda@latest \
     && go install github.com/iota-uz/devhub/cmd/devhub@latest
 
+# Install Claude Code
+RUN npm install -g @anthropic-ai/claude-code
+
 # Install additional tools
 RUN apt-get update && apt-get install -y \
     make \
