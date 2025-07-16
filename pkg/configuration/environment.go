@@ -164,6 +164,8 @@ type Configuration struct {
 	Origin           string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
+	MaxUploadSize    int64         `env:"MAX_UPLOAD_SIZE" envDefault:"33554432"`
+	MaxUploadMemory  int64         `env:"MAX_UPLOAD_MEMORY" envDefault:"33554432"`
 	LogLevel         string        `env:"LOG_LEVEL" envDefault:"error"`
 	// SDK will look for this header in the request, if it's not present, it will generate a random uuidv4
 	RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
