@@ -63,7 +63,11 @@ func (r *tableRowImpl) ApplyOpts(opts ...RowOpt) TableRow {
 
 func WithDrawer(fetchURL string) RowOpt {
 	return func(r *tableRowImpl) {
-		r.attrs["class"] = r.attrs["class"].(string) + " cursor-pointer"
+		currentClass := ""
+		if existingClass, ok := r.attrs["class"].(string); ok {
+			currentClass = existingClass
+		}
+		r.attrs["class"] = currentClass + " cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150"
 		r.attrs["hx-get"] = fetchURL
 		r.attrs["hx-target"] = "#view-drawer"
 		r.attrs["hx-swap"] = "innerHTML"
@@ -90,7 +94,7 @@ func WithInfiniteScroll(hasMore bool, page, perPage int) TableConfigOpt {
 	}
 }
 
-type InfiniteScrollConfig struct {
+type InfiniteScroll struct {
 	HasMore bool
 	Page    int
 	PerPage int
@@ -103,7 +107,7 @@ type TableConfig struct {
 	Actions    []templ.Component // Actions like Create button
 	Columns    []TableColumn
 	Rows       []TableRow
-	Infinite   *InfiniteScrollConfig
+	Infinite   InfiniteScroll
 	SideFilter templ.Component
 }
 
@@ -111,7 +115,7 @@ func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig 
 	t := &TableConfig{
 		Title:    title,
 		DataURL:  dataURL,
-		Infinite: &InfiniteScrollConfig{},
+		Infinite: InfiniteScroll{},
 		Columns:  []TableColumn{},
 		Filters:  []templ.Component{},
 		Actions:  []templ.Component{},
@@ -143,30 +147,8 @@ func Row(cells ...templ.Component) TableRow {
 	}
 }
 
-func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
-	c.Columns = append(c.Columns, cols...)
-	return c
-}
-
-func (c *TableConfig) AddFilters(filters ...templ.Component) *TableConfig {
-	c.Filters = append(c.Filters, filters...)
-	return c
-}
-
-func (c *TableConfig) AddRows(rows ...TableRow) *TableConfig {
-	c.Rows = append(c.Rows, rows...)
-	return c
-}
-
-func (c *TableConfig) SetSideFilter(filter templ.Component) *TableConfig {
-	c.SideFilter = filter
-	return c
-}
-
-func (c *TableConfig) AddActions(actions ...templ.Component) *TableConfig {
-	c.Actions = append(c.Actions, actions...)
-	return c
-}
+// No builder methods - TableConfig is just a data structure
+// Use it directly: config := &TableConfig{Title: "Users", Columns: cols, Rows: rows}
 
 // --- Query Parameter Utilities ---
 

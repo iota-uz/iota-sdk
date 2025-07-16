@@ -521,13 +521,13 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			columns = append(columns, table.Column("actions", actionsLabel))
 		}
 
-		cfg.AddCols(columns...)
+		cfg.Columns = append(cfg.Columns, columns...)
 
 		// Add header actions
 		headerActions := c.buildHeaderActions(ctx)
 		if len(headerActions) > 0 {
 			for _, action := range headerActions {
-				cfg.AddActions(actions.RenderAction(action))
+				cfg.Actions = append(cfg.Actions, actions.RenderAction(action))
 			}
 		}
 	}
@@ -545,7 +545,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[CrudController.List] Failed to build row: %v", err)
 			continue
 		}
-		cfg.AddRows(row)
+		cfg.Rows = append(cfg.Rows, row)
 	}
 
 	// For HTMX requests, also configure infinity scroll

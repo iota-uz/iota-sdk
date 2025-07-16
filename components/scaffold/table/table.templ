@@ -118,8 +118,8 @@ templ InfiniteScrollSpinner(cfg *TableConfig) {
 
 // Table renders a dynamic table based on configuration and data
 templ Table(config *TableConfig) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	if len(config.Rows) == 0 {
+		{{ pageCtx := composables.UsePageCtx(ctx) }}
 		@base.TableEmptyState(base.TableEmptyStateProps{
 			Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
 			Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
@@ -228,7 +228,6 @@ templ Content(config *TableConfig) {
 		<div class="mt-5">
 			@TableSection(config)
 		</div>
-		<!-- Placeholder for the view drawer -->
 		<div id="view-drawer"></div>
 	</div>
 }

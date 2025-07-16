@@ -1,0 +1,76 @@
+package table
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// SimplePage provides a one-line way to create a standard table page
+// Example: table.SimplePage("Users", "/users", table.Columns("name", "email", "created"), rows)
+templ SimplePage(title string, dataURL string, columns []TableColumn, rows []TableRow) {
+	{{
+		config := &TableConfig{
+			Title:   title,
+			DataURL: dataURL,
+			Columns: columns,
+			Rows:    rows,
+		}
+	}}
+	@Page(config)
+}
+
+// SimpleHeader creates a basic header with title and optional actions
+templ SimpleHeader(title string, actions ...templ.Component) {
+	<div class="flex justify-between items-center">
+		<h1 class="text-2xl font-medium">{ title }</h1>
+		if len(actions) > 0 {
+			<div class="flex gap-2">
+				for _, action := range actions {
+					@action
+				}
+			</div>
+		}
+	</div>
+}
+
+// SimpleFilterBar creates a search bar with optional additional filters
+templ SimpleFilterBar(filters ...templ.Component) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="p-4 flex gap-3">
+		<div class="flex-1">
+			@input.Text(&input.Props{
+				AddonLeft: &input.Addon{
+					Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+				},
+				Placeholder: pageCtx.T("Search"),
+				Attrs: templ.Attributes{
+					"name": "Search",
+				},
+			})
+		</div>
+		for _, filter := range filters {
+			@filter
+		}
+	</div>
+}
+
+// SimpleTable renders just the table without any wrapper
+templ SimpleTable(columns []TableColumn, rows []TableRow) {
+	{{
+		config := &TableConfig{
+			Columns: columns,
+			Rows:    rows,
+		}
+	}}
+	@Table(config)
+}
+
+// Columns is a helper to quickly create column definitions
+func Columns(keys ...string) []TableColumn {
+	cols := make([]TableColumn, len(keys))
+	for i, key := range keys {
+		cols[i] = Column(key, key)
+	}
+	return cols
+}
