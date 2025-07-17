@@ -2,6 +2,7 @@ package crud_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -40,15 +41,29 @@ func WithSummary(summary string) ReportOption {
 	}
 }
 
+func WithTitleI18n(titleI18n map[string]string) ReportOption {
+	return func(r *report) {
+		r.titleI18n = titleI18n
+	}
+}
+
+func WithSummaryI18n(summaryI18n map[string]string) ReportOption {
+	return func(r *report) {
+		r.summaryI18n = summaryI18n
+	}
+}
+
 func NewReport(
 	title string,
 	opts ...ReportOption,
 ) Report {
 	r := &report{
-		id:      0,
-		title:   title,
-		author:  "",
-		summary: "",
+		id:          0,
+		title:       title,
+		author:      "",
+		summary:     "",
+		titleI18n:   make(map[string]string),
+		summaryI18n: make(map[string]string),
 	}
 
 	for _, opt := range opts {
@@ -63,18 +78,24 @@ type Report interface {
 	Title() string
 	Author() string
 	Summary() string
+	TitleI18n() map[string]string
+	SummaryI18n() map[string]string
 
 	SetID(int) Report
 	SetTitle(string) Report
 	SetAuthor(string) Report
 	SetSummary(string) Report
+	SetTitleI18n(map[string]string) Report
+	SetSummaryI18n(map[string]string) Report
 }
 
 type report struct {
-	id      int
-	title   string
-	author  string
-	summary string
+	id          int
+	title       string
+	author      string
+	summary     string
+	titleI18n   map[string]string
+	summaryI18n map[string]string
 }
 
 func (r *report) ID() int {
@@ -91,6 +112,14 @@ func (r *report) Author() string {
 
 func (r *report) Summary() string {
 	return r.summary
+}
+
+func (r *report) TitleI18n() map[string]string {
+	return r.titleI18n
+}
+
+func (r *report) SummaryI18n() map[string]string {
+	return r.summaryI18n
 }
 
 func (r *report) SetID(id int) Report {
@@ -114,6 +143,24 @@ func (r *report) SetAuthor(author string) Report {
 func (r *report) SetSummary(summary string) Report {
 	result := *r
 	result.summary = summary
+	return &result
+}
+
+func (r *report) SetTitleI18n(titleI18n map[string]string) Report {
+	result := *r
+	result.titleI18n = make(map[string]string)
+	for k, v := range titleI18n {
+		result.titleI18n[k] = v
+	}
+	return &result
+}
+
+func (r *report) SetSummaryI18n(summaryI18n map[string]string) Report {
+	result := *r
+	result.summaryI18n = make(map[string]string)
+	for k, v := range summaryI18n {
+		result.summaryI18n[k] = v
+	}
 	return &result
 }
 
@@ -165,6 +212,50 @@ func (m *reportMapper) ToEntities(_ context.Context, values ...[]crud.FieldValue
 					return nil, fmt.Errorf("invalid summary field: %w", err)
 				}
 				options = append(options, WithSummary(str))
+
+			case "title_i18n":
+				jsonData, err := v.AsJson()
+				if err != nil {
+					return nil, fmt.Errorf("invalid title_i18n field: %w", err)
+				}
+				if jsonData != nil {
+					titleI18n, ok := jsonData.(map[string]interface{})
+					if !ok {
+						return nil, fmt.Errorf("title_i18n must be an object")
+					}
+					// Convert map[string]interface{} to map[string]string
+					titleI18nStr := make(map[string]string)
+					for k, v := range titleI18n {
+						if str, ok := v.(string); ok {
+							titleI18nStr[k] = str
+						} else {
+							return nil, fmt.Errorf("title_i18n values must be strings")
+						}
+					}
+					options = append(options, WithTitleI18n(titleI18nStr))
+				}
+
+			case "summary_i18n":
+				jsonData, err := v.AsJson()
+				if err != nil {
+					return nil, fmt.Errorf("invalid summary_i18n field: %w", err)
+				}
+				if jsonData != nil {
+					summaryI18n, ok := jsonData.(map[string]interface{})
+					if !ok {
+						return nil, fmt.Errorf("summary_i18n must be an object")
+					}
+					// Convert map[string]interface{} to map[string]string
+					summaryI18nStr := make(map[string]string)
+					for k, v := range summaryI18n {
+						if str, ok := v.(string); ok {
+							summaryI18nStr[k] = str
+						} else {
+							return nil, fmt.Errorf("summary_i18n values must be strings")
+						}
+					}
+					options = append(options, WithSummaryI18n(summaryI18nStr))
+				}
 			}
 		}
 
@@ -178,11 +269,29 @@ func (m *reportMapper) ToFieldValuesList(_ context.Context, entities ...Report) 
 	result := make([][]crud.FieldValue, len(entities))
 
 	for i, entity := range entities {
+		// Convert multilang maps to JSON strings
+		titleI18nJSON := "{}"
+		summaryI18nJSON := "{}"
+
+		if len(entity.TitleI18n()) > 0 {
+			if jsonBytes, err := json.Marshal(entity.TitleI18n()); err == nil {
+				titleI18nJSON = string(jsonBytes)
+			}
+		}
+
+		if len(entity.SummaryI18n()) > 0 {
+			if jsonBytes, err := json.Marshal(entity.SummaryI18n()); err == nil {
+				summaryI18nJSON = string(jsonBytes)
+			}
+		}
+
 		fvs, err := m.fields.FieldValues(map[string]any{
-			"id":      entity.ID(),
-			"title":   entity.Title(),
-			"author":  entity.Author(),
-			"summary": entity.Summary(),
+			"id":           entity.ID(),
+			"title":        entity.Title(),
+			"author":       entity.Author(),
+			"summary":      entity.Summary(),
+			"title_i18n":   titleI18nJSON,
+			"summary_i18n": summaryI18nJSON,
 		})
 		if err != nil {
 			return nil, err
@@ -199,6 +308,8 @@ func buildReportSchema() crud.Schema[Report] {
 		crud.NewStringField("title", crud.WithSearchable()),
 		crud.NewStringField("author", crud.WithSearchable()),
 		crud.NewStringField("summary", crud.WithSearchable()),
+		crud.NewJsonField("title_i18n", crud.WithMultiLang()),
+		crud.NewJsonField("summary_i18n", crud.WithMultiLang()),
 	})
 	return crud.NewSchema(
 		"reports",
@@ -246,7 +357,9 @@ func setupTest(t *testing.T) *testFixtures {
 						id INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
 						title TEXT NOT NULL,
 						author TEXT NOT NULL,
-						summary TEXT NOT NULL
+						summary TEXT NOT NULL,
+						title_i18n JSONB NOT NULL DEFAULT '{}',
+						summary_i18n JSONB NOT NULL DEFAULT '{}'
 					);`
 	_, err = pool.Exec(ctx, createTableSQL)
 	require.NoError(t, err)

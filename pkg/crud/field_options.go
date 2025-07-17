@@ -1,6 +1,8 @@
 package crud
 
-import "time"
+import (
+	"time"
+)
 
 func WithKey() FieldOption {
 	return func(field *field) {
@@ -289,5 +291,19 @@ func WithFutureDate() FieldOption {
 func WithPastDate() FieldOption {
 	return func(field *field) {
 		field.rules = append(field.rules, PastDateRule())
+	}
+}
+
+func WithJsonValid() FieldOption {
+	return func(field *field) {
+		field.rules = append(field.rules, JsonValidRule())
+	}
+}
+
+// MultiLang field option
+
+func WithMultiLang() FieldOption {
+	return func(field *field) {
+		field.attrs[JsonSchemaType] = "multilang"
 	}
 }

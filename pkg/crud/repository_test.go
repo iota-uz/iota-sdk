@@ -19,7 +19,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	rep := crud.DefaultRepository[Report](schema)
 
 	t.Run("Create", func(t *testing.T) {
-		report := NewReport("Quarterly Results", WithAuthor("John"), WithSummary("Q1"))
+		report := createValidReport("Quarterly Results", WithAuthor("John"), WithSummary("Q1"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 
@@ -27,10 +27,13 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, created.ID())
 		assert.Equal(t, "Quarterly Results", created.Title())
+		// Verify multilingual fields are preserved
+		assert.NotEmpty(t, created.TitleI18n())
+		assert.NotEmpty(t, created.SummaryI18n())
 	})
 
 	t.Run("Get", func(t *testing.T) {
-		report := NewReport("Get Test", WithAuthor("Alice"), WithSummary("Sample"))
+		report := createValidReport("Get Test", WithAuthor("Alice"), WithSummary("Sample"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 
@@ -41,15 +44,17 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		got, err := rep.Get(ctx, value)
 		require.NoError(t, err)
 		assert.Equal(t, "Alice", got.Author())
+		assert.NotEmpty(t, got.TitleI18n())
+		assert.NotEmpty(t, got.SummaryI18n())
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		fieldsA, err := schema.Mapper().ToFieldValues(ctx, NewReport("All A", WithAuthor("A")))
+		fieldsA, err := schema.Mapper().ToFieldValues(ctx, createValidReport("All A", WithAuthor("A")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fieldsA)
 		require.NoError(t, err)
 
-		fieldsB, err := schema.Mapper().ToFieldValues(ctx, NewReport("All B", WithAuthor("B")))
+		fieldsB, err := schema.Mapper().ToFieldValues(ctx, createValidReport("All B", WithAuthor("B")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fieldsB)
 		require.NoError(t, err)
@@ -57,10 +62,18 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		all, err := rep.GetAll(ctx)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(all), 2)
+
+		// Verify multilingual data is preserved in GetAll
+		for _, report := range all {
+			if len(report.TitleI18n()) > 0 {
+				assert.NotEmpty(t, report.TitleI18n())
+				assert.NotEmpty(t, report.SummaryI18n())
+			}
+		}
 	})
 
 	t.Run("Exists", func(t *testing.T) {
-		report := NewReport("Get Test", WithAuthor("Alice"), WithSummary("Sample"))
+		report := createValidReport("Get Test", WithAuthor("Alice"), WithSummary("Sample"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 
@@ -74,7 +87,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("List with filter", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Filter Me", WithAuthor("FilterTest")))
+		fields, err := schema.Mapper().ToFieldValues(ctx, createValidReport("Filter Me", WithAuthor("FilterTest")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
@@ -87,10 +100,12 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, list, 1)
 		assert.Equal(t, "FilterTest", list[0].Author())
+		assert.NotEmpty(t, list[0].TitleI18n())
+		assert.NotEmpty(t, list[0].SummaryI18n())
 	})
 
 	t.Run("List with order", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Order Me", WithAuthor("OrderTest")))
+		fields, err := schema.Mapper().ToFieldValues(ctx, createValidReport("Order Me", WithAuthor("OrderTest")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
@@ -107,10 +122,12 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, list, 1)
 		assert.Equal(t, "OrderTest", list[0].Author())
+		assert.NotEmpty(t, list[0].TitleI18n())
+		assert.NotEmpty(t, list[0].SummaryI18n())
 	})
 
 	t.Run("Count with filter", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Count Me", WithAuthor("Counter")))
+		fields, err := schema.Mapper().ToFieldValues(ctx, createValidReport("Count Me", WithAuthor("Counter")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
@@ -123,7 +140,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		report := NewReport("ToUpdate", WithAuthor("Updater"), WithSummary("Initial"))
+		report := createValidReport("ToUpdate", WithAuthor("Updater"), WithSummary("Initial"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 		created, err := rep.Create(ctx, fields)
@@ -136,10 +153,13 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		result, err := rep.Update(ctx, updateFields)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated!", result.Summary())
+		// Verify multilingual fields are preserved during update
+		assert.NotEmpty(t, result.TitleI18n())
+		assert.NotEmpty(t, result.SummaryI18n())
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		report := NewReport("ToDelete", WithAuthor("Deleter"))
+		report := createValidReport("ToDelete", WithAuthor("Deleter"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 		created, err := rep.Create(ctx, fields)
@@ -149,6 +169,9 @@ func TestReportRepository_AllMethods(t *testing.T) {
 		deleted, err := rep.Delete(ctx, key)
 		require.NoError(t, err)
 		assert.Equal(t, created.ID(), deleted.ID())
+		// Verify that deleted entity still contains multilingual data
+		assert.NotEmpty(t, deleted.TitleI18n())
+		assert.NotEmpty(t, deleted.SummaryI18n())
 
 		_, err = rep.Get(ctx, key)
 		require.Error(t, err)
@@ -167,7 +190,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Offset beyond result", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Out of bounds"))
+		fields, err := schema.Mapper().ToFieldValues(ctx, createValidReport("Out of bounds"))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)

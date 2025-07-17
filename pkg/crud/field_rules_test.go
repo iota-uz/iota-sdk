@@ -1191,6 +1191,9 @@ func (m *mockField) AsUUIDField() (crud.UUIDField, error) {
 func (m *mockField) AsDecimalField() (crud.DecimalField, error) {
 	return nil, fmt.Errorf("field type mismatch: field %q is %s, not decimal", m.name, m.fieldType)
 }
+func (m *mockField) AsJsonField() (crud.JsonField, error) {
+	return nil, fmt.Errorf("field type mismatch: field %q is %s, not json", m.name, m.fieldType)
+}
 
 type mockFieldValue struct {
 	field crud.Field
@@ -1259,4 +1262,11 @@ func (m *mockFieldValue) AsUUID() (uuid.UUID, error) {
 		return u, nil
 	}
 	return uuid.UUID{}, fmt.Errorf("value is not a uuid.UUID")
+}
+func (m *mockFieldValue) AsJson() (interface{}, error) {
+	return m.value, nil
+}
+
+func (m *mockFieldValue) AsMultiLang() (crud.MultiLang, error) {
+	return nil, fmt.Errorf("not implemented in mock")
 }

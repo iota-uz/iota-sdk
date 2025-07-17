@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -333,7 +334,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							formats = []string{"15:04", "15:04:05"}
 						case crud.DateTimeFieldType:
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
-						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType, crud.JsonFieldType:
 							// These types are handled elsewhere
 							formats = []string{}
 						}
@@ -365,6 +366,27 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			case crud.DecimalFieldType:
 				// Decimal fields are stored as strings
 				value = formValue
+			case crud.JsonFieldType:
+				// JSON fields need to be parsed and validated
+				if formValue != "" {
+					// Validate JSON syntax
+					var jsonValue interface{}
+					if err := json.Unmarshal([]byte(formValue), &jsonValue); err != nil {
+						return nil, fmt.Errorf("invalid JSON value for field %s: %v", fieldName, err)
+					}
+
+					// Get the JsonField for additional validation
+					if jsonField, err := field.AsJsonField(); err == nil {
+						// Validate using the JsonField's validation methods
+						if err := jsonField.ValidateJSON(formValue); err != nil {
+							return nil, fmt.Errorf("JSON validation failed for field %s: %v", fieldName, err)
+						}
+					}
+
+					value = formValue
+				} else {
+					continue // Skip empty values
+				}
 			case crud.StringFieldType, crud.TimestampFieldType:
 				// String and timestamp fields are handled as strings from forms
 				value = formValue
@@ -1556,6 +1578,39 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 
 		return builder.Build()
 
+	case crud.JsonFieldType:
+		jf, err := field.AsJsonField()
+		if err != nil {
+			return nil
+		}
+
+		builder := form.Textarea(field.Name(), fieldLabel)
+
+		// Set JSON-specific attributes as HTML attributes
+		attrs := templ.Attributes{
+			"data-json-field":       "true",
+			"data-json-schema-type": jf.SchemaType(),
+		}
+		builder = builder.Attrs(attrs)
+
+		// Set default value as formatted JSON
+		if currentValue != nil {
+			var jsonStr string
+			if str, ok := currentValue.(string); ok {
+				jsonStr = str
+			} else {
+				// Format the JSON value
+				if formattedJSON, err := jf.FormatJSON(currentValue); err == nil {
+					jsonStr = formattedJSON
+				} else {
+					jsonStr = fmt.Sprintf("%v", currentValue)
+				}
+			}
+			builder = builder.Default(jsonStr)
+		}
+
+		return builder.Build()
+
 	default:
 		builder := form.Text(field.Name(), field.Name())
 		if currentValue != nil {
@@ -1960,6 +2015,32 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 			return templ.Raw("")
 		}
 		return templ.Raw(uuidVal.String())
+
+	case crud.JsonFieldType:
+		jsonVal, err := value.AsJson()
+		if err != nil {
+			return templ.Raw("")
+		}
+
+		jf, err := field.AsJsonField()
+		if err != nil {
+			return templ.Raw(fmt.Sprintf("%v", value.Value()))
+		}
+
+		// Format JSON for table display
+		var jsonStr string
+		if formattedJSON, err := jf.FormatJSON(jsonVal); err == nil {
+			// For table display, truncate long JSON
+			if len(formattedJSON) > 100 {
+				jsonStr = formattedJSON[:97] + "..."
+			} else {
+				jsonStr = formattedJSON
+			}
+		} else {
+			jsonStr = fmt.Sprintf("%v", jsonVal)
+		}
+
+		return templ.Raw(jsonStr)
 
 	default:
 		return templ.Raw(fmt.Sprintf("%v", value.Value()))

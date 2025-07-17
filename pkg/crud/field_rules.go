@@ -1,6 +1,7 @@
 package crud
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -462,5 +463,150 @@ func AlphanumericRule() FieldRule {
 			}
 		}
 		return nil
+	}
+}
+
+func JsonSchemaRule(schema string) FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != JsonFieldType {
+			return fmt.Errorf("JSON schema rule only applies to JSON fields")
+		}
+
+		val := fv.Value()
+		if val == nil {
+			return nil
+		}
+
+		// Get the JSON data
+		jsonData, err := fv.AsJson()
+		if err != nil {
+			return fmt.Errorf("field %q contains invalid JSON: %w", fv.Field().Name(), err)
+		}
+
+		// Note: Full JSON Schema validation would require a library like github.com/xeipuuv/gojsonschema
+		// For now, we'll implement basic validation
+		if schema == "" {
+			return nil
+		}
+
+		// Basic validation: check if JSON is parseable
+		if jsonData == nil {
+			return nil
+		}
+
+		// TODO: Implement actual JSON schema validation when needed
+		// This is a placeholder for now
+		return nil
+	}
+}
+
+func JsonMaxDepthRule(maxDepth int) FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != JsonFieldType {
+			return fmt.Errorf("JSON max depth rule only applies to JSON fields")
+		}
+
+		val := fv.Value()
+		if val == nil {
+			return nil
+		}
+
+		jsonData, err := fv.AsJson()
+		if err != nil {
+			return fmt.Errorf("field %q contains invalid JSON: %w", fv.Field().Name(), err)
+		}
+
+		depth := calculateJSONDepth(jsonData)
+		if depth > maxDepth {
+			return fmt.Errorf("field %q JSON depth %d exceeds maximum allowed depth %d", fv.Field().Name(), depth, maxDepth)
+		}
+
+		return nil
+	}
+}
+
+func JsonRequiredKeysRule(requiredKeys []string) FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != JsonFieldType {
+			return fmt.Errorf("JSON required keys rule only applies to JSON fields")
+		}
+
+		val := fv.Value()
+		if val == nil {
+			return nil
+		}
+
+		jsonData, err := fv.AsJson()
+		if err != nil {
+			return fmt.Errorf("field %q contains invalid JSON: %w", fv.Field().Name(), err)
+		}
+
+		// Check if the JSON is an object
+		jsonObj, ok := jsonData.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("field %q JSON must be an object to check required keys", fv.Field().Name())
+		}
+
+		// Check for required keys
+		for _, key := range requiredKeys {
+			if _, exists := jsonObj[key]; !exists {
+				return fmt.Errorf("field %q JSON is missing required key: %s", fv.Field().Name(), key)
+			}
+		}
+
+		return nil
+	}
+}
+
+func JsonValidRule() FieldRule {
+	return func(fv FieldValue) error {
+		if fv.Field().Type() != JsonFieldType {
+			return fmt.Errorf("JSON valid rule only applies to JSON fields")
+		}
+
+		val := fv.Value()
+		if val == nil {
+			return nil
+		}
+
+		// If the value is a string, validate it as JSON
+		if str, ok := val.(string); ok {
+			var result interface{}
+			if err := json.Unmarshal([]byte(str), &result); err != nil {
+				return fmt.Errorf("field %q contains invalid JSON: %w", fv.Field().Name(), err)
+			}
+			return nil
+		}
+
+		// If the value is not a string, try to marshal it to ensure it's JSON-serializable
+		if _, err := json.Marshal(val); err != nil {
+			return fmt.Errorf("field %q value is not JSON-serializable: %w", fv.Field().Name(), err)
+		}
+
+		return nil
+	}
+}
+
+// Helper function to calculate JSON depth
+func calculateJSONDepth(data interface{}) int {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		maxDepth := 0
+		for _, value := range v {
+			if depth := calculateJSONDepth(value); depth > maxDepth {
+				maxDepth = depth
+			}
+		}
+		return maxDepth + 1
+	case []interface{}:
+		maxDepth := 0
+		for _, value := range v {
+			if depth := calculateJSONDepth(value); depth > maxDepth {
+				maxDepth = depth
+			}
+		}
+		return maxDepth + 1
+	default:
+		return 1
 	}
 }

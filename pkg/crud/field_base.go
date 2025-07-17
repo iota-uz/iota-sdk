@@ -27,31 +27,36 @@ const (
 	DateTimeFieldType  FieldType = "datetime"
 	TimestampFieldType FieldType = "timestamp"
 	UUIDFieldType      FieldType = "uuid"
+	JsonFieldType      FieldType = "json"
 )
 
 const (
-	MinLen       string = "minLen"
-	MaxLen       string = "maxLen"
-	Multiline    string = "multiline"
-	Min          string = "min"
-	Max          string = "max"
-	Precision    string = "precision"
-	Scale        string = "scale"
-	MinDate      string = "minDate"
-	MaxDate      string = "maxDate"
-	Pattern      string = "pattern"
-	Trim         string = "trim"
-	Uppercase    string = "uppercase"
-	Lowercase    string = "lowercase"
-	Step         string = "step"
-	MultipleOf   string = "multipleOf"
-	Format       string = "format"
-	Timezone     string = "timezone"
-	WeekdaysOnly string = "weekdaysOnly"
-	UUIDVersion  string = "uuidVersion"
-	DefaultValue string = "defaultValue"
-	TrueLabel    string = "trueLabel"
-	FalseLabel   string = "falseLabel"
+	MinLen          string = "minLen"
+	MaxLen          string = "maxLen"
+	Multiline       string = "multiline"
+	Min             string = "min"
+	Max             string = "max"
+	Precision       string = "precision"
+	Scale           string = "scale"
+	MinDate         string = "minDate"
+	MaxDate         string = "maxDate"
+	Pattern         string = "pattern"
+	Trim            string = "trim"
+	Uppercase       string = "uppercase"
+	Lowercase       string = "lowercase"
+	Step            string = "step"
+	MultipleOf      string = "multipleOf"
+	Format          string = "format"
+	Timezone        string = "timezone"
+	WeekdaysOnly    string = "weekdaysOnly"
+	UUIDVersion     string = "uuidVersion"
+	DefaultValue    string = "defaultValue"
+	TrueLabel       string = "trueLabel"
+	FalseLabel      string = "falseLabel"
+	JsonSchema      string = "jsonSchema"
+	JsonPrettyPrint string = "jsonPrettyPrint"
+	JsonMaxDepth    string = "jsonMaxDepth"
+	JsonSchemaType  string = "jsonSchemaType"
 )
 
 type Field interface {
@@ -80,6 +85,7 @@ type Field interface {
 	AsDateTimeField() (DateTimeField, error)
 	AsTimestampField() (TimestampField, error)
 	AsUUIDField() (UUIDField, error)
+	AsJsonField() (JsonField, error)
 }
 
 // Base field implementation
@@ -118,8 +124,8 @@ func newField(
 		opt(f)
 	}
 
-	if f.searchable && f.type_ != StringFieldType {
-		panic(fmt.Sprintf("field %q: searchable allowed only for type %q, got %q", name, StringFieldType, f.type_))
+	if f.searchable && f.type_ != StringFieldType && f.type_ != JsonFieldType {
+		panic(fmt.Sprintf("field %q: searchable allowed only for types %q and %q, got %q", name, StringFieldType, JsonFieldType, f.type_))
 	}
 
 	return f
@@ -214,6 +220,10 @@ func (f *field) AsUUIDField() (UUIDField, error) {
 	return nil, fmt.Errorf("%w: field %q is %s, not %s", ErrFieldTypeMismatch, f.name, f.type_, UUIDFieldType)
 }
 
+func (f *field) AsJsonField() (JsonField, error) {
+	return nil, fmt.Errorf("%w: field %q is %s, not %s", ErrFieldTypeMismatch, f.name, f.type_, JsonFieldType)
+}
+
 func isValidType(fieldType FieldType, value any) bool {
 	if value == nil {
 		return true
@@ -254,6 +264,15 @@ func isValidType(fieldType FieldType, value any) bool {
 	case UUIDFieldType:
 		_, ok := value.(uuid.UUID)
 		return ok
+
+	case JsonFieldType:
+		// JSON fields can accept strings, maps, slices, or any JSON-serializable type
+		switch value.(type) {
+		case string, map[string]interface{}, []interface{}, []map[string]interface{}:
+			return true
+		default:
+			return true // Allow any type that can be JSON marshaled
+		}
 
 	default:
 		return false

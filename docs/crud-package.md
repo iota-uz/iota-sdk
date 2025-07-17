@@ -62,6 +62,7 @@ The package supports various field types:
 - `DateTimeField` - Combined date and time fields
 - `TimestampField` - Unix timestamp fields
 - `UUIDField` - UUID fields
+- `JsonField` - JSON fields with schema validation for multilingual data and structured content
 - `SelectField` - Dropdown fields with options (static, searchable, or multi-select)
 
 ## Field Definition Examples
@@ -129,6 +130,500 @@ crud.NewUUIDField("id",
     crud.WithReadonly(),     // Auto-generated
     crud.WithInitialValue(func() any { return uuid.New() }),
 )
+```
+
+### JsonField - JSON Data with Schema Validation
+
+JsonField provides powerful JSON data storage with validation capabilities, perfect for multilingual content, metadata, and structured data.
+
+#### Features
+
+- **Schema Validation**: Enforce JSON structure and required keys
+- **Depth Limits**: Control maximum nesting depth to prevent complex structures
+- **Pretty Printing**: Format JSON with indentation for readability
+- **PostgreSQL JSONB**: Efficient storage with native querying support
+- **Type Safety**: Strong typing with Go interface validation
+- **CRUD Integration**: Seamless integration with form controls and validation
+
+#### Basic JsonField
+
+```go
+crud.NewJsonField("metadata",
+    crud.WithJsonMaxDepth(3),           // Limit nesting depth
+    crud.WithJsonSchemaType("metadata"), // Schema identifier
+    crud.WithJsonPrettyPrint(),         // Format with indentation
+)
+```
+
+#### Multilingual JsonField
+
+Perfect for internationalization with multiple language support:
+
+```go
+crud.NewJsonField("title_i18n",
+    crud.WithMultiLang(),                                  // Array-based multilingual schema
+    crud.WithJsonPrettyPrint(),                           // Readable formatting
+)
+```
+
+#### JsonField Options
+
+- `WithJsonSchemaType(string)` - Set schema type identifier for different JSON structures
+- `WithJsonRequiredKeys([]string)` - Enforce required keys in JSON objects
+- `WithJsonMaxDepth(int)` - Limit maximum nesting depth (default: unlimited)
+- `WithJsonPrettyPrint()` - Format JSON with indentation and newlines
+- `WithJsonSchema(string)` - Custom JSON schema for advanced validation
+- `WithJsonValid()` - Add basic JSON syntax validation
+
+#### Validation Rules
+
+JsonField supports comprehensive validation:
+
+```go
+field := crud.NewJsonField("config",
+    crud.WithJsonRequiredKeys([]string{"version", "settings"}),
+    crud.WithJsonMaxDepth(4),
+    crud.WithRule(func(fv crud.FieldValue) error {
+        jsonData, err := fv.AsJson()
+        if err != nil {
+            return err
+        }
+        
+        // Custom validation logic
+        if config, ok := jsonData.(map[string]interface{}); ok {
+            if version, exists := config["version"]; exists {
+                if v, ok := version.(string); ok && v == "" {
+                    return errors.New("version cannot be empty")
+                }
+            }
+        }
+        return nil
+    }),
+)
+```
+
+#### Database Integration
+
+JsonField maps to PostgreSQL JSONB columns for efficient storage and querying:
+
+```sql
+CREATE TABLE products (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    title_i18n JSONB NOT NULL DEFAULT '{}',
+    metadata JSONB NOT NULL DEFAULT '{}'
+);
+```
+
+#### Example: Multilingual Product
+
+```go
+// Schema definition
+fields := crud.NewFields([]crud.Field{
+    crud.NewUUIDField("id", crud.WithKey()),
+    crud.NewStringField("sku", crud.WithRequired(), crud.WithSearchable()),
+    crud.NewJsonField("title_i18n",
+        crud.WithMultiLang(),  // Uses new array-based schema
+        crud.WithJsonPrettyPrint(),
+    ),
+    crud.NewJsonField("description_i18n",
+        crud.WithMultiLangRequired([]string{"ru", "uz", "en"}),  // Custom required languages
+        crud.WithJsonPrettyPrint(),
+    ),
+    crud.NewJsonField("metadata",
+        crud.WithJsonSchemaType("product_meta"),
+        crud.WithJsonMaxDepth(3),
+    ),
+})
+
+// Usage in Go code
+titleTranslations := map[string]string{
+    "ru": "Смартфон Samsung Galaxy",
+    "uz": "Samsung Galaxy smartfoni", 
+    "en": "Samsung Galaxy Smartphone",
+}
+
+// JSON is automatically validated and formatted
+```
+
+#### Form Integration
+
+The CRUD controller automatically handles JsonField in forms:
+
+- **Create/Edit Forms**: Renders as textarea with JSON validation
+- **Display Views**: Shows formatted JSON or specific schema-based controls
+- **Validation**: Client and server-side JSON syntax and schema validation
+- **Schema-Based Controls**: Different UI controls based on schema type (future enhancement)
+
+#### Mapper Integration
+
+Handle JsonField in your entity mappers:
+
+```go
+func (m *productMapper) ToEntities(ctx context.Context, values ...[]crud.FieldValue) ([]Product, error) {
+    // ... other fields ...
+    
+    case "title_i18n":
+        // Use typed MultiLang access instead of raw JSON
+        multiLang, err := v.AsMultiLang()
+        if err != nil {
+            return nil, fmt.Errorf("invalid title_i18n field: %w", err)
+        }
+        if multiLang != nil {
+            // Convert to your domain model
+            titleI18n := make(map[string]string)
+            for _, entry := range multiLang.GetAll() {
+                titleI18n[entry.Code] = entry.Text
+            }
+            options = append(options, WithTitleI18n(titleI18n))
+        }
+    // ... continue with other fields ...
+}
+
+func (m *productMapper) ToFieldValuesList(ctx context.Context, entities ...Product) ([][]crud.FieldValue, error) {
+    // Convert Go domain model to LangEntry array
+    var titleEntries []json_schemas.LangEntry
+    for code, text := range entity.TitleI18n() {
+        titleEntries = append(titleEntries, json_schemas.LangEntry{
+            Code: code,
+            Text: text,
+        })
+    }
+    
+    return m.fields.FieldValues(map[string]any{
+        "id":         entity.ID(),
+        "sku":        entity.SKU(),
+        "title_i18n": titleEntries,  // Pass array directly
+        // ... other fields ...
+    })
+}
+```
+
+#### Best Practices
+
+1. **Schema Types**: Use consistent schema type names across your application
+2. **Required Keys**: Always specify required keys for multilingual fields
+3. **Depth Limits**: Set reasonable depth limits to prevent overly complex structures
+4. **Pretty Printing**: Enable for development, consider disabling for production
+5. **Validation**: Combine JsonField rules with custom entity validators
+6. **Type Safety**: Use strongly typed Go structs and convert from `interface{}`
+7. **Performance**: PostgreSQL JSONB fields support indexing and efficient queries
+
+#### Common Schema Types
+
+- `"multilang"` - Multilingual translations (`[{"code": "ru", "text": "text"}, {"code": "uz", "text": "text"}]`)
+- `"address"` - Structured address information with validation
+- `"contactinfo"` - Contact information with email, phone, and social media links
+- `"metadata"` - Product/entity metadata with flexible structure
+- `"config"` - Configuration objects with settings
+- `"audit"` - Audit trail information with timestamps and user data
+- `"tags"` - Tag collections with categories and labels
+
+### Typed Schema System
+
+The CRUD package now supports a fully typed schema system for JsonField that provides type-safe access to JSON data through Go interfaces instead of working with raw `map[string]interface{}`.
+
+#### Key Features
+
+- **Type Safety**: Access JSON data through strongly typed Go interfaces
+- **Immutable Objects**: All schema objects are immutable with builder patterns
+- **Dynamic Language Access**: Add/remove languages without code changes
+- **Array-Based Storage**: Efficient storage and consistent ordering
+- **Backward Compatibility**: Supports both new array and legacy map formats
+- **Validation**: Built-in validation for each schema type with custom required languages
+- **Extensibility**: Easy to add new schema types and new languages
+- **Schema Registry**: Global registry for managing schema types
+- **Object-Oriented**: Full object-oriented approach with proper encapsulation
+
+#### Built-in Schema Types
+
+##### MultiLang Schema
+
+For multilingual content with dynamic language access and array-based storage:
+
+```go
+// Create field with MultiLang schema
+field := crud.NewJsonField("title", crud.WithMultiLang())
+
+// Or with custom required languages
+field := crud.NewJsonField("title", crud.WithMultiLangRequired([]string{"ru", "uz", "en", "de"}))
+
+// Usage with array format data
+fieldValue := field.Value([]json_schemas.LangEntry{
+    {Code: "ru", Text: "Заголовок"},
+    {Code: "uz", Text: "Sarlavha"},
+    {Code: "en", Text: "Title"},
+    {Code: "de", Text: "Titel"},
+})
+
+// Or using map format (backward compatibility)
+fieldValue := field.Value(map[string]string{
+    "ru": "Заголовок",
+    "uz": "Sarlavha", 
+    "en": "Title",
+})
+
+// Get as typed MultiLang object
+multiLang, err := fieldValue.AsMultiLang()
+if err != nil {
+    return err
+}
+
+// Dynamic type-safe access to any language
+fmt.Println(multiLang.Get("ru"))    // "Заголовок"
+fmt.Println(multiLang.Get("uz"))    // "Sarlavha"
+fmt.Println(multiLang.Get("en"))    // "Title"
+fmt.Println(multiLang.Get("de"))    // "Titel"
+fmt.Println(multiLang.Get("fr"))    // "" (empty for non-existent)
+
+// Convenience methods still available for common languages
+fmt.Println(multiLang.Russian())   // "Заголовок"
+fmt.Println(multiLang.Uzbek())     // "Sarlavha"
+fmt.Println(multiLang.English())   // "Title"
+
+// Immutable updates with dynamic language codes
+updated := multiLang.Set("en", "Updated Title")
+updated = updated.Set("fr", "Titre")
+updated = updated.Add("it", "Titolo")
+updated = updated.Remove("de")
+
+// Bulk operations
+allEntries := multiLang.GetAll()  // Returns []LangEntry sorted by code
+newEntries := []json_schemas.LangEntry{
+    {Code: "es", Text: "Título"},
+    {Code: "pt", Text: "Título"},
+}
+updated = multiLang.SetAll(newEntries)
+
+// Language management
+languages := multiLang.Languages()           // ["en", "ru", "uz"]
+hasRussian := multiLang.HasLanguage("ru")    // true
+hasGerman := multiLang.HasLanguage("de")     // false
+
+// Get available languages and missing required ones
+requiredLangs := multiLang.RequiredLanguages()    // ["ru", "uz", "en"]
+missingLangs := multiLang.MissingLanguages()       // [] if all present
+hasAll := multiLang.HasAllRequiredLanguages()      // true/false
+
+// Fallback and default text
+defaultText := multiLang.GetDefaultText()                          // First available text
+withFallback := multiLang.GetTextWithFallback("fr", "No French")   // "No French"
+```
+
+##### Address Schema
+
+For structured address information:
+
+```go
+// Create field with Address schema
+field := crud.NewJsonField("address", crud.WithAddress())
+
+// Usage with typed access
+fieldValue := field.Value(map[string]string{
+    "street":     "123 Main St",
+    "city":       "Tashkent",
+    "state":      "Tashkent Region",
+    "postalCode": "100000",
+    "country":    "Uzbekistan",
+})
+
+// Get as typed Address object
+address, err := fieldValue.AsAddress()
+if err != nil {
+    return err
+}
+
+// Type-safe access to address components
+fmt.Println(address.Street())    // "123 Main St"
+fmt.Println(address.City())      // "Tashkent"
+fmt.Println(address.Country())   // "Uzbekistan"
+
+// Validation
+if !address.IsValid() {
+    missing := address.MissingFields()
+    fmt.Printf("Missing fields: %v\n", missing)
+}
+
+// Formatting
+oneLine := address.FormatOneLine()
+multiLine := address.FormatMultiLine()
+```
+
+##### ContactInfo Schema
+
+For contact information with validation:
+
+```go
+// Create field with ContactInfo schema
+field := crud.NewJsonField("contact", crud.WithContactInfo())
+
+// Usage with typed access
+fieldValue := field.Value(map[string]string{
+    "email":           "user@example.com",
+    "phone":           "+998 90 123 45 67",
+    "website":         "https://example.com",
+    "linkedInProfile": "https://linkedin.com/in/user",
+})
+
+// Get as typed ContactInfo object
+contact, err := fieldValue.AsContactInfo()
+if err != nil {
+    return err
+}
+
+// Type-safe access and validation
+fmt.Println(contact.Email())       // "user@example.com"
+fmt.Println(contact.Phone())       // "+998 90 123 45 67"
+fmt.Println(contact.IsValidEmail()) // true
+fmt.Println(contact.GetPrimaryContact()) // "user@example.com"
+```
+
+#### Creating Custom Schema Types
+
+You can create custom schema types by implementing the `JsonSchemaType` interface:
+
+```go
+package json_schemas
+
+import (
+    "encoding/json"
+    "fmt"
+)
+
+// Custom schema interface
+type ProductMeta interface {
+    JsonSchemaType
+    
+    // Custom methods
+    Brand() string
+    Model() string
+    Price() float64
+    SetBrand(brand string) ProductMeta
+    SetModel(model string) ProductMeta
+    SetPrice(price float64) ProductMeta
+}
+
+// Implementation
+type productMeta struct {
+    brand string
+    model string
+    price float64
+}
+
+func NewProductMeta() ProductMeta {
+    return &productMeta{}
+}
+
+// JsonSchemaType implementation
+func (p *productMeta) GetSchemaName() string {
+    return "productmeta"
+}
+
+func (p *productMeta) GetJSONSchema() string {
+    return `{
+        "type": "object",
+        "properties": {
+            "brand": {"type": "string"},
+            "model": {"type": "string"},
+            "price": {"type": "number", "minimum": 0}
+        },
+        "required": ["brand", "model", "price"]
+    }`
+}
+
+// Register the schema
+func init() {
+    RegisterSchema("productmeta", func() JsonSchemaType {
+        return NewProductMeta()
+    })
+}
+
+// Usage
+field := crud.NewJsonField("metadata", crud.WithSchemaObject(NewProductMeta()))
+```
+
+#### Builder Pattern Support
+
+All schema types support builder patterns for easy object construction:
+
+```go
+// MultiLang builder with convenience methods
+multiLang := json_schemas.NewMultiLangBuilder().
+    WithRussian("Привет").
+    WithUzbek("Salom").
+    WithEnglish("Hello").
+    Build()
+
+// MultiLang builder with dynamic entries
+multiLang := json_schemas.NewMultiLangBuilder().
+    WithEntry("ru", "Привет").
+    WithEntry("uz", "Salom").
+    WithEntry("en", "Hello").
+    WithEntry("de", "Hallo").
+    WithEntry("fr", "Bonjour").
+    Build()
+
+// MultiLang builder with bulk entries
+entries := []json_schemas.LangEntry{
+    {Code: "es", Text: "Hola"},
+    {Code: "pt", Text: "Olá"},
+    {Code: "it", Text: "Ciao"},
+}
+multiLang := json_schemas.NewMultiLangBuilder().
+    WithEntries(entries).
+    WithRequiredLanguages([]string{"es", "pt", "it"}).
+    Build()
+
+// Address builder
+address := json_schemas.NewAddressBuilder().
+    WithStreet("123 Main St").
+    WithCity("Tashkent").
+    WithCountry("Uzbekistan").
+    Build()
+
+// ContactInfo builder
+contact := json_schemas.NewContactInfoBuilder().
+    WithEmail("user@example.com").
+    WithPhone("+998 90 123 45 67").
+    WithWebsite("https://example.com").
+    Build()
+```
+
+#### Migration from Raw JSON
+
+If you have existing JsonField usage with raw JSON, you can migrate to the typed system:
+
+```go
+// Old map approach (still supported for backward compatibility)
+fieldValue := field.Value(map[string]interface{}{
+    "ru": "Заголовок",
+    "uz": "Sarlavha",
+    "en": "Title",
+})
+
+jsonData, err := fieldValue.AsJson()
+if err != nil {
+    return err
+}
+
+translations := jsonData.(map[string]interface{})
+russianTitle := translations["ru"].(string)
+
+// New array-based typed approach
+fieldValue := field.Value([]json_schemas.LangEntry{
+    {Code: "ru", Text: "Заголовок"},
+    {Code: "uz", Text: "Sarlavha"},
+    {Code: "en", Text: "Title"},
+})
+
+multiLang, err := fieldValue.AsMultiLang()
+if err != nil {
+    return err
+}
+
+// Dynamic type-safe access to any language
+russianTitle := multiLang.Get("ru")     // Type-safe dynamic access
+russianTitle := multiLang.Russian()     // Convenience method (still available)
 ```
 
 ### Select Field
@@ -381,7 +876,7 @@ Generated endpoints:
 ## Complete Example
 
 ```go
-// Define fields with select field
+// Define fields with select field and JsonField
 fields := crud.NewFields([]crud.Field{
     crud.NewUUIDField("id", crud.WithKey(), crud.WithReadonly()),
     crud.NewStringField("name", 
@@ -389,6 +884,10 @@ fields := crud.NewFields([]crud.Field{
         crud.WithSearchable(),
         crud.WithMinLen(3),
         crud.WithMaxLen(100),
+    ),
+    crud.NewJsonField("name_i18n",
+        crud.WithMultiLang(),  // New array-based multilingual schema
+        crud.WithJsonPrettyPrint(),
     ),
     crud.NewSelectField("category_id").
         AsIntSelect().
@@ -407,6 +906,10 @@ fields := crud.NewFields([]crud.Field{
         crud.WithPrecision(10),
         crud.WithScale(2),
         crud.WithDecimalMin("0.00"),
+    ),
+    crud.NewJsonField("metadata",
+        crud.WithJsonSchemaType("product_meta"),
+        crud.WithJsonMaxDepth(3),
     ),
     crud.NewBoolField("active",
         crud.WithInitialValue(func() any { return true }),
@@ -457,6 +960,35 @@ priorityField := crud.NewSelectField("priority").
         }
         return nil
     })
+
+// JsonField validation
+titleI18nField := crud.NewJsonField("title_i18n",
+    crud.WithMultiLangRequired([]string{"ru", "uz", "en"}),
+    crud.WithRule(func(fv crud.FieldValue) error {
+        multiLang, err := fv.AsMultiLang()
+        if err != nil {
+            return err
+        }
+        
+        // Custom validation using typed access
+        for _, entry := range multiLang.GetAll() {
+            if len(entry.Text) < 3 {
+                return fmt.Errorf("translation for %s must be at least 3 characters", entry.Code)
+            }
+            if strings.TrimSpace(entry.Text) == "" {
+                return fmt.Errorf("translation for %s cannot be empty", entry.Code)
+            }
+        }
+        
+        // Validate required languages are present
+        if !multiLang.HasAllRequiredLanguages() {
+            missing := multiLang.MissingLanguages()
+            return fmt.Errorf("missing required languages: %s", strings.Join(missing, ", "))
+        }
+        
+        return nil
+    }),
+)
 ```
 
 ### Entity-Level Validation
