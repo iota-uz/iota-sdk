@@ -29,13 +29,23 @@ type ExpenseCategoriesController struct {
 	app                    application.Application
 	expenseCategoryService *services.ExpenseCategoryService
 	basePath               string
+	tableDefinition        table.TableDefinition
 }
 
 func NewExpenseCategoriesController(app application.Application) application.Controller {
+	basePath := "/finance/expense-categories"
+	
+	// Create table definition once at initialization
+	// Note: We'll set the actual localized values in the List method since we need context
+	tableDefinition := table.NewTableDefinition("", basePath).
+		WithInfiniteScroll(true).
+		Build()
+	
 	return &ExpenseCategoriesController{
 		app:                    app,
 		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
-		basePath:               "/finance/expense-categories",
+		basePath:               basePath,
+		tableDefinition:        tableDefinition,
 	}
 }
 
@@ -118,30 +128,10 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	hasMore := int64(paginationParams.Offset+paginationParams.Limit) < int64(total)
-
-	tableTitle := pageCtx.T("ExpenseCategories.Meta.List.Title")
-	dataURL := c.basePath
-
-	var cfg *table.TableConfig
-	if htmx.IsHxRequest(r) {
-		cfg = table.NewTableConfig(tableTitle, dataURL)
-	} else {
-		cfg = table.NewTableConfig(
-			tableTitle,
-			dataURL,
-			table.WithInfiniteScroll(hasMore, paginationParams.Page, paginationParams.Limit),
-		)
-	}
-
+	// Create table definition with localized values (only for full page render)
+	var definition table.TableDefinition
 	if !htmx.IsHxRequest(r) {
-		columns := []table.TableColumn{
-			table.Column("name", pageCtx.T("ExpenseCategories.List.Name")),
-			table.Column("description", pageCtx.T("ExpenseCategories.Single._Description")),
-			table.Column("created_at", pageCtx.T("CreatedAt")),
-		}
-		cfg.AddCols(columns...)
-
+		// Create action for drawer
 		createAction := actions.CreateAction(
 			pageCtx.T("ExpenseCategories.List.New"),
 			"",
@@ -151,13 +141,26 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 			"hx-target": "#view-drawer",
 			"hx-swap":   "innerHTML",
 		}
-		cfg.AddActions(actions.RenderAction(createAction))
 
-		cfg.AddFilters(
-			filters.CreatedAt(),
-		)
+		definition = table.NewTableDefinition(
+			pageCtx.T("ExpenseCategories.Meta.List.Title"),
+			c.basePath,
+		).
+			WithColumns(
+				table.Column("name", pageCtx.T("ExpenseCategories.List.Name")),
+				table.Column("description", pageCtx.T("ExpenseCategories.Single._Description")),
+				table.Column("created_at", pageCtx.T("CreatedAt")),
+			).
+			WithActions(actions.RenderAction(createAction)).
+			WithFilters(filters.CreatedAt()).
+			WithInfiniteScroll(true).
+			Build()
+	} else {
+		// For HTMX requests, use minimal definition
+		definition = c.tableDefinition
 	}
 
+	// Build table rows
 	viewCategories := mapping.MapViewModels(expenseEntities, mappers.ExpenseCategoryToViewModel)
 	rows := make([]table.TableRow, 0, len(viewCategories))
 
@@ -182,12 +185,19 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		rows = append(rows, row)
 	}
 
-	cfg.AddRows(rows...)
+	// Create table data
+	tableData := table.NewTableData().
+		WithRows(rows...).
+		WithPagination(paginationParams.Page, paginationParams.Limit, int64(total)).
+		WithQueryParams(r.URL.Query())
 
+	// Create renderer and render appropriate component
+	renderer := table.NewTableRenderer(definition, tableData)
+	
 	if htmx.IsHxRequest(r) {
-		templ.Handler(table.Rows(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(renderer.RenderRows(), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
-		templ.Handler(table.Page(cfg), templ.WithStreaming()).ServeHTTP(w, r)
+		templ.Handler(renderer.RenderFull(), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
