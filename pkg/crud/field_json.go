@@ -49,6 +49,7 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 		return &fieldValue{
 			field: j.field,
 			value: nil,
+			err:   nil,
 		}
 	}
 
@@ -57,6 +58,7 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 		return &fieldValue{
 			field: j.field,
 			value: jsonStr,
+			err:   nil,
 		}
 	}
 
@@ -64,34 +66,48 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 	if mapVal, ok := value.(map[string]interface{}); ok {
 		jsonBytes, err := json.Marshal(mapVal)
 		if err != nil {
-			panic(fmt.Sprintf("failed to marshal JSON for field %q: %v", j.name, err))
+			return &fieldValue{
+				field: j.field,
+				value: nil,
+				err:   fmt.Errorf("failed to marshal JSON for field %q: %v", j.name, err),
+			}
 		}
 		return &fieldValue{
 			field: j.field,
 			value: string(jsonBytes),
+			err:   nil,
 		}
-	}
-
-	// If value is an object, validate and marshal it
-	jsonBytes, err := json.Marshal(value)
-	if err != nil {
-		panic(fmt.Sprintf("failed to marshal JSON for field %q: %v", j.name, err))
 	}
 
 	// Type-safe validation for generic field
 	if j.validator != nil {
 		if typedValue, ok := value.(T); ok {
 			if err := j.validator(typedValue); err != nil {
-				panic(fmt.Sprintf("validation failed for field %q: %v", j.name, err))
+				return &fieldValue{
+					field: j.field,
+					value: nil,
+					err:   fmt.Errorf("validation failed for field %q: %v", j.name, err),
+				}
 			}
 		}
 		// If we can't cast to T, we still continue but skip validation
 		// This can happen during database reads when value is map[string]interface{}
 	}
 
+	// If value is an object, marshal it
+	jsonBytes, err := json.Marshal(value)
+	if err != nil {
+		return &fieldValue{
+			field: j.field,
+			value: nil,
+			err:   fmt.Errorf("failed to marshal JSON for field %q: %v", j.name, err),
+		}
+	}
+
 	return &fieldValue{
 		field: j.field,
 		value: string(jsonBytes),
+		err:   nil,
 	}
 }
 
@@ -103,7 +119,8 @@ func (j *jsonField[T]) InitialValue() any {
 
 	jsonStr, ok := initialVal.(string)
 	if !ok {
-		panic(fmt.Sprintf("initial value for JSON field %q must be a string, got %T", j.name, initialVal))
+		// Return a special error value that will be handled by the caller
+		return fmt.Errorf("initial value for JSON field %q must be a string, got %T", j.name, initialVal)
 	}
 
 	if jsonStr == "" {
@@ -113,7 +130,8 @@ func (j *jsonField[T]) InitialValue() any {
 	// Create zero value of type T
 	var result T
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
-		panic(fmt.Sprintf("failed to unmarshal JSON for field %q: %v", j.name, err))
+		// Return a special error value that will be handled by the caller
+		return fmt.Errorf("failed to unmarshal JSON for field %q: %v", j.name, err)
 	}
 
 	return result

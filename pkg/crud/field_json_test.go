@@ -127,7 +127,8 @@ func TestJSONField_ValidationError(t *testing.T) {
 	emptyData := models.NewMultiLang("", "", "")
 
 	assert.Panics(t, func() {
-		field.Value(emptyData)
+		fieldValue := field.Value(emptyData)
+		fieldValue.Value() // This should panic
 	})
 }
 
