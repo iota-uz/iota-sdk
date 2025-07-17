@@ -105,6 +105,9 @@ type TableConfig struct {
 	Rows       []TableRow
 	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
+	
+	// Optional: reference to definition for advanced usage
+	definition *TableDefinition
 }
 
 func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig {
@@ -216,4 +219,68 @@ func UseOrderQuery(r *http.Request) string {
 		return "asc" // default to ascending
 	}
 	return order
+}
+
+// --- New methods for separation of concerns ---
+
+// ToDefinition extracts the table definition from config
+func (c *TableConfig) ToDefinition() TableDefinition {
+	if c.definition != nil {
+		return *c.definition
+	}
+	
+	// Build definition from current config
+	builder := NewTableDefinition(c.Title, c.DataURL).
+		WithColumns(c.Columns...).
+		WithFilters(c.Filters...).
+		WithActions(c.Actions...).
+		WithSideFilter(c.SideFilter)
+	
+	if c.Infinite != nil {
+		builder.WithInfiniteScroll(true)
+	}
+	
+	return builder.Build()
+}
+
+// ToData extracts the table data from config
+func (c *TableConfig) ToData() *TableData {
+	data := NewTableData().WithRows(c.Rows...)
+	
+	if c.Infinite != nil {
+		// Calculate total from hasMore flag
+		// This is approximate but works for infinite scroll
+		total := int64(c.Infinite.Page * c.Infinite.PerPage)
+		if c.Infinite.HasMore {
+			total++ // Indicate there's at least one more item
+		}
+		data.WithPagination(c.Infinite.Page, c.Infinite.PerPage, total)
+	}
+	
+	return data
+}
+
+// FromDefinitionAndData creates a TableConfig from definition and data
+func FromDefinitionAndData(def TableDefinition, data *TableData) *TableConfig {
+	cfg := &TableConfig{
+		Title:      def.Title(),
+		DataURL:    def.DataURL(),
+		Columns:    def.Columns(),
+		Filters:    def.Filters(),
+		Actions:    def.Actions(),
+		SideFilter: def.SideFilter(),
+		Rows:       data.Rows(),
+		definition: &def,
+	}
+	
+	if def.EnableInfiniteScroll() {
+		pagination := data.Pagination()
+		cfg.Infinite = &InfiniteScrollConfig{
+			HasMore: pagination.HasMore,
+			Page:    pagination.Page,
+			PerPage: pagination.PerPage,
+		}
+	}
+	
+	return cfg
 }
