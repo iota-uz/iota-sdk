@@ -5,11 +5,10 @@ package actions
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"github.com/a-h/templ"
-	templruntime "github.com/a-h/templ/runtime"
-	"github.com/iota-uz/iota-sdk/components/base/button"
-)
+import "github.com/a-h/templ"
+import templruntime "github.com/a-h/templ/runtime"
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
 
 // Action renders a single action button based on ActionProps
 func Action(props ActionProps) templ.Component {
