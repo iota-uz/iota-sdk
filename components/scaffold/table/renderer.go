@@ -30,7 +30,7 @@ func (r *TableRenderer) RenderFull() templ.Component {
 		SideFilter: r.definition.SideFilter(),
 		Rows:       r.data.Rows(),
 	}
-	
+
 	// Set infinite scroll if enabled and has data
 	if r.definition.EnableInfiniteScroll() && r.data != nil {
 		cfg.Infinite = &InfiniteScrollConfig{
@@ -39,7 +39,7 @@ func (r *TableRenderer) RenderFull() templ.Component {
 			PerPage: r.data.Pagination().PerPage,
 		}
 	}
-	
+
 	return Page(cfg)
 }
 
@@ -54,7 +54,7 @@ func (r *TableRenderer) RenderTable() templ.Component {
 		SideFilter: r.definition.SideFilter(),
 		Rows:       r.data.Rows(),
 	}
-	
+
 	if r.definition.EnableInfiniteScroll() && r.data != nil {
 		cfg.Infinite = &InfiniteScrollConfig{
 			HasMore: r.data.HasMore(),
@@ -62,7 +62,7 @@ func (r *TableRenderer) RenderTable() templ.Component {
 			PerPage: r.data.Pagination().PerPage,
 		}
 	}
-	
+
 	return Content(cfg)
 }
 
@@ -73,7 +73,7 @@ func (r *TableRenderer) RenderRows() templ.Component {
 		Columns: r.definition.Columns(),
 		Rows:    r.data.Rows(),
 	}
-	
+
 	if r.definition.EnableInfiniteScroll() && r.data != nil {
 		cfg.Infinite = &InfiniteScrollConfig{
 			HasMore: r.data.HasMore(),
@@ -81,7 +81,7 @@ func (r *TableRenderer) RenderRows() templ.Component {
 			PerPage: r.data.Pagination().PerPage,
 		}
 	}
-	
+
 	return Rows(cfg)
 }
 

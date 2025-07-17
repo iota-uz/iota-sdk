@@ -7,8 +7,8 @@ import (
 
 // TableData represents the runtime data for a table
 type TableData struct {
-	rows       []TableRow
-	pagination PaginationInfo
+	rows        []TableRow
+	pagination  PaginationInfo
 	queryParams url.Values
 }
 
@@ -98,6 +98,6 @@ func (td *TableData) NextPageURL(baseURL string) string {
 	// Update page and limit
 	params.Set("page", fmt.Sprintf("%d", td.pagination.Page+1))
 	params.Set("limit", fmt.Sprintf("%d", td.pagination.PerPage))
-	
+
 	return baseURL + "?" + params.Encode()
 }

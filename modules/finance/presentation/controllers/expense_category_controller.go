@@ -34,13 +34,13 @@ type ExpenseCategoriesController struct {
 
 func NewExpenseCategoriesController(app application.Application) application.Controller {
 	basePath := "/finance/expense-categories"
-	
+
 	// Create table definition once at initialization
 	// Note: We'll set the actual localized values in the List method since we need context
 	tableDefinition := table.NewTableDefinition("", basePath).
 		WithInfiniteScroll(true).
 		Build()
-	
+
 	return &ExpenseCategoriesController{
 		app:                    app,
 		expenseCategoryService: app.Service(services.ExpenseCategoryService{}).(*services.ExpenseCategoryService),
@@ -193,7 +193,7 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 
 	// Create renderer and render appropriate component
 	renderer := table.NewTableRenderer(definition, tableData)
-	
+
 	if htmx.IsHxRequest(r) {
 		templ.Handler(renderer.RenderRows(), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {

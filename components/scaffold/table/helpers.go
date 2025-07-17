@@ -105,7 +105,7 @@ type TableConfig struct {
 	Rows       []TableRow
 	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
-	
+
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
 }
@@ -228,25 +228,25 @@ func (c *TableConfig) ToDefinition() TableDefinition {
 	if c.definition != nil {
 		return *c.definition
 	}
-	
+
 	// Build definition from current config
 	builder := NewTableDefinition(c.Title, c.DataURL).
 		WithColumns(c.Columns...).
 		WithFilters(c.Filters...).
 		WithActions(c.Actions...).
 		WithSideFilter(c.SideFilter)
-	
+
 	if c.Infinite != nil {
 		builder.WithInfiniteScroll(true)
 	}
-	
+
 	return builder.Build()
 }
 
 // ToData extracts the table data from config
 func (c *TableConfig) ToData() *TableData {
 	data := NewTableData().WithRows(c.Rows...)
-	
+
 	if c.Infinite != nil {
 		// Calculate total from hasMore flag
 		// This is approximate but works for infinite scroll
@@ -256,7 +256,7 @@ func (c *TableConfig) ToData() *TableData {
 		}
 		data.WithPagination(c.Infinite.Page, c.Infinite.PerPage, total)
 	}
-	
+
 	return data
 }
 
@@ -272,7 +272,7 @@ func FromDefinitionAndData(def TableDefinition, data *TableData) *TableConfig {
 		Rows:       data.Rows(),
 		definition: &def,
 	}
-	
+
 	if def.EnableInfiniteScroll() {
 		pagination := data.Pagination()
 		cfg.Infinite = &InfiniteScrollConfig{
@@ -281,6 +281,6 @@ func FromDefinitionAndData(def TableDefinition, data *TableData) *TableConfig {
 			PerPage: pagination.PerPage,
 		}
 	}
-	
+
 	return cfg
 }
