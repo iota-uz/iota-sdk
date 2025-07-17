@@ -24,6 +24,7 @@ type FieldValue interface {
 	AsDecimal() (string, error)
 	AsTime() (time.Time, error)
 	AsUUID() (uuid.UUID, error)
+	AsJSON() (string, error)
 }
 
 type fieldValue struct {
@@ -219,21 +220,20 @@ func (fv *fieldValue) AsDecimal() (string, error) {
 }
 
 func (fv *fieldValue) AsTime() (time.Time, error) {
-	switch fv.Field().Type() {
-	case DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType:
-		if fv.value == nil {
-			return time.Time{}, nil
-		}
-
-		t, ok := fv.value.(time.Time)
-		if !ok {
-			return time.Time{}, fv.valueCastError("time.Time")
-		}
-		return t, nil
-	case StringFieldType, IntFieldType, BoolFieldType, FloatFieldType, DecimalFieldType, UUIDFieldType:
+	ft := fv.Field().Type()
+	if ft != DateFieldType && ft != TimeFieldType && ft != DateTimeFieldType && ft != TimestampFieldType {
 		return time.Time{}, fv.typeMismatch("time.Time")
 	}
-	return time.Time{}, fv.typeMismatch("time.Time")
+
+	if fv.value == nil {
+		return time.Time{}, nil
+	}
+
+	t, ok := fv.value.(time.Time)
+	if !ok {
+		return time.Time{}, fv.valueCastError("time.Time")
+	}
+	return t, nil
 }
 
 func (fv *fieldValue) AsUUID() (uuid.UUID, error) {
@@ -250,6 +250,22 @@ func (fv *fieldValue) AsUUID() (uuid.UUID, error) {
 		return uuid.UUID{}, fv.valueCastError("uuid.UUID")
 	}
 	return u, nil
+}
+
+func (fv *fieldValue) AsJSON() (string, error) {
+	if fv.Field().Type() != JSONFieldType {
+		return "", fv.typeMismatch("json")
+	}
+
+	if fv.value == nil {
+		return "", nil
+	}
+
+	jsonStr, ok := fv.value.(string)
+	if !ok {
+		return "", fv.valueCastError("string")
+	}
+	return jsonStr, nil
 }
 
 func (fv *fieldValue) typeMismatch(expected string) error {
