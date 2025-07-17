@@ -12,7 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
-	expense_categories2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expense_categories"
+	expensecategories "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/expense_categories"
 
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
@@ -213,11 +213,11 @@ func (c *ExpenseCategoriesController) GetEditDrawer(w http.ResponseWriter, r *ht
 		http.Error(w, "Error retrieving expense category", http.StatusInternalServerError)
 		return
 	}
-	props := &expense_categories2.DrawerEditProps{
+	props := &expensecategories.DrawerEditProps{
 		Category: mappers.ExpenseCategoryToViewModel(entity),
 		Errors:   map[string]string{},
 	}
-	templ.Handler(expense_categories2.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expensecategories.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -276,11 +276,11 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 		}
 
 		if isDrawer {
-			props := &expense_categories2.DrawerEditProps{
+			props := &expensecategories.DrawerEditProps{
 				Category: mappers.ExpenseCategoryToViewModel(entity),
 				Errors:   errorsMap,
 			}
-			templ.Handler(expense_categories2.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(expensecategories.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
 			http.Error(w, "Edit form not supported - use drawer", http.StatusBadRequest)
 		}
@@ -288,11 +288,11 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *ExpenseCategoriesController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
-	props := &expense_categories2.DrawerCreateProps{
+	props := &expensecategories.DrawerCreateProps{
 		Errors:   map[string]string{},
 		Category: dtos.ExpenseCategoryCreateDTO{},
 	}
-	templ.Handler(expense_categories2.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(expensecategories.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
@@ -306,11 +306,11 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		if isDrawer {
-			props := &expense_categories2.DrawerCreateProps{
+			props := &expensecategories.DrawerCreateProps{
 				Errors:   errorsMap,
 				Category: *dto,
 			}
-			templ.Handler(expense_categories2.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+			templ.Handler(expensecategories.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 		} else {
 			http.Error(w, "Create form not supported - use drawer", http.StatusBadRequest)
 		}
