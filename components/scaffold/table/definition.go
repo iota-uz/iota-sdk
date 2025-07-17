@@ -12,11 +12,11 @@ type TableDefinition struct {
 	filters    []templ.Component
 	actions    []templ.Component
 	sideFilter templ.Component
-	
+
 	// Configuration options
 	enableInfiniteScroll bool
-	searchable          bool
-	sortable            bool
+	searchable           bool
+	sortable             bool
 }
 
 // Builder methods return copies to maintain immutability
@@ -127,16 +127,16 @@ func (b *TableDefinitionBuilder) WithSortable(enabled bool) *TableDefinitionBuil
 func (b *TableDefinitionBuilder) Build() TableDefinition {
 	// Return a copy to ensure immutability
 	def := b.definition
-	
+
 	// Deep copy slices
 	def.columns = make([]TableColumn, len(b.definition.columns))
 	copy(def.columns, b.definition.columns)
-	
+
 	def.filters = make([]templ.Component, len(b.definition.filters))
 	copy(def.filters, b.definition.filters)
-	
+
 	def.actions = make([]templ.Component, len(b.definition.actions))
 	copy(def.actions, b.definition.actions)
-	
+
 	return def
 }
