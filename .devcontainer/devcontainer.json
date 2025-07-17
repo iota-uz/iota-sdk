@@ -16,8 +16,7 @@
   "forwardPorts": [
     3200,
     5432,
-    9000,
-    4000
+    9000
   ],
   "portsAttributes": {
     "3200": {
@@ -30,10 +29,6 @@
     },
     "9000": {
       "label": "Air Proxy",
-      "onAutoForward": "silent"
-    },
-    "4000": {
-      "label": "Tunnel",
       "onAutoForward": "silent"
     }
   },
@@ -114,8 +109,9 @@
   "securityOpt": ["seccomp=unconfined"],
   "waitFor": "postCreateCommand",
   "hostRequirements": {
-    "cpus": 2,
-    "memory": "4gb",
-    "storage": "32gb"
+    "cpus": 8,
+    "memory": "32gb",
+    "storage": "64gb"
   }
 }
+
