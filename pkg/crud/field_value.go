@@ -30,6 +30,7 @@ type FieldValue interface {
 type fieldValue struct {
 	field Field
 	value any
+	err   error
 }
 
 func (fv *fieldValue) Field() Field {
@@ -37,10 +38,19 @@ func (fv *fieldValue) Field() Field {
 }
 
 func (fv *fieldValue) Value() any {
+	if fv.err != nil {
+		panic(fv.err)
+	}
 	return fv.value
 }
 
 func (fv *fieldValue) IsZero() bool {
+	if fv.err != nil {
+		return false
+	}
+	if fv.value == nil {
+		return true
+	}
 	return reflect.ValueOf(fv.value).IsZero()
 }
 
