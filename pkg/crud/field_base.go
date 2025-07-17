@@ -164,14 +164,19 @@ func (f *field) Rules() []FieldRule {
 
 func (f *field) Value(value any) FieldValue {
 	if !isValidType(f.Type(), value) {
-		panic(fmt.Sprintf(
-			"invalid type for field %q: expected %s, got %T",
-			f.name, f.Type(), value,
-		))
+		return &fieldValue{
+			field: f,
+			value: nil,
+			err: fmt.Errorf(
+				"invalid type for field %q: expected %s, got %T",
+				f.name, f.Type(), value,
+			),
+		}
 	}
 	return &fieldValue{
 		field: f,
 		value: value,
+		err:   nil,
 	}
 }
 
