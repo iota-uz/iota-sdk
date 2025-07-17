@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -199,7 +200,7 @@ func (c *CrudController[TEntity]) validateID(id string) error {
 		if _, err := uuid.Parse(id); err != nil {
 			return fmt.Errorf("invalid UUID: %s", id)
 		}
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
 		// These types don't need special validation for ID format
 	}
 	return nil
@@ -225,7 +226,7 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 		}
 		// If parsing fails, return nil UUID instead of nil
 		return uuid.Nil
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
 		// For all other types, return the string as-is
 		return id
 	}
@@ -288,7 +289,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					continue
 				}
 			case crud.StringFieldType, crud.DecimalFieldType, crud.DateFieldType,
-				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.UUIDFieldType, crud.JSONFieldType:
 				value = formValue
 			default:
 				// Default to string for any unknown types
@@ -336,7 +337,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							formats = []string{"15:04", "15:04:05"}
 						case crud.DateTimeFieldType:
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
-						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType, crud.JSONFieldType:
 							// These types are handled elsewhere
 							formats = []string{}
 						}
@@ -368,6 +369,17 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 			case crud.DecimalFieldType:
 				// Decimal fields are stored as strings
 				value = formValue
+			case crud.JSONFieldType:
+				if formValue != "" {
+					// Validate JSON format
+					var jsonTest interface{}
+					if err := json.Unmarshal([]byte(formValue), &jsonTest); err != nil {
+						return nil, fmt.Errorf("invalid JSON format for field %s: %v", fieldName, err)
+					}
+					value = formValue
+				} else {
+					continue // Skip empty JSON values
+				}
 			case crud.StringFieldType, crud.TimestampFieldType:
 				// String and timestamp fields are handled as strings from forms
 				value = formValue
@@ -729,6 +741,9 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
 					case crud.UUIDFieldType:
+						valueStr = fmt.Sprintf("%v", fv.Value())
+						fieldType = table.DetailFieldTypeText
+					case crud.JSONFieldType:
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
 					default:
@@ -1589,6 +1604,36 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 
 		return builder.Build()
 
+	case crud.JSONFieldType:
+		// Handle JSON field as a textarea for editing
+		builder := form.Textarea(field.Name(), fieldLabel)
+
+		if field.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
+		}
+
+		if len(field.Rules()) > 0 {
+			builder = builder.Required()
+		}
+
+		// Convert JSON value to formatted string for editing
+		if currentValue != nil {
+			var jsonStr string
+			if str, ok := currentValue.(string); ok {
+				jsonStr = str
+			} else {
+				// Pretty print JSON for better editing experience
+				if jsonBytes, err := json.MarshalIndent(currentValue, "", "  "); err == nil {
+					jsonStr = string(jsonBytes)
+				} else {
+					jsonStr = fmt.Sprintf("%v", currentValue)
+				}
+			}
+			builder = builder.Default(jsonStr)
+		}
+
+		return builder.Build()
+
 	default:
 		builder := form.Text(field.Name(), field.Name())
 		if currentValue != nil {
@@ -1740,6 +1785,9 @@ func (c *CrudController[TEntity]) convertValueToString(value any, fieldType crud
 		}
 	case crud.StringFieldType, crud.DecimalFieldType, crud.UUIDFieldType:
 		return fmt.Sprintf("%v", value)
+	case crud.JSONFieldType:
+		// For JSON fields, return as string
+		return fmt.Sprintf("%v", value)
 	case crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
 		// For date/time types, format as string
 		if t, ok := value.(time.Time); ok {
@@ -1868,6 +1916,10 @@ func (c *CrudController[TEntity]) compareSelectValues(optionValue, fieldValue an
 		// Fallback to string comparison
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
 
+	case crud.JSONFieldType:
+		// For JSON fields, use string comparison
+		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
+
 	default:
 		// For other types, use string comparison as fallback
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
@@ -1993,6 +2045,18 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 			return templ.Raw("")
 		}
 		return templ.Raw(uuidVal.String())
+
+	case crud.JSONFieldType:
+		jsonStr, err := value.AsString()
+		if err != nil {
+			return templ.Raw("")
+		}
+
+		// For table display, show a truncated/formatted version
+		if len(jsonStr) > 100 {
+			return templ.Raw(jsonStr[:100] + "...")
+		}
+		return templ.Raw(jsonStr)
 
 	default:
 		return templ.Raw(fmt.Sprintf("%v", value.Value()))
