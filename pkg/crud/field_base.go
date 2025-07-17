@@ -27,6 +27,7 @@ const (
 	DateTimeFieldType  FieldType = "datetime"
 	TimestampFieldType FieldType = "timestamp"
 	UUIDFieldType      FieldType = "uuid"
+	JSONFieldType      FieldType = "json"
 )
 
 const (
@@ -254,6 +255,9 @@ func isValidType(fieldType FieldType, value any) bool {
 	case UUIDFieldType:
 		_, ok := value.(uuid.UUID)
 		return ok
+
+	case JSONFieldType:
+		return true
 
 	default:
 		return false
