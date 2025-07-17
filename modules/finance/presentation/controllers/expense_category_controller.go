@@ -247,7 +247,7 @@ func (c *ExpenseCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	isDrawer := r.Header.Get("HX-Target") != "" && r.Header.Get("HX-Target") != "edit-content"
+	isDrawer := htmx.Target(r) != "" && htmx.Target(r) != "edit-content"
 
 	if errorsMap, ok := dto.Ok(r.Context()); ok {
 		existing, err := c.expenseCategoryService.GetByID(r.Context(), id)
@@ -302,7 +302,7 @@ func (c *ExpenseCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	isDrawer := htmx.IsHxRequest(r) && r.Header.Get("HX-Target") == "expense-category-create-drawer"
+	isDrawer := htmx.IsHxRequest(r) && htmx.Target(r) == "expense-category-create-drawer"
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		if isDrawer {
