@@ -37,6 +37,10 @@ jobs:
             Bash(gh label:*)
             Bash(gh issue:*)
             Bash(gh project:*)
+            mcp__context7__resolve-library-id
+            mcp__context7__get-library-docs
+            mcp__godoc-mcp__get_doc
+            mcp__bloom__search_code
           disallowed_tools: |
             Edit
             MultiEdit
