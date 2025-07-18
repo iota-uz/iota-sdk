@@ -127,7 +127,7 @@ func MinValueRule(minValue float64) FieldRule {
 		case DecimalFieldType:
 			// DecimalFieldType validation would be added here when implemented
 			return nil
-		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType:
+		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType, JSONFieldType:
 			return fmt.Errorf("min value rule only applies to int and float fields")
 		}
 		return nil
@@ -171,7 +171,7 @@ func MaxValueRule(maxValue float64) FieldRule {
 		case DecimalFieldType:
 			// DecimalFieldType validation would be added here when implemented
 			return nil
-		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType:
+		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType, JSONFieldType:
 			return fmt.Errorf("max value rule only applies to int and float fields")
 		}
 		return nil
@@ -215,7 +215,7 @@ func PositiveRule() FieldRule {
 		case DecimalFieldType:
 			// DecimalFieldType validation would be added here when implemented
 			return nil
-		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType:
+		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType, JSONFieldType:
 			return fmt.Errorf("positive rule only applies to int and float fields")
 		}
 		return nil
@@ -256,7 +256,7 @@ func NonNegativeRule() FieldRule {
 			if floatVal < 0 {
 				return fmt.Errorf("field %q must be non-negative", fv.Field().Name())
 			}
-		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType, DecimalFieldType:
+		case StringFieldType, BoolFieldType, DateFieldType, TimeFieldType, DateTimeFieldType, TimestampFieldType, UUIDFieldType, DecimalFieldType, JSONFieldType:
 			return fmt.Errorf("non-negative rule only applies to int and float fields")
 		}
 		return nil
@@ -362,7 +362,7 @@ func WeekdayRule() FieldRule {
 				return fmt.Errorf("field %q must be a weekday", fv.Field().Name())
 			}
 			return nil
-		case StringFieldType, IntFieldType, BoolFieldType, FloatFieldType, TimeFieldType, UUIDFieldType, DecimalFieldType:
+		case StringFieldType, IntFieldType, BoolFieldType, FloatFieldType, TimeFieldType, UUIDFieldType, DecimalFieldType, JSONFieldType:
 			return fmt.Errorf("weekday rule only applies to date/time fields")
 		}
 		return nil
