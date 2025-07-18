@@ -361,6 +361,201 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 	})
 }
 
+func TestClientRepository_FullNameSearch(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	clientRepo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
+
+	// Setup: Create test clients with different name combinations
+	testClients := []struct {
+		firstName  string
+		lastName   string
+		middleName string
+		phone      string
+	}{
+		{"Bobur", "Kaliev", "Rustamovich", "11111111111"},
+		{"John", "Doe", "Smith", "22222222222"},
+		{"Jane", "Smith", "Doe", "33333333333"},
+		{"Robert", "Johnson", "", "44444444444"},
+		{"Mary", "Brown", "Elizabeth", "55555555555"},
+	}
+
+	for i, tc := range testClients {
+		p, err := phone.NewFromE164(tc.phone)
+		require.NoError(t, err, "Failed to create phone number for test client %d", i)
+
+		email, err := internet.NewEmail("test" + string([]byte{'a' + byte(i)}) + "@example.com")
+		require.NoError(t, err, "Failed to create email for test client %d", i)
+
+		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
+		require.NoError(t, err, "Failed to create tax ID for test client %d", i)
+
+		testClient, err := client.New(
+			tc.firstName,
+			client.WithTenantID(f.TenantID()),
+			client.WithLastName(tc.lastName),
+			client.WithMiddleName(tc.middleName),
+			client.WithPhone(p),
+			client.WithEmail(email),
+			client.WithGender(general.Male),
+			client.WithPin(pin),
+		)
+		require.NoError(t, err, "Failed to create client instance %d", i)
+
+		_, err = clientRepo.Save(f.Ctx, testClient)
+		require.NoError(t, err, "Failed to create test client %d", i)
+	}
+
+	t.Run("Full name search with space", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "Bobur Kaliev",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with full name search")
+
+		require.Len(t, clients, 1, "Expected 1 client for 'Bobur Kaliev'")
+		assert.Equal(t, "Bobur", clients[0].FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Kaliev", clients[0].LastName(), "LastName mismatch")
+	})
+
+	t.Run("Reversed name search", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "Kaliev Bobur",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with reversed name search")
+
+		require.Len(t, clients, 1, "Expected 1 client for 'Kaliev Bobur'")
+		assert.Equal(t, "Bobur", clients[0].FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Kaliev", clients[0].LastName(), "LastName mismatch")
+	})
+
+	t.Run("First and middle name search", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "John Smith",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with first and middle name search")
+
+		require.Len(t, clients, 1, "Expected 1 client for 'John Smith'")
+		assert.Equal(t, "John", clients[0].FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Smith", clients[0].MiddleName(), "MiddleName mismatch")
+	})
+
+	t.Run("Three word search", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "Mary Brown Elizabeth",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with three word search")
+
+		require.Len(t, clients, 1, "Expected 1 client for 'Mary Brown Elizabeth'")
+		assert.Equal(t, "Mary", clients[0].FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Brown", clients[0].LastName(), "LastName mismatch")
+		assert.Equal(t, "Elizabeth", clients[0].MiddleName(), "MiddleName mismatch")
+	})
+
+	t.Run("Case insensitive search", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "robert johnson",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with case insensitive search")
+
+		require.Len(t, clients, 1, "Expected 1 client for 'robert johnson'")
+		assert.Equal(t, "Robert", clients[0].FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Johnson", clients[0].LastName(), "LastName mismatch")
+	})
+
+	t.Run("Single word search still works", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "Doe",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with single word search")
+
+		// Should find both "John Doe" and "Jane Smith Doe"
+		require.Len(t, clients, 2, "Expected 2 clients for 'Doe'")
+		
+		// Verify both clients are found
+		foundJohn := false
+		foundJane := false
+		for _, client := range clients {
+			if client.FirstName() == "John" && client.LastName() == "Doe" {
+				foundJohn = true
+			}
+			if client.FirstName() == "Jane" && client.MiddleName() == "Doe" {
+				foundJane = true
+			}
+		}
+		assert.True(t, foundJohn, "Should find John Doe")
+		assert.True(t, foundJane, "Should find Jane Smith Doe")
+	})
+
+	t.Run("Phone number search still works", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "11111111111",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with phone search")
+
+		require.Len(t, clients, 1, "Expected 1 client for phone search")
+		assert.Equal(t, "Bobur", clients[0].FirstName(), "FirstName mismatch")
+		require.NotNil(t, clients[0].Phone(), "Phone should not be nil")
+		assert.Equal(t, "11111111111", clients[0].Phone().Value(), "Phone value mismatch")
+	})
+
+	t.Run("Empty search returns all clients", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  100,
+			Offset: 0,
+			Search: "",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with empty search")
+
+		// Should return at least our test clients
+		assert.GreaterOrEqual(t, len(clients), 5, "Should return at least 5 clients")
+	})
+
+	t.Run("Non-existent search returns empty", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "NonExistentName",
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with non-existent search")
+
+		require.Len(t, clients, 0, "Expected 0 clients for non-existent search")
+	})
+}
+
 func TestClientRepository_Count(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
@@ -395,6 +590,97 @@ func TestClientRepository_Count(t *testing.T) {
 	require.NoError(t, err, "Failed to count clients") // Use require
 
 	assert.Equal(t, initialCount+int64(numClients), count, "Client count mismatch")
+}
+
+func TestClientRepository_CountWithSearch(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	clientRepo := persistence.NewClientRepository(
+		corepersistence.NewPassportRepository(),
+	)
+
+	// Setup: Create test clients with different name combinations
+	testClients := []struct {
+		firstName  string
+		lastName   string
+		middleName string
+		phone      string
+	}{
+		{"Alice", "Johnson", "Marie", "66666666666"},
+		{"Bob", "Smith", "John", "77777777777"},
+		{"Charlie", "Brown", "William", "88888888888"},
+	}
+
+	for i, tc := range testClients {
+		p, err := phone.NewFromE164(tc.phone)
+		require.NoError(t, err, "Failed to create phone number for count test client %d", i)
+
+		email, err := internet.NewEmail("count" + string([]byte{'a' + byte(i)}) + "@example.com")
+		require.NoError(t, err, "Failed to create email for count test client %d", i)
+
+		pin, err := tax.NewPin("12345678901234", country.Uzbekistan)
+		require.NoError(t, err, "Failed to create tax ID for count test client %d", i)
+
+		testClient, err := client.New(
+			tc.firstName,
+			client.WithTenantID(f.TenantID()),
+			client.WithLastName(tc.lastName),
+			client.WithMiddleName(tc.middleName),
+			client.WithPhone(p),
+			client.WithEmail(email),
+			client.WithGender(general.Male),
+			client.WithPin(pin),
+		)
+		require.NoError(t, err, "Failed to create client instance for count test %d", i)
+
+		_, err = clientRepo.Save(f.Ctx, testClient)
+		require.NoError(t, err, "Failed to create test client for count test %d", i)
+	}
+
+	t.Run("Count with full name search", func(t *testing.T) {
+		params := &client.FindParams{
+			Search: "Alice Johnson",
+		}
+
+		count, err := clientRepo.Count(f.Ctx, params)
+		require.NoError(t, err, "Failed to count clients with full name search")
+
+		assert.Equal(t, int64(1), count, "Expected 1 client for 'Alice Johnson'")
+	})
+
+	t.Run("Count with reversed name search", func(t *testing.T) {
+		params := &client.FindParams{
+			Search: "Smith Bob",
+		}
+
+		count, err := clientRepo.Count(f.Ctx, params)
+		require.NoError(t, err, "Failed to count clients with reversed name search")
+
+		assert.Equal(t, int64(1), count, "Expected 1 client for 'Smith Bob'")
+	})
+
+	t.Run("Count with single word search", func(t *testing.T) {
+		params := &client.FindParams{
+			Search: "John",
+		}
+
+		count, err := clientRepo.Count(f.Ctx, params)
+		require.NoError(t, err, "Failed to count clients with single word search")
+
+		// Should find both "Alice Johnson" and "Bob Smith John"
+		assert.Equal(t, int64(2), count, "Expected 2 clients for 'John'")
+	})
+
+	t.Run("Count with no matches", func(t *testing.T) {
+		params := &client.FindParams{
+			Search: "NonExistentName",
+		}
+
+		count, err := clientRepo.Count(f.Ctx, params)
+		require.NoError(t, err, "Failed to count clients with no matches")
+
+		assert.Equal(t, int64(0), count, "Expected 0 clients for 'NonExistentName'")
+	})
 }
 
 func TestClientRepository_GetAll(t *testing.T) {

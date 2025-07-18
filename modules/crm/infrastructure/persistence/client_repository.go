@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -250,7 +251,29 @@ func (g *ClientRepository) GetPaginated(
 
 	if params.Search != "" {
 		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		where = append(where, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
+		
+		// Enhanced search with multiple strategies
+		searchConditions := []string{
+			// Original individual field search (keep for backwards compatibility)
+			fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder),
+			
+			// Full name concatenated search
+			fmt.Sprintf("CONCAT(c.first_name, ' ', COALESCE(c.last_name, ''), ' ', COALESCE(c.middle_name, '')) ILIKE %s", searchPlaceholder),
+		}
+		
+		// Word-based search for multi-word queries
+		words := strings.Fields(params.Search)
+		if len(words) > 1 {
+			wordConditions := make([]string, 0, len(words))
+			for _, word := range words {
+				wordPlaceholder := fmt.Sprintf("$%d", len(args)+2+len(wordConditions))
+				wordConditions = append(wordConditions, fmt.Sprintf("(c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s)", wordPlaceholder, wordPlaceholder, wordPlaceholder))
+				args = append(args, "%"+word+"%")
+			}
+			searchConditions = append(searchConditions, strings.Join(wordConditions, " AND "))
+		}
+		
+		where = append(where, fmt.Sprintf("(%s)", strings.Join(searchConditions, " OR ")))
 		args = append(args, "%"+params.Search+"%")
 	}
 
@@ -298,7 +321,29 @@ func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 
 	if params.Search != "" {
 		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		where = append(where, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
+		
+		// Enhanced search with multiple strategies
+		searchConditions := []string{
+			// Original individual field search (keep for backwards compatibility)
+			fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder),
+			
+			// Full name concatenated search
+			fmt.Sprintf("CONCAT(c.first_name, ' ', COALESCE(c.last_name, ''), ' ', COALESCE(c.middle_name, '')) ILIKE %s", searchPlaceholder),
+		}
+		
+		// Word-based search for multi-word queries
+		words := strings.Fields(params.Search)
+		if len(words) > 1 {
+			wordConditions := make([]string, 0, len(words))
+			for _, word := range words {
+				wordPlaceholder := fmt.Sprintf("$%d", len(args)+2+len(wordConditions))
+				wordConditions = append(wordConditions, fmt.Sprintf("(c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s)", wordPlaceholder, wordPlaceholder, wordPlaceholder))
+				args = append(args, "%"+word+"%")
+			}
+			searchConditions = append(searchConditions, strings.Join(wordConditions, " AND "))
+		}
+		
+		where = append(where, fmt.Sprintf("(%s)", strings.Join(searchConditions, " OR ")))
 		args = append(args, "%"+params.Search+"%")
 	}
 
