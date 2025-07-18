@@ -496,7 +496,7 @@ func TestClientRepository_FullNameSearch(t *testing.T) {
 
 		// Should find both "John Doe" and "Jane Smith Doe"
 		require.Len(t, clients, 2, "Expected 2 clients for 'Doe'")
-		
+
 		// Verify both clients are found
 		foundJohn := false
 		foundJane := false
@@ -552,7 +552,53 @@ func TestClientRepository_FullNameSearch(t *testing.T) {
 		clients, err := clientRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err, "Failed to get clients with non-existent search")
 
-		require.Len(t, clients, 0, "Expected 0 clients for non-existent search")
+		require.Empty(t, clients, "Expected 0 clients for non-existent search")
+	})
+
+	t.Run("Full text search with partial matching", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "Bob", // Should match "Bobur" via prefix search
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with partial name search")
+
+		require.Len(t, clients, 1, "Expected 1 client for 'Bob'")
+		assert.Equal(t, "Bobur", clients[0].FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Kaliev", clients[0].LastName(), "LastName mismatch")
+	})
+
+	t.Run("Full text search with partial last name", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "Kali", // Should match "Kaliev" via prefix search
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with partial last name search")
+
+		require.Len(t, clients, 1, "Expected 1 client for 'Kali'")
+		assert.Equal(t, "Bobur", clients[0].FirstName(), "FirstName mismatch")
+		assert.Equal(t, "Kaliev", clients[0].LastName(), "LastName mismatch")
+	})
+
+	t.Run("Full text search with phone number", func(t *testing.T) {
+		params := &client.FindParams{
+			Limit:  10,
+			Offset: 0,
+			Search: "11111111111", // Should match Bobur's phone number
+		}
+
+		clients, err := clientRepo.GetPaginated(f.Ctx, params)
+		require.NoError(t, err, "Failed to get clients with phone number search")
+
+		require.Len(t, clients, 1, "Expected 1 client for phone number search")
+		assert.Equal(t, "Bobur", clients[0].FirstName(), "FirstName mismatch")
+		require.NotNil(t, clients[0].Phone(), "Phone should not be nil")
+		assert.Equal(t, "11111111111", clients[0].Phone().Value(), "Phone value mismatch")
 	})
 }
 
@@ -680,6 +726,28 @@ func TestClientRepository_CountWithSearch(t *testing.T) {
 		require.NoError(t, err, "Failed to count clients with no matches")
 
 		assert.Equal(t, int64(0), count, "Expected 0 clients for 'NonExistentName'")
+	})
+
+	t.Run("Count with partial text search", func(t *testing.T) {
+		params := &client.FindParams{
+			Search: "Ali", // Should match "Alice" via prefix search
+		}
+
+		count, err := clientRepo.Count(f.Ctx, params)
+		require.NoError(t, err, "Failed to count clients with partial text search")
+
+		assert.Equal(t, int64(1), count, "Expected 1 client for 'Ali'")
+	})
+
+	t.Run("Count with phone number search", func(t *testing.T) {
+		params := &client.FindParams{
+			Search: "666666",
+		}
+
+		count, err := clientRepo.Count(f.Ctx, params)
+		require.NoError(t, err, "Failed to count clients with phone number search")
+
+		assert.Equal(t, int64(1), count, "Expected 1 client for phone number search")
 	})
 }
 

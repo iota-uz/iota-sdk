@@ -251,19 +251,27 @@ func (g *ClientRepository) GetPaginated(
 
 	if params.Search != "" {
 		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		
-		// Enhanced search with multiple strategies
+
+		// Primary full text search using ts_vector
 		searchConditions := []string{
-			// Original individual field search (keep for backwards compatibility)
-			fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder),
-			
-			// Full name concatenated search
-			fmt.Sprintf("CONCAT(c.first_name, ' ', COALESCE(c.last_name, ''), ' ', COALESCE(c.middle_name, '')) ILIKE %s", searchPlaceholder),
+			// Full text search with ts_vector (supports partial matching with prefix search)
+			fmt.Sprintf("c.search_vector @@ plainto_tsquery('english', %s)", searchPlaceholder),
+			// Prefix search for partial matching
+			fmt.Sprintf("c.search_vector @@ to_tsquery('english', %s || ':*')", searchPlaceholder),
 		}
-		
+
+		// Fallback to ILIKE for backwards compatibility and special cases
+		searchConditions = append(searchConditions, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
+
 		// Word-based search for multi-word queries
 		words := strings.Fields(params.Search)
 		if len(words) > 1 {
+			// Full text search with multi-word query
+			multiWordQuery := fmt.Sprintf("$%d", len(args)+2)
+			searchConditions = append(searchConditions, fmt.Sprintf("c.search_vector @@ plainto_tsquery('english', %s)", multiWordQuery))
+			args = append(args, params.Search)
+
+			// Individual word matching for fallback
 			wordConditions := make([]string, 0, len(words))
 			for _, word := range words {
 				wordPlaceholder := fmt.Sprintf("$%d", len(args)+2+len(wordConditions))
@@ -272,9 +280,9 @@ func (g *ClientRepository) GetPaginated(
 			}
 			searchConditions = append(searchConditions, strings.Join(wordConditions, " AND "))
 		}
-		
+
 		where = append(where, fmt.Sprintf("(%s)", strings.Join(searchConditions, " OR ")))
-		args = append(args, "%"+params.Search+"%")
+		args = append(args, params.Search, params.Search)
 	}
 
 	sql := repo.Join(
@@ -321,19 +329,27 @@ func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 
 	if params.Search != "" {
 		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		
-		// Enhanced search with multiple strategies
+
+		// Primary full text search using ts_vector
 		searchConditions := []string{
-			// Original individual field search (keep for backwards compatibility)
-			fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder),
-			
-			// Full name concatenated search
-			fmt.Sprintf("CONCAT(c.first_name, ' ', COALESCE(c.last_name, ''), ' ', COALESCE(c.middle_name, '')) ILIKE %s", searchPlaceholder),
+			// Full text search with ts_vector (supports partial matching with prefix search)
+			fmt.Sprintf("c.search_vector @@ plainto_tsquery('english', %s)", searchPlaceholder),
+			// Prefix search for partial matching
+			fmt.Sprintf("c.search_vector @@ to_tsquery('english', %s || ':*')", searchPlaceholder),
 		}
-		
+
+		// Fallback to ILIKE for backwards compatibility and special cases
+		searchConditions = append(searchConditions, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
+
 		// Word-based search for multi-word queries
 		words := strings.Fields(params.Search)
 		if len(words) > 1 {
+			// Full text search with multi-word query
+			multiWordQuery := fmt.Sprintf("$%d", len(args)+2)
+			searchConditions = append(searchConditions, fmt.Sprintf("c.search_vector @@ plainto_tsquery('english', %s)", multiWordQuery))
+			args = append(args, params.Search)
+
+			// Individual word matching for fallback
 			wordConditions := make([]string, 0, len(words))
 			for _, word := range words {
 				wordPlaceholder := fmt.Sprintf("$%d", len(args)+2+len(wordConditions))
@@ -342,9 +358,9 @@ func (g *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 			}
 			searchConditions = append(searchConditions, strings.Join(wordConditions, " AND "))
 		}
-		
+
 		where = append(where, fmt.Sprintf("(%s)", strings.Join(searchConditions, " OR ")))
-		args = append(args, "%"+params.Search+"%")
+		args = append(args, params.Search, params.Search)
 	}
 
 	query := countClientQuery + " " + repo.JoinWhere(where...)
