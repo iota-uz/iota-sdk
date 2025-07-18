@@ -427,7 +427,13 @@ func NewCrudShowcaseController(
 		crud.NewSelectField(_entry).
 			AsUUIDSelect().
 			SetOptionsLoader(func(ctx context.Context) []crud.SelectOption {
-				options := make([]crud.SelectOption, 0)
+				options := make([]crud.SelectOption, len(entries))
+				for i, entry := range entries {
+					options[i] = crud.SelectOption{
+						Value: entry.UUID(),
+						Label: entry.String(),
+					}
+				}
 				return options
 			}),
 	})
