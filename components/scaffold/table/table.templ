@@ -247,9 +247,12 @@ func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(columns))
 	for i, col := range columns {
 		result[i] = &base.TableColumn{
-			Key:   col.Key(),
-			Label: col.Label(),
-			Class: col.Class(),
+			Key:      col.Key(),
+			Label:    col.Label(),
+			Class:    col.Class(),
+			Sortable: col.Sortable(),
+			SortDir:  col.SortDir(),
+			SortURL:  col.SortURL(),
 		}
 	}
 	return result
