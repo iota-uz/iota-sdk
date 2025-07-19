@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
@@ -105,6 +106,8 @@ func NewCrudController[TEntity any](
 
 	return controller
 }
+
+// schema/core-schema.sql
 
 func (c *CrudController[TEntity]) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
@@ -421,6 +424,17 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		params.Query = searchQuery
 	}
 
+	// Handle sorting parameters
+	sortField := table.UseSortQuery(r)
+	sortOrder := table.UseOrderQuery(r)
+	if sortField != "" {
+		params.SortBy = crud.SortBy{
+			Fields: []repo.SortByField[string]{
+				{Field: sortField, Ascending: sortOrder == "asc"},
+			},
+		}
+	}
+
 	// Fetch entities and count in parallel for better performance
 	type listResult struct {
 		entities []TEntity
@@ -473,11 +487,17 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 	// Build the data URL with query parameters preserved
 	dataURL := c.basePath
-	if params.Query != "" {
-		// Preserve search query in the URL for infinity scroll
+	if params.Query != "" || sortField != "" {
+		// Preserve search query and sort parameters in the URL for infinity scroll
 		u, _ := url.Parse(dataURL)
 		q := u.Query()
-		q.Set("Search", params.Query)
+		if params.Query != "" {
+			q.Set("Search", params.Query)
+		}
+		if sortField != "" {
+			q.Set("sort", sortField)
+			q.Set("order", sortOrder)
+		}
 		u.RawQuery = q.Encode()
 		dataURL = u.String()
 	}
@@ -512,10 +532,23 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				fieldLabel = f.Name()
 			}
-			columns = append(columns, table.Column(f.Name(), fieldLabel))
+
+			// Create column with sorting support
+			// Get current query parameters to preserve them in sort URLs
+			currentParams := r.URL.Query()
+			// Remove pagination params as they should reset on sort
+			currentParams.Del("page")
+			currentParams.Del("limit")
+
+			col := table.Column(f.Name(), fieldLabel,
+				table.WithSortable(true),
+				table.WithSortDir(table.GetSortDirection(f.Name(), sortField, sortOrder)),
+				table.WithSortURL(table.GenerateSortURLWithParams(c.basePath, f.Name(), sortField, sortOrder, currentParams)),
+			)
+			columns = append(columns, col)
 		}
 
-		// Add actions column if edit or delete is enabled
+		// Add actions column if edit or delete is enabled (not sortable)
 		if c.enableEdit || c.enableDelete {
 			actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
 			columns = append(columns, table.Column("actions", actionsLabel))
