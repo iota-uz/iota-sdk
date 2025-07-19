@@ -96,7 +96,7 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 		Contains("HTMX Test Category")
 }
 
-func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
+func TestExpenseCategoryController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
@@ -110,7 +110,8 @@ func TestExpenseCategoryController_GetNew_Success(t *testing.T) {
 	controller := controllers.NewExpenseCategoriesController(env.App)
 	suite.Register(controller)
 
-	response := suite.GET(ExpenseCategoryBasePath + "/new").
+	response := suite.GET(ExpenseCategoryBasePath + "/new/drawer").
+		HTMX().
 		Expect(t).
 		Status(200)
 
@@ -178,6 +179,8 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 
 	response := suite.POST(ExpenseCategoryBasePath).
 		Form(formData).
+		HTMX().
+		Header("Hx-Target", "expense-category-create-drawer").
 		Expect(t).
 		Status(200)
 
@@ -189,7 +192,7 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 	require.Empty(t, categories)
 }
 
-func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
+func TestExpenseCategoryController_GetEditDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
@@ -219,7 +222,8 @@ func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, createdCategory, 1)
 
-	response := suite.GET(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, createdCategory[0].ID().String())).
+	response := suite.GET(fmt.Sprintf("%s/%s/drawer", ExpenseCategoryBasePath, createdCategory[0].ID().String())).
+		HTMX().
 		Expect(t).
 		Status(200)
 
@@ -232,7 +236,7 @@ func TestExpenseCategoryController_GetEdit_Success(t *testing.T) {
 	require.Equal(t, "Category to edit", html.Element("//textarea[@name='Description']").Text())
 }
 
-func TestExpenseCategoryController_GetEdit_NotFound(t *testing.T) {
+func TestExpenseCategoryController_GetEditDrawer_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User(
 		permissions.ExpenseCategoryRead,
@@ -247,7 +251,8 @@ func TestExpenseCategoryController_GetEdit_NotFound(t *testing.T) {
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
-	suite.GET(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, nonExistentID.String())).
+	suite.GET(fmt.Sprintf("%s/%s/drawer", ExpenseCategoryBasePath, nonExistentID.String())).
+		HTMX().
 		Expect(t).
 		Status(500)
 }
@@ -337,6 +342,8 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 
 	response := suite.POST(fmt.Sprintf("%s/%s", ExpenseCategoryBasePath, createdCategory.ID().String())).
 		Form(formData).
+		HTMX().
+		Header("Hx-Target", "expense-category-edit-drawer").
 		Expect(t).
 		Status(200)
 
