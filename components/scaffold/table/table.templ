@@ -251,7 +251,7 @@ func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 			Label:    col.Label(),
 			Class:    col.Class(),
 			Sortable: col.Sortable(),
-			SortDir:  col.SortDir().String(),
+			SortDir:  col.SortDir(),
 			SortURL:  col.SortURL(),
 		}
 	}

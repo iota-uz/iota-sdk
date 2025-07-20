@@ -44,13 +44,18 @@ func (td *TableData) AddRow(row TableRow) *TableData {
 	return td
 }
 
+// calculateHasMore determines if there are more pages available
+func calculateHasMore(page, perPage int, total int64) bool {
+	return int64((page-1)*perPage+perPage) < total
+}
+
 // WithPagination sets the pagination info
 func (td *TableData) WithPagination(page, perPage int, total int64) *TableData {
 	td.pagination = PaginationInfo{
 		Page:    page,
 		PerPage: perPage,
 		Total:   total,
-		HasMore: int64((page-1)*perPage+perPage) < total,
+		HasMore: calculateHasMore(page, perPage, total),
 	}
 	return td
 }

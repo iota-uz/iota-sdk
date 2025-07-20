@@ -19,7 +19,7 @@ type TableDefinition struct {
 	sortable             bool
 }
 
-// Builder methods return copies to maintain immutability
+// Getter methods for accessing table definition properties
 func (td TableDefinition) Title() string {
 	return td.title
 }
