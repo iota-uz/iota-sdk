@@ -3,6 +3,7 @@ package multilang
 import (
 	"context"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
@@ -24,4 +25,64 @@ func localizeWithDefault(ctx context.Context, messageID string, defaultMessage s
 		return defaultMessage
 	}
 	return result
+}
+
+// getCurrentLocaleCode returns the current locale code from context with fallback
+func getCurrentLocaleCode(ctx context.Context) string {
+	locale, ok := intl.UseLocale(ctx)
+	if !ok {
+		return "en" // fallback to English
+	}
+
+	// Convert language.Tag to string and normalize
+	localeStr := locale.String()
+
+	// Handle language-region codes like "ru-RU" -> "ru"
+	if len(localeStr) >= 2 {
+		return localeStr[:2]
+	}
+
+	return "en" // fallback to English
+}
+
+// getLocalizedText returns text in user's locale with custom fallback priority
+func getLocalizedText(ctx context.Context, ml models.MultiLang) string {
+	if ml.IsEmpty() {
+		return ""
+	}
+
+	// Get current user locale
+	currentLocale := getCurrentLocaleCode(ctx)
+
+	// Try current locale first
+	if value, err := ml.Get(currentLocale); err == nil && value != "" {
+		return value
+	}
+
+	// Define fallback priority based on current locale
+	var fallbackPriorities []string
+	switch currentLocale {
+	case "ru":
+		fallbackPriorities = []string{"uz", "en"}
+	case "uz":
+		fallbackPriorities = []string{"ru", "en"}
+	default: // "en" or any other
+		fallbackPriorities = []string{"uz", "ru"}
+	}
+
+	// Try fallback priorities
+	for _, locale := range fallbackPriorities {
+		if value, err := ml.Get(locale); err == nil && value != "" {
+			return value
+		}
+	}
+
+	// If nothing found, return first available value
+	for _, value := range ml.GetAll() {
+		if value != "" {
+			return value
+		}
+	}
+
+	return ""
 }

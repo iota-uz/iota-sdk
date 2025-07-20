@@ -73,9 +73,9 @@ func TableCell(ctx context.Context, ml models.MultiLang) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var4 string
-			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(ml.Default())
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(getDisplayText(ctx, ml))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/table_cell.templ`, Line: 20, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/table_cell.templ`, Line: 20, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -112,6 +112,11 @@ func getTooltipText(ctx context.Context, ml models.MultiLang) string {
 	}
 
 	return tooltip
+}
+
+// getDisplayText returns the text in user's current locale with fallback
+func getDisplayText(ctx context.Context, ml models.MultiLang) string {
+	return getLocalizedText(ctx, ml)
 }
 
 var _ = templruntime.GeneratedTemplate

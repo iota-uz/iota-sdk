@@ -18,15 +18,15 @@ const createTableSql = `
 CREATE TABLE IF NOT EXISTS _showcases
 (
     _uuid      UUID PRIMARY KEY,
-    _string    VARCHAR(255),
-    _int       INTEGER,
-    _bool      BOOLEAN,
-    _float     DOUBLE PRECISION,
-    _decimal   NUMERIC,
-    _date      DATE,
-    _time      TIME,
-    _datetime  TIMESTAMP,
-    _timestamp TIMESTAMPTZ,
+--     _string    VARCHAR(255),
+--     _int       INTEGER,
+--     _bool      BOOLEAN,
+--     _float     DOUBLE PRECISION,
+--     _decimal   NUMERIC,
+--     _date      DATE,
+--     _time      TIME,
+--     _datetime  TIMESTAMP,
+--     _timestamp TIMESTAMPTZ,
     _multilang JSONB,
     _entry_id  UUID
 );
@@ -152,6 +152,11 @@ func showcaseWithDate(date time.Time) ShowCaseOption {
 func showcaseWithTime(t time.Time) ShowCaseOption {
 	return func(se *showcaseEntity) {
 		se.time = t
+	}
+}
+func showcaseWithDateTime(dateTime time.Time) ShowCaseOption {
+	return func(se *showcaseEntity) {
+		se.datetime = dateTime
 	}
 }
 func showcaseWithTimestamp(t time.Time) ShowCaseOption {
@@ -322,6 +327,12 @@ func (s *showcaseMapper) ToEntities(_ context.Context, values ...[]crud.FieldVal
 					return nil, err
 				}
 				opts = append(opts, showcaseWithTime(timeValue))
+			case _dateTime:
+				dateTimeValue, err := fv.AsTime()
+				if err != nil {
+					return nil, err
+				}
+				opts = append(opts, showcaseWithDateTime(dateTimeValue))
 			case _timestamp:
 				timestampValue, err := fv.AsTime()
 				if err != nil {
@@ -361,16 +372,16 @@ func (s *showcaseMapper) ToFieldValuesList(_ context.Context, entities ...Showca
 	result := make([][]crud.FieldValue, len(entities))
 	for i, entity := range entities {
 		values := map[string]any{
-			_uuid:      entity.UUID(),
-			_string:    entity.String(),
-			_int:       entity.Int(),
-			_bool:      entity.Bool(),
-			_float:     entity.Float(),
-			_decimal:   entity.Decimal(),
-			_date:      entity.Date(),
-			_time:      entity.Time(),
-			_dateTime:  entity.DateTime(),
-			_timestamp: entity.Timestamp(),
+			_uuid: entity.UUID(),
+			//_string:    entity.String(),
+			//_int:       entity.Int(),
+			//_bool:      entity.Bool(),
+			//_float:     entity.Float(),
+			//_decimal:   entity.Decimal(),
+			//_date:      entity.Date(),
+			//_time:      entity.Time(),
+			//_dateTime:  entity.DateTime(),
+			//_timestamp: entity.Timestamp(),
 			_multiLang: entity.MultiLang(),
 			_entry:     nil,
 		}
@@ -400,33 +411,33 @@ func NewCrudShowcaseController(
 				return uuid.New()
 			}),
 		),
-		crud.NewStringField(
-			_string,
-		),
-		crud.NewIntField(
-			_int,
-		),
-		crud.NewBoolField(
-			_bool,
-		),
-		crud.NewFloatField(
-			_float,
-		),
-		crud.NewDecimalField(
-			_decimal,
-		),
-		crud.NewDateField(
-			_date,
-		),
-		crud.NewTimeField(
-			_time,
-		),
-		crud.NewDateTimeField(
-			_dateTime,
-		),
-		crud.NewTimestampField(
-			_timestamp,
-		),
+		//crud.NewStringField(
+		//	_string,
+		//),
+		//crud.NewIntField(
+		//	_int,
+		//),
+		//crud.NewBoolField(
+		//	_bool,
+		//),
+		//crud.NewFloatField(
+		//	_float,
+		//),
+		//crud.NewDecimalField(
+		//	_decimal,
+		//),
+		//crud.NewDateField(
+		//	_date,
+		//),
+		//crud.NewTimeField(
+		//	_time,
+		//),
+		//crud.NewDateTimeField(
+		//	_dateTime,
+		//),
+		//crud.NewTimestampField(
+		//	_timestamp,
+		//),
 		crud.NewJSONField(
 			_multiLang,
 			crud.JSONFieldConfig[models.MultiLang]{
