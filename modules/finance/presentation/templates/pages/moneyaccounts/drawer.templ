@@ -1,0 +1,295 @@
+package moneyaccounts
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type DrawerEditProps struct {
+	Account    *viewmodels.MoneyAccount
+	UpdateData *viewmodels.MoneyAccountUpdateDTO
+	Currencies []*coreviewmodels.Currency
+	Errors     map[string]string
+}
+
+type DrawerCreateProps struct {
+	Account    dtos.MoneyAccountCreateDTO
+	Currencies []*coreviewmodels.Currency
+	Errors     map[string]string
+}
+
+templ EditDrawer(props *DrawerEditProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id={ fmt.Sprintf("money-account-drawer-%s", props.Account.ID) }>
+		@dialog.StdViewDrawer(dialog.StdDrawerProps{
+			ID:     fmt.Sprintf("money-account-drawer-%s-dialog", props.Account.ID),
+			Title:  props.Account.Name,
+			Action: "open-view-drawer",
+			Open:   true,
+			Attrs: templ.Attributes{
+				"@closing": "window.history.pushState({}, '', '/finance/accounts')",
+				"@closed":  fmt.Sprintf("document.getElementById('money-account-drawer-%s').remove()", props.Account.ID),
+			},
+		}) {
+			@tab.Root(tab.Props{DefaultValue: "general", Class: "flex flex-col h-full"}) {
+				<div class="border-b">
+					@tab.List(tab.ListProps{Class: "px-6"}) {
+						@tab.Button("general") {
+							{ pageCtx.T("MoneyAccounts.Single.General") }
+						}
+						@tab.Button("edit") {
+							{ pageCtx.T("MoneyAccounts.Single.Edit") }
+						}
+					}
+				</div>
+				@tab.Content("general") {
+					<div class="flex-1 p-6 space-y-8">
+						<!-- Account Name -->
+						<div class="text-center">
+							<h1 class="text-3xl font-bold text-gray-900">{ props.Account.Name }</h1>
+						</div>
+						<!-- Balance Display -->
+						<div class="text-center">
+							<div class="text-5xl font-bold text-gray-900 mb-1">{ props.Account.BalanceWithCurrency }</div>
+							<div class="w-16 h-1 bg-blue-500 mx-auto rounded-full"></div>
+						</div>
+						<!-- Account Details -->
+						<div class="space-y-4">
+							if props.Account.AccountNumber != "" {
+								<div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+									<div class="flex items-center gap-3">
+										<div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+											@icons.Receipt(icons.Props{Size: "20", Class: "text-blue-600"})
+										</div>
+										<div class="flex-1">
+											<div class="text-lg font-mono text-gray-900 font-semibold">{ props.Account.AccountNumber }</div>
+										</div>
+									</div>
+								</div>
+							}
+							if props.Account.Description != "" {
+								<div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+									<div class="flex items-start gap-3">
+										<div class="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center mt-0.5">
+											@icons.FileText(icons.Props{Size: "20", Class: "text-gray-600"})
+										</div>
+										<div class="flex-1">
+											<div class="text-base text-gray-900 leading-relaxed">{ props.Account.Description }</div>
+										</div>
+									</div>
+								</div>
+							}
+						</div>
+					</div>
+					<div class="p-6 border-t border-gray-200">
+						@button.Primary(button.Props{
+							Attrs: templ.Attributes{
+								"type":      "button",
+								"class":     "w-full",
+								"hx-get":    fmt.Sprintf("/finance/accounts/%s/transfer/drawer", props.Account.ID),
+								"hx-target": "#view-drawer",
+								"hx-swap":   "innerHTML",
+							},
+						}) {
+							@icons.ArrowsLeftRight(icons.Props{Size: "20", Class: "mr-2"})
+							{ pageCtx.T("MoneyAccounts.Single.Transfer") }
+						}
+					</div>
+				}
+				@tab.Content("edit") {
+					<form
+						id={ fmt.Sprintf("edit-form-%s", props.Account.ID) }
+						method="post"
+						hx-post={ fmt.Sprintf("/finance/accounts/%s", props.Account.ID) }
+						hx-target={ fmt.Sprintf("#money-account-drawer-%s", props.Account.ID) }
+						hx-swap="outerHTML"
+						class="flex flex-col h-full"
+					>
+						<div class="flex-1 p-6 space-y-4">
+							@input.Text(&input.Props{
+								Label: pageCtx.T("MoneyAccounts.Single.Name"),
+								Attrs: templ.Attributes{
+									"value": props.UpdateData.Name,
+									"name":  "Name",
+								},
+								Error: props.Errors["Name"],
+							})
+							<div class="md:flex md:gap-4">
+								<div class="md:flex-1">
+									@input.Number(&input.Props{
+										Label: pageCtx.T("MoneyAccounts.Single.Balance"),
+										Attrs: templ.Attributes{
+											"name":  "Balance",
+											"value": props.UpdateData.Balance,
+											"step":  "any",
+										},
+										Error: props.Errors["Balance"],
+									})
+								</div>
+								<div class="md:flex-1">
+									@components.CurrencySelect(&components.CurrencySelectProps{
+										Label:       pageCtx.T("MoneyAccounts.Single.Currency.Label"),
+										Placeholder: pageCtx.T("MoneyAccounts.Single.Currency.Placeholder"),
+										Value:       props.UpdateData.CurrencyCode,
+										Currencies:  props.Currencies,
+										Error:       props.Errors["CurrencyCode"],
+										Attrs: templ.Attributes{
+											"name": "CurrencyCode",
+										},
+									})
+								</div>
+							</div>
+							@input.Text(&input.Props{
+								Label: pageCtx.T("MoneyAccounts.Single.AccountNumber"),
+								Attrs: templ.Attributes{
+									"value": props.UpdateData.AccountNumber,
+									"name":  "AccountNumber",
+								},
+								Error: props.Errors["AccountNumber"],
+							})
+							@input.TextArea(&input.TextAreaProps{
+								Label: pageCtx.T("MoneyAccounts.Single._Description"),
+								Attrs: templ.Attributes{
+									"name": "Description",
+								},
+								Value: props.UpdateData.Description,
+								Error: props.Errors["Description"],
+							})
+						</div>
+						<div class="p-6 border-t border-gray-200 flex justify-between">
+							@button.Danger(button.Props{
+								Attrs: templ.Attributes{
+									"type":       "button",
+									"hx-delete":  fmt.Sprintf("/finance/accounts/%s", props.Account.ID),
+									"hx-confirm": pageCtx.T("MoneyAccounts.Single.DeleteConfirmation"),
+									"hx-target":  "body",
+									"hx-swap":    "beforeend",
+								},
+							}) {
+								{ pageCtx.T("Delete") }
+							}
+							<div class="flex gap-3">
+								@button.Secondary(button.Props{
+									Attrs: templ.Attributes{
+										"type":   "button",
+										"@click": fmt.Sprintf("document.getElementById('money-account-drawer-%s-dialog').close()", props.Account.ID),
+									},
+								}) {
+									{ pageCtx.T("Cancel") }
+								}
+								@button.Primary(button.Props{
+									Attrs: templ.Attributes{
+										"type":  "submit",
+										"name":  "_action",
+										"value": "save",
+									},
+								}) {
+									{ pageCtx.T("Save") }
+								}
+							</div>
+						</div>
+					</form>
+				}
+			}
+		}
+	</div>
+}
+
+templ CreateDrawer(props *DrawerCreateProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id="money-account-create-drawer">
+		@dialog.StdViewDrawer(dialog.StdDrawerProps{
+			ID:     "money-account-create-drawer-dialog",
+			Title:  pageCtx.T("MoneyAccounts.Meta.New.Title"),
+			Action: "open-view-drawer",
+			Open:   true,
+			Attrs: templ.Attributes{
+				"@closing": "window.history.pushState({}, '', '/finance/accounts')",
+				"@closed":  "document.getElementById('money-account-create-drawer').remove()",
+			},
+		}) {
+			<form
+				id="create-form"
+				method="post"
+				hx-post="/finance/accounts"
+				hx-target="#money-account-create-drawer"
+				hx-swap="outerHTML"
+				class="flex flex-col h-full"
+			>
+				<div class="flex-1 p-6 space-y-4">
+					@input.Text(&input.Props{
+						Label: pageCtx.T("MoneyAccounts.Single.Name"),
+						Attrs: templ.Attributes{
+							"value": props.Account.Name,
+							"name":  "Name",
+						},
+						Error: props.Errors["Name"],
+					})
+					@input.Number(&input.Props{
+						Label: pageCtx.T("MoneyAccounts.Single.Balance"),
+						Attrs: templ.Attributes{
+							"name":  "Balance",
+							"value": props.Account.Balance,
+							"step":  "any",
+						},
+						Error: props.Errors["Balance"],
+					})
+					@components.CurrencySelect(&components.CurrencySelectProps{
+						Label:       pageCtx.T("MoneyAccounts.Single.Currency.Label"),
+						Placeholder: pageCtx.T("MoneyAccounts.Single.Currency.Placeholder"),
+						Value:       props.Account.CurrencyCode,
+						Currencies:  props.Currencies,
+						Error:       props.Errors["CurrencyCode"],
+						Attrs: templ.Attributes{
+							"name": "CurrencyCode",
+						},
+					})
+					@input.Text(&input.Props{
+						Label: pageCtx.T("MoneyAccounts.Single.AccountNumber"),
+						Attrs: templ.Attributes{
+							"value": props.Account.AccountNumber,
+							"name":  "AccountNumber",
+						},
+						Error: props.Errors["AccountNumber"],
+					})
+					@input.TextArea(&input.TextAreaProps{
+						Label: pageCtx.T("MoneyAccounts.Single._Description"),
+						Attrs: templ.Attributes{
+							"name": "Description",
+						},
+						Value: props.Account.Description,
+						Error: props.Errors["Description"],
+					})
+				</div>
+				<div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+					@button.Secondary(button.Props{
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"@click": "document.getElementById('money-account-create-drawer-dialog').close()",
+						},
+					}) {
+						{ pageCtx.T("Cancel") }
+					}
+					@button.Primary(button.Props{
+						Attrs: templ.Attributes{
+							"type":  "submit",
+							"name":  "_action",
+							"value": "save",
+						},
+					}) {
+						{ pageCtx.T("Save") }
+					}
+				</div>
+			</form>
+		}
+	</div>
+}

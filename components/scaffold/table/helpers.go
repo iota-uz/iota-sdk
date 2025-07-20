@@ -19,7 +19,7 @@ type TableColumn interface {
 	Class() string
 	Width() string
 	Sortable() bool
-	SortDir() string
+	SortDir() SortDirection
 	SortURL() string
 }
 
@@ -37,17 +37,17 @@ type tableColumnImpl struct {
 	class    string
 	width    string
 	sortable bool
-	sortDir  string
+	sortDir  SortDirection
 	sortURL  string
 }
 
-func (c *tableColumnImpl) Key() string     { return c.key }
-func (c *tableColumnImpl) Label() string   { return c.label }
-func (c *tableColumnImpl) Class() string   { return c.class }
-func (c *tableColumnImpl) Width() string   { return c.width }
-func (c *tableColumnImpl) Sortable() bool  { return c.sortable }
-func (c *tableColumnImpl) SortDir() string { return c.sortDir }
-func (c *tableColumnImpl) SortURL() string { return c.sortURL }
+func (c *tableColumnImpl) Key() string            { return c.key }
+func (c *tableColumnImpl) Label() string          { return c.label }
+func (c *tableColumnImpl) Class() string          { return c.class }
+func (c *tableColumnImpl) Width() string          { return c.width }
+func (c *tableColumnImpl) Sortable() bool         { return c.sortable }
+func (c *tableColumnImpl) SortDir() SortDirection { return c.sortDir }
+func (c *tableColumnImpl) SortURL() string        { return c.sortURL }
 
 type tableRowImpl struct {
 	cells []templ.Component
@@ -94,7 +94,7 @@ func WithSortable(sortable bool) ColumnOpt {
 	}
 }
 
-func WithSortDir(sortDir string) ColumnOpt {
+func WithSortDir(sortDir SortDirection) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.sortDir = sortDir
 	}
@@ -259,10 +259,8 @@ func GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortO
 	params := url.Values{}
 
 	// Copy existing parameters if provided
-	if existingParams != nil {
-		for k, v := range existingParams {
-			params[k] = v
-		}
+	for k, v := range existingParams {
+		params[k] = v
 	}
 
 	// If clicking on the same field, cycle through: none -> asc -> desc -> none
@@ -293,11 +291,11 @@ func GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortO
 }
 
 // GetSortDirection returns the sort direction for a field
-func GetSortDirection(fieldKey, currentSortField, currentSortOrder string) string {
+func GetSortDirection(fieldKey, currentSortField, currentSortOrder string) SortDirection {
 	if fieldKey == currentSortField {
-		return currentSortOrder
+		return ParseSortDirection(currentSortOrder)
 	}
-	return ""
+	return SortDirectionNone
 }
 
 // --- New methods for separation of concerns ---

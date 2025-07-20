@@ -1,0 +1,350 @@
+package transactions
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/copy_button"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type DrawerViewProps struct {
+	Transaction *viewmodels.Transaction
+}
+
+templ ViewDrawer(props *DrawerViewProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id={ fmt.Sprintf("transaction-drawer-%s", props.Transaction.ID) }>
+		@dialog.Drawer(dialog.DrawerProps{
+			ID:        fmt.Sprintf("transaction-drawer-%s-dialog", props.Transaction.ID),
+			Direction: dialog.RTL,
+			Open:      true,
+			Action:    "open-view-drawer",
+			Classes:   templ.Classes("flex items-stretch"),
+			Attrs: templ.Attributes{
+				"@closing": "window.history.pushState({}, '', '/finance/transactions')",
+				"@closed":  fmt.Sprintf("document.getElementById('transaction-drawer-%s').remove()", props.Transaction.ID),
+			},
+		}) {
+			<div class="bg-white w-full md:w-2/3 lg:w-1/2 ml-auto">
+				<div class="flex flex-col h-full">
+					// Custom header with transaction type badge and amount
+					@drawerHeader(props.Transaction, pageCtx)
+					// Main content area
+					<div class="flex-1 min-h-0 overflow-y-auto">
+						// Type-specific content
+						switch transaction.Type(props.Transaction.TransactionType) {
+							case transaction.Deposit:
+								@depositLayout(props.Transaction, pageCtx)
+							case transaction.Withdrawal:
+								@withdrawalLayout(props.Transaction, pageCtx)
+							case transaction.Transfer:
+								@transferLayout(props.Transaction, pageCtx)
+							case transaction.Exchange:
+								@exchangeLayout(props.Transaction, pageCtx)
+							default:
+								@defaultLayout(props.Transaction, pageCtx)
+						}
+						// Common footer with metadata
+						@drawerFooter(props.Transaction, pageCtx)
+					</div>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// Header component with badge and amount
+templ drawerHeader(t *viewmodels.Transaction, pageCtx *types.PageContext) {
+	<form method="dialog">
+		<div class="sticky top-0 bg-white z-10 shadow-sm px-6 py-4">
+			<div class="flex justify-between items-start mb-3">
+				<div class="flex items-center gap-3">
+					@components.TransactionTypeBadge(t.TransactionType)
+					<h2 class="text-2xl font-semibold">{ t.AmountWithCurrency }</h2>
+				</div>
+				<button class="cursor-pointer text-gray-500 hover:text-gray-700">
+					@icons.X(icons.Props{Size: "24"})
+				</button>
+			</div>
+			<div class="text-sm text-gray-700">
+				{ t.TransactionDate.Format("Monday, January 2, 2006 at 3:04 PM") }
+			</div>
+		</div>
+	</form>
+}
+
+// Footer with metadata
+templ drawerFooter(t *viewmodels.Transaction, pageCtx *types.PageContext) {
+	<div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+		<h3 class="text-sm font-medium text-gray-900 mb-3">{ pageCtx.T("Transactions.Single.Details") }</h3>
+		<dl class="space-y-3">
+			<div class="flex justify-between items-center text-sm">
+				<dt class="text-gray-700 font-medium">{ pageCtx.T("Transactions.Single.TransactionID") }</dt>
+				<dd class="font-mono text-gray-900 flex items-center gap-2">
+					<span class="text-xs bg-gray-100 px-2 py-1 rounded">{ t.ID }</span>
+					@copy_button.CopyButton(copy_button.Props{
+						Text:    t.ID,
+						Size:    "16",
+						Variant: copy_button.VariantMinimal,
+					})
+				</dd>
+			</div>
+			<div class="flex justify-between text-sm">
+				<dt class="text-gray-700 font-medium">{ pageCtx.T("Transactions.Single.AccountingPeriod") }</dt>
+				<dd class="text-gray-900">{ t.AccountingPeriod.Format("January 2006") }</dd>
+			</div>
+			<div class="flex justify-between text-sm">
+				<dt class="text-gray-700 font-medium">{ pageCtx.T("CreatedAt") }</dt>
+				<dd class="text-gray-900">{ t.CreatedAt.Format("Jan 2, 2006 3:04 PM") }</dd>
+			</div>
+		</dl>
+	</div>
+}
+
+// Deposit layout - focus on destination and source
+templ depositLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) {
+	<div class="p-6 space-y-6">
+		// Destination account card
+		if t.DestinationAccount != nil {
+			<div class="bg-green-50 rounded-lg p-4 border border-green-200">
+				<div class="flex items-start gap-3">
+					<div class="p-2 bg-green-100 rounded-lg">
+						@icons.Wallet(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-green"})
+					</div>
+					<div class="flex-1">
+						<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.To") }</h3>
+						<p class="font-medium text-gray-900">{ t.DestinationAccount.Name }</p>
+						if t.DestinationAccount.Number != "" {
+							<p class="text-sm text-gray-700">{ t.DestinationAccount.Number }</p>
+						}
+					</div>
+				</div>
+			</div>
+		}
+		// Counterparty information
+		if t.Counterparty != nil {
+			<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+				<div class="flex items-start gap-3">
+					<div class="p-2 bg-gray-100 rounded-lg">
+						@icons.User(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-gray-600"})
+					</div>
+					<div class="flex-1">
+						<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.From") }</h3>
+						<p class="font-medium text-gray-900">{ t.Counterparty.Name }</p>
+						if t.Counterparty.TIN != "" {
+							<p class="text-sm text-gray-700">TIN: { t.Counterparty.TIN }</p>
+						}
+					</div>
+				</div>
+			</div>
+		}
+		// Category and comment
+		<div class="space-y-4">
+			if t.Category != nil {
+				<div>
+					<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.PaymentCategory") }</h3>
+					<p class="text-gray-800">{ t.Category.Name }</p>
+				</div>
+			}
+			if t.Comment != "" {
+				<div>
+					<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.Comment") }</h3>
+					<p class="text-gray-800">{ t.Comment }</p>
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// Withdrawal layout - focus on source and expense
+templ withdrawalLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) {
+	<div class="p-6 space-y-6">
+		// Origin account card
+		if t.OriginAccount != nil {
+			<div class="bg-red-50 rounded-lg p-4 border border-red-200">
+				<div class="flex items-start gap-3">
+					<div class="p-2 bg-red-100 rounded-lg">
+						@icons.Wallet(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-red-600"})
+					</div>
+					<div class="flex-1">
+						<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.From") }</h3>
+						<p class="font-medium text-gray-900">{ t.OriginAccount.Name }</p>
+						if t.OriginAccount.Number != "" {
+							<p class="text-sm text-gray-700">{ t.OriginAccount.Number }</p>
+						}
+					</div>
+				</div>
+			</div>
+		}
+		// Expense category
+		if t.Category != nil {
+			<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+				<div class="flex items-start gap-3">
+					<div class="p-2 bg-gray-100 rounded-lg">
+						@icons.Tag(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-gray-600"})
+					</div>
+					<div class="flex-1">
+						<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.ExpenseCategory") }</h3>
+						<p class="font-medium text-gray-900">{ t.Category.Name }</p>
+					</div>
+				</div>
+			</div>
+		}
+		// Comment
+		if t.Comment != "" {
+			<div>
+				<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.Comment") }</h3>
+				<p class="text-gray-800">{ t.Comment }</p>
+			</div>
+		}
+	</div>
+}
+
+// Transfer layout - show flow between accounts
+templ transferLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) {
+	<div class="p-6 space-y-6">
+		<div class="space-y-4">
+			// Origin account
+			if t.OriginAccount != nil {
+				<div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+					<div class="flex items-start gap-3">
+						<div class="p-2 bg-blue-100 rounded-lg">
+							@icons.Wallet(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-blue-600"})
+						</div>
+						<div class="flex-1">
+							<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.From") }</h3>
+							<p class="font-medium text-gray-900">{ t.OriginAccount.Name }</p>
+							if t.OriginAccount.Number != "" {
+								<p class="text-sm text-gray-700">{ t.OriginAccount.Number }</p>
+							}
+						</div>
+					</div>
+				</div>
+			}
+			// Transfer arrow
+			<div class="flex justify-center">
+				<div class="p-2 bg-gray-100 rounded-full">
+					@icons.ArrowDown(icons.Props{Size: "24", Variant: icons.Bold, Class: "text-gray-600"})
+				</div>
+			</div>
+			// Destination account
+			if t.DestinationAccount != nil {
+				<div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+					<div class="flex items-start gap-3">
+						<div class="p-2 bg-blue-100 rounded-lg">
+							@icons.Wallet(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-blue-600"})
+						</div>
+						<div class="flex-1">
+							<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.To") }</h3>
+							<p class="font-medium text-gray-900">{ t.DestinationAccount.Name }</p>
+							if t.DestinationAccount.Number != "" {
+								<p class="text-sm text-gray-700">{ t.DestinationAccount.Number }</p>
+							}
+						</div>
+					</div>
+				</div>
+			}
+		</div>
+		// Comment
+		if t.Comment != "" {
+			<div>
+				<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.Comment") }</h3>
+				<p class="text-gray-800">{ t.Comment }</p>
+			</div>
+		}
+	</div>
+}
+
+// Exchange layout - show currency conversion
+templ exchangeLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) {
+	<div class="p-6 space-y-6">
+		// Exchange visualization
+		<div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+			<div class="space-y-4">
+				// Source amount and account
+				<div>
+					<p class="text-sm text-gray-700 font-medium mb-1">{ pageCtx.T("Transactions.Single.From") }</p>
+					<div class="flex items-baseline gap-2">
+						<span class="text-2xl font-semibold">{ t.AmountWithCurrency }</span>
+						if t.OriginAccount != nil {
+							<span class="text-sm text-gray-700">({ t.OriginAccount.Name })</span>
+						}
+					</div>
+				</div>
+				// Exchange rate
+				if t.ExchangeRate != "" {
+					<div class="flex items-center gap-2">
+						<div class="flex-1 border-t border-yellow-300"></div>
+						<div class="flex items-center gap-2 text-sm text-gray-700">
+							@icons.ArrowsLeftRight(icons.Props{Size: "20", Variant: icons.DuoTone})
+							<span>{ t.ExchangeRate }</span>
+						</div>
+						<div class="flex-1 border-t border-yellow-300"></div>
+					</div>
+				}
+				// Destination amount and account
+				<div>
+					<p class="text-sm text-gray-700 font-medium mb-1">{ pageCtx.T("Transactions.Single.To") }</p>
+					<div class="flex items-baseline gap-2">
+						<span class="text-2xl font-semibold">{ t.DestinationAmountWithCurrency }</span>
+						if t.DestinationAccount != nil {
+							<span class="text-sm text-gray-700">({ t.DestinationAccount.Name })</span>
+						}
+					</div>
+				</div>
+			</div>
+		</div>
+		// Comment
+		if t.Comment != "" {
+			<div>
+				<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transactions.Single.Comment") }</h3>
+				<p class="text-gray-800">{ t.Comment }</p>
+			</div>
+		}
+	</div>
+}
+
+// Default layout for unknown types
+templ defaultLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) {
+	<div class="p-6 space-y-4">
+		<div class="bg-gray-50 rounded-lg p-4">
+			<dl class="space-y-2">
+				if t.OriginAccount != nil {
+					<div>
+						<dt class="text-sm font-medium text-gray-900">{ pageCtx.T("Transactions.Single.OriginAccount") }</dt>
+						<dd class="text-gray-800">{ t.OriginAccount.Name }</dd>
+					</div>
+				}
+				if t.DestinationAccount != nil {
+					<div>
+						<dt class="text-sm font-medium text-gray-900">{ pageCtx.T("Transactions.Single.DestinationAccount") }</dt>
+						<dd class="text-gray-800">{ t.DestinationAccount.Name }</dd>
+					</div>
+				}
+				if t.Category != nil {
+					<div>
+						<dt class="text-sm font-medium text-gray-900">{ pageCtx.T("Transactions.Single.Category") }</dt>
+						<dd class="text-gray-800">{ t.Category.Name }</dd>
+					</div>
+				}
+				if t.Counterparty != nil {
+					<div>
+						<dt class="text-sm font-medium text-gray-900">{ pageCtx.T("Transactions.Single.Counterparty") }</dt>
+						<dd class="text-gray-800">{ t.Counterparty.Name }</dd>
+					</div>
+				}
+				if t.Comment != "" {
+					<div>
+						<dt class="text-sm font-medium text-gray-900">{ pageCtx.T("Transactions.Single.Comment") }</dt>
+						<dd class="text-gray-700">{ t.Comment }</dd>
+					</div>
+				}
+			</dl>
+		</div>
+	</div>
+}

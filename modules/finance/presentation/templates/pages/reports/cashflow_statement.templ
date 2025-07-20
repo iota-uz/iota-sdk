@@ -1,0 +1,446 @@
+package reports
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+templ CashflowStatementPage(formData map[string]interface{}) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Reports.CashflowStatement.Title")},
+	}) {
+		<div class="container mx-auto px-4 py-6">
+			<div class="flex flex-col gap-4">
+				<div class="flex justify-between items-center">
+					<h1 class="text-2xl font-bold text-gray-900">
+						{ pageCtx.T("Reports.CashflowStatement.Title") }
+					</h1>
+				</div>
+				<!-- Report Generation Form -->
+				<div class="bg-white rounded-lg shadow p-6">
+					<h2 class="text-lg font-semibold text-gray-900 mb-4">
+						{ pageCtx.T("Reports.CashflowStatement.Generate") }
+					</h2>
+					<form
+						hx-post="/finance/reports/cashflow/generate"
+						hx-target="#cashflow-report-content"
+						hx-indicator="#cashflow-loading"
+						class="space-y-4"
+					>
+						<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+							<!-- Account Selection -->
+							<div>
+								<label for="account_id" class="block text-sm font-medium text-gray-700 mb-2">
+									{ pageCtx.T("Reports.CashflowStatement.Account") }
+								</label>
+								<select
+									id="account_id"
+									name="account_id"
+									required
+									class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+								>
+									<option value="">{ pageCtx.T("Reports.CashflowStatement.SelectAccount") }</option>
+									if accounts, ok := formData["accounts"].([]moneyaccount.Account); ok {
+										for _, account := range accounts {
+											<option
+												value={ account.ID().String() }
+												if accountID, ok := formData["accountId"].(string); ok && accountID == account.ID().String() {
+													selected
+												}
+											>
+												{ account.Name() } ({ account.Balance().Display() })
+											</option>
+										}
+									}
+								</select>
+							</div>
+							<!-- Start Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.CashflowStatement.StartDate"),
+									Attrs: templ.Attributes{
+										"name":     "start_date",
+										"id":       "start_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["startDate"]),
+									},
+								})
+							</div>
+							<!-- End Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.CashflowStatement.EndDate"),
+									Attrs: templ.Attributes{
+										"name":     "end_date",
+										"id":       "end_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["endDate"]),
+									},
+								})
+							</div>
+							<!-- Generate Button -->
+							<div class="flex items-end">
+								@button.Primary(button.Props{
+									Class: "w-full",
+									Attrs: templ.Attributes{
+										"type": "submit",
+									},
+								}) {
+									@icons.CurrencyCircleDollar(icons.Props{Size: "20", Class: "mr-2"})
+									{ pageCtx.T("Reports.CashflowStatement.Generate") }
+								}
+							</div>
+						</div>
+					</form>
+				</div>
+				<!-- Loading Indicator -->
+				<div id="cashflow-loading" class="htmx-indicator">
+					<div class="bg-white rounded-lg shadow p-6">
+						<div class="flex items-center justify-center">
+							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+							<span class="ml-3 text-gray-600">{ pageCtx.T("Reports.CashflowStatement.Generating") }</span>
+						</div>
+					</div>
+				</div>
+				<!-- Report Container -->
+				<div id="cashflow-report-content" class="min-h-[200px]">
+					<div class="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+						<div class="text-gray-500">
+							@icons.CurrencyCircleDollar(icons.Props{Size: "48", Class: "mx-auto mb-4 text-gray-400"})
+							<h3 class="text-lg font-medium text-gray-900 mb-2">
+								{ pageCtx.T("Reports.CashflowStatement.NoReportGenerated") }
+							</h3>
+							<p class="text-gray-600">
+								{ pageCtx.T("Reports.CashflowStatement.SelectDatesAndGenerate") }
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ CashflowStatementPageWithReport(formData map[string]interface{}, report *viewmodels.CashflowStatement) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Reports.CashflowStatement.Title")},
+	}) {
+		<div class="container mx-auto px-4 py-6">
+			<div class="flex flex-col gap-4">
+				<div class="flex justify-between items-center">
+					<h1 class="text-2xl font-bold text-gray-900">
+						{ pageCtx.T("Reports.CashflowStatement.Title") }
+					</h1>
+				</div>
+				<!-- Report Generation Form -->
+				<div class="bg-white rounded-lg shadow p-6">
+					<h2 class="text-lg font-semibold text-gray-900 mb-4">
+						{ pageCtx.T("Reports.CashflowStatement.Generate") }
+					</h2>
+					<form
+						hx-post="/finance/reports/cashflow/generate"
+						hx-target="#cashflow-report-content"
+						hx-indicator="#cashflow-loading"
+						class="space-y-4"
+					>
+						<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+							<!-- Account Selection -->
+							<div>
+								<label for="account_id" class="block text-sm font-medium text-gray-700 mb-2">
+									{ pageCtx.T("Reports.CashflowStatement.Account") }
+								</label>
+								<select
+									id="account_id"
+									name="account_id"
+									required
+									class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+								>
+									<option value="">{ pageCtx.T("Reports.CashflowStatement.SelectAccount") }</option>
+									if accounts, ok := formData["accounts"].([]moneyaccount.Account); ok {
+										for _, account := range accounts {
+											<option
+												value={ account.ID().String() }
+												if accountID, ok := formData["accountId"].(string); ok && accountID == account.ID().String() {
+													selected
+												}
+											>
+												{ account.Name() } ({ account.Balance().Display() })
+											</option>
+										}
+									}
+								</select>
+							</div>
+							<!-- Start Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.CashflowStatement.StartDate"),
+									Attrs: templ.Attributes{
+										"name":     "start_date",
+										"id":       "start_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["startDate"]),
+									},
+								})
+							</div>
+							<!-- End Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.CashflowStatement.EndDate"),
+									Attrs: templ.Attributes{
+										"name":     "end_date",
+										"id":       "end_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["endDate"]),
+									},
+								})
+							</div>
+							<!-- Generate Button -->
+							<div class="flex items-end">
+								@button.Primary(button.Props{
+									Class: "w-full",
+									Attrs: templ.Attributes{
+										"type": "submit",
+									},
+								}) {
+									@icons.CurrencyCircleDollar(icons.Props{Size: "20", Class: "mr-2"})
+									{ pageCtx.T("Reports.CashflowStatement.Generate") }
+								}
+							</div>
+						</div>
+					</form>
+				</div>
+				<!-- Loading Indicator -->
+				<div id="cashflow-loading" class="htmx-indicator">
+					<div class="bg-white rounded-lg shadow p-6">
+						<div class="flex items-center justify-center">
+							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+							<span class="ml-3 text-gray-600">{ pageCtx.T("Reports.CashflowStatement.Generating") }</span>
+						</div>
+					</div>
+				</div>
+				<!-- Report Container with actual report -->
+				<div id="cashflow-report-content">
+					@CashflowStatementReport(report)
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ CashflowStatementReport(report *viewmodels.CashflowStatement) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+		<!-- Report Header -->
+		<div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+			<div class="flex justify-between items-center">
+				<div>
+					<h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+						{ pageCtx.T("Reports.CashflowStatement.ReportTitle") }
+					</h2>
+					<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+						{ report.AccountName } · { report.Period }
+					</p>
+				</div>
+				<div class="flex space-x-2">
+					<button
+						onclick="window.print()"
+						class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+					>
+						@icons.Printer(icons.Props{Size: "16"})
+						{ pageCtx.T("Common.Print") }
+					</button>
+					<button
+						hx-get={ "/finance/reports/cashflow/data?account_id=" + report.AccountID + "&start_date=" + report.StartDate + "&end_date=" + report.EndDate }
+						hx-trigger="click"
+						class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+					>
+						@icons.Download(icons.Props{Size: "16"})
+						{ pageCtx.T("Common.Export") }
+					</button>
+				</div>
+			</div>
+		</div>
+		<!-- Balance Summary -->
+		<div class="px-6 py-4 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-600">
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+				<div>
+					<p class="text-sm font-medium text-gray-600 dark:text-gray-400">{ pageCtx.T("Reports.CashflowStatement.StartingBalance") }</p>
+					<p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{ report.StartingBalanceWithCurrency }</p>
+				</div>
+				<div>
+					<p class="text-sm font-medium text-gray-600 dark:text-gray-400">{ pageCtx.T("Reports.CashflowStatement.NetCashFlow") }</p>
+					<p class={ "mt-1 text-lg font-semibold", templ.KV("text-green-600 dark:text-green-400", report.IsPositive), templ.KV("text-red-600 dark:text-red-400", !report.IsPositive) }>
+						{ report.NetCashFlowWithCurrency }
+					</p>
+				</div>
+				<div>
+					<p class="text-sm font-medium text-gray-600 dark:text-gray-400">{ pageCtx.T("Reports.CashflowStatement.EndingBalance") }</p>
+					<p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{ report.EndingBalanceWithCurrency }</p>
+				</div>
+			</div>
+		</div>
+		<!-- Cashflow Table -->
+		<div class="p-6">
+			<div class="overflow-x-auto">
+				@CashflowStatementTable(report)
+			</div>
+		</div>
+		<!-- Report Footer -->
+		<div class="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 text-center text-sm text-gray-600 dark:text-gray-400">
+			{ pageCtx.T("Reports.CashflowStatement.GeneratedAt") }: { report.GeneratedAt }
+		</div>
+	</div>
+}
+
+templ CashflowStatementTable(report *viewmodels.CashflowStatement) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+		<thead>
+			<tr class="bg-gray-50 dark:bg-gray-700">
+				<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+					{ pageCtx.T("Reports.CashflowStatement.Category") }
+				</th>
+				if len(report.Months) > 0 {
+					for _, month := range report.Months {
+						<th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
+							{ month }
+						</th>
+					}
+				}
+				<th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+					{ pageCtx.T("Reports.CashflowStatement.Total") }
+				</th>
+				<th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+					%
+				</th>
+				<th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+					{ pageCtx.T("Reports.CashflowStatement.Count") }
+				</th>
+			</tr>
+		</thead>
+		<tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600">
+			<!-- Operating Activities -->
+			@cashflowSection(report.OperatingActivities, report.Months, "operating")
+			<!-- Investing Activities -->
+			if len(report.InvestingActivities.Inflows) > 0 || len(report.InvestingActivities.Outflows) > 0 {
+				@cashflowSection(report.InvestingActivities, report.Months, "investing")
+			}
+			<!-- Financing Activities -->
+			if len(report.FinancingActivities.Inflows) > 0 || len(report.FinancingActivities.Outflows) > 0 {
+				@cashflowSection(report.FinancingActivities, report.Months, "financing")
+			}
+			<!-- Summary Row -->
+			<tr class="bg-gray-100 dark:bg-gray-700 font-semibold">
+				<td class="px-6 py-4 text-sm text-gray-900 dark:text-white">
+					{ pageCtx.T("Reports.CashflowStatement.NetCashFlow") }
+				</td>
+				if len(report.MonthlyNetCashFlow) > 0 {
+					for _, monthlyAmount := range report.MonthlyNetCashFlow {
+						<td class="px-4 py-4 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
+							{ monthlyAmount.AmountWithCurrency }
+						</td>
+					}
+				} else if len(report.Months) > 0 {
+					for range report.Months {
+						<td class="px-4 py-4 text-sm text-right text-gray-500 dark:text-gray-400">-</td>
+					}
+				}
+				<td class={ "px-6 py-4 text-sm text-right whitespace-nowrap", templ.KV("text-green-600 dark:text-green-400", report.IsPositive), templ.KV("text-red-600 dark:text-red-400", !report.IsPositive) }>
+					{ report.NetCashFlowWithCurrency }
+				</td>
+				<td colspan="2" class="px-4 py-4"></td>
+			</tr>
+		</tbody>
+	</table>
+}
+
+templ cashflowSection(section viewmodels.CashflowSection, months []string, sectionType string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<!-- Section Header -->
+	<tr class="bg-gray-50 dark:bg-gray-700">
+		<td colspan={ fmt.Sprintf("%d", len(months)+4) } class="px-6 py-3 text-sm font-semibold text-gray-900 dark:text-white">
+			{ section.Name }
+		</td>
+	</tr>
+	<!-- Inflows -->
+	if len(section.Inflows) > 0 {
+		<tr class="bg-green-50 dark:bg-green-900/20">
+			<td class="px-6 py-2 text-sm font-medium text-green-800 dark:text-green-300">
+				{ pageCtx.T("Reports.CashflowStatement.Inflows") }
+			</td>
+			<td colspan={ fmt.Sprintf("%d", len(months)+3) }></td>
+		</tr>
+		for _, item := range section.Inflows {
+			@cashflowLineItem(item, months, "inflow")
+		}
+	}
+	<!-- Outflows -->
+	if len(section.Outflows) > 0 {
+		<tr class="bg-red-50 dark:bg-red-900/20">
+			<td class="px-6 py-2 text-sm font-medium text-red-800 dark:text-red-300">
+				{ pageCtx.T("Reports.CashflowStatement.Outflows") }
+			</td>
+			<td colspan={ fmt.Sprintf("%d", len(months)+3) }></td>
+		</tr>
+		for _, item := range section.Outflows {
+			@cashflowLineItem(item, months, "outflow")
+		}
+	}
+	<!-- Section Net Cashflow -->
+	<tr class="bg-gray-50 dark:bg-gray-700 font-medium">
+		<td class="px-6 py-3 text-sm text-gray-900 dark:text-white">
+			{ pageCtx.T("Reports.CashflowStatement.NetCashFlow") } - { section.Name }
+		</td>
+		if len(section.MonthlyNetCashFlow) > 0 {
+			for _, monthlyAmount := range section.MonthlyNetCashFlow {
+				<td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
+					{ monthlyAmount.AmountWithCurrency }
+				</td>
+			}
+		} else if len(months) > 0 {
+			for range months {
+				<td class="px-4 py-3 text-sm text-right text-gray-500 dark:text-gray-400">-</td>
+			}
+		}
+		<td class="px-6 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
+			{ section.NetCashFlowWithCurrency }
+		</td>
+		<td colspan="2" class="px-4 py-3"></td>
+	</tr>
+}
+
+templ cashflowLineItem(item viewmodels.CashflowLineItem, months []string, flowType string) {
+	<tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+		<td class="px-6 py-3 text-sm text-gray-900 dark:text-white pl-10">
+			{ item.Name }
+		</td>
+		if len(item.MonthlyAmounts) > 0 {
+			for _, monthlyAmount := range item.MonthlyAmounts {
+				<td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">
+					{ monthlyAmount.AmountWithCurrency }
+				</td>
+			}
+		} else if len(months) > 0 {
+			for range months {
+				<td class="px-4 py-3 text-sm text-right text-gray-500 dark:text-gray-400">-</td>
+			}
+		}
+		<td class={ "px-6 py-3 text-sm text-right whitespace-nowrap", templ.KV("text-green-600 dark:text-green-400", flowType == "inflow"), templ.KV("text-red-600 dark:text-red-400", flowType == "outflow") }>
+			{ item.AmountWithCurrency }
+		</td>
+		<td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
+			{ fmt.Sprintf("%.1f%%", item.Percentage) }
+		</td>
+		<td class="px-4 py-3 text-sm text-right text-gray-600 dark:text-gray-400">
+			{ fmt.Sprintf("%d", item.Count) }
+		</td>
+	</tr>
+}

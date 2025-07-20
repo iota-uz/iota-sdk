@@ -1,13 +1,17 @@
 {
   "NavigationLinks": {
     "Finances": "Finances",
+    "Transactions": "Transactions",
     "Accounts": "Accounts",
     "Expenses": "Expenses",
     "ExpenseCategories": "Expense categories",
     "Payments": "Payments",
     "PaymentCategories": "Payment categories",
     "Counterparties": "Counterparties",
-    "Inventory": "Inventory"
+    "Inventory": "Inventory",
+    "Reports": "Reports",
+    "IncomeStatement": "Income Statement",
+    "CashflowStatement": "Cash Flow Statement"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -160,7 +164,7 @@
     },
     "Types": {
       "CUSTOMER": "Customer",
-      "SUPPLIER": "Supplier", 
+      "SUPPLIER": "Supplier",
       "BOTH": "Both",
       "_OTHER": "Other"
     },
@@ -227,7 +231,26 @@
       "_Description": "Description",
       "AccountNumber": "Account number",
       "Delete": "Delete account",
-      "DeleteConfirmation": "Are you sure you want to delete this account?"
+      "DeleteConfirmation": "Are you sure you want to delete this account?",
+      "General": "General",
+      "Transfer": "Transfer"
+    }
+  },
+  "Transfers": {
+    "Meta": {
+      "New": {
+        "Title": "Transfer Money"
+      }
+    },
+    "Single": {
+      "From": "From",
+      "To": "To",
+      "DestinationAccount": "Destination Account",
+      "SelectDestinationAccount": "Select destination account",
+      "Amount": "Amount",
+      "Comment": "Comment",
+      "CommentPlaceholder": "Optional transfer description...",
+      "Transfer": "Transfer"
     }
   },
   "PaymentCategories": {
@@ -293,5 +316,117 @@
       "Delete": "Delete inventory item",
       "DeleteConfirmation": "Are you sure you want to delete this inventory item?"
     }
+  },
+  "Transactions": {
+    "Meta": {
+      "List": {
+        "Title": "Transactions"
+      }
+    },
+    "List": {
+      "Date": "Date",
+      "Type": "Type",
+      "Amount": "Amount",
+      "Account": "Account",
+      "Category": "Category",
+      "Counterparty": "Counterparty",
+      "Comment": "Comment",
+      "NoTransactions": {
+        "Title": "No transactions found",
+        "_Description": "There are no transactions yet. Transactions are created when you add expenses or payments."
+      }
+    },
+    "Filters": {
+      "AllTypes": "All Types",
+      "AllTime": "All Time",
+      "AccountingPeriod": "Accounting Period",
+      "AllPeriods": "All Periods",
+      "ThisMonth": "This Month",
+      "LastMonth": "Last Month",
+      "TwoMonthsAgo": "2 Months Ago",
+      "ThreeMonthsAgo": "3 Months Ago"
+    },
+    "Single": {
+      "Title": "Transaction Details",
+      "Details": "Transaction Information",
+      "Type": "Type",
+      "Amount": "Amount",
+      "Date": "Transaction Date",
+      "AccountingPeriod": "Accounting Period",
+      "OriginAccount": "Origin Account",
+      "DestinationAccount": "Destination Account",
+      "Comment": "Comment",
+      "ExchangeDetails": "Exchange Details",
+      "ExchangeRate": "Exchange Rate",
+      "DestinationAmount": "Destination Amount",
+      "RelatedDetails": "Related Information",
+      "PaymentCategory": "Payment Category",
+      "ExpenseCategory": "Expense Category",
+      "Counterparty": "Counterparty",
+      "TransactionID": "Transaction ID",
+      "From": "From",
+      "To": "To",
+      "Category": "Category"
+    },
+    "Types": {
+      "DEPOSIT": "Deposit",
+      "WITHDRAWAL": "Withdrawal",
+      "TRANSFER": "Transfer",
+      "EXCHANGE": "Exchange"
+    }
+  },
+  "Reports": {
+    "IncomeStatement": {
+      "Title": "Income Statement",
+      "GenerateReport": "Generate Report",
+      "StartDate": "Start Date",
+      "EndDate": "End Date",
+      "ComparePeriods": "Compare Periods",
+      "Generate": "Generate Report",
+      "EnableComparison": "Enable Period Comparison",
+      "Generating": "Generating report...",
+      "NoReportGenerated": "No Report Generated",
+      "SelectDatesAndGenerate": "Select dates and click 'Generate Report' to view your income statement",
+      "Period": "Period",
+      "Print": "Print",
+      "GrossProfit": "Gross Profit",
+      "NetProfit": "Net Profit",
+      "NoItemsInSection": "No items in this section",
+      "Total": "Total",
+      "ComparativeTitle": "Comparative Income Statement",
+      "CurrentPeriod": "Current Period",
+      "ComparisonPeriods": "Comparison Periods",
+      "Revenue": "Revenue",
+      "Expenses": "Expenses",
+      "Category": "Category",
+      "OperationalIncome": "Operational Income",
+      "TotalExpenses": "Total Expenses",
+      "GeneratedAt": "Generated at"
+    },
+    "CashflowStatement": {
+      "Title": "Cash Flow Statement",
+      "_Description": "View and analyze cash movements across your accounts",
+      "Account": "Account",
+      "SelectAccount": "Select account",
+      "StartDate": "Start Date",
+      "EndDate": "End Date",
+      "Generate": "Generate Report",
+      "LastGenerated": "Last generated",
+      "Never": "Never",
+      "ReportTitle": "Cash Flow Statement",
+      "StartingBalance": "Starting Balance",
+      "NetCashFlow": "Net Cash Flow",
+      "EndingBalance": "Ending Balance",
+      "GeneratedAt": "Generated at",
+      "Category": "Category",
+      "Total": "Total",
+      "Count": "Count",
+      "Inflows": "Cash Inflows",
+      "Outflows": "Cash Outflows",
+      "NoReportGenerated": "No Report Generated",
+      "SelectDatesAndGenerate": "Select dates and account, then click 'Generate Report' to view your cash flow statement",
+      "Generating": "Generating report..."
+    }
   }
 }
+
