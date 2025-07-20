@@ -51,6 +51,9 @@ type CrudController[TEntity any] struct {
 	formFields      []crud.Field
 	primaryKeyField crud.Field
 
+	// custom rendering
+	rendererRegistry *crud.RendererRegistry
+
 	// options
 	enableEdit   bool
 	enableDelete bool
@@ -88,13 +91,14 @@ func NewCrudController[TEntity any](
 	opts ...CrudOption[TEntity],
 ) application.Controller {
 	controller := &CrudController[TEntity]{
-		basePath:     basePath,
-		app:          app,
-		schema:       builder.Schema(),
-		service:      builder.Service(),
-		enableEdit:   true,
-		enableDelete: true,
-		enableCreate: true,
+		basePath:         basePath,
+		app:              app,
+		schema:           builder.Schema(),
+		service:          builder.Service(),
+		rendererRegistry: crud.NewRendererRegistry(),
+		enableEdit:       true,
+		enableDelete:     true,
+		enableCreate:     true,
 	}
 
 	// Apply options
@@ -143,6 +147,11 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 
 func (c *CrudController[TEntity]) Key() string {
 	return c.basePath
+}
+
+// RegisterRenderer registers a custom field renderer for the given type
+func (c *CrudController[TEntity]) RegisterRenderer(rendererType string, renderer crud.FieldRenderer) {
+	c.rendererRegistry.Register(rendererType, renderer)
 }
 
 // initFieldCache pre-computes commonly used field collections
@@ -700,8 +709,16 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 				valueStr = ""
 				fieldType = table.DetailFieldTypeText
 			} else {
-				// Check if this is a select field and get the label
-				if selectField, ok := field.(crud.SelectField); ok {
+				// Check for custom renderer first
+				if rendererType := field.RendererType(); rendererType != "" {
+					if renderer, exists := c.rendererRegistry.Get(rendererType); exists {
+						// For custom renderers, render the component and convert to string
+						// This is a simplified approach - you might want to add a separate RenderDetailsText method
+						_ = renderer.RenderDetails(ctx, field, fv)
+						valueStr = fmt.Sprintf("CustomRenderer: %s", rendererType)
+						fieldType = table.DetailFieldTypeText
+					}
+				} else if selectField, ok := field.(crud.SelectField); ok {
 					// Get options
 					options := selectField.Options()
 					if options == nil && selectField.OptionsLoader() != nil {
@@ -1270,6 +1287,19 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		currentValue = value.Value()
 	} else if field.InitialValue() != nil {
 		currentValue = field.InitialValue()
+	}
+
+	// Check for custom renderer first
+	if rendererType := field.RendererType(); rendererType != "" {
+		if renderer, exists := c.rendererRegistry.Get(rendererType); exists {
+			// Create a wrapper that implements form.Field interface for custom renderers
+			// This returns a component that renders the custom form control
+			return &customFormField{
+				key:       field.Name(),
+				label:     fieldLabel,
+				component: renderer.RenderFormControl(ctx, field, value),
+			}
+		}
 	}
 
 	switch field.Type() {
@@ -1954,6 +1984,13 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 		return templ.Raw("")
 	}
 
+	// Check for custom renderer first
+	if rendererType := field.RendererType(); rendererType != "" {
+		if renderer, exists := c.rendererRegistry.Get(rendererType); exists {
+			return renderer.RenderTableCell(ctx, field, value)
+		}
+	}
+
 	// Check if this is a select field and handle label display
 	if selectField, ok := field.(crud.SelectField); ok {
 		return c.getSelectFieldLabel(ctx, selectField, value)
@@ -2256,4 +2293,39 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 		log.Printf("[CrudController.renderEditFormWithErrors] Failed to render form: %v", err)
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
+}
+
+// customFormField wraps a custom renderer component to implement the form.Field interface
+type customFormField struct {
+	key       string
+	label     string
+	component templ.Component
+}
+
+func (c *customFormField) Component() templ.Component {
+	return c.component
+}
+
+func (c *customFormField) Type() form.FieldType {
+	return "custom"
+}
+
+func (c *customFormField) Key() string {
+	return c.key
+}
+
+func (c *customFormField) Label() string {
+	return c.label
+}
+
+func (c *customFormField) Required() bool {
+	return false // Custom renderers should handle their own validation
+}
+
+func (c *customFormField) Attrs() templ.Attributes {
+	return templ.Attributes{}
+}
+
+func (c *customFormField) Validators() []form.Validator {
+	return nil // Custom renderers should handle their own validation
 }

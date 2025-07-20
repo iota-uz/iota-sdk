@@ -24,6 +24,38 @@ func TestNewMultiLang(t *testing.T) {
 	assert.Equal(t, "English", en)
 }
 
+func TestNewMultiLangFromMap(t *testing.T) {
+	data := map[string]string{
+		"en": "English",
+		"ru": "Русский",
+		"fr": "Français",
+		"de": "Deutsch",
+	}
+
+	ml := NewMultiLangFromMap(data)
+
+	// Test that all values are accessible
+	en, err := ml.Get("en")
+	require.NoError(t, err)
+	assert.Equal(t, "English", en)
+
+	ru, err := ml.Get("ru")
+	require.NoError(t, err)
+	assert.Equal(t, "Русский", ru)
+
+	fr, err := ml.Get("fr")
+	require.NoError(t, err)
+	assert.Equal(t, "Français", fr)
+
+	de, err := ml.Get("de")
+	require.NoError(t, err)
+	assert.Equal(t, "Deutsch", de)
+
+	// Test GetAll method
+	allValues := ml.GetAll()
+	assert.Equal(t, data, allValues)
+}
+
 func TestMultiLang_Get(t *testing.T) {
 	ml := NewMultiLang("O'zbek", "Русский", "English")
 
@@ -80,7 +112,7 @@ func TestMultiLang_Get(t *testing.T) {
 }
 
 func TestMultiLang_Set(t *testing.T) {
-	ml := NewMultiLang("", "", "")
+	ml := NewMultiLangFromMap(map[string]string{})
 
 	tests := []struct {
 		name    string
@@ -112,14 +144,14 @@ func TestMultiLang_Set(t *testing.T) {
 			},
 		},
 		{
-			name:    "set english value",
-			locale:  "en",
-			value:   "English",
+			name:    "set new language (french)",
+			locale:  "fr",
+			value:   "Français",
 			wantErr: false,
 			checkFn: func(result MultiLang) {
-				val, err := result.Get("en")
+				val, err := result.Get("fr")
 				require.NoError(t, err)
-				assert.Equal(t, "English", val)
+				assert.Equal(t, "Français", val)
 			},
 		},
 		{
@@ -134,12 +166,15 @@ func TestMultiLang_Set(t *testing.T) {
 			},
 		},
 		{
-			name:    "set unsupported locale",
-			locale:  "fr",
-			value:   "Français",
-			wantErr: true,
+			name:    "set empty locale code",
+			locale:  "",
+			value:   "Some Value",
+			wantErr: false,
 			checkFn: func(result MultiLang) {
-				assert.Equal(t, ml, result)
+				// Empty locale code should be allowed in new implementation
+				val, err := result.Get("")
+				require.NoError(t, err)
+				assert.Equal(t, "Some Value", val)
 			},
 		},
 	}
@@ -149,7 +184,6 @@ func TestMultiLang_Set(t *testing.T) {
 			result, err := ml.Set(tt.locale, tt.value)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Equal(t, ErrUnsupportedLocale, err)
 			} else {
 				require.NoError(t, err)
 			}
@@ -333,6 +367,30 @@ func TestMultiLang_String(t *testing.T) {
 	assert.Equal(t, "English", ml.String())
 }
 
+func TestMultiLang_GetAll(t *testing.T) {
+	// Test with map constructor
+	data := map[string]string{
+		"en": "English",
+		"ru": "Русский",
+		"fr": "Français",
+		"de": "Deutsch",
+	}
+	ml := NewMultiLangFromMap(data)
+
+	result := ml.GetAll()
+	assert.Equal(t, data, result)
+
+	// Test with legacy constructor
+	ml2 := NewMultiLang("O'zbek", "Русский", "English")
+	expected := map[string]string{
+		"uz": "O'zbek",
+		"ru": "Русский",
+		"en": "English",
+	}
+	result2 := ml2.GetAll()
+	assert.Equal(t, expected, result2)
+}
+
 func TestMultiLangFromJSON(t *testing.T) {
 	jsonData := `{"uz":"O'zbek","ru":"Русский","en":"English"}`
 
@@ -351,6 +409,42 @@ func TestMultiLangFromJSON(t *testing.T) {
 	en, err := ml.Get("en")
 	require.NoError(t, err)
 	assert.Equal(t, "English", en)
+}
+
+func TestMultiLangFromJSON_DynamicLanguages(t *testing.T) {
+	// Test with additional languages beyond the original three
+	jsonData := `{"en":"English","ru":"Русский","fr":"Français","de":"Deutsch","es":"Español"}`
+
+	ml, err := MultiLangFromJSON([]byte(jsonData))
+	require.NoError(t, err)
+
+	// Test that all languages are accessible
+	en, err := ml.Get("en")
+	require.NoError(t, err)
+	assert.Equal(t, "English", en)
+
+	fr, err := ml.Get("fr")
+	require.NoError(t, err)
+	assert.Equal(t, "Français", fr)
+
+	de, err := ml.Get("de")
+	require.NoError(t, err)
+	assert.Equal(t, "Deutsch", de)
+
+	es, err := ml.Get("es")
+	require.NoError(t, err)
+	assert.Equal(t, "Español", es)
+
+	// Test GetAll returns all languages
+	allValues := ml.GetAll()
+	expectedValues := map[string]string{
+		"en": "English",
+		"ru": "Русский",
+		"fr": "Français",
+		"de": "Deutsch",
+		"es": "Español",
+	}
+	assert.Equal(t, expectedValues, allValues)
 }
 
 func TestMultiLangFromString(t *testing.T) {

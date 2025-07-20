@@ -1160,6 +1160,7 @@ func (m *mockField) Hidden() bool            { return false }
 func (m *mockField) Rules() []crud.FieldRule { return nil }
 func (m *mockField) InitialValue() any       { return nil }
 func (m *mockField) Attrs() map[string]any   { return map[string]any{} }
+func (m *mockField) RendererType() string    { return "" }
 func (m *mockField) Value(value any) crud.FieldValue {
 	return &mockFieldValue{field: m, value: value}
 }
