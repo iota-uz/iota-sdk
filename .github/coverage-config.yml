@@ -1,0 +1,34 @@
+# Test Coverage Configuration
+# This file defines coverage thresholds and settings for the project
+
+# Global coverage threshold (percentage)
+global_threshold: 70
+
+# Coverage thresholds by status level
+thresholds:
+  excellent: 80    # 🟢 Excellent (brightgreen badge)
+  good: 70        # 🟢 Good (green badge)
+  fair: 60        # 🟡 Fair (yellow badge)
+  poor: 40        # 🟠 Poor (orange badge)
+  # Below 40% is considered Critical 🔴 (red badge)
+
+# Package-specific thresholds (optional)
+# Uncomment and configure as needed
+# package_thresholds:
+#   "modules/auth": 80
+#   "modules/finance": 75
+#   "pkg/security": 90
+
+# Files to exclude from coverage reporting
+exclude_patterns:
+  - "*_test.go"
+  - "mock_*.go"
+  - "*.pb.go"
+  - "*_templ.go"
+  - "cmd/*/main.go"
+
+# Maximum number of low-coverage functions to display
+max_low_coverage_display: 20
+
+# Maximum number of packages to display in summary
+max_packages_display: 15

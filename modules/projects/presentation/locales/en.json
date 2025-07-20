@@ -61,8 +61,10 @@
       }
     },
     "Single": {
+      "ProjectID": "Project",
+      "SelectProject": "Select a project",
       "StageNumber": "Stage Number",
-      "_Description": "Description",
+      "Desc": "Description",
       "TotalAmount": "Total Amount",
       "PaidAmount": "Paid Amount",
       "StartDate": "Start Date",

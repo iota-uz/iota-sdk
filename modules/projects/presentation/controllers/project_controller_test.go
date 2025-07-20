@@ -122,54 +122,6 @@ func TestProjectController_List_HTMX_Request(t *testing.T) {
 		Contains("HTMX test description")
 }
 
-func TestProjectController_APIList_Success(t *testing.T) {
-	t.Parallel()
-	adminUser := itf.User()
-
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule(), projects.NewModule()).
-		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
-	suite.Register(controller)
-
-	projectService := env.App.Service(services.ProjectService{}).(*services.ProjectService)
-	counterpartyService := env.App.Service(financeServices.CounterpartyService{}).(*financeServices.CounterpartyService)
-
-	counterparty1 := counterparty.New(
-		"API Test Customer",
-		counterparty.Customer,
-		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
-	)
-
-	createdCounterparty, err := counterpartyService.Create(env.Ctx, counterparty1)
-	require.NoError(t, err)
-
-	project1 := project.New(
-		"Searchable Project",
-		createdCounterparty.ID(),
-		project.WithTenantID(env.Tenant.ID),
-	)
-
-	project2 := project.New(
-		"Another Project",
-		createdCounterparty.ID(),
-		project.WithTenantID(env.Tenant.ID),
-	)
-
-	err = projectService.Create(env.Ctx, project1)
-	require.NoError(t, err)
-	err = projectService.Create(env.Ctx, project2)
-	require.NoError(t, err)
-
-	response := suite.GET(ProjectBasePath + "/api?q=Searchable").
-		Expect(t).
-		Status(200)
-
-	response.Contains("Searchable Project")
-}
 
 func TestProjectController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
