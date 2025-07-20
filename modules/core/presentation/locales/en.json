@@ -39,7 +39,8 @@
       "Ereyesterday": "Ereyesterday",
       "ThisWeek": "This week",
       "LastWeek": "Last week",
-      "ThisMonth": "This month"
+      "ThisMonth": "This month",
+      "LastMonth": "Last month"
     }
   },
   "Scaffold": {

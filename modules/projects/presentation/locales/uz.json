@@ -1,0 +1,74 @@
+{
+  "NavigationLinks": {
+    "Projects": "Loyihalar",
+    "ProjectStages": "Loyiha bosqichlari"
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Loyihalar"
+      },
+      "Edit": {
+        "Title": "Loyihani tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi loyiha"
+      }
+    },
+    "List": {
+      "New": "Yangi loyiha",
+      "Name": "Nomi",
+      "Counterparty": "Kontragent",
+      "_Description": "Tavsif",
+      "NoProjects": {
+        "Title": "Loyihalar topilmadi",
+        "_Description": "Hozircha loyihalar yo'q. Yaratish uchun 'Yangi loyiha'ni bosing."
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "Counterparty": "Kontragent",
+      "SelectCounterparty": "Kontragentni tanlang",
+      "NoCounterpartiesFound": "Kontragentlar topilmadi",
+      "_Description": "Tavsif",
+      "DeleteConfirmation": "Ushbu loyihani o'chirishni xohlaysizmi?"
+    }
+  },
+  "ProjectStages": {
+    "Meta": {
+      "List": {
+        "Title": "Loyiha bosqichlari"
+      },
+      "Edit": {
+        "Title": "Loyiha bosqichini tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi loyiha bosqichi"
+      }
+    },
+    "List": {
+      "New": "Yangi loyiha bosqichi",
+      "StageNumber": "Bosqich raqami",
+      "_Description": "Tavsif",
+      "TotalAmount": "Umumiy summa",
+      "PaidAmount": "To'langan summa",
+      "StartDate": "Boshlanish sanasi",
+      "PlannedEndDate": "Rejalashtirilgan tugash sanasi",
+      "FactualEndDate": "Haqiqiy tugash sanasi",
+      "NoProjectStages": {
+        "Title": "Loyiha bosqichlari topilmadi",
+        "_Description": "Hozircha loyiha bosqichlari yo'q. Yaratish uchun 'Yangi loyiha bosqichi'ni bosing."
+      }
+    },
+    "Single": {
+      "StageNumber": "Bosqich raqami",
+      "_Description": "Tavsif",
+      "TotalAmount": "Umumiy summa",
+      "PaidAmount": "To'langan summa",
+      "StartDate": "Boshlanish sanasi",
+      "PlannedEndDate": "Rejalashtirilgan tugash sanasi",
+      "FactualEndDate": "Haqiqiy tugash sanasi",
+      "DeleteConfirmation": "Ushbu loyiha bosqichini o'chirishni xohlaysizmi?"
+    }
+  }
+}

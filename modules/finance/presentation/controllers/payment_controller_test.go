@@ -754,3 +754,281 @@ func TestPaymentController_InvalidUUID(t *testing.T) {
 		Expect(t).
 		Status(404)
 }
+
+func TestPaymentController_Create_TransactionDateValidation(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.PaymentRead,
+		permissions.PaymentCreate,
+	)
+
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewPaymentsController(env.App)
+	suite.Register(controller)
+
+	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
+	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+
+	account := moneyAccountEntity.New(
+		"Test Account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
+	require.NoError(t, err)
+
+	category := paymentCategoryEntity.New(
+		"Test Category",
+		paymentCategoryEntity.WithDescription("Test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
+
+	counterparty1 := counterparty.New(
+		"Test Counterparty",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCounterparty, err := counterpartyService.Create(env.Ctx, counterparty1)
+	require.NoError(t, err)
+
+	// Test 1: Create payment with empty transaction date (should fail validation)
+	formData := url.Values{}
+	formData.Set("Amount", "100.00")
+	formData.Set("AccountID", createdAccount.ID().String())
+	formData.Set("PaymentCategoryID", createdCategory.ID().String())
+	formData.Set("CounterpartyID", createdCounterparty.ID().String())
+	formData.Set("Comment", "Payment with empty date")
+	formData.Set("TransactionDate", "")
+	formData.Set("AccountingPeriod", time.Now().Format(time.DateOnly))
+
+	// This should fail validation since TransactionDate is required
+	response := suite.POST(PaymentBasePath).
+		Form(formData).
+		Expect(t).
+		Status(200) // Returns form with validation errors
+
+	html := response.HTML()
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
+
+	// Verify no payment was created due to validation error
+	payments, err := paymentService.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.Empty(t, payments)
+
+	// Test 2: Create payment with valid transaction date (should succeed)
+	now := time.Now()
+	formData.Set("TransactionDate", now.Format(time.DateOnly))
+
+	suite.POST(PaymentBasePath).
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentBasePath)
+
+	payments, err = paymentService.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.Len(t, payments, 1)
+
+	savedPayment := payments[0]
+	require.Equal(t, int64(10000), savedPayment.Amount().Amount())
+	require.Equal(t, "Payment with empty date", savedPayment.Comment())
+
+	// Verify transaction date is set to the provided date
+	require.Equal(t, now.Format(time.DateOnly), savedPayment.TransactionDate().Format(time.DateOnly))
+	require.NotEqual(t, "0001-01-01", savedPayment.TransactionDate().Format(time.DateOnly))
+}
+
+func TestPaymentController_Create_VerifyIncomeStatementIntegration(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.PaymentRead,
+		permissions.PaymentCreate,
+	)
+
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewPaymentsController(env.App)
+	suite.Register(controller)
+
+	paymentService := env.App.Service(services.PaymentService{}).(*services.PaymentService)
+	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	paymentCategoryService := env.App.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
+	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	financialReportService := env.App.Service(services.FinancialReportService{}).(*services.FinancialReportService)
+
+	account := moneyAccountEntity.New(
+		"Revenue Test Account",
+		money.NewFromFloat(5000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
+	require.NoError(t, err)
+
+	category := paymentCategoryEntity.New(
+		"Software Development Revenue",
+		paymentCategoryEntity.WithDescription("Income from software development"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
+
+	counterparty1 := counterparty.New(
+		"Client Company",
+		counterparty.Customer,
+		counterparty.LegalEntity,
+		counterparty.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCounterparty, err := counterpartyService.Create(env.Ctx, counterparty1)
+	require.NoError(t, err)
+
+	// Create payment with specific date within current year
+	currentYear := time.Now().Year()
+	paymentDate := time.Date(currentYear, time.July, 15, 0, 0, 0, 0, time.UTC)
+
+	formData := url.Values{}
+	formData.Set("Amount", "2500.00")
+	formData.Set("AccountID", createdAccount.ID().String())
+	formData.Set("PaymentCategoryID", createdCategory.ID().String())
+	formData.Set("CounterpartyID", createdCounterparty.ID().String())
+	formData.Set("Comment", "Q3 Software Development Payment")
+	formData.Set("TransactionDate", paymentDate.Format(time.DateOnly))
+	formData.Set("AccountingPeriod", paymentDate.Format(time.DateOnly))
+
+	suite.POST(PaymentBasePath).
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentBasePath)
+
+	// Verify payment was created
+	payments, err := paymentService.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.Len(t, payments, 1)
+
+	savedPayment := payments[0]
+	require.Equal(t, int64(250000), savedPayment.Amount().Amount())
+	require.Equal(t, "Q3 Software Development Payment", savedPayment.Comment())
+	require.Equal(t, paymentDate.Format(time.DateOnly), savedPayment.TransactionDate().Format(time.DateOnly))
+
+	// Generate income statement for the year and verify payment appears in revenue
+	startDate := time.Date(currentYear, time.January, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(currentYear, time.December, 31, 23, 59, 59, 0, time.UTC)
+
+	incomeStatement, err := financialReportService.GenerateIncomeStatement(env.Ctx, startDate, endDate)
+	require.NoError(t, err)
+	require.NotNil(t, incomeStatement)
+
+	// Verify revenue section contains our payment
+	revenueSection := incomeStatement.RevenueSection
+	require.Equal(t, "Revenue", revenueSection.Title)
+	require.NotEmpty(t, revenueSection.LineItems)
+
+	// Find our category in the revenue line items
+	var foundCategory bool
+	for _, lineItem := range revenueSection.LineItems {
+		if lineItem.Name == "Software Development Revenue" {
+			foundCategory = true
+			require.Equal(t, int64(250000), lineItem.Amount.Amount())
+			require.Equal(t, "USD", lineItem.Amount.Currency().Code)
+			require.Greater(t, lineItem.Percentage, 0.0)
+			break
+		}
+	}
+	require.True(t, foundCategory, "Payment category should appear in income statement revenue")
+
+	// Verify total revenue includes our payment
+	require.Equal(t, int64(250000), incomeStatement.RevenueSection.Subtotal.Amount())
+	require.True(t, incomeStatement.IsProfit(), "Should show profit when we have revenue and no expenses")
+}
+
+func TestPaymentController_Create_WithoutCategoryVerifyIncomeStatement(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.PaymentRead,
+		permissions.PaymentCreate,
+	)
+
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env.Ctx, &currency.USD)
+
+	controller := controllers.NewPaymentsController(env.App)
+	suite.Register(controller)
+
+	moneyAccountService := env.App.Service(services.MoneyAccountService{}).(*services.MoneyAccountService)
+	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	financialReportService := env.App.Service(services.FinancialReportService{}).(*services.FinancialReportService)
+
+	account := moneyAccountEntity.New(
+		"Uncategorized Revenue Account",
+		money.NewFromFloat(3000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
+	require.NoError(t, err)
+
+	counterparty1 := counterparty.New(
+		"Uncategorized Client",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCounterparty, err := counterpartyService.Create(env.Ctx, counterparty1)
+	require.NoError(t, err)
+
+	// Create payment without category (empty PaymentCategoryID)
+	currentYear := time.Now().Year()
+	paymentDate := time.Date(currentYear, time.August, 10, 0, 0, 0, 0, time.UTC)
+
+	formData := url.Values{}
+	formData.Set("Amount", "1500.00")
+	formData.Set("AccountID", createdAccount.ID().String())
+	formData.Set("PaymentCategoryID", "") // No category
+	formData.Set("CounterpartyID", createdCounterparty.ID().String())
+	formData.Set("Comment", "Uncategorized Revenue Payment")
+	formData.Set("TransactionDate", paymentDate.Format(time.DateOnly))
+	formData.Set("AccountingPeriod", paymentDate.Format(time.DateOnly))
+
+	// This should fail validation since PaymentCategoryID is required
+	response := suite.POST(PaymentBasePath).
+		Form(formData).
+		Expect(t).
+		Status(200) // Returns form with validation errors
+
+	html := response.HTML()
+	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
+
+	// Verify no payment was created due to validation error
+	startDate := time.Date(currentYear, time.January, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(currentYear, time.December, 31, 23, 59, 59, 0, time.UTC)
+
+	incomeStatement, err := financialReportService.GenerateIncomeStatement(env.Ctx, startDate, endDate)
+	require.NoError(t, err)
+	require.NotNil(t, incomeStatement)
+
+	// Revenue should be empty since no valid payment was created
+	require.Empty(t, incomeStatement.RevenueSection.LineItems)
+	require.Equal(t, int64(0), incomeStatement.RevenueSection.Subtotal.Amount())
+}

@@ -92,3 +92,20 @@ type Counterparty struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
+
+type Debt struct {
+	ID                       string
+	TenantID                 string
+	Type                     string
+	Status                   string
+	CounterpartyID           string
+	OriginalAmount           int64
+	OriginalAmountCurrencyID string
+	OutstandingAmount        int64
+	OutstandingCurrencyID    string
+	Description              string
+	DueDate                  sql.NullTime
+	SettlementTransactionID  sql.NullString
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+}

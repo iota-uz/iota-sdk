@@ -39,7 +39,8 @@
       "Ereyesterday": "Позавчера",
       "ThisWeek": "На этой неделе",
       "LastWeek": "Прошлой неделе",
-      "ThisMonth": "В этом месяце"
+      "ThisMonth": "В этом месяце",
+      "LastMonth": "В прошлом месяце"
     }
   },
   "Scaffold": {

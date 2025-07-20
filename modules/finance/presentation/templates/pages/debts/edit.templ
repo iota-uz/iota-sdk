@@ -1,0 +1,159 @@
+package debts
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type EditPageProps struct {
+	Debt           *viewmodels.Debt
+	Counterparties []*viewmodels.Counterparty
+	Errors         map[string]string
+}
+
+templ EditForm(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col justify-between h-full" id="edit-content">
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-3 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			@components.CounterpartySelect(&components.CounterpartySelectProps{
+				Label:       pageCtx.T("Debts.Single.CounterpartyID"),
+				Placeholder: pageCtx.T("Debts.Single.SelectCounterparty"),
+				Value:       props.Debt.CounterpartyID,
+				Name:        "CounterpartyID",
+				Form:        "save-form",
+			})
+			@components.DebtTypeSelect(&components.DebtTypeSelectProps{
+				Label:       pageCtx.T("Debts.Single.Type"),
+				Placeholder: pageCtx.T("Debts.Single.SelectType"),
+				Value:       props.Debt.Type,
+				Error:       props.Errors["Type"],
+				Attrs: templ.Attributes{
+					"name": "Type",
+					"form": "save-form",
+				},
+			})
+			<div class="flex flex-col gap-2">
+				<label class="text-sm font-medium text-gray-700">
+					{ pageCtx.T("Debts.Single.Status") }
+				</label>
+				<span
+					class={ "px-2 py-1 rounded-full text-xs font-medium w-fit",
+					templ.KV("bg-yellow-100 text-yellow-800", props.Debt.Status == "PENDING"),
+					templ.KV("bg-green-100 text-green-800", props.Debt.Status == "SETTLED"),
+					templ.KV("bg-blue-100 text-blue-800", props.Debt.Status == "PARTIAL"),
+					templ.KV("bg-gray-100 text-gray-800", props.Debt.Status == "WRITTEN_OFF") }
+				>
+					{ pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", props.Debt.Status)) }
+				</span>
+			</div>
+			<div class="flex flex-col gap-2">
+				<label class="text-sm font-medium text-gray-700">
+					{ pageCtx.T("Debts.Single.OriginalAmount") }
+				</label>
+				<span class="text-sm text-gray-900">{ props.Debt.OriginalAmountWithCurrency }</span>
+			</div>
+			<div class="flex flex-col gap-2">
+				<label class="text-sm font-medium text-gray-700">
+					{ pageCtx.T("Debts.Single.OutstandingAmount") }
+				</label>
+				<span class="text-sm text-gray-900">{ props.Debt.OutstandingAmountWithCurrency }</span>
+			</div>
+			@input.Date(&input.Props{
+				Label: pageCtx.T("Debts.Single.DueDate"),
+				Error: props.Errors["DueDate"],
+				Attrs: templ.Attributes{
+					"value": props.Debt.DueDate,
+					"name":  "DueDate",
+					"form":  "save-form",
+				},
+			})
+			@input.TextArea(&input.TextAreaProps{
+				Label: pageCtx.T("Debts.Single._Description"),
+				Value: props.Debt.Description,
+				Attrs: templ.Attributes{
+					"name": "Description",
+					"form": "save-form",
+				},
+				WrapperClass: "col-span-3",
+			})
+		}
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-between px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<div class="flex gap-2">
+				if props.Debt.Status == "PENDING" || props.Debt.Status == "PARTIAL" {
+					@button.Secondary(button.Props{
+						Size: button.SizeMD,
+						Href: fmt.Sprintf("/finance/debts/%s/settle", props.Debt.ID),
+						Icon: icons.CheckCircle(icons.Props{Size: "16"}),
+					}) {
+						{ pageCtx.T("Debts.Single.Settle") }
+					}
+				}
+				if props.Debt.Status == "PENDING" || props.Debt.Status == "PARTIAL" {
+					@button.Danger(button.Props{
+						Size: button.SizeMD,
+						Attrs: templ.Attributes{
+							"hx-post":    fmt.Sprintf("/finance/debts/%s/write-off", props.Debt.ID),
+							"hx-confirm": pageCtx.T("Debts.Single.WriteOffConfirmation"),
+						},
+						Icon: icons.XCircle(icons.Props{Size: "16"}),
+					}) {
+						{ pageCtx.T("Debts.Single.WriteOff") }
+					}
+				}
+			</div>
+			<div class="flex gap-2">
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"hx-delete":  fmt.Sprintf("/finance/debts/%s", props.Debt.ID),
+						"hx-confirm": pageCtx.T("Debts.Single.DeleteConfirmation"),
+					},
+					Icon: icons.Trash(icons.Props{Size: "16"}),
+				}) {
+					{ pageCtx.T("Debts.Single.Delete") }
+				}
+				<form
+					id="save-form"
+					method="post"
+					hx-post={ fmt.Sprintf("/finance/debts/%s", props.Debt.ID) }
+					hx-indicator="#save-btn"
+					hx-target="#edit-content"
+					hx-swap="outerHTML"
+				>
+					@button.Primary(button.Props{
+						Size: button.SizeMD,
+						Attrs: templ.Attributes{
+							"name":  "_action",
+							"value": "save",
+							"id":    "save-btn",
+						},
+					}) {
+						{ pageCtx.T("Save") }
+					}
+				</form>
+			</div>
+		</div>
+	</div>
+}
+
+templ Edit(props *EditPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Debts.Meta.Edit.Title")},
+	}) {
+		@EditForm(props)
+	}
+}

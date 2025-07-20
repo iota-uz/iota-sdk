@@ -1,11 +1,52 @@
 package base
 
-import twmerge "github.com/Oudwins/tailwind-merge-go"
+import (
+	twmerge "github.com/Oudwins/tailwind-merge-go"
+	icons "github.com/iota-uz/icons/phosphor"
+)
+
+type SortDirection string
+
+const (
+	SortDirectionNone SortDirection = ""
+	SortDirectionAsc  SortDirection = "asc"
+	SortDirectionDesc SortDirection = "desc"
+)
+
+func (sd SortDirection) String() string {
+	return string(sd)
+}
+
+func (sd SortDirection) IsAsc() bool {
+	return sd == SortDirectionAsc
+}
+
+func (sd SortDirection) IsDesc() bool {
+	return sd == SortDirectionDesc
+}
+
+func (sd SortDirection) IsNone() bool {
+	return sd == SortDirectionNone
+}
+
+func ParseSortDirection(value string) SortDirection {
+	switch value {
+	case "asc":
+		return SortDirectionAsc
+	case "desc":
+		return SortDirectionDesc
+	default:
+		return SortDirectionNone
+	}
+}
 
 type TableColumn struct {
-	Label string
-	Key   string
-	Class string
+	Label    string
+	Key      string
+	Class    string
+	Sortable bool
+	SortDir  SortDirection
+	SortURL  string // URL for sorting this column
 }
 
 type TableRowProps struct {
@@ -54,11 +95,35 @@ templ Table(props TableProps) {
 			<thead>
 				<tr class="bg-surface-500 text-200">
 					for _, col := range props.Columns {
-						<th
-							class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }
-						>
-							{ col.Label }
-						</th>
+						if col.Sortable {
+							<th
+								class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
+								hx-get={ col.SortURL }
+								hx-target="#table-body"
+								hx-swap="innerHTML"
+								hx-push-url="true"
+								hx-indicator="#table-body"
+							>
+								<div class="flex items-center gap-2">
+									<span>{ col.Label }</span>
+									<span class="sort-indicator">
+										if col.SortDir.IsAsc() {
+											@icons.CaretDown(icons.Props{Size: "16"})
+										} else if col.SortDir.IsDesc() {
+											@icons.CaretUp(icons.Props{Size: "16"})
+										} else {
+											@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
+										}
+									</span>
+								</div>
+							</th>
+						} else {
+							<th
+								class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }
+							>
+								{ col.Label }
+							</th>
+						}
 					}
 				</tr>
 			</thead>
