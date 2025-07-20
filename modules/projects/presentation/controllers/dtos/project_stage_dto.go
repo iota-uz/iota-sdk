@@ -11,25 +11,26 @@ import (
 	projectstage "github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project_stage"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type ProjectStageCreateDTO struct {
-	ProjectID      uuid.UUID `validate:"required"`
-	StageNumber    int       `validate:"min=1"`
-	Description    string    `validate:"max=1000"`
-	TotalAmount    int64     `validate:"required,min=1"`
-	StartDate      *time.Time
-	PlannedEndDate *time.Time
-	FactualEndDate *time.Time
+	ProjectID      string `validate:"required,uuid"`
+	StageNumber    int    `validate:"min=1"`
+	Desc           string `validate:"max=1000"`
+	TotalAmount    int64  `validate:"required,min=1"`
+	StartDate      *shared.DateOnly
+	PlannedEndDate *shared.DateOnly
+	FactualEndDate *shared.DateOnly
 }
 
 type ProjectStageUpdateDTO struct {
 	StageNumber    int    `validate:"min=1"`
-	Description    string `validate:"max=1000"`
+	Desc           string `validate:"max=1000"`
 	TotalAmount    int64  `validate:"required,min=1"`
-	StartDate      *time.Time
-	PlannedEndDate *time.Time
-	FactualEndDate *time.Time
+	StartDate      *shared.DateOnly
+	PlannedEndDate *shared.DateOnly
+	FactualEndDate *shared.DateOnly
 }
 
 func (dto *ProjectStageCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -57,14 +58,34 @@ func (dto *ProjectStageCreateDTO) Ok(ctx context.Context) (map[string]string, bo
 }
 
 func (dto *ProjectStageCreateDTO) ToEntity() projectstage.ProjectStage {
+	projectID, err := uuid.Parse(dto.ProjectID)
+	if err != nil {
+		panic(err)
+	}
+
+	var startDate, plannedEndDate, factualEndDate *time.Time
+
+	if dto.StartDate != nil {
+		t := time.Time(*dto.StartDate)
+		startDate = &t
+	}
+	if dto.PlannedEndDate != nil {
+		t := time.Time(*dto.PlannedEndDate)
+		plannedEndDate = &t
+	}
+	if dto.FactualEndDate != nil {
+		t := time.Time(*dto.FactualEndDate)
+		factualEndDate = &t
+	}
+
 	return projectstage.New(
-		dto.ProjectID,
+		projectID,
 		dto.StageNumber,
 		dto.TotalAmount,
-		projectstage.WithDescription(dto.Description),
-		projectstage.WithStartDate(dto.StartDate),
-		projectstage.WithPlannedEndDate(dto.PlannedEndDate),
-		projectstage.WithFactualEndDate(dto.FactualEndDate),
+		projectstage.WithDescription(dto.Desc),
+		projectstage.WithStartDate(startDate),
+		projectstage.WithPlannedEndDate(plannedEndDate),
+		projectstage.WithFactualEndDate(factualEndDate),
 	)
 }
 
@@ -93,11 +114,26 @@ func (dto *ProjectStageUpdateDTO) Ok(ctx context.Context) (map[string]string, bo
 }
 
 func (dto *ProjectStageUpdateDTO) Apply(existing projectstage.ProjectStage) projectstage.ProjectStage {
+	var startDate, plannedEndDate, factualEndDate *time.Time
+
+	if dto.StartDate != nil {
+		t := time.Time(*dto.StartDate)
+		startDate = &t
+	}
+	if dto.PlannedEndDate != nil {
+		t := time.Time(*dto.PlannedEndDate)
+		plannedEndDate = &t
+	}
+	if dto.FactualEndDate != nil {
+		t := time.Time(*dto.FactualEndDate)
+		factualEndDate = &t
+	}
+
 	updated := existing.UpdateStageNumber(dto.StageNumber)
-	updated = updated.UpdateDescription(dto.Description)
+	updated = updated.UpdateDescription(dto.Desc)
 	updated = updated.UpdateTotalAmount(dto.TotalAmount)
-	updated = updated.UpdateStartDate(dto.StartDate)
-	updated = updated.UpdatePlannedEndDate(dto.PlannedEndDate)
-	updated = updated.UpdateFactualEndDate(dto.FactualEndDate)
+	updated = updated.UpdateStartDate(startDate)
+	updated = updated.UpdatePlannedEndDate(plannedEndDate)
+	updated = updated.UpdateFactualEndDate(factualEndDate)
 	return updated
 }

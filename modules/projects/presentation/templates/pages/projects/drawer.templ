@@ -58,13 +58,13 @@ templ EditDrawer(props *DrawerEditProps) {
 					@components.CounterpartySelect(&components.CounterpartySelectProps{
 						Label:          pageCtx.T("Projects.Single.Counterparty"),
 						Placeholder:    pageCtx.T("Projects.Single.SelectCounterparty"),
-						Value:          props.UpdateData.CounterpartyID.String(),
+						Value:          props.UpdateData.CounterpartyID,
 						Name:           "CounterpartyID",
 						NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
 						Counterparties: props.Counterparties,
 					})
 					@input.TextArea(&input.TextAreaProps{
-						Label: pageCtx.T("Projects.Single.Description"),
+						Label: pageCtx.T("Projects.Single._Description"),
 						Attrs: templ.Attributes{
 							"name": "Description",
 						},
@@ -142,13 +142,13 @@ templ CreateDrawer(props *DrawerCreateProps) {
 					@components.CounterpartySelect(&components.CounterpartySelectProps{
 						Label:          pageCtx.T("Projects.Single.Counterparty"),
 						Placeholder:    pageCtx.T("Projects.Single.SelectCounterparty"),
-						Value:          props.Project.CounterpartyID.String(),
+						Value:          props.Project.CounterpartyID,
 						Name:           "CounterpartyID",
 						NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
 						Counterparties: props.Counterparties,
 					})
 					@input.TextArea(&input.TextAreaProps{
-						Label: pageCtx.T("Projects.Single.Description"),
+						Label: pageCtx.T("Projects.Single._Description"),
 						Attrs: templ.Attributes{
 							"name": "Description",
 						},

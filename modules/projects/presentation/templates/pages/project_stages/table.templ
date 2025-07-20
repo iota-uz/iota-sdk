@@ -40,10 +40,10 @@ templ ProjectStagesTable(props *IndexPageProps) {
 							{ stage.Description }
 						}
 						@base.TableCell(base.TableCellProps{}) {
-							{ fmt.Sprintf("%.2f", float64(stage.TotalAmount)/100) }
+							{ fmt.Sprintf("%.2f", float64(stage.TotalAmount)) }
 						}
 						@base.TableCell(base.TableCellProps{}) {
-							{ fmt.Sprintf("%.2f", float64(stage.PaidAmount)/100) }
+							{ fmt.Sprintf("%.2f", float64(stage.PaidAmount)) }
 						}
 						@base.TableCell(base.TableCellProps{}) {
 							if stage.StartDate != nil {

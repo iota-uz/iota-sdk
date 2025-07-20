@@ -13,15 +13,15 @@ import (
 )
 
 type ProjectCreateDTO struct {
-	CounterpartyID uuid.UUID `validate:"required"`
-	Name           string    `validate:"required,min=2,max=255"`
-	Description    string    `validate:"max=1000"`
+	CounterpartyID string `validate:"required,uuid"`
+	Name           string `validate:"required,min=2,max=255"`
+	Description    string `validate:"max=1000"`
 }
 
 type ProjectUpdateDTO struct {
-	CounterpartyID uuid.UUID `validate:"required"`
-	Name           string    `validate:"required,min=2,max=255"`
-	Description    string    `validate:"max=1000"`
+	CounterpartyID string `validate:"required,uuid"`
+	Name           string `validate:"required,min=2,max=255"`
+	Description    string `validate:"max=1000"`
 }
 
 func (dto *ProjectCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -49,9 +49,14 @@ func (dto *ProjectCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (dto *ProjectCreateDTO) ToEntity(tenantID uuid.UUID) (project.Project, error) {
+	counterpartyID, err := uuid.Parse(dto.CounterpartyID)
+	if err != nil {
+		return nil, err
+	}
+	
 	entity := project.New(
 		dto.Name,
-		dto.CounterpartyID,
+		counterpartyID,
 		project.WithTenantID(tenantID),
 		project.WithDescription(dto.Description),
 	)
@@ -83,7 +88,12 @@ func (dto *ProjectUpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 func (dto *ProjectUpdateDTO) Apply(existing project.Project) (project.Project, error) {
-	updated := existing.UpdateCounterpartyID(dto.CounterpartyID)
+	counterpartyID, err := uuid.Parse(dto.CounterpartyID)
+	if err != nil {
+		return nil, err
+	}
+	
+	updated := existing.UpdateCounterpartyID(counterpartyID)
 	updated = updated.UpdateName(dto.Name)
 	updated = updated.UpdateDescription(dto.Description)
 	return updated, nil
