@@ -1,6 +1,5 @@
 -- +migrate Up
 -- Create debts table for debt management functionality
-
 CREATE TABLE debts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -20,15 +19,23 @@ CREATE TABLE debts (
 
 -- Indexes for performance
 CREATE INDEX debts_tenant_id_idx ON debts (tenant_id);
+
 CREATE INDEX debts_counterparty_id_idx ON debts (counterparty_id);
+
 CREATE INDEX debts_type_idx ON debts (type);
+
 CREATE INDEX debts_status_idx ON debts (status);
+
 CREATE INDEX debts_due_date_idx ON debts (due_date);
+
 CREATE INDEX debts_settlement_transaction_id_idx ON debts (settlement_transaction_id);
+
 CREATE INDEX debts_original_amount_currency_id_idx ON debts (original_amount_currency_id);
+
 CREATE INDEX debts_outstanding_currency_id_idx ON debts (outstanding_currency_id);
 
 -- +migrate Down
 -- Drop debts table and indexes
-
 DROP TABLE IF EXISTS debts;
+
+
