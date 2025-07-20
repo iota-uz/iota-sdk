@@ -36,6 +36,10 @@ func (s *ProjectStageService) GetPaginated(
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
+func (s *ProjectStageService) Count(ctx context.Context) (int64, error) {
+	return s.repo.Count(ctx)
+}
+
 func (s *ProjectStageService) GetByProjectID(ctx context.Context, projectID uuid.UUID) ([]projectstage.ProjectStage, error) {
 	return s.repo.GetByProjectID(ctx, projectID)
 }
