@@ -115,11 +115,6 @@ jobs:
             2. [Second concrete step]
             3. [Continue with ordered steps...]
 
-            ### ⚠️ Risks & Considerations
-            - [List any technical risks]
-            - [Breaking changes]
-            - [Performance implications]
-
             ### ✅ Definition of Done
             - [ ] All listed files created/modified
             - [ ] Tests written and passing
