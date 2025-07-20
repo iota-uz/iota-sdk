@@ -7,6 +7,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/mappers"
@@ -71,26 +72,33 @@ func (c *ProjectStageController) Register(r *mux.Router) {
 }
 
 func (c *ProjectStageController) List(w http.ResponseWriter, r *http.Request) {
-	params := c.getListParams(r)
+	paginationParams := composables.UsePaginated(r)
 
-	entities, err := c.projectStageService.GetPaginated(r.Context(), params.Limit, params.Offset, params.SortBy)
+	entities, err := c.projectStageService.GetPaginated(r.Context(), paginationParams.Limit, paginationParams.Offset, []string{})
 	if err != nil {
 		http.Error(w, "Failed to fetch project stages", http.StatusInternalServerError)
 		return
 	}
 
-	_ = mappers.ProjectStageDomainToViewModels(entities)
-
-	if htmx.IsHxRequest(r) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"message": "Project stages table - templates not implemented yet"}`))
+	// Get total count for pagination
+	total, err := c.projectStageService.Count(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to count project stages", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"message": "Project stages list - templates not implemented yet"}`))
+	viewModels := mappers.ProjectStageDomainToViewModels(entities)
+
+	props := &project_stages.IndexPageProps{
+		ProjectStages:   viewModels,
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), paginationParams.Limit),
+	}
+
+	if htmx.IsHxRequest(r) {
+		templ.Handler(project_stages.ProjectStagesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		templ.Handler(project_stages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
 }
 
 func (c *ProjectStageController) ListByProject(w http.ResponseWriter, r *http.Request) {
@@ -107,18 +115,19 @@ func (c *ProjectStageController) ListByProject(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	_ = mappers.ProjectStageDomainToViewModels(entities)
+	viewModels := mappers.ProjectStageDomainToViewModels(entities)
 
-	if htmx.IsHxRequest(r) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"message": "Project stages by project table - templates not implemented yet"}`))
-		return
+	// For project-filtered views, we don't need pagination since it's typically a smaller set
+	props := &project_stages.IndexPageProps{
+		ProjectStages:   viewModels,
+		PaginationState: nil,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"message": "Project stages by project list - templates not implemented yet"}`))
+	if htmx.IsHxRequest(r) {
+		templ.Handler(project_stages.ProjectStagesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		templ.Handler(project_stages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
 }
 
 func (c *ProjectStageController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {

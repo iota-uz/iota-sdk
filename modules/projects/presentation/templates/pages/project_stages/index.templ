@@ -1,0 +1,22 @@
+package project_stages
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type IndexPageProps struct {
+	ProjectStages   []viewmodels.ProjectStageViewModel
+	PaginationState *pagination.State
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("ProjectStages.Meta.List.Title")},
+	}) {
+		@ProjectStagesContent(props)
+	}
+}

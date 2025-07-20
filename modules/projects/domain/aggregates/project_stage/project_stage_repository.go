@@ -30,6 +30,7 @@ type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (ProjectStage, error)
 	GetAll(ctx context.Context) ([]ProjectStage, error)
 	GetPaginated(ctx context.Context, limit, offset int, sortBy []string) ([]ProjectStage, error)
+	Count(ctx context.Context) (int64, error)
 	GetByProjectID(ctx context.Context, projectID uuid.UUID) ([]ProjectStage, error)
 	GetNextStageNumber(ctx context.Context, projectID uuid.UUID) (int, error)
 	UpdatePaidAmounts(ctx context.Context, stageID uuid.UUID) error
