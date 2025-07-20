@@ -1,0 +1,52 @@
+package project_stages
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+templ ProjectStagesContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ pageCtx.T("NavigationLinks.ProjectStages") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg" x-data="dateFns">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/project-stages"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@filters.Default(&filters.Props{
+					Fields: []filters.SearchField{
+						{
+							Label: pageCtx.T("ProjectStages.List._Description"),
+							Key:   "description",
+						},
+						{
+							Label: pageCtx.T("ProjectStages.List.StageNumber"),
+							Key:   "stage_number",
+						},
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal,
+					Href: "/project-stages/new/drawer",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					Attrs: templ.Attributes{
+						"hx-get":    "/project-stages/new/drawer",
+						"hx-target": "#view-drawer",
+						"hx-swap":   "innerHTML",
+					},
+				}) {
+					{ pageCtx.T("ProjectStages.List.New") }
+				}
+			</form>
+			@ProjectStagesTable(props)
+		</div>
+	</div>
+}
