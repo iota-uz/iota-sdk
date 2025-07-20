@@ -9,7 +9,7 @@
 -   Do not indent code manually.
 -   Error handling: use `pkg/serrors` for standard error types
 -   When writing a mapper function, always use utilities from `pkg/mapping` to ensure consistency
--   PREFER `mcp__bloom__search_code` for semantic search over manual file searching when you don't know exact file names or when exploring the codebase to understand functionality
+-   PREFER `mcp__bloom__search_code(repo: "iota-uz/iota-sdk")` for semantic search over manual file searching when you don't know exact file names or when exploring the codebase to understand functionality
 
 ## DevHub MCP Tools
 

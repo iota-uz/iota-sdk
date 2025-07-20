@@ -15,10 +15,11 @@ import (
 )
 
 type DrawerEditProps struct {
-	Account    *viewmodels.MoneyAccount
-	UpdateData *viewmodels.MoneyAccountUpdateDTO
-	Currencies []*coreviewmodels.Currency
-	Errors     map[string]string
+	Account      *viewmodels.MoneyAccount
+	UpdateData   *viewmodels.MoneyAccountUpdateDTO
+	Currencies   []*coreviewmodels.Currency
+	Transactions []*viewmodels.Transaction
+	Errors       map[string]string
 }
 
 type DrawerCreateProps struct {
@@ -45,6 +46,9 @@ templ EditDrawer(props *DrawerEditProps) {
 					@tab.List(tab.ListProps{Class: "px-6"}) {
 						@tab.Button("general") {
 							{ pageCtx.T("MoneyAccounts.Single.General") }
+						}
+						@tab.Button("transactions") {
+							{ pageCtx.T("MoneyAccounts.Single.Transactions") }
 						}
 						@tab.Button("edit") {
 							{ pageCtx.T("MoneyAccounts.Single.Edit") }
@@ -104,6 +108,12 @@ templ EditDrawer(props *DrawerEditProps) {
 							{ pageCtx.T("MoneyAccounts.Single.Transfer") }
 						}
 					</div>
+				}
+				@tab.Content("transactions") {
+					@TransactionsTab(&TransactionsTabProps{
+						AccountID:    props.Account.ID,
+						Transactions: props.Transactions,
+					})
 				}
 				@tab.Content("edit") {
 					<form

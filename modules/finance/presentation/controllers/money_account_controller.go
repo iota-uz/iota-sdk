@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,9 +14,11 @@ import (
 	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/moneyaccounts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 
 	moneyAccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
@@ -35,6 +38,7 @@ type MoneyAccountController struct {
 	moneyAccountService *services.MoneyAccountService
 	transactionService  *services.TransactionService
 	currencyService     *coreservices.CurrencyService
+	transactionQuery    query.TransactionQueryRepository
 	basePath            string
 	tableDefinition     table.TableDefinition
 }
@@ -53,6 +57,7 @@ func NewMoneyAccountController(app application.Application) application.Controll
 		moneyAccountService: app.Service(services.MoneyAccountService{}).(*services.MoneyAccountService),
 		transactionService:  app.Service(services.TransactionService{}).(*services.TransactionService),
 		currencyService:     app.Service(coreservices.CurrencyService{}).(*coreservices.CurrencyService),
+		transactionQuery:    query.NewPgTransactionQueryRepository(),
 		basePath:            basePath,
 		tableDefinition:     tableDefinition,
 	}
@@ -84,6 +89,7 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/transfer/drawer", c.GetTransferDrawer).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}/transfer", c.CreateTransfer).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/transactions", c.GetAccountTransactions).Methods(http.MethodGet)
 }
 
 func (c *MoneyAccountController) viewModelCurrencies(r *http.Request) ([]*coreviewmodels.Currency, error) {
@@ -241,11 +247,19 @@ func (c *MoneyAccountController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Get recent transactions for this account (limit to 10)
+	transactions, err := c.getAccountTransactions(r.Context(), id, 10)
+	if err != nil {
+		http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
+		return
+	}
+
 	props := &moneyaccounts.DrawerEditProps{
-		Account:    mappers.MoneyAccountToViewModel(entity),
-		UpdateData: mappers.MoneyAccountToViewUpdateModel(entity),
-		Currencies: currencies,
-		Errors:     map[string]string{},
+		Account:      mappers.MoneyAccountToViewModel(entity),
+		UpdateData:   mappers.MoneyAccountToViewUpdateModel(entity),
+		Currencies:   currencies,
+		Transactions: transactions,
+		Errors:       map[string]string{},
 	}
 	templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -490,27 +504,182 @@ func (c *MoneyAccountController) CreateTransfer(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Create transfer amount using source account's currency
-	transferAmount := money.NewFromFloat(dto.Amount, sourceAccount.Balance().Currency().Code)
+	// Get destination account to check currency compatibility
+	destinationAccount, err := c.moneyAccountService.GetByID(r.Context(), destinationAccountID)
+	if err != nil {
+		http.Error(w, "Error retrieving destination account", http.StatusInternalServerError)
+		return
+	}
 
-	// Create transfer transaction
+	// Check if this is a cross-currency transfer
+	sourceCurrency := sourceAccount.Balance().Currency().Code
+	destCurrency := destinationAccount.Balance().Currency().Code
+	isCrossCurrency := sourceCurrency != destCurrency
+
+	// Create transaction amount using source account's currency
+	transferAmount := money.NewFromFloat(dto.Amount, sourceCurrency)
+
 	now := time.Now()
-	transferTransaction := transaction.New(
-		transferAmount,
-		transaction.Transfer,
-		transaction.WithTenantID(tenantID),
-		transaction.WithOriginAccountID(sourceAccountID),
-		transaction.WithDestinationAccountID(destinationAccountID),
-		transaction.WithTransactionDate(now),
-		transaction.WithAccountingPeriod(now),
-		transaction.WithComment(dto.Comment),
-	)
+	var transferTransaction transaction.Transaction
 
-	_, err = c.transactionService.Create(r.Context(), transferTransaction)
+	if isCrossCurrency || dto.IsExchange {
+		// Cross-currency transfer - create an EXCHANGE transaction
+		if !dto.IsExchange || dto.ExchangeRate == nil || *dto.ExchangeRate <= 0 {
+			http.Error(w, "Exchange rate is required for cross-currency transfers", http.StatusBadRequest)
+			return
+		}
+
+		// Create destination amount in destination currency
+		destinationAmount := money.NewFromFloat(dto.GetDestinationAmount(), destCurrency)
+
+		transferTransaction = transaction.New(
+			transferAmount,
+			transaction.Exchange,
+			transaction.WithTenantID(tenantID),
+			transaction.WithOriginAccountID(sourceAccountID),
+			transaction.WithDestinationAccountID(destinationAccountID),
+			transaction.WithTransactionDate(now),
+			transaction.WithAccountingPeriod(now),
+			transaction.WithComment(dto.Comment),
+			transaction.WithExchangeRate(func() *float64 { rate := dto.GetExchangeRate(); return &rate }()),
+			transaction.WithDestinationAmount(destinationAmount),
+		)
+	} else {
+		// Same currency transfer - create a regular TRANSFER transaction
+		transferTransaction = transaction.New(
+			transferAmount,
+			transaction.Transfer,
+			transaction.WithTenantID(tenantID),
+			transaction.WithOriginAccountID(sourceAccountID),
+			transaction.WithDestinationAccountID(destinationAccountID),
+			transaction.WithTransactionDate(now),
+			transaction.WithAccountingPeriod(now),
+			transaction.WithComment(dto.Comment),
+		)
+	}
+
+	// Create transfer transaction and update both account balances
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.transactionService.Create(txCtx, transferTransaction)
+		if err != nil {
+			return err
+		}
+
+		// Recalculate balance for source account
+		if err := c.moneyAccountService.RecalculateBalance(txCtx, sourceAccountID); err != nil {
+			return err
+		}
+
+		// Recalculate balance for destination account
+		if err := c.moneyAccountService.RecalculateBalance(txCtx, destinationAccountID); err != nil {
+			return err
+		}
+
+		return nil
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	shared.Redirect(w, r, c.basePath)
+}
+
+// getAccountTransactions retrieves transactions for a specific account
+func (c *MoneyAccountController) getAccountTransactions(ctx context.Context, accountID fmt.Stringer, limit int) ([]*viewmodels.Transaction, error) {
+	// Build query to find transactions where this account is either source or destination
+	params := &query.FindParams{
+		Limit:  limit,
+		Offset: 0,
+		SortBy: query.SortBy{
+			Fields: []repo.SortByField[query.Field]{
+				{
+					Field:     query.FieldTransactionDate,
+					Ascending: false,
+				},
+			},
+		},
+		Filters: []query.Filter{
+			{
+				Column: query.FieldOriginAccountID,
+				Filter: repo.Eq(accountID.String()),
+			},
+		},
+	}
+
+	// Add destination account filter with OR logic
+	// Note: This is a simplified approach. In a real implementation,
+	// you might want to use a more sophisticated OR query
+	transactions1, _, err := c.transactionQuery.FindTransactions(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Query for transactions where this account is the destination
+	params.Filters = []query.Filter{
+		{
+			Column: query.FieldDestinationAccountID,
+			Filter: repo.Eq(accountID.String()),
+		},
+	}
+
+	transactions2, _, err := c.transactionQuery.FindTransactions(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Combine and deduplicate transactions
+	txMap := make(map[string]*viewmodels.Transaction)
+	for _, tx := range transactions1 {
+		txMap[tx.ID] = tx
+	}
+	for _, tx := range transactions2 {
+		txMap[tx.ID] = tx
+	}
+
+	// Convert map back to slice and sort by date
+	result := make([]*viewmodels.Transaction, 0, len(txMap))
+	for _, tx := range txMap {
+		result = append(result, tx)
+	}
+
+	// Sort by transaction date (most recent first)
+	// Note: This is a simple sort. For better performance with large datasets,
+	// consider doing this at the database level
+	for i := 0; i < len(result); i++ {
+		for j := i + 1; j < len(result); j++ {
+			if result[i].TransactionDate.Before(result[j].TransactionDate) {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
+	}
+
+	// Limit the results
+	if len(result) > limit {
+		result = result[:limit]
+	}
+
+	return result, nil
+}
+
+// GetAccountTransactions handles the HTMX request for the transactions tab
+func (c *MoneyAccountController) GetAccountTransactions(w http.ResponseWriter, r *http.Request) {
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Get transactions for this account
+	transactions, err := c.getAccountTransactions(r.Context(), id, 10)
+	if err != nil {
+		http.Error(w, "Error retrieving account transactions", http.StatusInternalServerError)
+		return
+	}
+
+	props := &moneyaccounts.TransactionsTabProps{
+		AccountID:    id.String(),
+		Transactions: transactions,
+	}
+	templ.Handler(moneyaccounts.TransactionsTab(props), templ.WithStreaming()).ServeHTTP(w, r)
 }

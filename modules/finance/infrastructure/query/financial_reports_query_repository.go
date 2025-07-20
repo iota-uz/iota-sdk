@@ -131,7 +131,7 @@ const (
 	// Query to get cashflow by category for operating activities
 	selectCashflowByCategory = `
 		WITH cashflow_data AS (
-			-- Inflows (deposits)
+			-- Inflows (deposits TO this account)
 			SELECT 
 				'inflow' as flow_type,
 				COALESCE(pc.id, '00000000-0000-0000-0000-000000000000'::uuid) as category_id,
@@ -142,19 +142,19 @@ const (
 			FROM transactions t
 			INNER JOIN payments p ON t.id = p.transaction_id
 			LEFT JOIN payment_categories pc ON p.payment_category_id = pc.id
-			LEFT JOIN money_accounts ma ON t.origin_account_id = ma.id
+			LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
 			WHERE t.tenant_id = $1
 				AND t.transaction_type = 'DEPOSIT'
 				AND t.accounting_period >= $2
 				AND t.accounting_period <= $3
-				AND t.origin_account_id = $4
+				AND t.destination_account_id = $4
 			GROUP BY COALESCE(pc.id, '00000000-0000-0000-0000-000000000000'::uuid), 
 			         COALESCE(pc.name, 'Uncategorized'), 
 			         ma.balance_currency_id
 			
 			UNION ALL
 			
-			-- Outflows (withdrawals)
+			-- Outflows (withdrawals FROM this account)
 			SELECT 
 				'outflow' as flow_type,
 				ec.id as category_id,
@@ -165,12 +165,12 @@ const (
 			FROM transactions t
 			INNER JOIN expenses e ON t.id = e.transaction_id
 			INNER JOIN expense_categories ec ON e.category_id = ec.id
-			LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
+			LEFT JOIN money_accounts ma ON t.origin_account_id = ma.id
 			WHERE t.tenant_id = $1
 				AND t.transaction_type = 'WITHDRAWAL'
 				AND t.accounting_period >= $2
 				AND t.accounting_period <= $3
-				AND t.destination_account_id = $4
+				AND t.origin_account_id = $4
 			GROUP BY ec.id, ec.name, ma.balance_currency_id
 		)
 		SELECT * FROM cashflow_data
@@ -179,7 +179,7 @@ const (
 	// Query to get monthly cashflow by category
 	selectMonthlyCashflowByCategory = `
 		WITH cashflow_data AS (
-			-- Monthly Inflows
+			-- Monthly Inflows (deposits TO this account)
 			SELECT 
 				'inflow' as flow_type,
 				COALESCE(pc.id, '00000000-0000-0000-0000-000000000000'::uuid) as category_id,
@@ -192,12 +192,12 @@ const (
 			FROM transactions t
 			INNER JOIN payments p ON t.id = p.transaction_id
 			LEFT JOIN payment_categories pc ON p.payment_category_id = pc.id
-			LEFT JOIN money_accounts ma ON t.origin_account_id = ma.id
+			LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
 			WHERE t.tenant_id = $1
 				AND t.transaction_type = 'DEPOSIT'
 				AND t.accounting_period >= $2
 				AND t.accounting_period <= $3
-				AND t.origin_account_id = $4
+				AND t.destination_account_id = $4
 			GROUP BY COALESCE(pc.id, '00000000-0000-0000-0000-000000000000'::uuid), 
 			         COALESCE(pc.name, 'Uncategorized'),
 			         EXTRACT(YEAR FROM t.accounting_period),
@@ -206,7 +206,7 @@ const (
 			
 			UNION ALL
 			
-			-- Monthly Outflows
+			-- Monthly Outflows (withdrawals FROM this account)
 			SELECT 
 				'outflow' as flow_type,
 				ec.id as category_id,
@@ -219,12 +219,12 @@ const (
 			FROM transactions t
 			INNER JOIN expenses e ON t.id = e.transaction_id
 			INNER JOIN expense_categories ec ON e.category_id = ec.id
-			LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
+			LEFT JOIN money_accounts ma ON t.origin_account_id = ma.id
 			WHERE t.tenant_id = $1
 				AND t.transaction_type = 'WITHDRAWAL'
 				AND t.accounting_period >= $2
 				AND t.accounting_period <= $3
-				AND t.destination_account_id = $4
+				AND t.origin_account_id = $4
 			GROUP BY ec.id, ec.name,
 			         EXTRACT(YEAR FROM t.accounting_period),
 			         EXTRACT(MONTH FROM t.accounting_period),

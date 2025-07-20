@@ -9,6 +9,7 @@ const (
 	ResourceExpense         permission.Resource = "expense"
 	ResourcePayment         permission.Resource = "payment"
 	ResourceExpenseCategory permission.Resource = "expense_category"
+	ResourceDebt            permission.Resource = "debt"
 )
 
 var (
@@ -96,6 +97,34 @@ var (
 		Action:   permission.ActionDelete,
 		Modifier: permission.ModifierAll,
 	}
+	DebtCreate = &permission.Permission{
+		ID:       uuid.MustParse("7a8b9c1d-2e3f-4a5b-6c7d-8e9f0a1b2c3d"),
+		Name:     "Debt.Create",
+		Resource: ResourceDebt,
+		Action:   permission.ActionCreate,
+		Modifier: permission.ModifierAll,
+	}
+	DebtRead = &permission.Permission{
+		ID:       uuid.MustParse("8b9c1d2e-3f4a-5b6c-7d8e-9f0a1b2c3d4e"),
+		Name:     "Debt.Read",
+		Resource: ResourceDebt,
+		Action:   permission.ActionRead,
+		Modifier: permission.ModifierAll,
+	}
+	DebtUpdate = &permission.Permission{
+		ID:       uuid.MustParse("9c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f"),
+		Name:     "Debt.Update",
+		Resource: ResourceDebt,
+		Action:   permission.ActionUpdate,
+		Modifier: permission.ModifierAll,
+	}
+	DebtDelete = &permission.Permission{
+		ID:       uuid.MustParse("1d2e3f4a-5b6c-7d8e-9f0a-1b2c3d4e5f6a"),
+		Name:     "Debt.Delete",
+		Resource: ResourceDebt,
+		Action:   permission.ActionDelete,
+		Modifier: permission.ModifierAll,
+	}
 )
 
 var Permissions = []*permission.Permission{
@@ -111,4 +140,8 @@ var Permissions = []*permission.Permission{
 	ExpenseCategoryRead,
 	ExpenseCategoryUpdate,
 	ExpenseCategoryDelete,
+	DebtCreate,
+	DebtRead,
+	DebtUpdate,
+	DebtDelete,
 }

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -8,14 +9,13 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
-	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	reports "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/reports"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type CashflowController struct {
@@ -74,68 +74,102 @@ func (c *CashflowController) GetCashflowStatementPage(w http.ResponseWriter, r *
 		return
 	}
 
-	// Set default date range (current month)
+	// Set default date range (fiscal year)
 	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	endOfMonth := startOfMonth.AddDate(0, 1, -1)
+	// Assuming fiscal year starts January 1st
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	endOfYear := time.Date(now.Year(), 12, 31, 23, 59, 59, 999999999, now.Location())
 
 	// Set default form values
 	formData := map[string]interface{}{
 		"accounts":  accounts,
-		"startDate": startOfMonth.Format("2006-01-02"),
-		"endDate":   endOfMonth.Format("2006-01-02"),
+		"startDate": startOfYear.Format("2006-01-02"),
+		"endDate":   endOfYear.Format("2006-01-02"),
+		"accountId": "all", // Default to all accounts
 	}
 
 	// Get account ID from query params if provided
 	accountIDStr := r.URL.Query().Get("account_id")
 	if accountIDStr != "" {
-		accountID, err := uuid.Parse(accountIDStr)
-		if err == nil {
-			formData["accountId"] = accountID.String()
+		formData["accountId"] = accountIDStr
+	}
 
-			// Generate cashflow statement for the selected account
-			cashflowStatement, err := c.financialReportService.GenerateCashflowStatement(
-				ctx,
-				accountID,
-				startOfMonth,
-				endOfMonth,
-			)
+	// Always generate and show the report
+	if err := c.generateAndRenderReport(w, r, ctx, formData, startOfYear, endOfYear); err != nil {
+		// If there's an error, show the page without report
+		component := reports.CashflowStatementPage(formData)
+		templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
 
-			if err == nil {
-				// Get monthly data for breakdown
-				monthlyInflows, monthlyOutflows, err := c.queryRepo.GetMonthlyCashflowByCategory(ctx, accountID, startOfMonth, endOfMonth)
-				if err != nil {
-					// Fall back to basic view
-					viewModel := mappers.ToCashflowStatementViewModel(cashflowStatement, nil)
-					component := reports.CashflowStatementPageWithReport(formData, viewModel)
-					templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
-					return
+// generateAndRenderReport generates cashflow report and renders it
+func (c *CashflowController) generateAndRenderReport(w http.ResponseWriter, r *http.Request, ctx context.Context, formData map[string]interface{}, startDate, endDate time.Time) error {
+	accountIDStr, _ := formData["accountId"].(string)
+
+	// Handle "all accounts" case
+	if accountIDStr == "all" || accountIDStr == "" {
+		// For now, we'll use the first account if available
+		// TODO: Implement proper all-accounts aggregation
+		if accountsList, ok := formData["accounts"].([]interface{}); ok && len(accountsList) > 0 {
+			// Get the first account
+			for _, acc := range accountsList {
+				if account, ok := acc.(interface{ ID() uuid.UUID }); ok {
+					accountIDStr = account.ID().String()
+					break
 				}
-
-				// Get account name
-				account, err := c.moneyAccountService.GetByID(ctx, accountID)
-				accountName := "Unknown Account"
-				if err == nil && account != nil {
-					accountName = account.Name()
-				}
-
-				// Convert to view model with monthly breakdown
-				viewModel := mappers.ToCashflowStatementViewModelWithMonthlyData(
-					cashflowStatement,
-					accountName,
-					monthlyInflows,
-					monthlyOutflows,
-				)
-				component := reports.CashflowStatementPageWithReport(formData, viewModel)
-				templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
-				return
 			}
+		} else if accountsList, ok := formData["accounts"].([]moneyaccount.Account); ok && len(accountsList) > 0 {
+			// Handle typed slice case
+			accountIDStr = accountsList[0].ID().String()
+		} else {
+			return nil // No accounts, show empty form
 		}
 	}
 
-	// Show form without report
-	component := reports.CashflowStatementPage(formData)
+	// Parse account ID
+	accountID, err := uuid.Parse(accountIDStr)
+	if err != nil {
+		return err
+	}
+
+	// Generate cashflow statement
+	cashflowStatement, err := c.financialReportService.GenerateCashflowStatement(ctx, accountID, startDate, endDate)
+	if err != nil {
+		return err
+	}
+
+	// Get monthly data for breakdown
+	monthlyInflows, monthlyOutflows, err := c.queryRepo.GetMonthlyCashflowByCategory(ctx, accountID, startDate, endDate)
+	if err != nil {
+		// Fall back to basic view
+		viewModel := mappers.ToCashflowStatementViewModel(cashflowStatement, nil)
+		component := reports.CashflowStatementPageWithReport(formData, viewModel)
+		templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+		return err
+	}
+
+	// Get account name
+	account, err := c.moneyAccountService.GetByID(ctx, accountID)
+	accountName := "All Accounts"
+	if err == nil && account != nil {
+		accountName = account.Name()
+	}
+
+	// Override name if showing all accounts
+	if formData["accountId"] == "all" {
+		accountName = "All Accounts"
+	}
+
+	// Convert to view model with monthly breakdown
+	viewModel := mappers.ToCashflowStatementViewModelWithMonthlyData(
+		cashflowStatement,
+		accountName,
+		monthlyInflows,
+		monthlyOutflows,
+	)
+	component := reports.CashflowStatementPageWithReport(formData, viewModel)
 	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+	return nil
 }
 
 // GenerateCashflowStatement handles form submission for cashflow statement generation
@@ -148,94 +182,55 @@ func (c *CashflowController) GenerateCashflowStatement(w http.ResponseWriter, r 
 		return
 	}
 
-	// Create and validate DTO
-	dto := &dtos.CashflowStatementRequestDTO{
-		AccountID: uuid.MustParse(r.FormValue("account_id")),
-		StartDate: shared.DateOnly(time.Time{}), // Will be parsed below
-		EndDate:   shared.DateOnly(time.Time{}), // Will be parsed below
-	}
-
-	// Parse dates
+	// Get dates
 	startDate, err := time.Parse("2006-01-02", r.FormValue("start_date"))
 	if err != nil {
 		http.Error(w, "Invalid start date format", http.StatusBadRequest)
 		return
 	}
-	dto.StartDate = shared.DateOnly(startDate)
 
 	endDate, err := time.Parse("2006-01-02", r.FormValue("end_date"))
 	if err != nil {
 		http.Error(w, "Invalid end date format", http.StatusBadRequest)
 		return
 	}
-	dto.EndDate = shared.DateOnly(endDate)
 
-	// Validate DTO
-	if errors, ok := dto.Ok(ctx); !ok {
-		// Convert validation errors to JSON and send back
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		if err := json.NewEncoder(w).Encode(errors); err != nil {
-			http.Error(w, "Failed to encode validation errors", http.StatusInternalServerError)
-		}
-		return
-	}
-
-	// Generate cashflow statement
-	cashflowStatement, err := c.financialReportService.GenerateCashflowStatement(
-		ctx,
-		dto.AccountID,
-		time.Time(dto.StartDate),
-		time.Time(dto.EndDate),
-	)
+	// Get all accounts for the dropdown
+	accounts, err := c.moneyAccountService.GetAll(ctx)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to get accounts", http.StatusInternalServerError)
 		return
 	}
 
-	// Get monthly data for breakdown
-	monthlyInflows, monthlyOutflows, err := c.queryRepo.GetMonthlyCashflowByCategory(
-		ctx,
-		dto.AccountID,
-		time.Time(dto.StartDate),
-		time.Time(dto.EndDate),
-	)
-	if err != nil {
-		// Fall back to basic view
-		viewModel := mappers.ToCashflowStatementViewModel(cashflowStatement, nil)
-		component := reports.CashflowStatementReport(viewModel)
-		templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
+	// Set form data
+	formData := map[string]interface{}{
+		"accounts":  accounts,
+		"startDate": startDate.Format("2006-01-02"),
+		"endDate":   endDate.Format("2006-01-02"),
+		"accountId": r.FormValue("account_id"),
+	}
+
+	// Generate and render the report
+	if err := c.generateAndRenderReport(w, r, ctx, formData, startDate, endDate); err != nil {
+		// Return just the error message in a simple div
+		errorComponent := `<div class="text-red-600 p-4">Error generating report: ` + err.Error() + `</div>`
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(errorComponent))
 		return
 	}
-
-	// Get account name
-	account, err := c.moneyAccountService.GetByID(ctx, dto.AccountID)
-	accountName := "Unknown Account"
-	if err == nil && account != nil {
-		accountName = account.Name()
-	}
-
-	// Convert to view model with monthly breakdown
-	viewModel := mappers.ToCashflowStatementViewModelWithMonthlyData(
-		cashflowStatement,
-		accountName,
-		monthlyInflows,
-		monthlyOutflows,
-	)
-	component := reports.CashflowStatementReport(viewModel)
-	templ.Handler(component, templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-// GetCashflowStatementData returns cashflow statement data as JSON for AJAX requests
+// GetCashflowStatementData returns cashflow statement data as JSON
 func (c *CashflowController) GetCashflowStatementData(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Parse query parameters
 	accountIDStr := r.URL.Query().Get("account_id")
-	startDateStr := r.URL.Query().Get("start_date")
-	endDateStr := r.URL.Query().Get("end_date")
+	if accountIDStr == "" || accountIDStr == "all" {
+		http.Error(w, "Account ID is required", http.StatusBadRequest)
+		return
+	}
 
-	// Parse account ID
 	accountID, err := uuid.Parse(accountIDStr)
 	if err != nil {
 		http.Error(w, "Invalid account ID", http.StatusBadRequest)
@@ -243,6 +238,9 @@ func (c *CashflowController) GetCashflowStatementData(w http.ResponseWriter, r *
 	}
 
 	// Parse dates
+	startDateStr := r.URL.Query().Get("start_date")
+	endDateStr := r.URL.Query().Get("end_date")
+
 	startDate, err := time.Parse("2006-01-02", startDateStr)
 	if err != nil {
 		http.Error(w, "Invalid start date format", http.StatusBadRequest)

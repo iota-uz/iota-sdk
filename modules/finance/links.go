@@ -54,6 +54,21 @@ var (
 		Permissions: nil,
 		Children:    nil,
 	}
+	DebtsItem = types.NavigationItem{
+		Name:        "NavigationLinks.Debts",
+		Href:        "/finance/debts",
+		Permissions: nil,
+		Children:    nil,
+	}
+	EnumsItem = types.NavigationItem{
+		Name:        "NavigationLinks.Finance.Enums",
+		Href:        "/finance/enums",
+		Permissions: nil,
+		Children: []types.NavigationItem{
+			ExpenseCategoriesItem,
+			PaymentCategoriesItem,
+		},
+	}
 	ReportsItem = types.NavigationItem{
 		Name:        "NavigationLinks.Reports",
 		Href:        "/finance/reports",
@@ -81,13 +96,13 @@ var FinanceItem = types.NavigationItem{
 	Icon: icons.Money(icons.Props{Size: "20"}),
 	Children: []types.NavigationItem{
 		TransactionsItem,
-		ExpenseCategoriesItem,
-		PaymentCategoriesItem,
 		PaymentsItem,
 		ExpensesItem,
+		DebtsItem,
 		AccountsItem,
 		CounterpartiesItem,
 		InventoryItem,
+		EnumsItem,
 		ReportsItem,
 	},
 }

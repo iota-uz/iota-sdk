@@ -1,0 +1,74 @@
+{
+  "NavigationLinks": {
+    "Projects": "Projects",
+    "ProjectStages": "Project Stages"
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Projects"
+      },
+      "Edit": {
+        "Title": "Edit project"
+      },
+      "New": {
+        "Title": "New project"
+      }
+    },
+    "List": {
+      "New": "New Project",
+      "Name": "Name",
+      "Counterparty": "Counterparty",
+      "_Description": "Description",
+      "NoProjects": {
+        "Title": "No projects found",
+        "_Description": "There are no projects yet. Click 'New Project' to create one."
+      }
+    },
+    "Single": {
+      "Name": "Name",
+      "Counterparty": "Counterparty",
+      "SelectCounterparty": "Select counterparty",
+      "NoCounterpartiesFound": "No counterparties found",
+      "_Description": "Description",
+      "DeleteConfirmation": "Are you sure you want to delete this project?"
+    }
+  },
+  "ProjectStages": {
+    "Meta": {
+      "List": {
+        "Title": "Project Stages"
+      },
+      "Edit": {
+        "Title": "Edit project stage"
+      },
+      "New": {
+        "Title": "New project stage"
+      }
+    },
+    "List": {
+      "New": "New Project Stage",
+      "StageNumber": "Stage Number",
+      "_Description": "Description",
+      "TotalAmount": "Total Amount",
+      "PaidAmount": "Paid Amount",
+      "StartDate": "Start Date",
+      "PlannedEndDate": "Planned End Date",
+      "FactualEndDate": "Actual End Date",
+      "NoProjectStages": {
+        "Title": "No project stages found",
+        "_Description": "There are no project stages yet. Click 'New Project Stage' to create one."
+      }
+    },
+    "Single": {
+      "StageNumber": "Stage Number",
+      "_Description": "Description",
+      "TotalAmount": "Total Amount",
+      "PaidAmount": "Paid Amount",
+      "StartDate": "Start Date",
+      "PlannedEndDate": "Planned End Date",
+      "FactualEndDate": "Actual End Date",
+      "DeleteConfirmation": "Are you sure you want to delete this project stage?"
+    }
+  }
+}

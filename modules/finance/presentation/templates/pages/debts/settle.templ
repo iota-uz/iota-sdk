@@ -1,0 +1,130 @@
+package debts
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type SettlePageProps struct {
+	Debt         *viewmodels.Debt
+	Transactions []*viewmodels.Transaction
+	Errors       map[string]string
+}
+
+templ SettleForm(props *SettlePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col justify-between h-full" id="settle-content">
+		@card.Card(card.Props{
+			Class:        "grid grid-cols-2 gap-4",
+			WrapperClass: "m-6",
+		}) {
+			<div class="col-span-2 border-b pb-4 mb-4">
+				<h2 class="text-lg font-semibold text-gray-900">
+					{ pageCtx.T("Debts.Single.Settle") }
+				</h2>
+				<p class="text-sm text-gray-600 mt-1">
+					{ fmt.Sprintf("%s: %s", pageCtx.T("Debts.Single.Counterparty"), props.Debt.CounterpartyName) }
+				</p>
+			</div>
+			<div class="flex flex-col gap-2">
+				<label class="text-sm font-medium text-gray-700">
+					{ pageCtx.T("Debts.Single.Type") }
+				</label>
+				<span
+					class={ "px-2 py-1 rounded-full text-xs font-medium w-fit", 
+					templ.KV("bg-green-100 text-green-800", props.Debt.Type == "RECEIVABLE"),
+					templ.KV("bg-red-100 text-red-800", props.Debt.Type == "PAYABLE") }
+				>
+					{ pageCtx.T(fmt.Sprintf("Debts.Types.%s", props.Debt.Type)) }
+				</span>
+			</div>
+			<div class="flex flex-col gap-2">
+				<label class="text-sm font-medium text-gray-700">
+					{ pageCtx.T("Debts.Single.Status") }
+				</label>
+				<span
+					class={ "px-2 py-1 rounded-full text-xs font-medium w-fit",
+					templ.KV("bg-yellow-100 text-yellow-800", props.Debt.Status == "PENDING"),
+					templ.KV("bg-blue-100 text-blue-800", props.Debt.Status == "PARTIAL") }
+				>
+					{ pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", props.Debt.Status)) }
+				</span>
+			</div>
+			<div class="flex flex-col gap-2">
+				<label class="text-sm font-medium text-gray-700">
+					{ pageCtx.T("Debts.Single.OriginalAmount") }
+				</label>
+				<span class="text-sm text-gray-900">{ props.Debt.OriginalAmountWithCurrency }</span>
+			</div>
+			<div class="flex flex-col gap-2">
+				<label class="text-sm font-medium text-gray-700">
+					{ pageCtx.T("Debts.Single.OutstandingAmount") }
+				</label>
+				<span class="text-lg font-semibold text-gray-900">{ props.Debt.OutstandingAmountWithCurrency }</span>
+			</div>
+			@input.Number(&input.Props{
+				Label: pageCtx.T("Debts.Single.Amount"),
+				Error: props.Errors["SettlementAmount"],
+				Attrs: templ.Attributes{
+					"name":        "SettlementAmount",
+					"form":        "settle-form",
+					"step":        "0.01",
+					"placeholder": props.Debt.OutstandingAmount,
+					"max":         props.Debt.OutstandingAmount,
+				},
+			})
+			@components.TransactionSelect(&components.TransactionSelectProps{
+				Label:        pageCtx.T("Debts.Single.SettlementTransactionID"),
+				Placeholder:  pageCtx.T("Debts.Single.SelectTransaction"),
+				Value:        "",
+				Transactions: props.Transactions,
+				Error:        props.Errors["SettlementTransactionID"],
+				Attrs: templ.Attributes{
+					"name": "SettlementTransactionID",
+					"form": "settle-form",
+				},
+			})
+		}
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="settle-form"
+				method="post"
+				hx-post={ fmt.Sprintf("/finance/debts/%s/settle", props.Debt.ID) }
+				hx-indicator="#settle-btn"
+				hx-target="#settle-content"
+				hx-swap="outerHTML"
+			>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "settle",
+						"id":    "settle-btn",
+					},
+					Icon: icons.CheckCircle(icons.Props{Size: "16"}),
+				}) {
+					{ pageCtx.T("Debts.Single.Settle") }
+				}
+			</form>
+		</div>
+	</div>
+}
+
+templ Settle(props *SettlePageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Debts.Single.Settle")},
+	}) {
+		@SettleForm(props)
+	}
+}

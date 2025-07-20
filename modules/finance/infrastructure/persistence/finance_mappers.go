@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -447,4 +448,81 @@ func ToDomainInventory(dbInventory *models.Inventory) (inventory.Inventory, erro
 		dbInventory.Quantity,
 		opts...,
 	), nil
+}
+
+func ToDBDebt(entity debt.Debt) *models.Debt {
+	originalAmount := entity.OriginalAmount()
+	outstandingAmount := entity.OutstandingAmount()
+
+	return &models.Debt{
+		ID:                       entity.ID().String(),
+		TenantID:                 entity.TenantID().String(),
+		Type:                     string(entity.Type()),
+		Status:                   string(entity.Status()),
+		CounterpartyID:           entity.CounterpartyID().String(),
+		OriginalAmount:           originalAmount.Amount(),
+		OriginalAmountCurrencyID: originalAmount.Currency().Code,
+		OutstandingAmount:        outstandingAmount.Amount(),
+		OutstandingCurrencyID:    outstandingAmount.Currency().Code,
+		Description:              entity.Description(),
+		DueDate:                  mapping.PointerToSQLNullTime(entity.DueDate()),
+		SettlementTransactionID:  uuidPointerToSQLNullString(entity.SettlementTransactionID()),
+		CreatedAt:                entity.CreatedAt(),
+		UpdatedAt:                entity.UpdatedAt(),
+	}
+}
+
+func uuidPointerToSQLNullString(id *uuid.UUID) sql.NullString {
+	if id != nil {
+		return sql.NullString{
+			String: id.String(),
+			Valid:  true,
+		}
+	}
+	return sql.NullString{
+		String: "",
+		Valid:  false,
+	}
+}
+
+func ToDomainDebt(dbDebt *models.Debt) (debt.Debt, error) {
+	debtType := debt.DebtType(dbDebt.Type)
+	status := debt.DebtStatus(dbDebt.Status)
+
+	tenantID, err := uuid.Parse(dbDebt.TenantID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse tenant ID")
+	}
+
+	counterpartyID, err := uuid.Parse(dbDebt.CounterpartyID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse counterparty ID")
+	}
+
+	originalAmount := money.New(dbDebt.OriginalAmount, dbDebt.OriginalAmountCurrencyID)
+	outstandingAmount := money.New(dbDebt.OutstandingAmount, dbDebt.OutstandingCurrencyID)
+
+	opts := []debt.Option{
+		debt.WithID(uuid.MustParse(dbDebt.ID)),
+		debt.WithTenantID(tenantID),
+		debt.WithCounterpartyID(counterpartyID),
+		debt.WithDescription(dbDebt.Description),
+		debt.WithCreatedAt(dbDebt.CreatedAt),
+		debt.WithUpdatedAt(dbDebt.UpdatedAt),
+	}
+
+	if dbDebt.DueDate.Valid {
+		opts = append(opts, debt.WithDueDate(&dbDebt.DueDate.Time))
+	}
+
+	if dbDebt.SettlementTransactionID.Valid {
+		transactionID := uuid.MustParse(dbDebt.SettlementTransactionID.String)
+		opts = append(opts, debt.WithSettlementTransactionID(&transactionID))
+	}
+
+	domainDebt := debt.New(debtType, originalAmount, opts...)
+	domainDebt = domainDebt.UpdateStatus(status)
+	domainDebt = domainDebt.UpdateOutstandingAmount(outstandingAmount)
+
+	return domainDebt, nil
 }
