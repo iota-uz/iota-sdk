@@ -1,6 +1,9 @@
 package base
 
-import twmerge "github.com/Oudwins/tailwind-merge-go"
+import (
+	twmerge "github.com/Oudwins/tailwind-merge-go"
+	icons "github.com/iota-uz/icons/phosphor"
+)
 
 type TableColumn struct {
 	Label    string
@@ -70,17 +73,11 @@ templ Table(props TableProps) {
 									<span>{ col.Label }</span>
 									<span class="sort-indicator">
 										if col.SortDir == "asc" {
-											<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-												<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-											</svg>
+											@icons.CaretDown(icons.Props{Size: "16"})
 										} else if col.SortDir == "desc" {
-											<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-												<path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"></path>
-											</svg>
+											@icons.CaretUp(icons.Props{Size: "16"})
 										} else {
-											<svg class="w-4 h-4 opacity-30" fill="currentColor" viewBox="0 0 20 20">
-												<path d="M10 12l-4-4h8l-4 4z"></path>
-											</svg>
+											@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
 										}
 									</span>
 								</div>

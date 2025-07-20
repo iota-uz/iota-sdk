@@ -1,13 +1,17 @@
 {
   "NavigationLinks": {
     "Accounts": "Hisoblar",
+    "Transactions": "Tranzaksiyalar",
     "Expenses": "Xarajatlar",
     "ExpenseCategories": "Xarajat kategoriyalari",
     "Payments": "To'lovlar",
     "PaymentCategories": "To'lov kategoriyalari",
     "Finances": "Moliya",
     "Counterparties": "Kontragentlar",
-    "Inventory": "Ombor"
+    "Inventory": "Ombor",
+    "Reports": "Hisobotlar",
+    "IncomeStatement": "Daromad va zarar hisoboti",
+    "CashflowStatement": "Pul oqimi hisoboti"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -227,7 +231,26 @@
       "_Description": "Tavsif",
       "AccountNumber": "Hisob raqami",
       "Delete": "Hisobni o'chirish",
-      "DeleteConfirmation": "Ushbu hisobni o'chirishni xohlaysizmi?"
+      "DeleteConfirmation": "Ushbu hisobni o'chirishni xohlaysizmi?",
+      "General": "Umumiy",
+      "Transfer": "O'tkazma"
+    }
+  },
+  "Transfers": {
+    "Meta": {
+      "New": {
+        "Title": "Pul o'tkazmasi"
+      }
+    },
+    "Single": {
+      "From": "Dan",
+      "To": "Ga",
+      "DestinationAccount": "Qabul qiluvchi hisob",
+      "SelectDestinationAccount": "Qabul qiluvchi hisobni tanlang",
+      "Amount": "Miqdor",
+      "Comment": "Izoh",
+      "CommentPlaceholder": "Ixtiyoriy o'tkazma tavsifi...",
+      "Transfer": "O'tkazish"
     }
   },
   "PaymentCategories": {
@@ -292,6 +315,117 @@
       "_Description": "Tavsif",
       "Delete": "Tovarni o'chirish",
       "DeleteConfirmation": "Ushbu tovarni o'chirishni xohlaysizmi?"
+    }
+  },
+  "Transactions": {
+    "Meta": {
+      "List": {
+        "Title": "Tranzaksiyalar"
+      }
+    },
+    "List": {
+      "Date": "Sana",
+      "Type": "Turi",
+      "Amount": "Summa",
+      "Account": "Hisob",
+      "Category": "Kategoriya",
+      "Counterparty": "Kontragent",
+      "Comment": "Izoh",
+      "NoTransactions": {
+        "Title": "Tranzaksiyalar topilmadi",
+        "_Description": "Hali tranzaksiyalar yo'q. Xarajat yoki to'lov qo'shganingizda tranzaksiyalar yaratiladi."
+      }
+    },
+    "Filters": {
+      "AllTypes": "Barcha turlar",
+      "AllTime": "Barcha vaqt",
+      "AccountingPeriod": "Hisob davri",
+      "AllPeriods": "Barcha davrlar",
+      "ThisMonth": "Bu oy",
+      "LastMonth": "O'tgan oy",
+      "TwoMonthsAgo": "2 oy oldin",
+      "ThreeMonthsAgo": "3 oy oldin"
+    },
+    "Single": {
+      "Title": "Tranzaksiya tafsilotlari",
+      "Details": "Tranzaksiya ma'lumotlari",
+      "Type": "Turi",
+      "Amount": "Summa",
+      "Date": "Tranzaksiya sanasi",
+      "AccountingPeriod": "Hisob davri",
+      "OriginAccount": "Jo'natuvchi hisob",
+      "DestinationAccount": "Qabul qiluvchi hisob",
+      "Comment": "Izoh",
+      "ExchangeDetails": "Ayirboshlash tafsilotlari",
+      "ExchangeRate": "Ayirboshlash kursi",
+      "DestinationAmount": "Qabul qiluvchi summa",
+      "RelatedDetails": "Bog'liq ma'lumotlar",
+      "PaymentCategory": "To'lov kategoriyasi",
+      "ExpenseCategory": "Xarajat kategoriyasi",
+      "Counterparty": "Kontragent",
+      "TransactionID": "Tranzaksiya ID",
+      "From": "Qayerdan",
+      "To": "Qayerga",
+      "Category": "Kategoriya"
+    },
+    "Types": {
+      "DEPOSIT": "Kirim",
+      "WITHDRAWAL": "Chiqim",
+      "TRANSFER": "O'tkazma",
+      "EXCHANGE": "Ayirboshlash"
+    }
+  },
+  "Reports": {
+    "IncomeStatement": {
+      "Title": "Daromad va zarar hisoboti",
+      "GenerateReport": "Hisobot tuzish",
+      "StartDate": "Boshlanish sanasi",
+      "EndDate": "Tugash sanasi",
+      "ComparePeriods": "Taqqoslash davrlari",
+      "Generate": "Hisobot tuzish",
+      "EnableComparison": "Davrlarni taqqoslashni yoqish",
+      "Generating": "Hisobot tuzilmoqda...",
+      "NoReportGenerated": "Hisobot tuzilmagan",
+      "SelectDatesAndGenerate": "Sanalarni tanlang va daromad va zarar hisobotini ko'rish uchun 'Hisobot tuzish' tugmasini bosing",
+      "Period": "Davr",
+      "Print": "Chop etish",
+      "GrossProfit": "Yalpi foyda",
+      "NetProfit": "Sof foyda",
+      "GeneratedAt": "Tuzilgan",
+      "NoItemsInSection": "Bu bo'limda elementlar yo'q",
+      "Total": "Jami",
+      "ComparativeTitle": "Taqqosiy daromad va zarar hisoboti",
+      "CurrentPeriod": "Joriy davr",
+      "ComparisonPeriods": "Taqqoslash davrlari",
+      "Revenue": "Daromadlar",
+      "Expenses": "Xarajatlar",
+      "Category": "Kategoriya",
+      "OperationalIncome": "Operatsion daromad",
+      "TotalExpenses": "Umumiy xarajatlar"
+    },
+    "CashflowStatement": {
+      "Title": "Pul oqimi hisoboti",
+      "_Description": "Hisoblaringizdagi pul harakatlarini ko'rish va tahlil qilish",
+      "Account": "Hisob",
+      "SelectAccount": "Hisobni tanlang",
+      "StartDate": "Boshlanish sanasi",
+      "EndDate": "Tugash sanasi",
+      "Generate": "Hisobot tuzish",
+      "LastGenerated": "Oxirgi tuzilgan",
+      "Never": "Hech qachon",
+      "ReportTitle": "Pul oqimi hisoboti",
+      "StartingBalance": "Boshlang'ich balans",
+      "NetCashFlow": "Sof pul oqimi",
+      "EndingBalance": "Yakuniy balans",
+      "GeneratedAt": "Tuzilgan",
+      "Category": "Kategoriya",
+      "Total": "Jami",
+      "Count": "Soni",
+      "Inflows": "Pul kirimlar",
+      "Outflows": "Pul chiqimlar",
+      "NoReportGenerated": "Hisobot tuzilmagan",
+      "SelectDatesAndGenerate": "Sanalarni va hisobni tanlang, so'ngra pul oqimi hisobotini ko'rish uchun 'Hisobot tuzish' tugmasini bosing",
+      "Generating": "Hisobot tuzilmoqda..."
     }
   }
 }

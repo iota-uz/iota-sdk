@@ -56,10 +56,23 @@ const (
 	deleteQuery        = `DELETE FROM money_accounts WHERE id = $1 AND tenant_id = $2;`
 )
 
-type GormMoneyAccountRepository struct{}
+type GormMoneyAccountRepository struct {
+	fieldMap map[moneyaccount.Field]string
+}
 
 func NewMoneyAccountRepository() moneyaccount.Repository {
-	return &GormMoneyAccountRepository{}
+	return &GormMoneyAccountRepository{
+		fieldMap: map[moneyaccount.Field]string{
+			moneyaccount.ID:            "ma.id",
+			moneyaccount.Name:          "ma.name",
+			moneyaccount.AccountNumber: "ma.account_number",
+			moneyaccount.Balance:       "ma.balance",
+			moneyaccount.Description:   "ma.description",
+			moneyaccount.CurrencyCode:  "ma.balance_currency_id",
+			moneyaccount.CreatedAt:     "ma.created_at",
+			moneyaccount.UpdatedAt:     "ma.updated_at",
+		},
+	}
 }
 
 func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, params *moneyaccount.FindParams) ([]moneyaccount.Account, error) {
@@ -71,34 +84,67 @@ func (g *GormMoneyAccountRepository) GetPaginated(ctx context.Context, params *m
 	where := []string{"ma.tenant_id = $1"}
 	args := []interface{}{tenantID}
 
-	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where = append(where, fmt.Sprintf("ma.created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
-		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
+	// Handle search
+	if params.Search != "" {
+		where = append(where, fmt.Sprintf("(ma.name ILIKE $%d OR ma.account_number ILIKE $%d OR ma.description ILIKE $%d)", len(args)+1, len(args)+1, len(args)+1))
+		args = append(args, "%"+params.Search+"%")
 	}
-	if params.Query != "" && params.Field != "" {
-		where = append(where, fmt.Sprintf("ma.%s::VARCHAR ILIKE $%d", params.Field, len(args)+1))
-		args = append(args, "%"+params.Query+"%")
+
+	// Handle filters
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, fmt.Errorf("invalid filter: unknown filter field: %v", filter.Column)
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
 	}
+
 	q := repo.Join(
 		findQuery,
 		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 	return g.queryAccounts(ctx, q, args...)
 }
 
-func (g *GormMoneyAccountRepository) Count(ctx context.Context) (int64, error) {
+func (g *GormMoneyAccountRepository) Count(ctx context.Context, params *moneyaccount.FindParams) (int64, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
+
+	where := []string{"ma.tenant_id = $1"}
+	args := []interface{}{tenantID}
+
+	// Handle search
+	if params.Search != "" {
+		where = append(where, fmt.Sprintf("(ma.name ILIKE $%d OR ma.account_number ILIKE $%d OR ma.description ILIKE $%d)", len(args)+1, len(args)+1, len(args)+1))
+		args = append(args, "%"+params.Search+"%")
+	}
+
+	// Handle filters
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return 0, fmt.Errorf("invalid filter: unknown filter field: %v", filter.Column)
+		}
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
+	}
+
+	query := repo.Join(
+		"SELECT COUNT(*) FROM money_accounts ma",
+		repo.JoinWhere(where...),
+	)
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var count int64
-	if err := tx.QueryRow(ctx, countQuery, tenantID).Scan(&count); err != nil {
+	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
 		return 0, err
 	}
 	return count, nil

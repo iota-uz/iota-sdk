@@ -1,13 +1,17 @@
 {
   "NavigationLinks": {
     "Accounts": "Счета",
+    "Transactions": "Транзакции",
     "Expenses": "Расходы",
     "ExpenseCategories": "Категории расходов",
     "Payments": "Платежи",
     "PaymentCategories": "Категории платежей",
     "Finances": "Финансы",
     "Counterparties": "Контрагенты",
-    "Inventory": "Склад"
+    "Inventory": "Склад",
+    "Reports": "Отчёты",
+    "IncomeStatement": "Отчёт о прибылях и убытках",
+    "CashflowStatement": "Отчёт о движении денежных средств"
   },
   "ExpenseCategories": {
     "Meta": {
@@ -227,7 +231,26 @@
       "_Description": "Описание",
       "AccountNumber": "Номер счета",
       "Delete": "Удалить счет",
-      "DeleteConfirmation": "Вы уверены что хотите удалить этот счет?"
+      "DeleteConfirmation": "Вы уверены что хотите удалить этот счет?",
+      "General": "Общее",
+      "Transfer": "Перевод"
+    }
+  },
+  "Transfers": {
+    "Meta": {
+      "New": {
+        "Title": "Перевод денег"
+      }
+    },
+    "Single": {
+      "From": "От",
+      "To": "К",
+      "DestinationAccount": "Счет получателя",
+      "SelectDestinationAccount": "Выберите счет получателя",
+      "Amount": "Сумма",
+      "Comment": "Комментарий",
+      "CommentPlaceholder": "Необязательное описание перевода...",
+      "Transfer": "Перевести"
     }
   },
   "PaymentCategories": {
@@ -292,6 +315,117 @@
       "_Description": "Описание",
       "Delete": "Удалить товар",
       "DeleteConfirmation": "Вы уверены что хотите удалить этот товар?"
+    }
+  },
+  "Transactions": {
+    "Meta": {
+      "List": {
+        "Title": "Транзакции"
+      }
+    },
+    "List": {
+      "Date": "Дата",
+      "Type": "Тип",
+      "Amount": "Сумма",
+      "Account": "Счет",
+      "Category": "Категория",
+      "Counterparty": "Контрагент",
+      "Comment": "Комментарий",
+      "NoTransactions": {
+        "Title": "Транзакции не найдены",
+        "_Description": "Пока нет транзакций. Транзакции создаются при добавлении расходов или платежей."
+      }
+    },
+    "Filters": {
+      "AllTypes": "Все типы",
+      "AllTime": "Все время",
+      "AccountingPeriod": "Учетный период",
+      "AllPeriods": "Все периоды",
+      "ThisMonth": "Этот месяц",
+      "LastMonth": "Прошлый месяц",
+      "TwoMonthsAgo": "2 месяца назад",
+      "ThreeMonthsAgo": "3 месяца назад"
+    },
+    "Single": {
+      "Title": "Детали транзакции",
+      "Details": "Информация о транзакции",
+      "Type": "Тип",
+      "Amount": "Сумма",
+      "Date": "Дата транзакции",
+      "AccountingPeriod": "Учетный период",
+      "OriginAccount": "Счет отправителя",
+      "DestinationAccount": "Счет получателя",
+      "Comment": "Комментарий",
+      "ExchangeDetails": "Детали обмена",
+      "ExchangeRate": "Курс обмена",
+      "DestinationAmount": "Сумма получателя",
+      "RelatedDetails": "Связанная информация",
+      "PaymentCategory": "Категория платежа",
+      "ExpenseCategory": "Категория расхода",
+      "Counterparty": "Контрагент",
+      "TransactionID": "ID транзакции",
+      "From": "Откуда",
+      "To": "Куда",
+      "Category": "Категория"
+    },
+    "Types": {
+      "DEPOSIT": "Пополнение",
+      "WITHDRAWAL": "Списание",
+      "TRANSFER": "Перевод",
+      "EXCHANGE": "Обмен"
+    }
+  },
+  "Reports": {
+    "IncomeStatement": {
+      "Title": "Отчёт о прибылях и убытках",
+      "GenerateReport": "Создать отчёт",
+      "StartDate": "Дата начала",
+      "EndDate": "Дата окончания",
+      "ComparePeriods": "Периоды сравнения",
+      "Generate": "Создать отчёт",
+      "EnableComparison": "Включить сравнение периодов",
+      "Generating": "Создание отчёта...",
+      "NoReportGenerated": "Отчёт не создан",
+      "SelectDatesAndGenerate": "Выберите даты и нажмите 'Создать отчёт' для просмотра отчёта о прибылях и убытках",
+      "Period": "Период",
+      "Print": "Печать",
+      "GrossProfit": "Валовая прибыль",
+      "NetProfit": "Чистая прибыль",
+      "GeneratedAt": "Создано",
+      "NoItemsInSection": "Нет элементов в этом разделе",
+      "Total": "Итого",
+      "ComparativeTitle": "Сравнительный отчёт о прибылях и убытках",
+      "CurrentPeriod": "Текущий период",
+      "ComparisonPeriods": "Периоды сравнения",
+      "Revenue": "Доходы",
+      "Expenses": "Расходы",
+      "Category": "Категория",
+      "OperationalIncome": "Операционный доход",
+      "TotalExpenses": "Общие расходы"
+    },
+    "CashflowStatement": {
+      "Title": "Отчёт о движении денежных средств",
+      "_Description": "Просмотр и анализ движения денежных средств по вашим счетам",
+      "Account": "Счёт",
+      "SelectAccount": "Выберите счёт",
+      "StartDate": "Дата начала",
+      "EndDate": "Дата окончания",
+      "Generate": "Создать отчёт",
+      "LastGenerated": "Последнее создание",
+      "Never": "Никогда",
+      "ReportTitle": "Отчёт о движении денежных средств",
+      "StartingBalance": "Начальный баланс",
+      "NetCashFlow": "Чистый денежный поток",
+      "EndingBalance": "Конечный баланс",
+      "GeneratedAt": "Создано",
+      "Category": "Категория",
+      "Total": "Итого",
+      "Count": "Количество",
+      "Inflows": "Поступления",
+      "Outflows": "Выплаты",
+      "NoReportGenerated": "Отчёт не создан",
+      "SelectDatesAndGenerate": "Выберите даты и счёт, затем нажмите 'Создать отчёт' для просмотра отчёта о движении денежных средств",
+      "Generating": "Создание отчёта..."
     }
   }
 }

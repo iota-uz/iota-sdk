@@ -1,0 +1,132 @@
+package moneyaccounts
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type TransferDrawerProps struct {
+	SourceAccount       *viewmodels.MoneyAccount
+	DestinationAccounts []*viewmodels.MoneyAccount
+	TransferData        dtos.TransferDTO
+	Errors              map[string]string
+}
+
+templ TransferDrawer(props *TransferDrawerProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id={ fmt.Sprintf("transfer-drawer-%s", props.SourceAccount.ID) }>
+		@dialog.StdViewDrawer(dialog.StdDrawerProps{
+			ID:     fmt.Sprintf("transfer-drawer-%s-dialog", props.SourceAccount.ID),
+			Title:  pageCtx.T("Transfers.Meta.New.Title"),
+			Action: "open-view-drawer",
+			Open:   true,
+			Attrs: templ.Attributes{
+				"@closing": "window.history.pushState({}, '', '/finance/accounts')",
+				"@closed":  fmt.Sprintf("document.getElementById('transfer-drawer-%s').remove()", props.SourceAccount.ID),
+			},
+		}) {
+			<form
+				id={ fmt.Sprintf("transfer-form-%s", props.SourceAccount.ID) }
+				method="post"
+				hx-post={ fmt.Sprintf("/finance/accounts/%s/transfer", props.SourceAccount.ID) }
+				hx-target={ fmt.Sprintf("#transfer-drawer-%s", props.SourceAccount.ID) }
+				hx-swap="outerHTML"
+				class="flex flex-col h-full"
+			>
+				<div class="flex-1 p-6 space-y-6">
+					<!-- Source Account Display -->
+					<div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+						<div class="flex items-center gap-3">
+							<div class="p-2 bg-blue-100 rounded-lg">
+								@icons.Wallet(icons.Props{Size: "24", Variant: icons.DuoTone, Class: "text-blue-600"})
+							</div>
+							<div class="flex-1">
+								<h3 class="text-sm font-medium text-gray-900 mb-1">{ pageCtx.T("Transfers.Single.From") }</h3>
+								<p class="font-medium text-gray-900">{ props.SourceAccount.Name }</p>
+								<p class="text-sm text-gray-700">{ props.SourceAccount.BalanceWithCurrency }</p>
+							</div>
+						</div>
+					</div>
+					<!-- Transfer Arrow -->
+					<div class="flex justify-center">
+						<div class="p-2 bg-gray-100 rounded-full">
+							@icons.ArrowDown(icons.Props{Size: "24", Variant: icons.Bold, Class: "text-gray-600"})
+						</div>
+					</div>
+					<!-- Destination Account Selection -->
+					<div class="space-y-4">
+						<div>
+							<label class="block text-sm font-medium text-gray-700 mb-1">
+								{ pageCtx.T("Transfers.Single.DestinationAccount") }
+							</label>
+							<select
+								name="DestinationAccountID"
+								required
+								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+							>
+								<option value="">{ pageCtx.T("Transfers.Single.SelectDestinationAccount") }</option>
+								for _, account := range props.DestinationAccounts {
+									<option value={ account.ID } selected?={ account.ID == props.TransferData.DestinationAccountID }>
+										{ account.Name } ({ account.BalanceWithCurrency })
+									</option>
+								}
+							</select>
+							if props.Errors["DestinationAccountID"] != "" {
+								<p class="mt-1 text-sm text-red-600">{ props.Errors["DestinationAccountID"] }</p>
+							}
+						</div>
+						<!-- Amount -->
+						@input.Number(&input.Props{
+							Label: pageCtx.T("Transfers.Single.Amount"),
+							Attrs: templ.Attributes{
+								"name":        "Amount",
+								"value":       fmt.Sprintf("%.2f", props.TransferData.Amount),
+								"step":        "0.01",
+								"min":         "0.01",
+								"required":    "true",
+								"placeholder": "0.00",
+							},
+							Error: props.Errors["Amount"],
+						})
+						<!-- Comment -->
+						@input.TextArea(&input.TextAreaProps{
+							Label: pageCtx.T("Transfers.Single.Comment"),
+							Attrs: templ.Attributes{
+								"name":        "Comment",
+								"placeholder": pageCtx.T("Transfers.Single.CommentPlaceholder"),
+								"rows":        "3",
+							},
+							Value: props.TransferData.Comment,
+							Error: props.Errors["Comment"],
+						})
+					</div>
+				</div>
+				<!-- Footer with buttons -->
+				<div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+					@button.Secondary(button.Props{
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"@click": fmt.Sprintf("document.getElementById('transfer-drawer-%s-dialog').close()", props.SourceAccount.ID),
+						},
+					}) {
+						{ pageCtx.T("Cancel") }
+					}
+					@button.Primary(button.Props{
+						Attrs: templ.Attributes{
+							"type": "submit",
+						},
+					}) {
+						@icons.ArrowsLeftRight(icons.Props{Size: "16", Class: "mr-2"})
+						{ pageCtx.T("Transfers.Single.Transfer") }
+					}
+				</div>
+			</form>
+		}
+	</div>
+}
