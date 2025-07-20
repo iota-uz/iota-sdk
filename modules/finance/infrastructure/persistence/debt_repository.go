@@ -178,18 +178,32 @@ func (g *GormDebtRepository) GetCounterpartyAggregates(ctx context.Context) ([]d
 
 	aggregates := make([]debt.CounterpartyAggregate, 0)
 	for rows.Next() {
-		var agg debt.CounterpartyAggregate
+		var counterpartyID uuid.UUID
+		var totalReceivable, totalPayable, totalOutstandingReceivable, totalOutstandingPayable float64
+		var debtCount int
+		var currencyCode string
+
 		if err := rows.Scan(
-			&agg.CounterpartyID,
-			&agg.TotalReceivable,
-			&agg.TotalPayable,
-			&agg.TotalOutstandingReceivable,
-			&agg.TotalOutstandingPayable,
-			&agg.DebtCount,
-			&agg.CurrencyCode,
+			&counterpartyID,
+			&totalReceivable,
+			&totalPayable,
+			&totalOutstandingReceivable,
+			&totalOutstandingPayable,
+			&debtCount,
+			&currencyCode,
 		); err != nil {
 			return nil, err
 		}
+
+		agg := debt.NewCounterpartyAggregate(
+			counterpartyID,
+			debt.WithAggTotalReceivable(totalReceivable),
+			debt.WithAggTotalPayable(totalPayable),
+			debt.WithAggTotalOutstandingReceivable(totalOutstandingReceivable),
+			debt.WithAggTotalOutstandingPayable(totalOutstandingPayable),
+			debt.WithAggDebtCount(debtCount),
+			debt.WithAggCurrencyCode(currencyCode),
+		)
 		aggregates = append(aggregates, agg)
 	}
 	return aggregates, nil

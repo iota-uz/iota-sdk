@@ -59,3 +59,22 @@ type Debt interface {
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 }
+
+// CounterpartyAggregate represents aggregated debt data for a counterparty
+type CounterpartyAggregate interface {
+	CounterpartyID() uuid.UUID
+	TotalReceivable() float64
+	TotalPayable() float64
+	TotalOutstandingReceivable() float64
+	TotalOutstandingPayable() float64
+	DebtCount() int
+	CurrencyCode() string
+	NetAmount() float64
+	UpdateCounterpartyID(id uuid.UUID) CounterpartyAggregate
+	UpdateTotalReceivable(amount float64) CounterpartyAggregate
+	UpdateTotalPayable(amount float64) CounterpartyAggregate
+	UpdateTotalOutstandingReceivable(amount float64) CounterpartyAggregate
+	UpdateTotalOutstandingPayable(amount float64) CounterpartyAggregate
+	UpdateDebtCount(count int) CounterpartyAggregate
+	UpdateCurrencyCode(code string) CounterpartyAggregate
+}

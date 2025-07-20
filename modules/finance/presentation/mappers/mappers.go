@@ -932,22 +932,22 @@ func DebtToViewModel(entity debt.Debt, counterpartyName string) *viewmodels.Debt
 }
 
 func DebtCounterpartyAggregateToViewModel(agg debt.CounterpartyAggregate, counterpartyName string) *viewmodels.DebtCounterpartyAggregate {
-	receivableMoney := money.NewFromFloat(agg.TotalReceivable, agg.CurrencyCode)
-	payableMoney := money.NewFromFloat(agg.TotalPayable, agg.CurrencyCode)
-	outstandingReceivableMoney := money.NewFromFloat(agg.TotalOutstandingReceivable, agg.CurrencyCode)
-	outstandingPayableMoney := money.NewFromFloat(agg.TotalOutstandingPayable, agg.CurrencyCode)
+	receivableMoney := money.NewFromFloat(agg.TotalReceivable(), agg.CurrencyCode())
+	payableMoney := money.NewFromFloat(agg.TotalPayable(), agg.CurrencyCode())
+	outstandingReceivableMoney := money.NewFromFloat(agg.TotalOutstandingReceivable(), agg.CurrencyCode())
+	outstandingPayableMoney := money.NewFromFloat(agg.TotalOutstandingPayable(), agg.CurrencyCode())
 	
 	netAmount, _ := outstandingReceivableMoney.Subtract(outstandingPayableMoney)
 
 	return &viewmodels.DebtCounterpartyAggregate{
-		CounterpartyID:             agg.CounterpartyID.String(),
+		CounterpartyID:             agg.CounterpartyID().String(),
 		CounterpartyName:           counterpartyName,
 		TotalReceivable:            receivableMoney.Display(),
 		TotalPayable:               payableMoney.Display(),
 		TotalOutstandingReceivable: outstandingReceivableMoney.Display(),
 		TotalOutstandingPayable:    outstandingPayableMoney.Display(),
 		NetAmount:                  netAmount.Display(),
-		DebtCount:                  agg.DebtCount,
-		CurrencyCode:               agg.CurrencyCode,
+		DebtCount:                  agg.DebtCount(),
+		CurrencyCode:               agg.CurrencyCode(),
 	}
 }
