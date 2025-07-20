@@ -164,19 +164,14 @@ func (f *field) Rules() []FieldRule {
 
 func (f *field) Value(value any) FieldValue {
 	if !isValidType(f.Type(), value) {
-		return &fieldValue{
-			field: f,
-			value: nil,
-			err: fmt.Errorf(
-				"invalid type for field %q: expected %s, got %T",
-				f.name, f.Type(), value,
-			),
-		}
+		panic(fmt.Sprintf(
+			"invalid type for field %q: expected %s, got %T",
+			f.name, f.Type(), value,
+		))
 	}
 	return &fieldValue{
 		field: f,
 		value: value,
-		err:   nil,
 	}
 }
 
@@ -258,8 +253,12 @@ func isValidType(fieldType FieldType, value any) bool {
 		return ok
 
 	case UUIDFieldType:
-		_, ok := value.(uuid.UUID)
-		return ok
+		switch value.(type) {
+		case uuid.UUID, [16]uint8:
+			return true
+		default:
+			return false
+		}
 
 	case JSONFieldType:
 		return true
