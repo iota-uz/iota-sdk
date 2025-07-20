@@ -249,23 +249,6 @@ templ CashflowStatementReport(report *viewmodels.CashflowStatement) {
 						{ report.AccountName } · { report.Period }
 					</p>
 				</div>
-				<div class="flex space-x-2">
-					<button
-						onclick="window.print()"
-						class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-					>
-						@icons.Printer(icons.Props{Size: "16"})
-						{ pageCtx.T("Common.Print") }
-					</button>
-					<button
-						hx-get={ "/finance/reports/cashflow/data?account_id=" + report.AccountID + "&start_date=" + report.StartDate + "&end_date=" + report.EndDate }
-						hx-trigger="click"
-						class="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-					>
-						@icons.Download(icons.Props{Size: "16"})
-						{ pageCtx.T("Common.Export") }
-					</button>
-				</div>
 			</div>
 		</div>
 		<!-- Balance Summary -->
