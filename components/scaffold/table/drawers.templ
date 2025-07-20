@@ -24,6 +24,7 @@ type DetailFieldType string
 
 const (
 	DetailFieldTypeText     DetailFieldType = "text"
+	DetailFieldTypeHTML     DetailFieldType = "html"
 	DetailFieldTypeBoolean  DetailFieldType = "boolean"
 	DetailFieldTypeDate     DetailFieldType = "date"
 	DetailFieldTypeTime     DetailFieldType = "time"
@@ -139,6 +140,8 @@ templ renderDetailFieldValue(field DetailFieldValue) {
 		<span class="text-gray-400">-</span>
 	} else {
 		switch field.Type {
+			case DetailFieldTypeHTML:
+				@templ.Raw(field.Value)
 			case DetailFieldTypeBoolean:
 				if field.Value == "true" {
 					<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">True</span>

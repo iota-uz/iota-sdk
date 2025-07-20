@@ -17,7 +17,7 @@ templ TableCell(ctx context.Context, ml models.MultiLang) {
 			class="multilang-cell" 
 			title={ getTooltipText(ctx, ml) }
 		>
-			{ ml.Default() }
+			{ getDisplayText(ctx, ml) }
 		</span>
 	}
 }
@@ -44,4 +44,9 @@ func getTooltipText(ctx context.Context, ml models.MultiLang) string {
 	}
 	
 	return tooltip
+}
+
+// getDisplayText returns the text in user's current locale with fallback
+func getDisplayText(ctx context.Context, ml models.MultiLang) string {
+	return getLocalizedText(ctx, ml)
 }

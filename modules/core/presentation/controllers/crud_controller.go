@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -712,11 +713,16 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 				// Check for custom renderer first
 				if rendererType := field.RendererType(); rendererType != "" {
 					if renderer, exists := c.rendererRegistry.Get(rendererType); exists {
-						// For custom renderers, render the component and convert to string
-						// This is a simplified approach - you might want to add a separate RenderDetailsText method
-						_ = renderer.RenderDetails(ctx, field, fv)
-						valueStr = fmt.Sprintf("CustomRenderer: %s", rendererType)
-						fieldType = table.DetailFieldTypeText
+						// Render the component to HTML string
+						component := renderer.RenderDetails(ctx, field, fv)
+						var htmlBuffer strings.Builder
+						if err := component.Render(ctx, &htmlBuffer); err != nil {
+							log.Printf("[CrudController.Details] Failed to render custom component: %v", err)
+							valueStr = fmt.Sprintf("CustomRenderer: %s", rendererType)
+						} else {
+							valueStr = htmlBuffer.String()
+						}
+						fieldType = table.DetailFieldTypeHTML
 					}
 				} else if selectField, ok := field.(crud.SelectField); ok {
 					// Get options

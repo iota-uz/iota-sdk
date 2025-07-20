@@ -22,9 +22,8 @@ func (r *MultiLangRenderer) RenderTableCell(ctx context.Context, field crud.Fiel
 		return templ.Raw("")
 	}
 
-	// Type assert to MultiLang
-	ml, ok := value.Value().(models.MultiLang)
-	if !ok {
+	ml := getMultiLangFromValue(value)
+	if ml == nil {
 		return templ.Raw("Invalid MultiLang")
 	}
 
@@ -37,9 +36,8 @@ func (r *MultiLangRenderer) RenderDetails(ctx context.Context, field crud.Field,
 		return templ.Raw("")
 	}
 
-	// Type assert to MultiLang
-	ml, ok := value.Value().(models.MultiLang)
-	if !ok {
+	ml := getMultiLangFromValue(value)
+	if ml == nil {
 		return templ.Raw("Invalid MultiLang")
 	}
 
@@ -54,14 +52,47 @@ func (r *MultiLangRenderer) RenderFormControl(ctx context.Context, field crud.Fi
 	if value == nil || value.IsZero() {
 		ml = models.NewMultiLangFromMap(map[string]string{})
 	} else {
-		// Type assert to MultiLang
-		if v, ok := value.Value().(models.MultiLang); ok {
-			ml = v
-		} else {
+		ml = getMultiLangFromValue(value)
+		if ml == nil {
 			// Fallback: create empty MultiLang
 			ml = models.NewMultiLangFromMap(map[string]string{})
 		}
 	}
 
 	return FormInputWithJS(ctx, field, ml)
+}
+
+// getMultiLangFromValue extracts MultiLang from a crud.FieldValue
+// Handles both direct MultiLang objects and JSON strings from database
+func getMultiLangFromValue(value crud.FieldValue) models.MultiLang {
+	if value == nil {
+		return nil
+	}
+
+	// Try direct MultiLang type assertion first
+	if ml, ok := value.Value().(models.MultiLang); ok {
+		return ml
+	}
+
+	// Try JSON string from database
+	if jsonStr, ok := value.Value().(string); ok && jsonStr != "" {
+		if ml, err := models.MultiLangFromString(jsonStr); err == nil {
+			return ml
+		}
+	}
+
+	// Try map[string]interface{} from database JSON parsing
+	if mapVal, ok := value.Value().(map[string]interface{}); ok {
+		stringMap := make(map[string]string)
+		for k, v := range mapVal {
+			if str, ok := v.(string); ok {
+				stringMap[k] = str
+			}
+		}
+		if len(stringMap) > 0 {
+			return models.NewMultiLangFromMap(stringMap)
+		}
+	}
+
+	return nil
 }
