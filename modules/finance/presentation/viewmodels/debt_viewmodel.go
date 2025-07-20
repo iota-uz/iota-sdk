@@ -18,13 +18,13 @@ type Debt struct {
 }
 
 type DebtCounterpartyAggregate struct {
-	CounterpartyID                string
-	CounterpartyName              string
-	TotalReceivable               string
-	TotalPayable                  string
-	TotalOutstandingReceivable    string
-	TotalOutstandingPayable       string
-	NetAmount                     string
-	DebtCount                     int
-	CurrencyCode                  string
+	CounterpartyID             string
+	CounterpartyName           string
+	TotalReceivable            string
+	TotalPayable               string
+	TotalOutstandingReceivable string
+	TotalOutstandingPayable    string
+	NetAmount                  string
+	DebtCount                  int
+	CurrencyCode               string
 }

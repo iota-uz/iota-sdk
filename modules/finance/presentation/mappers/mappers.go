@@ -936,7 +936,7 @@ func DebtCounterpartyAggregateToViewModel(agg debt.CounterpartyAggregate, counte
 	payableMoney := money.NewFromFloat(agg.TotalPayable(), agg.CurrencyCode())
 	outstandingReceivableMoney := money.NewFromFloat(agg.TotalOutstandingReceivable(), agg.CurrencyCode())
 	outstandingPayableMoney := money.NewFromFloat(agg.TotalOutstandingPayable(), agg.CurrencyCode())
-	
+
 	netAmount, _ := outstandingReceivableMoney.Subtract(outstandingPayableMoney)
 
 	return &viewmodels.DebtCounterpartyAggregate{
