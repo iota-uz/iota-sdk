@@ -23,12 +23,23 @@ type FindParams struct {
 	Status         *DebtStatus
 }
 
+type CounterpartyAggregate struct {
+	CounterpartyID                uuid.UUID
+	TotalReceivable               float64
+	TotalPayable                  float64
+	TotalOutstandingReceivable    float64
+	TotalOutstandingPayable       float64
+	DebtCount                     int
+	CurrencyCode                  string
+}
+
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]Debt, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Debt, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Debt, error)
 	GetByCounterpartyID(ctx context.Context, counterpartyID uuid.UUID) ([]Debt, error)
+	GetCounterpartyAggregates(ctx context.Context) ([]CounterpartyAggregate, error)
 	Create(ctx context.Context, debt Debt) (Debt, error)
 	Update(ctx context.Context, debt Debt) (Debt, error)
 	Delete(ctx context.Context, id uuid.UUID) error

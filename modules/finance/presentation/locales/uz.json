@@ -9,6 +9,7 @@
     "Finances": "Moliya",
     "Counterparties": "Kontragentlar",
     "Debts": "Qarzlar",
+    "DebtAggregates": "Qarzlar xulosasi",
     "Inventory": "Ombor",
     "Reports": "Hisobotlar",
     "IncomeStatement": "Daromad va zarar hisoboti",
@@ -507,6 +508,25 @@
       "Deleted": "Qarz muvaffaqiyatli o'chirildi",
       "Settled": "Qarz muvaffaqiyatli to'landi",
       "WrittenOff": "Qarz muvaffaqiyatli hisobdan chiqarildi"
+    }
+  },
+  "DebtAggregates": {
+    "Meta": {
+      "List": {
+        "Title": "Kontragentlar bo'yicha qarzlar xulosasi"
+      }
+    },
+    "List": {
+      "Counterparty": "Kontragent",
+      "TotalReceivable": "Jami olinadigan",
+      "TotalPayable": "Jami to'lanadigan",
+      "OutstandingReceivable": "Olinadigan qoldiq",
+      "OutstandingPayable": "To'lanadigan qoldiq",
+      "NetAmount": "Aniq summa",
+      "DebtCount": "Jami qarzlar"
+    },
+    "Drawer": {
+      "Title": "Qarz tafsilotlari"
     }
   }
 }

@@ -57,6 +57,13 @@ func (s *DebtService) GetByCounterpartyID(ctx context.Context, counterpartyID uu
 	return s.repo.GetByCounterpartyID(ctx, counterpartyID)
 }
 
+func (s *DebtService) GetCounterpartyAggregates(ctx context.Context) ([]debt.CounterpartyAggregate, error) {
+	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetCounterpartyAggregates(ctx)
+}
+
 func (s *DebtService) Create(ctx context.Context, entity debt.Debt) (debt.Debt, error) {
 	if err := composables.CanUser(ctx, permissions.DebtCreate); err != nil {
 		return nil, err

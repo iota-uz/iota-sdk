@@ -80,6 +80,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewCounterpartiesController(app),
 		controllers.NewInventoryController(app),
 		controllers.NewDebtsController(app),
+		controllers.NewDebtAggregateController(app),
 		controllers.NewFinancialReportController(app),
 		controllers.NewCashflowController(app),
 	)

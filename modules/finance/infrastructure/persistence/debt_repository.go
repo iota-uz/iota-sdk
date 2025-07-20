@@ -25,6 +25,19 @@ const (
 			   created_at, updated_at
 		FROM debts`
 	debtCountQuery  = `SELECT COUNT(*) as count FROM debts WHERE tenant_id = $1`
+	debtAggregateQuery = `
+		SELECT 
+			counterparty_id,
+			SUM(CASE WHEN type = 'RECEIVABLE' THEN original_amount ELSE 0 END) as total_receivable,
+			SUM(CASE WHEN type = 'PAYABLE' THEN original_amount ELSE 0 END) as total_payable,
+			SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) as total_outstanding_receivable,
+			SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END) as total_outstanding_payable,
+			COUNT(*) as debt_count,
+			MAX(original_amount_currency_id) as currency_code
+		FROM debts 
+		WHERE tenant_id = $1
+		GROUP BY counterparty_id
+		ORDER BY (SUM(CASE WHEN type = 'RECEIVABLE' THEN outstanding_amount ELSE 0 END) + SUM(CASE WHEN type = 'PAYABLE' THEN outstanding_amount ELSE 0 END)) DESC`
 	debtInsertQuery = `
 		INSERT INTO debts (
 			tenant_id, type, status, counterparty_id,
@@ -144,6 +157,42 @@ func (g *GormDebtRepository) GetByCounterpartyID(ctx context.Context, counterpar
 
 	query := repo.Join(debtFindQuery, "WHERE counterparty_id = $1 AND tenant_id = $2")
 	return g.queryDebts(ctx, query, counterpartyID, tenantID)
+}
+
+func (g *GormDebtRepository) GetCounterpartyAggregates(ctx context.Context) ([]debt.CounterpartyAggregate, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, debtAggregateQuery, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	aggregates := make([]debt.CounterpartyAggregate, 0)
+	for rows.Next() {
+		var agg debt.CounterpartyAggregate
+		if err := rows.Scan(
+			&agg.CounterpartyID,
+			&agg.TotalReceivable,
+			&agg.TotalPayable,
+			&agg.TotalOutstandingReceivable,
+			&agg.TotalOutstandingPayable,
+			&agg.DebtCount,
+			&agg.CurrencyCode,
+		); err != nil {
+			return nil, err
+		}
+		aggregates = append(aggregates, agg)
+	}
+	return aggregates, nil
 }
 
 func (g *GormDebtRepository) Create(ctx context.Context, data debt.Debt) (debt.Debt, error) {

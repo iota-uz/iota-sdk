@@ -60,6 +60,12 @@ var (
 		Permissions: nil,
 		Children:    nil,
 	}
+	DebtAggregatesItem = types.NavigationItem{
+		Name:        "NavigationLinks.DebtAggregates",
+		Href:        "/finance/debt-aggregates",
+		Permissions: nil,
+		Children:    nil,
+	}
 	EnumsItem = types.NavigationItem{
 		Name:        "NavigationLinks.Finance.Enums",
 		Href:        "/finance/enums",
@@ -99,6 +105,7 @@ var FinanceItem = types.NavigationItem{
 		PaymentsItem,
 		ExpensesItem,
 		DebtsItem,
+		DebtAggregatesItem,
 		AccountsItem,
 		CounterpartiesItem,
 		InventoryItem,
