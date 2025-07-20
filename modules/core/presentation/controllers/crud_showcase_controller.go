@@ -358,13 +358,16 @@ func (s *showcaseMapper) ToFieldValuesList(_ context.Context, entities ...Showca
 			_int:       entity.Int(),
 			_bool:      entity.Bool(),
 			_float:     entity.Float(),
-			_decimal:   entity.Decimal(),
 			_date:      entity.Date(),
 			_time:      entity.Time(),
 			_dateTime:  entity.DateTime(),
 			_timestamp: entity.Timestamp(),
 			_multiLang: entity.MultiLang(),
 			_entry:     nil,
+		}
+		// Only include decimal if it has a non-empty value
+		if decimalVal := entity.Decimal(); decimalVal != "" {
+			values[_decimal] = decimalVal
 		}
 		if entity.Entry() != nil {
 			values[_entry] = entity.Entry().UUID()

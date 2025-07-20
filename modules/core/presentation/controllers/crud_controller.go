@@ -288,8 +288,18 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				} else {
 					continue
 				}
+			case crud.UUIDFieldType:
+				if formValue != "" {
+					if uuidVal, err := uuid.Parse(formValue); err == nil {
+						value = uuidVal
+					} else {
+						return nil, fmt.Errorf("invalid UUID value for select field %s: %v", fieldName, err)
+					}
+				} else {
+					continue // Skip empty values
+				}
 			case crud.StringFieldType, crud.DecimalFieldType, crud.DateFieldType,
-				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.UUIDFieldType, crud.JSONFieldType:
+				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
 				value = formValue
 			default:
 				// Default to string for any unknown types
@@ -324,7 +334,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				} else {
 					continue // Skip empty values
 				}
-			case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType:
+			case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType, crud.TimestampFieldType:
 				if formValue != "" {
 					parsedTime, err := time.Parse(time.RFC3339, formValue)
 					if err != nil {
@@ -337,7 +347,9 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							formats = []string{"15:04", "15:04:05"}
 						case crud.DateTimeFieldType:
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
-						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType, crud.JSONFieldType:
+						case crud.TimestampFieldType:
+							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05", time.RFC3339}
+						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.UUIDFieldType, crud.JSONFieldType:
 							// These types are handled elsewhere
 							formats = []string{}
 						}
@@ -367,8 +379,12 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					continue // Skip empty values
 				}
 			case crud.DecimalFieldType:
-				// Decimal fields are stored as strings
-				value = formValue
+				// Decimal fields are stored as strings, but skip empty values
+				if formValue != "" {
+					value = formValue
+				} else {
+					continue // Skip empty values
+				}
 			case crud.JSONFieldType:
 				if formValue != "" {
 					// Validate JSON format
@@ -380,8 +396,8 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				} else {
 					continue // Skip empty JSON values
 				}
-			case crud.StringFieldType, crud.TimestampFieldType:
-				// String and timestamp fields are handled as strings from forms
+			case crud.StringFieldType:
+				// String fields are handled as strings from forms
 				value = formValue
 			}
 		}
@@ -1502,6 +1518,11 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		return builder.Build()
 
 	case crud.UUIDFieldType:
+		// Check if this is actually a select field
+		if selectField, ok := field.(crud.SelectField); ok {
+			return c.handleSelectField(ctx, selectField, fieldLabel, currentValue)
+		}
+
 		builder := form.Text(field.Name(), fieldLabel)
 
 		if field.Readonly() {
@@ -1675,6 +1696,8 @@ func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectF
 				optValueStr = strconv.FormatBool(v)
 			case float64:
 				optValueStr = strconv.FormatFloat(v, 'f', -1, 64)
+			case uuid.UUID:
+				optValueStr = v.String()
 			default:
 				optValueStr = fmt.Sprintf("%v", v)
 			}
@@ -2121,25 +2144,17 @@ func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r
 
 // renderCreateFormWithErrors renders the create form with validation errors
 func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWriter, r *http.Request, ctx context.Context, fieldValues []crud.FieldValue, fieldErrors map[string]string) {
+	// Set proper content type for HTML
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK) // 200 status for form with errors
 
-	// For now, just use the existing form building approach
-	// TODO: Enhance form package to support field-level errors
+	// Log errors for debugging
+	if len(fieldErrors) > 0 {
+		log.Printf("[CrudController.renderCreateFormWithErrors] Field validation errors: %v", fieldErrors)
+	}
 
 	// Build form fields with errors added as HTML comments for now
 	formFields := c.buildFormFields(ctx, fieldValues)
-
-	// Add error display at the top of the form
-	if len(fieldErrors) > 0 {
-		// For now, we'll log the errors and add a generic error indicator
-		log.Printf("[CrudController.renderCreateFormWithErrors] Field validation errors: %v", fieldErrors)
-
-		// Add a small error element that tests can find
-		errorHTML := `<small data-testid="field-error" class="text-red-500">Field validation failed</small>`
-		if _, err := w.Write([]byte(errorHTML)); err != nil {
-			log.Printf("[CrudController.renderCreateFormWithErrors] Failed to write error HTML: %v", err)
-		}
-	}
 
 	// Localize form title
 	formTitle, err := c.localize(ctx, fmt.Sprintf("%s.New.Title", c.schema.Name()), "New")
@@ -2162,7 +2177,17 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 		submitLabel,
 	).Add(formFields...)
 
-	if err := form.Page(cfg).Render(ctx, w); err != nil {
+	// Choose component based on request type
+	var component templ.Component
+	if htmx.IsHxRequest(r) {
+		// For HTMX requests, use FormWithErrors which includes the edit-content wrapper
+		component = form.FormWithErrors(cfg, fieldErrors)
+	} else {
+		// For regular requests, return full page
+		component = form.Page(cfg)
+	}
+
+	if err := component.Render(ctx, w); err != nil {
 		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to render form: %v", err)
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
@@ -2170,6 +2195,8 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 
 // renderEditFormWithErrors renders the edit form with validation errors
 func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter, r *http.Request, ctx context.Context, fieldValues []crud.FieldValue, fieldErrors map[string]string) {
+	// Set proper content type for HTML
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK) // 200 status for form with errors
 
 	// Get ID from URL for the form action
@@ -2215,7 +2242,17 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 		submitLabel,
 	).Add(formFields...)
 
-	if err := form.Page(cfg).Render(ctx, w); err != nil {
+	// Choose component based on request type
+	var component templ.Component
+	if htmx.IsHxRequest(r) {
+		// For HTMX requests, use FormWithErrors which includes the edit-content wrapper
+		component = form.FormWithErrors(cfg, fieldErrors)
+	} else {
+		// For regular requests, return full page
+		component = form.Page(cfg)
+	}
+
+	if err := component.Render(ctx, w); err != nil {
 		log.Printf("[CrudController.renderEditFormWithErrors] Failed to render form: %v", err)
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
