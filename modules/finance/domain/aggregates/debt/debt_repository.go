@@ -23,7 +23,6 @@ type FindParams struct {
 	Status         *DebtStatus
 }
 
-
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
 	GetAll(ctx context.Context) ([]Debt, error)

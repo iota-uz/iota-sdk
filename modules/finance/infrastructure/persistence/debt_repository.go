@@ -24,7 +24,7 @@ const (
 			   description, due_date, settlement_transaction_id,
 			   created_at, updated_at
 		FROM debts`
-	debtCountQuery  = `SELECT COUNT(*) as count FROM debts WHERE tenant_id = $1`
+	debtCountQuery     = `SELECT COUNT(*) as count FROM debts WHERE tenant_id = $1`
 	debtAggregateQuery = `
 		SELECT 
 			counterparty_id,
