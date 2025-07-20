@@ -2,6 +2,7 @@ package table
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/a-h/templ"
@@ -17,6 +18,9 @@ type TableColumn interface {
 	Label() string
 	Class() string
 	Width() string
+	Sortable() bool
+	SortDir() SortDirection
+	SortURL() string
 }
 
 type TableRow interface {
@@ -28,16 +32,22 @@ type TableRow interface {
 // --- Private Implementations ---
 
 type tableColumnImpl struct {
-	key   string
-	label string
-	class string
-	width string
+	key      string
+	label    string
+	class    string
+	width    string
+	sortable bool
+	sortDir  SortDirection
+	sortURL  string
 }
 
-func (c *tableColumnImpl) Key() string   { return c.key }
-func (c *tableColumnImpl) Label() string { return c.label }
-func (c *tableColumnImpl) Class() string { return c.class }
-func (c *tableColumnImpl) Width() string { return c.width }
+func (c *tableColumnImpl) Key() string            { return c.key }
+func (c *tableColumnImpl) Label() string          { return c.label }
+func (c *tableColumnImpl) Class() string          { return c.class }
+func (c *tableColumnImpl) Width() string          { return c.width }
+func (c *tableColumnImpl) Sortable() bool         { return c.sortable }
+func (c *tableColumnImpl) SortDir() SortDirection { return c.sortDir }
+func (c *tableColumnImpl) SortURL() string        { return c.sortURL }
 
 type tableRowImpl struct {
 	cells []templ.Component
@@ -78,6 +88,24 @@ func WithClass(classes string) ColumnOpt {
 	}
 }
 
+func WithSortable(sortable bool) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.sortable = sortable
+	}
+}
+
+func WithSortDir(sortDir SortDirection) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.sortDir = sortDir
+	}
+}
+
+func WithSortURL(sortURL string) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.sortURL = sortURL
+	}
+}
+
 // --- Table Configuration ---
 
 type TableConfigOpt func(c *TableConfig)
@@ -105,6 +133,9 @@ type TableConfig struct {
 	Rows       []TableRow
 	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
+
+	// Optional: reference to definition for advanced usage
+	definition *TableDefinition
 }
 
 func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig {
@@ -216,4 +247,117 @@ func UseOrderQuery(r *http.Request) string {
 		return "asc" // default to ascending
 	}
 	return order
+}
+
+// GenerateSortURL generates a sort URL for a column based on current sort state
+func GenerateSortURL(baseURL, fieldKey, currentSortField, currentSortOrder string) string {
+	return GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortOrder, nil)
+}
+
+// GenerateSortURLWithParams generates a sort URL for a column with additional query parameters
+func GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortOrder string, existingParams url.Values) string {
+	params := url.Values{}
+
+	// Copy existing parameters if provided
+	for k, v := range existingParams {
+		params[k] = v
+	}
+
+	// If clicking on the same field, cycle through: none -> asc -> desc -> none
+	if fieldKey == currentSortField {
+		switch currentSortOrder {
+		case "asc":
+			params.Set("sort", fieldKey)
+			params.Set("order", "desc")
+		case "desc":
+			// Reset to no sorting (remove sort/order params)
+			params.Del("sort")
+			params.Del("order")
+		default:
+			params.Set("sort", fieldKey)
+			params.Set("order", "asc")
+		}
+	} else {
+		// Different field, start with ascending
+		params.Set("sort", fieldKey)
+		params.Set("order", "asc")
+	}
+
+	if len(params) == 0 {
+		return baseURL
+	}
+
+	return baseURL + "?" + params.Encode()
+}
+
+// GetSortDirection returns the sort direction for a field
+func GetSortDirection(fieldKey, currentSortField, currentSortOrder string) SortDirection {
+	if fieldKey == currentSortField {
+		return ParseSortDirection(currentSortOrder)
+	}
+	return SortDirectionNone
+}
+
+// --- New methods for separation of concerns ---
+
+// ToDefinition extracts the table definition from config
+func (c *TableConfig) ToDefinition() TableDefinition {
+	if c.definition != nil {
+		return *c.definition
+	}
+
+	// Build definition from current config
+	builder := NewTableDefinition(c.Title, c.DataURL).
+		WithColumns(c.Columns...).
+		WithFilters(c.Filters...).
+		WithActions(c.Actions...).
+		WithSideFilter(c.SideFilter)
+
+	if c.Infinite != nil {
+		builder.WithInfiniteScroll(true)
+	}
+
+	return builder.Build()
+}
+
+// ToData extracts the table data from config
+func (c *TableConfig) ToData() *TableData {
+	data := NewTableData().WithRows(c.Rows...)
+
+	if c.Infinite != nil {
+		// Calculate total from hasMore flag
+		// This is approximate but works for infinite scroll
+		total := int64(c.Infinite.Page * c.Infinite.PerPage)
+		if c.Infinite.HasMore {
+			total++ // Indicate there's at least one more item
+		}
+		data.WithPagination(c.Infinite.Page, c.Infinite.PerPage, total)
+	}
+
+	return data
+}
+
+// FromDefinitionAndData creates a TableConfig from definition and data
+func FromDefinitionAndData(def TableDefinition, data *TableData) *TableConfig {
+	cfg := &TableConfig{
+		Title:      def.Title(),
+		DataURL:    def.DataURL(),
+		Columns:    def.Columns(),
+		Filters:    def.Filters(),
+		Actions:    def.Actions(),
+		SideFilter: def.SideFilter(),
+		Rows:       data.Rows(),
+		definition: &def,
+	}
+
+	if def.EnableInfiniteScroll() {
+		pagination := data.Pagination()
+		cfg.Infinite = &InfiniteScrollConfig{
+			HasMore: pagination.HasMore,
+			Page:    pagination.Page,
+			PerPage: pagination.PerPage,
+		}
+	}
+
+	return cfg
 }

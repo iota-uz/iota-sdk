@@ -1,21 +1,24 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
-	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
-	payment_categories2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payment_categories"
-	viewmodels2 "github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	paymentcategories "github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/payment_categories"
 
-	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	paymentcategory "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment_category"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
@@ -26,18 +29,23 @@ type PaymentCategoriesController struct {
 	app                    application.Application
 	paymentCategoryService *services.PaymentCategoryService
 	basePath               string
-}
-
-type PaymentCategoryPaginatedResponse struct {
-	Categories      []*viewmodels2.PaymentCategory
-	PaginationState *pagination.State
+	tableDefinition        table.TableDefinition
 }
 
 func NewPaymentCategoriesController(app application.Application) application.Controller {
+	basePath := "/finance/payment-categories"
+
+	// Create table definition once at initialization
+	// Note: We'll set the actual localized values in the List method since we need context
+	tableDefinition := table.NewTableDefinition("", basePath).
+		WithInfiniteScroll(true).
+		Build()
+
 	return &PaymentCategoriesController{
 		app:                    app,
 		paymentCategoryService: app.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService),
-		basePath:               "/finance/payment-categories",
+		basePath:               basePath,
+		tableDefinition:        tableDefinition,
 	}
 }
 
@@ -60,14 +68,17 @@ func (c *PaymentCategoriesController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(commonMiddleware...)
 	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.GetEdit).Methods(http.MethodGet)
-	router.HandleFunc("/new", c.GetNew).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", c.GetEditDrawer).Methods(http.MethodGet)
+	router.HandleFunc("/new/drawer", c.GetNewDrawer).Methods(http.MethodGet)
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
 }
 
-func (c *PaymentCategoriesController) viewModelPaymentCategories(r *http.Request) (*PaymentCategoryPaginatedResponse, error) {
+func (c *PaymentCategoriesController) List(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	pageCtx := composables.UsePageCtx(ctx)
+
 	paginationParams := composables.UsePaginated(r)
 	params := &paymentcategory.FindParams{
 		Limit:  paginationParams.Limit,
@@ -82,48 +93,115 @@ func (c *PaymentCategoriesController) viewModelPaymentCategories(r *http.Request
 		},
 	}
 
-	// Use query parameters for additional filtering
-	queryParams := r.URL.Query()
-	if search := queryParams.Get("search"); search != "" {
+	if search := table.UseSearchQuery(r); search != "" {
 		params.Search = search
 	}
 
-	paymentEntities, err := c.paymentCategoryService.GetPaginated(r.Context(), params)
-	if err != nil {
-		return nil, errors.Wrap(err, "Error retrieving payment categories")
+	if from := r.URL.Query().Get("CreatedAt.From"); from != "" {
+		if to := r.URL.Query().Get("CreatedAt.To"); to != "" {
+			fromTime, err := time.Parse(time.RFC3339, from)
+			if err != nil {
+				http.Error(w, "Invalid from date format", http.StatusBadRequest)
+				return
+			}
+			toTime, err := time.Parse(time.RFC3339, to)
+			if err != nil {
+				http.Error(w, "Invalid to date format", http.StatusBadRequest)
+				return
+			}
+			params.Filters = append(params.Filters, paymentcategory.Filter{
+				Column: paymentcategory.CreatedAt,
+				Filter: repo.Between(fromTime, toTime),
+			})
+		}
 	}
-	viewCategories := mapping.MapViewModels(paymentEntities, mappers.PaymentCategoryToViewModel)
 
-	total, err := c.paymentCategoryService.Count(r.Context(), params)
+	paymentEntities, err := c.paymentCategoryService.GetPaginated(ctx, params)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error counting payment categories")
-	}
-
-	return &PaymentCategoryPaginatedResponse{
-		Categories:      viewCategories,
-		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), params.Limit),
-	}, nil
-}
-
-func (c *PaymentCategoriesController) List(w http.ResponseWriter, r *http.Request) {
-	paginated, err := c.viewModelPaymentCategories(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error retrieving payment categories", http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
-	props := &payment_categories2.IndexPageProps{
-		Categories:      paginated.Categories,
-		PaginationState: paginated.PaginationState,
+
+	total, err := c.paymentCategoryService.Count(ctx, params)
+	if err != nil {
+		http.Error(w, "Error counting payment categories", http.StatusInternalServerError)
+		return
 	}
-	if isHxRequest {
-		templ.Handler(payment_categories2.CategoriesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+	// Create table definition with localized values (only for full page render)
+	var definition table.TableDefinition
+	if !htmx.IsHxRequest(r) {
+		// Create action for drawer
+		createAction := actions.CreateAction(
+			pageCtx.T("PaymentCategories.List.New"),
+			"",
+		)
+		createAction.Attrs = templ.Attributes{
+			"hx-get":    c.basePath + "/new/drawer",
+			"hx-target": "#view-drawer",
+			"hx-swap":   "innerHTML",
+		}
+
+		definition = table.NewTableDefinition(
+			pageCtx.T("PaymentCategories.Meta.List.Title"),
+			c.basePath,
+		).
+			WithColumns(
+				table.Column("name", pageCtx.T("PaymentCategories.List.Name")),
+				table.Column("description", pageCtx.T("PaymentCategories.Single._Description")),
+				table.Column("created_at", pageCtx.T("CreatedAt")),
+			).
+			WithActions(actions.RenderAction(createAction)).
+			WithFilters(filters.CreatedAt()).
+			WithInfiniteScroll(true).
+			Build()
 	} else {
-		templ.Handler(payment_categories2.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+		// For HTMX requests, use minimal definition
+		definition = c.tableDefinition
+	}
+
+	// Build table rows
+	viewCategories := mapping.MapViewModels(paymentEntities, mappers.PaymentCategoryToViewModel)
+	rows := make([]table.TableRow, 0, len(viewCategories))
+
+	for _, cat := range viewCategories {
+		createdAt, err := time.Parse("2006-01-02T15:04:05Z07:00", cat.CreatedAt)
+		if err != nil {
+			createdAt, err = time.Parse("2006-01-02 15:04:05", cat.CreatedAt)
+			if err != nil {
+				createdAt = time.Now()
+			}
+		}
+
+		cells := []templ.Component{
+			templ.Raw(cat.Name),
+			templ.Raw(cat.Description),
+			table.DateTime(createdAt),
+		}
+
+		row := table.Row(cells...).ApplyOpts(
+			table.WithDrawer(fmt.Sprintf("%s/%s/drawer", c.basePath, cat.ID)),
+		)
+		rows = append(rows, row)
+	}
+
+	// Create table data
+	tableData := table.NewTableData().
+		WithRows(rows...).
+		WithPagination(paginationParams.Page, paginationParams.Limit, int64(total)).
+		WithQueryParams(r.URL.Query())
+
+	// Create renderer and render appropriate component
+	renderer := table.NewTableRenderer(definition, tableData)
+
+	if htmx.IsHxRequest(r) {
+		templ.Handler(renderer.RenderRows(), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		templ.Handler(renderer.RenderFull(), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }
 
-func (c *PaymentCategoriesController) GetEdit(w http.ResponseWriter, r *http.Request) {
+func (c *PaymentCategoriesController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -135,11 +213,11 @@ func (c *PaymentCategoriesController) GetEdit(w http.ResponseWriter, r *http.Req
 		http.Error(w, "Error retrieving payment category", http.StatusInternalServerError)
 		return
 	}
-	props := &payment_categories2.EditPageProps{
+	props := &paymentcategories.DrawerEditProps{
 		Category: mappers.PaymentCategoryToViewModel(entity),
 		Errors:   map[string]string{},
 	}
-	templ.Handler(payment_categories2.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(paymentcategories.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PaymentCategoriesController) Delete(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +231,7 @@ func (c *PaymentCategoriesController) Delete(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	shared.Redirect(w, r, c.basePath)
 }
 
@@ -167,6 +246,9 @@ func (c *PaymentCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	isDrawer := htmx.Target(r) != "" && htmx.Target(r) != "edit-content"
+
 	if errorsMap, ok := dto.Ok(r.Context()); ok {
 		existing, err := c.paymentCategoryService.GetByID(r.Context(), id)
 		if err != nil {
@@ -183,29 +265,34 @@ func (c *PaymentCategoriesController) Update(w http.ResponseWriter, r *http.Requ
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Always redirect to refresh the table
+		shared.Redirect(w, r, c.basePath)
 	} else {
 		entity, err := c.paymentCategoryService.GetByID(r.Context(), id)
 		if err != nil {
 			http.Error(w, "Error retrieving payment category", http.StatusInternalServerError)
 			return
 		}
-		props := &payment_categories2.EditPageProps{
-			Category: mappers.PaymentCategoryToViewModel(entity),
-			Errors:   errorsMap,
+
+		if isDrawer {
+			props := &paymentcategories.DrawerEditProps{
+				Category: mappers.PaymentCategoryToViewModel(entity),
+				Errors:   errorsMap,
+			}
+			templ.Handler(paymentcategories.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			http.Error(w, "Edit form not supported - use drawer", http.StatusBadRequest)
 		}
-		templ.Handler(payment_categories2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
-		return
 	}
-	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *PaymentCategoriesController) GetNew(w http.ResponseWriter, r *http.Request) {
-	props := &payment_categories2.CreatePageProps{
+func (c *PaymentCategoriesController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
+	props := &paymentcategories.DrawerCreateProps{
 		Errors:   map[string]string{},
 		Category: dtos.PaymentCategoryCreateDTO{},
-		PostPath: c.basePath,
 	}
-	templ.Handler(payment_categories2.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	templ.Handler(paymentcategories.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *PaymentCategoriesController) Create(w http.ResponseWriter, r *http.Request) {
@@ -215,13 +302,18 @@ func (c *PaymentCategoriesController) Create(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	isDrawer := htmx.IsHxRequest(r) && htmx.Target(r) == "payment-category-create-drawer"
+
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		props := &payment_categories2.CreatePageProps{
-			Errors:   errorsMap,
-			Category: *dto,
-			PostPath: c.basePath,
+		if isDrawer {
+			props := &paymentcategories.DrawerCreateProps{
+				Errors:   errorsMap,
+				Category: *dto,
+			}
+			templ.Handler(paymentcategories.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			http.Error(w, "Create form not supported - use drawer", http.StatusBadRequest)
 		}
-		templ.Handler(payment_categories2.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

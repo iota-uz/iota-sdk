@@ -33,7 +33,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 
 	t.Run(
 		"Count", func(t *testing.T) {
-			count, err := accountRepository.Count(f.Ctx)
+			count, err := accountRepository.Count(f.Ctx, &moneyaccount.FindParams{})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -29,6 +29,17 @@ module.exports = {
         blue: "oklch(var(--clr-border-blue))",
         purple: "oklch(var(--clr-border-purple))",
       },
+      textColor: {
+        100: "oklch(var(--clr-text-100))",
+        200: "oklch(var(--clr-text-200))",
+        300: "oklch(var(--clr-text-300))",
+        green: "oklch(var(--clr-text-green))",
+        pink: "oklch(var(--clr-text-pink))",
+        yellow: "oklch(var(--clr-text-yellow))",
+        blue: "oklch(var(--clr-text-blue))",
+        purple: "oklch(var(--clr-text-purple))",
+        avatar: "oklch(var(--clr-avatar-text))",
+      },
       colors: {
         100: "oklch(var(--clr-text-100))",
         200: "oklch(var(--clr-text-200))",
@@ -54,6 +65,13 @@ module.exports = {
           300: "oklch(var(--gray-300) / <alpha-value>)",
           400: "oklch(var(--gray-400) / <alpha-value>)",
           500: "oklch(var(--gray-500) / <alpha-value>)",
+        },
+        green: {
+          50: "oklch(var(--green-50) / <alpha-value>)",
+          100: "oklch(var(--green-100) / <alpha-value>)",
+          200: "oklch(var(--green-200) / <alpha-value>)",
+          500: "oklch(var(--green-500) / <alpha-value>)",
+          600: "oklch(var(--green-600) / <alpha-value>)",
         },
         red: {
           100: "oklch(var(--red-100))",

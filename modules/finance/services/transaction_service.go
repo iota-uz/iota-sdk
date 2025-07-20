@@ -13,10 +13,10 @@ type TransactionService struct {
 	eventPublisher eventbus.EventBus
 }
 
-func NewTransactionService(repo transaction2.Repository, eventPublisher *eventbus.EventBus) *TransactionService {
+func NewTransactionService(repo transaction2.Repository, eventPublisher eventbus.EventBus) *TransactionService {
 	return &TransactionService{
 		repo:           repo,
-		eventPublisher: *eventPublisher,
+		eventPublisher: eventPublisher,
 	}
 }
 
