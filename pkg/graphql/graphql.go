@@ -15,6 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
@@ -198,6 +199,7 @@ type Handler struct {
 }
 
 func NewHandler(rootExecutor *executor.Executor) *Handler {
+	conf := configuration.Use()
 	server := &Handler{}
 	server.execs = append(server.execs, rootExecutor)
 
@@ -213,7 +215,10 @@ func NewHandler(rootExecutor *executor.Executor) *Handler {
 	server.AddTransport(transport.Options{})
 	server.AddTransport(transport.GET{})
 	server.AddTransport(MyPOST{})
-	server.AddTransport(transport.MultipartForm{})
+	server.AddTransport(transport.MultipartForm{
+		MaxUploadSize: conf.MaxUploadSize,
+		MaxMemory:     conf.MaxUploadMemory,
+	})
 
 	// TODO: make LRU work
 	// srv.SetQueryCache(lru.New(1000))

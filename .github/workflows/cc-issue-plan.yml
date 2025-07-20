@@ -23,161 +23,111 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           base_branch: staging
+          allowed_tools: |
+            WebSearch
+            WebFetch
+            Bash(find:*)
+            Bash(grep:*)
+            Bash(ls:*)
+            Bash(cat:*)
+            Bash(head:*)
+            Bash(tail:*)
+            Bash(wc:*)
+            Bash(tree:*)
+            Bash(gh label:*)
+            Bash(gh issue:*)
+            Bash(gh project:*)
+          disallowed_tools: |
+            Edit
+            MultiEdit
+            NotebookEdit
+            Write
           direct_prompt: |
-            Analyze the issue and provide an implementation plan. The project uses DDD architecture with specific conventions documented in CLAUDE.md.
+            Create a detailed implementation plan for this issue. Use the codebase search tools to understand the current implementation and web tools to research any external libraries or patterns mentioned.
 
-            **Issue Title:** ${{ github.event.issue.title }}
-            **Issue Body:** 
-            ${{ github.event.issue.body }}
+            **IMPORTANT:** You are in read-only mode and cannot edit files. Focus on analyzing and planning only.
 
-            ## Implementation Plan for: ${{ github.event.issue.title }}
+            **Current Labels:** ${{ join(github.event.issue.labels.*.name, ', ') }}
 
-            ### Overview
-            Brief summary of what needs to be implemented and the approach.
+            ## Your Task:
+            1. Analyze the issue thoroughly
+            2. Search the codebase to understand current implementation
+            3. For any external libraries or technologies mentioned, use WebSearch and WebFetch to gather relevant documentation
+            4. Create a detailed plan listing exactly which files need to be modified and how
+            5. If the issue doesn't have any labels yet, apply appropriate labels using `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`. First check available labels with `gh label list --repo ${{ github.repository }}` and only use existing labels
+            6. Set the issue type and project using GitHub CLI commands if not already set. Use `gh issue edit` to set custom fields and `gh project item-add` to add to projects
 
-            ### Affected Components
-            List specific modules and their components that need changes.
+            ## Required Output Format:
 
-            ### Implementation Steps
+            ### 📋 Issue Analysis
+            **Type:** [Bug/Feature/Enhancement/Performance/Security]
+            **Summary:** [Brief description of what needs to be done]
 
-            #### 1. Domain Layer
-            Provide interfaces and types with signatures only:
+            ### 🔍 Codebase Investigation
+            [Your findings from searching the codebase - include specific file paths and line numbers]
 
-            ```go
-            // modules/{module}/domain/aggregates/{entity}/{entity}.go
-            type Entity interface {
-                ID() string
-                // method signatures only
-            }
+            ### 📚 External Research
+            [If any external libraries/APIs are involved, include relevant documentation snippets here]
+            [Use WebSearch and WebFetch to gather this information]
 
-            // modules/{module}/domain/aggregates/{entity}/{entity}_repository.go  
-            type EntityRepository interface {
-                FindByID(ctx context.Context, id string) (*Entity, error)
-                // other methods needed
-            }
+            ### 📁 Files to Modify
+
+            **For Features/Enhancements:**
+            List each file that needs to be created or modified with a brief description of changes:
+
+            ```
+            CREATE: modules/{module}/domain/aggregates/{entity}/{entity}.go
+            - Define the entity interface with methods [list methods]
+            - Add business logic for [specific functionality]
+
+            MODIFY: modules/{module}/infrastructure/persistence/models/models.go
+            - Add new model struct for [entity]
+            - Include fields: [list key fields]
+
+            CREATE: modules/{module}/infrastructure/persistence/{entity}_repository.go
+            - Implement repository interface
+            - Add CRUD operations with proper error handling
+
+            [Continue for all files...]
             ```
 
-            #### 2. Infrastructure Layer
-            Database schema and repository implementation signatures:
+            **For Bugs:**
+            Identify the root cause and affected files:
 
-            ```sql
-            -- modules/{module}/infrastructure/persistence/schema/{module}-schema.sql
-            CREATE TABLE IF NOT EXISTS table_name (
-                -- column definitions
-            );
+            ```
+            ROOT CAUSE: [Explain the bug's origin]
+
+            MODIFY: path/to/file.go:LineNumber
+            - Current behavior: [what's wrong]
+            - Fix: [what needs to change]
+            - Reason: [why this fixes it]
+
+            [List all files that need fixes...]
             ```
 
-            ```go
-            // modules/{module}/infrastructure/persistence/{entity}_repository.go
-            type entityRepository struct {
-                db *sqlx.DB
-            }
+            ### 🧪 Testing Strategy
+            - Which test files need to be created/modified
+            - Key test scenarios to cover
+            - Integration test requirements
 
-            func NewEntityRepository(db *sqlx.DB) domain.EntityRepository {
-                // implementation left blank
-            }
+            ### 🚀 Implementation Steps
+            1. [First concrete step]
+            2. [Second concrete step]
+            3. [Continue with ordered steps...]
 
-            func (r *entityRepository) FindByID(ctx context.Context, id string) (*domain.Entity, error) {
-                // implementation left blank
-            }
-            ```
+            ### ✅ Definition of Done
+            - [ ] All listed files created/modified
+            - [ ] Tests written and passing
+            - [ ] API endpoints functional (if applicable)
+            - [ ] Localization updated (if UI changes)
+            - [ ] Code follows DDD patterns
+            - [ ] No linting errors
 
-            #### 3. Service Layer
-            Service interfaces and constructors:
+            ### 💡 Notes for Implementation
+            [Any additional context, tips, or warnings for the developer who will implement this]
 
-            ```go
-            // modules/{module}/services/{entity}_service.go
-            type EntityService struct {
-                repo domain.EntityRepository
-                events pkg.EventPublisher
-            }
-
-            func NewEntityService(repo domain.EntityRepository, events pkg.EventPublisher) *EntityService {
-                // implementation left blank
-            }
-
-            func (s *EntityService) CreateEntity(ctx context.Context, req CreateEntityRequest) (*EntityResponse, error) {
-                // implementation left blank
-            }
-            ```
-
-            #### 4. Presentation Layer
-            Controller and DTO signatures:
-
-            ```go
-            // modules/{module}/presentation/controllers/dtos/{entity}_dto.go
-            type CreateEntityDTO struct {
-                Name string `json:"name" validate:"required"`
-                // other fields
-            }
-
-            // modules/{module}/presentation/controllers/{entity}_controller.go
-            type EntityController struct {
-                service *services.EntityService
-            }
-
-            func NewEntityController(service *services.EntityService) *EntityController {
-                // implementation left blank
-            }
-
-            func (c *EntityController) List(ctx *fiber.Ctx) error {
-                // implementation left blank
-            }
-            ```
-
-            #### 5. API Endpoints
-            - `GET /api/v1/{module}/{entities}` - List entities
-            - `POST /api/v1/{module}/{entities}` - Create entity
-            - Include request/response types
-
-            ### File Structure
-            ```
-            modules/{module}/
-            ├── domain/
-            │   └── aggregates/{entity}/
-            │       ├── {entity}.go
-            │       └── {entity}_repository.go
-            ├── infrastructure/
-            │   └── persistence/
-            │       ├── {entity}_repository.go
-            │       └── schema/{module}-schema.sql
-            ├── services/
-            │   └── {entity}_service.go
-            └── presentation/
-                ├── controllers/
-                │   ├── {entity}_controller.go
-                │   └── dtos/{entity}_dto.go
-                └── locales/
-                    ├── en.json
-                    ├── ru.json
-                    └── uz.json
-            ```
-
-            ### Testing Strategy
-            - Domain unit tests: `{entity}_test.go`
-            - Repository integration tests: `{entity}_repository_test.go`
-            - Service tests: `{entity}_service_test.go`
-            - Controller tests: `{entity}_controller_test.go`
-
-            ### Localization Keys
-            ```json
-            {
-              "NavigationLinks.{Module}": "Module Name",
-              "Meta.{Module}.{Entity}.List.Title": "Entity List",
-              "{Module}.{Entity}.Fields.Name": "Name"
-            }
-            ```
-
-            ### Definition of Done
-            - [ ] All interfaces and types defined
-            - [ ] Repository methods implemented
-            - [ ] Service logic complete
-            - [ ] API endpoints working
-            - [ ] Tests passing
-            - [ ] Localization complete
-            - [ ] Module registered in module.go
-
-            **Note:** Focus on signatures and structure. Implementation details are left blank.
+            ---
+            **Important:** Be specific about file paths and changes. This plan will be reviewed by a senior engineer before implementation.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           mcp_config: |
             {

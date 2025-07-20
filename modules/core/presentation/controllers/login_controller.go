@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 
+	"time"
+
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -84,6 +86,7 @@ func (c *LoginController) Register(r *mux.Router) {
 	setRouter.Use(
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.WithTransaction(),
+		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
 }

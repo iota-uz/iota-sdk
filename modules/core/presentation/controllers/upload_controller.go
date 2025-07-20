@@ -57,7 +57,8 @@ func (c *UploadController) Register(r *mux.Router) {
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	conf := configuration.Use()
+	if err := r.ParseMultipartForm(conf.MaxUploadMemory); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

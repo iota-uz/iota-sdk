@@ -117,6 +117,30 @@ type StripeOptions struct {
 	SigningSecret string `env:"STRIPE_SIGNING_SECRET"`
 }
 
+type RateLimitOptions struct {
+	Enabled   bool   `env:"RATE_LIMIT_ENABLED" envDefault:"true"`
+	GlobalRPS int    `env:"RATE_LIMIT_GLOBAL_RPS" envDefault:"1000"`
+	Storage   string `env:"RATE_LIMIT_STORAGE" envDefault:"memory"` // memory or redis
+	RedisURL  string `env:"RATE_LIMIT_REDIS_URL"`
+}
+
+// Validate checks the rate limit configuration for errors
+func (r *RateLimitOptions) Validate() error {
+	if r.GlobalRPS < 0 {
+		return fmt.Errorf("rate limit GlobalRPS must be non-negative, got %d", r.GlobalRPS)
+	}
+	if r.GlobalRPS > 1000000 {
+		return fmt.Errorf("rate limit GlobalRPS too high, maximum is 1,000,000, got %d", r.GlobalRPS)
+	}
+	if r.Storage != "memory" && r.Storage != "redis" {
+		return fmt.Errorf("rate limit Storage must be 'memory' or 'redis', got '%s'", r.Storage)
+	}
+	if r.Storage == "redis" && r.RedisURL == "" {
+		return fmt.Errorf("rate limit RedisURL is required when Storage is 'redis'")
+	}
+	return nil
+}
+
 type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
@@ -127,6 +151,7 @@ type Configuration struct {
 	Payme         PaymeOptions
 	Octo          OctoOptions
 	Stripe        StripeOptions
+	RateLimit     RateLimitOptions
 
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
@@ -139,6 +164,8 @@ type Configuration struct {
 	Origin           string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
+	MaxUploadSize    int64         `env:"MAX_UPLOAD_SIZE" envDefault:"33554432"`
+	MaxUploadMemory  int64         `env:"MAX_UPLOAD_MEMORY" envDefault:"33554432"`
 	LogLevel         string        `env:"LOG_LEVEL" envDefault:"error"`
 	// SDK will look for this header in the request, if it's not present, it will generate a random uuidv4
 	RequestIDHeader string `env:"REQUEST_ID_HEADER" envDefault:"X-Request-ID"`
@@ -200,6 +227,11 @@ func (c *Configuration) load(envFiles []string) error {
 	}
 	if err := env.Parse(c); err != nil {
 		return err
+	}
+
+	// Validate rate limiting configuration
+	if err := c.RateLimit.Validate(); err != nil {
+		return fmt.Errorf("rate limit configuration error: %w", err)
 	}
 	f, logger, err := logging.FileLogger(c.LogrusLogLevel(), c.Loki.LogPath)
 	if err != nil {
