@@ -6,13 +6,11 @@ RUN curl -sSfL https://github.com/tailwindlabs/tailwindcss/releases/download/v3.
 
 # Install Go tools
 RUN go install github.com/a-h/templ/cmd/templ@v0.3.857 \
-    && go install github.com/air-verse/air@latest \
-    && go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
-    && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest \
-    && go install golang.org/x/tools/cmd/goimports@latest \
-    && go install github.com/mitranim/gow@latest \
-    && go install github.com/loov/goda@latest \
-    && go install github.com/iota-uz/devhub/cmd/devhub@latest
+    && go install github.com/air-verse/air@v1.61.5 \
+    && go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8 \
+    && go install golang.org/x/tools/cmd/goimports@v0.31.0 \
+    && go install github.com/loov/goda@v0.5.11 \
+    && go install github.com/iota-uz/devhub/cmd/devhub@v0.0.2
 
 # Install additional tools
 RUN apt-get update && apt-get install -y \
