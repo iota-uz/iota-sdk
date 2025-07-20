@@ -49,7 +49,6 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 		return &fieldValue{
 			field: j.field,
 			value: nil,
-			err:   nil,
 		}
 	}
 
@@ -58,7 +57,6 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 		return &fieldValue{
 			field: j.field,
 			value: jsonStr,
-			err:   nil,
 		}
 	}
 
@@ -66,16 +64,11 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 	if mapVal, ok := value.(map[string]interface{}); ok {
 		jsonBytes, err := json.Marshal(mapVal)
 		if err != nil {
-			return &fieldValue{
-				field: j.field,
-				value: nil,
-				err:   fmt.Errorf("failed to marshal JSON for field %q: %v", j.name, err),
-			}
+			panic(fmt.Errorf("failed to marshal JSON for field %q: %v", j.name, err))
 		}
 		return &fieldValue{
 			field: j.field,
 			value: string(jsonBytes),
-			err:   nil,
 		}
 	}
 
@@ -83,11 +76,7 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 	if j.validator != nil {
 		if typedValue, ok := value.(T); ok {
 			if err := j.validator(typedValue); err != nil {
-				return &fieldValue{
-					field: j.field,
-					value: nil,
-					err:   fmt.Errorf("validation failed for field %q: %v", j.name, err),
-				}
+				panic(fmt.Errorf("validation failed for field %q: %v", j.name, err))
 			}
 		}
 		// If we can't cast to T, we still continue but skip validation
@@ -97,17 +86,12 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 	// If value is an object, marshal it
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
-		return &fieldValue{
-			field: j.field,
-			value: nil,
-			err:   fmt.Errorf("failed to marshal JSON for field %q: %v", j.name, err),
-		}
+		panic(fmt.Errorf("failed to marshal JSON for field %q: %v", j.name, err))
 	}
 
 	return &fieldValue{
 		field: j.field,
 		value: string(jsonBytes),
-		err:   nil,
 	}
 }
 

@@ -30,7 +30,6 @@ type FieldValue interface {
 type fieldValue struct {
 	field Field
 	value any
-	err   error
 }
 
 func (fv *fieldValue) Field() Field {
@@ -38,16 +37,10 @@ func (fv *fieldValue) Field() Field {
 }
 
 func (fv *fieldValue) Value() any {
-	if fv.err != nil {
-		panic(fv.err)
-	}
 	return fv.value
 }
 
 func (fv *fieldValue) IsZero() bool {
-	if fv.err != nil {
-		return false
-	}
 	if fv.value == nil {
 		return true
 	}
@@ -255,11 +248,14 @@ func (fv *fieldValue) AsUUID() (uuid.UUID, error) {
 		return uuid.Nil, nil
 	}
 
-	u, ok := fv.value.(uuid.UUID)
-	if !ok {
+	switch v := fv.value.(type) {
+	case uuid.UUID:
+		return v, nil
+	case [16]uint8:
+		return uuid.FromBytes(v[:])
+	default:
 		return uuid.UUID{}, fv.valueCastError("uuid.UUID")
 	}
-	return u, nil
 }
 
 func (fv *fieldValue) AsJSON() (string, error) {
