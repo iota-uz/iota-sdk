@@ -25,7 +25,8 @@ ENV GO111MODULE=on \
     GOPATH=/go \
     AIR_SILENT=true
 
-# Create directories for Air
-RUN mkdir -p /tmp/air
+# Create directories for Air and fix permissions
+RUN mkdir -p /tmp/air \
+    && chmod -R 777 /go/pkg || true
 
 WORKDIR /workspace
