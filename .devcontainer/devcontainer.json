@@ -2,7 +2,7 @@
   "name": "IOTA-SDK Dev Container",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": "."
+    "context": ".."
   },
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
@@ -10,7 +10,9 @@
     },
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/tailscale/devcontainer-feature:1": {}
+    "ghcr.io/tailscale/codespace/tailscale:1": {
+      "version": "latest"
+    }
   },
   "postCreateCommand": "bash -c 'go mod download && if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi'",
   "forwardPorts": [
@@ -114,4 +116,3 @@
     "storage": "64gb"
   }
 }
-
