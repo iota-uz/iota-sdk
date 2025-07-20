@@ -28,8 +28,4 @@ ENV GO111MODULE=on \
 # Create directories for Air
 RUN mkdir -p /tmp/air
 
-# Pre-download common Go dependencies (optional optimization)
-COPY go.mod go.sum /tmp/
-RUN cd /tmp && go mod download && rm -rf /tmp/go.*
-
 WORKDIR /workspace
