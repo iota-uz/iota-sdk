@@ -99,7 +99,7 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 	rows := make([]table.TableRow, 0, len(aggregates))
 
 	for _, agg := range aggregates {
-		counterparty, err := c.counterpartyService.GetByID(ctx, agg.CounterpartyID)
+		counterparty, err := c.counterpartyService.GetByID(ctx, agg.CounterpartyID())
 		if err != nil {
 			http.Error(w, "Error retrieving counterparty", http.StatusInternalServerError)
 			return

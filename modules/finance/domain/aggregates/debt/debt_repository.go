@@ -23,15 +23,6 @@ type FindParams struct {
 	Status         *DebtStatus
 }
 
-type CounterpartyAggregate struct {
-	CounterpartyID                uuid.UUID
-	TotalReceivable               float64
-	TotalPayable                  float64
-	TotalOutstandingReceivable    float64
-	TotalOutstandingPayable       float64
-	DebtCount                     int
-	CurrencyCode                  string
-}
 
 type Repository interface {
 	Count(ctx context.Context) (int64, error)

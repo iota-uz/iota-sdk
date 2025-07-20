@@ -225,3 +225,153 @@ func (d *debt) CreatedAt() time.Time {
 func (d *debt) UpdatedAt() time.Time {
 	return d.updatedAt
 }
+
+// CounterpartyAggregate functional options
+type CounterpartyAggregateOption func(ca *counterpartyAggregate)
+
+func WithAggCounterpartyID(id uuid.UUID) CounterpartyAggregateOption {
+	return func(ca *counterpartyAggregate) {
+		ca.counterpartyID = id
+	}
+}
+
+func WithAggTotalReceivable(amount float64) CounterpartyAggregateOption {
+	return func(ca *counterpartyAggregate) {
+		ca.totalReceivable = amount
+	}
+}
+
+func WithAggTotalPayable(amount float64) CounterpartyAggregateOption {
+	return func(ca *counterpartyAggregate) {
+		ca.totalPayable = amount
+	}
+}
+
+func WithAggTotalOutstandingReceivable(amount float64) CounterpartyAggregateOption {
+	return func(ca *counterpartyAggregate) {
+		ca.totalOutstandingReceivable = amount
+	}
+}
+
+func WithAggTotalOutstandingPayable(amount float64) CounterpartyAggregateOption {
+	return func(ca *counterpartyAggregate) {
+		ca.totalOutstandingPayable = amount
+	}
+}
+
+func WithAggDebtCount(count int) CounterpartyAggregateOption {
+	return func(ca *counterpartyAggregate) {
+		ca.debtCount = count
+	}
+}
+
+func WithAggCurrencyCode(code string) CounterpartyAggregateOption {
+	return func(ca *counterpartyAggregate) {
+		ca.currencyCode = code
+	}
+}
+
+// NewCounterpartyAggregate creates a new CounterpartyAggregate with functional options
+func NewCounterpartyAggregate(
+	counterpartyID uuid.UUID,
+	opts ...CounterpartyAggregateOption,
+) CounterpartyAggregate {
+	ca := &counterpartyAggregate{
+		counterpartyID:             counterpartyID,
+		totalReceivable:            0,
+		totalPayable:               0,
+		totalOutstandingReceivable: 0,
+		totalOutstandingPayable:    0,
+		debtCount:                  0,
+		currencyCode:               "",
+	}
+	for _, opt := range opts {
+		opt(ca)
+	}
+	return ca
+}
+
+// counterpartyAggregate private implementation
+type counterpartyAggregate struct {
+	counterpartyID             uuid.UUID
+	totalReceivable            float64
+	totalPayable               float64
+	totalOutstandingReceivable float64
+	totalOutstandingPayable    float64
+	debtCount                  int
+	currencyCode               string
+}
+
+func (ca *counterpartyAggregate) CounterpartyID() uuid.UUID {
+	return ca.counterpartyID
+}
+
+func (ca *counterpartyAggregate) TotalReceivable() float64 {
+	return ca.totalReceivable
+}
+
+func (ca *counterpartyAggregate) TotalPayable() float64 {
+	return ca.totalPayable
+}
+
+func (ca *counterpartyAggregate) TotalOutstandingReceivable() float64 {
+	return ca.totalOutstandingReceivable
+}
+
+func (ca *counterpartyAggregate) TotalOutstandingPayable() float64 {
+	return ca.totalOutstandingPayable
+}
+
+func (ca *counterpartyAggregate) DebtCount() int {
+	return ca.debtCount
+}
+
+func (ca *counterpartyAggregate) CurrencyCode() string {
+	return ca.currencyCode
+}
+
+func (ca *counterpartyAggregate) NetAmount() float64 {
+	return ca.totalReceivable - ca.totalPayable
+}
+
+func (ca *counterpartyAggregate) UpdateCounterpartyID(id uuid.UUID) CounterpartyAggregate {
+	result := *ca
+	result.counterpartyID = id
+	return &result
+}
+
+func (ca *counterpartyAggregate) UpdateTotalReceivable(amount float64) CounterpartyAggregate {
+	result := *ca
+	result.totalReceivable = amount
+	return &result
+}
+
+func (ca *counterpartyAggregate) UpdateTotalPayable(amount float64) CounterpartyAggregate {
+	result := *ca
+	result.totalPayable = amount
+	return &result
+}
+
+func (ca *counterpartyAggregate) UpdateTotalOutstandingReceivable(amount float64) CounterpartyAggregate {
+	result := *ca
+	result.totalOutstandingReceivable = amount
+	return &result
+}
+
+func (ca *counterpartyAggregate) UpdateTotalOutstandingPayable(amount float64) CounterpartyAggregate {
+	result := *ca
+	result.totalOutstandingPayable = amount
+	return &result
+}
+
+func (ca *counterpartyAggregate) UpdateDebtCount(count int) CounterpartyAggregate {
+	result := *ca
+	result.debtCount = count
+	return &result
+}
+
+func (ca *counterpartyAggregate) UpdateCurrencyCode(code string) CounterpartyAggregate {
+	result := *ca
+	result.currencyCode = code
+	return &result
+}
