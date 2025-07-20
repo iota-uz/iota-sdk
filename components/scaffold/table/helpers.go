@@ -1,6 +1,9 @@
 package table
 
 import (
+	"net/http"
+	"strconv"
+
 	"github.com/a-h/templ"
 )
 
@@ -163,4 +166,54 @@ func (c *TableConfig) SetSideFilter(filter templ.Component) *TableConfig {
 func (c *TableConfig) AddActions(actions ...templ.Component) *TableConfig {
 	c.Actions = append(c.Actions, actions...)
 	return c
+}
+
+// --- Query Parameter Utilities ---
+
+// UseSearchQuery gets the "Search" query parameter from the request
+func UseSearchQuery(r *http.Request) string {
+	return r.URL.Query().Get("Search")
+}
+
+// UsePageQuery gets the "page" query parameter from the request and converts it to int
+func UsePageQuery(r *http.Request) int {
+	pageStr := r.URL.Query().Get("page")
+	if pageStr == "" {
+		return 1 // default to page 1
+	}
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		return 1
+	}
+	return page
+}
+
+// UseLimitQuery gets the "limit" query parameter from the request and converts it to int
+func UseLimitQuery(r *http.Request) int {
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		return 20 // default to 20 items per page
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		return 20
+	}
+	if limit > 100 {
+		return 100 // cap at maximum
+	}
+	return limit
+}
+
+// UseSortQuery gets the "sort" query parameter from the request
+func UseSortQuery(r *http.Request) string {
+	return r.URL.Query().Get("sort")
+}
+
+// UseOrderQuery gets the "order" query parameter from the request (asc/desc)
+func UseOrderQuery(r *http.Request) string {
+	order := r.URL.Query().Get("order")
+	if order != "desc" {
+		return "asc" // default to ascending
+	}
+	return order
 }

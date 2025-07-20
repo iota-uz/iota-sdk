@@ -88,8 +88,15 @@ func DateTime(ts time.Time) templ.Component {
 	})
 }
 
-func nextChunkURL(dataURL string, page, perPage int) string {
+func nextChunkURL(dataURL string, page, perPage int, currentParams url.Values) string {
+	// Clone the current parameters to preserve existing filters/search/etc
 	params := url.Values{}
+	for key, values := range currentParams {
+		for _, value := range values {
+			params.Add(key, value)
+		}
+	}
+	// Update page and limit for the next chunk
 	params.Set("page", strconv.Itoa(page+1))
 	params.Set("limit", strconv.Itoa(perPage))
 	return fmt.Sprintf("%s?%s", dataURL, params.Encode())
@@ -117,7 +124,13 @@ func Rows(cfg *TableConfig) templ.Component {
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+
 		pageCtx := composables.UsePageCtx(ctx)
+		params, _ := composables.UseParams(ctx)
+		currentParams := url.Values{}
+		if params != nil && params.Request != nil {
+			currentParams = params.Request.URL.Query()
+		}
 		if cfg.Infinite.Page == 1 {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<tr class=\"hidden\"><td colspan=\"")
 			if templ_7745c5c3_Err != nil {
@@ -126,7 +139,7 @@ func Rows(cfg *TableConfig) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(cfg.Columns)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 44, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 58, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -175,7 +188,7 @@ func Rows(cfg *TableConfig) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Scaffold.Table.NothingFound"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 63, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 77, Col: 46}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -211,7 +224,7 @@ func Rows(cfg *TableConfig) templ.Component {
 					rowAttrs[k] = v
 				}
 				if isLastRow && cfg.Infinite.HasMore {
-					rowAttrs["hx-get"] = nextChunkURL(cfg.DataURL, cfg.Infinite.Page, cfg.Infinite.PerPage)
+					rowAttrs["hx-get"] = nextChunkURL(cfg.DataURL, cfg.Infinite.Page, cfg.Infinite.PerPage, currentParams)
 					rowAttrs["hx-indicator"] = "#infinite-scroll-spinner"
 					rowAttrs["hx-trigger"] = "intersect once"
 					rowAttrs["hx-swap"] = "afterend"
@@ -295,7 +308,7 @@ func InfiniteScrollSpinner(cfg *TableConfig) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(cfg.Columns)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 97, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 111, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -424,7 +437,7 @@ func TableSection(config *TableConfig) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(config.DataURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 133, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 147, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -571,7 +584,7 @@ func Content(config *TableConfig) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(config.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 197, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 211, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
