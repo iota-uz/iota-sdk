@@ -25,11 +25,42 @@ ENV GO111MODULE=on \
     GOPATH=/go \
     AIR_SILENT=true
 
-# Create directories for Air
-RUN mkdir -p /tmp/air
+# Create directories for Air and fix permissions
+RUN mkdir -p /tmp/air \
+    && chmod -R 777 /go/pkg || true
 
-# Pre-download common Go dependencies (optional optimization)
-COPY go.mod go.sum /tmp/
-RUN cd /tmp && go mod download && rm -rf /tmp/go.*
+# Create Claude settings file
+RUN mkdir -p /home/vscode/.claude && \
+    echo '{ \
+  "env": {}, \
+  "includeCoAuthoredBy": false, \
+  "permissions": { \
+    "allow": [ \
+      "Bash(cat:*)", \
+      "Bash(go list:*)", \
+      "Bash(go test:*)", \
+      "Bash(go vet:*)", \
+      "Bash(grep:*)", \
+      "Bash(mkdir:*)", \
+      "Bash(sed:*)", \
+      "mcp__sdk__get_definition", \
+      "Bash(ls:*)", \
+      "Bash(rg:*)", \
+      "Bash(gh pr view:*)", \
+      "Bash(gh api:*)", \
+      "Bash(find:*)", \
+      "mcp__godoc-mcp__get_doc", \
+      "mcp__bloom__search_code", \
+      "Bash(echo $PATH)", \
+      "Bash(gh --version)", \
+      "mcp__devhub__get_logs", \
+      "mcp__devhub__search_logs", \
+      "mcp__sequential-thinking__sequentialthinking" \
+    ], \
+    "deny": [] \
+  }, \
+  "model": "sonnet" \
+}' > /home/vscode/.claude/settings.json && \
+    chown -R vscode:vscode /home/vscode/.claude
 
 WORKDIR /workspace
