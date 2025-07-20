@@ -50,7 +50,6 @@ RUN mkdir -p /home/vscode/.claude && \
       "Bash(gh api:*)", \
       "Bash(find:*)", \
       "mcp__godoc-mcp__get_doc", \
-      "mcp__code-indexer__search_code", \
       "mcp__bloom__search_code", \
       "Bash(echo $PATH)", \
       "Bash(gh --version)", \
