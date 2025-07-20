@@ -7,58 +7,76 @@ import (
 
 // multiLangImpl is the default implementation of MultiLang interface
 type multiLangImpl struct {
-	UZ string `json:"uz"`
-	RU string `json:"ru"`
-	EN string `json:"en"`
+	data map[string]string
 }
 
 func (m *multiLangImpl) Get(locale string) (string, error) {
-	switch strings.ToLower(locale) {
-	case "uz":
-		return m.UZ, nil
-	case "ru":
-		return m.RU, nil
-	case "en":
-		return m.EN, nil
-	default:
+	if m.data == nil {
 		return "", ErrUnsupportedLocale
 	}
+
+	normalizedLocale := strings.ToLower(locale)
+	value, exists := m.data[normalizedLocale]
+	if !exists {
+		return "", ErrUnsupportedLocale
+	}
+
+	return value, nil
 }
 
 func (m *multiLangImpl) Set(locale, value string) (MultiLang, error) {
-	result := &multiLangImpl{
-		UZ: m.UZ,
-		RU: m.RU,
-		EN: m.EN,
+	normalizedLocale := strings.ToLower(locale)
+
+	// Create a copy of the current data
+	newData := make(map[string]string)
+	if m.data != nil {
+		for k, v := range m.data {
+			newData[k] = v
+		}
 	}
 
-	switch strings.ToLower(locale) {
-	case "uz":
-		result.UZ = value
-	case "ru":
-		result.RU = value
-	case "en":
-		result.EN = value
-	default:
-		return m, ErrUnsupportedLocale
-	}
-	return result, nil
+	// Set the new value
+	newData[normalizedLocale] = value
+
+	return &multiLangImpl{data: newData}, nil
 }
 
 func (m *multiLangImpl) IsEmpty() bool {
-	return m.UZ == "" && m.RU == "" && m.EN == ""
+	if len(m.data) == 0 {
+		return true
+	}
+
+	// Check if all values are empty strings
+	for _, value := range m.data {
+		if value != "" {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (m *multiLangImpl) Default() string {
-	if m.EN != "" {
-		return m.EN
+	if m.data == nil {
+		return ""
 	}
-	if m.RU != "" {
-		return m.RU
+
+	// Priority order: en -> ru -> uz -> first available
+	priorities := []string{"en", "ru", "uz"}
+
+	for _, locale := range priorities {
+		if value, exists := m.data[locale]; exists && value != "" {
+			return value
+		}
 	}
-	if m.UZ != "" {
-		return m.UZ
+
+	// If no priority language found, return first non-empty value
+	for _, value := range m.data {
+		if value != "" {
+			return value
+		}
 	}
+
 	return ""
 }
 
@@ -74,6 +92,19 @@ func (m *multiLangImpl) GetWithFallback(locale string) string {
 	return m.Default()
 }
 
+func (m *multiLangImpl) GetAll() map[string]string {
+	if m.data == nil {
+		return make(map[string]string)
+	}
+
+	// Return a copy to prevent external modification
+	result := make(map[string]string)
+	for k, v := range m.data {
+		result[k] = v
+	}
+	return result
+}
+
 func (m *multiLangImpl) ToJSON() ([]byte, error) {
 	return json.Marshal(m)
 }
@@ -83,31 +114,19 @@ func (m *multiLangImpl) String() string {
 }
 
 func (m *multiLangImpl) MarshalJSON() ([]byte, error) {
-	return json.Marshal(struct {
-		UZ string `json:"uz"`
-		RU string `json:"ru"`
-		EN string `json:"en"`
-	}{
-		UZ: m.UZ,
-		RU: m.RU,
-		EN: m.EN,
-	})
+	if m.data == nil {
+		return json.Marshal(map[string]string{})
+	}
+	return json.Marshal(m.data)
 }
 
 func (m *multiLangImpl) UnmarshalJSON(data []byte) error {
-	var temp struct {
-		UZ string `json:"uz"`
-		RU string `json:"ru"`
-		EN string `json:"en"`
-	}
+	var temp map[string]string
 
 	if err := json.Unmarshal(data, &temp); err != nil {
 		return err
 	}
 
-	m.UZ = temp.UZ
-	m.RU = temp.RU
-	m.EN = temp.EN
-
+	m.data = temp
 	return nil
 }

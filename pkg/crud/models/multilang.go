@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 )
 
 var (
@@ -19,6 +20,9 @@ type MultiLang interface {
 	Default() string
 	HasLocale(locale string) bool
 	GetWithFallback(locale string) string
+
+	// Map access for renderers
+	GetAll() map[string]string
 
 	// Serialization
 	ToJSON() ([]byte, error)
@@ -44,13 +48,30 @@ func MultiLangFromString(jsonStr string) (MultiLang, error) {
 	return MultiLangFromJSON([]byte(jsonStr))
 }
 
-// NewMultiLang creates a new MultiLang with provided values
+// NewMultiLang creates a new MultiLang with provided values (backward compatibility)
 func NewMultiLang(uz, ru, en string) MultiLang {
-	return &multiLangImpl{
-		UZ: uz,
-		RU: ru,
-		EN: en,
+	data := make(map[string]string)
+	if uz != "" {
+		data["uz"] = uz
 	}
+	if ru != "" {
+		data["ru"] = ru
+	}
+	if en != "" {
+		data["en"] = en
+	}
+	return &multiLangImpl{data: data}
+}
+
+// NewMultiLangFromMap creates a new MultiLang from a map of locale codes to values
+func NewMultiLangFromMap(values map[string]string) MultiLang {
+	data := make(map[string]string)
+	for locale, value := range values {
+		if value != "" {
+			data[strings.ToLower(locale)] = value
+		}
+	}
+	return &multiLangImpl{data: data}
 }
 
 // ValidateMultiLang validates that the value is a MultiLang and not empty
