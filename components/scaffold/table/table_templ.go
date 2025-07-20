@@ -13,14 +13,14 @@ package table
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
-
 import (
 	"fmt"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -687,7 +687,7 @@ func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 			Label:    col.Label(),
 			Class:    col.Class(),
 			Sortable: col.Sortable(),
-			SortDir:  col.SortDir().String(),
+			SortDir:  col.SortDir(),
 			SortURL:  col.SortURL(),
 		}
 	}

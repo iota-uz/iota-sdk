@@ -1,6 +1,6 @@
 ## Rules
 
--   DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
+-   DO NOT COMMENT EXCESSIVELY. Instead, write clear and concise code that is self-explanatory.
 -   DO NOT USE `sed` for file manipulation
 -   Use `pkg/htmx` for all UI interactions
 -   Use existing components from `components/` package before creating new ones

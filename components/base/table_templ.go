@@ -5,20 +5,56 @@ package base
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
-
 import (
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
+
 	twmerge "github.com/Oudwins/tailwind-merge-go"
+
 	icons "github.com/iota-uz/icons/phosphor"
 )
+
+type SortDirection string
+
+const (
+	SortDirectionNone SortDirection = ""
+	SortDirectionAsc  SortDirection = "asc"
+	SortDirectionDesc SortDirection = "desc"
+)
+
+func (sd SortDirection) String() string {
+	return string(sd)
+}
+
+func (sd SortDirection) IsAsc() bool {
+	return sd == SortDirectionAsc
+}
+
+func (sd SortDirection) IsDesc() bool {
+	return sd == SortDirectionDesc
+}
+
+func (sd SortDirection) IsNone() bool {
+	return sd == SortDirectionNone
+}
+
+func ParseSortDirection(value string) SortDirection {
+	switch value {
+	case "asc":
+		return SortDirectionAsc
+	case "desc":
+		return SortDirectionDesc
+	default:
+		return SortDirectionNone
+	}
+}
 
 type TableColumn struct {
 	Label    string
 	Key      string
 	Class    string
 	Sortable bool
-	SortDir  string // "asc", "desc", or ""
+	SortDir  SortDirection
 	SortURL  string // URL for sorting this column
 }
 
@@ -234,7 +270,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(col.SortURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 66, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 101, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -247,7 +283,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 73, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 108, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -257,12 +293,12 @@ func Table(props TableProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if col.SortDir == "asc" {
+				if col.SortDir.IsAsc() {
 					templ_7745c5c3_Err = icons.CaretDown(icons.Props{Size: "16"}).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				} else if col.SortDir == "desc" {
+				} else if col.SortDir.IsDesc() {
 					templ_7745c5c3_Err = icons.CaretUp(icons.Props{Size: "16"}).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -303,7 +339,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 89, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 124, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {

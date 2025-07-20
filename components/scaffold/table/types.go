@@ -1,36 +1,17 @@
 package table
 
-type SortDirection string
+import "github.com/iota-uz/iota-sdk/components/base"
+
+// Re-export SortDirection from base package for backwards compatibility
+type SortDirection = base.SortDirection
 
 const (
-	SortDirectionNone SortDirection = ""
-	SortDirectionAsc  SortDirection = "asc"
-	SortDirectionDesc SortDirection = "desc"
+	SortDirectionNone = base.SortDirectionNone
+	SortDirectionAsc  = base.SortDirectionAsc
+	SortDirectionDesc = base.SortDirectionDesc
 )
 
-func (sd SortDirection) String() string {
-	return string(sd)
-}
-
-func (sd SortDirection) IsAsc() bool {
-	return sd == SortDirectionAsc
-}
-
-func (sd SortDirection) IsDesc() bool {
-	return sd == SortDirectionDesc
-}
-
-func (sd SortDirection) IsNone() bool {
-	return sd == SortDirectionNone
-}
-
+// Re-export function for backwards compatibility
 func ParseSortDirection(value string) SortDirection {
-	switch value {
-	case "asc":
-		return SortDirectionAsc
-	case "desc":
-		return SortDirectionDesc
-	default:
-		return SortDirectionNone
-	}
+	return base.ParseSortDirection(value)
 }
