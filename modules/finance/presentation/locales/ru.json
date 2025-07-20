@@ -8,10 +8,14 @@
     "PaymentCategories": "Категории платежей",
     "Finances": "Финансы",
     "Counterparties": "Контрагенты",
+    "Debts": "Долги",
     "Inventory": "Склад",
     "Reports": "Отчёты",
     "IncomeStatement": "Отчёт о прибылях и убытках",
-    "CashflowStatement": "Отчёт о движении денежных средств"
+    "CashflowStatement": "Отчёт о движении денежных средств",
+    "Finance": {
+      "Enums": "Справочники"
+    }
   },
   "ExpenseCategories": {
     "Meta": {
@@ -233,7 +237,13 @@
       "Delete": "Удалить счет",
       "DeleteConfirmation": "Вы уверены что хотите удалить этот счет?",
       "General": "Общее",
+      "Transactions": "Транзакции",
       "Transfer": "Перевод"
+    },
+    "Transactions": {
+      "NoTransactions": "Пока нет транзакций",
+      "NoTransactionsDescription": "У этого счета нет транзакций. Транзакции будут отображаться здесь когда вы добавите расходы, платежи или переводы.",
+      "ViewAll": "Посмотреть все транзакции"
     }
   },
   "Transfers": {
@@ -245,12 +255,15 @@
     "Single": {
       "From": "От",
       "To": "К",
-      "DestinationAccount": "Счет получателя",
+      "DestinationAccountID": "Счет получателя",
       "SelectDestinationAccount": "Выберите счет получателя",
       "Amount": "Сумма",
       "Comment": "Комментарий",
       "CommentPlaceholder": "Необязательное описание перевода...",
-      "Transfer": "Перевести"
+      "Transfer": "Перевести",
+      "ExchangeRate": "Курс обмена",
+      "DestinationAmount": "Сумма получателя",
+      "ExchangeNotice": "Обнаружены разные валюты - требуется курс обмена"
     }
   },
   "PaymentCategories": {
@@ -354,7 +367,7 @@
       "Date": "Дата транзакции",
       "AccountingPeriod": "Учетный период",
       "OriginAccount": "Счет отправителя",
-      "DestinationAccount": "Счет получателя",
+      "DestinationAccountID": "Счет получателя",
       "Comment": "Комментарий",
       "ExchangeDetails": "Детали обмена",
       "ExchangeRate": "Курс обмена",
@@ -408,6 +421,7 @@
       "_Description": "Просмотр и анализ движения денежных средств по вашим счетам",
       "Account": "Счёт",
       "SelectAccount": "Выберите счёт",
+      "AllAccounts": "Все счета",
       "StartDate": "Дата начала",
       "EndDate": "Дата окончания",
       "Generate": "Создать отчёт",
@@ -427,6 +441,72 @@
       "SelectDatesAndGenerate": "Выберите даты и счёт, затем нажмите 'Создать отчёт' для просмотра отчёта о движении денежных средств",
       "Generating": "Создание отчёта..."
     }
+  },
+  "Debts": {
+    "Meta": {
+      "List": {
+        "Title": "Долги"
+      },
+      "Edit": {
+        "Title": "Редактировать долг"
+      },
+      "New": {
+        "Title": "Добавить долг"
+      }
+    },
+    "List": {
+      "New": "Добавить долг",
+      "Type": "Тип",
+      "Status": "Статус",
+      "Counterparty": "Контрагент",
+      "OriginalAmount": "Первоначальная сумма",
+      "OutstandingAmount": "Остаток долга",
+      "_Description": "Описание",
+      "DueDate": "Срок погашения",
+      "CreatedAt": "Создано",
+      "Actions": "Действия",
+      "NoDebts": {
+        "Title": "Долги не найдены",
+        "_Description": "Долгов пока нет. Нажмите 'Добавить долг' для создания."
+      }
+    },
+    "Single": {
+      "Edit": "Редактировать долг",
+      "CounterpartyID": "Контрагент",
+      "SelectCounterparty": "Выбрать контрагента",
+      "Type": "Тип долга",
+      "SelectType": "Выбрать тип долга",
+      "Status": "Статус",
+      "Amount": "Сумма",
+      "OriginalAmount": "Первоначальная сумма",
+      "OutstandingAmount": "Остаток долга",
+      "_Description": "Описание",
+      "DueDate": "Срок погашения",
+      "SettlementTransactionID": "Транзакция погашения",
+      "Settle": "Погасить долг",
+      "WriteOff": "Списать",
+      "Delete": "Удалить долг",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить этот долг?",
+      "SettleConfirmation": "Вы уверены, что хотите погасить этот долг?",
+      "WriteOffConfirmation": "Вы уверены, что хотите списать этот долг как безнадёжный?",
+      "SelectTransaction": "Выбрать транзакцию"
+    },
+    "Types": {
+      "RECEIVABLE": "Дебиторская задолженность (нам должны)",
+      "PAYABLE": "Кредиторская задолженность (мы должны)"
+    },
+    "Statuses": {
+      "PENDING": "Ожидает",
+      "SETTLED": "Погашен",
+      "PARTIAL": "Частично погашен",
+      "WRITTEN_OFF": "Списан"
+    },
+    "Actions": {
+      "Created": "Долг успешно создан",
+      "Updated": "Долг успешно обновлён",
+      "Deleted": "Долг успешно удалён",
+      "Settled": "Долг успешно погашен",
+      "WrittenOff": "Долг успешно списан"
+    }
   }
 }
-

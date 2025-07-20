@@ -60,6 +60,10 @@ func (m *Module) Register(app application.Application) error {
 		moneyAccountService,
 		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),
 		services.NewInventoryService(persistence.NewInventoryRepository()),
+		services.NewDebtService(
+			persistence.NewDebtRepository(),
+			app.EventPublisher(),
+		),
 		services.NewFinancialReportService(
 			query.NewPgFinancialReportsQueryRepository(),
 			app.EventPublisher(),
@@ -75,6 +79,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewPaymentsController(app),
 		controllers.NewCounterpartiesController(app),
 		controllers.NewInventoryController(app),
+		controllers.NewDebtsController(app),
 		controllers.NewFinancialReportController(app),
 		controllers.NewCashflowController(app),
 	)
@@ -83,6 +88,7 @@ func (m *Module) Register(app application.Application) error {
 		spotlight.NewQuickLink(nil, PaymentCategoriesItem.Name, PaymentCategoriesItem.Href),
 		spotlight.NewQuickLink(nil, PaymentsItem.Name, PaymentsItem.Href),
 		spotlight.NewQuickLink(nil, ExpensesItem.Name, ExpensesItem.Href),
+		spotlight.NewQuickLink(nil, DebtsItem.Name, DebtsItem.Href),
 		spotlight.NewQuickLink(nil, AccountsItem.Name, AccountsItem.Href),
 		spotlight.NewQuickLink(nil, InventoryItem.Name, InventoryItem.Href),
 		spotlight.NewQuickLink(

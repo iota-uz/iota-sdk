@@ -5,11 +5,12 @@ package moneyaccounts
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
-
 import (
 	"fmt"
+
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
@@ -176,110 +177,136 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var10 string
-			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Transfers.Single.DestinationAccount"))
+			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Transfers.Single.DestinationAccountID"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 66, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 66, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</label> <select name=\"DestinationAccountID\" required class=\"w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500\"><option value=\"\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</label> <select name=\"DestinationAccountID\" required id=\"destination-account-select\" data-source-currency=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var11 string
-			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Transfers.Single.SelectDestinationAccount"))
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(props.SourceAccount.CurrencyCode)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 73, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 72, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</option> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500\" onchange=\"checkCurrencyMismatch()\"><option value=\"\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Transfers.Single.SelectDestinationAccount"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 76, Col: 81}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</option> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, account := range props.DestinationAccounts {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<option value=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var12 string
-				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(account.ID)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 75, Col: 35}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				if account.ID == props.TransferData.DestinationAccountID {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, " selected")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, ">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<option value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var13 string
-				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(account.Name)
+				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(account.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 76, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 79, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, " (")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" data-currency=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(account.BalanceWithCurrency)
+				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(account.CurrencyCode)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 76, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 80, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, ")</option>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</select> ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if props.Errors["DestinationAccountID"] != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<p class=\"mt-1 text-sm text-red-600\">")
+				if account.ID == props.TransferData.DestinationAccountID {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, " selected")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, ">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var15 string
-				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(props.Errors["DestinationAccountID"])
+				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(account.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 81, Col: 83}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 83, Col: 24}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, " (")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var16 string
+				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(account.BalanceWithCurrency)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 83, Col: 57}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, ")</option>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div><!-- Amount -->")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</select> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if props.Errors["DestinationAccountID"] != "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<p class=\"mt-1 text-sm text-red-600\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var17 string
+				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.Errors["DestinationAccountID"])
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 88, Col: 83}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div><!-- Amount -->")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -298,7 +325,56 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<!-- Comment -->")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<!-- Exchange Rate Fields (shown only for cross-currency transfers) --><div id=\"exchange-fields\" class=\"space-y-4\" style=\"display: none;\"><div class=\"bg-yellow-50 border border-yellow-200 rounded-lg p-4\"><div class=\"flex items-center gap-2 mb-3\"><div class=\"w-5 h-5 bg-yellow-100 rounded-full flex items-center justify-center\"><span class=\"text-yellow-600 text-xs font-bold\">!</span></div><p class=\"text-sm font-medium text-yellow-800\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var18 string
+			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Transfers.Single.ExchangeNotice"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 111, Col: 102}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</p></div><div class=\"grid grid-cols-1 md:grid-cols-2 gap-4\"><!-- Exchange Rate -->")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = input.Number(&input.Props{
+				Label: pageCtx.T("Transfers.Single.ExchangeRate"),
+				Attrs: templ.Attributes{
+					"name":        "ExchangeRate",
+					"value":       fmt.Sprintf("%.6f", props.TransferData.GetExchangeRate()),
+					"step":        "0.000001",
+					"min":         "0.000001",
+					"placeholder": "1.000000",
+				},
+				Error: props.Errors["ExchangeRate"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<!-- Destination Amount (calculated) -->")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = input.Number(&input.Props{
+				Label: pageCtx.T("Transfers.Single.DestinationAmount"),
+				Attrs: templ.Attributes{
+					"name":        "DestinationAmount",
+					"value":       fmt.Sprintf("%.2f", props.TransferData.GetDestinationAmount()),
+					"step":        "0.01",
+					"min":         "0.01",
+					"placeholder": "0.00",
+				},
+				Error: props.Errors["DestinationAmount"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</div><!-- Hidden field to track if this is an exchange --><input type=\"hidden\" name=\"IsExchange\" id=\"is-exchange\" value=\"false\"></div></div><!-- Comment -->")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -315,11 +391,11 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div></div><!-- Footer with buttons --><div class=\"p-6 border-t border-gray-200 flex justify-end gap-3\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></div><!-- Footer with buttons --><div class=\"p-6 border-t border-gray-200 flex justify-end gap-3\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Var16 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_Var19 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -331,12 +407,12 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				var templ_7745c5c3_Var17 string
-				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Cancel"))
+				var templ_7745c5c3_Var20 string
+				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Cancel"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 118, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 164, Col: 27}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -347,11 +423,11 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 					"type":   "button",
 					"@click": fmt.Sprintf("document.getElementById('transfer-drawer-%s-dialog').close()", props.SourceAccount.ID),
 				},
-			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
+			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Var18 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_Var21 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 				if !templ_7745c5c3_IsBuffer {
@@ -367,16 +443,16 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, " ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, " ")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var19 string
-				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Transfers.Single.Transfer"))
+				var templ_7745c5c3_Var22 string
+				templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Transfers.Single.Transfer"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 126, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/finance/presentation/templates/pages/moneyaccounts/transfer_drawer.templ`, Line: 172, Col: 46}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -386,11 +462,11 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 				Attrs: templ.Attributes{
 					"type": "submit",
 				},
-			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
+			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -409,7 +485,7 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div><!-- JavaScript for exchange rate calculations --><script>\n\t\tfunction checkCurrencyMismatch() {\n\t\t\tconst select = document.getElementById('destination-account-select');\n\t\t\tconst exchangeFields = document.getElementById('exchange-fields');\n\t\t\tconst isExchangeField = document.getElementById('is-exchange');\n\t\t\t\n\t\t\tif (!select || !exchangeFields || !isExchangeField) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\t\n\t\t\tconst sourceCurrency = select.dataset.sourceCurrency;\n\t\t\tconst selectedOption = select.options[select.selectedIndex];\n\t\t\tconst destCurrency = selectedOption ? selectedOption.dataset.currency : null;\n\t\t\t\n\t\t\tif (sourceCurrency && destCurrency && sourceCurrency !== destCurrency) {\n\t\t\t\t// Show exchange fields for cross-currency transfer\n\t\t\t\texchangeFields.style.display = 'block';\n\t\t\t\tisExchangeField.value = 'true';\n\t\t\t\t\n\t\t\t\t// Set a default exchange rate if none exists\n\t\t\t\tconst rateField = document.querySelector('input[name=\"ExchangeRate\"]');\n\t\t\t\tif (rateField && (!rateField.value || rateField.value === '0.000000')) {\n\t\t\t\t\trateField.value = '1.000000';\n\t\t\t\t}\n\t\t\t\t\n\t\t\t\t// Setup event listeners if not already done\n\t\t\t\tsetupEventListeners();\n\t\t\t\tupdateDestinationAmount();\n\t\t\t} else {\n\t\t\t\t// Hide exchange fields for same currency transfer\n\t\t\t\texchangeFields.style.display = 'none';\n\t\t\t\tisExchangeField.value = 'false';\n\t\t\t}\n\t\t}\n\t\t\n\t\tfunction setupEventListeners() {\n\t\t\tconst amountField = document.querySelector('input[name=\"Amount\"]');\n\t\t\tconst rateField = document.querySelector('input[name=\"ExchangeRate\"]');\n\t\t\tconst destAmountField = document.querySelector('input[name=\"DestinationAmount\"]');\n\t\t\t\n\t\t\tif (amountField && !amountField.hasExchangeListener) {\n\t\t\t\tamountField.addEventListener('input', updateDestinationAmount);\n\t\t\t\tamountField.hasExchangeListener = true;\n\t\t\t}\n\t\t\t\n\t\t\tif (rateField && !rateField.hasExchangeListener) {\n\t\t\t\trateField.addEventListener('input', updateDestinationAmount);\n\t\t\t\trateField.hasExchangeListener = true;\n\t\t\t}\n\t\t\t\n\t\t\tif (destAmountField && !destAmountField.hasExchangeListener) {\n\t\t\t\tdestAmountField.addEventListener('input', updateExchangeRate);\n\t\t\t\tdestAmountField.hasExchangeListener = true;\n\t\t\t}\n\t\t}\n\t\t\n\t\tfunction updateExchangeCalculations() {\n\t\t\tupdateDestinationAmount();\n\t\t}\n\t\t\n\t\tfunction updateDestinationAmount() {\n\t\t\tconst amountField = document.querySelector('input[name=\"Amount\"]');\n\t\t\tconst rateField = document.querySelector('input[name=\"ExchangeRate\"]');\n\t\t\tconst destAmountField = document.querySelector('input[name=\"DestinationAmount\"]');\n\t\t\t\n\t\t\tif (!amountField || !rateField || !destAmountField) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\t\n\t\t\tconst amount = parseFloat(amountField.value) || 0;\n\t\t\tconst rate = parseFloat(rateField.value) || 1;\n\t\t\tconst result = (amount * rate).toFixed(2);\n\t\t\t\n\t\t\tdestAmountField.value = result;\n\t\t}\n\t\t\n\t\tfunction updateExchangeRate() {\n\t\t\tconst amountField = document.querySelector('input[name=\"Amount\"]');\n\t\t\tconst rateField = document.querySelector('input[name=\"ExchangeRate\"]');\n\t\t\tconst destAmountField = document.querySelector('input[name=\"DestinationAmount\"]');\n\t\t\t\n\t\t\tif (!amountField || !rateField || !destAmountField) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\t\n\t\t\tconst amount = parseFloat(amountField.value) || 0;\n\t\t\tconst destAmount = parseFloat(destAmountField.value) || 0;\n\t\t\tif (amount > 0) {\n\t\t\t\tconst result = (destAmount / amount).toFixed(6);\n\t\t\t\trateField.value = result;\n\t\t\t}\n\t\t}\n\t\t\n\t\t// Initialize when DOM is ready\n\t\tdocument.addEventListener('DOMContentLoaded', function() {\n\t\t\tsetTimeout(checkCurrencyMismatch, 100);\n\t\t});\n\t\t\n\t\t// Also initialize immediately for HTMX dynamic loading\n\t\tsetTimeout(function() {\n\t\t\tcheckCurrencyMismatch();\n\t\t}, 50);\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

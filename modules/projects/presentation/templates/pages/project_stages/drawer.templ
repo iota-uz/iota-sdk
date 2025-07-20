@@ -1,0 +1,258 @@
+package project_stages
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
+	"github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"strconv"
+)
+
+type DrawerEditProps struct {
+	ProjectStage *viewmodels.ProjectStageViewModel
+	Errors       map[string]string
+}
+
+type DrawerCreateProps struct {
+	ProjectStage dtos.ProjectStageCreateDTO
+	Errors       map[string]string
+}
+
+templ EditDrawer(props *DrawerEditProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id={ fmt.Sprintf("project-stage-drawer-%s", props.ProjectStage.ID) }>
+		@dialog.StdViewDrawer(dialog.StdDrawerProps{
+			ID:     fmt.Sprintf("project-stage-drawer-%s-dialog", props.ProjectStage.ID),
+			Title:  pageCtx.T("ProjectStages.Meta.Edit.Title"),
+			Action: "open-view-drawer",
+			Open:   true,
+			Attrs: templ.Attributes{
+				"@closing": "window.history.pushState({}, '', '/project-stages')",
+				"@closed":  fmt.Sprintf("document.getElementById('project-stage-drawer-%s').remove()", props.ProjectStage.ID),
+			},
+		}) {
+			<form
+				id={ fmt.Sprintf("edit-form-%s", props.ProjectStage.ID) }
+				method="post"
+				hx-post={ fmt.Sprintf("/project-stages/%s", props.ProjectStage.ID) }
+				hx-target={ fmt.Sprintf("#project-stage-drawer-%s", props.ProjectStage.ID) }
+				hx-swap="outerHTML"
+				class="flex flex-col h-full"
+			>
+				<div class="flex-1 p-6 space-y-4">
+					@input.Number(&input.Props{
+						Label: pageCtx.T("ProjectStages.Single.StageNumber"),
+						Attrs: templ.Attributes{
+							"value": strconv.Itoa(props.ProjectStage.StageNumber),
+							"name":  "StageNumber",
+							"min":   "1",
+						},
+						Error: props.Errors["StageNumber"],
+					})
+					@input.TextArea(&input.TextAreaProps{
+						Label: pageCtx.T("ProjectStages.Single.Description"),
+						Attrs: templ.Attributes{
+							"name": "Description",
+						},
+						Value: props.ProjectStage.Description,
+						Error: props.Errors["Description"],
+					})
+					@input.Number(&input.Props{
+						Label: pageCtx.T("ProjectStages.Single.TotalAmount"),
+						Attrs: templ.Attributes{
+							"value": strconv.FormatInt(props.ProjectStage.TotalAmount, 10),
+							"name":  "TotalAmount",
+							"min":   "0",
+							"step":  "0.01",
+						},
+						Error: props.Errors["TotalAmount"],
+					})
+					if props.ProjectStage.StartDate != nil {
+						@input.Date(&input.Props{
+							Label: pageCtx.T("ProjectStages.Single.StartDate"),
+							Attrs: templ.Attributes{
+								"value": props.ProjectStage.StartDate.Format("2006-01-02"),
+								"name":  "StartDate",
+							},
+							Error: props.Errors["StartDate"],
+						})
+					} else {
+						@input.Date(&input.Props{
+							Label: pageCtx.T("ProjectStages.Single.StartDate"),
+							Attrs: templ.Attributes{
+								"name": "StartDate",
+							},
+							Error: props.Errors["StartDate"],
+						})
+					}
+					if props.ProjectStage.PlannedEndDate != nil {
+						@input.Date(&input.Props{
+							Label: pageCtx.T("ProjectStages.Single.PlannedEndDate"),
+							Attrs: templ.Attributes{
+								"value": props.ProjectStage.PlannedEndDate.Format("2006-01-02"),
+								"name":  "PlannedEndDate",
+							},
+							Error: props.Errors["PlannedEndDate"],
+						})
+					} else {
+						@input.Date(&input.Props{
+							Label: pageCtx.T("ProjectStages.Single.PlannedEndDate"),
+							Attrs: templ.Attributes{
+								"name": "PlannedEndDate",
+							},
+							Error: props.Errors["PlannedEndDate"],
+						})
+					}
+					if props.ProjectStage.FactualEndDate != nil {
+						@input.Date(&input.Props{
+							Label: pageCtx.T("ProjectStages.Single.FactualEndDate"),
+							Attrs: templ.Attributes{
+								"value": props.ProjectStage.FactualEndDate.Format("2006-01-02"),
+								"name":  "FactualEndDate",
+							},
+							Error: props.Errors["FactualEndDate"],
+						})
+					} else {
+						@input.Date(&input.Props{
+							Label: pageCtx.T("ProjectStages.Single.FactualEndDate"),
+							Attrs: templ.Attributes{
+								"name": "FactualEndDate",
+							},
+							Error: props.Errors["FactualEndDate"],
+						})
+					}
+				</div>
+				<div class="p-6 border-t border-gray-200 flex justify-between">
+					@button.Danger(button.Props{
+						Attrs: templ.Attributes{
+							"type":       "button",
+							"hx-delete":  fmt.Sprintf("/project-stages/%s", props.ProjectStage.ID),
+							"hx-confirm": pageCtx.T("ProjectStages.Single.DeleteConfirmation"),
+							"hx-target":  "body",
+							"hx-swap":    "beforeend",
+						},
+					}) {
+						{ pageCtx.T("Delete") }
+					}
+					<div class="flex gap-3">
+						@button.Secondary(button.Props{
+							Attrs: templ.Attributes{
+								"type":   "button",
+								"@click": fmt.Sprintf("document.getElementById('project-stage-drawer-%s-dialog').close()", props.ProjectStage.ID),
+							},
+						}) {
+							{ pageCtx.T("Cancel") }
+						}
+						@button.Primary(button.Props{
+							Attrs: templ.Attributes{
+								"type":  "submit",
+								"name":  "_action",
+								"value": "save",
+							},
+						}) {
+							{ pageCtx.T("Save") }
+						}
+					</div>
+				</div>
+			</form>
+		}
+	</div>
+}
+
+templ CreateDrawer(props *DrawerCreateProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id="project-stage-create-drawer">
+		@dialog.StdViewDrawer(dialog.StdDrawerProps{
+			ID:     "project-stage-create-drawer-dialog",
+			Title:  pageCtx.T("ProjectStages.Meta.New.Title"),
+			Action: "open-view-drawer",
+			Open:   true,
+			Attrs: templ.Attributes{
+				"@closing": "window.history.pushState({}, '', '/project-stages')",
+				"@closed":  "document.getElementById('project-stage-create-drawer').remove()",
+			},
+		}) {
+			<form
+				id="create-form"
+				method="post"
+				hx-post="/project-stages"
+				hx-target="#project-stage-create-drawer"
+				hx-swap="outerHTML"
+				class="flex flex-col h-full"
+			>
+				<div class="flex-1 p-6 space-y-4">
+					@input.Number(&input.Props{
+						Label: pageCtx.T("ProjectStages.Single.StageNumber"),
+						Attrs: templ.Attributes{
+							"value": strconv.Itoa(props.ProjectStage.StageNumber),
+							"name":  "StageNumber",
+							"min":   "1",
+						},
+						Error: props.Errors["StageNumber"],
+					})
+					@input.TextArea(&input.TextAreaProps{
+						Label: pageCtx.T("ProjectStages.Single.Description"),
+						Attrs: templ.Attributes{
+							"name": "Description",
+						},
+						Value: props.ProjectStage.Description,
+						Error: props.Errors["Description"],
+					})
+					@input.Number(&input.Props{
+						Label: pageCtx.T("ProjectStages.Single.TotalAmount"),
+						Attrs: templ.Attributes{
+							"value": strconv.FormatInt(props.ProjectStage.TotalAmount, 10),
+							"name":  "TotalAmount",
+							"min":   "0",
+							"step":  "0.01",
+						},
+						Error: props.Errors["TotalAmount"],
+					})
+					@input.Date(&input.Props{
+						Label: pageCtx.T("ProjectStages.Single.StartDate"),
+						Attrs: templ.Attributes{
+							"name": "StartDate",
+						},
+						Error: props.Errors["StartDate"],
+					})
+					@input.Date(&input.Props{
+						Label: pageCtx.T("ProjectStages.Single.PlannedEndDate"),
+						Attrs: templ.Attributes{
+							"name": "PlannedEndDate",
+						},
+						Error: props.Errors["PlannedEndDate"],
+					})
+					@input.Date(&input.Props{
+						Label: pageCtx.T("ProjectStages.Single.FactualEndDate"),
+						Attrs: templ.Attributes{
+							"name": "FactualEndDate",
+						},
+						Error: props.Errors["FactualEndDate"],
+					})
+				</div>
+				<div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+					@button.Secondary(button.Props{
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"@click": "document.getElementById('project-stage-create-drawer-dialog').close()",
+						},
+					}) {
+						{ pageCtx.T("Cancel") }
+					}
+					@button.Primary(button.Props{
+						Attrs: templ.Attributes{
+							"type":  "submit",
+							"name":  "_action",
+							"value": "save",
+						},
+					}) {
+						{ pageCtx.T("Save") }
+					}
+				</div>
+			</form>
+		}
+	</div>
+}

@@ -63,16 +63,23 @@ templ TransferDrawer(props *TransferDrawerProps) {
 					<div class="space-y-4">
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-1">
-								{ pageCtx.T("Transfers.Single.DestinationAccount") }
+								{ pageCtx.T("Transfers.Single.DestinationAccountID") }
 							</label>
 							<select
 								name="DestinationAccountID"
 								required
+								id="destination-account-select"
+								data-source-currency={ props.SourceAccount.CurrencyCode }
 								class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+								onchange="checkCurrencyMismatch()"
 							>
 								<option value="">{ pageCtx.T("Transfers.Single.SelectDestinationAccount") }</option>
 								for _, account := range props.DestinationAccounts {
-									<option value={ account.ID } selected?={ account.ID == props.TransferData.DestinationAccountID }>
+									<option
+										value={ account.ID }
+										data-currency={ account.CurrencyCode }
+										selected?={ account.ID == props.TransferData.DestinationAccountID }
+									>
 										{ account.Name } ({ account.BalanceWithCurrency })
 									</option>
 								}
@@ -94,6 +101,45 @@ templ TransferDrawer(props *TransferDrawerProps) {
 							},
 							Error: props.Errors["Amount"],
 						})
+						<!-- Exchange Rate Fields (shown only for cross-currency transfers) -->
+						<div id="exchange-fields" class="space-y-4" style="display: none;">
+							<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+								<div class="flex items-center gap-2 mb-3">
+									<div class="w-5 h-5 bg-yellow-100 rounded-full flex items-center justify-center">
+										<span class="text-yellow-600 text-xs font-bold">!</span>
+									</div>
+									<p class="text-sm font-medium text-yellow-800">{ pageCtx.T("Transfers.Single.ExchangeNotice") }</p>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<!-- Exchange Rate -->
+									@input.Number(&input.Props{
+										Label: pageCtx.T("Transfers.Single.ExchangeRate"),
+										Attrs: templ.Attributes{
+											"name":        "ExchangeRate",
+											"value":       fmt.Sprintf("%.6f", props.TransferData.GetExchangeRate()),
+											"step":        "0.000001",
+											"min":         "0.000001",
+											"placeholder": "1.000000",
+										},
+										Error: props.Errors["ExchangeRate"],
+									})
+									<!-- Destination Amount (calculated) -->
+									@input.Number(&input.Props{
+										Label: pageCtx.T("Transfers.Single.DestinationAmount"),
+										Attrs: templ.Attributes{
+											"name":        "DestinationAmount",
+											"value":       fmt.Sprintf("%.2f", props.TransferData.GetDestinationAmount()),
+											"step":        "0.01",
+											"min":         "0.01",
+											"placeholder": "0.00",
+										},
+										Error: props.Errors["DestinationAmount"],
+									})
+								</div>
+								<!-- Hidden field to track if this is an exchange -->
+								<input type="hidden" name="IsExchange" id="is-exchange" value="false"/>
+							</div>
+						</div>
 						<!-- Comment -->
 						@input.TextArea(&input.TextAreaProps{
 							Label: pageCtx.T("Transfers.Single.Comment"),
@@ -129,4 +175,108 @@ templ TransferDrawer(props *TransferDrawerProps) {
 			</form>
 		}
 	</div>
+	<!-- JavaScript for exchange rate calculations -->
+	<script>
+		function checkCurrencyMismatch() {
+			const select = document.getElementById('destination-account-select');
+			const exchangeFields = document.getElementById('exchange-fields');
+			const isExchangeField = document.getElementById('is-exchange');
+			
+			if (!select || !exchangeFields || !isExchangeField) {
+				return;
+			}
+			
+			const sourceCurrency = select.dataset.sourceCurrency;
+			const selectedOption = select.options[select.selectedIndex];
+			const destCurrency = selectedOption ? selectedOption.dataset.currency : null;
+			
+			if (sourceCurrency && destCurrency && sourceCurrency !== destCurrency) {
+				// Show exchange fields for cross-currency transfer
+				exchangeFields.style.display = 'block';
+				isExchangeField.value = 'true';
+				
+				// Set a default exchange rate if none exists
+				const rateField = document.querySelector('input[name="ExchangeRate"]');
+				if (rateField && (!rateField.value || rateField.value === '0.000000')) {
+					rateField.value = '1.000000';
+				}
+				
+				// Setup event listeners if not already done
+				setupEventListeners();
+				updateDestinationAmount();
+			} else {
+				// Hide exchange fields for same currency transfer
+				exchangeFields.style.display = 'none';
+				isExchangeField.value = 'false';
+			}
+		}
+		
+		function setupEventListeners() {
+			const amountField = document.querySelector('input[name="Amount"]');
+			const rateField = document.querySelector('input[name="ExchangeRate"]');
+			const destAmountField = document.querySelector('input[name="DestinationAmount"]');
+			
+			if (amountField && !amountField.hasExchangeListener) {
+				amountField.addEventListener('input', updateDestinationAmount);
+				amountField.hasExchangeListener = true;
+			}
+			
+			if (rateField && !rateField.hasExchangeListener) {
+				rateField.addEventListener('input', updateDestinationAmount);
+				rateField.hasExchangeListener = true;
+			}
+			
+			if (destAmountField && !destAmountField.hasExchangeListener) {
+				destAmountField.addEventListener('input', updateExchangeRate);
+				destAmountField.hasExchangeListener = true;
+			}
+		}
+		
+		function updateExchangeCalculations() {
+			updateDestinationAmount();
+		}
+		
+		function updateDestinationAmount() {
+			const amountField = document.querySelector('input[name="Amount"]');
+			const rateField = document.querySelector('input[name="ExchangeRate"]');
+			const destAmountField = document.querySelector('input[name="DestinationAmount"]');
+			
+			if (!amountField || !rateField || !destAmountField) {
+				return;
+			}
+			
+			const amount = parseFloat(amountField.value) || 0;
+			const rate = parseFloat(rateField.value) || 1;
+			const result = (amount * rate).toFixed(2);
+			
+			destAmountField.value = result;
+		}
+		
+		function updateExchangeRate() {
+			const amountField = document.querySelector('input[name="Amount"]');
+			const rateField = document.querySelector('input[name="ExchangeRate"]');
+			const destAmountField = document.querySelector('input[name="DestinationAmount"]');
+			
+			if (!amountField || !rateField || !destAmountField) {
+				return;
+			}
+			
+			const amount = parseFloat(amountField.value) || 0;
+			const destAmount = parseFloat(destAmountField.value) || 0;
+			if (amount > 0) {
+				const result = (destAmount / amount).toFixed(6);
+				rateField.value = result;
+			}
+		}
+		
+		// Initialize when DOM is ready
+		document.addEventListener('DOMContentLoaded', function() {
+			setTimeout(checkCurrencyMismatch, 100);
+		});
+		
+		// Also initialize immediately for HTMX dynamic loading
+		setTimeout(function() {
+			checkCurrencyMismatch();
+		}, 50);
+	</script>
 }

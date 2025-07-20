@@ -1,0 +1,74 @@
+{
+  "NavigationLinks": {
+    "Projects": "Проекты",
+    "ProjectStages": "Этапы проектов"
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Проекты"
+      },
+      "Edit": {
+        "Title": "Редактировать проект"
+      },
+      "New": {
+        "Title": "Новый проект"
+      }
+    },
+    "List": {
+      "New": "Новый проект",
+      "Name": "Название",
+      "Counterparty": "Контрагент",
+      "_Description": "Описание",
+      "NoProjects": {
+        "Title": "Проекты не найдены",
+        "_Description": "Проектов пока нет. Нажмите 'Новый проект' чтобы создать."
+      }
+    },
+    "Single": {
+      "Name": "Название",
+      "Counterparty": "Контрагент",
+      "SelectCounterparty": "Выберите контрагента",
+      "NoCounterpartiesFound": "Контрагенты не найдены",
+      "_Description": "Описание",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить этот проект?"
+    }
+  },
+  "ProjectStages": {
+    "Meta": {
+      "List": {
+        "Title": "Этапы проектов"
+      },
+      "Edit": {
+        "Title": "Редактировать этап проекта"
+      },
+      "New": {
+        "Title": "Новый этап проекта"
+      }
+    },
+    "List": {
+      "New": "Новый этап проекта",
+      "StageNumber": "Номер этапа",
+      "_Description": "Описание",
+      "TotalAmount": "Общая сумма",
+      "PaidAmount": "Оплаченная сумма",
+      "StartDate": "Дата начала",
+      "PlannedEndDate": "Планируемая дата окончания",
+      "FactualEndDate": "Фактическая дата окончания",
+      "NoProjectStages": {
+        "Title": "Этапы проектов не найдены",
+        "_Description": "Этапов проектов пока нет. Нажмите 'Новый этап проекта' чтобы создать."
+      }
+    },
+    "Single": {
+      "StageNumber": "Номер этапа",
+      "_Description": "Описание",
+      "TotalAmount": "Общая сумма",
+      "PaidAmount": "Оплаченная сумма",
+      "StartDate": "Дата начала",
+      "PlannedEndDate": "Планируемая дата окончания",
+      "FactualEndDate": "Фактическая дата окончания",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить этот этап проекта?"
+    }
+  }
+}

@@ -1,0 +1,154 @@
+package debts
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type IndexPageProps struct {
+	*types.PageContext
+	Debts           []*viewmodels.Debt
+	PaginationState *pagination.State
+}
+
+templ DebtsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col gap-4 table-wrapper">
+		if len(props.Debts) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("Debts.List.NoDebts.Title"),
+				Description: pageCtx.T("Debts.List.NoDebts._Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("Debts.List.Type"), Key: "type"},
+					{Label: pageCtx.T("Debts.List.Counterparty"), Key: "counterparty"},
+					{Label: pageCtx.T("Debts.List.OriginalAmount"), Key: "originalAmount"},
+					{Label: pageCtx.T("Debts.List.OutstandingAmount"), Key: "outstandingAmount"},
+					{Label: pageCtx.T("Debts.List.Status"), Key: "status"},
+					{Label: pageCtx.T("Debts.List.DueDate"), Key: "dueDate"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, debt := range props.Debts {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							<span
+								class={ "px-2 py-1 rounded-full text-xs font-medium", 
+								templ.KV("bg-green-100 text-green-800", debt.Type == "RECEIVABLE"),
+								templ.KV("bg-red-100 text-red-800", debt.Type == "PAYABLE") }
+							>
+								{ pageCtx.T(fmt.Sprintf("Debts.Types.%s", debt.Type)) }
+							</span>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ debt.CounterpartyName }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ debt.OriginalAmountWithCurrency }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ debt.OutstandingAmountWithCurrency }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<span
+								class={ "px-2 py-1 rounded-full text-xs font-medium",
+								templ.KV("bg-yellow-100 text-yellow-800", debt.Status == "PENDING"),
+								templ.KV("bg-green-100 text-green-800", debt.Status == "SETTLED"),
+								templ.KV("bg-blue-100 text-blue-800", debt.Status == "PARTIAL"),
+								templ.KV("bg-gray-100 text-gray-800", debt.Status == "WRITTEN_OFF") }
+							>
+								{ pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debt.Status)) }
+							</span>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							if debt.DueDate != "" {
+								{ debt.DueDate }
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div class="flex gap-1">
+								@button.Secondary(button.Props{
+									Fixed: true,
+									Size:  button.SizeSM,
+									Class: "btn-fixed",
+									Href:  fmt.Sprintf("/finance/debts/%s", debt.ID),
+								}) {
+									@icons.PencilSimple(icons.Props{Size: "16"})
+								}
+								if debt.Status == "PENDING" || debt.Status == "PARTIAL" {
+									@button.Secondary(button.Props{
+										Fixed: true,
+										Size:  button.SizeSM,
+										Class: "btn-fixed",
+										Href:  fmt.Sprintf("/finance/debts/%s/settle", debt.ID),
+									}) {
+										@icons.CheckCircle(icons.Props{Size: "16"})
+									}
+								}
+							</div>
+						}
+					}
+				}
+			}
+			if len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
+		}
+	</div>
+}
+
+templ DebtsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="m-6">
+		<h1 class="text-2xl font-medium">
+			{ pageCtx.T("NavigationLinks.Debts") }
+		</h1>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/finance/debts"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target=".table-wrapper"
+				hx-swap="outerHTML"
+			>
+				@filters.Default(&filters.Props{
+					Fields: []filters.SearchField{
+						{
+							Label: pageCtx.T("Debts.List._Description"),
+							Key:   "description",
+						},
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal,
+					Href: "/finance/debts/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ pageCtx.T("Debts.List.New") }
+				}
+			</form>
+			@DebtsTable(props)
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Debts.Meta.List.Title")},
+	}) {
+		@DebtsContent(props)
+	}
+}

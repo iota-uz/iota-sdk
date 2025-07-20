@@ -34,8 +34,22 @@ const (
 	countQuery              = `SELECT COUNT(*) as count FROM money_accounts WHERE tenant_id = $1`
 	recalculateBalanceQuery = `
 		UPDATE money_accounts
-		SET balance = (SELECT sum(t.amount) FROM transactions t WHERE origin_account_id = $1 OR destination_account_id = $2)
-		WHERE id = $3 AND tenant_id = $4`
+		SET balance = (
+			SELECT COALESCE(SUM(
+				CASE 
+					WHEN destination_account_id = $1 THEN 
+						CASE 
+							WHEN t.transaction_type = 'EXCHANGE' AND t.destination_amount IS NOT NULL THEN t.destination_amount
+							ELSE t.amount
+						END
+					WHEN origin_account_id = $1 THEN -t.amount
+					ELSE 0
+				END
+			), 0)
+			FROM transactions t 
+			WHERE origin_account_id = $1 OR destination_account_id = $1
+		)
+		WHERE id = $1 AND tenant_id = $2`
 	insertQuery = `
 		INSERT INTO money_accounts (
 			tenant_id,
@@ -182,7 +196,7 @@ func (g *GormMoneyAccountRepository) RecalculateBalance(ctx context.Context, id 
 		return fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	err = g.execQuery(ctx, recalculateBalanceQuery, id, id, id, tenantID)
+	err = g.execQuery(ctx, recalculateBalanceQuery, id, tenantID)
 	if err != nil {
 		return errors.Wrap(err, "failed to recalculate balance")
 	}

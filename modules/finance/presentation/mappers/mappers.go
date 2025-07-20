@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/money"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense"
 	category "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/expense_category"
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
@@ -898,4 +899,34 @@ func toCashflowSectionDTO(section value_objects.CashflowSection) dtos.CashflowSe
 		NetCashFlow:             fmt.Sprintf("%.2f", section.NetCashFlow.AsMajorUnits()),
 		NetCashFlowWithCurrency: section.NetCashFlow.Display(),
 	}
+}
+
+func DebtToViewModel(entity debt.Debt, counterpartyName string) *viewmodels.Debt {
+	originalAmount := entity.OriginalAmount()
+	outstandingAmount := entity.OutstandingAmount()
+
+	vm := &viewmodels.Debt{
+		ID:                            entity.ID().String(),
+		Type:                          string(entity.Type()),
+		Status:                        string(entity.Status()),
+		CounterpartyID:                entity.CounterpartyID().String(),
+		CounterpartyName:              counterpartyName,
+		OriginalAmount:                fmt.Sprintf("%.2f", originalAmount.AsMajorUnits()),
+		OriginalAmountWithCurrency:    originalAmount.Display(),
+		OutstandingAmount:             fmt.Sprintf("%.2f", outstandingAmount.AsMajorUnits()),
+		OutstandingAmountWithCurrency: outstandingAmount.Display(),
+		Description:                   entity.Description(),
+		CreatedAt:                     entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:                     entity.UpdatedAt().Format(time.RFC3339),
+	}
+
+	if entity.DueDate() != nil {
+		vm.DueDate = entity.DueDate().Format(time.DateOnly)
+	}
+
+	if entity.SettlementTransactionID() != nil {
+		vm.SettlementTransactionID = entity.SettlementTransactionID().String()
+	}
+
+	return vm
 }

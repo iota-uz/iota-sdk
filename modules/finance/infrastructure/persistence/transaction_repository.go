@@ -28,7 +28,9 @@ const (
 			accounting_period,
 			transaction_type,
 			comment,
-			created_at
+			created_at,
+			exchange_rate,
+			destination_amount
 		FROM transactions`
 	transactionCountQuery  = `SELECT COUNT(*) as count FROM transactions WHERE tenant_id = $1`
 	transactionInsertQuery = `
@@ -41,9 +43,11 @@ const (
 			accounting_period,
 			transaction_type,
 			comment,
-			created_at
+			created_at,
+			exchange_rate,
+			destination_amount
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`
 	transactionUpdateQuery = `
 		UPDATE transactions
 		SET amount = $1,
@@ -150,6 +154,8 @@ func (g *PgTransactionRepository) Create(ctx context.Context, data transaction.T
 		entity.TransactionType,
 		entity.Comment,
 		entity.CreatedAt,
+		entity.ExchangeRate,
+		entity.DestinationAmount,
 	}
 	var id uuid.UUID
 	err = tx.QueryRow(ctx, transactionInsertQuery, args...).Scan(&id)
@@ -223,6 +229,8 @@ func (g *PgTransactionRepository) queryTransactions(ctx context.Context, query s
 			&r.TransactionType,
 			&r.Comment,
 			&r.CreatedAt,
+			&r.ExchangeRate,
+			&r.DestinationAmount,
 		); err != nil {
 			return nil, err
 		}
