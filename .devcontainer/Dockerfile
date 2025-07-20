@@ -31,41 +31,37 @@ RUN mkdir -p /tmp/air \
 
 # Create Claude settings file
 RUN mkdir -p /home/vscode/.claude && \
-    cat > /home/vscode/.claude/settings.json << 'EOF'
-{
-  "env": {},
-  "includeCoAuthoredBy": false,
-  "permissions": {
-    "allow": [
-      "Bash(cat:*)",
-      "Bash(go list:*)",
-      "Bash(go test:*)",
-      "Bash(go vet:*)",
-      "Bash(grep:*)",
-      "Bash(mkdir:*)",
-      "Bash(sed:*)",
-      "mcp__sdk__get_definition",
-      "Bash(ls:*)",
-      "Bash(rg:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh api:*)",
-      "Bash(find:*)",
-      "mcp__godoc-mcp__get_doc",
-      "mcp__code-indexer__search_code",
-      "mcp__bloom__search_code",
-      "Bash(echo $PATH)",
-      "Bash(gh --version)",
-      "mcp__devhub__get_logs",
-      "mcp__devhub__search_logs",
-      "mcp__sequential-thinking__sequentialthinking"
-    ],
-    "deny": []
-  },
-  "model": "sonnet"
-}
-EOF
-
-# Fix ownership of Claude settings
-RUN chown -R vscode:vscode /home/vscode/.claude
+    echo '{ \
+  "env": {}, \
+  "includeCoAuthoredBy": false, \
+  "permissions": { \
+    "allow": [ \
+      "Bash(cat:*)", \
+      "Bash(go list:*)", \
+      "Bash(go test:*)", \
+      "Bash(go vet:*)", \
+      "Bash(grep:*)", \
+      "Bash(mkdir:*)", \
+      "Bash(sed:*)", \
+      "mcp__sdk__get_definition", \
+      "Bash(ls:*)", \
+      "Bash(rg:*)", \
+      "Bash(gh pr view:*)", \
+      "Bash(gh api:*)", \
+      "Bash(find:*)", \
+      "mcp__godoc-mcp__get_doc", \
+      "mcp__code-indexer__search_code", \
+      "mcp__bloom__search_code", \
+      "Bash(echo $PATH)", \
+      "Bash(gh --version)", \
+      "mcp__devhub__get_logs", \
+      "mcp__devhub__search_logs", \
+      "mcp__sequential-thinking__sequentialthinking" \
+    ], \
+    "deny": [] \
+  }, \
+  "model": "sonnet" \
+}' > /home/vscode/.claude/settings.json && \
+    chown -R vscode:vscode /home/vscode/.claude
 
 WORKDIR /workspace
