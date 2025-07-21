@@ -1162,6 +1162,7 @@ func (m *mockField) Rules() []crud.FieldRule              { return nil }
 func (m *mockField) InitialValue(ctx context.Context) any { return nil }
 func (m *mockField) Attrs() map[string]any                { return map[string]any{} }
 func (m *mockField) RendererType() string                 { return "" }
+func (m *mockField) LocalizationKey() string              { return "" }
 func (m *mockField) Value(value any) crud.FieldValue {
 	return &mockFieldValue{field: m, value: value}
 }

@@ -565,8 +565,12 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	if !htmx.IsHxRequest(r) {
 		columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
 		for _, f := range c.visibleFields {
-			// Localize field label
-			fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name()), f.Name())
+			// Localize field label using custom key if provided, otherwise use default pattern
+			localizationKey := f.LocalizationKey()
+			if localizationKey == "" {
+				localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name())
+			}
+			fieldLabel, err := c.localize(ctx, localizationKey, f.Name())
 			if err != nil {
 				fieldLabel = f.Name()
 			}
@@ -696,8 +700,12 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 	detailFields := make([]table.DetailFieldValue, 0, len(c.visibleFields))
 	for _, field := range c.visibleFields {
 		if fv, exists := fieldValueMap[field.Name()]; exists {
-			// Localize field label
-			fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
+			// Localize field label using custom key if provided, otherwise use default pattern
+			localizationKey := field.LocalizationKey()
+			if localizationKey == "" {
+				localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name())
+			}
+			fieldLabel, err := c.localize(ctx, localizationKey, field.Name())
 			if err != nil {
 				fieldLabel = field.Name()
 			}
@@ -1281,8 +1289,12 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		return nil
 	}
 
-	// Localize field label
-	fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
+	// Localize field label using custom key if provided, otherwise use default pattern
+	localizationKey := field.LocalizationKey()
+	if localizationKey == "" {
+		localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name())
+	}
+	fieldLabel, err := c.localize(ctx, localizationKey, field.Name())
 	if err != nil {
 		fieldLabel = field.Name()
 	}

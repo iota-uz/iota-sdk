@@ -294,3 +294,9 @@ func WithPastDate() FieldOption {
 		field.rules = append(field.rules, PastDateRule())
 	}
 }
+
+func WithLocalizationKey(key string) FieldOption {
+	return func(field *field) {
+		field.localizationKey = key
+	}
+}
