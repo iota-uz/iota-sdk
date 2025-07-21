@@ -55,7 +55,7 @@ func hasMultipleTranslations(ml models.MultiLang) bool {
 func getCompactText(ml models.MultiLang) string {
 	allValues := ml.GetAll()
 	defaultValue := ml.Default()
-	
+
 	others := ""
 	for locale, value := range allValues {
 		if value != "" && value != defaultValue {
@@ -65,10 +65,10 @@ func getCompactText(ml models.MultiLang) string {
 			others += locale + ": " + value
 		}
 	}
-	
+
 	if others != "" {
 		return "+" + string(rune(len(allValues)-1)) + " more: " + others
 	}
-	
+
 	return ""
 }

@@ -2,6 +2,7 @@ package core
 
 import (
 	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
