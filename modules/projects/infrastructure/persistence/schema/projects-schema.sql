@@ -52,4 +52,3 @@ CREATE INDEX project_stage_payments_project_stage_id_idx ON project_stage_paymen
 
 CREATE INDEX project_stage_payments_payment_id_idx ON project_stage_payments (payment_id);
 
-
