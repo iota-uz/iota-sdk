@@ -32,6 +32,7 @@ type DetailFieldType string
 
 const (
 	DetailFieldTypeText     DetailFieldType = "text"
+	DetailFieldTypeHTML     DetailFieldType = "html"
 	DetailFieldTypeBoolean  DetailFieldType = "boolean"
 	DetailFieldTypeDate     DetailFieldType = "date"
 	DetailFieldTypeTime     DetailFieldType = "time"
@@ -95,7 +96,7 @@ func DefaultDrawer(props DefaultDrawerProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 66, Col: 20}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 67, Col: 20}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -168,7 +169,7 @@ func DetailsDrawer(props DetailsDrawerProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 84, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 85, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -202,7 +203,7 @@ func DetailsDrawer(props DetailsDrawerProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 100, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 101, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -257,7 +258,7 @@ func DetailsDrawer(props DetailsDrawerProps) templ.Component {
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(action.URL)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 115, Col: 31}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 116, Col: 31}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
@@ -275,7 +276,7 @@ func DetailsDrawer(props DetailsDrawerProps) templ.Component {
 							var templ_7745c5c3_Var11 string
 							templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(action.Confirm)
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 117, Col: 37}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 118, Col: 37}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 							if templ_7745c5c3_Err != nil {
@@ -293,7 +294,7 @@ func DetailsDrawer(props DetailsDrawerProps) templ.Component {
 						var templ_7745c5c3_Var12 string
 						templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs("closest [id^='" + props.ID + "']")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 119, Col: 55}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 120, Col: 55}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 						if templ_7745c5c3_Err != nil {
@@ -306,7 +307,7 @@ func DetailsDrawer(props DetailsDrawerProps) templ.Component {
 						var templ_7745c5c3_Var13 string
 						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(action.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 122, Col: 23}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 123, Col: 23}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 						if templ_7745c5c3_Err != nil {
@@ -351,7 +352,7 @@ func DetailsDrawer(props DetailsDrawerProps) templ.Component {
 						var templ_7745c5c3_Var17 string
 						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(action.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 126, Col: 23}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 127, Col: 23}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 						if templ_7745c5c3_Err != nil {
@@ -423,6 +424,11 @@ func renderDetailFieldValue(field DetailFieldValue) templ.Component {
 			}
 		} else {
 			switch field.Type {
+			case DetailFieldTypeHTML:
+				templ_7745c5c3_Err = templ.Raw(field.Value).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 			case DetailFieldTypeBoolean:
 				if field.Value == "true" {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<span class=\"inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20\">True</span>")
@@ -443,7 +449,7 @@ func renderDetailFieldValue(field DetailFieldValue) templ.Component {
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(field.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 149, Col: 157}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 152, Col: 157}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -457,7 +463,7 @@ func renderDetailFieldValue(field DetailFieldValue) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(field.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 151, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/drawers.templ`, Line: 154, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {

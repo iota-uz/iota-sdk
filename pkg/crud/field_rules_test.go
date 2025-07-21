@@ -35,6 +35,8 @@ func createField(name string, fieldType crud.FieldType, opts ...crud.FieldOption
 		return crud.NewTimestampField(name, opts...)
 	case crud.UUIDFieldType:
 		return crud.NewUUIDField(name, opts...)
+	case crud.JSONFieldType:
+		return crud.NewJSONField[any](name, crud.JSONFieldConfig[any]{}, opts...)
 	default:
 		panic("unknown field type")
 	}
@@ -1158,6 +1160,7 @@ func (m *mockField) Hidden() bool            { return false }
 func (m *mockField) Rules() []crud.FieldRule { return nil }
 func (m *mockField) InitialValue() any       { return nil }
 func (m *mockField) Attrs() map[string]any   { return map[string]any{} }
+func (m *mockField) RendererType() string    { return "" }
 func (m *mockField) Value(value any) crud.FieldValue {
 	return &mockFieldValue{field: m, value: value}
 }
@@ -1253,6 +1256,12 @@ func (m *mockFieldValue) AsTime() (time.Time, error) {
 		return t, nil
 	}
 	return time.Time{}, fmt.Errorf("value is not a time.Time")
+}
+func (m *mockFieldValue) AsJSON() (string, error) {
+	if s, ok := m.value.(string); ok {
+		return s, nil
+	}
+	return "", fmt.Errorf("value is not a string")
 }
 func (m *mockFieldValue) AsUUID() (uuid.UUID, error) {
 	if u, ok := m.value.(uuid.UUID); ok {
