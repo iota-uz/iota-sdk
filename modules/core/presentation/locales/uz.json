@@ -596,5 +596,13 @@
     "NoDataTitle": "Ma'lumot mavjud emas",
     "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
     "Categories": "Toifalar"
+  },
+  "multilang": {
+    "empty": "—",
+    "no_translations": "Tarjimalar mavjud emas",
+    "add_language": "+ Til qo'shish",
+    "remove_language": "Bu tilni o'chirish",
+    "locale_placeholder": "uz",
+    "text_placeholder": "Bu tilda matn kiriting"
   }
 }

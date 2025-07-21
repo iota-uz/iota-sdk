@@ -597,5 +597,13 @@
     "NoDataTitle": "No data available",
     "NoDataDescription": "No data available for the selected date",
     "Categories": "Categories"
+  },
+  "multilang": {
+    "empty": "—",
+    "no_translations": "No translations available",
+    "add_language": "+ Add Language",
+    "remove_language": "Remove this language",
+    "locale_placeholder": "en",
+    "text_placeholder": "Enter text in this language"
   }
 }
