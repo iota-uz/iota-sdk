@@ -91,7 +91,7 @@ func (m *Module) Register(app application.Application) error {
 
 	handlers.RegisterUserHandler(app)
 
-	controllers.InitCrudShowcase(app)
+	//controllers.InitCrudShowcase(app)
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
