@@ -16,6 +16,13 @@ type FieldOption func(field *field)
 type FieldType string
 type FieldRule func(fieldValue FieldValue) error
 
+// WithRenderer sets a custom renderer type for the field
+func WithRenderer(rendererType string) FieldOption {
+	return func(f *field) {
+		f.rendererType = rendererType
+	}
+}
+
 const (
 	StringFieldType    FieldType = "string"
 	IntFieldType       FieldType = "int"
@@ -27,6 +34,7 @@ const (
 	DateTimeFieldType  FieldType = "datetime"
 	TimestampFieldType FieldType = "timestamp"
 	UUIDFieldType      FieldType = "uuid"
+	JSONFieldType      FieldType = "json"
 )
 
 const (
@@ -70,6 +78,10 @@ type Field interface {
 	InitialValue() any
 	Value(value any) FieldValue
 
+	// RendererType returns the custom renderer type for this field
+	// Returns empty string for default rendering behavior
+	RendererType() string
+
 	AsStringField() (StringField, error)
 	AsIntField() (IntField, error)
 	AsBoolField() (BoolField, error)
@@ -90,6 +102,7 @@ type field struct {
 	readonly       bool
 	hidden         bool
 	searchable     bool
+	rendererType   string
 	attrs          map[string]any
 	initialValueFn func() any
 	rules          []FieldRule
@@ -101,13 +114,14 @@ func newField(
 	opts ...FieldOption,
 ) Field {
 	f := &field{
-		key:        false,
-		name:       name,
-		type_:      type_,
-		searchable: false,
-		readonly:   false,
-		hidden:     false,
-		attrs:      map[string]any{},
+		key:          false,
+		name:         name,
+		type_:        type_,
+		searchable:   false,
+		readonly:     false,
+		hidden:       false,
+		rendererType: "", // Default: use standard rendering
+		attrs:        map[string]any{},
 		initialValueFn: func() any {
 			return nil
 		},
@@ -159,6 +173,10 @@ func (f *field) InitialValue() any {
 
 func (f *field) Rules() []FieldRule {
 	return f.rules
+}
+
+func (f *field) RendererType() string {
+	return f.rendererType
 }
 
 func (f *field) Value(value any) FieldValue {
@@ -252,8 +270,15 @@ func isValidType(fieldType FieldType, value any) bool {
 		return ok
 
 	case UUIDFieldType:
-		_, ok := value.(uuid.UUID)
-		return ok
+		switch value.(type) {
+		case uuid.UUID, [16]uint8:
+			return true
+		default:
+			return false
+		}
+
+	case JSONFieldType:
+		return true
 
 	default:
 		return false

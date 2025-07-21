@@ -103,6 +103,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 	items := []sidebar.Item{
 		sidebar.NewLink(c.basePath, "Overview", nil),
 		sidebar.NewLink(fmt.Sprintf("%s/lens", c.basePath), "Lens Dashboard", icons.MagnifyingGlass(icons.Props{Size: "20"})),
+		sidebar.NewLink(fmt.Sprintf("%s/crud", c.basePath), "Crud", icons.Buildings(icons.Props{Size: "20"})),
 		sidebar.NewGroup(
 			"Components",
 			icons.PuzzlePiece(icons.Props{Size: "20"}),

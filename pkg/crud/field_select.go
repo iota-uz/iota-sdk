@@ -59,6 +59,8 @@ type SelectField interface {
 	AsIntSelect() SelectField
 	AsStringSelect() SelectField
 	AsBoolSelect() SelectField
+	AsUUIDSelect() SelectField
+
 	AsSearchable(endpoint string) SelectField
 	AsCombobox() SelectField
 	WithStaticOptions(options ...SelectOption) SelectField
@@ -264,6 +266,10 @@ func (f *selectField) AsStringSelect() SelectField {
 // AsBoolSelect configures the field to store boolean values
 func (f *selectField) AsBoolSelect() SelectField {
 	return f.SetValueType(BoolFieldType)
+}
+
+func (f *selectField) AsUUIDSelect() SelectField {
+	return f.SetValueType(UUIDFieldType)
 }
 
 // AsSearchable configures the field as a searchable select with the given endpoint
