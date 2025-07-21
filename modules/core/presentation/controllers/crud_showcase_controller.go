@@ -408,7 +408,7 @@ func NewCrudShowcaseController(
 		crud.NewUUIDField(
 			_uuid,
 			crud.WithKey(),
-			crud.WithInitialValue(func() any {
+			crud.WithInitialValue(func(ctx context.Context) any {
 				return uuid.New()
 			}),
 		),

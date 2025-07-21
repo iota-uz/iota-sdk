@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -77,13 +78,13 @@ func TestReadonlyFieldBehavior(t *testing.T) {
 		now := time.Now()
 		field := crud.NewDateTimeField("created_at",
 			crud.WithReadonly(),
-			crud.WithInitialValue(func() any {
+			crud.WithInitialValue(func(ctx context.Context) any {
 				return now
 			}),
 		)
 
 		assert.True(t, field.Readonly())
-		assert.Equal(t, now, field.InitialValue())
+		assert.Equal(t, now, field.InitialValue(context.Background()))
 	})
 
 	t.Run("Fields without WithReadonly are editable", func(t *testing.T) {
@@ -143,17 +144,17 @@ func TestReadonlyFieldUsageExample(t *testing.T) {
 		// Readonly status field - set by system
 		crud.NewStringField("status",
 			crud.WithReadonly(),
-			crud.WithInitialValue(func() any { return "pending" }),
+			crud.WithInitialValue(func(ctx context.Context) any { return "pending" }),
 		),
 
 		// Readonly audit fields
 		crud.NewDateTimeField("created_at",
 			crud.WithReadonly(),
-			crud.WithInitialValue(func() any { return time.Now() }),
+			crud.WithInitialValue(func(ctx context.Context) any { return time.Now() }),
 		),
 		crud.NewDateTimeField("updated_at",
 			crud.WithReadonly(),
-			crud.WithInitialValue(func() any { return time.Now() }),
+			crud.WithInitialValue(func(ctx context.Context) any { return time.Now() }),
 		),
 		crud.NewStringField("created_by", crud.WithReadonly()),
 		crud.NewStringField("updated_by", crud.WithReadonly()),

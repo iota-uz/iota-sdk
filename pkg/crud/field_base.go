@@ -1,6 +1,7 @@
 package crud
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -75,7 +76,7 @@ type Field interface {
 
 	Attrs() map[string]any
 
-	InitialValue() any
+	InitialValue(ctx context.Context) any
 	Value(value any) FieldValue
 
 	// RendererType returns the custom renderer type for this field
@@ -104,7 +105,7 @@ type field struct {
 	searchable     bool
 	rendererType   string
 	attrs          map[string]any
-	initialValueFn func() any
+	initialValueFn func(ctx context.Context) any
 	rules          []FieldRule
 }
 
@@ -122,7 +123,7 @@ func newField(
 		hidden:       false,
 		rendererType: "", // Default: use standard rendering
 		attrs:        map[string]any{},
-		initialValueFn: func() any {
+		initialValueFn: func(ctx context.Context) any {
 			return nil
 		},
 		rules: make([]FieldRule, 0),
@@ -167,8 +168,8 @@ func (f *field) Attrs() map[string]any {
 	return f.attrs
 }
 
-func (f *field) InitialValue() any {
-	return f.initialValueFn()
+func (f *field) InitialValue(ctx context.Context) any {
+	return f.initialValueFn(ctx)
 }
 
 func (f *field) Rules() []FieldRule {
