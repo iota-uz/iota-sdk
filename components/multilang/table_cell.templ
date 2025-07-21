@@ -13,8 +13,8 @@ templ TableCell(ctx context.Context, ml models.MultiLang) {
 			{ localizeWithDefault(ctx, "multilang.empty", "—") }
 		</span>
 	} else {
-		<span 
-			class="multilang-cell" 
+		<span
+			class="multilang-cell"
 			title={ getTooltipText(ctx, ml) }
 		>
 			{ getDisplayText(ctx, ml) }
@@ -27,12 +27,12 @@ func getTooltipText(ctx context.Context, ml models.MultiLang) string {
 	if ml.IsEmpty() {
 		return ""
 	}
-	
+
 	allValues := ml.GetAll()
 	if len(allValues) <= 1 {
 		return ml.Default()
 	}
-	
+
 	tooltip := ""
 	for locale, value := range allValues {
 		if value != "" {
@@ -42,7 +42,7 @@ func getTooltipText(ctx context.Context, ml models.MultiLang) string {
 			tooltip += locale + ": " + value
 		}
 	}
-	
+
 	return tooltip
 }
 
