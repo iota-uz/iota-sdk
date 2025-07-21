@@ -83,6 +83,10 @@ type Field interface {
 	// Returns empty string for default rendering behavior
 	RendererType() string
 
+	// LocalizationKey returns the custom localization key for this field
+	// Returns empty string for default key generation pattern
+	LocalizationKey() string
+
 	AsStringField() (StringField, error)
 	AsIntField() (IntField, error)
 	AsBoolField() (BoolField, error)
@@ -97,16 +101,17 @@ type Field interface {
 
 // Base field implementation
 type field struct {
-	key            bool
-	name           string
-	type_          FieldType
-	readonly       bool
-	hidden         bool
-	searchable     bool
-	rendererType   string
-	attrs          map[string]any
-	initialValueFn func(ctx context.Context) any
-	rules          []FieldRule
+	key             bool
+	name            string
+	type_           FieldType
+	readonly        bool
+	hidden          bool
+	searchable      bool
+	rendererType    string
+	localizationKey string
+	attrs           map[string]any
+	initialValueFn  func(ctx context.Context) any
+	rules           []FieldRule
 }
 
 func newField(
@@ -115,14 +120,15 @@ func newField(
 	opts ...FieldOption,
 ) Field {
 	f := &field{
-		key:          false,
-		name:         name,
-		type_:        type_,
-		searchable:   false,
-		readonly:     false,
-		hidden:       false,
-		rendererType: "", // Default: use standard rendering
-		attrs:        map[string]any{},
+		key:             false,
+		name:            name,
+		type_:           type_,
+		searchable:      false,
+		readonly:        false,
+		hidden:          false,
+		rendererType:    "", // Default: use standard rendering
+		localizationKey: "", // Default: use automatic key generation
+		attrs:           map[string]any{},
 		initialValueFn: func(ctx context.Context) any {
 			return nil
 		},
@@ -178,6 +184,10 @@ func (f *field) Rules() []FieldRule {
 
 func (f *field) RendererType() string {
 	return f.rendererType
+}
+
+func (f *field) LocalizationKey() string {
+	return f.localizationKey
 }
 
 func (f *field) Value(value any) FieldValue {
