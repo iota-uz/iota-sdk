@@ -59,8 +59,6 @@
     "NothingFound": "Hech narsa topilmadi",
     "Actions": {
       "AddUser": "Foydalanuvchi qo'shish",
-      "AddExpense": "Xarajat qo'shish",
-      "AddPayment": "To'lov qo'shish",
       "AddAccount": "Hisob qo'shish"
     }
   },
@@ -75,14 +73,6 @@
     "user": "Foydalanuvchi",
     "role": "Rol",
     "group": "Guruhlar",
-    "payment": "To'lov",
-    "expense": "Xarajat",
-    "expense_category": "Xarajat toifasi",
-    "product": "Mahsulot",
-    "unit": "O'lchov birligi",
-    "position": "Lavozim",
-    "order": "Buyurtma",
-    "inventory": "Inventar",
     "upload": "Yuklash"
   },
   "Permissions": {
@@ -110,69 +100,9 @@
       "Update": "Hisobni tahrirlash",
       "Delete": "Hisobni o'chirish"
     },
-    "Project": {
-      "Create": "Loyiha yaratish",
-      "Read": "Loyihani ko'rish",
-      "Update": "Loyihani tahrirlash",
-      "Delete": "Loyihani o'chirish"
-    },
-    "Stage": {
-      "Create": "Bosqich yaratish",
-      "Read": "Bosqichni ko'rish",
-      "Update": "Bosqichni tahrirlash",
-      "Delete": "Bosqichni o'chirish"
-    },
     "Settings": {
       "Update": "Sozlamalarni tahrirlash",
       "Read": "Sozlamalarni ko'rish"
-    },
-    "Payment": {
-      "Create": "To'lov yaratish",
-      "Read": "To'lovni ko'rish",
-      "Update": "To'lovni tahrirlash",
-      "Delete": "To'lovni o'chirish"
-    },
-    "Expense": {
-      "Create": "Xarajat yaratish",
-      "Read": "Xarajatni ko'rish",
-      "Update": "Xarajatni tahrirlash",
-      "Delete": "Xarajatni o'chirish"
-    },
-    "ExpenseCategory": {
-      "Create": "Xarajat toifasini yaratish",
-      "Read": "Xarajat toifasini ko'rish",
-      "Update": "Xarajat toifasini tahrirlash",
-      "Delete": "Xarajat toifasini o'chirish"
-    },
-    "Product": {
-      "Create": "Mahsulot yaratish",
-      "Read": "Mahsulotni ko'rish",
-      "Update": "Mahsulotni tahrirlash",
-      "Delete": "Mahsulotni o'chirish"
-    },
-    "Unit": {
-      "Create": "O'lchov birligi yaratish",
-      "Read": "O'lchov birligini ko'rish",
-      "Update": "O'lchov birligini tahrirlash",
-      "Delete": "O'lchov birligini o'chirish"
-    },
-    "Position": {
-      "Create": "Lavozim yaratish",
-      "Read": "Lavozimni ko'rish",
-      "Update": "Lavozimni tahrirlash",
-      "Delete": "Lavozimni o'chirish"
-    },
-    "Order": {
-      "Create": "Buyurtma yaratish",
-      "Read": "Buyurtmani ko'rish",
-      "Update": "Buyurtmani tahrirlash",
-      "Delete": "Buyurtmani o'chirish"
-    },
-    "Inventory": {
-      "Create": "Inventar yaratish",
-      "Read": "Inventarni ko'rish",
-      "Update": "Inventarni tahrirlash",
-      "Delete": "Inventarni o'chirish"
     },
     "Upload": {
       "Create": "Yuklash yaratish",
