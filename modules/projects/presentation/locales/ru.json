@@ -1,4 +1,22 @@
 {
+  "Resources": {
+    "project": "Проект",
+    "project_stage": "Этап проекта"
+  },
+  "Permissions": {
+    "Project": {
+      "Create": "Создание проектов",
+      "Read": "Просмотр проектов",
+      "Update": "Изменение проектов",
+      "Delete": "Удаление проектов"
+    },
+    "ProjectStage": {
+      "Create": "Создание этапов проекта",
+      "Read": "Просмотр этапов проекта",
+      "Update": "Изменение этапов проекта",
+      "Delete": "Удаление этапов проекта"
+    }
+  },
   "NavigationLinks": {
     "Projects": "Проекты",
     "ProjectStages": "Этапы проектов"

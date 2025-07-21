@@ -1,4 +1,22 @@
 {
+  "Resources": {
+    "project": "Loyiha",
+    "project_stage": "Loyiha bosqichi"
+  },
+  "Permissions": {
+    "Project": {
+      "Create": "Loyiha yaratish",
+      "Read": "Loyihani ko'rish",
+      "Update": "Loyihani tahrirlash",
+      "Delete": "Loyihani o'chirish"
+    },
+    "ProjectStage": {
+      "Create": "Loyiha bosqichini yaratish",
+      "Read": "Loyiha bosqichini ko'rish",
+      "Update": "Loyiha bosqichini tahrirlash",
+      "Delete": "Loyiha bosqichini o'chirish"
+    }
+  },
   "NavigationLinks": {
     "Projects": "Loyihalar",
     "ProjectStages": "Loyiha bosqichlari"
