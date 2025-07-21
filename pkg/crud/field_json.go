@@ -1,6 +1,7 @@
 package crud
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 )
@@ -95,8 +96,8 @@ func (j *jsonField[T]) Value(value any) FieldValue {
 	}
 }
 
-func (j *jsonField[T]) InitialValue() any {
-	initialVal := j.initialValueFn()
+func (j *jsonField[T]) InitialValue(ctx context.Context) any {
+	initialVal := j.initialValueFn(ctx)
 	if initialVal == nil {
 		return nil
 	}

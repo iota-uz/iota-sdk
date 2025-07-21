@@ -1068,7 +1068,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 
 	for _, f := range c.schema.Fields().Fields() {
 		if !existingFields[f.Name()] {
-			fieldValues = append(fieldValues, f.Value(f.InitialValue()))
+			fieldValues = append(fieldValues, f.Value(f.InitialValue(ctx)))
 		}
 	}
 
@@ -1291,8 +1291,8 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 	var currentValue any
 	if value != nil && !value.IsZero() {
 		currentValue = value.Value()
-	} else if field.InitialValue() != nil {
-		currentValue = field.InitialValue()
+	} else if field.InitialValue(ctx) != nil {
+		currentValue = field.InitialValue(ctx)
 	}
 
 	// Check for custom renderer first

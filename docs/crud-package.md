@@ -83,7 +83,7 @@ crud.NewIntField("age",
     crud.WithMin(0),
     crud.WithMax(150),
     crud.WithRequired(),
-    crud.WithInitialValue(func() any { return 18 }),
+    crud.WithInitialValue(func(ctx context.Context) any { return 18 }),
 )
 ```
 
@@ -92,7 +92,7 @@ crud.NewIntField("age",
 crud.NewBoolField("active",
     crud.WithTrueLabel("Active"),
     crud.WithFalseLabel("Inactive"),
-    crud.WithInitialValue(func() any { return true }),
+    crud.WithInitialValue(func(ctx context.Context) any { return true }),
 )
 ```
 
@@ -118,7 +118,7 @@ crud.NewDateField("birth_date",
 // DateTime field
 crud.NewDateTimeField("created_at",
     crud.WithReadonly(),
-    crud.WithInitialValue(func() any { return time.Now() }),
+    crud.WithInitialValue(func(ctx context.Context) any { return time.Now() }),
 )
 ```
 
@@ -127,7 +127,7 @@ crud.NewDateTimeField("created_at",
 crud.NewUUIDField("id",
     crud.WithKey(),          // Primary key
     crud.WithReadonly(),     // Auto-generated
-    crud.WithInitialValue(func() any { return uuid.New() }),
+    crud.WithInitialValue(func(ctx context.Context) any { return uuid.New() }),
 )
 ```
 
@@ -195,7 +195,7 @@ Common field options:
 - `WithHidden()` - Hide from UI
 - `WithSearchable()` - Enable text search (string fields only)
 - `WithRequired()` - Add required validation
-- `WithInitialValue(func() any)` - Set default value
+- `WithInitialValue(func(ctx context.Context) any)` - Set default value with context access
 - `WithRule(FieldRule)` - Add custom validation
 
 ## Select Field Features
@@ -409,11 +409,11 @@ fields := crud.NewFields([]crud.Field{
         crud.WithDecimalMin("0.00"),
     ),
     crud.NewBoolField("active",
-        crud.WithInitialValue(func() any { return true }),
+        crud.WithInitialValue(func(ctx context.Context) any { return true }),
     ),
     crud.NewDateTimeField("created_at",
         crud.WithReadonly(),
-        crud.WithInitialValue(func() any { return time.Now() }),
+        crud.WithInitialValue(func(ctx context.Context) any { return time.Now() }),
     ),
 })
 

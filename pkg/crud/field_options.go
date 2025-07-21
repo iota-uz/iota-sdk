@@ -1,6 +1,9 @@
 package crud
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 func WithKey() FieldOption {
 	return func(field *field) {
@@ -26,7 +29,7 @@ func WithSearchable() FieldOption {
 	}
 }
 
-func WithInitialValue(fn func() any) FieldOption {
+func WithInitialValue(fn func(ctx context.Context) any) FieldOption {
 	return func(field *field) {
 		field.initialValueFn = fn
 	}
