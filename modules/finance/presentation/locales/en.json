@@ -1,4 +1,36 @@
 {
+  "Resources": {
+    "payment": "Payment",
+    "expense": "Expense",
+    "expense_category": "Expense category",
+    "debt": "Debt"
+  },
+  "Permissions": {
+    "Payment": {
+      "Create": "Create payment",
+      "Read": "Read payment",
+      "Update": "Update payment",
+      "Delete": "Delete payment"
+    },
+    "Expense": {
+      "Create": "Create expense",
+      "Read": "Read expense",
+      "Update": "Update expense",
+      "Delete": "Delete expense"
+    },
+    "ExpenseCategory": {
+      "Create": "Create expense category",
+      "Read": "Read expense category",
+      "Update": "Update expense category",
+      "Delete": "Delete expense category"
+    },
+    "Debt": {
+      "Create": "Create debt",
+      "Read": "Read debt",
+      "Update": "Update debt",
+      "Delete": "Delete debt"
+    }
+  },
   "NavigationLinks": {
     "Finances": "Finances",
     "Transactions": "Transactions",

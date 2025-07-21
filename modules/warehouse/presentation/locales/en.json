@@ -1,4 +1,43 @@
 {
+  "Resources": {
+    "product": "Product",
+    "unit": "Unit",
+    "position": "Position",
+    "order": "Order",
+    "inventory": "Inventory"
+  },
+  "Permissions": {
+    "Product": {
+      "Create": "Create product",
+      "Read": "Read product",
+      "Update": "Update product",
+      "Delete": "Delete product"
+    },
+    "Unit": {
+      "Create": "Create unit",
+      "Read": "Read unit",
+      "Update": "Update unit",
+      "Delete": "Delete unit"
+    },
+    "Position": {
+      "Create": "Create position",
+      "Read": "Read position",
+      "Update": "Update position",
+      "Delete": "Delete position"
+    },
+    "Order": {
+      "Create": "Create order",
+      "Read": "Read order",
+      "Update": "Update order",
+      "Delete": "Delete order"
+    },
+    "Inventory": {
+      "Create": "Create inventory",
+      "Read": "Read inventory",
+      "Update": "Update inventory",
+      "Delete": "Delete inventory"
+    }
+  },
   "Errors": {
     "ERR_DUPLICATE_RFID": "Rfid {{.Rfid}} already exists",
     "ERR_DUPLICATE_BARCODE": "Barcode {{.Barcode}} already exists",
