@@ -1,4 +1,43 @@
 {
+  "Resources": {
+    "product": "Mahsulot",
+    "unit": "O'lchov birligi",
+    "position": "Lavozim",
+    "order": "Buyurtma",
+    "inventory": "Inventar"
+  },
+  "Permissions": {
+    "Product": {
+      "Create": "Mahsulot yaratish",
+      "Read": "Mahsulotni ko'rish",
+      "Update": "Mahsulotni tahrirlash",
+      "Delete": "Mahsulotni o'chirish"
+    },
+    "Unit": {
+      "Create": "O'lchov birligi yaratish",
+      "Read": "O'lchov birligini ko'rish",
+      "Update": "O'lchov birligini tahrirlash",
+      "Delete": "O'lchov birligini o'chirish"
+    },
+    "Position": {
+      "Create": "Lavozim yaratish",
+      "Read": "Lavozimni ko'rish",
+      "Update": "Lavozimni tahrirlash",
+      "Delete": "Lavozimni o'chirish"
+    },
+    "Order": {
+      "Create": "Buyurtma yaratish",
+      "Read": "Buyurtmani ko'rish",
+      "Update": "Buyurtmani tahrirlash",
+      "Delete": "Buyurtmani o'chirish"
+    },
+    "Inventory": {
+      "Create": "Inventar yaratish",
+      "Read": "Inventarni ko'rish",
+      "Update": "Inventarni tahrirlash",
+      "Delete": "Inventarni o'chirish"
+    }
+  },
   "Errors": {
     "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} allaqachon mavjud",
     "ERR_DUPLICATE_BARCODE": "Artikul {{.Barcode}} allaqachon mavjud",

@@ -1,4 +1,22 @@
 {
+  "Resources": {
+    "project": "Project",
+    "project_stage": "Project stage"
+  },
+  "Permissions": {
+    "Project": {
+      "Create": "Create project",
+      "Read": "Read project",
+      "Update": "Update project",
+      "Delete": "Delete project"
+    },
+    "ProjectStage": {
+      "Create": "Create project stage",
+      "Read": "Read project stage",
+      "Update": "Update project stage",
+      "Delete": "Delete project stage"
+    }
+  },
   "NavigationLinks": {
     "Projects": "Projects",
     "ProjectStages": "Project Stages"

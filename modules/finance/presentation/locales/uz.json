@@ -1,4 +1,36 @@
 {
+  "Resources": {
+    "payment": "To'lov",
+    "expense": "Xarajat",
+    "expense_category": "Xarajat toifasi",
+    "debt": "Qarz"
+  },
+  "Permissions": {
+    "Payment": {
+      "Create": "To'lov yaratish",
+      "Read": "To'lovni ko'rish",
+      "Update": "To'lovni tahrirlash",
+      "Delete": "To'lovni o'chirish"
+    },
+    "Expense": {
+      "Create": "Xarajat yaratish",
+      "Read": "Xarajatni ko'rish",
+      "Update": "Xarajatni tahrirlash",
+      "Delete": "Xarajatni o'chirish"
+    },
+    "ExpenseCategory": {
+      "Create": "Xarajat toifasi yaratish",
+      "Read": "Xarajat toifasini ko'rish",
+      "Update": "Xarajat toifasini tahrirlash",
+      "Delete": "Xarajat toifasini o'chirish"
+    },
+    "Debt": {
+      "Create": "Qarz yaratish",
+      "Read": "Qarzni ko'rish",
+      "Update": "Qarzni tahrirlash",
+      "Delete": "Qarzni o'chirish"
+    }
+  },
   "NavigationLinks": {
     "Accounts": "Hisoblar",
     "Transactions": "Tranzaksiyalar",
