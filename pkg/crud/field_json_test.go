@@ -1,6 +1,7 @@
 package crud
 
 import (
+	"context"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
@@ -71,11 +72,11 @@ func TestJSONField_Value_MapHandling(t *testing.T) {
 }
 
 func TestJSONField_InitialValue_DeserializesCorrectly(t *testing.T) {
-	field := NewJSONField[testStruct]("test_json", JSONFieldConfig[testStruct]{}, WithInitialValue(func() any {
+	field := NewJSONField[testStruct]("test_json", JSONFieldConfig[testStruct]{}, WithInitialValue(func(ctx context.Context) any {
 		return `{"name":"Jane","age":25}`
 	}))
 
-	result := field.InitialValue()
+	result := field.InitialValue(context.Background())
 
 	expected := testStruct{
 		Name: "Jane",
@@ -86,11 +87,11 @@ func TestJSONField_InitialValue_DeserializesCorrectly(t *testing.T) {
 }
 
 func TestJSONField_InitialValue_EmptyString(t *testing.T) {
-	field := NewJSONField[testStruct]("test_json", JSONFieldConfig[testStruct]{}, WithInitialValue(func() any {
+	field := NewJSONField[testStruct]("test_json", JSONFieldConfig[testStruct]{}, WithInitialValue(func(ctx context.Context) any {
 		return ""
 	}))
 
-	result := field.InitialValue()
+	result := field.InitialValue(context.Background())
 
 	assert.Nil(t, result)
 }
