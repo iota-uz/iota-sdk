@@ -139,7 +139,7 @@ func newField(
 		opt(f)
 	}
 
-	if f.searchable && f.type_ != StringFieldType {
+	if f.searchable && f.type_ != StringFieldType && f.type_ != JSONFieldType {
 		panic(fmt.Sprintf("field %q: searchable allowed only for type %q, got %q", name, StringFieldType, f.type_))
 	}
 

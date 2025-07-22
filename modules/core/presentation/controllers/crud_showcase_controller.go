@@ -447,6 +447,7 @@ func NewCrudShowcaseController(
 				},
 			},
 			crud.WithRenderer("multilang"),
+			crud.WithSearchable(),
 		),
 		crud.NewSelectField(_entry).
 			AsUUIDSelect().
