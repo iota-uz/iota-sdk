@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/components/multilang"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
@@ -91,13 +90,6 @@ var entries = []ShowcaseEntry{
 		uuid.MustParse("fab9e585-d0c6-4977-aab1-cb5e0e47f78f"),
 		"entry_3",
 	),
-}
-
-// WithMultiLangRenderer registers the MultiLang renderer for the showcase controller
-func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
-	return func(c *CrudController[TEntity]) {
-		c.RegisterRenderer("multilang", multilang.NewMultiLangRenderer())
-	}
 }
 
 type ShowcaseEntity interface {
