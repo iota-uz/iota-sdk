@@ -5,6 +5,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -86,4 +87,17 @@ templ ExpenseRow(expense *viewmodels.Expense, attrs *templ.Attributes) {
 			}
 		}
 	}
+}
+
+templ SelectSkeletonLoader() {
+	<div>
+		@loaders.Skeleton(loaders.SkeletonProps{
+			Lines:         1,
+			SkeletonClass: templ.Classes("h-5 w-24 mb-2 rounded"),
+		})
+		@loaders.Skeleton(loaders.SkeletonProps{
+			Lines:         1,
+			SkeletonClass: templ.Classes("h-10 w-full rounded-md"),
+		})
+	</div>
 }
