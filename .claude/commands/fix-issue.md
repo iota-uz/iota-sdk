@@ -26,39 +26,43 @@ argument-hint: <issue-number>
 - Ensure latest changes: `git checkout staging && git pull`
 - Create feature branch: `git checkout -b fix/issue-$ARGUMENTS-<brief-description>`
 
-### 3. Implementation
+### 3. Implementation Strategy
+- Determine if TDD is appropriate for this issue:
+  - Bug fixes: Write failing test that reproduces the bug first
+  - New features: Write tests for expected behavior before implementation
+  - Refactoring: Ensure existing tests pass, add new tests if needed
+  - UI-only changes: TDD may not apply, focus on manual testing
+
+### 4. Test-Driven Development (when applicable)
+- Write failing tests first:
+  - For bugs: Create test that reproduces the issue
+  - For features: Write tests for new functionality
+  - Use table-driven tests with descriptive names
+  - Follow pattern: `TestFunctionName_Scenario`
+- Run tests to confirm they fail: `go test -v ./path/to/package -run TestName`
+- Implement minimal code to make tests pass
+- Refactor while keeping tests green
+
+### 5. Implementation
 - Follow the task list systematically
 - Use `mcp__bloom__search_code` for semantic code search when needed
 - Apply changes following CLAUDE.md guidelines
 - For UI changes: run `make css` after `.css` or `.templ` modifications
 - For template changes: run `templ generate` after `.templ` modifications
+- Continuously run tests during implementation
 
-### 4. Testing & Validation
-- Run relevant tests: `go test -v ./path/to/modified/package`
+### 6. Testing & Validation
+- Run all relevant tests: `go test -v ./path/to/modified/package`
+- Run specific test: `go test -v ./path/to/package -run TestName`
 - Run linting: `make lint`
 - Format code: `make fmt`
 - For translations: `make check-tr`
-- Verify all tests pass
-
-### 5. Commit Changes
-- Review changes: `git diff`
-- Stage files: `git add .`
-- Commit with conventional format: `git commit -m "fix: <description> (#$ARGUMENTS)"`
-  - Use `fix:` for bug fixes
-  - Use `feat:` for new features
-  - Use `refactor:` for code improvements
-  - Use `docs:` for documentation
-  - Use `test:` for test changes
-
-### 6. Create Pull Request
-- Push branch: `git push -u origin <branch-name>`
-- Create PR: `gh pr create --title "Fix: <description> (#$ARGUMENTS)" --body "Fixes #$ARGUMENTS\n\n## Summary\n<what-was-fixed>\n\n## Testing\n<how-it-was-tested>"`
-
-### 7. Update Issue
-- Add comment to issue if needed: `gh issue comment $ARGUMENTS --body "PR created: <pr-url>"`
+- Ensure 100% of tests pass
+- Add integration tests if needed
 
 ## Important Notes
-- Always test changes thoroughly before creating PR
+- Always test changes thoroughly before implementing
 - Follow project conventions in CLAUDE.md
 - Keep changes focused on the specific issue
 - Update documentation if needed
+- Use separate slash commands for committing and creating PRs
