@@ -4,16 +4,16 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"net/url"
 )
 
 type CreatePageProps struct {
-	Accounts   []*viewmodels.MoneyAccount
-	Categories []*viewmodels.ExpenseCategory
-	Expense    *viewmodels.Expense
-	Errors     map[string]string
+	Expense *viewmodels.Expense
+	Errors  map[string]string
 }
 
 templ CreateForm(props *CreatePageProps) {
@@ -49,16 +49,22 @@ templ CreateForm(props *CreatePageProps) {
 					"name":  "AccountingPeriod",
 				},
 			})
-			@AccountSelect(&AccountSelectProps{
-				Value:    "",
-				Accounts: props.Accounts,
-				Attrs:    templ.Attributes{"name": "AccountID"},
-			})
-			@CategorySelect(&CategorySelectProps{
-				Value:      "",
-				Categories: props.Categories,
-				Attrs:      templ.Attributes{"name": "CategoryID"},
-			})
+			@loaders.LazyLoad(loaders.LazyLoadProps{
+				Endpoint: "/finance/expenses/selects/accounts",
+				Params: url.Values{
+					"value": {props.Expense.AccountID},
+				},
+			}) {
+				@SelectSkeletonLoader()
+			}
+			@loaders.LazyLoad(loaders.LazyLoadProps{
+				Endpoint: "/finance/expenses/selects/categories",
+				Params: url.Values{
+					"value": {props.Expense.CategoryID},
+				},
+			}) {
+				@SelectSkeletonLoader()
+			}
 			@input.TextArea(&input.TextAreaProps{
 				Label:        pageCtx.T("Expenses.Single.Comment"),
 				Attrs:        templ.Attributes{"name": "Comment"},
