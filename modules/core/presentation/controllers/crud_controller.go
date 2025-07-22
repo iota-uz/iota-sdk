@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/iota-uz/iota-sdk/components/multilang"
 	"log"
 	"math"
 	"net/http"
@@ -82,6 +83,13 @@ func WithoutDelete[TEntity any]() CrudOption[TEntity] {
 func WithoutCreate[TEntity any]() CrudOption[TEntity] {
 	return func(c *CrudController[TEntity]) {
 		c.enableCreate = false
+	}
+}
+
+// WithMultiLangRenderer registers the MultiLang renderer for the showcase controller
+func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.RegisterRenderer("multilang", multilang.NewMultiLangRenderer())
 	}
 }
 
