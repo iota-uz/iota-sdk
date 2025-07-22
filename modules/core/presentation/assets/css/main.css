@@ -1070,3 +1070,12 @@
     background-color: oklch(var(--color) / 30%);
   }
 }
+
+/* Lazy loading component styles */
+.lazy-load.htmx-settling * {
+  opacity: 0;
+}
+
+.lazy-load * {
+  transition: opacity 300ms ease-in;
+}
