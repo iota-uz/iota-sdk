@@ -1,6 +1,7 @@
 package crud
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -16,6 +17,13 @@ type FieldOption func(field *field)
 type FieldType string
 type FieldRule func(fieldValue FieldValue) error
 
+// WithRenderer sets a custom renderer type for the field
+func WithRenderer(rendererType string) FieldOption {
+	return func(f *field) {
+		f.rendererType = rendererType
+	}
+}
+
 const (
 	StringFieldType    FieldType = "string"
 	IntFieldType       FieldType = "int"
@@ -27,6 +35,7 @@ const (
 	DateTimeFieldType  FieldType = "datetime"
 	TimestampFieldType FieldType = "timestamp"
 	UUIDFieldType      FieldType = "uuid"
+	JSONFieldType      FieldType = "json"
 )
 
 const (
@@ -67,8 +76,16 @@ type Field interface {
 
 	Attrs() map[string]any
 
-	InitialValue() any
+	InitialValue(ctx context.Context) any
 	Value(value any) FieldValue
+
+	// RendererType returns the custom renderer type for this field
+	// Returns empty string for default rendering behavior
+	RendererType() string
+
+	// LocalizationKey returns the custom localization key for this field
+	// Returns empty string for default key generation pattern
+	LocalizationKey() string
 
 	AsStringField() (StringField, error)
 	AsIntField() (IntField, error)
@@ -84,15 +101,17 @@ type Field interface {
 
 // Base field implementation
 type field struct {
-	key            bool
-	name           string
-	type_          FieldType
-	readonly       bool
-	hidden         bool
-	searchable     bool
-	attrs          map[string]any
-	initialValueFn func() any
-	rules          []FieldRule
+	key             bool
+	name            string
+	type_           FieldType
+	readonly        bool
+	hidden          bool
+	searchable      bool
+	rendererType    string
+	localizationKey string
+	attrs           map[string]any
+	initialValueFn  func(ctx context.Context) any
+	rules           []FieldRule
 }
 
 func newField(
@@ -101,14 +120,16 @@ func newField(
 	opts ...FieldOption,
 ) Field {
 	f := &field{
-		key:        false,
-		name:       name,
-		type_:      type_,
-		searchable: false,
-		readonly:   false,
-		hidden:     false,
-		attrs:      map[string]any{},
-		initialValueFn: func() any {
+		key:             false,
+		name:            name,
+		type_:           type_,
+		searchable:      false,
+		readonly:        false,
+		hidden:          false,
+		rendererType:    "", // Default: use standard rendering
+		localizationKey: "", // Default: use automatic key generation
+		attrs:           map[string]any{},
+		initialValueFn: func(ctx context.Context) any {
 			return nil
 		},
 		rules: make([]FieldRule, 0),
@@ -118,7 +139,7 @@ func newField(
 		opt(f)
 	}
 
-	if f.searchable && f.type_ != StringFieldType {
+	if f.searchable && f.type_ != StringFieldType && f.type_ != JSONFieldType {
 		panic(fmt.Sprintf("field %q: searchable allowed only for type %q, got %q", name, StringFieldType, f.type_))
 	}
 
@@ -153,12 +174,20 @@ func (f *field) Attrs() map[string]any {
 	return f.attrs
 }
 
-func (f *field) InitialValue() any {
-	return f.initialValueFn()
+func (f *field) InitialValue(ctx context.Context) any {
+	return f.initialValueFn(ctx)
 }
 
 func (f *field) Rules() []FieldRule {
 	return f.rules
+}
+
+func (f *field) RendererType() string {
+	return f.rendererType
+}
+
+func (f *field) LocalizationKey() string {
+	return f.localizationKey
 }
 
 func (f *field) Value(value any) FieldValue {
@@ -252,8 +281,15 @@ func isValidType(fieldType FieldType, value any) bool {
 		return ok
 
 	case UUIDFieldType:
-		_, ok := value.(uuid.UUID)
-		return ok
+		switch value.(type) {
+		case uuid.UUID, [16]uint8:
+			return true
+		default:
+			return false
+		}
+
+	case JSONFieldType:
+		return true
 
 	default:
 		return false

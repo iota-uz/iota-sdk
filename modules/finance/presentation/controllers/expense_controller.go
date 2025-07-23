@@ -75,6 +75,8 @@ func (c *ExpenseController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
+	router.HandleFunc("/selects/accounts", di.H(c.GetAccountsSelect)).Methods(http.MethodGet)
+	router.HandleFunc("/selects/categories", di.H(c.GetCategoriesSelect)).Methods(http.MethodGet)
 }
 
 func (c *ExpenseController) List(
@@ -229,8 +231,6 @@ func (c *ExpenseController) GetEdit(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	expenseService *services.ExpenseService,
-	moneyAccountService *services.MoneyAccountService,
-	expenseCategoryService *services.ExpenseCategoryService,
 ) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
@@ -246,25 +246,9 @@ func (c *ExpenseController) GetEdit(
 		return
 	}
 
-	accounts, err := moneyAccountService.GetAll(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving accounts: %v", err)
-		http.Error(w, "Error retrieving accounts", http.StatusInternalServerError)
-		return
-	}
-
-	categories, err := expenseCategoryService.GetAll(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving categories: %v", err)
-		http.Error(w, "Error retrieving categories", http.StatusInternalServerError)
-		return
-	}
-
 	props := &expensesui.EditPageProps{
-		Expense:    mappers.ExpenseToViewModel(entity),
-		Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
-		Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
-		Errors:     map[string]string{},
+		Expense: mappers.ExpenseToViewModel(entity),
+		Errors:  map[string]string{},
 	}
 	templ.Handler(expensesui.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -345,25 +329,9 @@ func (c *ExpenseController) Update(
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		accounts, err := moneyAccountService.GetAll(r.Context())
-		if err != nil {
-			logger.Errorf("Error retrieving accounts: %v", err)
-			http.Error(w, "Error retrieving accounts", http.StatusInternalServerError)
-			return
-		}
-
-		categories, err := expenseCategoryService.GetAll(r.Context())
-		if err != nil {
-			logger.Errorf("Error retrieving categories: %v", err)
-			http.Error(w, "Error retrieving categories", http.StatusInternalServerError)
-			return
-		}
-
 		props := &expensesui.EditPageProps{
-			Expense:    mappers.ExpenseToViewModel(existing),
-			Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
-			Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
-			Errors:     errorsMap,
+			Expense: mappers.ExpenseToViewModel(existing),
+			Errors:  errorsMap,
 		}
 		templ.Handler(expensesui.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -388,29 +356,10 @@ func (c *ExpenseController) Update(
 func (c *ExpenseController) GetNew(
 	r *http.Request,
 	w http.ResponseWriter,
-	logger *logrus.Entry,
-	moneyAccountService *services.MoneyAccountService,
-	expenseCategoryService *services.ExpenseCategoryService,
 ) {
-	accounts, err := moneyAccountService.GetAll(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving accounts: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	categories, err := expenseCategoryService.GetAll(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving categories: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	props := &expensesui.CreatePageProps{
-		Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
-		Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
-		Errors:     map[string]string{},
-		Expense:    &viewmodels.Expense{},
+		Errors:  map[string]string{},
+		Expense: &viewmodels.Expense{},
 	}
 	templ.Handler(expensesui.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -471,13 +420,6 @@ func (c *ExpenseController) Create(
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		accounts, err := moneyAccountService.GetAll(r.Context())
-		if err != nil {
-			logger.Errorf("Error retrieving accounts: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
 		entity, err := dto.ToEntityWithReferences(tenantID, account, cat)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
@@ -485,18 +427,9 @@ func (c *ExpenseController) Create(
 			return
 		}
 
-		categories, err := expenseCategoryService.GetAll(r.Context())
-		if err != nil {
-			logger.Errorf("Error retrieving categories: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
 		props := &expensesui.CreatePageProps{
-			Accounts:   mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
-			Errors:     errorsMap,
-			Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
-			Expense:    mappers.ExpenseToViewModel(entity),
+			Errors:  errorsMap,
+			Expense: mappers.ExpenseToViewModel(entity),
 		}
 		templ.Handler(expensesui.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -516,4 +449,64 @@ func (c *ExpenseController) Create(
 	}
 
 	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *ExpenseController) GetAccountsSelect(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	moneyAccountService *services.MoneyAccountService,
+) {
+	value := r.URL.Query().Get("value")
+	form := r.URL.Query().Get("form")
+
+	accounts, err := moneyAccountService.GetAll(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving accounts: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	attrs := templ.Attributes{"name": "AccountID"}
+	if form != "" {
+		attrs["form"] = form
+	}
+
+	props := &expensesui.AccountSelectProps{
+		Value:    value,
+		Accounts: mapping.MapViewModels(accounts, mappers.MoneyAccountToViewModel),
+		Attrs:    attrs,
+	}
+
+	templ.Handler(expensesui.AccountSelect(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+func (c *ExpenseController) GetCategoriesSelect(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseCategoryService *services.ExpenseCategoryService,
+) {
+	value := r.URL.Query().Get("value")
+	form := r.URL.Query().Get("form")
+
+	categories, err := expenseCategoryService.GetAll(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving categories: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	attrs := templ.Attributes{"name": "CategoryID"}
+	if form != "" {
+		attrs["form"] = form
+	}
+
+	props := &expensesui.CategorySelectProps{
+		Value:      value,
+		Categories: mapping.MapViewModels(categories, mappers.ExpenseCategoryToViewModel),
+		Attrs:      attrs,
+	}
+
+	templ.Handler(expensesui.CategorySelect(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
