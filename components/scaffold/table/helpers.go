@@ -106,6 +106,15 @@ func WithSortURL(sortURL string) ColumnOpt {
 	}
 }
 
+// WithNotSortable disables sorting for a column
+func WithNotSortable() ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.sortable = false
+		c.sortURL = ""
+		c.sortDir = SortDirectionNone
+	}
+}
+
 // --- Table Configuration ---
 
 type TableConfigOpt func(c *TableConfig)
@@ -134,6 +143,10 @@ type TableConfig struct {
 	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
 
+	// Sorting configuration
+	CurrentSort      string // Current sort field
+	CurrentSortOrder string // Current sort order (asc/desc)
+
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
 }
@@ -156,8 +169,9 @@ func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig 
 
 func Column(key, label string, opts ...ColumnOpt) TableColumn {
 	col := &tableColumnImpl{
-		key:   key,
-		label: label,
+		key:      key,
+		label:    label,
+		sortable: true, // Default to sortable
 	}
 	for _, opt := range opts {
 		opt(col)
@@ -176,6 +190,35 @@ func Row(cells ...templ.Component) TableRow {
 
 func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
 	c.Columns = append(c.Columns, cols...)
+	return c
+}
+
+// UpdateColumnsWithSorting updates column sorting information based on current request
+func (c *TableConfig) UpdateColumnsWithSorting(r *http.Request) *TableConfig {
+	// Get current sort parameters from request
+	c.CurrentSort = UseSortQuery(r)
+	c.CurrentSortOrder = UseOrderQuery(r)
+
+	// Update each sortable column with proper sort URL and direction
+	for i, col := range c.Columns {
+		if colImpl, ok := col.(*tableColumnImpl); ok && colImpl.sortable {
+			// Generate sort URL for this column
+			colImpl.sortURL = GenerateSortURLWithParams(
+				c.DataURL,
+				colImpl.key,
+				c.CurrentSort,
+				c.CurrentSortOrder,
+				r.URL.Query(),
+			)
+
+			// Set sort direction if this is the current sort field
+			colImpl.sortDir = GetSortDirection(colImpl.key, c.CurrentSort, c.CurrentSortOrder)
+
+			// Update the column in the slice
+			c.Columns[i] = colImpl
+		}
+	}
+
 	return c
 }
 
@@ -243,10 +286,11 @@ func UseSortQuery(r *http.Request) string {
 // UseOrderQuery gets the "order" query parameter from the request (asc/desc)
 func UseOrderQuery(r *http.Request) string {
 	order := r.URL.Query().Get("order")
-	if order != "desc" {
-		return "asc" // default to ascending
+	// Only return a value if explicitly set, otherwise return empty string
+	if order == "asc" || order == "desc" {
+		return order
 	}
-	return order
+	return ""
 }
 
 // GenerateSortURL generates a sort URL for a column based on current sort state
@@ -263,6 +307,9 @@ func GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortO
 		params[k] = v
 	}
 
+	// Debug: log input parameters
+	// fmt.Printf("GenerateSortURL: field=%s, currentField=%s, currentOrder=%s\n", fieldKey, currentSortField, currentSortOrder)
+
 	// If clicking on the same field, cycle through: none -> asc -> desc -> none
 	if fieldKey == currentSortField {
 		switch currentSortOrder {
@@ -274,6 +321,7 @@ func GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortO
 			params.Del("sort")
 			params.Del("order")
 		default:
+			// Empty or no order -> start with asc
 			params.Set("sort", fieldKey)
 			params.Set("order", "asc")
 		}
