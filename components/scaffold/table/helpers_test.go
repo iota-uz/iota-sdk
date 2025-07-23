@@ -179,11 +179,11 @@ func TestColumnWithSortingOptions(t *testing.T) {
 }
 
 func TestColumnWithoutSorting(t *testing.T) {
-	col := Column("actions", "Actions")
+	col := Column("actions", "Actions", WithNotSortable())
 
 	assert.Equal(t, "actions", col.Key())
 	assert.Equal(t, "Actions", col.Label())
-	assert.False(t, col.Sortable()) // Default should be false
+	assert.False(t, col.Sortable()) // Should be false with WithNotSortable
 	assert.Equal(t, SortDirectionNone, col.SortDir())
 	assert.Equal(t, "", col.SortURL())
 }
