@@ -1,0 +1,39 @@
+package loaders
+
+import (
+	twmerge "github.com/Oudwins/tailwind-merge-go"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"net/url"
+)
+
+type LazyLoadProps struct {
+	Endpoint    string
+	Params      url.Values
+	Swap        string
+	Class       templ.CSSClasses
+	LoaderClass templ.CSSClasses
+}
+
+templ DefaultLazyLoader() {
+	@Spinner(SpinnerProps{
+		ContainerClass: templ.Classes("flex items-center justify-center p-4"),
+	})
+}
+
+templ LazyLoad(props LazyLoadProps) {
+	<div
+		hx-get={ buildEndpoint(props.Endpoint, props.Params) }
+		hx-trigger="load"
+		hx-swap={ mapping.Or(props.Swap, "outerHTML") }
+		class={ twmerge.Merge("lazy-load", props.Class.String()) }
+	>
+		{ children... }
+	</div>
+}
+
+func buildEndpoint(endpoint string, params url.Values) string {
+	if params == nil || len(params) == 0 {
+		return endpoint
+	}
+	return endpoint + "?" + params.Encode()
+}

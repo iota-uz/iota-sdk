@@ -259,10 +259,15 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 	if params.Query != "" {
 		searchClauses := make([]string, 0)
 		for _, sf := range r.schema.Fields().Searchable() {
-			searchClauses = append(
-				searchClauses,
-				fmt.Sprintf("LOWER(%s) LIKE $%d", sf.Name(), currentArgIdx),
-			)
+			var searchClause string
+			if sf.Type() == JSONFieldType {
+				// Cast JSONB to text before applying LOWER for JSON fields
+				searchClause = fmt.Sprintf("LOWER(%s::text) LIKE $%d", sf.Name(), currentArgIdx)
+			} else {
+				// Use regular LOWER for string fields
+				searchClause = fmt.Sprintf("LOWER(%s) LIKE $%d", sf.Name(), currentArgIdx)
+			}
+			searchClauses = append(searchClauses, searchClause)
 		}
 		if len(searchClauses) > 0 {
 			where = append(where, "("+strings.Join(searchClauses, " OR ")+")")

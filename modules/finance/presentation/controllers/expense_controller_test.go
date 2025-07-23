@@ -200,8 +200,8 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 
 	html.Element("//form[@hx-post]").Exists()
 	html.Element("//input[@name='Amount']").Exists()
-	html.Element("//select[@name='AccountID']").Exists()
-	html.Element("//select[@name='CategoryID']").Exists()
+	html.Element("//div[contains(@hx-get, '/finance/expenses/selects/accounts')]").Exists()
+	html.Element("//div[contains(@hx-get, '/finance/expenses/selects/categories')]").Exists()
 	html.Element("//textarea[@name='Comment']").Exists()
 	html.Element("//input[@name='Date']").Exists()
 	html.Element("//input[@name='AccountingPeriod']").Exists()
@@ -385,8 +385,8 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 	html := response.HTML()
 
 	html.Element("//input[@name='Amount']").Exists()
-	html.Element("//select[@name='AccountID']").Exists()
-	html.Element("//select[@name='CategoryID']").Exists()
+	html.Element("//div[contains(@hx-get, '/finance/expenses/selects/accounts')]").Exists()
+	html.Element("//div[contains(@hx-get, '/finance/expenses/selects/categories')]").Exists()
 	html.Element("//textarea[@name='Comment']").Exists()
 	require.Equal(t, "Edit test expense", html.Element("//textarea[@name='Comment']").Text())
 }

@@ -1161,6 +1161,7 @@ type ComplexEntity struct {
 	DateTime  time.Time
 	Timestamp time.Time
 	UUID      uuid.UUID
+	JSON      string
 }
 
 // complexTestService implements crud.Service[ComplexEntity]
@@ -1210,4 +1211,120 @@ func (b *complexTestBuilder) Service() crud.Service[ComplexEntity] {
 
 func (b *complexTestBuilder) Repository() crud.Repository[ComplexEntity] {
 	return nil // Not needed for these tests
+}
+
+func TestCrudController_JSONField_FormHandling(t *testing.T) {
+	// Setup
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule()).
+		AsUser(adminUser)
+
+	service := &complexTestService{}
+
+	// Create schema with JSON field
+	fields := crud.NewFields([]crud.Field{
+		crud.NewUUIDField("id", crud.WithKey()),
+		crud.NewStringField("string"),
+		crud.NewJSONField("json", crud.JSONFieldConfig[interface{}]{}),
+	})
+
+	schema := crud.NewSchema[ComplexEntity](
+		"complex_entities",
+		fields,
+		&complexTestMapper{fields: fields},
+	)
+
+	builder := &complexTestBuilder{
+		schema:  schema,
+		service: service,
+	}
+
+	env := suite.Environment()
+	controller := controllers.NewCrudController[ComplexEntity]("/complex", env.App, builder)
+	suite.Register(controller)
+
+	// Test GET /new - should render textarea for JSON field
+	doc := suite.GET("/complex/new").Expect(t).Status(200).HTML()
+
+	// Check that JSON field is rendered as textarea
+	jsonField := doc.Element("//textarea[@name='json']")
+	jsonField.Exists()
+
+	// Test POST with valid JSON - should redirect after successful creation
+	validJSON := `{"name": "test", "value": 123}`
+	formData := url.Values{
+		"string": {"test string"},
+		"json":   {validJSON},
+	}
+
+	suite.POST("/complex").
+		Form(formData).
+		Expect(t).
+		Status(303) // Redirect after successful create
+
+	// Test POST with invalid JSON - should return error
+	invalidJSON := `{"name": "test", "value": 123` // Missing closing brace
+	formData = url.Values{
+		"string": {"test string"},
+		"json":   {invalidJSON},
+	}
+
+	response := suite.POST("/complex").
+		Form(formData).
+		Expect(t).
+		Status(400)
+
+	// Check that error message is displayed
+	body := response.Body()
+	assert.Contains(t, body, "Invalid form data")
+}
+
+// complexTestMapper implements crud.Mapper[ComplexEntity]
+type complexTestMapper struct {
+	fields crud.Fields
+}
+
+func (m *complexTestMapper) ToEntities(ctx context.Context, values ...[]crud.FieldValue) ([]ComplexEntity, error) {
+	entities := make([]ComplexEntity, len(values))
+	for i, fvs := range values {
+		entity := ComplexEntity{}
+		for _, fv := range fvs {
+			switch fv.Field().Name() {
+			case "id":
+				if id, err := fv.AsUUID(); err == nil {
+					entity.ID = id
+				}
+			case "string":
+				if str, err := fv.AsString(); err == nil {
+					entity.String = str
+				}
+			case "json":
+				if json, err := fv.AsString(); err == nil {
+					entity.JSON = json
+				}
+			}
+		}
+		entities[i] = entity
+	}
+	return entities, nil
+}
+
+func (m *complexTestMapper) ToFieldValuesList(ctx context.Context, entities ...ComplexEntity) ([][]crud.FieldValue, error) {
+	result := make([][]crud.FieldValue, len(entities))
+	for i, entity := range entities {
+		fvs := make([]crud.FieldValue, 0)
+
+		if field, err := m.fields.Field("id"); err == nil {
+			fvs = append(fvs, field.Value(entity.ID))
+		}
+		if field, err := m.fields.Field("string"); err == nil {
+			fvs = append(fvs, field.Value(entity.String))
+		}
+		if field, err := m.fields.Field("json"); err == nil {
+			fvs = append(fvs, field.Value(entity.JSON))
+		}
+
+		result[i] = fvs
+	}
+	return result, nil
 }

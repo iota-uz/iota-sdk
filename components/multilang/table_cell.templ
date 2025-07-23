@@ -1,0 +1,52 @@
+package multilang
+
+import (
+	"context"
+	"github.com/iota-uz/iota-sdk/pkg/crud/models"
+)
+
+// TableCell renders a MultiLang value for display in table cells
+// Shows the default value with a tooltip containing all translations
+templ TableCell(ctx context.Context, ml models.MultiLang) {
+	if ml.IsEmpty() {
+		<span class="text-gray-400">
+			{ localizeWithDefault(ctx, "multilang.empty", "—") }
+		</span>
+	} else {
+		<span
+			class="multilang-cell"
+			title={ getTooltipText(ctx, ml) }
+		>
+			{ getDisplayText(ctx, ml) }
+		</span>
+	}
+}
+
+// getTooltipText creates a tooltip text showing all available translations
+func getTooltipText(ctx context.Context, ml models.MultiLang) string {
+	if ml.IsEmpty() {
+		return ""
+	}
+
+	allValues := ml.GetAll()
+	if len(allValues) <= 1 {
+		return ml.Default()
+	}
+
+	tooltip := ""
+	for locale, value := range allValues {
+		if value != "" {
+			if tooltip != "" {
+				tooltip += " | "
+			}
+			tooltip += locale + ": " + value
+		}
+	}
+
+	return tooltip
+}
+
+// getDisplayText returns the text in user's current locale with fallback
+func getDisplayText(ctx context.Context, ml models.MultiLang) string {
+	return getLocalizedText(ctx, ml)
+}
