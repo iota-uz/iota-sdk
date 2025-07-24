@@ -2,6 +2,7 @@ package multilang
 
 import (
 	"context"
+	"strings"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
@@ -35,12 +36,12 @@ func getCurrentLocaleCode(ctx context.Context) string {
 		return "en" // fallback to English
 	}
 
-	// Convert language.Tag to string and normalize
+	// Convert language.Tag to string and return as is to support variants like uz-Cyrl
 	localeStr := locale.String()
 
-	// Handle language-region codes like "ru-RU" -> "ru"
-	if len(localeStr) >= 2 {
-		return localeStr[:2]
+	// Normalize to lowercase for consistency
+	if localeStr != "" {
+		return strings.ToLower(localeStr)
 	}
 
 	return "en" // fallback to English
@@ -64,11 +65,13 @@ func getLocalizedText(ctx context.Context, ml models.MultiLang) string {
 	var fallbackPriorities []string
 	switch currentLocale {
 	case "ru":
-		fallbackPriorities = []string{"uz", "en"}
+		fallbackPriorities = []string{"uz", "uz-cyrl", "en"}
 	case "uz":
-		fallbackPriorities = []string{"ru", "en"}
+		fallbackPriorities = []string{"uz-cyrl", "ru", "en"}
+	case "uz-cyrl":
+		fallbackPriorities = []string{"uz", "ru", "en"}
 	default: // "en" or any other
-		fallbackPriorities = []string{"uz", "ru"}
+		fallbackPriorities = []string{"uz", "uz-cyrl", "ru"}
 	}
 
 	// Try fallback priorities
