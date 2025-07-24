@@ -53,7 +53,7 @@ func (dto *ProjectCreateDTO) ToEntity(tenantID uuid.UUID) (project.Project, erro
 	if err != nil {
 		return nil, err
 	}
-	
+
 	entity := project.New(
 		dto.Name,
 		counterpartyID,
@@ -92,7 +92,7 @@ func (dto *ProjectUpdateDTO) Apply(existing project.Project) (project.Project, e
 	if err != nil {
 		return nil, err
 	}
-	
+
 	updated := existing.UpdateCounterpartyID(counterpartyID)
 	updated = updated.UpdateName(dto.Name)
 	updated = updated.UpdateDescription(dto.Description)

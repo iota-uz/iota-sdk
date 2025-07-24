@@ -96,10 +96,10 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 	currency := "USD"
 
 	tests := []struct {
-		name                    string
-		setupMocks              func(*mockFinancialReportsQueryRepository)
-		expectedError           bool
-		errorMessage            string
+		name                      string
+		setupMocks                func(*mockFinancialReportsQueryRepository)
+		expectedError             bool
+		errorMessage              string
 		validateCashflowStatement func(*testing.T, *value_objects.CashflowStatement)
 	}{
 		{
@@ -108,7 +108,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				// Business Rule: Starting Balance + Net Cash Flow = Ending Balance
 				startingBalance := money.New(100000, currency) // $1,000.00
 				endingBalance := money.New(150000, currency)   // $1,500.00
-				
+
 				// Inflows
 				inflows := []query.CashflowLineItem{
 					{
@@ -145,8 +145,8 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 					},
 				}
 
-				totalInflows := money.New(100000, currency)  // $1,000.00
-				totalOutflows := money.New(50000, currency)  // $500.00
+				totalInflows := money.New(100000, currency) // $1,000.00
+				totalOutflows := money.New(50000, currency) // $500.00
 
 				cashflowData := &query.CashflowData{
 					AccountID:       accountID,
@@ -188,7 +188,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 
 				// CRITICAL: Verify balance reconciliation: Starting + Net = Ending
 				reconciledBalance, _ := stmt.StartingBalance.Add(stmt.NetCashFlow)
-				assert.Equal(t, stmt.EndingBalance.Amount(), reconciledBalance.Amount(), 
+				assert.Equal(t, stmt.EndingBalance.Amount(), reconciledBalance.Amount(),
 					"Starting balance + Net cashflow should equal ending balance")
 
 				// Verify percentages are calculated correctly
@@ -222,14 +222,14 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
 				// With no transactions, starting and ending balance should be the same
 				assert.Equal(t, stmt.StartingBalance.Amount(), stmt.EndingBalance.Amount())
-				
+
 				// Net cashflow should be zero
 				assert.Equal(t, int64(0), stmt.NetCashFlow.Amount())
-				
+
 				// No line items
 				assert.Empty(t, stmt.OperatingActivities.Inflows)
 				assert.Empty(t, stmt.OperatingActivities.Outflows)
-				
+
 				// Totals should be zero
 				assert.Equal(t, int64(0), stmt.TotalInflows.Amount())
 				assert.Equal(t, int64(0), stmt.TotalOutflows.Amount())
@@ -238,8 +238,8 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 		{
 			name: "Inflows only - no outflows",
 			setupMocks: func(mockRepo *mockFinancialReportsQueryRepository) {
-				startingBalance := money.New(0, currency)     // $0.00
-				endingBalance := money.New(100000, currency)  // $1,000.00
+				startingBalance := money.New(0, currency)    // $0.00
+				endingBalance := money.New(100000, currency) // $1,000.00
 
 				inflows := []query.CashflowLineItem{
 					{
@@ -269,15 +269,15 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
 				// Net cashflow should equal total inflows
 				assert.Equal(t, stmt.TotalInflows.Amount(), stmt.NetCashFlow.Amount())
-				
+
 				// Verify balance reconciliation
 				reconciledBalance, _ := stmt.StartingBalance.Add(stmt.NetCashFlow)
 				assert.Equal(t, stmt.EndingBalance.Amount(), reconciledBalance.Amount())
-				
+
 				// One inflow, no outflows
 				assert.Len(t, stmt.OperatingActivities.Inflows, 1)
 				assert.Empty(t, stmt.OperatingActivities.Outflows)
-				
+
 				// Percentage should be 100% for single inflow
 				assert.Equal(t, 100.0, stmt.OperatingActivities.Inflows[0].Percentage)
 			},
@@ -323,11 +323,11 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
 				// Net cashflow should be negative (outflows only)
 				assert.Equal(t, int64(-150000), stmt.NetCashFlow.Amount())
-				
+
 				// Verify balance reconciliation
 				reconciledBalance, _ := stmt.StartingBalance.Add(stmt.NetCashFlow)
 				assert.Equal(t, stmt.EndingBalance.Amount(), reconciledBalance.Amount())
-				
+
 				// No inflows, two outflows
 				assert.Empty(t, stmt.OperatingActivities.Inflows)
 				assert.Len(t, stmt.OperatingActivities.Outflows, 2)
@@ -336,8 +336,8 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 		{
 			name: "Zero starting balance",
 			setupMocks: func(mockRepo *mockFinancialReportsQueryRepository) {
-				startingBalance := money.New(0, currency)    // $0.00
-				endingBalance := money.New(25000, currency)  // $250.00
+				startingBalance := money.New(0, currency)   // $0.00
+				endingBalance := money.New(25000, currency) // $250.00
 
 				inflows := []query.CashflowLineItem{
 					{
@@ -377,10 +377,10 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
 				// Starting from zero
 				assert.Equal(t, int64(0), stmt.StartingBalance.Amount())
-				
+
 				// Net cashflow should be positive
 				assert.Equal(t, int64(25000), stmt.NetCashFlow.Amount())
-				
+
 				// Verify balance reconciliation: 0 + 250 = 250
 				reconciledBalance, _ := stmt.StartingBalance.Add(stmt.NetCashFlow)
 				assert.Equal(t, stmt.EndingBalance.Amount(), reconciledBalance.Amount())
@@ -431,7 +431,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			ctx := composables.WithTenantID(context.Background(), tenantID)
 
 			mockRepo := new(mockFinancialReportsQueryRepository)
-			
+
 			// Use a real event publisher for now - we'll just verify the service runs
 			publisher := eventbus.NewEventPublisher(logrus.New())
 
@@ -451,7 +451,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				
+
 				if tt.validateCashflowStatement != nil {
 					tt.validateCashflowStatement(t, result)
 				}
@@ -477,7 +477,7 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 		// This test verifies that the query repository correctly provides
 		// the starting balance as it was at the start date, NOT calculated
 		// from current balance minus net cashflow
-		
+
 		ctx := composables.WithTenantID(context.Background(), tenantID)
 		mockRepo := new(mockFinancialReportsQueryRepository)
 		publisher := eventbus.NewEventPublisher(logrus.New())
@@ -485,7 +485,7 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 
 		// Historical balance at start date
 		historicalStartingBalance := money.New(75000, currency) // $750.00
-		// Current ending balance  
+		// Current ending balance
 		currentEndingBalance := money.New(125000, currency) // $1,250.00
 
 		cashflowData := &query.CashflowData{
@@ -494,7 +494,7 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 			EndDate:         endDate,
 			StartingBalance: historicalStartingBalance, // Should be historical, not calculated
 			EndingBalance:   currentEndingBalance,
-			Inflows:         []query.CashflowLineItem{
+			Inflows: []query.CashflowLineItem{
 				{
 					CategoryID:   uuid.New(),
 					CategoryName: "Revenue",
@@ -503,7 +503,7 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 					Percentage:   100.0,
 				},
 			},
-			Outflows:        []query.CashflowLineItem{
+			Outflows: []query.CashflowLineItem{
 				{
 					CategoryID:   uuid.New(),
 					CategoryName: "Expenses",
@@ -512,8 +512,8 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 					Percentage:   100.0,
 				},
 			},
-			TotalInflows:    money.New(100000, currency),
-			TotalOutflows:   money.New(50000, currency),
+			TotalInflows:  money.New(100000, currency),
+			TotalOutflows: money.New(50000, currency),
 		}
 
 		mockRepo.On("GetCashflowData", ctx, accountID, startDate, endDate).Return(cashflowData, nil)
@@ -523,7 +523,7 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 
 		// Verify the starting balance is the historical balance
 		assert.Equal(t, historicalStartingBalance.Amount(), result.StartingBalance.Amount())
-		
+
 		// Verify balance reconciliation still works
 		netCashflow, _ := result.TotalInflows.Subtract(result.TotalOutflows)
 		reconciledBalance, _ := result.StartingBalance.Add(netCashflow)
@@ -552,9 +552,9 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 					Percentage:   100.0,
 				},
 			},
-			Outflows:        []query.CashflowLineItem{},
-			TotalInflows:    money.New(50000, "EUR"),
-			TotalOutflows:   money.New(0, "EUR"),
+			Outflows:      []query.CashflowLineItem{},
+			TotalInflows:  money.New(50000, "EUR"),
+			TotalOutflows: money.New(0, "EUR"),
 		}
 
 		mockRepo.On("GetCashflowData", ctx, accountID, startDate, endDate).Return(cashflowData, nil)
@@ -580,7 +580,7 @@ func TestCashflowStatement_ImplementationIssues(t *testing.T) {
 		// Current implementation in GetCashflowData:
 		// startingBalance, _ := currentBalance.Subtract(netCashflow)
 		// This is WRONG - it should get the historical balance at start date
-		
+
 		// The correct approach would be:
 		// 1. Query the account balance as it was on the start date
 		// 2. OR track balance history/snapshots

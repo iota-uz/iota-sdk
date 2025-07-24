@@ -33,6 +33,7 @@
   },
   "NavigationLinks": {
     "Accounts": "Hisoblar",
+    "FinancialOverview": "Moliyaviy ko'rinish",
     "Transactions": "Tranzaksiyalar",
     "Expenses": "Xarajatlar",
     "ExpenseCategories": "Xarajat kategoriyalari",
@@ -48,6 +49,11 @@
     "CashflowStatement": "Pul oqimi hisoboti",
     "Finance": {
       "Enums": "Ro'yxatlar"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Moliyaviy ko'rinish"
     }
   },
   "ExpenseCategories": {
@@ -560,5 +566,8 @@
     "Drawer": {
       "Title": "Qarz tafsilotlari"
     }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
   }
 }

@@ -33,6 +33,7 @@
   },
   "NavigationLinks": {
     "Accounts": "Счета",
+    "FinancialOverview": "Финансовый обзор",
     "Transactions": "Транзакции",
     "Expenses": "Расходы",
     "ExpenseCategories": "Категории расходов",
@@ -48,6 +49,11 @@
     "CashflowStatement": "Отчёт о движении денежных средств",
     "Finance": {
       "Enums": "Справочники"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Финансовый обзор"
     }
   },
   "ExpenseCategories": {
@@ -560,5 +566,8 @@
     "Drawer": {
       "Title": "Детали долгов"
     }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
   }
 }
