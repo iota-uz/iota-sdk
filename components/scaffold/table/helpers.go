@@ -244,12 +244,12 @@ func (c *TableConfig) AddActions(actions ...templ.Component) *TableConfig {
 
 // UseSearchQuery gets the "Search" query parameter from the request
 func UseSearchQuery(r *http.Request) string {
-	return r.URL.Query().Get("Search")
+	return r.URL.Query().Get(QueryParamSearch)
 }
 
 // UsePageQuery gets the "page" query parameter from the request and converts it to int
 func UsePageQuery(r *http.Request) int {
-	pageStr := r.URL.Query().Get("page")
+	pageStr := r.URL.Query().Get(QueryParamPage)
 	if pageStr == "" {
 		return 1 // default to page 1
 	}
@@ -262,7 +262,7 @@ func UsePageQuery(r *http.Request) int {
 
 // UseLimitQuery gets the "limit" query parameter from the request and converts it to int
 func UseLimitQuery(r *http.Request) int {
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := r.URL.Query().Get(QueryParamLimit)
 	if limitStr == "" {
 		return 20 // default to 20 items per page
 	}
@@ -278,14 +278,14 @@ func UseLimitQuery(r *http.Request) int {
 
 // UseSortQuery gets the "sort" query parameter from the request
 func UseSortQuery(r *http.Request) string {
-	return r.URL.Query().Get("sort")
+	return r.URL.Query().Get(QueryParamSort)
 }
 
 // UseOrderQuery gets the "order" query parameter from the request (asc/desc)
 func UseOrderQuery(r *http.Request) string {
-	order := r.URL.Query().Get("order")
+	order := r.URL.Query().Get(QueryParamOrder)
 	// Only return a value if explicitly set, otherwise return empty string
-	if order == "asc" || order == "desc" {
+	if order == SortDirectionAsc.String() || order == SortDirectionDesc.String() {
 		return order
 	}
 	return ""
@@ -311,22 +311,22 @@ func GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortO
 	// If clicking on the same field, cycle through: none -> asc -> desc -> none
 	if fieldKey == currentSortField {
 		switch currentSortOrder {
-		case "asc":
-			params.Set("sort", fieldKey)
-			params.Set("order", "desc")
-		case "desc":
+		case SortDirectionAsc.String():
+			params.Set(QueryParamSort, fieldKey)
+			params.Set(QueryParamOrder, SortDirectionDesc.String())
+		case SortDirectionDesc.String():
 			// Reset to no sorting (remove sort/order params)
-			params.Del("sort")
-			params.Del("order")
+			params.Del(QueryParamSort)
+			params.Del(QueryParamOrder)
 		default:
 			// Empty or no order -> start with asc
-			params.Set("sort", fieldKey)
-			params.Set("order", "asc")
+			params.Set(QueryParamSort, fieldKey)
+			params.Set(QueryParamOrder, SortDirectionAsc.String())
 		}
 	} else {
 		// Different field, start with ascending
-		params.Set("sort", fieldKey)
-		params.Set("order", "asc")
+		params.Set(QueryParamSort, fieldKey)
+		params.Set(QueryParamOrder, SortDirectionAsc.String())
 	}
 
 	if len(params) == 0 {
