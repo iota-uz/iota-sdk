@@ -145,7 +145,13 @@ func (c *ExpenseController) List(
 		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
 	}
 
-	if htmx.IsHxRequest(r) {
+	// Check if this is an embedded request
+	isEmbedded := r.URL.Query().Get("embedded") == "true"
+
+	if isEmbedded {
+		// For embedded view, just return the content without the full layout
+		templ.Handler(expensesui.ExpensesEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else if htmx.IsHxRequest(r) {
 		templ.Handler(expensesui.ExpensesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(expensesui.Index(props), templ.WithStreaming()).ServeHTTP(w, r)

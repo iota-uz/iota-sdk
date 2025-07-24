@@ -122,7 +122,6 @@ func TestProjectController_List_HTMX_Request(t *testing.T) {
 		Contains("HTMX test description")
 }
 
-
 func TestProjectController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()

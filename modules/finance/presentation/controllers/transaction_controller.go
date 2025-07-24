@@ -226,7 +226,13 @@ func (c *TransactionController) List(w http.ResponseWriter, r *http.Request) {
 	// Create renderer and render appropriate component
 	renderer := table.NewTableRenderer(definition, tableData)
 
-	if htmx.IsHxRequest(r) {
+	// Check if this is an embedded request
+	isEmbedded := r.URL.Query().Get("embedded") == "true"
+
+	if isEmbedded {
+		// For embedded view, render the full table without page layout
+		templ.Handler(renderer.RenderEmbedded(), templ.WithStreaming()).ServeHTTP(w, r)
+	} else if htmx.IsHxRequest(r) {
 		templ.Handler(renderer.RenderRows(), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(renderer.RenderFull(), templ.WithStreaming()).ServeHTTP(w, r)

@@ -73,7 +73,7 @@ func (r *tableRowImpl) ApplyOpts(opts ...RowOpt) TableRow {
 
 func WithDrawer(fetchURL string) RowOpt {
 	return func(r *tableRowImpl) {
-		r.attrs["class"] = r.attrs["class"].(string) + " cursor-pointer"
+		r.attrs["class"] = r.attrs["class"].(string) + " cursor-pointer hover:bg-surface-500 transition-colors"
 		r.attrs["hx-get"] = fetchURL
 		r.attrs["hx-target"] = "#view-drawer"
 		r.attrs["hx-swap"] = "innerHTML"

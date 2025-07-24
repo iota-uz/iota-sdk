@@ -1,10 +1,13 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
@@ -16,7 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type DebtAggregateController struct {
@@ -24,22 +26,16 @@ type DebtAggregateController struct {
 	debtService         *services.DebtService
 	counterpartyService *services.CounterpartyService
 	basePath            string
-	tableDefinition     table.TableDefinition
 }
 
 func NewDebtAggregateController(app application.Application) application.Controller {
 	basePath := "/finance/debt-aggregates"
-
-	tableDefinition := table.NewTableDefinition("", basePath).
-		WithInfiniteScroll(false).
-		Build()
 
 	return &DebtAggregateController{
 		app:                 app,
 		debtService:         app.Service(services.DebtService{}).(*services.DebtService),
 		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
 		basePath:            basePath,
-		tableDefinition:     tableDefinition,
 	}
 }
 
@@ -69,32 +65,31 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pageCtx := composables.UsePageCtx(ctx)
 
+	// Get pagination parameters
+	paginationParams := composables.UsePaginated(r)
+
 	aggregates, err := c.debtService.GetCounterpartyAggregates(ctx)
 	if err != nil {
 		http.Error(w, "Error retrieving debt aggregates", http.StatusInternalServerError)
 		return
 	}
 
-	var definition table.TableDefinition
-	if !htmx.IsHxRequest(r) {
-		definition = table.NewTableDefinition(
-			pageCtx.T("DebtAggregates.Meta.List.Title"),
-			c.basePath,
+	// Always create a proper table definition with columns
+	definition := table.NewTableDefinition(
+		pageCtx.T("DebtAggregates.Meta.List.Title"),
+		c.basePath,
+	).
+		WithColumns(
+			table.Column("counterparty", pageCtx.T("DebtAggregates.List.Counterparty")),
+			table.Column("total_receivable", pageCtx.T("DebtAggregates.List.TotalReceivable")),
+			table.Column("total_payable", pageCtx.T("DebtAggregates.List.TotalPayable")),
+			table.Column("outstanding_receivable", pageCtx.T("DebtAggregates.List.OutstandingReceivable")),
+			table.Column("outstanding_payable", pageCtx.T("DebtAggregates.List.OutstandingPayable")),
+			table.Column("net_amount", pageCtx.T("DebtAggregates.List.NetAmount")),
+			table.Column("debt_count", pageCtx.T("DebtAggregates.List.DebtCount")),
 		).
-			WithColumns(
-				table.Column("counterparty", pageCtx.T("DebtAggregates.List.Counterparty")),
-				table.Column("total_receivable", pageCtx.T("DebtAggregates.List.TotalReceivable")),
-				table.Column("total_payable", pageCtx.T("DebtAggregates.List.TotalPayable")),
-				table.Column("outstanding_receivable", pageCtx.T("DebtAggregates.List.OutstandingReceivable")),
-				table.Column("outstanding_payable", pageCtx.T("DebtAggregates.List.OutstandingPayable")),
-				table.Column("net_amount", pageCtx.T("DebtAggregates.List.NetAmount")),
-				table.Column("debt_count", pageCtx.T("DebtAggregates.List.DebtCount")),
-			).
-			WithInfiniteScroll(false).
-			Build()
-	} else {
-		definition = c.tableDefinition
-	}
+		WithInfiniteScroll(false).
+		Build()
 
 	rows := make([]table.TableRow, 0, len(aggregates))
 
@@ -125,6 +120,7 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 
 	tableData := table.NewTableData().
 		WithRows(rows...).
+		WithPagination(paginationParams.Page, paginationParams.Limit, int64(len(aggregates))).
 		WithQueryParams(r.URL.Query())
 
 	renderer := table.NewTableRenderer(definition, tableData)
@@ -137,9 +133,10 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r *http.Request) {
-	counterpartyID, err := shared.ParseUUID(r)
+	counterpartyIDStr := mux.Vars(r)["counterparty_id"]
+	counterpartyID, err := uuid.Parse(counterpartyIDStr)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Error parsing UUID: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -172,7 +169,7 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 			table.Column("original_amount", pageCtx.T("Debts.List.OriginalAmount")),
 			table.Column("outstanding_amount", pageCtx.T("Debts.List.OutstandingAmount")),
 			table.Column("status", pageCtx.T("Debts.List.Status")),
-			table.Column("description", pageCtx.T("Debts.List.Description")),
+			table.Column("description", pageCtx.T("Debts.List._Description")),
 		).
 		Build()
 
@@ -191,5 +188,16 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 	tableData := table.NewTableData().WithRows(rows...)
 	renderer := table.NewTableRenderer(definition, tableData)
 
-	templ.Handler(renderer.RenderFull(), templ.WithStreaming()).ServeHTTP(w, r)
+	// Create a drawer wrapper for the counterparty debt details table
+	drawerProps := table.DefaultDrawerProps{
+		Title:       fmt.Sprintf("%s - %s", pageCtx.T("DebtAggregates.Drawer.Title"), counterparty.Name()),
+		CallbackURL: c.basePath,
+	}
+
+	// Create a custom component that renders the drawer with table content
+	drawerWithTable := templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		return table.DefaultDrawer(drawerProps).Render(templ.WithChildren(ctx, renderer.RenderTable()), w)
+	})
+
+	templ.Handler(drawerWithTable, templ.WithStreaming()).ServeHTTP(w, r)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/components/multilang"
 	"log"
 	"math"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/components/multilang"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"

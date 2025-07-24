@@ -274,7 +274,6 @@ func TestDebtController_Create_Success(t *testing.T) {
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
 
-	debtService := env.App.Service(services.DebtService{}).(*services.DebtService)
 	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create test counterparty

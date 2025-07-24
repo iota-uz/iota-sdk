@@ -33,6 +33,7 @@
   },
   "NavigationLinks": {
     "Finances": "Finances",
+    "FinancialOverview": "Financial Overview",
     "Transactions": "Transactions",
     "Accounts": "Accounts",
     "Expenses": "Expenses",
@@ -48,6 +49,11 @@
     "CashflowStatement": "Cash Flow Statement",
     "Finance": {
       "Enums": "Enums"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Financial Overview"
     }
   },
   "ExpenseCategories": {
@@ -560,6 +566,9 @@
     "Drawer": {
       "Title": "Debt Details"
     }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
   }
 }
 

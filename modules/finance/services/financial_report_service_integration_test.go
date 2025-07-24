@@ -53,7 +53,6 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		account := moneyaccount.New(
 			"Test Cash Account",
 			money.New(0, "USD"),
-			moneyaccount.WithAccountType(moneyaccount.AccountTypeCash),
 		)
 		account, err = moneyAccountService.Create(ctx, account)
 		require.NoError(t, err)
@@ -87,12 +86,12 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// July: $3,000 outflow
 		expense1 := expense.New(
 			money.New(300000, "USD"), // $3,000.00
-			account.ID(),
-			expenseCat.ID(),
+			account,
+			expenseCat,
+			time.Date(2024, 7, 10, 10, 0, 0, 0, time.UTC),
 			expense.WithTenantID(tenantID),
-			expense.WithTransactionDate(time.Date(2024, 7, 10, 10, 0, 0, 0, time.UTC)),
 			expense.WithAccountingPeriod(time.Date(2024, 7, 10, 10, 0, 0, 0, time.UTC)),
-			expense.WithDescription("July Rent"),
+			expense.WithComment("July Rent"),
 		)
 		expense1, err = expenseService.Create(ctx, expense1)
 		require.NoError(t, err)
@@ -112,7 +111,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// Log current account balance for debugging
 		currentAccount, err := moneyAccountService.GetByID(ctx, account.ID())
 		require.NoError(t, err)
-		t.Logf("Current account balance (after all transactions): %s", currentAccount.Balance().String())
+		t.Logf("Current account balance (after all transactions): %s", currentAccount.Balance().Display())
 
 		// Generate cashflow statement
 		stmt, err := reportService.GenerateCashflowStatement(ctx, account.ID(), startDate, endDate)
@@ -121,11 +120,11 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 		// Log for debugging
 		t.Logf("Period: %s to %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
-		t.Logf("Starting Balance: %s", stmt.StartingBalance.String())
-		t.Logf("Total Inflows: %s", stmt.TotalInflows.String())
-		t.Logf("Total Outflows: %s", stmt.TotalOutflows.String())
-		t.Logf("Net Cash Flow: %s", stmt.NetCashFlow.String())
-		t.Logf("Ending Balance: %s", stmt.EndingBalance.String())
+		t.Logf("Starting Balance: %s", stmt.StartingBalance.Display())
+		t.Logf("Total Inflows: %s", stmt.TotalInflows.Display())
+		t.Logf("Total Outflows: %s", stmt.TotalOutflows.Display())
+		t.Logf("Net Cash Flow: %s", stmt.NetCashFlow.Display())
+		t.Logf("Ending Balance: %s", stmt.EndingBalance.Display())
 
 		// Verify calculations
 		assert.Equal(t, int64(0), stmt.StartingBalance.Amount(), "Starting balance should be $0")
@@ -146,7 +145,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 			assert.Equal(t, "Sales Revenue", stmt.OperatingActivities.Inflows[0].CategoryName)
 			assert.Equal(t, int64(500000), stmt.OperatingActivities.Inflows[0].Amount.Amount())
 		}
-		
+
 		assert.Len(t, stmt.OperatingActivities.Outflows, 1)
 		if len(stmt.OperatingActivities.Outflows) > 0 {
 			assert.Equal(t, "Office Expenses", stmt.OperatingActivities.Outflows[0].CategoryName)
@@ -172,7 +171,6 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		account := moneyaccount.New(
 			"Historical Test Account",
 			money.New(0, "USD"),
-			moneyaccount.WithAccountType(moneyaccount.AccountTypeCash),
 		)
 		account, err = moneyAccountService.Create(ctx, account)
 		require.NoError(t, err)
@@ -185,7 +183,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// Create transactions BEFORE the reporting period
 		historicalPayment := payment.New(
 			money.New(1000000, "USD"), // $10,000
-			nil, // No category
+			nil,                       // No category
 			payment.WithTenantID(tenantID),
 			payment.WithAccount(account),
 			payment.WithTransactionDate(time.Date(2023, 12, 15, 0, 0, 0, 0, time.UTC)),
@@ -197,12 +195,12 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// Create expense before period
 		historicalExpense := expense.New(
 			money.New(300000, "USD"), // $3,000
-			account.ID(),
-			expenseCat.ID(),
+			account,
+			expenseCat,
+			time.Date(2023, 12, 20, 0, 0, 0, 0, time.UTC),
 			expense.WithTenantID(tenantID),
-			expense.WithTransactionDate(time.Date(2023, 12, 20, 0, 0, 0, 0, time.UTC)),
 			expense.WithAccountingPeriod(time.Date(2023, 12, 20, 0, 0, 0, 0, time.UTC)),
-			expense.WithDescription("Historical expense"),
+			expense.WithComment("Historical expense"),
 		)
 		historicalExpense, err = expenseService.Create(ctx, historicalExpense)
 		require.NoError(t, err)
@@ -229,18 +227,18 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 		// Log for debugging
 		t.Logf("Historical transactions: +$10,000 -$3,000 = $7,000 before March")
-		t.Logf("Starting Balance (March 1): %s", stmt.StartingBalance.String())
-		t.Logf("March Cashflow: %s", stmt.NetCashFlow.String())
-		t.Logf("Ending Balance (March 31): %s", stmt.EndingBalance.String())
+		t.Logf("Starting Balance (March 1): %s", stmt.StartingBalance.Display())
+		t.Logf("March Cashflow: %s", stmt.NetCashFlow.Display())
+		t.Logf("Ending Balance (March 31): %s", stmt.EndingBalance.Display())
 
 		// Starting balance should reflect historical transactions: $10,000 - $3,000 = $7,000
 		assert.Equal(t, int64(700000), stmt.StartingBalance.Amount(), "Starting balance should include historical transactions")
-		
+
 		// Only March transaction should be in the cashflow
 		assert.Equal(t, int64(200000), stmt.TotalInflows.Amount())
 		assert.Equal(t, int64(0), stmt.TotalOutflows.Amount())
 		assert.Equal(t, int64(200000), stmt.NetCashFlow.Amount())
-		
+
 		// Ending balance: $7,000 + $2,000 = $9,000
 		assert.Equal(t, int64(900000), stmt.EndingBalance.Amount())
 	})
@@ -260,7 +258,6 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		account := moneyaccount.New(
 			"Boundary Test Account",
 			money.New(0, "USD"),
-			moneyaccount.WithAccountType(moneyaccount.AccountTypeCash),
 		)
 		account, err = moneyAccountService.Create(ctx, account)
 		require.NoError(t, err)
@@ -311,7 +308,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		assert.Equal(t, int64(300000), stmt.TotalInflows.Amount()) // $1,000 + $2,000
 		assert.Equal(t, int64(300000), stmt.NetCashFlow.Amount())
 		assert.Equal(t, int64(300000), stmt.EndingBalance.Amount())
-		
+
 		// The transaction after the period should not be included
 		currentAccount, _ := moneyAccountService.GetByID(ctx, account.ID())
 		assert.Equal(t, int64(600000), currentAccount.Balance().Amount()) // Current balance includes all
@@ -331,9 +328,8 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 		// Create account with specific start date
 		account := moneyaccount.New(
-			"Debug Test Account", 
+			"Debug Test Account",
 			money.New(0, "USD"),
-			moneyaccount.WithAccountType(moneyaccount.AccountTypeCash),
 		)
 		account, err = moneyAccountService.Create(ctx, account)
 		require.NoError(t, err)
@@ -382,13 +378,13 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 		// Check current balance
 		currentAccount, _ := moneyAccountService.GetByID(ctx, account.ID())
-		t.Logf("Current account balance (all transactions): %s", currentAccount.Balance().String())
+		t.Logf("Current account balance (all transactions): %s", currentAccount.Balance().Display())
 		assert.Equal(t, int64(350000), currentAccount.Balance().Amount()) // $3,500 total
 
 		// Generate report for June
 		startDate := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
 		endDate := time.Date(2024, 6, 30, 23, 59, 59, 0, time.UTC)
-		
+
 		stmt, err := reportService.GenerateCashflowStatement(ctx, account.ID(), startDate, endDate)
 		require.NoError(t, err)
 
@@ -400,12 +396,12 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 		t.Logf("\n=== Cashflow Debug ===")
 		t.Logf("Period: %s to %s", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
-		t.Logf("Starting Balance (June 1): %s (expected: $1,000)", stmt.StartingBalance.String())
-		t.Logf("Inflows in June: %s (expected: $500)", stmt.TotalInflows.String())
-		t.Logf("Outflows in June: %s (expected: $0)", stmt.TotalOutflows.String())
-		t.Logf("Net Cash Flow: %s (expected: $500)", stmt.NetCashFlow.String())
-		t.Logf("Ending Balance (June 30): %s (expected: $1,500)", stmt.EndingBalance.String())
-		t.Logf("Current Balance (today): %s (expected: $3,500)", currentAccount.Balance().String())
+		t.Logf("Starting Balance (June 1): %s (expected: $1,000)", stmt.StartingBalance.Display())
+		t.Logf("Inflows in June: %s (expected: $500)", stmt.TotalInflows.Display())
+		t.Logf("Outflows in June: %s (expected: $0)", stmt.TotalOutflows.Display())
+		t.Logf("Net Cash Flow: %s (expected: $500)", stmt.NetCashFlow.Display())
+		t.Logf("Ending Balance (June 30): %s (expected: $1,500)", stmt.EndingBalance.Display())
+		t.Logf("Current Balance (today): %s (expected: $3,500)", currentAccount.Balance().Display())
 
 		assert.Equal(t, int64(100000), stmt.StartingBalance.Amount(), "Starting balance should be $1,000")
 		assert.Equal(t, int64(50000), stmt.TotalInflows.Amount(), "Inflows should be $500")

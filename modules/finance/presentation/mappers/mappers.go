@@ -932,10 +932,11 @@ func DebtToViewModel(entity debt.Debt, counterpartyName string) *viewmodels.Debt
 }
 
 func DebtCounterpartyAggregateToViewModel(agg debt.CounterpartyAggregate, counterpartyName string) *viewmodels.DebtCounterpartyAggregate {
-	receivableMoney := money.NewFromFloat(agg.TotalReceivable(), agg.CurrencyCode())
-	payableMoney := money.NewFromFloat(agg.TotalPayable(), agg.CurrencyCode())
-	outstandingReceivableMoney := money.NewFromFloat(agg.TotalOutstandingReceivable(), agg.CurrencyCode())
-	outstandingPayableMoney := money.NewFromFloat(agg.TotalOutstandingPayable(), agg.CurrencyCode())
+	// The SQL query returns amounts in minor units (cents), so we use money.New() instead of money.NewFromFloat()
+	receivableMoney := money.New(int64(agg.TotalReceivable()), agg.CurrencyCode())
+	payableMoney := money.New(int64(agg.TotalPayable()), agg.CurrencyCode())
+	outstandingReceivableMoney := money.New(int64(agg.TotalOutstandingReceivable()), agg.CurrencyCode())
+	outstandingPayableMoney := money.New(int64(agg.TotalOutstandingPayable()), agg.CurrencyCode())
 
 	netAmount, _ := outstandingReceivableMoney.Subtract(outstandingPayableMoney)
 

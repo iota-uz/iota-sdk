@@ -7,6 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
+	coreServices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
@@ -24,7 +25,12 @@ func TestDebugDebtValidation(t *testing.T) {
 	env := suite.Environment()
 
 	// Create currencies first
-	err := env.App.Service(services.CurrencyService{}).(*services.CurrencyService).Create(env.Ctx, &currency.USD)
+	currencyDTO := &currency.CreateDTO{
+		Code:   string(currency.USD.Code),
+		Name:   currency.USD.Name,
+		Symbol: string(currency.USD.Symbol),
+	}
+	err := env.App.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService).Create(env.Ctx, currencyDTO)
 	require.NoError(t, err)
 
 	counterpartyService := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)

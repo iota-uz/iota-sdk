@@ -450,3 +450,86 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 		Expect(t).
 		Status(404)
 }
+
+func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User()
+
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+
+	controller := controllers.NewCounterpartiesController(env.App)
+	suite.Register(controller)
+
+	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+
+	formData := url.Values{}
+	formData.Set("Name", "Test Company")
+	formData.Set("TIN", "invalid-tin") // Invalid TIN format
+	formData.Set("Type", "CUSTOMER")
+	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("LegalAddress", "Test Address")
+
+	response := suite.POST(CounterpartyBasePath).
+		Form(formData).
+		Expect(t).
+		Status(200) // Should return 200 with validation errors, not 500
+
+	html := response.HTML()
+	// Check that TIN field has validation error
+	require.True(t, html.HasErrorFor("TIN"), "Expected TIN validation error to be displayed")
+
+	// Verify no counterparty was created
+	counterparties, err := service.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.Empty(t, counterparties)
+}
+
+func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User()
+
+	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+		AsUser(adminUser)
+
+	env := suite.Environment()
+
+	controller := controllers.NewCounterpartiesController(env.App)
+	suite.Register(controller)
+
+	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+
+	// Create a counterparty first
+	counterparty1 := counterparty.New(
+		"Test Counterparty",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCounterparty, err := service.Create(env.Ctx, counterparty1)
+	require.NoError(t, err)
+
+	formData := url.Values{}
+	formData.Set("Name", "Updated Company")
+	formData.Set("TIN", "12345") // Invalid TIN format (too short)
+	formData.Set("Type", "CUSTOMER")
+	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("LegalAddress", "Updated Address")
+
+	response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
+		Form(formData).
+		Expect(t).
+		Status(200) // Should return 200 with validation errors, not 500
+
+	html := response.HTML()
+	// Check that TIN field has validation error
+	require.True(t, html.HasErrorFor("TIN"), "Expected TIN validation error to be displayed")
+
+	// Verify counterparty was not updated
+	unchangedCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
+	require.NoError(t, err)
+	require.Equal(t, "Test Counterparty", unchangedCounterparty.Name())
+}
