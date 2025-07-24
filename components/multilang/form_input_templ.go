@@ -14,9 +14,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 )
 
-// FormInput renders a MultiLang field as an editable form input
+// FormInput renders a MultiLang field as an editable form input with custom label
 // Provides separate inputs for each language with add/remove functionality
-func FormInput(ctx context.Context, field crud.Field, ml models.MultiLang) templ.Component {
+func FormInputWithLabel(ctx context.Context, field crud.Field, ml models.MultiLang, label string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -42,9 +42,9 @@ func FormInput(ctx context.Context, field crud.Field, ml models.MultiLang) templ
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(field.Name())
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 13, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 13, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -93,6 +93,12 @@ func FormInput(ctx context.Context, field crud.Field, ml models.MultiLang) templ
 				return templ_7745c5c3_Err
 			}
 		}
+		if !ml.HasLocale("uz-cyrl") {
+			templ_7745c5c3_Err = LocaleInput(ctx, "uz-cyrl", "", true).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div><div class=\"mt-3\"><button type=\"button\" class=\"add-locale-btn text-sm text-blue-600 hover:text-blue-800\" onclick=\"addLocaleInput(this)\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -100,7 +106,7 @@ func FormInput(ctx context.Context, field crud.Field, ml models.MultiLang) templ
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(localizeWithDefault(ctx, "multilang.add_language", "+ Add Language"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 38, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 41, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -113,7 +119,7 @@ func FormInput(ctx context.Context, field crud.Field, ml models.MultiLang) templ
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(field.Name())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 44, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 47, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -126,7 +132,7 @@ func FormInput(ctx context.Context, field crud.Field, ml models.MultiLang) templ
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(getJSONValue(ml))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 46, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 49, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -169,7 +175,7 @@ func LocaleInput(ctx context.Context, locale, value string, removable bool) temp
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(locale)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 57, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 60, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -182,7 +188,7 @@ func LocaleInput(ctx context.Context, locale, value string, removable bool) temp
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(localizeWithDefault(ctx, "multilang.locale_placeholder", "en"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 58, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 61, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -195,7 +201,7 @@ func LocaleInput(ctx context.Context, locale, value string, removable bool) temp
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 66, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 69, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -208,7 +214,7 @@ func LocaleInput(ctx context.Context, locale, value string, removable bool) temp
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(localizeWithDefault(ctx, "multilang.text_placeholder", "Enter text in this language"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 67, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 70, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -226,7 +232,7 @@ func LocaleInput(ctx context.Context, locale, value string, removable bool) temp
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(localizeWithDefault(ctx, "multilang.remove_language", "Remove this language"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 76, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/multilang/form_input.templ`, Line: 79, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -267,9 +273,9 @@ func getJSONValue(ml models.MultiLang) string {
 // Enhanced JavaScript helpers with validation and UX improvements
 func multilangHelpers() templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_multilangHelpers_51b9`,
-		Function: `function __templ_multilangHelpers_51b9(){// Common language codes with validation
-	const commonLanguages = ['en', 'ru', 'uz', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'ko', 'zh', 'ar'];
+		Name: `__templ_multilangHelpers_f89e`,
+		Function: `function __templ_multilangHelpers_f89e(){// Common language codes with validation
+	const commonLanguages = ['en', 'ru', 'uz', 'uz-cyrl', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'ko', 'zh', 'ar'];
 	
 	// Get existing locale codes to avoid duplicates
 	function getExistingLocales(container) {
@@ -294,10 +300,10 @@ func multilangHelpers() templ.ComponentScript {
 			input.title = 'This language code is already used';
 			showValidationError(input, 'Duplicate language code');
 		}
-		// Check format (2-5 characters, letters only)
-		else if (locale && !/^[a-z]{2,5}$/.test(locale)) {
+		// Check format (2-5 characters, letters and dash, like uz-cyrl)
+		else if (locale && !/^[a-z]{2,5}(-[a-z]{2,8})?$/.test(locale)) {
 			input.classList.add('border-red-500');
-			input.title = 'Language code should be 2-5 lowercase letters (e.g., en, ru, zh-cn)';
+			input.title = 'Language code should be 2-5 lowercase letters, optionally with variant (e.g., en, ru, uz-cyrl)';
 			showValidationError(input, 'Invalid format');
 		}
 		else {
@@ -454,13 +460,13 @@ func multilangHelpers() templ.ComponentScript {
 		});
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_multilangHelpers_51b9`),
-		CallInline: templ.SafeScriptInline(`__templ_multilangHelpers_51b9`),
+		Call:       templ.SafeScript(`__templ_multilangHelpers_f89e`),
+		CallInline: templ.SafeScriptInline(`__templ_multilangHelpers_f89e`),
 	}
 }
 
-// Include the JavaScript helpers
-func FormInputWithJS(ctx context.Context, field crud.Field, ml models.MultiLang) templ.Component {
+// FormInput renders a MultiLang field with fallback label (for backward compatibility)
+func FormInput(ctx context.Context, field crud.Field, ml models.MultiLang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -481,6 +487,36 @@ func FormInputWithJS(ctx context.Context, field crud.Field, ml models.MultiLang)
 			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = FormInputWithLabel(ctx, field, ml, getFieldLabel(ctx, field)).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// Include the JavaScript helpers
+func FormInputWithJS(ctx context.Context, field crud.Field, ml models.MultiLang) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var14 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var14 == nil {
+			templ_7745c5c3_Var14 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = FormInput(ctx, field, ml).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -491,6 +527,68 @@ func FormInputWithJS(ctx context.Context, field crud.Field, ml models.MultiLang)
 		}
 		return nil
 	})
+}
+
+// Include the JavaScript helpers with custom label
+func FormInputWithJSAndLabel(ctx context.Context, field crud.Field, ml models.MultiLang, label string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var15 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var15 == nil {
+			templ_7745c5c3_Var15 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = FormInputWithLabel(ctx, field, ml, label).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = multilangHelpers().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// getFieldLabel returns the localized field label using the same pattern as crud_controller
+func getFieldLabel(ctx context.Context, field crud.Field) string {
+	// Use custom localization key if provided, otherwise use default pattern
+	localizationKey := field.LocalizationKey()
+	if localizationKey == "" {
+		// Try to extract schema name from context or use generic pattern
+		schemaName := getSchemaNameFromContext(ctx)
+		if schemaName != "" {
+			localizationKey = schemaName + ".Fields." + field.Name()
+		} else {
+			// Fallback to generic pattern when schema name is not available
+			localizationKey = "Fields." + field.Name()
+		}
+	}
+
+	// Try to localize with the same error handling as crud_controller
+	fieldLabel := localizeWithDefault(ctx, localizationKey, field.Name())
+	return fieldLabel
+}
+
+// getSchemaNameFromContext attempts to extract schema name from context
+// This is a helper function that can be extended to support schema name in context
+func getSchemaNameFromContext(ctx context.Context) string {
+	// TODO: This could be implemented if schema name is added to context
+	// For now, return empty string to use fallback pattern
+	return ""
 }
 
 var _ = templruntime.GeneratedTemplate
