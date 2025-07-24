@@ -7,6 +7,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
+// Query parameter constants to avoid circular import
+const (
+	QueryParamLimit = "limit"
+	QueryParamPage  = "page"
+)
+
 type PaginationParams struct {
 	Limit  int
 	Offset int
@@ -15,12 +21,12 @@ type PaginationParams struct {
 
 func UsePaginated(r *http.Request) PaginationParams {
 	config := configuration.Use()
-	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get(QueryParamLimit))
 	if err != nil || limit > config.MaxPageSize {
 		limit = config.PageSize
 	}
 
-	page, err := strconv.Atoi(r.URL.Query().Get("page"))
+	page, err := strconv.Atoi(r.URL.Query().Get(QueryParamPage))
 	if err != nil || page < 1 {
 		page = 1
 	}
