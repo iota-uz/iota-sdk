@@ -11,24 +11,22 @@ import (
 )
 
 // MultiLangRenderer implements crud.FieldRenderer for MultiLang fields
-type MultiLangRenderer struct {
-	schema crud.Schema[any]
+type MultiLangRenderer[TEntity any] struct {
+	schema crud.Schema[TEntity]
 }
 
 // NewMultiLangRenderer creates a new MultiLang field renderer
-func NewMultiLangRenderer() *MultiLangRenderer {
-	return &MultiLangRenderer{}
+func NewMultiLangRenderer[TEntity any]() *MultiLangRenderer[TEntity] {
+	return &MultiLangRenderer[TEntity]{}
 }
 
 // NewMultiLangRendererWithSchema creates a new MultiLang field renderer with schema
-func NewMultiLangRendererWithSchema[TEntity any](schema crud.Schema[TEntity]) *MultiLangRenderer {
-	// Type assertion to store as any - this is safe since we only use schema.Name()
-	anySchema := schema.(crud.Schema[any])
-	return &MultiLangRenderer{schema: anySchema}
+func NewMultiLangRendererWithSchema[TEntity any](schema crud.Schema[TEntity]) *MultiLangRenderer[TEntity] {
+	return &MultiLangRenderer[TEntity]{schema: schema}
 }
 
 // RenderTableCell renders a MultiLang value for display in table rows
-func (r *MultiLangRenderer) RenderTableCell(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
+func (r *MultiLangRenderer[TEntity]) RenderTableCell(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
 	if value == nil || value.IsZero() {
 		return templ.Raw("")
 	}
@@ -43,7 +41,7 @@ func (r *MultiLangRenderer) RenderTableCell(ctx context.Context, field crud.Fiel
 }
 
 // RenderDetails renders a MultiLang value for the details/view page
-func (r *MultiLangRenderer) RenderDetails(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
+func (r *MultiLangRenderer[TEntity]) RenderDetails(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
 	if value == nil || value.IsZero() {
 		return templ.Raw("")
 	}
@@ -58,7 +56,7 @@ func (r *MultiLangRenderer) RenderDetails(ctx context.Context, field crud.Field,
 }
 
 // RenderFormControl renders a MultiLang field as an editable form input
-func (r *MultiLangRenderer) RenderFormControl(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
+func (r *MultiLangRenderer[TEntity]) RenderFormControl(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
 	var ml models.MultiLang
 
 	// Handle nil or zero values
@@ -79,7 +77,7 @@ func (r *MultiLangRenderer) RenderFormControl(ctx context.Context, field crud.Fi
 }
 
 // RenderFormControlWithLabel renders a MultiLang field with custom label
-func (r *MultiLangRenderer) RenderFormControlWithLabel(ctx context.Context, field crud.Field, value crud.FieldValue, label string) templ.Component {
+func (r *MultiLangRenderer[TEntity]) RenderFormControlWithLabel(ctx context.Context, field crud.Field, value crud.FieldValue, label string) templ.Component {
 	var ml models.MultiLang
 
 	// Handle nil or zero values
@@ -132,7 +130,7 @@ func getMultiLangFromValue(value crud.FieldValue) models.MultiLang {
 }
 
 // localizeWithDefault localizes a message with a fallback default
-func (r *MultiLangRenderer) localizeWithDefault(ctx context.Context, messageID string, defaultMessage string) string {
+func (r *MultiLangRenderer[TEntity]) localizeWithDefault(ctx context.Context, messageID string, defaultMessage string) string {
 	l, ok := intl.UseLocalizer(ctx)
 	if !ok {
 		return defaultMessage
@@ -152,7 +150,7 @@ func (r *MultiLangRenderer) localizeWithDefault(ctx context.Context, messageID s
 }
 
 // getLocalizedFieldLabel returns the localized field label using the same pattern as crud_controller
-func (r *MultiLangRenderer) getLocalizedFieldLabel(ctx context.Context, field crud.Field) string {
+func (r *MultiLangRenderer[TEntity]) getLocalizedFieldLabel(ctx context.Context, field crud.Field) string {
 	// Localize field label using custom key if provided, otherwise use default pattern
 	localizationKey := field.LocalizationKey()
 	if localizationKey == "" && r.schema != nil {
