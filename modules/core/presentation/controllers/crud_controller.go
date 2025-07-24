@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/iota-uz/iota-sdk/components/multilang"
 	"log"
 	"math"
 	"net/http"
@@ -12,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/components/multilang"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -89,7 +90,7 @@ func WithoutCreate[TEntity any]() CrudOption[TEntity] {
 // WithMultiLangRenderer registers the MultiLang renderer for the showcase controller
 func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
 	return func(c *CrudController[TEntity]) {
-		c.RegisterRenderer("multilang", multilang.NewMultiLangRenderer())
+		c.RegisterRenderer("multilang", multilang.NewMultiLangRendererWithSchema(c.schema))
 	}
 }
 

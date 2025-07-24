@@ -4,62 +4,110 @@ import (
 	"context"
 
 	"github.com/a-h/templ"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 // MultiLangRenderer implements crud.FieldRenderer for MultiLang fields
-type MultiLangRenderer struct{}
+type MultiLangRenderer[TEntity any] struct {
+	schema crud.Schema[TEntity]
+}
 
 // NewMultiLangRenderer creates a new MultiLang field renderer
-func NewMultiLangRenderer() *MultiLangRenderer {
-	return &MultiLangRenderer{}
+func NewMultiLangRenderer[TEntity any]() *MultiLangRenderer[TEntity] {
+	return &MultiLangRenderer[TEntity]{}
+}
+
+// NewMultiLangRendererWithSchema creates a new MultiLang field renderer with schema
+func NewMultiLangRendererWithSchema[TEntity any](schema crud.Schema[TEntity]) *MultiLangRenderer[TEntity] {
+	return &MultiLangRenderer[TEntity]{schema: schema}
 }
 
 // RenderTableCell renders a MultiLang value for display in table rows
-func (r *MultiLangRenderer) RenderTableCell(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
+func (r *MultiLangRenderer[TEntity]) RenderTableCell(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
 	if value == nil || value.IsZero() {
 		return templ.Raw("")
 	}
 
 	ml := getMultiLangFromValue(value)
 	if ml == nil {
-		return templ.Raw("Invalid MultiLang")
+		errorMsg := r.localizeWithDefault(ctx, "multilang.invalid_format", "Invalid MultiLang")
+		return templ.Raw(errorMsg)
 	}
 
 	return TableCell(ctx, ml)
 }
 
 // RenderDetails renders a MultiLang value for the details/view page
-func (r *MultiLangRenderer) RenderDetails(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
+func (r *MultiLangRenderer[TEntity]) RenderDetails(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
 	if value == nil || value.IsZero() {
 		return templ.Raw("")
 	}
 
 	ml := getMultiLangFromValue(value)
 	if ml == nil {
-		return templ.Raw("Invalid MultiLang")
+		errorMsg := r.localizeWithDefault(ctx, "multilang.invalid_format", "Invalid MultiLang")
+		return templ.Raw(errorMsg)
 	}
 
 	return DetailsView(ctx, ml)
 }
 
 // RenderFormControl renders a MultiLang field as an editable form input
-func (r *MultiLangRenderer) RenderFormControl(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
+func (r *MultiLangRenderer[TEntity]) RenderFormControl(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
 	var ml models.MultiLang
 
 	// Handle nil or zero values
 	if value == nil || value.IsZero() {
-		ml = models.NewMultiLangFromMap(map[string]string{})
+		if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+			ml = mlFromMap
+		} else {
+			ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+		}
 	} else {
 		ml = getMultiLangFromValue(value)
 		if ml == nil {
 			// Fallback: create empty MultiLang
-			ml = models.NewMultiLangFromMap(map[string]string{})
+			if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+				ml = mlFromMap
+			} else {
+				ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+			}
 		}
 	}
 
-	return FormInputWithJS(ctx, field, ml)
+	// Get localized label using the same pattern as crud_controller
+	label := r.getLocalizedFieldLabel(ctx, field)
+
+	return FormInputWithJSAndLabel(ctx, field, ml, label)
+}
+
+// RenderFormControlWithLabel renders a MultiLang field with custom label
+func (r *MultiLangRenderer[TEntity]) RenderFormControlWithLabel(ctx context.Context, field crud.Field, value crud.FieldValue, label string) templ.Component {
+	var ml models.MultiLang
+
+	// Handle nil or zero values
+	if value == nil || value.IsZero() {
+		if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+			ml = mlFromMap
+		} else {
+			ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+		}
+	} else {
+		ml = getMultiLangFromValue(value)
+		if ml == nil {
+			// Fallback: create empty MultiLang
+			if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+				ml = mlFromMap
+			} else {
+				ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+			}
+		}
+	}
+
+	return FormInputWithJSAndLabel(ctx, field, ml, label)
 }
 
 // getMultiLangFromValue extracts MultiLang from a crud.FieldValue
@@ -90,9 +138,48 @@ func getMultiLangFromValue(value crud.FieldValue) models.MultiLang {
 			}
 		}
 		if len(stringMap) > 0 {
-			return models.NewMultiLangFromMap(stringMap)
+			if ml, err := models.NewMultiLangFromMap(stringMap); err == nil {
+				return ml
+			}
+			// If validation fails, return nil to trigger fallback
+			return nil
 		}
 	}
 
 	return nil
+}
+
+// localizeWithDefault localizes a message with a fallback default
+func (r *MultiLangRenderer[TEntity]) localizeWithDefault(ctx context.Context, messageID string, defaultMessage string) string {
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		return defaultMessage
+	}
+
+	result, err := l.Localize(&i18n.LocalizeConfig{
+		MessageID: messageID,
+		DefaultMessage: &i18n.Message{
+			ID:    messageID,
+			Other: defaultMessage,
+		},
+	})
+	if err != nil {
+		return defaultMessage
+	}
+	return result
+}
+
+// getLocalizedFieldLabel returns the localized field label using the same pattern as crud_controller
+func (r *MultiLangRenderer[TEntity]) getLocalizedFieldLabel(ctx context.Context, field crud.Field) string {
+	// Localize field label using custom key if provided, otherwise use default pattern
+	localizationKey := field.LocalizationKey()
+	if localizationKey == "" && r.schema != nil {
+		localizationKey = r.schema.Name() + ".Fields." + field.Name()
+	} else if localizationKey == "" {
+		// Fallback when schema is not available
+		localizationKey = "Fields." + field.Name()
+	}
+
+	fieldLabel := r.localizeWithDefault(ctx, localizationKey, field.Name())
+	return fieldLabel
 }
