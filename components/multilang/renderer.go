@@ -61,12 +61,20 @@ func (r *MultiLangRenderer[TEntity]) RenderFormControl(ctx context.Context, fiel
 
 	// Handle nil or zero values
 	if value == nil || value.IsZero() {
-		ml = models.NewMultiLangFromMap(map[string]string{})
+		if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+			ml = mlFromMap
+		} else {
+			ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+		}
 	} else {
 		ml = getMultiLangFromValue(value)
 		if ml == nil {
 			// Fallback: create empty MultiLang
-			ml = models.NewMultiLangFromMap(map[string]string{})
+			if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+				ml = mlFromMap
+			} else {
+				ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+			}
 		}
 	}
 
@@ -82,12 +90,20 @@ func (r *MultiLangRenderer[TEntity]) RenderFormControlWithLabel(ctx context.Cont
 
 	// Handle nil or zero values
 	if value == nil || value.IsZero() {
-		ml = models.NewMultiLangFromMap(map[string]string{})
+		if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+			ml = mlFromMap
+		} else {
+			ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+		}
 	} else {
 		ml = getMultiLangFromValue(value)
 		if ml == nil {
 			// Fallback: create empty MultiLang
-			ml = models.NewMultiLangFromMap(map[string]string{})
+			if mlFromMap, err := models.NewMultiLangFromMap(map[string]string{}); err == nil {
+				ml = mlFromMap
+			} else {
+				ml = models.NewMultiLang("", "", "") // Fallback to old constructor
+			}
 		}
 	}
 
@@ -122,7 +138,11 @@ func getMultiLangFromValue(value crud.FieldValue) models.MultiLang {
 			}
 		}
 		if len(stringMap) > 0 {
-			return models.NewMultiLangFromMap(stringMap)
+			if ml, err := models.NewMultiLangFromMap(stringMap); err == nil {
+				return ml
+			}
+			// If validation fails, return nil to trigger fallback
+			return nil
 		}
 	}
 

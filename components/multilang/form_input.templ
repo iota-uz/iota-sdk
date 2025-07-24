@@ -12,24 +12,16 @@ templ FormInputWithLabel(ctx context.Context, field crud.Field, ml models.MultiL
 	<fieldset class="multilang-field border border-gray-300 rounded-lg p-4">
 		<legend class="text-sm font-medium text-gray-900 px-2">{ label }</legend>
 		<div class="multilang-inputs space-y-3" data-field={ field.Name() }>
-			// Show existing translations
+			// Show inputs for common languages in consistent order
+			@LocaleInput(ctx, "en", getLocaleValue(ml, "en"), true)
+			@LocaleInput(ctx, "ru", getLocaleValue(ml, "ru"), true)
+			@LocaleInput(ctx, "uz", getLocaleValue(ml, "uz"), true)
+			@LocaleInput(ctx, "uz-cyrl", getLocaleValue(ml, "uz-cyrl"), true)
+			// Show any additional locales that aren't in the common list
 			for locale, value := range ml.GetAll() {
-				if value != "" {
+				if locale != "en" && locale != "ru" && locale != "uz" && locale != "uz-cyrl" && value != "" {
 					@LocaleInput(ctx, locale, value, true)
 				}
-			}
-			// Show empty inputs for common languages if not present
-			if !ml.HasLocale("en") {
-				@LocaleInput(ctx, "en", "", true)
-			}
-			if !ml.HasLocale("ru") {
-				@LocaleInput(ctx, "ru", "", true)
-			}
-			if !ml.HasLocale("uz") {
-				@LocaleInput(ctx, "uz", "", true)
-			}
-			if !ml.HasLocale("uz-cyrl") {
-				@LocaleInput(ctx, "uz-cyrl", "", true)
 			}
 		</div>
 		<div class="mt-3">
@@ -58,7 +50,7 @@ templ LocaleInput(ctx context.Context, locale, value string, removable bool) {
 			type="text"
 			class="locale-code w-16 px-2 py-1 text-xs border border-gray-300 rounded uppercase"
 			value={ locale }
-			placeholder={ localizeWithDefault(ctx, "multilang.locale_placeholder", "en") }
+			placeholder={ locale }
 			maxlength="5"
 			onchange="validateAndUpdateJSON(this)"
 			onblur="validateLocaleCode(this)"
@@ -165,44 +157,68 @@ script multilangHelpers() {
 		window.updateMultilangJSON(input);
 	}
 
-	// Add a new locale input row
+	// Safely escape HTML to prevent XSS
+	function escapeHtml(text) {
+		const div = document.createElement('div');
+		div.textContent = text;
+		return div.innerHTML;
+	}
+
+	// Add a new locale input row using safe DOM manipulation
 	window.addLocaleInput = function(button) {
 		const container = button.closest('.multilang-field').querySelector('.multilang-inputs');
 		const existingLocales = getExistingLocales(container);
 		
-		// Suggest next available common language
-		const suggestedLocale = commonLanguages.find(lang => !existingLocales.includes(lang)) || '';
+		// Suggest next available common language - validate it's safe
+		const suggestedLocale = commonLanguages.find(lang => 
+			!existingLocales.includes(lang) && /^[a-z]{2,5}(-[a-z]{2,8})?$/.test(lang)
+		) || '';
 		
+		// Create row container
 		const row = document.createElement('div');
 		row.className = 'locale-row flex items-center space-x-2';
-		row.innerHTML = `
-			<input type="text" 
-				class="locale-code w-16 px-2 py-1 text-xs border border-gray-300 rounded uppercase" 
-				placeholder="en" 
-				maxlength="5" 
-				value="${suggestedLocale}"
-				onchange="validateAndUpdateJSON(this)"
-				onblur="validateLocaleCode(this)">
-			<input type="text" 
-				class="locale-value flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-				placeholder="Enter text in this language" 
-				onchange="updateMultilangJSON(this)"
-				oninput="updateMultilangJSON(this)">
-			<button type="button" 
-				class="remove-locale-btn text-red-600 hover:text-red-800 text-sm font-bold w-6 h-6" 
-				onclick="removeLocaleInput(this)" 
-				title="Remove this language">×</button>
-		`;
+		
+		// Create locale code input with safe value setting
+		const localeInput = document.createElement('input');
+		localeInput.type = 'text';
+		localeInput.className = 'locale-code w-16 px-2 py-1 text-xs border border-gray-300 rounded uppercase';
+		localeInput.placeholder = 'en';
+		localeInput.maxLength = 5;
+		localeInput.value = suggestedLocale; // Safe - no HTML injection possible
+		localeInput.onchange = function() { validateAndUpdateJSON(this); };
+		localeInput.onblur = function() { validateLocaleCode(this); };
+		
+		// Create locale value input
+		const valueInput = document.createElement('input');
+		valueInput.type = 'text';
+		valueInput.className = 'locale-value flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500';
+		valueInput.placeholder = 'Enter text in this language';
+		valueInput.onchange = function() { updateMultilangJSON(this); };
+		valueInput.oninput = function() { updateMultilangJSON(this); };
+		
+		// Create remove button
+		const removeBtn = document.createElement('button');
+		removeBtn.type = 'button';
+		removeBtn.className = 'remove-locale-btn text-red-600 hover:text-red-800 text-sm font-bold w-6 h-6';
+		removeBtn.textContent = '×'; // Safe text content assignment
+		removeBtn.title = 'Remove this language';
+		removeBtn.onclick = function() { removeLocaleInput(this); };
+		
+		// Assemble the row safely
+		row.appendChild(localeInput);
+		row.appendChild(valueInput);
+		row.appendChild(removeBtn);
+		
 		container.appendChild(row);
 		
 		// Focus on value input if locale is pre-filled, otherwise focus on locale input
 		if (suggestedLocale) {
-			row.querySelector('.locale-value').focus();
+			valueInput.focus();
 		} else {
-			row.querySelector('.locale-code').focus();
+			localeInput.focus();
 		}
 		
-		window.updateMultilangJSON(row.querySelector('input'));
+		window.updateMultilangJSON(localeInput);
 	}
 
 	// Remove a locale input row with confirmation for non-empty values
@@ -231,6 +247,24 @@ script multilangHelpers() {
 		}
 	}
 
+	// Sanitize input to prevent XSS and injection attacks
+	function sanitizeInput(input, maxLength = 1000) {
+		if (typeof input !== 'string') return '';
+		
+		// Trim and limit length
+		let sanitized = input.trim().substring(0, maxLength);
+		
+		// Remove null bytes and control characters except newlines and tabs
+		sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+		
+		return sanitized;
+	}
+
+	// Validate locale code format
+	function isValidLocaleCode(locale) {
+		return typeof locale === 'string' && /^[a-z]{2,5}(-[a-z]{2,8})?$/.test(locale);
+	}
+
 	// Update the hidden JSON field when inputs change
 	window.updateMultilangJSON = function(input) {
 		const field = input.closest('.multilang-field');
@@ -241,8 +275,8 @@ script multilangHelpers() {
 		rows.forEach(row => {
 			const localeInput = row.querySelector('.locale-code');
 			const valueInput = row.querySelector('.locale-value');
-			const locale = localeInput.value.toLowerCase().trim();
-			const value = valueInput.value.trim();
+			const rawLocale = localeInput.value.toLowerCase().trim();
+			const rawValue = valueInput.value;
 			
 			// Check for validation errors
 			if (localeInput.classList.contains('border-red-500')) {
@@ -250,7 +284,12 @@ script multilangHelpers() {
 				return;
 			}
 			
-			if (locale && value) {
+			// Sanitize inputs
+			const locale = sanitizeInput(rawLocale, 10); // Locale codes are short
+			const value = sanitizeInput(rawValue, 1000); // Reasonable limit for translations
+			
+			// Additional validation
+			if (locale && value && isValidLocaleCode(locale)) {
 				data[locale] = value;
 			}
 		});
@@ -259,7 +298,16 @@ script multilangHelpers() {
 		
 		// Only update if no validation errors
 		if (!hasErrors) {
-			hiddenField.value = JSON.stringify(data);
+			try {
+				// Use JSON.stringify safely - it handles escaping automatically
+				const jsonString = JSON.stringify(data);
+				// Additional safety check - ensure result is valid JSON
+				JSON.parse(jsonString);
+				hiddenField.value = jsonString;
+			} catch (e) {
+				console.warn('Failed to create valid JSON from multilang data:', e);
+				// Don't update the field if JSON creation fails
+			}
 		}
 		
 		// Always keep add button enabled - no restrictions
@@ -333,4 +381,13 @@ func getSchemaNameFromContext(ctx context.Context) string {
 	// TODO: This could be implemented if schema name is added to context
 	// For now, return empty string to use fallback pattern
 	return ""
+}
+
+// getLocaleValue safely gets a locale value from MultiLang, returning empty string if not found
+func getLocaleValue(ml models.MultiLang, locale string) string {
+	if ml == nil {
+		return ""
+	}
+	value, _ := ml.Get(locale)
+	return value
 }
