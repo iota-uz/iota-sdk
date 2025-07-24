@@ -88,9 +88,16 @@ func WithClass(classes string) ColumnOpt {
 	}
 }
 
-func WithSortable(sortable bool) ColumnOpt {
+func WithSortableState(sortable bool) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.sortable = sortable
+	}
+}
+
+// WithSortable enables sorting for a column
+func WithSortable() ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.sortable = true
 	}
 }
 
@@ -103,15 +110,6 @@ func WithSortDir(sortDir SortDirection) ColumnOpt {
 func WithSortURL(sortURL string) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.sortURL = sortURL
-	}
-}
-
-// WithNotSortable disables sorting for a column
-func WithNotSortable() ColumnOpt {
-	return func(c *tableColumnImpl) {
-		c.sortable = false
-		c.sortURL = ""
-		c.sortDir = SortDirectionNone
 	}
 }
 
@@ -171,7 +169,7 @@ func Column(key, label string, opts ...ColumnOpt) TableColumn {
 	col := &tableColumnImpl{
 		key:      key,
 		label:    label,
-		sortable: true, // Default to sortable
+		sortable: false, // Default to not sortable
 	}
 	for _, opt := range opts {
 		opt(col)
