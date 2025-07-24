@@ -2,6 +2,15 @@ package table
 
 import "github.com/iota-uz/iota-sdk/components/base"
 
+// Query parameter constants
+const (
+	QueryParamSearch = "Search"
+	QueryParamPage   = "page"
+	QueryParamLimit  = "limit"
+	QueryParamSort   = "sort"
+	QueryParamOrder  = "order"
+)
+
 // Re-export SortDirection from base package for backwards compatibility
 type SortDirection = base.SortDirection
 
