@@ -591,7 +591,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			currentParams.Del("limit")
 
 			col := table.Column(f.Name(), fieldLabel,
-				table.WithSortable(true),
+				table.WithSortable(),
 				table.WithSortDir(table.GetSortDirection(f.Name(), sortField, sortOrder)),
 				table.WithSortURL(table.GenerateSortURLWithParams(c.basePath, f.Name(), sortField, sortOrder, currentParams)),
 			)

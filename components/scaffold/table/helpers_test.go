@@ -166,7 +166,7 @@ func TestGetSortDirection(t *testing.T) {
 
 func TestColumnWithSortingOptions(t *testing.T) {
 	col := Column("name", "Name",
-		WithSortable(true),
+		WithSortable(),
 		WithSortDir(SortDirectionAsc),
 		WithSortURL("/users?sort=name&order=desc"),
 	)
@@ -178,12 +178,22 @@ func TestColumnWithSortingOptions(t *testing.T) {
 	assert.Equal(t, "/users?sort=name&order=desc", col.SortURL())
 }
 
-func TestColumnWithoutSorting(t *testing.T) {
+func TestColumnDefaultBehavior(t *testing.T) {
 	col := Column("actions", "Actions")
 
 	assert.Equal(t, "actions", col.Key())
 	assert.Equal(t, "Actions", col.Label())
-	assert.False(t, col.Sortable()) // Default should be false
+	assert.False(t, col.Sortable()) // Should be false by default
+	assert.Equal(t, SortDirectionNone, col.SortDir())
+	assert.Equal(t, "", col.SortURL())
+}
+
+func TestColumnWithSortable(t *testing.T) {
+	col := Column("name", "Name", WithSortable())
+
+	assert.Equal(t, "name", col.Key())
+	assert.Equal(t, "Name", col.Label())
+	assert.True(t, col.Sortable()) // Should be true with WithSortable
 	assert.Equal(t, SortDirectionNone, col.SortDir())
 	assert.Equal(t, "", col.SortURL())
 }
