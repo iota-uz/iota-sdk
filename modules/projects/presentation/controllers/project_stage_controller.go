@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -300,39 +299,4 @@ func (c *ProjectStageController) Delete(
 	}
 
 	shared.Redirect(w, r, c.basePath)
-}
-
-func (c *ProjectStageController) getListParams(r *http.Request) struct {
-	Limit  int
-	Offset int
-	SortBy []string
-} {
-	limit := 50
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil {
-			limit = parsed
-		}
-	}
-
-	offset := 0
-	if o := r.URL.Query().Get("offset"); o != "" {
-		if parsed, err := strconv.Atoi(o); err == nil {
-			offset = parsed
-		}
-	}
-
-	var sortBy []string
-	if s := r.URL.Query().Get("sort"); s != "" {
-		sortBy = []string{s}
-	}
-
-	return struct {
-		Limit  int
-		Offset int
-		SortBy []string
-	}{
-		Limit:  limit,
-		Offset: offset,
-		SortBy: sortBy,
-	}
 }

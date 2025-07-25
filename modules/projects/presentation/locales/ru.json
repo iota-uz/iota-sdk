@@ -79,6 +79,8 @@
       }
     },
     "Single": {
+      "ProjectID": "Проект",
+      "SelectProject": "Выберите проект",
       "StageNumber": "Номер этапа",
       "_Description": "Описание",
       "TotalAmount": "Общая сумма",

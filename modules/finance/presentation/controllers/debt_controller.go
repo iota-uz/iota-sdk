@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
+	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/pages/debts"
@@ -82,6 +83,12 @@ func (c *DebtsController) Register(r *mux.Router) {
 func (c *DebtsController) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pageCtx := composables.UsePageCtx(ctx)
+
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 
 	paginationParams := composables.UsePaginated(r)
 	params := &debt.FindParams{
@@ -299,6 +306,14 @@ func (c *DebtsController) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *DebtsController) Update(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.DebtUpdate); err != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	id, err := shared.ParseUUID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
