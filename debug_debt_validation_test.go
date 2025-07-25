@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"testing"
 	"time"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	coreServices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -12,10 +13,56 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/text/language"
 )
+
+func setupLocalizer(t *testing.T) context.Context {
+	t.Helper()
+
+	bundle := i18n.NewBundle(language.English)
+	err := bundle.AddMessages(language.English,
+		&i18n.Message{
+			ID:    "Debts.Single.CounterpartyID",
+			Other: "Counterparty",
+		},
+		&i18n.Message{
+			ID:    "Debts.Single.Amount",
+			Other: "Amount",
+		},
+		&i18n.Message{
+			ID:    "Debts.Single.Type",
+			Other: "Type",
+		},
+		&i18n.Message{
+			ID:    "Debts.Single.Description",
+			Other: "Description",
+		},
+		&i18n.Message{
+			ID:    "Debts.Single.DueDate",
+			Other: "Due Date",
+		},
+		&i18n.Message{
+			ID:    "ValidationErrors.required",
+			Other: "{{.Field}} is required",
+		},
+		&i18n.Message{
+			ID:    "ValidationErrors.min",
+			Other: "{{.Field}} must be greater than 0",
+		},
+		&i18n.Message{
+			ID:    "ValidationErrors.oneof",
+			Other: "{{.Field}} must be one of the allowed values",
+		},
+	)
+	require.NoError(t, err)
+
+	localizer := i18n.NewLocalizer(bundle, "en")
+	return intl.WithLocalizer(context.Background(), localizer)
+}
 
 func TestDebugDebtValidation(t *testing.T) {
 	adminUser := itf.User()
@@ -48,6 +95,9 @@ func TestDebugDebtValidation(t *testing.T) {
 
 	now := time.Now()
 
+	// Set up a context with localizer for DTO validation
+	ctx := setupLocalizer(t)
+
 	// Test the DTO validation directly
 	dto := &dtos.DebtCreateDTO{
 		CounterpartyID: createdCounterparty.ID().String(),
@@ -57,30 +107,16 @@ func TestDebugDebtValidation(t *testing.T) {
 		DueDate:        shared.DateOnly(now),
 	}
 
-	fmt.Printf("=== DTO VALUES ===\n")
-	fmt.Printf("CounterpartyID: %s\n", dto.CounterpartyID)
-	fmt.Printf("Amount: %f\n", dto.Amount)
-	fmt.Printf("Type: %s\n", dto.Type)
-	fmt.Printf("Description: %s\n", dto.Description)
-	fmt.Printf("DueDate: %s\n", time.Time(dto.DueDate).Format(time.DateOnly))
-	fmt.Printf("==================\n")
-
 	// Validate the DTO
-	errors, isValid := dto.Ok(env.Ctx)
-
-	fmt.Printf("=== VALIDATION RESULT ===\n")
-	fmt.Printf("IsValid: %t\n", isValid)
-	fmt.Printf("Errors: %+v\n", errors)
-	fmt.Printf("========================\n")
+	errors, isValid := dto.Ok(ctx)
 
 	if !isValid {
 		for field, message := range errors {
-			fmt.Printf("Field '%s': %s\n", field, message)
+			t.Logf("Field '%s': %s\n", field, message)
 		}
 	}
 
 	// Also test with empty/invalid values
-	fmt.Printf("\n=== TESTING INVALID DTO ===\n")
 	invalidDTO := &dtos.DebtCreateDTO{
 		CounterpartyID: "",
 		Amount:         0,
@@ -89,13 +125,11 @@ func TestDebugDebtValidation(t *testing.T) {
 		DueDate:        shared.DateOnly{},
 	}
 
-	invalidErrors, invalidIsValid := invalidDTO.Ok(env.Ctx)
-	fmt.Printf("IsValid: %t\n", invalidIsValid)
-	fmt.Printf("Errors: %+v\n", invalidErrors)
+	invalidErrors, invalidIsValid := invalidDTO.Ok(ctx)
 
 	if !invalidIsValid {
 		for field, message := range invalidErrors {
-			fmt.Printf("Field '%s': %s\n", field, message)
+			t.Logf("Field '%s': %s\n", field, message)
 		}
 	}
 }

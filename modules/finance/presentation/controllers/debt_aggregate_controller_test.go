@@ -158,7 +158,7 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 
 	html := response.HTML()
 	// Should have table headers but no data rows
-	require.Equal(t, 0, len(html.Elements("//table//tbody//tr")))
+	require.Empty(t, html.Elements("//table//tbody//tr"))
 }
 
 func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {

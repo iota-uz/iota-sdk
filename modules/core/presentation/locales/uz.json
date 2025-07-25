@@ -19,6 +19,8 @@
     "required": "Bu maydon to'ldirilishi shart",
     "emptySelect": "Qiymatni tanlang",
     "email": "Email formati noto'g'ri",
+    "min": "{{.Field}} minimal qiymatdan kam bo'lmasligi kerak",
+    "max": "{{.Field}} maksimal qiymatdan oshmasligi kerak",
     "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
     "custom": "{{.Field}}: {{.Error}}",
     "uuid": "Haqiqiy UUID bo'lishi kerak",

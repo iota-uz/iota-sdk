@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/debt"
+	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
@@ -64,6 +65,12 @@ func (c *DebtAggregateController) Register(r *mux.Router) {
 func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	pageCtx := composables.UsePageCtx(ctx)
+
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 
 	// Get pagination parameters
 	paginationParams := composables.UsePaginated(r)
@@ -133,6 +140,14 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.DebtRead); err != nil {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	counterpartyIDStr := mux.Vars(r)["counterparty_id"]
 	counterpartyID, err := uuid.Parse(counterpartyIDStr)
 	if err != nil {
@@ -140,7 +155,6 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 		return
 	}
 
-	ctx := r.Context()
 	pageCtx := composables.UsePageCtx(ctx)
 
 	debts, err := c.debtService.GetByCounterpartyID(ctx, counterpartyID)

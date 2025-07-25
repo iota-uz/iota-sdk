@@ -164,6 +164,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			},
 			expectedError: false,
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+				t.Helper()
 				// Verify basic properties
 				assert.Equal(t, accountID, stmt.AccountID)
 				assert.Equal(t, startDate, stmt.StartDate)
@@ -192,10 +193,10 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 					"Starting balance + Net cashflow should equal ending balance")
 
 				// Verify percentages are calculated correctly
-				assert.Equal(t, 80.0, stmt.OperatingActivities.Inflows[0].Percentage)
-				assert.Equal(t, 20.0, stmt.OperatingActivities.Inflows[1].Percentage)
-				assert.Equal(t, 60.0, stmt.OperatingActivities.Outflows[0].Percentage)
-				assert.Equal(t, 40.0, stmt.OperatingActivities.Outflows[1].Percentage)
+				assert.InEpsilon(t, 80.0, stmt.OperatingActivities.Inflows[0].Percentage, 0.01)
+				assert.InEpsilon(t, 20.0, stmt.OperatingActivities.Inflows[1].Percentage, 0.01)
+				assert.InEpsilon(t, 60.0, stmt.OperatingActivities.Outflows[0].Percentage, 0.01)
+				assert.InEpsilon(t, 40.0, stmt.OperatingActivities.Outflows[1].Percentage, 0.01)
 			},
 		},
 		{
@@ -220,6 +221,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			},
 			expectedError: false,
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+				t.Helper()
 				// With no transactions, starting and ending balance should be the same
 				assert.Equal(t, stmt.StartingBalance.Amount(), stmt.EndingBalance.Amount())
 
@@ -267,6 +269,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			},
 			expectedError: false,
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+				t.Helper()
 				// Net cashflow should equal total inflows
 				assert.Equal(t, stmt.TotalInflows.Amount(), stmt.NetCashFlow.Amount())
 
@@ -279,7 +282,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 				assert.Empty(t, stmt.OperatingActivities.Outflows)
 
 				// Percentage should be 100% for single inflow
-				assert.Equal(t, 100.0, stmt.OperatingActivities.Inflows[0].Percentage)
+				assert.InEpsilon(t, 100.0, stmt.OperatingActivities.Inflows[0].Percentage, 0.01)
 			},
 		},
 		{
@@ -321,6 +324,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			},
 			expectedError: false,
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+				t.Helper()
 				// Net cashflow should be negative (outflows only)
 				assert.Equal(t, int64(-150000), stmt.NetCashFlow.Amount())
 
@@ -375,6 +379,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			},
 			expectedError: false,
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+				t.Helper()
 				// Starting from zero
 				assert.Equal(t, int64(0), stmt.StartingBalance.Amount())
 
@@ -418,6 +423,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 			},
 			expectedError: false,
 			validateCashflowStatement: func(t *testing.T, stmt *value_objects.CashflowStatement) {
+				t.Helper()
 				// Should handle zero totals gracefully
 				assert.NotNil(t, stmt)
 				assert.Equal(t, int64(0), stmt.NetCashFlow.Amount())

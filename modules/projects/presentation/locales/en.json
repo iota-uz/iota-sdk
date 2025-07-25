@@ -82,7 +82,7 @@
       "ProjectID": "Project",
       "SelectProject": "Select a project",
       "StageNumber": "Stage Number",
-      "Desc": "Description",
+      "_Description": "Description",
       "TotalAmount": "Total Amount",
       "PaidAmount": "Paid Amount",
       "StartDate": "Start Date",
