@@ -195,7 +195,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 		// For this test, we'll verify that the ending balance makes sense
 		// but not enforce the starting + net = ending formula
-		assert.True(t, stmt.EndingBalance.Amount() > 0, "Ending balance should be positive")
+		assert.Positive(t, stmt.EndingBalance.Amount(), "Ending balance should be positive")
 
 		// Verify categories appear correctly
 		assert.Len(t, stmt.OperatingActivities.Inflows, 1)
@@ -313,7 +313,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		t.Logf("Ending Balance (March 31): %s", stmt.EndingBalance.Display())
 
 		// Verify that starting balance includes historical transactions
-		assert.True(t, stmt.StartingBalance.Amount() > 0, "Starting balance should include historical transactions")
+		assert.Positive(t, stmt.StartingBalance.Amount(), "Starting balance should include historical transactions")
 
 		// Only March transaction should be in the cashflow
 		assert.Equal(t, int64(200000), stmt.TotalInflows.Amount())
@@ -321,7 +321,7 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		assert.Equal(t, int64(200000), stmt.NetCashFlow.Amount())
 
 		// Ending balance should be greater than starting balance (we added $2,000)
-		assert.True(t, stmt.EndingBalance.Amount() > stmt.StartingBalance.Amount(), "Ending balance should be greater than starting")
+		assert.Greater(t, stmt.EndingBalance.Amount(), stmt.StartingBalance.Amount(), "Ending balance should be greater than starting")
 	})
 
 	t.Run("Edge case - transactions on period boundaries", func(t *testing.T) {
