@@ -44,6 +44,10 @@ For navigation and layout:
 - Implement breadcrumbs for deep navigation
 - Use htmx boost for smooth transitions
 
+For icons:
+- Use existing icons from `iota-uz/icons/phosphor`
+- Use import alias `icons "iota-uz/icons/phosphor"`
+
 **Technical Requirements:**
 - Always use `pkg/htmx` for htmx interactions
 - Include proper CSS classes following IOTA SDK patterns
