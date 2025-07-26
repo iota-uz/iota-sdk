@@ -116,7 +116,7 @@ func (g *GormDebtRepository) GetPaginated(ctx context.Context, params *debt.Find
 	}
 
 	if params.CreatedAt.To != "" && params.CreatedAt.From != "" {
-		where = append(where, fmt.Sprintf("created_at BETWEEN $%d and $%d", len(args)+1, len(args)+2))
+		where = append(where, fmt.Sprintf("created_at >= $%d::date AND created_at < ($%d::date + interval '1 day')", len(args)+1, len(args)+2))
 		args = append(args, params.CreatedAt.From, params.CreatedAt.To)
 	}
 

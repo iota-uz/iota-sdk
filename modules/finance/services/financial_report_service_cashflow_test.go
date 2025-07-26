@@ -127,26 +127,26 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 					},
 				}
 
-				// Outflows
+				// Outflows (should be negative amounts)
 				outflows := []query.CashflowLineItem{
 					{
 						CategoryID:   uuid.New(),
 						CategoryName: "Office Expenses",
-						Amount:       money.New(30000, currency), // $300.00
+						Amount:       money.New(-30000, currency), // -$300.00
 						Count:        10,
 						Percentage:   60.0,
 					},
 					{
 						CategoryID:   uuid.New(),
 						CategoryName: "Utilities",
-						Amount:       money.New(20000, currency), // $200.00
+						Amount:       money.New(-20000, currency), // -$200.00
 						Count:        4,
 						Percentage:   40.0,
 					},
 				}
 
-				totalInflows := money.New(100000, currency) // $1,000.00
-				totalOutflows := money.New(50000, currency) // $500.00
+				totalInflows := money.New(100000, currency)  // $1,000.00
+				totalOutflows := money.New(-50000, currency) // -$500.00
 
 				cashflowData := &query.CashflowData{
 					AccountID:       accountID,
@@ -180,7 +180,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 
 				// Verify totals
 				assert.Equal(t, int64(100000), stmt.TotalInflows.Amount())
-				assert.Equal(t, int64(50000), stmt.TotalOutflows.Amount())
+				assert.Equal(t, int64(-50000), stmt.TotalOutflows.Amount())
 
 				// Verify operating activities
 				assert.Len(t, stmt.OperatingActivities.Inflows, 2)
@@ -295,14 +295,14 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 					{
 						CategoryID:   uuid.New(),
 						CategoryName: "Rent",
-						Amount:       money.New(100000, currency), // $1,000.00
+						Amount:       money.New(-100000, currency), // -$1,000.00
 						Count:        1,
 						Percentage:   66.67,
 					},
 					{
 						CategoryID:   uuid.New(),
 						CategoryName: "Salaries",
-						Amount:       money.New(50000, currency), // $500.00
+						Amount:       money.New(-50000, currency), // -$500.00
 						Count:        1,
 						Percentage:   33.33,
 					},
@@ -317,7 +317,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 					Inflows:         []query.CashflowLineItem{},
 					Outflows:        outflows,
 					TotalInflows:    money.New(0, currency),
-					TotalOutflows:   money.New(150000, currency),
+					TotalOutflows:   money.New(-150000, currency),
 				}
 
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
@@ -357,7 +357,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 					{
 						CategoryID:   uuid.New(),
 						CategoryName: "Setup Costs",
-						Amount:       money.New(25000, currency), // $250.00
+						Amount:       money.New(-25000, currency), // -$250.00
 						Count:        3,
 						Percentage:   100.0,
 					},
@@ -372,7 +372,7 @@ func TestFinancialReportService_GenerateCashflowStatement_Calculations(t *testin
 					Inflows:         inflows,
 					Outflows:        outflows,
 					TotalInflows:    money.New(50000, currency),
-					TotalOutflows:   money.New(25000, currency),
+					TotalOutflows:   money.New(-25000, currency),
 				}
 
 				mockRepo.On("GetCashflowData", mock.Anything, accountID, startDate, endDate).Return(cashflowData, nil)
@@ -513,13 +513,13 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 				{
 					CategoryID:   uuid.New(),
 					CategoryName: "Expenses",
-					Amount:       money.New(50000, currency),
+					Amount:       money.New(-50000, currency),
 					Count:        10,
 					Percentage:   100.0,
 				},
 			},
 			TotalInflows:  money.New(100000, currency),
-			TotalOutflows: money.New(50000, currency),
+			TotalOutflows: money.New(-50000, currency),
 		}
 
 		mockRepo.On("GetCashflowData", ctx, accountID, startDate, endDate).Return(cashflowData, nil)
@@ -531,7 +531,7 @@ func TestCashflowStatement_BusinessRules(t *testing.T) {
 		assert.Equal(t, historicalStartingBalance.Amount(), result.StartingBalance.Amount())
 
 		// Verify balance reconciliation still works
-		netCashflow, _ := result.TotalInflows.Subtract(result.TotalOutflows)
+		netCashflow, _ := result.TotalInflows.Add(result.TotalOutflows)
 		reconciledBalance, _ := result.StartingBalance.Add(netCashflow)
 		assert.Equal(t, result.EndingBalance.Amount(), reconciledBalance.Amount(),
 			"Historical starting balance + Net cashflow should equal ending balance")
