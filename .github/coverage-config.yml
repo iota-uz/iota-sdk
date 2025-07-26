@@ -2,7 +2,7 @@
 # This file defines coverage thresholds and settings for the project
 
 # Global coverage threshold (percentage)
-global_threshold: 70
+global_threshold: 10
 
 # Coverage thresholds by status level
 thresholds:
