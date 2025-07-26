@@ -46,19 +46,55 @@ class CoverageReporter {
       const coverage = parseFloat(coverageMatch[1]);
       const coverageStr = `${coverage.toFixed(1)}%`;
 
-      // Parse package coverage
-      const packages = lines
-        .filter(line => !line.includes('.go:') && !line.includes('total:') && line.trim())
-        .map(line => {
+      // Parse package coverage by aggregating function coverage
+      const packageCoverage = {};
+      const packageStats = {};
+      
+      // First, collect all functions and their coverage by package
+      lines
+        .filter(line => line.includes('.go:') && !line.includes('total:'))
+        .forEach(line => {
           const parts = line.trim().split(/\s+/);
           if (parts.length >= 3) {
-            const pkg = parts[0].replace('github.com/iota-uz/iota-sdk/', '');
+            const funcPath = parts[0];
             const cov = parts[2];
-            return { package: pkg, coverage: cov, coverageNum: parseFloat(cov.replace('%', '')) };
+            const covNum = parseFloat(cov.replace('%', ''));
+            
+            // Extract package from function path
+            const packageMatch = funcPath.match(/^(.+?)\/[^/]+\.go:/);
+            if (packageMatch) {
+              const pkg = packageMatch[1].replace('github.com/iota-uz/iota-sdk/', '');
+              
+              if (!packageStats[pkg]) {
+                packageStats[pkg] = { covered: 0, total: 0 };
+              }
+              
+              packageStats[pkg].total++;
+              if (covNum > 0) {
+                packageStats[pkg].covered++;
+              }
+              
+              // Store the sum for average calculation
+              if (!packageCoverage[pkg]) {
+                packageCoverage[pkg] = { sum: 0, count: 0 };
+              }
+              packageCoverage[pkg].sum += covNum;
+              packageCoverage[pkg].count++;
+            }
           }
-          return null;
+        });
+      
+      // Calculate average coverage per package
+      const packages = Object.entries(packageCoverage)
+        .map(([pkg, stats]) => {
+          const avgCoverage = stats.count > 0 ? (stats.sum / stats.count) : 0;
+          return {
+            package: pkg,
+            coverage: `${avgCoverage.toFixed(1)}%`,
+            coverageNum: avgCoverage
+          };
         })
-        .filter(Boolean)
+        .filter(pkg => pkg.package && pkg.package.length > 0)
         .sort((a, b) => b.coverageNum - a.coverageNum);
 
       // Parse function coverage
