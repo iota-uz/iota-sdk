@@ -31,12 +31,19 @@ func (r *TableRenderer) RenderFull() templ.Component {
 		Rows:       r.data.Rows(),
 	}
 
-	// Set infinite scroll if enabled and has data
-	if r.definition.EnableInfiniteScroll() && r.data != nil {
+	// Always initialize Infinite config to avoid nil pointer dereference
+	if r.data != nil {
 		cfg.Infinite = &InfiniteScrollConfig{
-			HasMore: r.data.HasMore(),
+			HasMore: r.definition.EnableInfiniteScroll() && r.data.HasMore(),
 			Page:    r.data.Pagination().Page,
 			PerPage: r.data.Pagination().PerPage,
+		}
+	} else {
+		// Fallback if data is nil
+		cfg.Infinite = &InfiniteScrollConfig{
+			HasMore: false,
+			Page:    1,
+			PerPage: 20,
 		}
 	}
 
@@ -55,15 +62,54 @@ func (r *TableRenderer) RenderTable() templ.Component {
 		Rows:       r.data.Rows(),
 	}
 
-	if r.definition.EnableInfiniteScroll() && r.data != nil {
+	// Always initialize Infinite config to avoid nil pointer dereference
+	if r.data != nil {
 		cfg.Infinite = &InfiniteScrollConfig{
-			HasMore: r.data.HasMore(),
+			HasMore: r.definition.EnableInfiniteScroll() && r.data.HasMore(),
 			Page:    r.data.Pagination().Page,
 			PerPage: r.data.Pagination().PerPage,
+		}
+	} else {
+		// Fallback if data is nil
+		cfg.Infinite = &InfiniteScrollConfig{
+			HasMore: false,
+			Page:    1,
+			PerPage: 20,
 		}
 	}
 
 	return Content(cfg)
+}
+
+// RenderEmbedded renders the table for embedded view (without margins)
+func (r *TableRenderer) RenderEmbedded() templ.Component {
+	cfg := &TableConfig{
+		Title:      r.definition.Title(),
+		DataURL:    r.definition.DataURL(),
+		Columns:    r.definition.Columns(),
+		Filters:    r.definition.Filters(),
+		Actions:    r.definition.Actions(),
+		SideFilter: r.definition.SideFilter(),
+		Rows:       r.data.Rows(),
+	}
+
+	// Always initialize Infinite config to avoid nil pointer dereference
+	if r.data != nil {
+		cfg.Infinite = &InfiniteScrollConfig{
+			HasMore: r.definition.EnableInfiniteScroll() && r.data.HasMore(),
+			Page:    r.data.Pagination().Page,
+			PerPage: r.data.Pagination().PerPage,
+		}
+	} else {
+		// Fallback if data is nil
+		cfg.Infinite = &InfiniteScrollConfig{
+			HasMore: false,
+			Page:    1,
+			PerPage: 20,
+		}
+	}
+
+	return EmbeddedContent(cfg)
 }
 
 // RenderRows renders only the data rows (for HTMX requests)
@@ -74,11 +120,19 @@ func (r *TableRenderer) RenderRows() templ.Component {
 		Rows:    r.data.Rows(),
 	}
 
-	if r.definition.EnableInfiniteScroll() && r.data != nil {
+	// Always initialize Infinite config to avoid nil pointer dereference
+	if r.data != nil {
 		cfg.Infinite = &InfiniteScrollConfig{
-			HasMore: r.data.HasMore(),
+			HasMore: r.definition.EnableInfiniteScroll() && r.data.HasMore(),
 			Page:    r.data.Pagination().Page,
 			PerPage: r.data.Pagination().PerPage,
+		}
+	} else {
+		// Fallback if data is nil
+		cfg.Infinite = &InfiniteScrollConfig{
+			HasMore: false,
+			Page:    1,
+			PerPage: 20,
 		}
 	}
 

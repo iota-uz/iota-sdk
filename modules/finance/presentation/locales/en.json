@@ -33,6 +33,7 @@
   },
   "NavigationLinks": {
     "Finances": "Finances",
+    "FinancialOverview": "Financial Overview",
     "Transactions": "Transactions",
     "Accounts": "Accounts",
     "Expenses": "Expenses",
@@ -41,12 +42,18 @@
     "PaymentCategories": "Payment categories",
     "Counterparties": "Counterparties",
     "Debts": "Debts",
+    "DebtAggregates": "Debt Summary",
     "Inventory": "Inventory",
     "Reports": "Reports",
     "IncomeStatement": "Income Statement",
     "CashflowStatement": "Cash Flow Statement",
     "Finance": {
       "Enums": "Enums"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Financial Overview"
     }
   },
   "ExpenseCategories": {
@@ -540,6 +547,28 @@
       "Settled": "Debt settled successfully",
       "WrittenOff": "Debt written off successfully"
     }
+  },
+  "DebtAggregates": {
+    "Meta": {
+      "List": {
+        "Title": "Debt Summary by Counterparty"
+      }
+    },
+    "List": {
+      "Counterparty": "Counterparty",
+      "TotalReceivable": "Total Receivable",
+      "TotalPayable": "Total Payable",
+      "OutstandingReceivable": "Outstanding Receivable",
+      "OutstandingPayable": "Outstanding Payable",
+      "NetAmount": "Net Amount",
+      "DebtCount": "Total Debts"
+    },
+    "Drawer": {
+      "Title": "Debt Details"
+    }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
   }
 }
 

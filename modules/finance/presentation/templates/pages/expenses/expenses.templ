@@ -150,6 +150,58 @@ templ ExpensesContent(props *IndexPageProps) {
 	</div>
 }
 
+templ ExpensesEmbedded(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="bg-surface-600 border border-primary rounded-lg">
+		<form
+			class="p-4 flex items-center gap-3"
+			hx-get="/finance/expenses"
+			hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+			hx-target="#expenses-table-body"
+			hx-swap="innerHTML"
+			hx-indicator="#expenses-table-body"
+		>
+			<input type="hidden" name="page" value="1"/>
+			<div class="flex-1">
+				@input.Text(&input.Props{
+					AddonLeft: &input.Addon{
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: pageCtx.T("Search"),
+					Attrs: templ.Attributes{
+						"name": "Search",
+					},
+				})
+			</div>
+			<div class="hidden md:flex gap-3">
+				@filters.CreatedAt()
+				@export.ExportDropdown(export.ExportDropdownProps{
+					Formats: []export.ExportFormat{
+						export.ExportFormatExcel,
+						export.ExportFormatCSV,
+						export.ExportFormatJSON,
+					},
+					ExportURL: "/finance/expenses/export",
+					Label:     pageCtx.T("Expenses.List.Export"),
+					Size:      button.SizeNormal,
+					Attrs: templ.Attributes{
+						"hx-include": "closest form",
+						"hx-target":  "body",
+						"hx-swap":    "none",
+					},
+				})
+				@button.Primary(button.Props{
+					Size: button.SizeNormal, Href: "/finance/expenses/new",
+					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+				}) {
+					{ pageCtx.T("Expenses.List.New") }
+				}
+			</div>
+		</form>
+		@ExpensesTable(props)
+	</div>
+}
+
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{

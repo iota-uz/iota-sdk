@@ -104,7 +104,7 @@ jobs:
           POSTGRES_INITDB_ARGS: "-c max_connections=500 -c shared_buffers=512MB \
                                  -c fsync=off -c synchronous_commit=off"
         options: >-
-          --tmpfs /var/lib/postgresql/data:rw,size=4g
+          --tmpfs /var/lib/postgresql/data:rw,size=6g
           --health-cmd="pg_isready -U postgres -d iota_erp"
           --health-interval=5s --health-timeout=5s --health-retries=5
 
@@ -143,39 +143,18 @@ jobs:
           make seed
 
       - name: Run tests with coverage
-        run: |
-          go test -v ./... -coverprofile=coverage.out
+        run: go test -v ./... -coverprofile=coverage.out -covermode=atomic
 
-          # Extract coverage percentage
-          COVERAGE=$(go tool cover -func=coverage.out | grep "total:" | awk '{print $3}')
-          COVERAGE_NUM=$(echo $COVERAGE | sed 's/%//')
+      - name: Generate coverage report
+        env:
+          COVERAGE_THRESHOLD: 10
+        run: node ./.github/scripts/coverage-report.js --file coverage.out --output github
 
-          # Determine coverage status
-          if (( $(echo "$COVERAGE_NUM >= 80" | bc -l) )); then
-            STATUS="🟢 Good"
-          elif (( $(echo "$COVERAGE_NUM >= 60" | bc -l) )); then
-            STATUS="🟡 Fair"
-          else
-            STATUS="🔴 Low"
-          fi
-
-          # Create GitHub job summary
-          echo "## 📊 Test Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Total Coverage** | **$COVERAGE** |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Status** | $STATUS |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Add coverage breakdown
-          echo "### 📋 Coverage by Package" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          go tool cover -func=coverage.out | head -20 >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-          echo "Total Coverage: $COVERAGE"
+      - name: Upload coverage to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: coverage.out
 
       - name: Drop test databases
         if: always()

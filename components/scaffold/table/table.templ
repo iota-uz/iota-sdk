@@ -205,8 +205,16 @@ templ TableSection(config *TableConfig) {
 	</form>
 }
 
+// EmbeddedContent renders the table content without margins for embedded view
+templ EmbeddedContent(config *TableConfig) {
+	@TableSection(config)
+	<!-- Placeholder for the view drawer -->
+	<div id="view-drawer"></div>
+}
+
 // Content renders the complete scaffold page content with filters and table
 templ Content(config *TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
 		<div class="flex justify-between md:justify-start">
 			<h1 class="text-2xl font-medium">
@@ -221,17 +229,17 @@ templ Content(config *TableConfig) {
 						"x-data": "",
 						"@click": "$dispatch('open-filters')",
 					},
-				})
+				}) {
+					{ pageCtx.T("Scaffold.Filters.Title") }
+				}
 				for _, action := range config.Actions {
 					@action
 				}
 			</div>
 		</div>
 		<div class="mt-5">
-			@TableSection(config)
+			@EmbeddedContent(config)
 		</div>
-		<!-- Placeholder for the view drawer -->
-		<div id="view-drawer"></div>
 	</div>
 }
 

@@ -141,7 +141,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 			templ_7745c5c3_Err = components.CounterpartySelect(&components.CounterpartySelectProps{
 				Label:          pageCtx.T("Projects.Single.Counterparty"),
 				Placeholder:    pageCtx.T("Projects.Single.SelectCounterparty"),
-				Value:          props.UpdateData.CounterpartyID.String(),
+				Value:          props.UpdateData.CounterpartyID,
 				Name:           "CounterpartyID",
 				NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
 				Counterparties: props.Counterparties,
@@ -150,7 +150,7 @@ func EditDrawer(props *DrawerEditProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label: pageCtx.T("Projects.Single.Description"),
+				Label: pageCtx.T("Projects.Single._Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 				},
@@ -351,7 +351,7 @@ func CreateDrawer(props *DrawerCreateProps) templ.Component {
 			templ_7745c5c3_Err = components.CounterpartySelect(&components.CounterpartySelectProps{
 				Label:          pageCtx.T("Projects.Single.Counterparty"),
 				Placeholder:    pageCtx.T("Projects.Single.SelectCounterparty"),
-				Value:          props.Project.CounterpartyID.String(),
+				Value:          props.Project.CounterpartyID,
 				Name:           "CounterpartyID",
 				NotFoundText:   pageCtx.T("Projects.Single.NoCounterpartiesFound"),
 				Counterparties: props.Counterparties,
@@ -360,7 +360,7 @@ func CreateDrawer(props *DrawerCreateProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = input.TextArea(&input.TextAreaProps{
-				Label: pageCtx.T("Projects.Single.Description"),
+				Label: pageCtx.T("Projects.Single._Description"),
 				Attrs: templ.Attributes{
 					"name": "Description",
 				},

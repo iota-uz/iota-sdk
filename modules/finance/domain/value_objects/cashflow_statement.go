@@ -103,7 +103,7 @@ func (cs *CashflowStatement) CalculateTotals() {
 
 	cs.TotalInflows = totalInflows
 	cs.TotalOutflows = totalOutflows
-	cs.NetCashFlow, _ = totalInflows.Subtract(totalOutflows)
+	cs.NetCashFlow, _ = totalInflows.Add(totalOutflows)
 
 	// Calculate section net cashflows
 	cs.OperatingActivities.NetCashFlow = cs.calculateSectionNetCashflow(cs.OperatingActivities)
@@ -122,7 +122,7 @@ func (cs *CashflowStatement) calculateSectionNetCashflow(section CashflowSection
 		outflows, _ = outflows.Add(item.Amount)
 	}
 
-	netCashflow, _ := inflows.Subtract(outflows)
+	netCashflow, _ := inflows.Add(outflows)
 	return netCashflow
 }
 

@@ -79,8 +79,11 @@
       }
     },
     "Single": {
+      "ProjectID": "Loyiha",
+      "SelectProject": "Loyihani tanlang",
       "StageNumber": "Bosqich raqami",
       "_Description": "Tavsif",
+      "Desc": "Tavsif",
       "TotalAmount": "Umumiy summa",
       "PaidAmount": "To'langan summa",
       "StartDate": "Boshlanish sanasi",

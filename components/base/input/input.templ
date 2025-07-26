@@ -27,8 +27,14 @@ type Props struct {
 }
 
 func newInput(props *Props) *Props {
-	id := random.String(12, random.LowerCharSet)
-	props.id = id
+	// Check if an explicit ID is provided in Attrs
+	if explicitID, exists := props.Attrs["id"]; exists && explicitID != "" {
+		props.id = explicitID.(string)
+	} else {
+		// Generate random ID only if none is provided
+		id := random.String(12, random.LowerCharSet)
+		props.id = id
+	}
 	return props
 }
 
