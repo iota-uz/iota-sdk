@@ -125,18 +125,20 @@ templ Table(config *TableConfig) {
 			Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
 		})
 	} else {
-		@base.Table(base.TableProps{
-			Columns: toBaseTableColumns(config.Columns),
-			TBodyAttrs: templ.Attributes{
-				"id":          "table-body",
-				"hx-push-url": "false",
-			},
-		}) {
-			@Rows(config)
-			if config.Infinite.HasMore {
-				@InfiniteScrollSpinner(config)
+		<div id="sortable-table-container">
+			@base.Table(base.TableProps{
+				Columns: toBaseTableColumns(config.Columns),
+				TBodyAttrs: templ.Attributes{
+					"id":          "table-body",
+					"hx-push-url": "false",
+				},
+			}) {
+				@Rows(config)
+				if config.Infinite.HasMore {
+					@InfiniteScrollSpinner(config)
+				}
 			}
-		}
+		</div>
 	}
 }
 
