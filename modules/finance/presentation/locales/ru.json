@@ -33,6 +33,7 @@
   },
   "NavigationLinks": {
     "Accounts": "Счета",
+    "FinancialOverview": "Финансовый обзор",
     "Transactions": "Транзакции",
     "Expenses": "Расходы",
     "ExpenseCategories": "Категории расходов",
@@ -41,12 +42,18 @@
     "Finances": "Финансы",
     "Counterparties": "Контрагенты",
     "Debts": "Долги",
+    "DebtAggregates": "Сводка по долгам",
     "Inventory": "Склад",
     "Reports": "Отчёты",
     "IncomeStatement": "Отчёт о прибылях и убытках",
     "CashflowStatement": "Отчёт о движении денежных средств",
     "Finance": {
       "Enums": "Справочники"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Финансовый обзор"
     }
   },
   "ExpenseCategories": {
@@ -540,5 +547,27 @@
       "Settled": "Долг успешно погашен",
       "WrittenOff": "Долг успешно списан"
     }
+  },
+  "DebtAggregates": {
+    "Meta": {
+      "List": {
+        "Title": "Сводка долгов по контрагентам"
+      }
+    },
+    "List": {
+      "Counterparty": "Контрагент",
+      "TotalReceivable": "Всего к получению",
+      "TotalPayable": "Всего к оплате",
+      "OutstandingReceivable": "К получению остаток",
+      "OutstandingPayable": "К оплате остаток",
+      "NetAmount": "Чистая сумма",
+      "DebtCount": "Всего долгов"
+    },
+    "Drawer": {
+      "Title": "Детали долгов"
+    }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
   }
 }

@@ -2,11 +2,11 @@ package controllers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/mappers"
@@ -14,16 +14,17 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type ProjectStageController struct {
-	app                 application.Application
-	projectStageService *services.ProjectStageService
-	basePath            string
-	tableDefinition     table.TableDefinition
+	app             application.Application
+	basePath        string
+	tableDefinition table.TableDefinition
 }
 
 func NewProjectStageController(app application.Application) application.Controller {
@@ -34,10 +35,9 @@ func NewProjectStageController(app application.Application) application.Controll
 		Build()
 
 	return &ProjectStageController{
-		app:                 app,
-		projectStageService: app.Service(services.ProjectStageService{}).(*services.ProjectStageService),
-		basePath:            basePath,
-		tableDefinition:     tableDefinition,
+		app:             app,
+		basePath:        basePath,
+		tableDefinition: tableDefinition,
 	}
 }
 
@@ -59,41 +59,56 @@ func (c *ProjectStageController) Register(r *mux.Router) {
 
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(commonMiddleware...)
-	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", c.GetEditDrawer).Methods(http.MethodGet)
-	router.HandleFunc("/new/drawer", c.GetNewDrawer).Methods(http.MethodGet)
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", di.H(c.GetEditDrawer)).Methods(http.MethodGet)
+	router.HandleFunc("/new/drawer", di.H(c.GetNewDrawer)).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 
 	// Additional route for stages by project
-	router.HandleFunc("/by-project/{projectId:[0-9a-fA-F-]+}", c.ListByProject).Methods(http.MethodGet)
+	router.HandleFunc("/by-project/{projectId:[0-9a-fA-F-]+}", di.H(c.ListByProject)).Methods(http.MethodGet)
 }
 
-func (c *ProjectStageController) List(w http.ResponseWriter, r *http.Request) {
-	params := c.getListParams(r)
+func (c *ProjectStageController) List(
+	r *http.Request,
+	w http.ResponseWriter,
+	projectStageService *services.ProjectStageService,
+) {
+	paginationParams := composables.UsePaginated(r)
 
-	entities, err := c.projectStageService.GetPaginated(r.Context(), params.Limit, params.Offset, params.SortBy)
+	entities, err := projectStageService.GetPaginated(r.Context(), paginationParams.Limit, paginationParams.Offset, []string{})
 	if err != nil {
 		http.Error(w, "Failed to fetch project stages", http.StatusInternalServerError)
 		return
 	}
 
-	_ = mappers.ProjectStageDomainToViewModels(entities)
-
-	if htmx.IsHxRequest(r) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"message": "Project stages table - templates not implemented yet"}`))
+	// Get total count for pagination
+	total, err := projectStageService.Count(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to count project stages", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"message": "Project stages list - templates not implemented yet"}`))
+	viewModels := mappers.ProjectStageDomainToViewModels(entities)
+
+	props := &project_stages.IndexPageProps{
+		ProjectStages:   viewModels,
+		PaginationState: pagination.New(c.basePath, paginationParams.Page, int(total), paginationParams.Limit),
+	}
+
+	if htmx.IsHxRequest(r) {
+		templ.Handler(project_stages.ProjectStagesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		templ.Handler(project_stages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
 }
 
-func (c *ProjectStageController) ListByProject(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectStageController) ListByProject(
+	r *http.Request,
+	w http.ResponseWriter,
+	projectStageService *services.ProjectStageService,
+) {
 	vars := mux.Vars(r)
 	projectID, err := uuid.Parse(vars["projectId"])
 	if err != nil {
@@ -101,35 +116,62 @@ func (c *ProjectStageController) ListByProject(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	entities, err := c.projectStageService.GetByProjectID(r.Context(), projectID)
+	entities, err := projectStageService.GetByProjectID(r.Context(), projectID)
 	if err != nil {
 		http.Error(w, "Failed to fetch project stages", http.StatusInternalServerError)
 		return
 	}
 
-	_ = mappers.ProjectStageDomainToViewModels(entities)
+	viewModels := mappers.ProjectStageDomainToViewModels(entities)
+
+	// For project-filtered views, we don't need pagination since it's typically a smaller set
+	props := &project_stages.IndexPageProps{
+		ProjectStages:   viewModels,
+		PaginationState: nil,
+	}
 
 	if htmx.IsHxRequest(r) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"message": "Project stages by project table - templates not implemented yet"}`))
+		templ.Handler(project_stages.ProjectStagesTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else {
+		templ.Handler(project_stages.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
+
+func (c *ProjectStageController) GetNewDrawer(
+	r *http.Request,
+	w http.ResponseWriter,
+	projectService *services.ProjectService,
+) {
+	// Get available projects
+	projects, err := projectService.GetAll(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to fetch projects", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"message": "Project stages by project list - templates not implemented yet"}`))
-}
+	projectViewModels := mapping.MapViewModels(projects, mappers.ProjectDomainToViewModel)
 
-func (c *ProjectStageController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
+	// Check if a project ID is provided as query parameter
+	dto := dtos.ProjectStageCreateDTO{}
+	if projectID := r.URL.Query().Get("project_id"); projectID != "" {
+		if _, err := uuid.Parse(projectID); err == nil {
+			dto.ProjectID = projectID
+		}
+	}
+
 	props := &project_stages.DrawerCreateProps{
-		ProjectStage: dtos.ProjectStageCreateDTO{},
+		ProjectStage: dto,
+		Projects:     projectViewModels,
 		Errors:       map[string]string{},
 	}
 	templ.Handler(project_stages.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ProjectStageController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectStageController) GetEditDrawer(
+	r *http.Request,
+	w http.ResponseWriter,
+	projectStageService *services.ProjectStageService,
+) {
 	vars := mux.Vars(r)
 	id, err := uuid.Parse(vars["id"])
 	if err != nil {
@@ -137,7 +179,7 @@ func (c *ProjectStageController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	entity, err := c.projectStageService.GetByID(r.Context(), id)
+	entity, err := projectStageService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Project stage not found", http.StatusNotFound)
 		return
@@ -152,7 +194,12 @@ func (c *ProjectStageController) GetEditDrawer(w http.ResponseWriter, r *http.Re
 	templ.Handler(project_stages.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ProjectStageController) Create(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectStageController) Create(
+	r *http.Request,
+	w http.ResponseWriter,
+	projectStageService *services.ProjectStageService,
+	projectService *services.ProjectService,
+) {
 	dto, err := composables.UseForm(&dtos.ProjectStageCreateDTO{}, r)
 	if err != nil {
 		http.Error(w, "Invalid form data", http.StatusBadRequest)
@@ -160,8 +207,18 @@ func (c *ProjectStageController) Create(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		// Get available projects for re-rendering the form
+		projects, err := projectService.GetAll(r.Context())
+		if err != nil {
+			http.Error(w, "Failed to fetch projects", http.StatusInternalServerError)
+			return
+		}
+
+		projectViewModels := mapping.MapViewModels(projects, mappers.ProjectDomainToViewModel)
+
 		props := &project_stages.DrawerCreateProps{
 			ProjectStage: *dto,
+			Projects:     projectViewModels,
 			Errors:       errorsMap,
 		}
 		templ.Handler(project_stages.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -170,7 +227,7 @@ func (c *ProjectStageController) Create(w http.ResponseWriter, r *http.Request) 
 
 	entity := dto.ToEntity()
 
-	if err := c.projectStageService.Create(r.Context(), entity); err != nil {
+	if err := projectStageService.Create(r.Context(), entity); err != nil {
 		http.Error(w, "Failed to save project stage", http.StatusInternalServerError)
 		return
 	}
@@ -178,7 +235,11 @@ func (c *ProjectStageController) Create(w http.ResponseWriter, r *http.Request) 
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ProjectStageController) Update(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectStageController) Update(
+	r *http.Request,
+	w http.ResponseWriter,
+	projectStageService *services.ProjectStageService,
+) {
 	vars := mux.Vars(r)
 	id, err := uuid.Parse(vars["id"])
 	if err != nil {
@@ -192,7 +253,7 @@ func (c *ProjectStageController) Update(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	existing, err := c.projectStageService.GetByID(r.Context(), id)
+	existing, err := projectStageService.GetByID(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Project stage not found", http.StatusNotFound)
 		return
@@ -211,7 +272,7 @@ func (c *ProjectStageController) Update(w http.ResponseWriter, r *http.Request) 
 
 	updated := dto.Apply(existing)
 
-	if err := c.projectStageService.Update(r.Context(), updated); err != nil {
+	if err := projectStageService.Update(r.Context(), updated); err != nil {
 		http.Error(w, "Failed to save project stage", http.StatusInternalServerError)
 		return
 	}
@@ -219,7 +280,11 @@ func (c *ProjectStageController) Update(w http.ResponseWriter, r *http.Request) 
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ProjectStageController) Delete(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectStageController) Delete(
+	r *http.Request,
+	w http.ResponseWriter,
+	projectStageService *services.ProjectStageService,
+) {
 	vars := mux.Vars(r)
 	id, err := uuid.Parse(vars["id"])
 	if err != nil {
@@ -227,46 +292,11 @@ func (c *ProjectStageController) Delete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	_, err = c.projectStageService.Delete(r.Context(), id)
+	_, err = projectStageService.Delete(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Failed to delete project stage", http.StatusInternalServerError)
 		return
 	}
 
 	shared.Redirect(w, r, c.basePath)
-}
-
-func (c *ProjectStageController) getListParams(r *http.Request) struct {
-	Limit  int
-	Offset int
-	SortBy []string
-} {
-	limit := 50
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil {
-			limit = parsed
-		}
-	}
-
-	offset := 0
-	if o := r.URL.Query().Get("offset"); o != "" {
-		if parsed, err := strconv.Atoi(o); err == nil {
-			offset = parsed
-		}
-	}
-
-	var sortBy []string
-	if s := r.URL.Query().Get("sort"); s != "" {
-		sortBy = []string{s}
-	}
-
-	return struct {
-		Limit  int
-		Offset int
-		SortBy []string
-	}{
-		Limit:  limit,
-		Offset: offset,
-		SortBy: sortBy,
-	}
 }

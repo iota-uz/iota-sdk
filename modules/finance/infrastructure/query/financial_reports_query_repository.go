@@ -241,6 +241,35 @@ const (
 		FROM money_accounts ma
 		WHERE ma.id = $1
 			AND ma.tenant_id = $2`
+
+	// Query to calculate account balance at a specific point in time
+	selectAccountBalanceAtDate = `
+		WITH balance_calculation AS (
+			SELECT 
+				COALESCE(ma.balance, 0) as current_balance,
+				ma.balance_currency_id as currency,
+				-- Calculate net changes after the given date
+				COALESCE((
+					SELECT SUM(
+						CASE 
+							WHEN t.destination_account_id = $1 THEN t.amount  -- Inflow
+							WHEN t.origin_account_id = $1 THEN -t.amount      -- Outflow
+							ELSE 0
+						END
+					)
+					FROM transactions t
+					WHERE t.tenant_id = $2
+						AND (t.destination_account_id = $1 OR t.origin_account_id = $1)
+						AND t.accounting_period > $3  -- Transactions after the date
+				), 0) as changes_after_date
+			FROM money_accounts ma
+			WHERE ma.id = $1
+				AND ma.tenant_id = $2
+		)
+		SELECT 
+			current_balance - changes_after_date as balance,
+			currency
+		FROM balance_calculation`
 )
 
 // ReportLineItem represents a single line item in the income statement
@@ -316,6 +345,7 @@ type FinancialReportsQueryRepository interface {
 	GetCashflowByCategory(ctx context.Context, accountID uuid.UUID, startDate, endDate time.Time) ([]CashflowLineItem, []CashflowLineItem, error)
 	GetMonthlyCashflowByCategory(ctx context.Context, accountID uuid.UUID, startDate, endDate time.Time) ([]MonthlyCashflowLineItem, []MonthlyCashflowLineItem, error)
 	GetAccountBalance(ctx context.Context, accountID uuid.UUID) (*money.Money, error)
+	GetAccountBalanceAtDate(ctx context.Context, accountID uuid.UUID, date time.Time) (*money.Money, error)
 }
 
 type pgFinancialReportsQueryRepository struct{}
@@ -633,10 +663,16 @@ func (r *pgFinancialReportsQueryRepository) GetMonthlyExpensesByCategory(ctx con
 
 // GetCashflowData retrieves all data needed for cashflow statement generation
 func (r *pgFinancialReportsQueryRepository) GetCashflowData(ctx context.Context, accountID uuid.UUID, startDate, endDate time.Time) (*CashflowData, error) {
-	// Get account balance
-	currentBalance, err := r.GetAccountBalance(ctx, accountID)
+	// Get historical balance at start date
+	startingBalance, err := r.GetAccountBalanceAtDate(ctx, accountID, startDate)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get account balance")
+		return nil, errors.Wrap(err, "failed to get starting balance")
+	}
+
+	// Get balance at end date (not current balance)
+	endingBalance, err := r.GetAccountBalanceAtDate(ctx, accountID, endDate)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get ending balance")
 	}
 
 	// Get cashflow by category
@@ -646,26 +682,22 @@ func (r *pgFinancialReportsQueryRepository) GetCashflowData(ctx context.Context,
 	}
 
 	// Calculate totals
-	totalInflows := money.New(0, currentBalance.Currency().Code)
+	totalInflows := money.New(0, startingBalance.Currency().Code)
 	for _, item := range inflows {
 		totalInflows, _ = totalInflows.Add(item.Amount)
 	}
 
-	totalOutflows := money.New(0, currentBalance.Currency().Code)
+	totalOutflows := money.New(0, startingBalance.Currency().Code)
 	for _, item := range outflows {
 		totalOutflows, _ = totalOutflows.Add(item.Amount)
 	}
-
-	// Calculate starting balance (current balance - net cashflow)
-	netCashflow, _ := totalInflows.Subtract(totalOutflows)
-	startingBalance, _ := currentBalance.Subtract(netCashflow)
 
 	return &CashflowData{
 		AccountID:       accountID,
 		StartDate:       startDate,
 		EndDate:         endDate,
 		StartingBalance: startingBalance,
-		EndingBalance:   currentBalance,
+		EndingBalance:   endingBalance,
 		Inflows:         inflows,
 		Outflows:        outflows,
 		TotalInflows:    totalInflows,
@@ -863,6 +895,29 @@ func (r *pgFinancialReportsQueryRepository) GetAccountBalance(ctx context.Contex
 	err = tx.QueryRow(ctx, selectAccountBalance, accountID, tenantID).Scan(&balance, &currency)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get account balance")
+	}
+
+	return money.New(balance, currency), nil
+}
+
+// GetAccountBalanceAtDate retrieves the balance of an account at a specific date
+func (r *pgFinancialReportsQueryRepository) GetAccountBalanceAtDate(ctx context.Context, accountID uuid.UUID, date time.Time) (*money.Money, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant ID")
+	}
+
+	var balance int64
+	var currency string
+
+	err = tx.QueryRow(ctx, selectAccountBalanceAtDate, accountID, tenantID, date).Scan(&balance, &currency)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get account balance at date")
 	}
 
 	return money.New(balance, currency), nil

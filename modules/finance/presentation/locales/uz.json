@@ -33,6 +33,7 @@
   },
   "NavigationLinks": {
     "Accounts": "Hisoblar",
+    "FinancialOverview": "Moliyaviy ko'rinish",
     "Transactions": "Tranzaksiyalar",
     "Expenses": "Xarajatlar",
     "ExpenseCategories": "Xarajat kategoriyalari",
@@ -41,12 +42,18 @@
     "Finances": "Moliya",
     "Counterparties": "Kontragentlar",
     "Debts": "Qarzlar",
+    "DebtAggregates": "Qarzlar xulosasi",
     "Inventory": "Ombor",
     "Reports": "Hisobotlar",
     "IncomeStatement": "Daromad va zarar hisoboti",
     "CashflowStatement": "Pul oqimi hisoboti",
     "Finance": {
       "Enums": "Ro'yxatlar"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "Moliyaviy ko'rinish"
     }
   },
   "ExpenseCategories": {
@@ -540,5 +547,27 @@
       "Settled": "Qarz muvaffaqiyatli to'landi",
       "WrittenOff": "Qarz muvaffaqiyatli hisobdan chiqarildi"
     }
+  },
+  "DebtAggregates": {
+    "Meta": {
+      "List": {
+        "Title": "Kontragentlar bo'yicha qarzlar xulosasi"
+      }
+    },
+    "List": {
+      "Counterparty": "Kontragent",
+      "TotalReceivable": "Jami olinadigan",
+      "TotalPayable": "Jami to'lanadigan",
+      "OutstandingReceivable": "Olinadigan qoldiq",
+      "OutstandingPayable": "To'lanadigan qoldiq",
+      "NetAmount": "Aniq summa",
+      "DebtCount": "Jami qarzlar"
+    },
+    "Drawer": {
+      "Title": "Qarz tafsilotlari"
+    }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
   }
 }

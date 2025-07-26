@@ -2,6 +2,7 @@ package project_stages
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
@@ -18,6 +19,7 @@ type DrawerEditProps struct {
 
 type DrawerCreateProps struct {
 	ProjectStage dtos.ProjectStageCreateDTO
+	Projects     []viewmodels.ProjectViewModel
 	Errors       map[string]string
 }
 
@@ -53,12 +55,12 @@ templ EditDrawer(props *DrawerEditProps) {
 						Error: props.Errors["StageNumber"],
 					})
 					@input.TextArea(&input.TextAreaProps{
-						Label: pageCtx.T("ProjectStages.Single.Description"),
+						Label: pageCtx.T("ProjectStages.Single.Desc"),
 						Attrs: templ.Attributes{
-							"name": "Description",
+							"name": "Desc",
 						},
 						Value: props.ProjectStage.Description,
-						Error: props.Errors["Description"],
+						Error: props.Errors["Desc"],
 					})
 					@input.Number(&input.Props{
 						Label: pageCtx.T("ProjectStages.Single.TotalAmount"),
@@ -184,6 +186,26 @@ templ CreateDrawer(props *DrawerCreateProps) {
 				class="flex flex-col h-full"
 			>
 				<div class="flex-1 p-6 space-y-4">
+					@base.Select(&base.SelectProps{
+						Label:       pageCtx.T("ProjectStages.Single.ProjectID"),
+						Placeholder: pageCtx.T("ProjectStages.Single.SelectProject"),
+						Attrs: templ.Attributes{
+							"name":     "ProjectID",
+							"required": true,
+						},
+						Error: props.Errors["ProjectID"],
+					}) {
+						for _, project := range props.Projects {
+							<option
+								value={ project.ID }
+								if props.ProjectStage.ProjectID == project.ID {
+									selected
+								}
+							>
+								{ project.Name }
+							</option>
+						}
+					}
 					@input.Number(&input.Props{
 						Label: pageCtx.T("ProjectStages.Single.StageNumber"),
 						Attrs: templ.Attributes{
@@ -194,12 +216,12 @@ templ CreateDrawer(props *DrawerCreateProps) {
 						Error: props.Errors["StageNumber"],
 					})
 					@input.TextArea(&input.TextAreaProps{
-						Label: pageCtx.T("ProjectStages.Single.Description"),
+						Label: pageCtx.T("ProjectStages.Single.Desc"),
 						Attrs: templ.Attributes{
-							"name": "Description",
+							"name": "Desc",
 						},
-						Value: props.ProjectStage.Description,
-						Error: props.Errors["Description"],
+						Value: props.ProjectStage.Desc,
+						Error: props.Errors["Desc"],
 					})
 					@input.Number(&input.Props{
 						Label: pageCtx.T("ProjectStages.Single.TotalAmount"),

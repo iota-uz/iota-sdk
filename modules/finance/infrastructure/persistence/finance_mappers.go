@@ -102,12 +102,17 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 		TransactionType:      string(transaction.Deposit),
 		CreatedAt:            entity.CreatedAt(),
 	}
+	var categoryID uuid.UUID
+	if entity.Category() != nil {
+		categoryID = entity.Category().ID()
+	}
+
 	dbPayment := &models.Payment{
 		ID:                entity.ID().String(),
 		TenantID:          entity.TenantID().String(),
 		TransactionID:     entity.TransactionID().String(),
 		CounterpartyID:    entity.CounterpartyID().String(),
-		PaymentCategoryID: mapping.UUIDToSQLNullString(entity.Category().ID()),
+		PaymentCategoryID: mapping.UUIDToSQLNullString(categoryID),
 		CreatedAt:         entity.CreatedAt(),
 		UpdatedAt:         entity.UpdatedAt(),
 	}

@@ -251,6 +251,25 @@ func (r *ProjectStageRepository) GetPaginated(ctx context.Context, limit, offset
 	return r.queryProjectStages(ctx, query, tenantID, limit, offset)
 }
 
+func (r *ProjectStageRepository) Count(ctx context.Context) (int64, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	err = tx.QueryRow(ctx, `SELECT COUNT(*) FROM project_stages ps JOIN projects p ON ps.project_id = p.id WHERE p.tenant_id = $1`, tenantID).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *ProjectStageRepository) GetByProjectID(ctx context.Context, projectID uuid.UUID) ([]projectstage.ProjectStage, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {

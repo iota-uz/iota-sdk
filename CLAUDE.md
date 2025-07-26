@@ -10,6 +10,7 @@
 -   Error handling: use `pkg/serrors` for standard error types
 -   When writing a mapper function, always use utilities from `pkg/mapping` to ensure consistency
 -   PREFER `mcp__bloom__search_code(repo: "iota-uz/iota-sdk")` for semantic search over manual file searching when you don't know exact file names or when exploring the codebase to understand functionality
+-   "Description", "ID" are reserved keys in translaction files (json/toml), use "_Description" and "_ID" instead.
 
 ## DevHub MCP Tools
 
@@ -166,4 +167,3 @@ modules/{module}/
   - Add service to `app.RegisterServices()` call
   - Add controller to `app.RegisterControllers()` call  
   - Add quick links to `app.QuickLinks().Add()` call
-

@@ -71,23 +71,22 @@ func (m *Module) Register(app application.Application) error {
 	)
 
 	app.RegisterControllers(
-		controllers.NewTransactionController(app),
-		controllers.NewExpensesController(app),
+		controllers.NewFinancialOverviewController(app),
 		controllers.NewMoneyAccountController(app),
 		controllers.NewExpenseCategoriesController(app),
 		controllers.NewPaymentCategoriesController(app),
-		controllers.NewPaymentsController(app),
 		controllers.NewCounterpartiesController(app),
 		controllers.NewInventoryController(app),
 		controllers.NewDebtsController(app),
+		controllers.NewDebtAggregateController(app),
 		controllers.NewFinancialReportController(app),
 		controllers.NewCashflowController(app),
 	)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(nil, ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
 		spotlight.NewQuickLink(nil, PaymentCategoriesItem.Name, PaymentCategoriesItem.Href),
-		spotlight.NewQuickLink(nil, PaymentsItem.Name, PaymentsItem.Href),
-		spotlight.NewQuickLink(nil, ExpensesItem.Name, ExpensesItem.Href),
+		spotlight.NewQuickLink(nil, PaymentsItem.Name, "/finance/overview?tab=payments"),
+		spotlight.NewQuickLink(nil, ExpensesItem.Name, "/finance/overview?tab=expenses"),
 		spotlight.NewQuickLink(nil, DebtsItem.Name, DebtsItem.Href),
 		spotlight.NewQuickLink(nil, AccountsItem.Name, AccountsItem.Href),
 		spotlight.NewQuickLink(nil, InventoryItem.Name, InventoryItem.Href),
@@ -104,7 +103,7 @@ func (m *Module) Register(app application.Application) error {
 		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Expenses.List.New",
-			"/finance/expenses/new",
+			"/finance/overview?tab=expenses",
 		),
 		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
@@ -114,7 +113,7 @@ func (m *Module) Register(app application.Application) error {
 		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),
 			"Payments.List.New",
-			"/finance/payments/new",
+			"/finance/overview?tab=payments",
 		),
 		spotlight.NewQuickLink(
 			icons.PlusCircle(icons.Props{Size: "24"}),

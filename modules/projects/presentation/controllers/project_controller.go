@@ -19,18 +19,18 @@ import (
 	projectServices "github.com/iota-uz/iota-sdk/modules/projects/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/sirupsen/logrus"
 )
 
 type ProjectController struct {
-	app                 application.Application
-	projectService      *projectServices.ProjectService
-	counterpartyService *services.CounterpartyService
-	basePath            string
-	tableDefinition     table.TableDefinition
+	app             application.Application
+	basePath        string
+	tableDefinition table.TableDefinition
 }
 
 func NewProjectController(app application.Application) application.Controller {
@@ -41,11 +41,9 @@ func NewProjectController(app application.Application) application.Controller {
 		Build()
 
 	return &ProjectController{
-		app:                 app,
-		projectService:      app.Service(projectServices.ProjectService{}).(*projectServices.ProjectService),
-		counterpartyService: app.Service(services.CounterpartyService{}).(*services.CounterpartyService),
-		basePath:            basePath,
-		tableDefinition:     tableDefinition,
+		app:             app,
+		basePath:        basePath,
+		tableDefinition: tableDefinition,
 	}
 }
 
@@ -67,15 +65,20 @@ func (c *ProjectController) Register(r *mux.Router) {
 
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(commonMiddleware...)
-	router.HandleFunc("", c.List).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", c.GetEditDrawer).Methods(http.MethodGet)
-	router.HandleFunc("/new/drawer", c.GetNewDrawer).Methods(http.MethodGet)
-	router.HandleFunc("", c.Create).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
-	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
+	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/drawer", di.H(c.GetEditDrawer)).Methods(http.MethodGet)
+	router.HandleFunc("/new/drawer", di.H(c.GetNewDrawer)).Methods(http.MethodGet)
+	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Update)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 }
 
-func (c *ProjectController) List(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectController) List(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	projectService *projectServices.ProjectService,
+) {
 	ctx := r.Context()
 	pageCtx := composables.UsePageCtx(ctx)
 
@@ -91,15 +94,17 @@ func (c *ProjectController) List(w http.ResponseWriter, r *http.Request) {
 		_ = search
 	}
 
-	entities, err := c.projectService.GetPaginated(ctx, limit, offset, sortBy)
+	entities, err := projectService.GetPaginated(ctx, limit, offset, sortBy)
 	if err != nil {
+		logger.Errorf("Error retrieving projects: %v", err)
 		http.Error(w, "Error retrieving projects", http.StatusInternalServerError)
 		return
 	}
 
 	// Get total count for pagination
-	allEntities, err := c.projectService.GetAll(ctx)
+	allEntities, err := projectService.GetAll(ctx)
 	if err != nil {
+		logger.Errorf("Error counting projects: %v", err)
 		http.Error(w, "Error counting projects", http.StatusInternalServerError)
 		return
 	}
@@ -125,7 +130,7 @@ func (c *ProjectController) List(w http.ResponseWriter, r *http.Request) {
 		).
 			WithColumns(
 				table.Column("name", pageCtx.T("Projects.List.Name")),
-				table.Column("description", pageCtx.T("Projects.List.Description")),
+				table.Column("description", pageCtx.T("Projects.List._Description")),
 				table.Column("counterparty", pageCtx.T("Projects.List.Counterparty")),
 				table.Column("created_at", pageCtx.T("CreatedAt")),
 			).
@@ -180,9 +185,15 @@ func (c *ProjectController) List(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *ProjectController) GetNewDrawer(w http.ResponseWriter, r *http.Request) {
-	counterparties, err := c.viewModelCounterparties(r)
+func (c *ProjectController) GetNewDrawer(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	counterpartyService *services.CounterpartyService,
+) {
+	counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 	if err != nil {
+		logger.Errorf("Error retrieving counterparties: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -195,21 +206,30 @@ func (c *ProjectController) GetNewDrawer(w http.ResponseWriter, r *http.Request)
 	templ.Handler(projects.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ProjectController) GetEditDrawer(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectController) GetEditDrawer(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	projectService *projectServices.ProjectService,
+	counterpartyService *services.CounterpartyService,
+) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
+		logger.Errorf("Error parsing project ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	entity, err := c.projectService.GetByID(r.Context(), id)
+	entity, err := projectService.GetByID(r.Context(), id)
 	if err != nil {
+		logger.Errorf("Error retrieving project: %v", err)
 		http.Error(w, "Error retrieving project", http.StatusInternalServerError)
 		return
 	}
 
-	counterparties, err := c.viewModelCounterparties(r)
+	counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 	if err != nil {
+		logger.Errorf("Error retrieving counterparties: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -223,9 +243,16 @@ func (c *ProjectController) GetEditDrawer(w http.ResponseWriter, r *http.Request
 	templ.Handler(projects.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
-func (c *ProjectController) Create(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectController) Create(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	projectService *projectServices.ProjectService,
+	counterpartyService *services.CounterpartyService,
+) {
 	dto, err := composables.UseForm(&dtos.ProjectCreateDTO{}, r)
 	if err != nil {
+		logger.Errorf("Error parsing project form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -233,8 +260,9 @@ func (c *ProjectController) Create(w http.ResponseWriter, r *http.Request) {
 	isDrawer := htmx.IsHxRequest(r) && htmx.Target(r) == "project-create-drawer"
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		counterparties, err := c.viewModelCounterparties(r)
+		counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 		if err != nil {
+			logger.Errorf("Error retrieving counterparties: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -254,17 +282,20 @@ func (c *ProjectController) Create(w http.ResponseWriter, r *http.Request) {
 
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
+		logger.Errorf("Error getting tenant ID: %v", err)
 		http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
 		return
 	}
 
 	entity, err := dto.ToEntity(tenantID)
 	if err != nil {
+		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := c.projectService.Create(r.Context(), entity); err != nil {
+	if err := projectService.Create(r.Context(), entity); err != nil {
+		logger.Errorf("Error creating project: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -272,14 +303,22 @@ func (c *ProjectController) Create(w http.ResponseWriter, r *http.Request) {
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ProjectController) Update(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectController) Update(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	projectService *projectServices.ProjectService,
+	counterpartyService *services.CounterpartyService,
+) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
+		logger.Errorf("Error parsing project ID: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	dto, err := composables.UseForm(&dtos.ProjectUpdateDTO{}, r)
 	if err != nil {
+		logger.Errorf("Error parsing update form: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -287,18 +326,21 @@ func (c *ProjectController) Update(w http.ResponseWriter, r *http.Request) {
 	isDrawer := htmx.Target(r) != "" && htmx.Target(r) != "edit-content"
 
 	if errorsMap, ok := dto.Ok(r.Context()); ok {
-		existing, err := c.projectService.GetByID(r.Context(), id)
+		existing, err := projectService.GetByID(r.Context(), id)
 		if err != nil {
+			logger.Errorf("Error retrieving project for update: %v", err)
 			http.Error(w, "Error retrieving project", http.StatusInternalServerError)
 			return
 		}
 
 		entity, err := dto.Apply(existing)
 		if err != nil {
+			logger.Errorf("Error applying update to project: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := c.projectService.Update(r.Context(), entity); err != nil {
+		if err := projectService.Update(r.Context(), entity); err != nil {
+			logger.Errorf("Error updating project: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -306,14 +348,16 @@ func (c *ProjectController) Update(w http.ResponseWriter, r *http.Request) {
 		// Always redirect to refresh the table
 		shared.Redirect(w, r, c.basePath)
 	} else {
-		entity, err := c.projectService.GetByID(r.Context(), id)
+		entity, err := projectService.GetByID(r.Context(), id)
 		if err != nil {
+			logger.Errorf("Error retrieving project for form: %v", err)
 			http.Error(w, "Error retrieving project", http.StatusInternalServerError)
 			return
 		}
 
-		counterparties, err := c.viewModelCounterparties(r)
+		counterparties, err := c.viewModelCounterparties(r, counterpartyService)
 		if err != nil {
+			logger.Errorf("Error retrieving counterparties: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -332,22 +376,29 @@ func (c *ProjectController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *ProjectController) Delete(w http.ResponseWriter, r *http.Request) {
+func (c *ProjectController) Delete(
+	w http.ResponseWriter,
+	r *http.Request,
+	logger *logrus.Entry,
+	projectService *projectServices.ProjectService,
+) {
 	id, err := shared.ParseUUID(r)
 	if err != nil {
+		logger.Errorf("Error parsing project ID for deletion: %v", err)
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
 
-	if _, err := c.projectService.Delete(r.Context(), id); err != nil {
+	if _, err := projectService.Delete(r.Context(), id); err != nil {
+		logger.Errorf("Error deleting project: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
 }
 
-func (c *ProjectController) viewModelCounterparties(r *http.Request) ([]*financeViewModels.Counterparty, error) {
-	counterparties, err := c.counterpartyService.GetAll(r.Context())
+func (c *ProjectController) viewModelCounterparties(r *http.Request, counterpartyService *services.CounterpartyService) ([]*financeViewModels.Counterparty, error) {
+	counterparties, err := counterpartyService.GetAll(r.Context())
 	if err != nil {
 		return nil, err
 	}

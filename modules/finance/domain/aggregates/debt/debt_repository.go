@@ -29,6 +29,7 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]Debt, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Debt, error)
 	GetByCounterpartyID(ctx context.Context, counterpartyID uuid.UUID) ([]Debt, error)
+	GetCounterpartyAggregates(ctx context.Context) ([]CounterpartyAggregate, error)
 	Create(ctx context.Context, debt Debt) (Debt, error)
 	Update(ctx context.Context, debt Debt) (Debt, error)
 	Delete(ctx context.Context, id uuid.UUID) error

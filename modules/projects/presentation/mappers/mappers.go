@@ -1,12 +1,12 @@
 package mappers
 
 import (
-	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project"
 	projectstage "github.com/iota-uz/iota-sdk/modules/projects/domain/aggregates/project_stage"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 // Project mappings
@@ -29,16 +29,15 @@ func ProjectDomainToViewModels(projects []project.Project) []viewmodels.ProjectV
 
 func ProjectDomainToViewUpdateModel(p project.Project) dtos.ProjectUpdateDTO {
 	return dtos.ProjectUpdateDTO{
-		CounterpartyID: p.CounterpartyID(),
+		CounterpartyID: p.CounterpartyID().String(),
 		Name:           p.Name(),
 		Description:    p.Description(),
 	}
 }
 
 func ProjectViewModelToUpdateDTO(vm viewmodels.ProjectViewModel) dtos.ProjectUpdateDTO {
-	counterpartyID, _ := uuid.Parse(vm.CounterpartyID)
 	return dtos.ProjectUpdateDTO{
-		CounterpartyID: counterpartyID,
+		CounterpartyID: vm.CounterpartyID,
 		Name:           vm.Name,
 		Description:    vm.Description,
 	}
@@ -66,12 +65,27 @@ func ProjectStageDomainToViewModels(stages []projectstage.ProjectStage) []viewmo
 }
 
 func ProjectStageViewModelToUpdateDTO(vm viewmodels.ProjectStageViewModel) dtos.ProjectStageUpdateDTO {
+	var startDate, plannedEndDate, factualEndDate *shared.DateOnly
+
+	if vm.StartDate != nil {
+		d := shared.DateOnly(*vm.StartDate)
+		startDate = &d
+	}
+	if vm.PlannedEndDate != nil {
+		d := shared.DateOnly(*vm.PlannedEndDate)
+		plannedEndDate = &d
+	}
+	if vm.FactualEndDate != nil {
+		d := shared.DateOnly(*vm.FactualEndDate)
+		factualEndDate = &d
+	}
+
 	return dtos.ProjectStageUpdateDTO{
 		StageNumber:    vm.StageNumber,
-		Description:    vm.Description,
+		Desc:           vm.Description,
 		TotalAmount:    vm.TotalAmount,
-		StartDate:      vm.StartDate,
-		PlannedEndDate: vm.PlannedEndDate,
-		FactualEndDate: vm.FactualEndDate,
+		StartDate:      startDate,
+		PlannedEndDate: plannedEndDate,
+		FactualEndDate: factualEndDate,
 	}
 }
