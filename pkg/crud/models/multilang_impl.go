@@ -27,6 +27,14 @@ func (m *multiLangImpl) Get(locale string) (string, error) {
 func (m *multiLangImpl) Set(locale, value string) (MultiLang, error) {
 	normalizedLocale := strings.ToLower(locale)
 
+	// Validate inputs
+	if err := ValidateLocaleCode(normalizedLocale); err != nil {
+		return nil, err
+	}
+	if err := ValidateTranslationValue(value); err != nil {
+		return nil, err
+	}
+
 	// Create a copy of the current data
 	newData := make(map[string]string)
 	if m.data != nil {
@@ -124,6 +132,11 @@ func (m *multiLangImpl) UnmarshalJSON(data []byte) error {
 	var temp map[string]string
 
 	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	// Validate the unmarshaled data
+	if err := ValidateMultiLangData(temp); err != nil {
 		return err
 	}
 

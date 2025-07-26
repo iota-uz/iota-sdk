@@ -90,7 +90,7 @@ func WithoutCreate[TEntity any]() CrudOption[TEntity] {
 // WithMultiLangRenderer registers the MultiLang renderer for the showcase controller
 func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
 	return func(c *CrudController[TEntity]) {
-		c.RegisterRenderer("multilang", multilang.NewMultiLangRenderer())
+		c.RegisterRenderer("multilang", multilang.NewMultiLangRendererWithSchema(c.schema))
 	}
 }
 
@@ -592,7 +592,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			currentParams.Del("limit")
 
 			col := table.Column(f.Name(), fieldLabel,
-				table.WithSortable(true),
+				table.WithSortable(),
 				table.WithSortDir(table.GetSortDirection(f.Name(), sortField, sortOrder)),
 				table.WithSortURL(table.GenerateSortURLWithParams(c.basePath, f.Name(), sortField, sortOrder, currentParams)),
 			)

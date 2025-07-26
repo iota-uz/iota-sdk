@@ -88,9 +88,16 @@ func WithClass(classes string) ColumnOpt {
 	}
 }
 
-func WithSortable(sortable bool) ColumnOpt {
+func WithSortableState(sortable bool) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.sortable = sortable
+	}
+}
+
+// WithSortable enables sorting for a column
+func WithSortable() ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.sortable = true
 	}
 }
 
@@ -134,6 +141,10 @@ type TableConfig struct {
 	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
 
+	// Sorting configuration
+	CurrentSort      string // Current sort field
+	CurrentSortOrder string // Current sort order (asc/desc)
+
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
 }
@@ -156,8 +167,9 @@ func NewTableConfig(title, dataURL string, opts ...TableConfigOpt) *TableConfig 
 
 func Column(key, label string, opts ...ColumnOpt) TableColumn {
 	col := &tableColumnImpl{
-		key:   key,
-		label: label,
+		key:      key,
+		label:    label,
+		sortable: false, // Default to not sortable
 	}
 	for _, opt := range opts {
 		opt(col)
@@ -176,6 +188,35 @@ func Row(cells ...templ.Component) TableRow {
 
 func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
 	c.Columns = append(c.Columns, cols...)
+	return c
+}
+
+// UpdateColumnsWithSorting updates column sorting information based on current request
+func (c *TableConfig) UpdateColumnsWithSorting(r *http.Request) *TableConfig {
+	// Get current sort parameters from request
+	c.CurrentSort = UseSortQuery(r)
+	c.CurrentSortOrder = UseOrderQuery(r)
+
+	// Update each sortable column with proper sort URL and direction
+	for i, col := range c.Columns {
+		if colImpl, ok := col.(*tableColumnImpl); ok && colImpl.sortable {
+			// Generate sort URL for this column
+			colImpl.sortURL = GenerateSortURLWithParams(
+				c.DataURL,
+				colImpl.key,
+				c.CurrentSort,
+				c.CurrentSortOrder,
+				r.URL.Query(),
+			)
+
+			// Set sort direction if this is the current sort field
+			colImpl.sortDir = GetSortDirection(colImpl.key, c.CurrentSort, c.CurrentSortOrder)
+
+			// Update the column in the slice
+			c.Columns[i] = colImpl
+		}
+	}
+
 	return c
 }
 
@@ -203,12 +244,12 @@ func (c *TableConfig) AddActions(actions ...templ.Component) *TableConfig {
 
 // UseSearchQuery gets the "Search" query parameter from the request
 func UseSearchQuery(r *http.Request) string {
-	return r.URL.Query().Get("Search")
+	return r.URL.Query().Get(QueryParamSearch)
 }
 
 // UsePageQuery gets the "page" query parameter from the request and converts it to int
 func UsePageQuery(r *http.Request) int {
-	pageStr := r.URL.Query().Get("page")
+	pageStr := r.URL.Query().Get(QueryParamPage)
 	if pageStr == "" {
 		return 1 // default to page 1
 	}
@@ -221,7 +262,7 @@ func UsePageQuery(r *http.Request) int {
 
 // UseLimitQuery gets the "limit" query parameter from the request and converts it to int
 func UseLimitQuery(r *http.Request) int {
-	limitStr := r.URL.Query().Get("limit")
+	limitStr := r.URL.Query().Get(QueryParamLimit)
 	if limitStr == "" {
 		return 20 // default to 20 items per page
 	}
@@ -237,16 +278,17 @@ func UseLimitQuery(r *http.Request) int {
 
 // UseSortQuery gets the "sort" query parameter from the request
 func UseSortQuery(r *http.Request) string {
-	return r.URL.Query().Get("sort")
+	return r.URL.Query().Get(QueryParamSort)
 }
 
 // UseOrderQuery gets the "order" query parameter from the request (asc/desc)
 func UseOrderQuery(r *http.Request) string {
-	order := r.URL.Query().Get("order")
-	if order != "desc" {
-		return "asc" // default to ascending
+	order := r.URL.Query().Get(QueryParamOrder)
+	// Only return a value if explicitly set, otherwise return empty string
+	if order == SortDirectionAsc.String() || order == SortDirectionDesc.String() {
+		return order
 	}
-	return order
+	return ""
 }
 
 // GenerateSortURL generates a sort URL for a column based on current sort state
@@ -263,24 +305,28 @@ func GenerateSortURLWithParams(baseURL, fieldKey, currentSortField, currentSortO
 		params[k] = v
 	}
 
+	// Debug: log input parameters
+	// fmt.Printf("GenerateSortURL: field=%s, currentField=%s, currentOrder=%s\n", fieldKey, currentSortField, currentSortOrder)
+
 	// If clicking on the same field, cycle through: none -> asc -> desc -> none
 	if fieldKey == currentSortField {
 		switch currentSortOrder {
-		case "asc":
-			params.Set("sort", fieldKey)
-			params.Set("order", "desc")
-		case "desc":
+		case SortDirectionAsc.String():
+			params.Set(QueryParamSort, fieldKey)
+			params.Set(QueryParamOrder, SortDirectionDesc.String())
+		case SortDirectionDesc.String():
 			// Reset to no sorting (remove sort/order params)
-			params.Del("sort")
-			params.Del("order")
+			params.Del(QueryParamSort)
+			params.Del(QueryParamOrder)
 		default:
-			params.Set("sort", fieldKey)
-			params.Set("order", "asc")
+			// Empty or no order -> start with asc
+			params.Set(QueryParamSort, fieldKey)
+			params.Set(QueryParamOrder, SortDirectionAsc.String())
 		}
 	} else {
 		// Different field, start with ascending
-		params.Set("sort", fieldKey)
-		params.Set("order", "asc")
+		params.Set(QueryParamSort, fieldKey)
+		params.Set(QueryParamOrder, SortDirectionAsc.String())
 	}
 
 	if len(params) == 0 {

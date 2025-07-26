@@ -32,7 +32,8 @@ func TestNewMultiLangFromMap(t *testing.T) {
 		"de": "Deutsch",
 	}
 
-	ml := NewMultiLangFromMap(data)
+	ml, err := NewMultiLangFromMap(data)
+	require.NoError(t, err)
 
 	// Test that all values are accessible
 	en, err := ml.Get("en")
@@ -112,7 +113,8 @@ func TestMultiLang_Get(t *testing.T) {
 }
 
 func TestMultiLang_Set(t *testing.T) {
-	ml := NewMultiLangFromMap(map[string]string{})
+	ml, err := NewMultiLangFromMap(map[string]string{})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name    string
@@ -166,15 +168,13 @@ func TestMultiLang_Set(t *testing.T) {
 			},
 		},
 		{
-			name:    "set empty locale code",
+			name:    "set empty locale code (should fail validation)",
 			locale:  "",
 			value:   "Some Value",
-			wantErr: false,
+			wantErr: true,
 			checkFn: func(result MultiLang) {
-				// Empty locale code should be allowed in new implementation
-				val, err := result.Get("")
-				require.NoError(t, err)
-				assert.Equal(t, "Some Value", val)
+				// Empty locale codes are now rejected for security
+				// result should be nil since setting failed
 			},
 		},
 	}
@@ -375,7 +375,8 @@ func TestMultiLang_GetAll(t *testing.T) {
 		"fr": "Français",
 		"de": "Deutsch",
 	}
-	ml := NewMultiLangFromMap(data)
+	ml, err := NewMultiLangFromMap(data)
+	require.NoError(t, err)
 
 	result := ml.GetAll()
 	assert.Equal(t, data, result)
