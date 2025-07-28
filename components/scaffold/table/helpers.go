@@ -1,11 +1,20 @@
 package table
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
+	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
+
+	"github.com/iota-uz/iota-sdk/components/scaffold/form"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
 )
 
 // --- Interfaces ---
@@ -20,11 +29,591 @@ type TableColumn interface {
 	Width() string
 	Sortable() bool
 	SortDir() SortDirection
+	Editable() bool
+	EditableField() crud.Field
 	SortURL() string
 }
 
+type TableCell interface {
+	Component(col TableColumn, editMode bool) templ.Component
+}
+
+type tableCellImpl struct {
+	component templ.Component
+	value     any
+}
+
+func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType) string {
+	if value == nil {
+		return ""
+	}
+
+	switch fieldType {
+	case crud.IntFieldType:
+		switch v := value.(type) {
+		case int:
+			return strconv.Itoa(v)
+		case int64:
+			return strconv.FormatInt(v, 10)
+		case int32:
+			return strconv.FormatInt(int64(v), 10)
+		}
+	case crud.BoolFieldType:
+		if v, ok := value.(bool); ok {
+			return strconv.FormatBool(v)
+		}
+	case crud.FloatFieldType:
+		switch v := value.(type) {
+		case float64:
+			return strconv.FormatFloat(v, 'f', -1, 64)
+		case float32:
+			return strconv.FormatFloat(float64(v), 'f', -1, 32)
+		}
+	case crud.StringFieldType, crud.DecimalFieldType, crud.UUIDFieldType:
+		return fmt.Sprintf("%v", value)
+	case crud.JSONFieldType:
+		// For JSON fields, return as string
+		return fmt.Sprintf("%v", value)
+	case crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+		// For date/time types, format as string
+		if t, ok := value.(time.Time); ok {
+			return t.Format(time.RFC3339)
+		}
+		return fmt.Sprintf("%v", value)
+	}
+
+	// Default: convert to string
+	return fmt.Sprintf("%v", value)
+}
+
+func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.SelectField, currentValue any) templ.Component {
+	// Convert current value to string for comparison
+	var valueStr string
+	if currentValue != nil {
+		valueStr = c.convertValueToString(currentValue, selectField.ValueType())
+	}
+
+	switch selectField.SelectType() {
+	case crud.SelectTypeStatic:
+		// Get options
+		options := selectField.Options()
+		if options == nil && selectField.OptionsLoader() != nil {
+			options = selectField.OptionsLoader()(ctx)
+		}
+
+		// Convert to form options
+		formOptions := make([]form.Option, len(options))
+		for i, opt := range options {
+			// Convert value to string for HTML rendering
+			var optValueStr string
+			switch v := opt.Value.(type) {
+			case string:
+				optValueStr = v
+			case int:
+				optValueStr = strconv.Itoa(v)
+			case int64:
+				optValueStr = strconv.FormatInt(v, 10)
+			case bool:
+				optValueStr = strconv.FormatBool(v)
+			case float64:
+				optValueStr = strconv.FormatFloat(v, 'f', -1, 64)
+			case uuid.UUID:
+				optValueStr = v.String()
+			default:
+				optValueStr = fmt.Sprintf("%v", v)
+			}
+
+			formOptions[i] = form.Option{
+				Value: optValueStr,
+				Label: opt.Label,
+			}
+		}
+
+		builder := form.Select(selectField.Name(), "").
+			Options(formOptions)
+
+		if selectField.Placeholder() != "" {
+			// Set placeholder through attributes since the builder doesn't have a method
+			builder = builder.Attrs(templ.Attributes{"data-placeholder": selectField.Placeholder()})
+		}
+
+		if selectField.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
+		}
+
+		if len(selectField.Rules()) > 0 {
+			builder = builder.Required()
+		}
+
+		if valueStr != "" {
+			builder = builder.Default(valueStr)
+		}
+
+		return builder.Build().Component()
+
+	case crud.SelectTypeSearchable:
+		builder := form.SearchSelect().
+			Key(selectField.Name()).
+			Label("").
+			Endpoint(selectField.Endpoint()).
+			Placeholder(selectField.Placeholder())
+
+		if selectField.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
+		}
+
+		if len(selectField.Rules()) > 0 {
+			builder = builder.WithRequired(true)
+		}
+
+		if valueStr != "" {
+			builder = builder.WithValue(valueStr)
+		}
+
+		return builder.Build().Component()
+
+	case crud.SelectTypeCombobox:
+		builder := form.Combobox().
+			Key(selectField.Name()).
+			Label("").
+			Endpoint(selectField.Endpoint()).
+			Placeholder(selectField.Placeholder()).
+			Multiple(selectField.Multiple())
+
+		if selectField.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
+		}
+
+		if len(selectField.Rules()) > 0 {
+			builder = builder.WithRequired(true)
+		}
+
+		if valueStr != "" {
+			builder = builder.WithValue(valueStr)
+		}
+
+		return builder.Build().Component()
+
+	default:
+		// Fallback to regular select
+		return form.Select(selectField.Name(), "").Build().Component()
+	}
+}
+
+func (c *tableCellImpl) Component(col TableColumn, editMode bool) templ.Component {
+	field := col.EditableField()
+	if col.Editable() && field != nil && editMode {
+		if field.Hidden() {
+			return nil
+		}
+		if field.Key() && field.Readonly() {
+			return nil
+		}
+
+		ctx := context.TODO()
+		var currentValue any
+		if c.value != nil && !(c.value == nil || reflect.ValueOf(c.value).IsZero()) {
+			currentValue = c.value
+		} else if field.InitialValue(ctx) != nil {
+			currentValue = field.InitialValue(ctx)
+		}
+
+		switch field.Type() {
+		case crud.StringFieldType:
+			// Check if this is actually a select field
+			if selectField, ok := field.(crud.SelectField); ok {
+				return c.handleSelectField(ctx, selectField, c.value)
+			}
+
+			sf, err := field.AsStringField()
+			if err != nil {
+				return nil
+			}
+
+			builder := form.Text(field.Name(), "")
+
+			if sf.MaxLen() > 0 {
+				builder = builder.MaxLen(sf.MaxLen())
+			}
+			if sf.MinLen() > 0 {
+				builder = builder.MinLen(sf.MinLen())
+			}
+
+			if sf.Multiline() {
+				textareaBuilder := form.Textarea(field.Name(), "")
+				if sf.MaxLen() > 0 {
+					textareaBuilder = textareaBuilder.MaxLen(sf.MaxLen())
+				}
+				if sf.MinLen() > 0 {
+					textareaBuilder = textareaBuilder.MinLen(sf.MinLen())
+				}
+
+				if field.Readonly() {
+					textareaBuilder = textareaBuilder.Attrs(templ.Attributes{"disabled": true})
+				}
+
+				if len(field.Rules()) > 0 {
+					textareaBuilder = textareaBuilder.Required()
+				}
+
+				if currentValue != nil {
+					if strVal, ok := currentValue.(string); ok {
+						textareaBuilder = textareaBuilder.Default(strVal)
+					}
+				}
+
+				return textareaBuilder.Build().Component()
+			}
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				if strVal, ok := currentValue.(string); ok {
+					builder = builder.Default(strVal)
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.IntFieldType:
+			// Check if this is actually a select field with int values
+			if selectField, ok := field.(crud.SelectField); ok {
+				return c.handleSelectField(ctx, selectField, c.value)
+			}
+
+			intField, err := field.AsIntField()
+			if err != nil {
+				return nil
+			}
+
+			builder := form.NewNumberField(field.Name(), "")
+
+			if intField.Min() != 0 {
+				builder = builder.Min(float64(intField.Min()))
+			}
+			if intField.Max() != 0 {
+				builder = builder.Max(float64(intField.Max()))
+			}
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				switch v := currentValue.(type) {
+				case int:
+					builder = builder.Default(float64(v))
+				case int64:
+					builder = builder.Default(float64(v))
+				case float64:
+					builder = builder.Default(v)
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.BoolFieldType:
+			// Check if this is actually a select field with bool values
+			if selectField, ok := field.(crud.SelectField); ok {
+				return c.handleSelectField(ctx, selectField, c.value)
+			}
+
+			builder := form.Checkbox(field.Name(), "")
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				if boolVal, ok := currentValue.(bool); ok {
+					builder = builder.Default(boolVal)
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.FloatFieldType:
+			floatField, err := field.AsFloatField()
+			if err != nil {
+				return nil
+			}
+
+			builder := form.NewNumberField(field.Name(), "")
+
+			if floatField.Min() != 0 {
+				builder = builder.Min(floatField.Min())
+			}
+			if floatField.Max() != 0 {
+				builder = builder.Max(floatField.Max())
+			}
+
+			attrs := templ.Attributes{}
+			if floatField.Step() != 0 {
+				attrs["step"] = fmt.Sprintf("%f", floatField.Step())
+			} else {
+				attrs["step"] = "any"
+			}
+
+			if field.Readonly() {
+				attrs["disabled"] = true
+			}
+
+			builder = builder.Attrs(attrs)
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				if floatVal, ok := currentValue.(float64); ok {
+					builder = builder.Default(floatVal)
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.DateFieldType:
+			builder := form.Date(field.Name(), "")
+
+			dateField, err := field.AsDateField()
+			if err == nil {
+				if !dateField.MinDate().IsZero() {
+					builder = builder.Min(dateField.MinDate())
+				}
+				if !dateField.MaxDate().IsZero() {
+					builder = builder.Max(dateField.MaxDate())
+				}
+			}
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				if timeVal, ok := currentValue.(time.Time); ok && !timeVal.IsZero() {
+					builder = builder.Default(timeVal)
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.TimeFieldType:
+			builder := form.Time(field.Name(), "")
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				if timeVal, ok := currentValue.(time.Time); ok && !timeVal.IsZero() {
+					builder = builder.Default(timeVal.Format("15:04"))
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.DateTimeFieldType:
+			builder := form.DateTime(field.Name(), "")
+
+			dateTimeField, err := field.AsDateTimeField()
+			if err == nil {
+				if !dateTimeField.MinDateTime().IsZero() {
+					builder = builder.Min(dateTimeField.MinDateTime())
+				}
+				if !dateTimeField.MaxDateTime().IsZero() {
+					builder = builder.Max(dateTimeField.MaxDateTime())
+				}
+			}
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				if timeVal, ok := currentValue.(time.Time); ok && !timeVal.IsZero() {
+					builder = builder.Default(timeVal)
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.UUIDFieldType:
+			// Check if this is actually a select field
+			if selectField, ok := field.(crud.SelectField); ok {
+				return c.handleSelectField(ctx, selectField, c.value)
+			}
+
+			builder := form.Text(field.Name(), "")
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				switch v := currentValue.(type) {
+				case string:
+					builder = builder.Default(v)
+				case uuid.UUID:
+					builder = builder.Default(v.String())
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.TimestampFieldType:
+			// Timestamp fields are treated like datetime fields
+			builder := form.DateTime(field.Name(), "")
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			if currentValue != nil {
+				switch v := currentValue.(type) {
+				case time.Time:
+					builder = builder.Default(v)
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.DecimalFieldType:
+			decimalField, err := field.AsDecimalField()
+			if err != nil {
+				return nil
+			}
+
+			builder := form.NewNumberField(field.Name(), "")
+
+			if decimalField.Min() != "" {
+				if minVal, err := strconv.ParseFloat(decimalField.Min(), 64); err == nil {
+					builder = builder.Min(minVal)
+				}
+			}
+			if decimalField.Max() != "" {
+				if maxVal, err := strconv.ParseFloat(decimalField.Max(), 64); err == nil {
+					builder = builder.Max(maxVal)
+				}
+			}
+
+			attrs := templ.Attributes{}
+			if decimalField.Scale() > 0 {
+				step := 1.0
+				for i := 0; i < decimalField.Scale(); i++ {
+					step /= 10
+				}
+				attrs["step"] = fmt.Sprintf("%f", step)
+			} else {
+				attrs["step"] = "any"
+			}
+
+			if field.Readonly() {
+				attrs["disabled"] = true
+			}
+
+			// Set decimal value if present
+			// if value != nil && !value.IsZero() {
+			// 	// Use AsDecimal to handle all possible decimal value types
+			// 	if decimalStr, err := value.AsDecimal(); err == nil {
+			// 		// Validate it's a proper number format and set the value directly in attrs
+			// 		if _, err := strconv.ParseFloat(decimalStr, 64); err == nil {
+			// 			attrs["value"] = decimalStr
+			// 		}
+			// 	}
+			// }
+
+			builder = builder.Attrs(attrs)
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			} else if currentValue != nil {
+				// Handle direct decimal values (fallback for when value is nil)
+				if strVal, ok := currentValue.(string); ok {
+					if floatVal, err := strconv.ParseFloat(strVal, 64); err == nil {
+						builder = builder.Default(floatVal)
+					}
+				}
+			}
+
+			return builder.Build().Component()
+
+		case crud.JSONFieldType:
+			// Handle JSON field as a textarea for editing
+			builder := form.Textarea(field.Name(), "")
+
+			if field.Readonly() {
+				builder = builder.Attrs(templ.Attributes{"disabled": true})
+			}
+
+			if len(field.Rules()) > 0 {
+				builder = builder.Required()
+			}
+
+			// Convert JSON value to formatted string for editing
+			if currentValue != nil {
+				var jsonStr string
+				if str, ok := currentValue.(string); ok {
+					jsonStr = str
+				} else {
+					// Pretty print JSON for better editing experience
+					if jsonBytes, err := json.MarshalIndent(currentValue, "", "  "); err == nil {
+						jsonStr = string(jsonBytes)
+					} else {
+						jsonStr = fmt.Sprintf("%v", currentValue)
+					}
+				}
+				builder = builder.Default(jsonStr)
+			}
+
+			return builder.Build().Component()
+
+		default:
+			builder := form.Text(field.Name(), field.Name())
+			if currentValue != nil {
+				builder = builder.Default(fmt.Sprintf("%v", currentValue))
+			}
+			return builder.Build().Component()
+		}
+	}
+	return c.component
+}
+
 type TableRow interface {
-	Cells() []templ.Component
+	Cells() []TableCell
 	Attrs() templ.Attributes
 	ApplyOpts(opts ...RowOpt) TableRow
 }
@@ -32,29 +621,33 @@ type TableRow interface {
 // --- Private Implementations ---
 
 type tableColumnImpl struct {
-	key      string
-	label    string
-	class    string
-	width    string
-	sortable bool
-	sortDir  SortDirection
-	sortURL  string
+	key           string
+	label         string
+	class         string
+	width         string
+	sortable      bool
+	sortDir       SortDirection
+	sortURL       string
+	editable      bool
+	editableField crud.Field
 }
 
-func (c *tableColumnImpl) Key() string            { return c.key }
-func (c *tableColumnImpl) Label() string          { return c.label }
-func (c *tableColumnImpl) Class() string          { return c.class }
-func (c *tableColumnImpl) Width() string          { return c.width }
-func (c *tableColumnImpl) Sortable() bool         { return c.sortable }
-func (c *tableColumnImpl) SortDir() SortDirection { return c.sortDir }
-func (c *tableColumnImpl) SortURL() string        { return c.sortURL }
+func (c *tableColumnImpl) Key() string               { return c.key }
+func (c *tableColumnImpl) Label() string             { return c.label }
+func (c *tableColumnImpl) Class() string             { return c.class }
+func (c *tableColumnImpl) Width() string             { return c.width }
+func (c *tableColumnImpl) Sortable() bool            { return c.sortable }
+func (c *tableColumnImpl) SortDir() SortDirection    { return c.sortDir }
+func (c *tableColumnImpl) SortURL() string           { return c.sortURL }
+func (c *tableColumnImpl) Editable() bool            { return c.editable }
+func (c *tableColumnImpl) EditableField() crud.Field { return c.editableField }
 
 type tableRowImpl struct {
-	cells []templ.Component
+	cells []TableCell
 	attrs templ.Attributes
 }
 
-func (r *tableRowImpl) Cells() []templ.Component {
+func (r *tableRowImpl) Cells() []TableCell {
 	return r.cells
 }
 
@@ -113,6 +706,13 @@ func WithSortURL(sortURL string) ColumnOpt {
 	}
 }
 
+func WithEditable(field crud.Field) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.editable = true
+		c.editableField = field
+	}
+}
+
 // --- Table Configuration ---
 
 type TableConfigOpt func(c *TableConfig)
@@ -140,6 +740,7 @@ type TableConfig struct {
 	Rows       []TableRow
 	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
+	Editable   bool
 
 	// Sorting configuration
 	CurrentSort      string // Current sort field
@@ -177,12 +778,19 @@ func Column(key, label string, opts ...ColumnOpt) TableColumn {
 	return col
 }
 
-func Row(cells ...templ.Component) TableRow {
+func Row(cells ...TableCell) TableRow {
 	return &tableRowImpl{
 		cells: cells,
 		attrs: templ.Attributes{
 			"class": "hide-on-load",
 		},
+	}
+}
+
+func Cell(component templ.Component, value any) TableCell {
+	return &tableCellImpl{
+		component: component,
+		value:     value,
 	}
 }
 

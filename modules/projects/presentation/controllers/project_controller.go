@@ -156,11 +156,11 @@ func (c *ProjectController) List(
 			}
 		}
 
-		cells := []templ.Component{
-			templ.Raw(project.Name),
-			templ.Raw(project.Description),
-			templ.Raw(project.CounterpartyName),
-			table.DateTime(createdAt),
+		cells := []table.TableCell{
+			table.Cell(templ.Raw(project.Name), project.Name),
+			table.Cell(templ.Raw(project.Description), project.Description),
+			table.Cell(templ.Raw(project.CounterpartyName), project.CounterpartyName),
+			table.Cell(table.DateTime(createdAt), project.CreatedAt),
 		}
 
 		row := table.Row(cells...).ApplyOpts(

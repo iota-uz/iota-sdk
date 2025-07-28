@@ -173,10 +173,10 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
-		cells := []templ.Component{
-			templ.Raw(cat.Name),
-			templ.Raw(cat.Description),
-			table.DateTime(createdAt),
+		cells := []table.TableCell{
+			table.Cell(templ.Raw(cat.Name), nil),
+			table.Cell(templ.Raw(cat.Description), nil),
+			table.Cell(table.DateTime(createdAt), nil),
 		}
 
 		row := table.Row(cells...).ApplyOpts(

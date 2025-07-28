@@ -201,14 +201,14 @@ func (c *TransactionController) List(w http.ResponseWriter, r *http.Request) {
 			counterpartyName = listItem.Counterparty.Name
 		}
 
-		cells := []templ.Component{
-			table.DateTime(listItem.TransactionDate),
-			components.TransactionTypeBadge(listItem.TransactionType),
-			templ.Raw(listItem.AmountWithCurrency),
-			templ.Raw(accountName),
-			templ.Raw(categoryName),
-			templ.Raw(counterpartyName),
-			templ.Raw(listItem.Comment),
+		cells := []table.TableCell{
+			table.Cell(table.DateTime(listItem.TransactionDate), listItem.TransactionDate),
+			table.Cell(components.TransactionTypeBadge(listItem.TransactionType), listItem.TransactionType),
+			table.Cell(templ.Raw(listItem.AmountWithCurrency), listItem.AmountWithCurrency),
+			table.Cell(templ.Raw(accountName), templ.Raw(accountName)),
+			table.Cell(templ.Raw(categoryName), categoryName),
+			table.Cell(templ.Raw(counterpartyName), counterpartyName),
+			table.Cell(templ.Raw(listItem.Comment), listItem.Comment),
 		}
 
 		row := table.Row(cells...).ApplyOpts(

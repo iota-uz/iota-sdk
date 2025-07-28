@@ -867,7 +867,7 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 // buildTableRow creates a table row from field values
 func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues []crud.FieldValue) (table.TableRow, error) {
 	var primaryKey any
-	components := make([]templ.Component, 0, len(c.visibleFields)+1)
+	cells := make([]table.TableCell, 0, len(c.visibleFields)+1)
 
 	// Create a map for quick field value lookup
 	fieldValueMap := make(map[string]crud.FieldValue, len(fieldValues))
@@ -881,9 +881,9 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 	// Build components in the order of visible fields
 	for _, field := range c.visibleFields {
 		if fv, exists := fieldValueMap[field.Name()]; exists {
-			components = append(components, c.fieldValueToTableCell(ctx, field, fv))
+			cells = append(cells, table.Cell(c.fieldValueToTableCell(ctx, field, fv), fv.Value()))
 		} else {
-			components = append(components, templ.Raw(""))
+			cells = append(cells, table.Cell(templ.Raw(""), ""))
 		}
 	}
 
@@ -894,11 +894,11 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 	// Add row actions
 	rowActions := c.buildRowActions(ctx, primaryKey)
 	if len(rowActions) > 0 {
-		components = append(components, actions.RenderRowActions(rowActions...))
+		cells = append(cells, table.Cell(actions.RenderRowActions(rowActions...), ""))
 	}
 
 	fetchUrl := fmt.Sprintf("%s/%v/details", c.basePath, primaryKey)
-	return table.Row(components...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
+	return table.Row(cells...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
 }
 
 // buildHeaderActions creates header actions for the list view
