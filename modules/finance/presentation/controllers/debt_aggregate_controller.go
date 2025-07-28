@@ -110,13 +110,13 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 		aggVM := mappers.DebtCounterpartyAggregateToViewModel(agg, counterparty.Name())
 
 		cells := []table.TableCell{
-			table.Cell(templ.Raw(aggVM.CounterpartyName), nil),
-			table.Cell(templ.Raw(aggVM.TotalReceivable), nil),
-			table.Cell(templ.Raw(aggVM.TotalPayable), nil),
-			table.Cell(templ.Raw(aggVM.TotalOutstandingReceivable), nil),
-			table.Cell(templ.Raw(aggVM.TotalOutstandingPayable), nil),
-			table.Cell(templ.Raw(aggVM.NetAmount), nil),
-			table.Cell(templ.Raw(fmt.Sprintf("%d", aggVM.DebtCount)), nil),
+			table.Cell(templ.Raw(aggVM.CounterpartyName), aggVM.CounterpartyName),
+			table.Cell(templ.Raw(aggVM.TotalReceivable), aggVM.TotalReceivable),
+			table.Cell(templ.Raw(aggVM.TotalPayable), aggVM.TotalPayable),
+			table.Cell(templ.Raw(aggVM.TotalOutstandingReceivable), aggVM.TotalOutstandingReceivable),
+			table.Cell(templ.Raw(aggVM.TotalOutstandingPayable), aggVM.TotalOutstandingPayable),
+			table.Cell(templ.Raw(aggVM.NetAmount), aggVM.NetAmount),
+			table.Cell(templ.Raw(fmt.Sprintf("%d", aggVM.DebtCount)), aggVM.DebtCount),
 		}
 
 		row := table.Row(cells...).ApplyOpts(
@@ -190,11 +190,11 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 	rows := make([]table.TableRow, 0, len(debtVMs))
 	for _, debtVM := range debtVMs {
 		cells := []table.TableCell{
-			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), nil),
-			table.Cell(templ.Raw(debtVM.OriginalAmountWithCurrency), nil),
-			table.Cell(templ.Raw(debtVM.OutstandingAmountWithCurrency), nil),
-			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), nil),
-			table.Cell(templ.Raw(debtVM.Description), nil),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), debtVM.Type),
+			table.Cell(templ.Raw(debtVM.OriginalAmountWithCurrency), debtVM.OriginalAmountWithCurrency),
+			table.Cell(templ.Raw(debtVM.OutstandingAmountWithCurrency), debtVM.OutstandingAmountWithCurrency),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), debtVM.Status),
+			table.Cell(templ.Raw(debtVM.Description), debtVM.Description),
 		}
 		rows = append(rows, table.Row(cells...))
 	}
