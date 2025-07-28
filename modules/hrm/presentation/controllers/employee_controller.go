@@ -10,6 +10,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/components/scaffold/form"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/hrm/domain/aggregates/employee"
@@ -111,7 +112,19 @@ func (c *EmployeeController) GetNew(w http.ResponseWriter, r *http.Request) {
 		Employee: mappers.EmployeeToViewModel(entity),
 		PostPath: c.basePath,
 	}
-	templ.Handler(employees.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+
+	cfg := form.NewFormConfig(
+		"Hello world",
+		c.basePath,
+		"",
+		"submit label",
+	).AddSection(form.NewDynamicFormSection("Deductions", form.Email("email", "Email").Build(), form.Text("text", "Textfield").Build(), form.Select("select", "Select").Build()))
+
+	if err := form.Page(cfg).Render(r.Context(), w); err != nil {
+		http.Error(w, "failed to render", http.StatusInternalServerError)
+	} else {
+		templ.Handler(employees.New(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
 }
 
 func (c *EmployeeController) GetEdit(w http.ResponseWriter, r *http.Request) {

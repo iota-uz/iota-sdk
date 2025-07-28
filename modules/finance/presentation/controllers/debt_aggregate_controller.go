@@ -109,14 +109,14 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 
 		aggVM := mappers.DebtCounterpartyAggregateToViewModel(agg, counterparty.Name())
 
-		cells := []templ.Component{
-			templ.Raw(aggVM.CounterpartyName),
-			templ.Raw(aggVM.TotalReceivable),
-			templ.Raw(aggVM.TotalPayable),
-			templ.Raw(aggVM.TotalOutstandingReceivable),
-			templ.Raw(aggVM.TotalOutstandingPayable),
-			templ.Raw(aggVM.NetAmount),
-			templ.Raw(fmt.Sprintf("%d", aggVM.DebtCount)),
+		cells := []table.TableCell{
+			table.Cell(templ.Raw(aggVM.CounterpartyName), nil),
+			table.Cell(templ.Raw(aggVM.TotalReceivable), nil),
+			table.Cell(templ.Raw(aggVM.TotalPayable), nil),
+			table.Cell(templ.Raw(aggVM.TotalOutstandingReceivable), nil),
+			table.Cell(templ.Raw(aggVM.TotalOutstandingPayable), nil),
+			table.Cell(templ.Raw(aggVM.NetAmount), nil),
+			table.Cell(templ.Raw(fmt.Sprintf("%d", aggVM.DebtCount)), nil),
 		}
 
 		row := table.Row(cells...).ApplyOpts(
@@ -189,12 +189,12 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 
 	rows := make([]table.TableRow, 0, len(debtVMs))
 	for _, debtVM := range debtVMs {
-		cells := []templ.Component{
-			templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))),
-			templ.Raw(debtVM.OriginalAmountWithCurrency),
-			templ.Raw(debtVM.OutstandingAmountWithCurrency),
-			templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))),
-			templ.Raw(debtVM.Description),
+		cells := []table.TableCell{
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), nil),
+			table.Cell(templ.Raw(debtVM.OriginalAmountWithCurrency), nil),
+			table.Cell(templ.Raw(debtVM.OutstandingAmountWithCurrency), nil),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), nil),
+			table.Cell(templ.Raw(debtVM.Description), nil),
 		}
 		rows = append(rows, table.Row(cells...))
 	}

@@ -96,9 +96,9 @@ templ Rows(cfg *TableConfig) {
 			@base.TableRow(base.TableRowProps{
 				Attrs: rowAttrs,
 			}) {
-				for _, cell := range row.Cells() {
+				for i, cell := range row.Cells() {
 					@base.TableCell(base.TableCellProps{}) {
-						@cell
+						@cell.Component(cfg.Columns[i], cfg.Editable)
 					}
 				}
 			}

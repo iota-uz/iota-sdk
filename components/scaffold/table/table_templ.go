@@ -242,7 +242,7 @@ func Rows(cfg *TableConfig) templ.Component {
 						}()
 					}
 					ctx = templ.InitializeContext(ctx)
-					for _, cell := range row.Cells() {
+					for i, cell := range row.Cells() {
 						templ_7745c5c3_Var10 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 							templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 							templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -255,7 +255,7 @@ func Rows(cfg *TableConfig) templ.Component {
 								}()
 							}
 							ctx = templ.InitializeContext(ctx)
-							templ_7745c5c3_Err = cell.Render(ctx, templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = cell.Component(cfg.Columns[i], cfg.Editable).Render(ctx, templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
