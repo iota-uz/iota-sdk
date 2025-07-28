@@ -179,12 +179,12 @@ func (c *DebtsController) List(w http.ResponseWriter, r *http.Request) {
 		}
 
 		cells := []table.TableCell{
-			table.Cell(templ.Raw(debtVM.CounterpartyName), nil),
-			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), nil),
-			table.Cell(templ.Raw(debtVM.OriginalAmount), nil),
-			table.Cell(templ.Raw(debtVM.OutstandingAmount), nil),
-			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), nil),
-			table.Cell(table.DateTime(createdAt), nil),
+			table.Cell(templ.Raw(debtVM.CounterpartyName), debtVM.CounterpartyName),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), debtVM.Type),
+			table.Cell(templ.Raw(debtVM.OriginalAmount), debtVM.OriginalAmount),
+			table.Cell(templ.Raw(debtVM.OutstandingAmount), debtVM.OutstandingAmount),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), debtVM.Status),
+			table.Cell(table.DateTime(createdAt), createdAt),
 		}
 
 		row := table.Row(cells...).ApplyOpts(

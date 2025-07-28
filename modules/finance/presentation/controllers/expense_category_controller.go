@@ -174,9 +174,9 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		}
 
 		cells := []table.TableCell{
-			table.Cell(templ.Raw(cat.Name), nil),
-			table.Cell(templ.Raw(cat.Description), nil),
-			table.Cell(table.DateTime(createdAt), nil),
+			table.Cell(templ.Raw(cat.Name), cat.Name),
+			table.Cell(templ.Raw(cat.Description), cat.Description),
+			table.Cell(table.DateTime(createdAt), createdAt),
 		}
 
 		row := table.Row(cells...).ApplyOpts(
