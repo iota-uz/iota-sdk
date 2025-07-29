@@ -25,7 +25,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -173,7 +172,7 @@ func (c *MoneyAccountController) List(w http.ResponseWriter, r *http.Request) {
 			c.basePath,
 		).
 			WithColumns(
-				table.Column("name", pageCtx.T("MoneyAccounts.List.Name"), table.WithEditable(crud.NewStringField("name"))),
+				table.Column("name", pageCtx.T("MoneyAccounts.List.Name")),
 				table.Column("balance", pageCtx.T("MoneyAccounts.List.Balance")),
 				table.Column("account_number", pageCtx.T("MoneyAccounts.Single.AccountNumber")),
 				table.Column("created_at", pageCtx.T("CreatedAt")),
