@@ -2,11 +2,15 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
@@ -467,9 +471,44 @@ func NewCrudShowcaseController(
 		app.EventPublisher(),
 	)
 
-	// Merge the MultiLang renderer option with user-provided options
-	allOpts := make([]CrudOption[ShowcaseEntity], 0, len(opts)+1)
+	// Merge the MultiLang renderer option with custom actions and user-provided options
+	allOpts := make([]CrudOption[ShowcaseEntity], 0, len(opts)+6)
 	allOpts = append(allOpts, WithMultiLangRenderer[ShowcaseEntity]())
+
+	// Добавляем custom header actions для демонстрации функциональности
+	allOpts = append(allOpts, WithCustomHeaderAction[ShowcaseEntity](
+		actions.ExportAction("Export Showcase", "/_dev/crud/export"),
+	))
+
+	allOpts = append(allOpts, WithCustomHeaderAction[ShowcaseEntity](
+		actions.CustomAction(
+			"Sync Data",
+			icons.ArrowsClockwise(icons.Props{Size: "18"}),
+			actions.WithHref("/_dev/crud/sync"),
+			actions.WithVariant(button.VariantSecondary),
+		),
+	))
+
+	// Добавляем custom row actions для демонстрации функциональности
+	allOpts = append(allOpts, WithCustomRowAction[ShowcaseEntity](func(primaryKey any) actions.ActionProps {
+		return actions.CustomAction(
+			"Clone",
+			icons.Copy(icons.Props{Size: "20"}),
+			actions.WithHref(fmt.Sprintf("/_dev/crud/%v/clone", primaryKey)),
+			actions.WithSize(button.SizeSM),
+		)
+	}))
+
+	allOpts = append(allOpts, WithCustomRowAction[ShowcaseEntity](func(primaryKey any) actions.ActionProps {
+		return actions.CustomAction(
+			"Archive",
+			icons.Archive(icons.Props{Size: "20"}),
+			actions.WithHref(fmt.Sprintf("/_dev/crud/%v/archive", primaryKey)),
+			actions.WithVariant(button.VariantDanger),
+			actions.WithSize(button.SizeSM),
+		)
+	}))
+
 	allOpts = append(allOpts, opts...)
 
 	return NewCrudController(
