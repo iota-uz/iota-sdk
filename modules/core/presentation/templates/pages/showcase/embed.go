@@ -35,6 +35,9 @@ var AdvancedDatepickerComponentSource string
 //go:embed components/table.templ
 var TableComponentSource string
 
+//go:embed components/editable_table.templ
+var EditableTableComponentSource string
+
 //go:embed components/buttons.templ
 var ButtonsComponentSource string
 

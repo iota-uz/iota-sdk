@@ -706,7 +706,7 @@ func WithSortURL(sortURL string) ColumnOpt {
 	}
 }
 
-func WithEditable(field crud.Field) ColumnOpt {
+func WithEditableColumn(field crud.Field) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.editable = true
 		c.editableField = field
@@ -716,6 +716,12 @@ func WithEditable(field crud.Field) ColumnOpt {
 // --- Table Configuration ---
 
 type TableConfigOpt func(c *TableConfig)
+
+func WithEditable() TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Editable = true
+	}
+}
 
 func WithInfiniteScroll(hasMore bool, page, perPage int) TableConfigOpt {
 	return func(c *TableConfig) {
