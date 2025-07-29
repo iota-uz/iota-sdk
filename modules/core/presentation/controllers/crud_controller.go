@@ -923,7 +923,14 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 
 // buildHeaderActions creates header actions for the list view
 func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []actions.ActionProps {
-	var headerActions []actions.ActionProps
+	// Pre-allocate slice with estimated capacity
+	capacity := 0
+	if c.enableCreate {
+		capacity++
+	}
+	capacity += len(c.customHeaderActions)
+
+	headerActions := make([]actions.ActionProps, 0, capacity)
 
 	if c.enableCreate {
 		createLabel, err := c.localize(ctx, fmt.Sprintf("%s.List.New", c.schema.Name()), "New")
@@ -942,7 +949,17 @@ func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []acti
 
 // buildRowActions creates row actions for table rows
 func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey any) []actions.ActionProps {
-	var rowActions []actions.ActionProps
+	// Pre-allocate slice with estimated capacity
+	capacity := 0
+	if c.enableEdit {
+		capacity++
+	}
+	if c.enableDelete {
+		capacity++
+	}
+	capacity += len(c.customRowActions)
+
+	rowActions := make([]actions.ActionProps, 0, capacity)
 
 	if c.enableEdit {
 		editAction := actions.EditAction(fmt.Sprintf("%s/%v/edit", c.basePath, primaryKey))
