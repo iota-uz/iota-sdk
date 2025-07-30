@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
+	websitePersistence "github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/rag"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -68,6 +69,9 @@ type WebsiteChatService struct {
 }
 
 func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
+	if config.ThreadRepo == nil {
+		config.ThreadRepo = websitePersistence.NewInmemThreadRepository()
+	}
 	return &WebsiteChatService{
 		aiconfigRepo: config.AIConfigRepo,
 		userRepo:     config.UserRepo,

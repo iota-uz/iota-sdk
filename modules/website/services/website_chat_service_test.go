@@ -14,9 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +22,6 @@ import (
 // setupChatTest extends the setupTest with WebsiteChatService
 func setupChatTest(t *testing.T) (*itf.TestEnvironment, *services.WebsiteChatService, client.Repository) {
 	t.Helper()
-	conf := configuration.Use()
 
 	fixtures := setupTest(t)
 
@@ -34,7 +31,6 @@ func setupChatTest(t *testing.T) (*itf.TestEnvironment, *services.WebsiteChatSer
 	clientRepo := crmPersistence.NewClientRepository(passportRepo)
 	chatRepo := crmPersistence.NewChatRepository()
 	aiconfigRepo := persistence.NewAIChatConfigRepository()
-	threadRepo := persistence.NewThreadRepository(redis.NewClient(&redis.Options{Addr: conf.RedisURL}))
 
 	// Create the website chat service
 	websiteChatService := services.NewWebsiteChatService(services.WebsiteChatServiceConfig{
@@ -42,7 +38,6 @@ func setupChatTest(t *testing.T) (*itf.TestEnvironment, *services.WebsiteChatSer
 		UserRepo:     userRepo,
 		ClientRepo:   clientRepo,
 		ChatRepo:     chatRepo,
-		ThreadRepo:   threadRepo,
 		AIUserEmail:  internet.MustParseEmail("ai@example.com"),
 	})
 
