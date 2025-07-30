@@ -35,7 +35,7 @@ func EditableTable() templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = table.Table(&table.TableConfig{
-			Editable: true,
+			Editable: table.TableEditableConfig{Enabled: true, WithoutDelete: true, WithoutCreate: true},
 			Columns: []table.TableColumn{
 				table.Column("name", "Name", table.WithEditableColumn(crud.NewStringField("name"))),
 				table.Column("select", "Select", table.WithEditableColumn(crud.NewSelectField("select").WithStaticOptions(crud.SelectOption{Value: "option-1", Label: "Option 1"}, crud.SelectOption{Value: "option-2", Label: "Option 2"}))),

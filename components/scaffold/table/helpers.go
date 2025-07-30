@@ -35,7 +35,7 @@ type TableColumn interface {
 }
 
 type TableCell interface {
-	Component(col TableColumn, editMode bool) templ.Component
+	Component(col TableColumn, editMode bool, withValue bool) templ.Component
 }
 
 type tableCellImpl struct {
@@ -200,7 +200,7 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 	}
 }
 
-func (c *tableCellImpl) Component(col TableColumn, editMode bool) templ.Component {
+func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool) templ.Component {
 	field := col.EditableField()
 	if col.Editable() && field != nil && editMode {
 		if field.Hidden() {
@@ -212,17 +212,19 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool) templ.Componen
 
 		ctx := context.TODO()
 		var currentValue any
-		if c.value != nil && !(c.value == nil || reflect.ValueOf(c.value).IsZero()) {
-			currentValue = c.value
-		} else if field.InitialValue(ctx) != nil {
-			currentValue = field.InitialValue(ctx)
+		if withValue {
+			if c.value != nil && !(c.value == nil || reflect.ValueOf(c.value).IsZero()) {
+				currentValue = c.value
+			} else if field.InitialValue(ctx) != nil {
+				currentValue = field.InitialValue(ctx)
+			}
 		}
 
 		switch field.Type() {
 		case crud.StringFieldType:
 			// Check if this is actually a select field
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, c.value)
+				return c.handleSelectField(ctx, selectField, currentValue)
 			}
 
 			sf, err := field.AsStringField()
@@ -284,7 +286,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool) templ.Componen
 		case crud.IntFieldType:
 			// Check if this is actually a select field with int values
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, c.value)
+				return c.handleSelectField(ctx, selectField, currentValue)
 			}
 
 			intField, err := field.AsIntField()
@@ -325,7 +327,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool) templ.Componen
 		case crud.BoolFieldType:
 			// Check if this is actually a select field with bool values
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, c.value)
+				return c.handleSelectField(ctx, selectField, currentValue)
 			}
 
 			builder := form.Checkbox(field.Name(), "")
@@ -466,7 +468,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool) templ.Componen
 		case crud.UUIDFieldType:
 			// Check if this is actually a select field
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, c.value)
+				return c.handleSelectField(ctx, selectField, currentValue)
 			}
 
 			builder := form.Text(field.Name(), "")
@@ -533,7 +535,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool) templ.Componen
 			attrs := templ.Attributes{}
 			if decimalField.Scale() > 0 {
 				step := 1.0
-				for i := 0; i < decimalField.Scale(); i++ {
+				for range decimalField.Scale() {
 					step /= 10
 				}
 				attrs["step"] = fmt.Sprintf("%f", step)
@@ -717,9 +719,9 @@ func WithEditableColumn(field crud.Field) ColumnOpt {
 
 type TableConfigOpt func(c *TableConfig)
 
-func WithEditable() TableConfigOpt {
+func WithEditable(config TableEditableConfig) TableConfigOpt {
 	return func(c *TableConfig) {
-		c.Editable = true
+		c.Editable = config
 	}
 }
 
@@ -737,6 +739,14 @@ type InfiniteScrollConfig struct {
 	PerPage int
 }
 
+type TableEditableConfig struct {
+	Enabled           bool
+	WithoutDelete     bool
+	WithoutCreate     bool
+	CreateLabel       string
+	ActionColumnLabel string
+}
+
 type TableConfig struct {
 	Title      string
 	DataURL    string
@@ -746,7 +756,7 @@ type TableConfig struct {
 	Rows       []TableRow
 	Infinite   *InfiniteScrollConfig
 	SideFilter templ.Component
-	Editable   bool
+	Editable   TableEditableConfig
 
 	// Sorting configuration
 	CurrentSort      string // Current sort field
