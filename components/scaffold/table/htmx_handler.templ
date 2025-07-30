@@ -19,7 +19,6 @@ templ ContentHTMX(config *TableConfig) {
 			isHtmxRequest = htmx.IsHxRequest(params.Request)
 		}
 	}}
-	
 	if isHtmxRequest {
 		// HTMX request - handle based on target
 		if hxTarget == "sortable-table-container" {
