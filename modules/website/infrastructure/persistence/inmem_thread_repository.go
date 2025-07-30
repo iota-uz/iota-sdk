@@ -72,4 +72,3 @@ func (r *InmemThreadRepository) Delete(ctx context.Context, id uuid.UUID) error 
 func (r *InmemThreadRepository) List(ctx context.Context) ([]chatthread.ChatThread, error) {
 	return slices.Collect(maps.Values(r.storage.m)), nil
 }
-
