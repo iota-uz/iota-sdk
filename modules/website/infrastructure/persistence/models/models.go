@@ -20,7 +20,7 @@ type AIChatConfig struct {
 }
 
 type ChatThread struct {
-	ID        string
-	Timestamp time.Time
-	ChatID    uint
+	ID        string    `json:"id"`
+	Timestamp time.Time `json:"timestamp"`
+	ChatID    uint      `json:"chatID"`
 }
