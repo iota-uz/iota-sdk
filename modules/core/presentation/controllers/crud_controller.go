@@ -61,6 +61,10 @@ type CrudController[TEntity any] struct {
 	enableEdit   bool
 	enableDelete bool
 	enableCreate bool
+
+	// custom actions
+	customHeaderActions []actions.ActionProps
+	customRowActions    []func(primaryKey any) actions.ActionProps
 }
 
 // CrudOption defines options for CrudController
@@ -94,6 +98,20 @@ func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
 	}
 }
 
+// WithCustomHeaderAction adds a custom header action to the list view
+func WithCustomHeaderAction[TEntity any](action actions.ActionProps) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.customHeaderActions = append(c.customHeaderActions, action)
+	}
+}
+
+// WithCustomRowAction adds a custom row action to each row in the table
+func WithCustomRowAction[TEntity any](actionBuilder func(primaryKey any) actions.ActionProps) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.customRowActions = append(c.customRowActions, actionBuilder)
+	}
+}
+
 func NewCrudController[TEntity any](
 	basePath string,
 	app application.Application,
@@ -101,14 +119,16 @@ func NewCrudController[TEntity any](
 	opts ...CrudOption[TEntity],
 ) application.Controller {
 	controller := &CrudController[TEntity]{
-		basePath:         basePath,
-		app:              app,
-		schema:           builder.Schema(),
-		service:          builder.Service(),
-		rendererRegistry: crud.NewRendererRegistry(),
-		enableEdit:       true,
-		enableDelete:     true,
-		enableCreate:     true,
+		basePath:            basePath,
+		app:                 app,
+		schema:              builder.Schema(),
+		service:             builder.Service(),
+		rendererRegistry:    crud.NewRendererRegistry(),
+		enableEdit:          true,
+		enableDelete:        true,
+		enableCreate:        true,
+		customHeaderActions: make([]actions.ActionProps, 0),
+		customRowActions:    make([]func(primaryKey any) actions.ActionProps, 0),
 	}
 
 	// Apply options
@@ -570,49 +590,51 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	// Add columns based on visible fields (only for initial load)
-	if !htmx.IsHxRequest(r) {
-		columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
-		for _, f := range c.visibleFields {
-			// Localize field label using custom key if provided, otherwise use default pattern
-			localizationKey := f.LocalizationKey()
-			if localizationKey == "" {
-				localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name())
-			}
-			fieldLabel, err := c.localize(ctx, localizationKey, f.Name())
-			if err != nil {
-				fieldLabel = f.Name()
-			}
+	// Add columns based on visible fields (needed for all requests to maintain table structure)
+	columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
+	for _, f := range c.visibleFields {
+		// Localize field label using custom key if provided, otherwise use default pattern
+		localizationKey := f.LocalizationKey()
+		if localizationKey == "" {
+			localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name())
+		}
+		fieldLabel, err := c.localize(ctx, localizationKey, f.Name())
+		if err != nil {
+			fieldLabel = f.Name()
+		}
 
-			// Create column with sorting support
-			// Get current query parameters to preserve them in sort URLs
-			currentParams := r.URL.Query()
-			// Remove pagination params as they should reset on sort
-			currentParams.Del("page")
-			currentParams.Del("limit")
+		// Create column with sorting support
+		// Get current query parameters to preserve them in sort URLs
+		currentParams := r.URL.Query()
+		// Remove pagination params as they should reset on sort
+		currentParams.Del("page")
+		currentParams.Del("limit")
 
-			col := table.Column(f.Name(), fieldLabel,
+		// Only enable sorting for explicitly sortable fields
+		col := table.Column(f.Name(), fieldLabel)
+		if f.Sortable() {
+			col = table.Column(f.Name(), fieldLabel,
 				table.WithSortable(),
 				table.WithSortDir(table.GetSortDirection(f.Name(), sortField, sortOrder)),
 				table.WithSortURL(table.GenerateSortURLWithParams(c.basePath, f.Name(), sortField, sortOrder, currentParams)),
 			)
-			columns = append(columns, col)
 		}
+		columns = append(columns, col)
+	}
 
-		// Add actions column if edit or delete is enabled (not sortable)
-		if c.enableEdit || c.enableDelete {
-			actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
-			columns = append(columns, table.Column("actions", actionsLabel))
-		}
+	// Add actions column if edit or delete is enabled (not sortable)
+	if c.enableEdit || c.enableDelete {
+		actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
+		columns = append(columns, table.Column("actions", actionsLabel))
+	}
 
-		cfg.AddCols(columns...)
+	cfg.AddCols(columns...)
 
-		// Add header actions
-		headerActions := c.buildHeaderActions(ctx)
-		if len(headerActions) > 0 {
-			for _, action := range headerActions {
-				cfg.AddActions(actions.RenderAction(action))
-			}
+	// Add header actions
+	headerActions := c.buildHeaderActions(ctx)
+	if len(headerActions) > 0 {
+		for _, action := range headerActions {
+			cfg.AddActions(actions.RenderAction(action))
 		}
 	}
 
@@ -638,13 +660,8 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		table.WithInfiniteScroll(hasMore, paginationParams.Page, paginationParams.Limit)(cfg)
 	}
 
-	// Render response
-	var component templ.Component
-	if htmx.IsHxRequest(r) {
-		component = table.Rows(cfg)
-	} else {
-		component = table.Page(cfg)
-	}
+	// Render response using ContentHTMX for proper HTMX handling
+	component := table.ContentHTMX(cfg)
 
 	if err := component.Render(ctx, w); err != nil {
 		log.Printf("[CrudController.List] Failed to render template: %v", err)
@@ -903,7 +920,14 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 
 // buildHeaderActions creates header actions for the list view
 func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []actions.ActionProps {
-	var headerActions []actions.ActionProps
+	// Pre-allocate slice with estimated capacity
+	capacity := 0
+	if c.enableCreate {
+		capacity++
+	}
+	capacity += len(c.customHeaderActions)
+
+	headerActions := make([]actions.ActionProps, 0, capacity)
 
 	if c.enableCreate {
 		createLabel, err := c.localize(ctx, fmt.Sprintf("%s.List.New", c.schema.Name()), "New")
@@ -914,12 +938,25 @@ func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []acti
 		headerActions = append(headerActions, createAction)
 	}
 
+	// Add custom header actions
+	headerActions = append(headerActions, c.customHeaderActions...)
+
 	return headerActions
 }
 
 // buildRowActions creates row actions for table rows
 func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey any) []actions.ActionProps {
-	var rowActions []actions.ActionProps
+	// Pre-allocate slice with estimated capacity
+	capacity := 0
+	if c.enableEdit {
+		capacity++
+	}
+	if c.enableDelete {
+		capacity++
+	}
+	capacity += len(c.customRowActions)
+
+	rowActions := make([]actions.ActionProps, 0, capacity)
 
 	if c.enableEdit {
 		editAction := actions.EditAction(fmt.Sprintf("%s/%v/edit", c.basePath, primaryKey))
@@ -929,6 +966,12 @@ func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey 
 	if c.enableDelete {
 		deleteAction := actions.DeleteAction(fmt.Sprintf("%s/%v", c.basePath, primaryKey))
 		rowActions = append(rowActions, deleteAction)
+	}
+
+	// Add custom row actions
+	for _, actionBuilder := range c.customRowActions {
+		customAction := actionBuilder(primaryKey)
+		rowActions = append(rowActions, customAction)
 	}
 
 	return rowActions
