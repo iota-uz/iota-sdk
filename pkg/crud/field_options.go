@@ -29,6 +29,12 @@ func WithSearchable() FieldOption {
 	}
 }
 
+func WithSortable() FieldOption {
+	return func(field *field) {
+		field.sortable = true
+	}
+}
+
 func WithInitialValue(fn func(ctx context.Context) any) FieldOption {
 	return func(field *field) {
 		field.initialValueFn = fn

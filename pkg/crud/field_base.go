@@ -70,6 +70,7 @@ type Field interface {
 
 	Readonly() bool
 	Searchable() bool
+	Sortable() bool
 	Hidden() bool
 
 	Rules() []FieldRule
@@ -107,6 +108,7 @@ type field struct {
 	readonly        bool
 	hidden          bool
 	searchable      bool
+	sortable        bool
 	rendererType    string
 	localizationKey string
 	attrs           map[string]any
@@ -124,6 +126,7 @@ func newField(
 		name:            name,
 		type_:           type_,
 		searchable:      false,
+		sortable:        false,
 		readonly:        false,
 		hidden:          false,
 		rendererType:    "", // Default: use standard rendering
@@ -164,6 +167,10 @@ func (f *field) Readonly() bool {
 
 func (f *field) Searchable() bool {
 	return f.searchable
+}
+
+func (f *field) Sortable() bool {
+	return f.sortable
 }
 
 func (f *field) Hidden() bool {
