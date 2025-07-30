@@ -41,7 +41,6 @@ func (s *SafeMap[K, V]) Delete(key K) {
 }
 
 type InmemThreadRepository struct {
-	mu      sync.RWMutex
 	storage *SafeMap[uuid.UUID, chatthread.ChatThread]
 }
 
