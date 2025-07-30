@@ -100,7 +100,7 @@ templ Table(props TableProps) {
 								class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
 								hx-get={ col.SortURL }
 								hx-target="#sortable-table-container"
-								hx-swap="innerHTML"
+								hx-swap="outerHTML"
 								hx-push-url="true"
 								hx-indicator="#table-body"
 							>

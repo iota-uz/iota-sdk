@@ -1157,6 +1157,7 @@ func (m *mockField) Name() string                         { return m.name }
 func (m *mockField) Type() crud.FieldType                 { return m.fieldType }
 func (m *mockField) Readonly() bool                       { return false }
 func (m *mockField) Searchable() bool                     { return false }
+func (m *mockField) Sortable() bool                       { return false }
 func (m *mockField) Hidden() bool                         { return false }
 func (m *mockField) Rules() []crud.FieldRule              { return nil }
 func (m *mockField) InitialValue(ctx context.Context) any { return nil }
