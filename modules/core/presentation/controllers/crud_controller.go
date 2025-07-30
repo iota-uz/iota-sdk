@@ -570,49 +570,51 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	// Add columns based on visible fields (only for initial load)
-	if !htmx.IsHxRequest(r) {
-		columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
-		for _, f := range c.visibleFields {
-			// Localize field label using custom key if provided, otherwise use default pattern
-			localizationKey := f.LocalizationKey()
-			if localizationKey == "" {
-				localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name())
-			}
-			fieldLabel, err := c.localize(ctx, localizationKey, f.Name())
-			if err != nil {
-				fieldLabel = f.Name()
-			}
+	// Add columns based on visible fields (needed for all requests to maintain table structure)
+	columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
+	for _, f := range c.visibleFields {
+		// Localize field label using custom key if provided, otherwise use default pattern
+		localizationKey := f.LocalizationKey()
+		if localizationKey == "" {
+			localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name())
+		}
+		fieldLabel, err := c.localize(ctx, localizationKey, f.Name())
+		if err != nil {
+			fieldLabel = f.Name()
+		}
 
-			// Create column with sorting support
-			// Get current query parameters to preserve them in sort URLs
-			currentParams := r.URL.Query()
-			// Remove pagination params as they should reset on sort
-			currentParams.Del("page")
-			currentParams.Del("limit")
+		// Create column with sorting support
+		// Get current query parameters to preserve them in sort URLs
+		currentParams := r.URL.Query()
+		// Remove pagination params as they should reset on sort
+		currentParams.Del("page")
+		currentParams.Del("limit")
 
-			col := table.Column(f.Name(), fieldLabel,
+		// Only enable sorting for explicitly sortable fields
+		col := table.Column(f.Name(), fieldLabel)
+		if f.Sortable() {
+			col = table.Column(f.Name(), fieldLabel,
 				table.WithSortable(),
 				table.WithSortDir(table.GetSortDirection(f.Name(), sortField, sortOrder)),
 				table.WithSortURL(table.GenerateSortURLWithParams(c.basePath, f.Name(), sortField, sortOrder, currentParams)),
 			)
-			columns = append(columns, col)
 		}
+		columns = append(columns, col)
+	}
 
-		// Add actions column if edit or delete is enabled (not sortable)
-		if c.enableEdit || c.enableDelete {
-			actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
-			columns = append(columns, table.Column("actions", actionsLabel))
-		}
+	// Add actions column if edit or delete is enabled (not sortable)
+	if c.enableEdit || c.enableDelete {
+		actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
+		columns = append(columns, table.Column("actions", actionsLabel))
+	}
 
-		cfg.AddCols(columns...)
+	cfg.AddCols(columns...)
 
-		// Add header actions
-		headerActions := c.buildHeaderActions(ctx)
-		if len(headerActions) > 0 {
-			for _, action := range headerActions {
-				cfg.AddActions(actions.RenderAction(action))
-			}
+	// Add header actions
+	headerActions := c.buildHeaderActions(ctx)
+	if len(headerActions) > 0 {
+		for _, action := range headerActions {
+			cfg.AddActions(actions.RenderAction(action))
 		}
 	}
 
@@ -638,13 +640,8 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		table.WithInfiniteScroll(hasMore, paginationParams.Page, paginationParams.Limit)(cfg)
 	}
 
-	// Render response
-	var component templ.Component
-	if htmx.IsHxRequest(r) {
-		component = table.Rows(cfg)
-	} else {
-		component = table.Page(cfg)
-	}
+	// Render response using ContentHTMX for proper HTMX handling
+	component := table.ContentHTMX(cfg)
 
 	if err := component.Render(ctx, w); err != nil {
 		log.Printf("[CrudController.List] Failed to render template: %v", err)

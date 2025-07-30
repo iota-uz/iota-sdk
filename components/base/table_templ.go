@@ -275,7 +275,7 @@ func Table(props TableProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" hx-target=\"#sortable-table-container\" hx-swap=\"innerHTML\" hx-push-url=\"true\" hx-indicator=\"#table-body\"><div class=\"flex items-center gap-2\"><span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" hx-target=\"#sortable-table-container\" hx-swap=\"outerHTML\" hx-push-url=\"true\" hx-indicator=\"#table-body\"><div class=\"flex items-center gap-2\"><span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

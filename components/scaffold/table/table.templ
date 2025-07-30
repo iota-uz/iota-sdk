@@ -125,7 +125,7 @@ templ Table(config *TableConfig) {
 			Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
 		})
 	} else {
-		<div id="sortable-table-container">
+		<div id="sortable-table-container" hx-disinherit="*">
 			@base.Table(base.TableProps{
 				Columns: toBaseTableColumns(config.Columns),
 				TBodyAttrs: templ.Attributes{
