@@ -378,6 +378,150 @@ Generated endpoints:
 - `POST /products/{id}` - Update entity
 - `DELETE /products/{id}` - Delete entity
 
+## Custom Actions
+
+The CRUD controller supports adding custom actions through functional options:
+
+- **Header Actions**: Custom actions displayed in the list view header (e.g., Export, Import, Sync)
+- **Row Actions**: Custom actions displayed for each row in the table (e.g., Clone, Archive, Approve)
+
+### API Reference
+
+#### WithCustomHeaderAction
+
+Adds a custom action to the list view header.
+
+```go
+func WithCustomHeaderAction[TEntity any](action actions.ActionProps) CrudOption[TEntity]
+```
+
+#### WithCustomRowAction  
+
+Adds a custom action to each row in the table. Takes a function that receives the primary key and returns an action.
+
+```go
+func WithCustomRowAction[TEntity any](actionBuilder func(primaryKey any) actions.ActionProps) CrudOption[TEntity]
+```
+
+### Usage Examples
+
+#### Basic Header Actions
+
+```go
+controller := controllers.NewCrudController[Product](
+    "/products",
+    app,
+    builder,
+    
+    // Add export functionality
+    controllers.WithCustomHeaderAction[Product](
+        actions.ExportAction("Export CSV", "/products/export"),
+    ),
+    
+    // Add import functionality
+    controllers.WithCustomHeaderAction[Product](
+        actions.ImportAction("Import CSV", "/products/import"),
+    ),
+)
+```
+
+#### Custom Header Actions
+
+```go
+controller := controllers.NewCrudController[Product](
+    "/products", 
+    app,
+    builder,
+    
+    // Custom sync action
+    controllers.WithCustomHeaderAction[Product](
+        actions.CustomAction(
+            "Sync Inventory",
+            icons.ArrowsClockwise(icons.Props{Size: "18"}),
+            actions.WithHref("/products/sync"),
+            actions.WithVariant(button.VariantSecondary),
+        ),
+    ),
+)
+```
+
+#### Row Actions
+
+```go
+controller := controllers.NewCrudController[Product](
+    "/products",
+    app, 
+    builder,
+    
+    // Add clone functionality to each row
+    controllers.WithCustomRowAction[Product](func(primaryKey any) actions.ActionProps {
+        return actions.CustomAction(
+            "Clone",
+            icons.Copy(icons.Props{Size: "20"}),
+            actions.WithHref(fmt.Sprintf("/products/%v/clone", primaryKey)),
+            actions.WithSize(button.SizeSM),
+        )
+    }),
+    
+    // Add archive functionality 
+    controllers.WithCustomRowAction[Product](func(primaryKey any) actions.ActionProps {
+        return actions.CustomAction(
+            "Archive", 
+            icons.Archive(icons.Props{Size: "20"}),
+            actions.WithHref(fmt.Sprintf("/products/%v/archive", primaryKey)),
+            actions.WithVariant(button.VariantDanger),
+            actions.WithSize(button.SizeSM),
+        )
+    }),
+)
+```
+
+#### Combining with Existing Options
+
+Custom actions work seamlessly with existing CRUD controller options:
+
+```go
+controller := controllers.NewCrudController[Product](
+    "/products",
+    app,
+    builder,
+    
+    // Disable standard delete since we use archive
+    controllers.WithoutDelete[Product](),
+    
+    // Add custom actions
+    controllers.WithCustomHeaderAction[Product](
+        actions.ExportAction("Export", "/products/export"),
+    ),
+    controllers.WithCustomRowAction[Product](func(pk any) actions.ActionProps {
+        return actions.CustomAction("Archive", archiveIcon, 
+            actions.WithHref(fmt.Sprintf("/products/%v/archive", pk)))
+    }),
+)
+```
+
+### Action Types
+
+#### Pre-built Actions
+
+- `actions.CreateAction(label, href)` - Standard create button
+- `actions.ExportAction(label, href)` - Export button with download icon  
+- `actions.ImportAction(label, href)` - Import button with upload icon
+- `actions.EditAction(href)` - Edit button (used internally)
+- `actions.DeleteAction(href)` - Delete button (used internally)
+
+#### Custom Actions
+
+- `actions.CustomAction(label, icon, ...options)` - Fully customizable action
+
+#### Action Options
+
+- `actions.WithHref(url)` - Set the action URL
+- `actions.WithOnClick(js)` - Set JavaScript onclick handler
+- `actions.WithVariant(variant)` - Set button style (Primary, Secondary, Danger, etc.)
+- `actions.WithSize(size)` - Set button size (Normal, SM, XS, etc.)
+- `actions.WithAttrs(attrs)` - Set additional HTML attributes
+
 ## Complete Example
 
 ```go

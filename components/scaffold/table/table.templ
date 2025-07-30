@@ -180,6 +180,7 @@ templ Table(config *TableConfig) {
 	} else {
 		<div
 			id="sortable-table-container"
+			hx-disinherit="*"
 			if config.Editable.Enabled {
 				{ setupAlpineData(config)... }
 			}
