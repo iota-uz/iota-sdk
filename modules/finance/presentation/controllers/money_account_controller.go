@@ -46,9 +46,14 @@ type MoneyAccountController struct {
 func NewMoneyAccountController(app application.Application) application.Controller {
 	basePath := "/finance/accounts"
 
-	// Create table definition once at initialization
-	// Note: We'll set the actual localized values in the List method since we need context
+	// Create table definition with columns for HTMX requests
 	tableDefinition := table.NewTableDefinition("", basePath).
+		WithColumns(
+			table.Column("name", "Name"),
+			table.Column("balance", "Balance"),
+			table.Column("account_number", "Account Number"),
+			table.Column("created_at", "Created At"),
+		).
 		WithInfiniteScroll(true).
 		Build()
 
