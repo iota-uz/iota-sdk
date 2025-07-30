@@ -37,8 +37,16 @@ type DebtsController struct {
 func NewDebtsController(app application.Application) application.Controller {
 	basePath := "/finance/debts"
 
-	// Create table definition once at initialization
+	// Create table definition with columns for HTMX requests
 	tableDefinition := table.NewTableDefinition("", basePath).
+		WithColumns(
+			table.Column("counterparty", "Counterparty"),
+			table.Column("type", "Type"),
+			table.Column("original_amount", "Original Amount"),
+			table.Column("outstanding_amount", "Outstanding Amount"),
+			table.Column("status", "Status"),
+			table.Column("created_at", "Created At"),
+		).
 		WithInfiniteScroll(true).
 		Build()
 

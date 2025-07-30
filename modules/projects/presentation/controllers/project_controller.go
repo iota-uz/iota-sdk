@@ -36,7 +36,14 @@ type ProjectController struct {
 func NewProjectController(app application.Application) application.Controller {
 	basePath := "/projects"
 
+	// Create a minimal table definition with columns for HTMX requests
 	tableDefinition := table.NewTableDefinition("", basePath).
+		WithColumns(
+			table.Column("name", "Name"),
+			table.Column("description", "Description"),
+			table.Column("counterparty", "Counterparty"),
+			table.Column("created_at", "Created At"),
+		).
 		WithInfiniteScroll(true).
 		Build()
 
