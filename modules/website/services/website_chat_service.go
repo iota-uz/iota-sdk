@@ -52,6 +52,7 @@ type WebsiteChatServiceConfig struct {
 	UserRepo     user.Repository
 	ClientRepo   client.Repository
 	ChatRepo     chat.Repository
+	ThreadRepo   chatthread.Repository
 	AIUserEmail  internet.Email
 	RAGProvider  rag.Provider
 }
@@ -61,12 +62,10 @@ type WebsiteChatService struct {
 	userRepo     user.Repository
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
+	threadRepo   chatthread.Repository
 	aiUserEmail  internet.Email
 	ragProvider  rag.Provider
-	threadsMap   ThreadsMap
 }
-
-type ThreadsMap map[uuid.UUID]chatthread.ChatThread
 
 func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
 	return &WebsiteChatService{
@@ -74,16 +73,16 @@ func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService 
 		userRepo:     config.UserRepo,
 		clientRepo:   config.ClientRepo,
 		chatRepo:     config.ChatRepo,
+		threadRepo:   config.ThreadRepo,
 		aiUserEmail:  config.AIUserEmail,
 		ragProvider:  config.RAGProvider,
-		threadsMap:   make(ThreadsMap),
 	}
 }
 
 func (s *WebsiteChatService) GetThreadByID(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
-	thread, ok := s.threadsMap[threadID]
-	if !ok {
-		return nil, chatthread.ErrChatThreadNotFound
+	thread, err := s.threadRepo.GetByID(ctx, threadID)
+	if err != nil {
+		return nil, err
 	}
 	chatEntity, err := s.chatRepo.GetByID(ctx, thread.ChatID())
 	if err != nil {
@@ -137,8 +136,9 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadD
 		createdChat.Messages(),
 		chatthread.WithID(threadID),
 	)
-	s.threadsMap[threadID] = thread
-
+	if thread, err = s.threadRepo.Save(ctx, thread); err != nil {
+		return nil, err
+	}
 	return thread, nil
 }
 
@@ -203,7 +203,9 @@ func (s *WebsiteChatService) SendMessageToThread(
 		chatthread.WithID(thread.ID()),
 		chatthread.WithTimestamp(thread.Timestamp()),
 	)
-	s.threadsMap[thread.ID()] = updatedThread
+	if _, err := s.threadRepo.Save(ctx, updatedThread); err != nil {
+		return nil, err
+	}
 
 	return updatedThread, nil
 }
@@ -275,7 +277,9 @@ func (s *WebsiteChatService) ReplyToThread(
 		chatthread.WithID(thread.ID()),
 		chatthread.WithTimestamp(thread.Timestamp()),
 	)
-	s.threadsMap[thread.ID()] = updatedThread
+	if _, err := s.threadRepo.Save(ctx, updatedThread); err != nil {
+		return nil, err
+	}
 
 	return updatedThread, nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence/models"
 )
 
@@ -60,4 +61,20 @@ func ToDomainConfig(model models.AIChatConfig) (aichatconfig.AIConfig, error) {
 		model.BaseURL,
 		options...,
 	)
+}
+
+func ToDomainChatThread(model models.ChatThread) (chatthread.ChatThread, error) {
+	id, err := uuid.Parse(model.ID)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to parse UUID from string: %s", model.ID))
+	}
+	return chatthread.New(model.ChatID, nil, chatthread.WithTimestamp(model.Timestamp), chatthread.WithID(id)), nil
+}
+
+func ToDBChatThread(thread chatthread.ChatThread) models.ChatThread {
+	return models.ChatThread{
+		ID:        thread.ID().String(),
+		ChatID:    thread.ChatID(),
+		Timestamp: thread.Timestamp(),
+	}
 }

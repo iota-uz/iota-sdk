@@ -10,6 +10,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/website/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/redis/go-redis/v9"
 )
 
 //go:embed presentation/locales/*.json
@@ -26,6 +28,7 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	conf := configuration.Use()
 	userRepo := corePersistence.NewUserRepository(
 		corePersistence.NewUploadRepository(),
 	)
@@ -35,6 +38,7 @@ func (m *Module) Register(app application.Application) error {
 		passportRepo,
 	)
 	aiconfigRepo := persistence.NewAIChatConfigRepository()
+	threadRepo := persistence.NewThreadRepository(redis.NewClient(&redis.Options{Addr: conf.RedisURL}))
 	app.RegisterServices(
 		services.NewAIChatConfigService(aiconfigRepo),
 		services.NewWebsiteChatService(
@@ -43,6 +47,7 @@ func (m *Module) Register(app application.Application) error {
 				UserRepo:     userRepo,
 				ClientRepo:   clientRepo,
 				ChatRepo:     chatRepo,
+				ThreadRepo:   threadRepo,
 				AIUserEmail:  internet.MustParseEmail("ai@llm.com"),
 			},
 		),

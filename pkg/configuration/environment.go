@@ -153,6 +153,7 @@ type Configuration struct {
 	Stripe        StripeOptions
 	RateLimit     RateLimitOptions
 
+	RedisURL         string        `env:"REDIS_URL" envDefault:"localhost:6379"`
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`
 	ServerPort       int           `env:"PORT" envDefault:"3200"`
 	SessionDuration  time.Duration `env:"SESSION_DURATION" envDefault:"720h"`

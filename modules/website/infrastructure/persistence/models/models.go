@@ -18,3 +18,9 @@ type AIChatConfig struct {
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
+
+type ChatThread struct {
+	ID        string
+	Timestamp time.Time
+	ChatID    uint
+}
