@@ -220,7 +220,7 @@ func Rows(cfg *TableConfig) templ.Component {
 			}
 		} else {
 			if cfg.Editable.Enabled {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<template x-for=\"row in rows\" :key=\"row.id\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<template x-for=\"(row, index) in rows\" :key=\"row.id\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -253,7 +253,7 @@ func Rows(cfg *TableConfig) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true).Render(ctx, templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())}).Render(ctx, templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -261,7 +261,7 @@ func Rows(cfg *TableConfig) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							templ_7745c5c3_Err = cell.Component(cfg.Columns[i], cfg.Editable.Enabled, false).Render(ctx, templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = cell.Component(cfg.Columns[i], cfg.Editable.Enabled, false, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())}).Render(ctx, templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -363,7 +363,7 @@ func Rows(cfg *TableConfig) templ.Component {
 									}()
 								}
 								ctx = templ.InitializeContext(ctx)
-								templ_7745c5c3_Err = cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true).Render(ctx, templ_7745c5c3_Buffer)
+								templ_7745c5c3_Err = cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{}).Render(ctx, templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}

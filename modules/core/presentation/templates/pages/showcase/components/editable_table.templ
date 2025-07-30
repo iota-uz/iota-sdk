@@ -7,15 +7,15 @@ import (
 
 templ EditableTable() {
 	@table.Table(&table.TableConfig{
-		Editable: table.TableEditableConfig{Enabled: true, WithoutDelete: true, WithoutCreate: true},
+		Editable: table.TableEditableConfig{Key: "Taxes", Enabled: true, WithoutDelete: false, WithoutCreate: false},
 		Columns: []table.TableColumn{
-			table.Column("name", "Name", table.WithEditableColumn(crud.NewStringField("name"))),
-			table.Column("select", "Select", table.WithEditableColumn(crud.NewSelectField("select").WithStaticOptions(crud.SelectOption{Value: "option-1", Label: "Option 1"}, crud.SelectOption{Value: "option-2", Label: "Option 2"}))),
+			table.Column("tax", "Tax", table.WithEditableColumn(crud.NewStringField("tax"))),
+			table.Column("country", "Country", table.WithEditableColumn(crud.NewSelectField("country").WithStaticOptions(crud.SelectOption{Value: "usa", Label: "USA"}, crud.SelectOption{Value: "uzbekistan", Label: "Uzbekistan"}))),
 		},
 		Rows: []table.TableRow{
 			table.Row(
-				table.Cell(templ.Raw("John Doe"), "John Doe"),
-				table.Cell(templ.Raw(""), "option-2"),
+				table.Cell(templ.Raw("Tax 1"), "Tax 1"),
+				table.Cell(templ.Raw(""), "uzbekistan"),
 			),
 		},
 		Infinite: &table.InfiniteScrollConfig{},

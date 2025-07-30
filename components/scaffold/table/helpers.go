@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -35,7 +36,7 @@ type TableColumn interface {
 }
 
 type TableCell interface {
-	Component(col TableColumn, editMode bool, withValue bool) templ.Component
+	Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component
 }
 
 type tableCellImpl struct {
@@ -86,7 +87,7 @@ func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType
 	return fmt.Sprintf("%v", value)
 }
 
-func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.SelectField, currentValue any) templ.Component {
+func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.SelectField, currentValue any, fieldAttrs templ.Attributes) templ.Component {
 	// Convert current value to string for comparison
 	var valueStr string
 	if currentValue != nil {
@@ -133,12 +134,14 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 			Options(formOptions)
 
 		if selectField.Placeholder() != "" {
+			fieldAttrs["data-placeholder"] = selectField.Placeholder()
 			// Set placeholder through attributes since the builder doesn't have a method
-			builder = builder.Attrs(templ.Attributes{"data-placeholder": selectField.Placeholder()})
+			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if selectField.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"disabled": true})
+			fieldAttrs["disabled"] = true
+			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -159,7 +162,8 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 			Placeholder(selectField.Placeholder())
 
 		if selectField.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"disabled": true})
+			fieldAttrs["disabled"] = true
+			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -181,7 +185,8 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 			Multiple(selectField.Multiple())
 
 		if selectField.Readonly() {
-			builder = builder.Attrs(templ.Attributes{"disabled": true})
+			fieldAttrs["disabled"] = true
+			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -200,7 +205,7 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 	}
 }
 
-func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool) templ.Component {
+func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component {
 	field := col.EditableField()
 	if col.Editable() && field != nil && editMode {
 		if field.Hidden() {
@@ -224,7 +229,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 		case crud.StringFieldType:
 			// Check if this is actually a select field
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, currentValue)
+				return c.handleSelectField(ctx, selectField, currentValue, fieldAttrs)
 			}
 
 			sf, err := field.AsStringField()
@@ -268,7 +273,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			}
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -281,12 +286,12 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.IntFieldType:
 			// Check if this is actually a select field with int values
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, currentValue)
+				return c.handleSelectField(ctx, selectField, currentValue, fieldAttrs)
 			}
 
 			intField, err := field.AsIntField()
@@ -304,7 +309,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			}
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -322,18 +327,18 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.BoolFieldType:
 			// Check if this is actually a select field with bool values
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, currentValue)
+				return c.handleSelectField(ctx, selectField, currentValue, fieldAttrs)
 			}
 
 			builder := form.Checkbox(field.Name(), "")
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -346,7 +351,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.FloatFieldType:
 			floatField, err := field.AsFloatField()
@@ -374,7 +379,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				attrs["disabled"] = true
 			}
 
-			builder = builder.Attrs(attrs)
+			maps.Copy(attrs, fieldAttrs)
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
@@ -386,7 +391,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(attrs).Build().Component()
 
 		case crud.DateFieldType:
 			builder := form.Date(field.Name(), "")
@@ -402,7 +407,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			}
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -415,13 +420,13 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.TimeFieldType:
 			builder := form.Time(field.Name(), "")
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -433,8 +438,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 					builder = builder.Default(timeVal.Format("15:04"))
 				}
 			}
-
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.DateTimeFieldType:
 			builder := form.DateTime(field.Name(), "")
@@ -450,7 +454,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			}
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -463,18 +467,18 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.UUIDFieldType:
 			// Check if this is actually a select field
 			if selectField, ok := field.(crud.SelectField); ok {
-				return c.handleSelectField(ctx, selectField, currentValue)
+				return c.handleSelectField(ctx, selectField, currentValue, fieldAttrs)
 			}
 
 			builder := form.Text(field.Name(), "")
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -490,14 +494,14 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.TimestampFieldType:
 			// Timestamp fields are treated like datetime fields
 			builder := form.DateTime(field.Name(), "")
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -511,7 +515,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.DecimalFieldType:
 			decimalField, err := field.AsDecimalField()
@@ -547,6 +551,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				attrs["disabled"] = true
 			}
 
+			maps.Copy(attrs, fieldAttrs)
 			// Set decimal value if present
 			// if value != nil && !value.IsZero() {
 			// 	// Use AsDecimal to handle all possible decimal value types
@@ -557,8 +562,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			// 		}
 			// 	}
 			// }
-
-			builder = builder.Attrs(attrs)
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
@@ -571,14 +574,14 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(attrs).Build().Component()
 
 		case crud.JSONFieldType:
 			// Handle JSON field as a textarea for editing
 			builder := form.Textarea(field.Name(), "")
 
 			if field.Readonly() {
-				builder = builder.Attrs(templ.Attributes{"disabled": true})
+				fieldAttrs["disabled"] = true
 			}
 
 			if len(field.Rules()) > 0 {
@@ -601,7 +604,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				builder = builder.Default(jsonStr)
 			}
 
-			return builder.Build().Component()
+			return builder.Attrs(fieldAttrs).Build().Component()
 
 		default:
 			builder := form.Text(field.Name(), field.Name())
@@ -740,6 +743,7 @@ type InfiniteScrollConfig struct {
 }
 
 type TableEditableConfig struct {
+	Key               string
 	Enabled           bool
 	WithoutDelete     bool
 	WithoutCreate     bool

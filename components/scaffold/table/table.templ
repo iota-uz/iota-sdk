@@ -82,15 +82,15 @@ templ Rows(cfg *TableConfig) {
 		}
 	} else {
 		if cfg.Editable.Enabled {
-			<template x-for="row in rows" :key="row.id">
+			<template x-for="(row, index) in rows" :key="row.id">
 				@base.TableRow(base.TableRowProps{}) {
 					for i, cell := range cfg.Rows[0].Cells() {
 						@base.TableCell(base.TableCellProps{}) {
 							<template x-if="row.withValue">
-								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true)
+								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())})
 							</template>
 							<template x-if="!row.withValue">
-								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, false)
+								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, false, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())})
 							</template>
 						}
 					}
@@ -131,7 +131,7 @@ templ Rows(cfg *TableConfig) {
 				}) {
 					for i, cell := range row.Cells() {
 						@base.TableCell(base.TableCellProps{}) {
-							@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true)
+							@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
 						}
 					}
 				}
