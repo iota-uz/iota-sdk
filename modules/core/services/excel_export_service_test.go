@@ -366,7 +366,6 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 	mockUpload.On("Name").Return(mock.Anything)
 
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
-	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
