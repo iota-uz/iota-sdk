@@ -107,9 +107,12 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		mime := mimetype.Lookup("text/plain")
 
 		uploadData := upload.New(uniqueHash, "uploads/unique-hash.txt", "text.txt", slug, 512, mime)
+
 		_, err := uploadRepository.Create(f.Ctx, uploadData)
 		require.NoError(t, err)
+
 		retrievedUpload, err := uploadRepository.GetBySlug(f.Ctx, slug)
+		require.NoError(t, err)
 
 		assert.Equal(t, slug, retrievedUpload.Slug())
 		assert.Equal(t, "uploads/text.txt", retrievedUpload.Path())
