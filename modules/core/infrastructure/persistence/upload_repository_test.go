@@ -24,6 +24,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"test-hash",
 			"uploads/test.jpg",
 			"test.jpg",
+			"",
 			1024,
 			mime,
 		)
@@ -50,6 +51,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"pdf-hash",
 			"uploads/document.pdf",
 			"document.pdf",
+			"",
 			2048,
 			mime,
 		)
@@ -79,6 +81,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			uniqueHash,
 			"uploads/text.txt",
 			"text.txt",
+			"",
 			512,
 			mime,
 		)
@@ -119,6 +122,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"update-hash",
 			"uploads/update.png",
 			"update.png",
+			"",
 			4096,
 			mime,
 		)
@@ -135,6 +139,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"updated-hash",
 			"uploads/updated.png",
 			"updated.png",
+			"",
 			8192,
 			updatedMime,
 			upload.UploadTypeImage,
@@ -163,6 +168,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 				"page-hash-"+time.Now().Format("20060102150405")+"-"+string(rune(i+48)),
 				"uploads/page"+string(rune(i+48))+".jpg",
 				"page"+string(rune(i+48))+".jpg",
+				"",
 				1024*(i+1),
 				mime,
 			)
@@ -229,6 +235,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"delete-hash",
 			"uploads/delete.gif",
 			"delete.gif",
+			"",
 			2048,
 			mime,
 		)
