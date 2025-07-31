@@ -32,8 +32,17 @@ type TransactionController struct {
 func NewTransactionController(app application.Application) application.Controller {
 	basePath := "/finance/transactions"
 
-	// Create table definition once at initialization
+	// Create table definition with columns for HTMX requests
 	tableDefinition := table.NewTableDefinition("", basePath).
+		WithColumns(
+			table.Column("date", "Date"),
+			table.Column("type", "Type"),
+			table.Column("amount", "Amount"),
+			table.Column("account", "Account"),
+			table.Column("category", "Category"),
+			table.Column("counterparty", "Counterparty"),
+			table.Column("comment", "Comment"),
+		).
 		WithInfiniteScroll(true).
 		Build()
 
@@ -201,14 +210,14 @@ func (c *TransactionController) List(w http.ResponseWriter, r *http.Request) {
 			counterpartyName = listItem.Counterparty.Name
 		}
 
-		cells := []templ.Component{
-			table.DateTime(listItem.TransactionDate),
-			components.TransactionTypeBadge(listItem.TransactionType),
-			templ.Raw(listItem.AmountWithCurrency),
-			templ.Raw(accountName),
-			templ.Raw(categoryName),
-			templ.Raw(counterpartyName),
-			templ.Raw(listItem.Comment),
+		cells := []table.TableCell{
+			table.Cell(table.DateTime(listItem.TransactionDate), listItem.TransactionDate),
+			table.Cell(components.TransactionTypeBadge(listItem.TransactionType), listItem.TransactionType),
+			table.Cell(templ.Raw(listItem.AmountWithCurrency), listItem.AmountWithCurrency),
+			table.Cell(templ.Raw(accountName), templ.Raw(accountName)),
+			table.Cell(templ.Raw(categoryName), categoryName),
+			table.Cell(templ.Raw(counterpartyName), counterpartyName),
+			table.Cell(templ.Raw(listItem.Comment), listItem.Comment),
 		}
 
 		row := table.Row(cells...).ApplyOpts(
