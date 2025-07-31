@@ -142,6 +142,10 @@ func (m *MockUpload) Hash() string {
 	return m.Called().String(0)
 }
 
+func (m *MockUpload) Slug() string {
+	return m.Called().String(0)
+}
+
 func (m *MockUpload) Path() string {
 	return m.Called().String(0)
 }
