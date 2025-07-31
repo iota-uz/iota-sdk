@@ -1,6 +1,7 @@
 import "./lib/alpine.lib.min.js";
 import "./lib/alpine-focus.min.js";
 import "./lib/alpine-anchor.min.js";
+import Sortable from "./lib/alpine-sort.js";
 
 let relativeFormat = () => ({
   format(dateStr = new Date().toISOString(), locale = "ru") {
@@ -613,6 +614,27 @@ let editableTableRows = (rows = []) => ({
   }
 });
 
+let kanban = () => ({
+  col: {
+    key: '',
+    oldIndex: 0,
+    newIndex: 0
+  },
+  card: {
+    key: '',
+    newCol: '',
+    oldCol: '',
+    oldIndex: 0,
+    newIndex: 0,
+  },
+  changeCol(col) {
+    this.col = col;
+  },
+  changeCard(card) {
+    this.card = card;
+  }
+})
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -627,4 +649,6 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("sidebar", sidebar);
   Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
   Alpine.data("editableTableRows", editableTableRows);
+  Alpine.data("kanban", kanban);
+  Sortable(Alpine);
 });
