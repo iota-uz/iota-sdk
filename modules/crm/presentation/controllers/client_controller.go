@@ -540,7 +540,10 @@ func (c *ClientController) Export(
 		}
 
 		for _, client := range clients {
-			writer.Write([]string{client.FullName(), client.Phone, client.UpdatedAt})
+			if err := writer.Write([]string{client.FullName(), client.Phone, client.UpdatedAt}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		writer.Flush()
 		if err := writer.Error(); err != nil {
