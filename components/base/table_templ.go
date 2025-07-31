@@ -132,7 +132,7 @@ func TableCell(props TableCellProps) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var3 = []any{twmerge.Merge(templ.CSSClasses([]any{props.Classes, "p-4"}).String())}
+		var templ_7745c5c3_Var3 = []any{twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-primary last-of-type:border-r-0", props.Classes}).String())}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var3...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -313,7 +313,7 @@ func Table(props TableProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				var templ_7745c5c3_Var12 = []any{"px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class}
+				var templ_7745c5c3_Var12 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var12...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

@@ -66,7 +66,7 @@ templ TableRow(props TableRowProps) {
 
 templ TableCell(props TableCellProps) {
 	<td
-		class={ twmerge.Merge(templ.CSSClasses([]any{props.Classes, "p-4"}).String()) }
+		class={ twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-primary last-of-type:border-r-0", props.Classes}).String()) }
 		{ props.Attrs... }
 	>
 		{ children... }
@@ -119,7 +119,7 @@ templ Table(props TableProps) {
 							</th>
 						} else {
 							<th
-								class={ "px-4 py-3 font-medium text-left border-r-0 border-b-0", col.Class }
+								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class }
 							>
 								{ col.Label }
 							</th>

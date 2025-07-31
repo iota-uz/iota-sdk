@@ -1,0 +1,25 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	"github.com/iota-uz/iota-sdk/pkg/crud"
+)
+
+templ EditableTable() {
+	@table.Table(&table.TableConfig{
+		Editable: table.TableEditableConfig{Key: "Taxes", Enabled: true, WithoutDelete: false, WithoutCreate: false},
+		Columns: []table.TableColumn{
+			table.Column("tax", "Tax", table.WithEditableColumn(crud.NewStringField("tax"))),
+			table.Column("country", "Country", table.WithEditableColumn(crud.NewSelectField("country").WithStaticOptions(crud.SelectOption{Value: "usa", Label: "USA"}, crud.SelectOption{Value: "uzbekistan", Label: "Uzbekistan"}))),
+		},
+		Rows: []table.TableRow{
+			table.Row(
+				table.Cell(templ.Raw("Tax 1"), "Tax 1"),
+				table.Cell(templ.Raw(""), "uzbekistan"),
+			),
+		},
+		Infinite: &table.InfiniteScrollConfig{},
+		Filters:  make([]templ.Component, 0),
+		Actions:  make([]templ.Component, 0),
+	})
+}

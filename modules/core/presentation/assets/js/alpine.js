@@ -604,6 +604,16 @@ let disableFormElementsWhen = (query) => ({
   }
 })
 
+let editableTableRows = (rows = []) => ({
+  rows,
+  addRow(withValue) {
+    this.rows.push({id: Math.random().toString(32).slice(2), withValue})
+  },
+  removeRow(id) {
+    this.rows = this.rows.filter((row) => row.id !== id);
+  }
+});
+
 let kanban = () => ({
   col: {
     key: '',
@@ -638,6 +648,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("navTabs", navTabs);
   Alpine.data("sidebar", sidebar);
   Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
+  Alpine.data("editableTableRows", editableTableRows);
   Alpine.data("kanban", kanban);
   Sortable(Alpine);
 });

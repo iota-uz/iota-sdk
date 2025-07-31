@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
@@ -18,6 +19,8 @@ import (
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/js"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 // DateTime renders a timestamp with Alpine-based relative formatting
@@ -78,8 +81,38 @@ templ Rows(cfg *TableConfig) {
 			}
 		}
 	} else {
-		for i, row := range cfg.Rows {
-			{{
+		if cfg.Editable.Enabled {
+			<template x-for="(row, index) in rows" :key="row.id">
+				@base.TableRow(base.TableRowProps{}) {
+					for i, cell := range cfg.Rows[0].Cells() {
+						@base.TableCell(base.TableCellProps{}) {
+							<template x-if="row.withValue">
+								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())})
+							</template>
+							<template x-if="!row.withValue">
+								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, false, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())})
+							</template>
+						}
+					}
+					if  !cfg.Editable.WithoutDelete {
+						@base.TableCell(base.TableCellProps{
+							Classes: templ.Classes("w-16"),
+						}) {
+							@button.Danger(button.Props{
+								Size: button.SizeMD,
+								Icon: icons.Trash(icons.Props{Size: "20"}),
+								Attrs: templ.Attributes{
+									"type":   "button",
+									"@click": "() => removeRow(row.id)",
+								},
+							})
+						}
+					}
+				}
+			</template>
+		} else {
+			for i, row := range cfg.Rows {
+				{{
 				isLastRow := i == len(cfg.Rows)-1
 				rowAttrs := templ.Attributes{}
 				for k, v := range row.Attrs() {
@@ -92,13 +125,14 @@ templ Rows(cfg *TableConfig) {
 					rowAttrs["hx-swap"] = "afterend"
 					rowAttrs["hx-target"] = "this"
 				}
-			}}
-			@base.TableRow(base.TableRowProps{
-				Attrs: rowAttrs,
-			}) {
-				for _, cell := range row.Cells() {
-					@base.TableCell(base.TableCellProps{}) {
-						@cell
+				}}
+				@base.TableRow(base.TableRowProps{
+					Attrs: rowAttrs,
+				}) {
+					for i, cell := range row.Cells() {
+						@base.TableCell(base.TableCellProps{}) {
+							@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
+						}
 					}
 				}
 			}
@@ -116,6 +150,25 @@ templ InfiniteScrollSpinner(cfg *TableConfig) {
 	</tr>
 }
 
+type editableRow struct {
+	ID        string `json:"id"`
+	WithValue bool   `json:"withValue"`
+}
+
+func setupAlpineData(config *TableConfig) templ.Attributes {
+	rows := make([]*editableRow, 0)
+	for range config.Rows {
+		rows = append(rows, &editableRow{ID: uuid.New().String(), WithValue: true})
+	}
+	jsRows, err := js.ToJS(rows)
+	if err != nil {
+		return templ.Attributes{}
+	}
+	return templ.Attributes{
+		"x-data": fmt.Sprintf("editableTableRows(%s)", jsRows),
+	}
+}
+
 // Table renders a dynamic table based on configuration and data
 templ Table(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
@@ -125,9 +178,15 @@ templ Table(config *TableConfig) {
 			Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
 		})
 	} else {
-		<div id="sortable-table-container" hx-disinherit="*">
+		<div
+			id="sortable-table-container"
+			hx-disinherit="*"
+			if config.Editable.Enabled {
+				{ setupAlpineData(config)... }
+			}
+		>
 			@base.Table(base.TableProps{
-				Columns: toBaseTableColumns(config.Columns),
+				Columns: toBaseTableColumns(config, pageCtx),
 				TBodyAttrs: templ.Attributes{
 					"id":          "table-body",
 					"hx-push-url": "false",
@@ -137,6 +196,17 @@ templ Table(config *TableConfig) {
 				if config.Infinite.HasMore {
 					@InfiniteScrollSpinner(config)
 				}
+			}
+			if config.Editable.Enabled && !config.Editable.WithoutCreate {
+				<div class="pt-4 px-4 border-t border-primary" @click="() => addRow(false)">
+					@button.Secondary(button.Props{Size: button.SizeMD, Icon: icons.Plus(icons.Props{Size: "20"}), Class: "w-full justify-center", Attrs: templ.Attributes{"type": "button"}}) {
+						if len(config.Editable.CreateLabel) > 0 {
+							{ config.Editable.CreateLabel }
+						} else {
+							{ pageCtx.TSafe("Add") }
+						}
+					}
+				</div>
 			}
 		</div>
 	}
@@ -253,9 +323,9 @@ templ Page(config *TableConfig) {
 }
 
 // Helper to convert scaffold columns to base table columns
-func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
-	result := make([]*base.TableColumn, len(columns))
-	for i, col := range columns {
+func toBaseTableColumns(config *TableConfig, pageCtx *types.PageContext) []*base.TableColumn {
+	result := make([]*base.TableColumn, len(config.Columns))
+	for i, col := range config.Columns {
 		result[i] = &base.TableColumn{
 			Key:      col.Key(),
 			Label:    col.Label(),
@@ -264,6 +334,16 @@ func toBaseTableColumns(columns []TableColumn) []*base.TableColumn {
 			SortDir:  col.SortDir(),
 			SortURL:  col.SortURL(),
 		}
+	}
+
+	if config.Editable.Enabled && !config.Editable.WithoutDelete {
+		label := config.Editable.ActionColumnLabel
+		if label == "" {
+			label = pageCtx.TSafe("Actions")
+		}
+		result = append(result, &base.TableColumn{
+			Label: label,
+		})
 	}
 	return result
 }

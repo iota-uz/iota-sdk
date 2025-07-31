@@ -37,8 +37,16 @@ type DebtsController struct {
 func NewDebtsController(app application.Application) application.Controller {
 	basePath := "/finance/debts"
 
-	// Create table definition once at initialization
+	// Create table definition with columns for HTMX requests
 	tableDefinition := table.NewTableDefinition("", basePath).
+		WithColumns(
+			table.Column("counterparty", "Counterparty"),
+			table.Column("type", "Type"),
+			table.Column("original_amount", "Original Amount"),
+			table.Column("outstanding_amount", "Outstanding Amount"),
+			table.Column("status", "Status"),
+			table.Column("created_at", "Created At"),
+		).
 		WithInfiniteScroll(true).
 		Build()
 
@@ -178,13 +186,13 @@ func (c *DebtsController) List(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		cells := []templ.Component{
-			templ.Raw(debtVM.CounterpartyName),
-			templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))),
-			templ.Raw(debtVM.OriginalAmount),
-			templ.Raw(debtVM.OutstandingAmount),
-			templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))),
-			table.DateTime(createdAt),
+		cells := []table.TableCell{
+			table.Cell(templ.Raw(debtVM.CounterpartyName), debtVM.CounterpartyName),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), debtVM.Type),
+			table.Cell(templ.Raw(debtVM.OriginalAmount), debtVM.OriginalAmount),
+			table.Cell(templ.Raw(debtVM.OutstandingAmount), debtVM.OutstandingAmount),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), debtVM.Status),
+			table.Cell(table.DateTime(createdAt), createdAt),
 		}
 
 		row := table.Row(cells...).ApplyOpts(

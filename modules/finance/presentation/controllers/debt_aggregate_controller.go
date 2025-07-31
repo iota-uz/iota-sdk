@@ -109,14 +109,14 @@ func (c *DebtAggregateController) List(w http.ResponseWriter, r *http.Request) {
 
 		aggVM := mappers.DebtCounterpartyAggregateToViewModel(agg, counterparty.Name())
 
-		cells := []templ.Component{
-			templ.Raw(aggVM.CounterpartyName),
-			templ.Raw(aggVM.TotalReceivable),
-			templ.Raw(aggVM.TotalPayable),
-			templ.Raw(aggVM.TotalOutstandingReceivable),
-			templ.Raw(aggVM.TotalOutstandingPayable),
-			templ.Raw(aggVM.NetAmount),
-			templ.Raw(fmt.Sprintf("%d", aggVM.DebtCount)),
+		cells := []table.TableCell{
+			table.Cell(templ.Raw(aggVM.CounterpartyName), aggVM.CounterpartyName),
+			table.Cell(templ.Raw(aggVM.TotalReceivable), aggVM.TotalReceivable),
+			table.Cell(templ.Raw(aggVM.TotalPayable), aggVM.TotalPayable),
+			table.Cell(templ.Raw(aggVM.TotalOutstandingReceivable), aggVM.TotalOutstandingReceivable),
+			table.Cell(templ.Raw(aggVM.TotalOutstandingPayable), aggVM.TotalOutstandingPayable),
+			table.Cell(templ.Raw(aggVM.NetAmount), aggVM.NetAmount),
+			table.Cell(templ.Raw(fmt.Sprintf("%d", aggVM.DebtCount)), aggVM.DebtCount),
 		}
 
 		row := table.Row(cells...).ApplyOpts(
@@ -189,12 +189,12 @@ func (c *DebtAggregateController) GetCounterpartyDrawer(w http.ResponseWriter, r
 
 	rows := make([]table.TableRow, 0, len(debtVMs))
 	for _, debtVM := range debtVMs {
-		cells := []templ.Component{
-			templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))),
-			templ.Raw(debtVM.OriginalAmountWithCurrency),
-			templ.Raw(debtVM.OutstandingAmountWithCurrency),
-			templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))),
-			templ.Raw(debtVM.Description),
+		cells := []table.TableCell{
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Types.%s", debtVM.Type))), debtVM.Type),
+			table.Cell(templ.Raw(debtVM.OriginalAmountWithCurrency), debtVM.OriginalAmountWithCurrency),
+			table.Cell(templ.Raw(debtVM.OutstandingAmountWithCurrency), debtVM.OutstandingAmountWithCurrency),
+			table.Cell(templ.Raw(pageCtx.T(fmt.Sprintf("Debts.Statuses.%s", debtVM.Status))), debtVM.Status),
+			table.Cell(templ.Raw(debtVM.Description), debtVM.Description),
 		}
 		rows = append(rows, table.Row(cells...))
 	}
