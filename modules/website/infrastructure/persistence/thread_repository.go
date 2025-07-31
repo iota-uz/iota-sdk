@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
@@ -22,7 +21,7 @@ func NewThreadRepository(redis *redis.Client) *ThreadRepository {
 
 func (r *ThreadRepository) GetByID(ctx context.Context, id uuid.UUID) (chatthread.ChatThread, error) {
 	var model models.ChatThread
-	result, err := r.redis.Get(ctx, r.getKey(id.String())).Result()
+	result, err := r.redis.HGet(ctx, r.prefix, id.String()).Result()
 	if err != nil {
 		if err == redis.Nil {
 			return nil, chatthread.ErrChatThreadNotFound
@@ -41,7 +40,7 @@ func (r *ThreadRepository) Save(ctx context.Context, thread chatthread.ChatThrea
 	if err != nil {
 		return nil, err
 	}
-	if err := r.redis.Set(ctx, r.getKey(thread.ID().String()), threadJson, 0).Err(); err != nil {
+	if err := r.redis.HSet(ctx, r.prefix, thread.ID().String(), threadJson).Err(); err != nil {
 		return nil, err
 	}
 
@@ -49,45 +48,26 @@ func (r *ThreadRepository) Save(ctx context.Context, thread chatthread.ChatThrea
 }
 
 func (r *ThreadRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return r.redis.Del(ctx, r.getKey(id.String())).Err()
+	return r.redis.HDel(ctx, r.prefix, id.String()).Err()
 }
 
 func (r *ThreadRepository) List(ctx context.Context) ([]chatthread.ChatThread, error) {
-	var cursor uint64
-
-	threads := make([]chatthread.ChatThread, 0)
-
-	for {
-		keys, nextCursor, err := r.redis.Scan(ctx, cursor, r.prefix+"*", 100).Result()
+	resultMap, err := r.redis.HGetAll(ctx, r.prefix).Result()
+	if err != nil {
+		return nil, err
+	}
+	threads := make([]chatthread.ChatThread, 0, len(resultMap))
+	for _, value := range resultMap {
+		var model models.ChatThread
+		if err := json.Unmarshal([]byte(value), &model); err != nil {
+			return nil, err
+		}
+		thread, err := ToDomainChatThread(model)
 		if err != nil {
 			return nil, err
 		}
-
-		for _, key := range keys {
-			result, err := r.redis.Get(ctx, key).Result()
-			if err != nil {
-				return nil, err
-			}
-
-			var model models.ChatThread
-			if err := json.Unmarshal([]byte(result), &model); err != nil {
-				return nil, err
-			}
-			thread, err := ToDomainChatThread(model)
-			if err != nil {
-				return nil, err
-			}
-			threads = append(threads, thread)
-		}
-		cursor = nextCursor
-		if cursor == 0 {
-			break
-		}
+		threads = append(threads, thread)
 	}
 
 	return threads, nil
-}
-
-func (r *ThreadRepository) getKey(key string) string {
-	return fmt.Sprintf("%s:%s", r.prefix, key)
 }
