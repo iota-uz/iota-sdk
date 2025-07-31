@@ -3,6 +3,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	userdomain "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	coreservicse "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmPermissions "github.com/iota-uz/iota-sdk/modules/crm/permissions"
@@ -472,6 +474,7 @@ func (c *ClientController) Export(
 	user userdomain.User,
 	clientService *services.ClientService,
 	excelService *coreservicse.ExcelExportService,
+	uploadService *coreservicse.UploadService,
 ) {
 	if !user.Can(crmPermissions.ClientRead) {
 		http.Error(w, "Forbidden", http.StatusForbidden)
@@ -506,7 +509,7 @@ func (c *ClientController) Export(
 				}
 			}
 			return out, nil
-		}), exportconfig.New(exportconfig.WithFilename("clients_export")))
+		}), exportconfig.New(exportconfig.WithFilename("clients_export.xlsx")))
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -519,6 +522,46 @@ func (c *ClientController) Export(
 			http.Redirect(w, r, upload.URL().String(), http.StatusSeeOther)
 		}
 		return
+	case export.ExportFormatCSV:
+		var buffer bytes.Buffer
+		writer := csv.NewWriter(&buffer)
+		if err := writer.Write([]string{
+			pgCtx.T("Clients.List.FullName"),
+			pgCtx.T("Clients.List.Phone"),
+			pgCtx.T("UpdatedAt"),
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		clients, err := c.viewModelClientsAll(r, clientService)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		for _, client := range clients {
+			writer.Write([]string{client.FullName(), client.Phone, client.UpdatedAt})
+		}
+		writer.Flush()
+		if err := writer.Error(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		upload, err := uploadService.Create(ctx, &upload.CreateDTO{
+			Name: "clients_export.csv",
+			File: bytes.NewReader(buffer.Bytes()),
+			Size: buffer.Len(),
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		if htmx.IsHxRequest(r) {
+			htmx.Redirect(w, upload.URL().String())
+		} else {
+			http.Redirect(w, r, upload.URL().String(), http.StatusSeeOther)
+		}
+	case export.ExportFormatJSON, export.ExportFormatTXT:
+		http.Error(w, "Export format not yet supported", http.StatusNotImplemented)
 	default:
 		http.Error(w, "Export format not yet supported", http.StatusNotImplemented)
 	}
