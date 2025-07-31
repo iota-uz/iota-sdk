@@ -17,8 +17,11 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/export"
 	userdomain "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	coreservicse "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmPermissions "github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers/dtos"
@@ -31,6 +34,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -286,11 +290,62 @@ func (c *ClientController) Register(r *mux.Router) {
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/passport", di.H(c.UpdatePassport)).Methods(http.MethodPost)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/tax", di.H(c.UpdateTax)).Methods(http.MethodPost)
 	hxRouter.HandleFunc("/{id:[0-9]+}/edit/notes", di.H(c.UpdateNotes)).Methods(http.MethodPost)
+	hxRouter.HandleFunc("/export", di.H(c.Export)).Methods(http.MethodPost)
 
 	// Register realtime updates if enabled
 	if c.realtime != nil {
 		c.realtime.Register()
 	}
+}
+
+func (c *ClientController) viewModelClientsAll(r *http.Request, clientService *services.ClientService) ([]*viewmodels.Client, error) {
+	tenant, err := composables.UseTenantID(r.Context())
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving tenant")
+	}
+	params := &client.FindParams{
+		SortBy: client.SortBy{
+			Fields: []client.SortByField{{
+				Field:     client.CreatedAt,
+				Ascending: false,
+			}},
+		},
+		Filters: []client.Filter{
+			{
+				Column: client.TenantID,
+				Filter: repo.Eq(tenant),
+			},
+		},
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.From"); v != "" {
+		if parsedDate, err := time.Parse("2006-01-02", v); err == nil {
+			params.Filters = append(params.Filters, client.Filter{
+				Column: client.CreatedAt,
+				Filter: repo.Gte(parsedDate),
+			})
+		}
+	}
+
+	if v := r.URL.Query().Get("CreatedAt.To"); v != "" {
+		if parsedDate, err := time.Parse("2006-01-02", v); err == nil {
+			params.Filters = append(params.Filters, client.Filter{
+				Column: client.CreatedAt,
+				Filter: repo.Lte(parsedDate),
+			})
+		}
+	}
+
+	if q := r.URL.Query().Get("Search"); q != "" {
+		params.Search = q
+	}
+
+	clientEntities, err := clientService.GetPaginated(r.Context(), params)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error retrieving clients")
+	}
+
+	return mapping.MapViewModels(clientEntities, mappers.ClientToViewModel), nil
 }
 
 func (c *ClientController) viewModelClients(
@@ -407,6 +462,65 @@ func (c *ClientController) List(
 		}
 	} else {
 		templ.Handler(clients.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
+	}
+}
+
+func (c *ClientController) Export(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	user userdomain.User,
+	clientService *services.ClientService,
+	excelService *coreservicse.ExcelExportService,
+) {
+	if !user.Can(crmPermissions.ClientRead) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	format, ok := export.GetExportFormat(r)
+	if !ok {
+		http.Error(w, "Invalid export format", http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	pgCtx := composables.UsePageCtx(ctx)
+	switch format {
+	case export.ExportFormatExcel:
+		upload, err := excelService.ExportFromDataSource(ctx, excel.NewFunctionDataSource([]string{
+			pgCtx.T("Clients.List.FullName"),
+			pgCtx.T("Clients.List.Phone"),
+			pgCtx.T("UpdatedAt"),
+		}, func(ctx context.Context) ([][]interface{}, error) {
+			clients, err := c.viewModelClientsAll(r, clientService)
+			if err != nil {
+				return nil, err
+			}
+
+			out := make([][]interface{}, len(clients))
+			for i, client := range clients {
+				out[i] = []interface{}{
+					client.FullName(),
+					client.Phone,
+					client.UpdatedAt,
+				}
+			}
+			return out, nil
+		}), exportconfig.New(exportconfig.WithFilename("clients_export")))
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if htmx.IsHxRequest(r) {
+			htmx.Redirect(w, upload.URL().String())
+		} else {
+			http.Redirect(w, r, upload.URL().String(), http.StatusSeeOther)
+		}
+		return
+	default:
+		http.Error(w, "Export format not yet supported", http.StatusNotImplemented)
 	}
 }
 
