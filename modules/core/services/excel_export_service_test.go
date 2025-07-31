@@ -44,6 +44,14 @@ func (m *MockUploadRepository) GetByHash(ctx context.Context, hash string) (uplo
 	return args.Get(0).(upload.Upload), args.Error(1)
 }
 
+func (m *MockUploadRepository) GetBySlug(ctx context.Context, slug string) (upload.Upload, error) {
+	args := m.Called(ctx, slug)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(upload.Upload), args.Error(1)
+}
+
 func (m *MockUploadRepository) GetAll(ctx context.Context) ([]upload.Upload, error) {
 	args := m.Called(ctx)
 	return args.Get(0).([]upload.Upload), args.Error(1)
@@ -93,6 +101,11 @@ func (m *MockUploadStorage) Save(ctx context.Context, path string, data []byte) 
 
 func (m *MockUploadStorage) Delete(ctx context.Context, path string) error {
 	args := m.Called(ctx, path)
+	return args.Error(0)
+}
+
+func (m *MockUploadStorage) Rename(ctx context.Context, oldPath, newPath string) error {
+	args := m.Called(ctx, oldPath, newPath)
 	return args.Error(0)
 }
 
