@@ -234,9 +234,11 @@ func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 	mockUpload.On("ID").Return(uint(1))
 	mockUpload.On("Name").Return("users.xlsx")
 	mockUpload.On("Hash").Return("abc123")
+	mockUpload.On("Slug").Return("abc123")
 	mockUpload.On("Path").Return("uploads/abc123.xlsx")
 
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
+	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
