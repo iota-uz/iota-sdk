@@ -180,6 +180,26 @@ func (m *MockUpload) UpdatedAt() time.Time {
 	return m.Called().Get(0).(time.Time)
 }
 
+func (m *MockUpload) SetHash(hash string) {
+	m.Called()
+}
+
+func (m *MockUpload) SetSlug(slug string) {
+	m.Called()
+}
+
+func (m *MockUpload) SetName(name string) {
+	m.Called()
+}
+
+func (m *MockUpload) SetSize(size upload.Size) {
+	m.Called()
+}
+
+func (m *MockUpload) SetID(id uint) {
+	m.Called()
+}
+
 // TestExcelExportService tests
 func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 	// Create mocks
