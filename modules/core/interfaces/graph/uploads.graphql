@@ -23,6 +23,7 @@ type Upload {
   hash: String!
   path: String!
   name: String!
+  slug: String!
   mimetype: String!
   type: UploadType!
   size: Int!
@@ -35,8 +36,12 @@ input UploadFilter {
   sort: UploadSort
 }
 
+input FileOptsInput {
+  slug: String
+} 
+
 extend type Mutation {
-  uploadFile(file: File): Upload!
+  uploadFile(file: File, opts: FileOptsInput): Upload!
   deleteUpload(id: ID!): Boolean!
 }
 

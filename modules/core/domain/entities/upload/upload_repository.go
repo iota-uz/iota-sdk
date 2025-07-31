@@ -22,6 +22,7 @@ type SortBy = repo.SortBy[Field]
 type FindParams struct {
 	ID       uint
 	Hash     string
+	Slug     string
 	Limit    int
 	Offset   int
 	SortBy   SortBy
@@ -36,6 +37,7 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]Upload, error)
 	GetByID(ctx context.Context, id uint) (Upload, error)
 	GetByHash(ctx context.Context, hash string) (Upload, error)
+	GetBySlug(ctx context.Context, slug string) (Upload, error)
 	Exists(ctx context.Context, id uint) (bool, error)
 	Create(ctx context.Context, data Upload) (Upload, error)
 	Update(ctx context.Context, data Upload) error

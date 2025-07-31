@@ -16,23 +16,24 @@ var (
 )
 
 const (
-	selectUploadQuery = `SELECT id, hash, path, name, size, type, mimetype, created_at, updated_at, tenant_id FROM uploads`
+	selectUploadQuery = `SELECT id, hash, slug, path, name, size, type, mimetype, created_at, updated_at, tenant_id FROM uploads`
 
 	countUploadsQuery = `SELECT COUNT(*) FROM uploads`
 
-	insertUploadQuery = `INSERT INTO uploads (hash, path, name, size, type, mimetype, created_at, updated_at, tenant_id)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	insertUploadQuery = `INSERT INTO uploads (hash, slug, path, name, size, type, mimetype, created_at, updated_at, tenant_id)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                          RETURNING id`
 
 	updatedUploadQuery = `UPDATE uploads
                           SET hash = $1,
-                              path = $2,
-                              name = $3,
-                              size = $4,
-                              type = $5,
-                              mimetype = $6,
-                              updated_at = $7
-                          WHERE id = $8 AND tenant_id = $9`
+			      slug = $2,
+                              path = $3,
+                              name = $4,
+                              size = $5,
+                              type = $6,
+                              mimetype = $7,
+                              updated_at = $8
+                          WHERE id = $9 AND tenant_id = $10`
 
 	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1 AND tenant_id = $2`
 
@@ -74,6 +75,7 @@ func (g *GormUploadRepository) queryUploads(
 		if err := rows.Scan(
 			&dbUpload.ID,
 			&dbUpload.Hash,
+			&dbUpload.Slug,
 			&dbUpload.Path,
 			&dbUpload.Name,
 			&dbUpload.Size,
@@ -112,6 +114,9 @@ func (g *GormUploadRepository) GetPaginated(
 	}
 	if params.Hash != "" {
 		where, args = append(where, fmt.Sprintf("hash = $%d", len(args)+1)), append(args, params.Hash)
+	}
+	if params.Slug != "" {
+		where, args = append(where, fmt.Sprintf("slug = $%d", len(args)+1)), append(args, params.Slug)
 	}
 	if params.Type != "" {
 		where, args = append(where, fmt.Sprintf("type = $%d", len(args)+1)), append(args, params.Type.String())
@@ -177,6 +182,19 @@ func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (uplo
 	return uploads[0], nil
 }
 
+func (g *GormUploadRepository) GetBySlug(ctx context.Context, slug string) (upload.Upload, error) {
+	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
+		Slug: slug,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(uploads) == 0 {
+		return nil, ErrUploadNotFound
+	}
+	return uploads[0], nil
+}
+
 func (g *GormUploadRepository) Exists(ctx context.Context, id uint) (bool, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
@@ -213,6 +231,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 		ctx,
 		insertUploadQuery,
 		dbUpload.Hash,
+		dbUpload.Slug,
 		dbUpload.Path,
 		dbUpload.Name,
 		dbUpload.Size,
@@ -245,6 +264,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 		ctx,
 		updatedUploadQuery,
 		dbUpload.Hash,
+		dbUpload.Slug,
 		dbUpload.Path,
 		dbUpload.Name,
 		dbUpload.Size,
