@@ -20,11 +20,12 @@ import (
 )
 
 // UploadFile is the resolver for the uploadFile field.
-func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload) (*model.Upload, error) {
+func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload, opts *model.FileOptsInput) (*model.Upload, error) {
 	dto := &upload.CreateDTO{
 		File: file.File,
 		Name: file.Filename,
 		Size: int(file.Size),
+		Slug: mapping.Value(mapping.Value(opts).Slug),
 	}
 	if _, ok := dto.Ok(ctx); !ok {
 		return nil, errors.New("invalid file")

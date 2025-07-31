@@ -15,12 +15,14 @@ CREATE TABLE uploads (
     name varchar(255) NOT NULL, -- original file name
     hash VARCHAR(255) NOT NULL, -- md5 hash of the file
     path varchar(1024) NOT NULL DEFAULT '', -- relative path to the file
+    slug varchar(255) NOT NULL,
     size int NOT NULL DEFAULT 0, -- in bytes
     mimetype varchar(255) NOT NULL, -- image/jpeg, application/pdf, etc.
     type VARCHAR(255) NOT NULL, -- image, document, etc.
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    UNIQUE (tenant_id, hash)
+    UNIQUE (tenant_id, hash),
+    UNIQUE (tenant_id, slug)
 );
 
 CREATE TABLE passports (

@@ -21,6 +21,7 @@ type Upload struct {
 	TenantID  string
 	Hash      string
 	Path      string
+	Slug      string
 	Name      string
 	Size      int
 	Mimetype  string

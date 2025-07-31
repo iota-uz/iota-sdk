@@ -21,6 +21,7 @@ type CreateDTO struct {
 	File io.ReadSeeker `validate:"required"`
 	Name string        `validate:"required"`
 	Size int           `validate:"required"`
+	Slug string
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -54,10 +55,14 @@ func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
 	mdsum := md5.Sum(bytes)
 	hash := hex.EncodeToString(mdsum[:])
 	ext := filepath.Ext(d.Name)
+	if d.Slug == "" {
+		d.Slug = hash
+	}
 	return New(
 		hash,
-		filepath.Join(conf.UploadsPath, hash+ext),
+		filepath.Join(conf.UploadsPath, d.Slug+ext),
 		d.Name,
+		d.Slug,
 		d.Size,
 		mimetype.Detect(bytes),
 	), bytes, nil
