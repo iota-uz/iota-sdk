@@ -1,0 +1,32 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/scaffold/kanban"
+
+templ taskCard(tag, title, amount string) {
+	<div class="flex flex-col gap-2 bg-white rounded-xl p-3">
+		<span class="text-200">{ tag }</span>
+		<span class="font-medium">{ title }</span>
+		<span class="text-brand-500">{ amount }</span>
+	</div>
+}
+
+var board = kanban.NewBoard("board", "Tasks board",
+	kanban.NewColumn("triage", templ.Raw("Triage"),
+		kanban.NewCard("10", taskCard("REINS-2085 * Aon Reinsurance", "Proportional Agreement for Q3", "50,000,000 USD")),
+		kanban.NewCard("2", taskCard("REINS-2087 * Aon Reinsurance", "Proportional Agreement for Q4", "75,000,000 USD")),
+		kanban.NewCard("3", taskCard("REINS-100 * Aon Reinsurance", "Proportional Agreement for Q2", "25,000,000 USD")),
+	),
+	kanban.NewColumn("binding", templ.Raw("Binding"),
+		kanban.NewCard("1", taskCard("REINS-2000 * Aon Reinsurance", "Proportional Agreement for Q3", "33,000,000 USD")),
+		kanban.NewCard("2", taskCard("REINS-3030 * Aon Reinsurance", "Proportional Agreement for Q1", "90,000,000 USD")),
+		kanban.NewCard("3", taskCard("REINS-2388 * Aon Reinsurance", "Proportional Agreement for Q4", "40,000,000 USD")),
+	),
+)
+
+templ KanbanBoard() {
+	@kanban.Content(&kanban.Config[kanban.Card]{
+		Board:           board,
+		ColumnChangeURL: "/column-changed",
+		CardChangeURL:   "/card-changed",
+	})
+}
