@@ -39,6 +39,10 @@ func (s *UploadService) GetByHash(ctx context.Context, hash string) (upload.Uplo
 	return s.repo.GetByHash(ctx, hash)
 }
 
+func (s *UploadService) GetBySlug(ctx context.Context, slug string) (upload.Upload, error) {
+	return s.repo.GetBySlug(ctx, slug)
+}
+
 func (s *UploadService) GetAll(ctx context.Context) ([]upload.Upload, error) {
 	return s.repo.GetAll(ctx)
 }

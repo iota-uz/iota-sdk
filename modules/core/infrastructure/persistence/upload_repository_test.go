@@ -101,6 +101,24 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		assert.Equal(t, upload.UploadTypeDocument, retrievedUpload.Type())
 	})
 
+	t.Run("GetBySlug", func(t *testing.T) {
+		uniqueHash := "unique-hash-" + time.Now().Format("20060102150405")
+		slug := "unique-slug-" + time.Now().Format("20060102150405")
+		mime := mimetype.Lookup("text/plain")
+
+		uploadData := upload.New(uniqueHash, "uploads/unique-hash.txt", "text.txt", slug, 512, mime)
+		_, err := uploadRepository.Create(f.Ctx, uploadData)
+		require.NoError(t, err)
+		retrievedUpload, err := uploadRepository.GetBySlug(f.Ctx, slug)
+
+		assert.Equal(t, slug, retrievedUpload.Slug())
+		assert.Equal(t, "uploads/text.txt", retrievedUpload.Path())
+		assert.Equal(t, "text.txt", retrievedUpload.Name())
+		assert.Equal(t, 512, retrievedUpload.Size().Bytes())
+		assert.Equal(t, "text/plain", retrievedUpload.Mimetype().String())
+		assert.Equal(t, upload.UploadTypeDocument, retrievedUpload.Type())
+	})
+
 	t.Run("GetAll", func(t *testing.T) {
 		// Get all uploads
 		uploads, err := uploadRepository.GetAll(f.Ctx)
