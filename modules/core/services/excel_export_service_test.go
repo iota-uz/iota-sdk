@@ -237,8 +237,8 @@ func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 	mockUpload.On("Slug").Return("abc123")
 	mockUpload.On("Path").Return("uploads/abc123.xlsx")
 
-	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
+	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -320,6 +320,7 @@ func TestExcelExportService_ExportFromDataSourceWithOptions(t *testing.T) {
 	mockUpload.On("ID").Return(uint(2))
 	mockUpload.On("Name").Return("scores.xlsx")
 
+	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -365,6 +366,7 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 	mockUpload.On("ID").Return(uint(3))
 	mockUpload.On("Name").Return(mock.Anything)
 
+	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -378,8 +380,8 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 	assert.NotNil(t, result)
 
 	// Verify the created upload has a generated filename
-	createCall := mockRepo.Calls[1] // Second call is Create
-	createdEntity := createCall.Arguments[1]
+	createCall := mockRepo.Calls[2] // Second call is Create
+	createdEntity := createCall.Arguments[2]
 	assert.Contains(t, createdEntity.(upload.Upload).Name(), "export_")
 	assert.Contains(t, createdEntity.(upload.Upload).Name(), ".xlsx")
 }
