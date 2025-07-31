@@ -456,7 +456,7 @@ func ClientsContent(props *IndexPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = export.ExportDropdown(export.ExportDropdownProps{
-			Formats:   []export.ExportFormat{export.ExportFormatExcel},
+			Formats:   []export.ExportFormat{export.ExportFormatExcel, export.ExportFormatCSV},
 			ExportURL: "/crm/clients/export",
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

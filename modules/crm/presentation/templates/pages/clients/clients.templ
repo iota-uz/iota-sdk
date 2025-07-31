@@ -156,7 +156,7 @@ templ ClientsContent(props *IndexPageProps) {
 			@filters.PageSize()
 			@filters.CreatedAt()
 			@export.ExportDropdown(export.ExportDropdownProps{
-				Formats:   []export.ExportFormat{export.ExportFormatExcel},
+				Formats:   []export.ExportFormat{export.ExportFormatExcel, export.ExportFormatCSV},
 				ExportURL: "/crm/clients/export",
 			})
 			@button.Primary(button.Props{
