@@ -380,8 +380,16 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 	assert.NotNil(t, result)
 
 	// Verify the created upload has a generated filename
-	createCall := mockRepo.Calls[2] // Second call is Create
-	createdEntity := createCall.Arguments[2]
+	// Find the Create call among all mock calls
+	var createCall *mock.Call
+	for _, call := range mockRepo.Calls {
+		if call.Method == "Create" {
+			createCall = &call
+			break
+		}
+	}
+	require.NotNil(t, createCall, "Create method should have been called")
+	createdEntity := createCall.Arguments[1] // Second argument (after ctx) is the entity
 	assert.Contains(t, createdEntity.(upload.Upload).Name(), "export_")
 	assert.Contains(t, createdEntity.(upload.Upload).Name(), ".xlsx")
 }
