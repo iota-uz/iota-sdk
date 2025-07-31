@@ -81,3 +81,6 @@ var RadarChartSource string
 
 //go:embed components/charts/polar_area_chart.templ
 var PolarAreaChartSource string
+
+//go:embed components/kanban.templ
+var KanbanBoardSource string

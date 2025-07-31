@@ -1,0 +1,86 @@
+package kanban
+
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+
+templ Page[C Card](cfg *Config[C]) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: cfg.Board.Title()},
+	}) {
+		@Content(cfg)
+	}
+}
+
+templ Content[C Card](cfg *Config[C]) {
+	<style>
+		.sortable-ghost {
+			opacity: 0.4;
+		}
+	</style>
+	<div x-data="kanban">
+		<form class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged">
+			<input name="colKey" x-model="col.key"/>
+			<input name="oldIndex" x-model="col.oldIndex"/>
+			<input name="newIndex" x-model="col.newIndex"/>
+		</form>
+		<form class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged">
+			<input name="cardKey" x-model="card.key"/>
+			<input name="oldCol" x-model="card.oldCol"/>
+			<input name="newCol" x-model="card.newCol"/>
+			<input name="oldIndex" x-model="card.oldIndex"/>
+			<input name="newIndex" x-model="card.newIndex"/>
+		</form>
+		<div class="flex bg-gray-200 rounded-xl h-full">
+			<ol
+				class="flex divide-x divide-gray-300"
+				x-sort.ghost
+				x-sort:config="{onEnd: (event) => {
+					changeCol({
+						key: event.item.dataset.colKey,
+						oldIndex: event.oldIndex,
+						newIndex: event.newIndex
+					});
+					$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
+				}}"
+			>
+				for _, c := range cfg.Board.Columns() {
+					<li data-col-key={ c.Key() } x-sort:item class="flex flex-col gap-2 p-3 basis-72 shrink-0 flex-1">
+						<header class="font-medium">
+							@c.Title()
+						</header>
+						<ol
+							class="flex flex-col gap-2 h-full"
+							data-col-key={ c.Key() }
+							x-sort.ghost
+							x-sort:group="cards"
+							x-sort:config="{onEnd: (event) => {
+								console.log(event);
+								changeCard({
+									key: event.item.dataset.cardKey,
+									newCol: event.to.dataset.colKey,
+									oldCol: event.from.dataset.colKey,
+									oldIndex: event.oldIndex,
+									newIndex: event.newIndex
+								})
+								$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
+							}}"
+						>
+							for _, card := range c.Cards() {
+								<li class="cursor-pointer" data-card-key={ card.Key() } x-sort:item>
+									@card.Component()
+								</li>
+							}
+						</ol>
+					</li>
+				}
+			</ol>
+		</div>
+	</div>
+}
+
+templ TaskCard(tag, title, amount string) {
+	<div class="flex flex-col gap-2 bg-white rounded-xl p-3">
+		<span class="text-200">{ tag }</span>
+		<span class="font-medium">{ title }</span>
+		<span class="text-brand-500">{ amount }</span>
+	</div>
+}
