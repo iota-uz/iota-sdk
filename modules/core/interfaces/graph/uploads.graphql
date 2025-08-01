@@ -36,12 +36,9 @@ input UploadFilter {
   sort: UploadSort
 }
 
-input FileOptsInput {
-  slug: String
-} 
-
 extend type Mutation {
-  uploadFile(file: File, opts: FileOptsInput): Upload!
+  uploadFile(file: File): Upload!
+  uploadFileWithSlug(file: File, slug: String!): Upload!
   deleteUpload(id: ID!): Boolean!
 }
 

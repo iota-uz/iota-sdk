@@ -11,10 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
-type FileOptsInput struct {
-	Slug *string `json:"slug,omitempty"`
-}
-
 type Mutation struct {
 }
 

@@ -57,7 +57,8 @@ type ComplexityRoot struct {
 		DeleteSession      func(childComplexity int, token string) int
 		DeleteUpload       func(childComplexity int, id int64) int
 		GoogleAuthenticate func(childComplexity int) int
-		UploadFile         func(childComplexity int, file *graphql.Upload, opts *model.FileOptsInput) int
+		UploadFile         func(childComplexity int, file *graphql.Upload) int
+		UploadFileWithSlug func(childComplexity int, file *graphql.Upload, slug string) int
 	}
 
 	PaginatedUsers struct {
@@ -114,7 +115,8 @@ type MutationResolver interface {
 	Authenticate(ctx context.Context, email string, password string) (*model.Session, error)
 	GoogleAuthenticate(ctx context.Context) (string, error)
 	DeleteSession(ctx context.Context, token string) (bool, error)
-	UploadFile(ctx context.Context, file *graphql.Upload, opts *model.FileOptsInput) (*model.Upload, error)
+	UploadFile(ctx context.Context, file *graphql.Upload) (*model.Upload, error)
+	UploadFileWithSlug(ctx context.Context, file *graphql.Upload, slug string) (*model.Upload, error)
 	DeleteUpload(ctx context.Context, id int64) (bool, error)
 }
 type QueryResolver interface {
@@ -212,7 +214,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UploadFile(childComplexity, args["file"].(*graphql.Upload), args["opts"].(*model.FileOptsInput)), true
+		return e.complexity.Mutation.UploadFile(childComplexity, args["file"].(*graphql.Upload)), true
+
+	case "Mutation.uploadFileWithSlug":
+		if e.complexity.Mutation.UploadFileWithSlug == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_uploadFileWithSlug_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UploadFileWithSlug(childComplexity, args["file"].(*graphql.Upload), args["slug"].(string)), true
 
 	case "PaginatedUsers.data":
 		if e.complexity.PaginatedUsers.Data == nil {
@@ -452,7 +466,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputFileOptsInput,
 		ec.unmarshalInputUploadFilter,
 		ec.unmarshalInputUploadSort,
 	)
@@ -773,22 +786,22 @@ func (ec *executionContext) field_Mutation_deleteUpload_argsID(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_uploadFile_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+func (ec *executionContext) field_Mutation_uploadFileWithSlug_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	arg0, err := ec.field_Mutation_uploadFile_argsFile(ctx, rawArgs)
+	arg0, err := ec.field_Mutation_uploadFileWithSlug_argsFile(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
 	args["file"] = arg0
-	arg1, err := ec.field_Mutation_uploadFile_argsOpts(ctx, rawArgs)
+	arg1, err := ec.field_Mutation_uploadFileWithSlug_argsSlug(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["opts"] = arg1
+	args["slug"] = arg1
 	return args, nil
 }
-func (ec *executionContext) field_Mutation_uploadFile_argsFile(
+func (ec *executionContext) field_Mutation_uploadFileWithSlug_argsFile(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (*graphql.Upload, error) {
@@ -810,25 +823,57 @@ func (ec *executionContext) field_Mutation_uploadFile_argsFile(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_uploadFile_argsOpts(
+func (ec *executionContext) field_Mutation_uploadFileWithSlug_argsSlug(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (*model.FileOptsInput, error) {
+) (string, error) {
 	// We won't call the directive if the argument is null.
 	// Set call_argument_directives_with_null to true to call directives
 	// even if the argument is null.
-	_, ok := rawArgs["opts"]
+	_, ok := rawArgs["slug"]
 	if !ok {
-		var zeroVal *model.FileOptsInput
+		var zeroVal string
 		return zeroVal, nil
 	}
 
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("opts"))
-	if tmp, ok := rawArgs["opts"]; ok {
-		return ec.unmarshalOFileOptsInput2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐFileOptsInput(ctx, tmp)
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("slug"))
+	if tmp, ok := rawArgs["slug"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
-	var zeroVal *model.FileOptsInput
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_uploadFile_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_uploadFile_argsFile(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["file"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_uploadFile_argsFile(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*graphql.Upload, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["file"]
+	if !ok {
+		var zeroVal *graphql.Upload
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("file"))
+	if tmp, ok := rawArgs["file"]; ok {
+		return ec.unmarshalOFile2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚐUpload(ctx, tmp)
+	}
+
+	var zeroVal *graphql.Upload
 	return zeroVal, nil
 }
 
@@ -1382,7 +1427,7 @@ func (ec *executionContext) _Mutation_uploadFile(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UploadFile(rctx, fc.Args["file"].(*graphql.Upload), fc.Args["opts"].(*model.FileOptsInput))
+		return ec.resolvers.Mutation().UploadFile(rctx, fc.Args["file"].(*graphql.Upload))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1437,6 +1482,81 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_uploadFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_uploadFileWithSlug(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_uploadFileWithSlug(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UploadFileWithSlug(rctx, fc.Args["file"].(*graphql.Upload), fc.Args["slug"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.Upload)
+	fc.Result = res
+	return ec.marshalNUpload2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUpload(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_uploadFileWithSlug(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Upload_id(ctx, field)
+			case "url":
+				return ec.fieldContext_Upload_url(ctx, field)
+			case "hash":
+				return ec.fieldContext_Upload_hash(ctx, field)
+			case "path":
+				return ec.fieldContext_Upload_path(ctx, field)
+			case "name":
+				return ec.fieldContext_Upload_name(ctx, field)
+			case "slug":
+				return ec.fieldContext_Upload_slug(ctx, field)
+			case "mimetype":
+				return ec.fieldContext_Upload_mimetype(ctx, field)
+			case "type":
+				return ec.fieldContext_Upload_type(ctx, field)
+			case "size":
+				return ec.fieldContext_Upload_size(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Upload", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_uploadFileWithSlug_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4844,33 +4964,6 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputFileOptsInput(ctx context.Context, obj interface{}) (model.FileOptsInput, error) {
-	var it model.FileOptsInput
-	asMap := map[string]interface{}{}
-	for k, v := range obj.(map[string]interface{}) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"slug"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "slug":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("slug"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Slug = data
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputUploadFilter(ctx context.Context, obj interface{}) (model.UploadFilter, error) {
 	var it model.UploadFilter
 	asMap := map[string]interface{}{}
@@ -5011,6 +5104,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "uploadFile":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_uploadFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "uploadFileWithSlug":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_uploadFileWithSlug(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -6346,14 +6446,6 @@ func (ec *executionContext) marshalOFile2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋ
 	}
 	res := graphql.MarshalUpload(*v)
 	return res
-}
-
-func (ec *executionContext) unmarshalOFileOptsInput2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐFileOptsInput(ctx context.Context, v interface{}) (*model.FileOptsInput, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := ec.unmarshalInputFileOptsInput(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚕintᚄ(ctx context.Context, v interface{}) ([]int, error) {

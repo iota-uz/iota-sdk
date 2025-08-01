@@ -17,15 +17,15 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // UploadFile is the resolver for the uploadFile field.
-func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload, opts *model.FileOptsInput) (*model.Upload, error) {
+func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload) (*model.Upload, error) {
 	dto := &upload.CreateDTO{
 		File: file.File,
 		Name: file.Filename,
 		Size: int(file.Size),
-		Slug: mapping.Value(mapping.Value(opts).Slug),
 	}
 	if _, ok := dto.Ok(ctx); !ok {
 		return nil, errors.New("invalid file")
@@ -39,13 +39,47 @@ func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload,
 	return mappers.UploadToGraphModel(uploadEntity), nil
 }
 
+// UploadFileWithSlug is the resolver for the uploadFileWithSlug field.
+func (r *mutationResolver) UploadFileWithSlug(ctx context.Context, file *graphql.Upload, slug string) (*model.Upload, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, err
+	}
+	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
+		return nil, err
+	}
+
+	dto := &upload.CreateDTO{
+		File: file.File,
+		Name: file.Filename,
+		Size: int(file.Size),
+		Slug: slug,
+	}
+	if _, ok := dto.Ok(ctx); !ok {
+		return nil, errors.New("invalid file")
+	}
+
+	uploadEntity, err := r.uploadService.Create(ctx, dto)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create upload: %w", err)
+	}
+	return mappers.UploadToGraphModel(uploadEntity), nil
+}
+
 // DeleteUpload is the resolver for the deleteUpload field.
 func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (bool, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return false, err
+	}
+
 	if err := composables.CanUser(ctx, permissions.UploadDelete); err != nil {
 		return false, err
 	}
 
-	_, err := r.uploadService.Delete(ctx, uint(id))
+	_, err = r.uploadService.Delete(ctx, uint(id))
 	if err != nil {
 		return false, fmt.Errorf("failed to delete upload: %w", err)
 	}
@@ -55,6 +89,14 @@ func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (bool, er
 
 // Uploads is the resolver for the uploads field.
 func (r *queryResolver) Uploads(ctx context.Context, filter model.UploadFilter) ([]*model.Upload, error) {
+	_, err := composables.UseUser(ctx)
+	if err != nil {
+		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
+		return nil, err
+	}
+	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
+		return nil, err
+	}
 	params := &upload.FindParams{}
 	if filter.Type != nil {
 		params.Type = *filter.Type
