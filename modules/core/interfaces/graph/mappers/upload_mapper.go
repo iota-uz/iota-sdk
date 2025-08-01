@@ -11,6 +11,7 @@ func UploadToGraphModel(u upload.Upload) *model.Upload {
 		Hash: u.Hash(),
 		Name: u.Name(),
 		Path: u.Path(),
+		Slug: u.Slug(),
 		Size: u.Size().Bytes(),
 		Type: u.Type(),
 		URL:  u.URL().String(),

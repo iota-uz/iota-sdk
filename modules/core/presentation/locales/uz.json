@@ -26,7 +26,8 @@
     "uuid": "Haqiqiy UUID bo'lishi kerak",
     "gte": "{0} dan katta yoki teng bo'lishi kerak",
     "len": "Uzunligi {0} ga teng bo'lishi kerak",
-    "gt": "{0} dan katta bo'lishi kerak"
+    "gt": "{0} dan katta bo'lishi kerak",
+    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak."
   },
   "Import": {
     "Error": {

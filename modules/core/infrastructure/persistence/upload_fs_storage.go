@@ -34,3 +34,7 @@ func (s *FSStorage) Open(ctx context.Context, fileName string) ([]byte, error) {
 func (s *FSStorage) Save(ctx context.Context, fileName string, bytes []byte) error {
 	return os.WriteFile(fileName, bytes, 0644)
 }
+
+func (s *FSStorage) Rename(ctx context.Context, oldPath, newPath string) error {
+	return os.Rename(oldPath, newPath)
+}

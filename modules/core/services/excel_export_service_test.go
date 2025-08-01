@@ -44,6 +44,14 @@ func (m *MockUploadRepository) GetByHash(ctx context.Context, hash string) (uplo
 	return args.Get(0).(upload.Upload), args.Error(1)
 }
 
+func (m *MockUploadRepository) GetBySlug(ctx context.Context, slug string) (upload.Upload, error) {
+	args := m.Called(ctx, slug)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(upload.Upload), args.Error(1)
+}
+
 func (m *MockUploadRepository) GetAll(ctx context.Context) ([]upload.Upload, error) {
 	args := m.Called(ctx)
 	return args.Get(0).([]upload.Upload), args.Error(1)
@@ -96,6 +104,11 @@ func (m *MockUploadStorage) Delete(ctx context.Context, path string) error {
 	return args.Error(0)
 }
 
+func (m *MockUploadStorage) Rename(ctx context.Context, oldPath, newPath string) error {
+	args := m.Called(ctx, oldPath, newPath)
+	return args.Error(0)
+}
+
 func (m *MockUploadStorage) Get(ctx context.Context, path string) ([]byte, error) {
 	args := m.Called(ctx, path)
 	return args.Get(0).([]byte), args.Error(1)
@@ -126,6 +139,10 @@ func (m *MockUpload) Type() upload.UploadType {
 }
 
 func (m *MockUpload) Hash() string {
+	return m.Called().String(0)
+}
+
+func (m *MockUpload) Slug() string {
 	return m.Called().String(0)
 }
 
@@ -167,6 +184,26 @@ func (m *MockUpload) UpdatedAt() time.Time {
 	return m.Called().Get(0).(time.Time)
 }
 
+func (m *MockUpload) SetHash(hash string) {
+	m.Called()
+}
+
+func (m *MockUpload) SetSlug(slug string) {
+	m.Called()
+}
+
+func (m *MockUpload) SetName(name string) {
+	m.Called()
+}
+
+func (m *MockUpload) SetSize(size upload.Size) {
+	m.Called()
+}
+
+func (m *MockUpload) SetID(id uint) {
+	m.Called()
+}
+
 // TestExcelExportService tests
 func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 	// Create mocks
@@ -197,8 +234,10 @@ func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 	mockUpload.On("ID").Return(uint(1))
 	mockUpload.On("Name").Return("users.xlsx")
 	mockUpload.On("Hash").Return("abc123")
+	mockUpload.On("Slug").Return("abc123")
 	mockUpload.On("Path").Return("uploads/abc123.xlsx")
 
+	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -281,6 +320,7 @@ func TestExcelExportService_ExportFromDataSourceWithOptions(t *testing.T) {
 	mockUpload.On("ID").Return(uint(2))
 	mockUpload.On("Name").Return("scores.xlsx")
 
+	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -326,6 +366,7 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 	mockUpload.On("ID").Return(uint(3))
 	mockUpload.On("Name").Return(mock.Anything)
 
+	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("Create", mock.Anything, mock.Anything).Return(mockUpload, nil)
 	mockStorage.On("Save", mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -339,8 +380,16 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 	assert.NotNil(t, result)
 
 	// Verify the created upload has a generated filename
-	createCall := mockRepo.Calls[1] // Second call is Create
-	createdEntity := createCall.Arguments[1]
+	// Find the Create call among all mock calls
+	var createCall *mock.Call
+	for _, call := range mockRepo.Calls {
+		if call.Method == "Create" {
+			createCall = &call
+			break
+		}
+	}
+	require.NotNil(t, createCall, "Create method should have been called")
+	createdEntity := createCall.Arguments[1] // Second argument (after ctx) is the entity
 	assert.Contains(t, createdEntity.(upload.Upload).Name(), "export_")
 	assert.Contains(t, createdEntity.(upload.Upload).Name(), ".xlsx")
 }

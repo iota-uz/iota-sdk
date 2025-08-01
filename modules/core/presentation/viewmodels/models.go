@@ -9,6 +9,7 @@ type Currency struct {
 type Upload struct {
 	ID        string
 	Hash      string
+	Slug      string
 	URL       string
 	Mimetype  string
 	Size      string

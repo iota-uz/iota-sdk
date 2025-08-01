@@ -39,6 +39,10 @@ func (s *UploadService) GetByHash(ctx context.Context, hash string) (upload.Uplo
 	return s.repo.GetByHash(ctx, hash)
 }
 
+func (s *UploadService) GetBySlug(ctx context.Context, slug string) (upload.Upload, error) {
+	return s.repo.GetBySlug(ctx, slug)
+}
+
 func (s *UploadService) GetAll(ctx context.Context) ([]upload.Upload, error) {
 	return s.repo.GetAll(ctx)
 }
@@ -52,11 +56,52 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 	if err != nil {
 		return nil, err
 	}
-	up, err := s.repo.GetByHash(ctx, entity.Hash())
+
+	up, err := s.repo.GetBySlug(ctx, entity.Slug())
 	if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
 		return nil, err
 	}
+
+	if up == nil {
+		up, err = s.repo.GetByHash(ctx, entity.Hash())
+		if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
+			return nil, err
+		}
+	}
 	if up != nil {
+		if up.Hash() != entity.Hash() {
+			existing, err := s.repo.GetByHash(ctx, entity.Hash())
+			if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
+				return nil, err
+			}
+			if existing != nil {
+				previousPath := up.Path()
+				existingPreviousPath := existing.Path()
+				up.SetSlug(up.Hash())
+				existing.SetSlug(entity.Slug())
+				if err := s.repo.Update(ctx, up); err != nil {
+					return nil, err
+				} else if err := s.repo.Update(ctx, existing); err != nil {
+					return nil, err
+				}
+				if err := s.storage.Rename(ctx, previousPath, up.Path()); err != nil {
+					return nil, err
+				} else if err := s.storage.Rename(ctx, existingPreviousPath, existing.Path()); err != nil {
+					return nil, err
+				}
+				up = existing
+			} else {
+				up.SetName(entity.Name())
+				entity.SetID(up.ID())
+				if err := s.storage.Save(ctx, entity.Path(), bytes); err != nil {
+					return nil, err
+				}
+				if err := s.repo.Update(ctx, entity); err != nil {
+					return nil, err
+				}
+				up = entity
+			}
+		}
 		return up, nil
 	}
 	if err := s.storage.Save(ctx, entity.Path(), bytes); err != nil {
