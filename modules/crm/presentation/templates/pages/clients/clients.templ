@@ -5,6 +5,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/export"
 	"github.com/iota-uz/iota-sdk/components/filters"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -154,6 +155,10 @@ templ ClientsContent(props *IndexPageProps) {
 			})
 			@filters.PageSize()
 			@filters.CreatedAt()
+			@export.ExportDropdown(export.ExportDropdownProps{
+				Formats:   []export.ExportFormat{export.ExportFormatExcel, export.ExportFormatCSV},
+				ExportURL: "/crm/clients/export",
+			})
 			@button.Primary(button.Props{
 				Size: button.SizeNormal,
 				Icon: icons.PlusCircle(icons.Props{Size: "18"}),
