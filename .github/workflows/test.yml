@@ -107,6 +107,12 @@ jobs:
           --tmpfs /var/lib/postgresql/data:rw,size=6g
           --health-cmd="pg_isready -U postgres -d iota_erp"
           --health-interval=5s --health-timeout=5s --health-retries=5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --tmpfs /data:rw,size=6g
 
     steps:
       - name: Checkout repository

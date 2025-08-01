@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
+	websitePersistence "github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/rag"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -52,6 +53,7 @@ type WebsiteChatServiceConfig struct {
 	UserRepo     user.Repository
 	ClientRepo   client.Repository
 	ChatRepo     chat.Repository
+	ThreadRepo   chatthread.Repository
 	AIUserEmail  internet.Email
 	RAGProvider  rag.Provider
 }
@@ -61,29 +63,30 @@ type WebsiteChatService struct {
 	userRepo     user.Repository
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
+	threadRepo   chatthread.Repository
 	aiUserEmail  internet.Email
 	ragProvider  rag.Provider
-	threadsMap   ThreadsMap
 }
 
-type ThreadsMap map[uuid.UUID]chatthread.ChatThread
-
 func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
+	if config.ThreadRepo == nil {
+		config.ThreadRepo = websitePersistence.NewInmemThreadRepository()
+	}
 	return &WebsiteChatService{
 		aiconfigRepo: config.AIConfigRepo,
 		userRepo:     config.UserRepo,
 		clientRepo:   config.ClientRepo,
 		chatRepo:     config.ChatRepo,
+		threadRepo:   config.ThreadRepo,
 		aiUserEmail:  config.AIUserEmail,
 		ragProvider:  config.RAGProvider,
-		threadsMap:   make(ThreadsMap),
 	}
 }
 
 func (s *WebsiteChatService) GetThreadByID(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
-	thread, ok := s.threadsMap[threadID]
-	if !ok {
-		return nil, chatthread.ErrChatThreadNotFound
+	thread, err := s.threadRepo.GetByID(ctx, threadID)
+	if err != nil {
+		return nil, err
 	}
 	chatEntity, err := s.chatRepo.GetByID(ctx, thread.ChatID())
 	if err != nil {
@@ -137,8 +140,9 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadD
 		createdChat.Messages(),
 		chatthread.WithID(threadID),
 	)
-	s.threadsMap[threadID] = thread
-
+	if thread, err = s.threadRepo.Save(ctx, thread); err != nil {
+		return nil, err
+	}
 	return thread, nil
 }
 
@@ -203,7 +207,9 @@ func (s *WebsiteChatService) SendMessageToThread(
 		chatthread.WithID(thread.ID()),
 		chatthread.WithTimestamp(thread.Timestamp()),
 	)
-	s.threadsMap[thread.ID()] = updatedThread
+	if _, err := s.threadRepo.Save(ctx, updatedThread); err != nil {
+		return nil, err
+	}
 
 	return updatedThread, nil
 }
@@ -275,7 +281,9 @@ func (s *WebsiteChatService) ReplyToThread(
 		chatthread.WithID(thread.ID()),
 		chatthread.WithTimestamp(thread.Timestamp()),
 	)
-	s.threadsMap[thread.ID()] = updatedThread
+	if _, err := s.threadRepo.Save(ctx, updatedThread); err != nil {
+		return nil, err
+	}
 
 	return updatedThread, nil
 }
