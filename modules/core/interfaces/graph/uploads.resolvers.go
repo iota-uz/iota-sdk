@@ -21,6 +21,10 @@ import (
 
 // UploadFile is the resolver for the uploadFile field.
 func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload) (*model.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
+		return nil, err
+	}
+
 	dto := &upload.CreateDTO{
 		File: file.File,
 		Name: file.Filename,
@@ -54,6 +58,10 @@ func (r *mutationResolver) DeleteUpload(ctx context.Context, id int64) (bool, er
 
 // Uploads is the resolver for the uploads field.
 func (r *queryResolver) Uploads(ctx context.Context, filter model.UploadFilter) ([]*model.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
+		return nil, err
+	}
+
 	params := &upload.FindParams{}
 	if filter.Type != nil {
 		params.Type = *filter.Type

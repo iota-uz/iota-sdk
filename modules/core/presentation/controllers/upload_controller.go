@@ -13,9 +13,11 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -57,6 +59,11 @@ func (c *UploadController) Register(r *mux.Router) {
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
+	if err := composables.CanUser(r.Context(), permissions.UploadCreate); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
 	conf := configuration.Use()
 	if err := r.ParseMultipartForm(conf.MaxUploadMemory); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

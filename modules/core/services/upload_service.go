@@ -6,6 +6,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -28,6 +30,9 @@ func NewUploadService(
 }
 
 func (s *UploadService) GetByID(ctx context.Context, id uint) (upload.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetByID(ctx, id)
 }
 
@@ -36,18 +41,31 @@ func (s *UploadService) Exists(ctx context.Context, id uint) (bool, error) {
 }
 
 func (s *UploadService) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetByHash(ctx, hash)
 }
 
 func (s *UploadService) GetAll(ctx context.Context) ([]upload.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetAll(ctx)
 }
 
 func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindParams) ([]upload.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
+		return nil, err
+	}
+
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -75,6 +93,10 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 }
 
 func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO) ([]upload.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadCreate); err != nil {
+		return nil, err
+	}
+
 	entities := make([]upload.Upload, 0, len(data))
 	for _, d := range data {
 		entity, err := s.Create(ctx, d)
@@ -87,6 +109,10 @@ func (s *UploadService) CreateMany(ctx context.Context, data []*upload.CreateDTO
 }
 
 func (s *UploadService) Delete(ctx context.Context, id uint) (upload.Upload, error) {
+	if err := composables.CanUser(ctx, permissions.UploadDelete); err != nil {
+		return nil, err
+	}
+
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
