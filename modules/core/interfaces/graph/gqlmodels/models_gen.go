@@ -11,6 +11,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
+type FileOptsInput struct {
+	Slug *string `json:"slug,omitempty"`
+}
+
 type Mutation struct {
 }
 
@@ -40,6 +44,7 @@ type Upload struct {
 	Hash     string            `json:"hash"`
 	Path     string            `json:"path"`
 	Name     string            `json:"name"`
+	Slug     string            `json:"slug"`
 	Mimetype string            `json:"mimetype"`
 	Type     upload.UploadType `json:"type"`
 	Size     int               `json:"size"`

@@ -26,7 +26,8 @@
     "lte": "{{.Field}} must be less than or equal to the specified value",
     "len": "{{.Field}} must be exactly the required length",
     "uuid": "{{.Field}} must be a valid UUID",
-    "custom": "{{.Field}}: {{.Error}}"
+    "custom": "{{.Field}}: {{.Error}}",
+    "alphanum": "{{.Field}} may only contain alphanumeric characters (letters and numbers)."
   },
   "Import": {
     "Error": {
