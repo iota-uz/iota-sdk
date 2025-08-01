@@ -24,3 +24,6 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: iota_erp
 
+  redis:
+    image: redis:latest
+    restart: always
