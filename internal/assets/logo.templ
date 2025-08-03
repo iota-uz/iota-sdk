@@ -12,34 +12,44 @@ type LogoProps struct {
 	LogoCompactUpload *viewmodels.Upload
 }
 
-templ DynamicLogo(props *LogoProps) {
+templ DynamicLogo(props LogoProps) {
 	<!-- Collapsed view: compact logo -->
+	if props.LogoCompactUpload != nil {
+		<img
+			x-show="isCollapsed"
+			src={ props.LogoCompactUpload.URL }
+			alt="Logo"
+			width="48"
+			height="48"
+			class="mx-auto"
+		/>
+	}
+	<!-- Expanded view: full logo -->
+	if props.LogoUpload != nil {
+		<img
+			x-show="!isCollapsed"
+			src={ props.LogoUpload.URL }
+			alt="Logo"
+			width="150"
+			height="50"
+		/>
+	}
+}
+
+templ DefaultLogo() {
 	<img
 		x-show="isCollapsed"
-		if props != nil && props.LogoCompactUpload != nil {
-			src={ props.LogoCompactUpload.URL }
-		} else {
-			src={ companyLogoCompact }
-		}
+		src={ companyLogoCompact }
 		alt="Logo"
 		width="48"
 		height="48"
 		class="mx-auto"
 	/>
-	<!-- Expanded view: full logo -->
 	<img
 		x-show="!isCollapsed"
-		if props != nil && props.LogoUpload != nil {
-			src={ props.LogoUpload.URL }
-		} else {
-			src={ companyLogo }
-		}
+		src={ companyLogo }
 		alt="Logo"
 		width="150"
 		height="50"
 	/>
-}
-
-templ DefaultLogo() {
-	@DynamicLogo(nil)
 }

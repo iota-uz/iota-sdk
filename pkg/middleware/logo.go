@@ -21,35 +21,31 @@ func ProvideDynamicLogo(app application.Application) mux.MiddlewareFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
-			// Try to get user from context
 			user, err := composables.UseUser(ctx)
 			if err != nil {
-				// If no user, provide default logo
-				ctx = context.WithValue(ctx, constants.LogoKey, assets.DefaultLogo())
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
-			// Get tenant
 			tenant, err := tenantService.GetByID(ctx, user.TenantID())
 			if err != nil {
-				// If tenant error, provide default logo
-				ctx = context.WithValue(ctx, constants.LogoKey, assets.DefaultLogo())
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
 
-			// Build logo props
-			logoProps := &assets.LogoProps{}
+			if tenant.LogoID() == nil && tenant.LogoCompactID() == nil {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
 
-			// Load main logo if exists
+			logoProps := assets.LogoProps{}
+
 			if tenant.LogoID() != nil {
 				if upload, err := uploadService.GetByID(ctx, uint(*tenant.LogoID())); err == nil {
 					logoProps.LogoUpload = mappers.UploadToViewModel(upload)
 				}
 			}
 
-			// Load compact logo if exists
 			if tenant.LogoCompactID() != nil {
 				if upload, err := uploadService.GetByID(ctx, uint(*tenant.LogoCompactID())); err == nil {
 					logoProps.LogoCompactUpload = mappers.UploadToViewModel(upload)

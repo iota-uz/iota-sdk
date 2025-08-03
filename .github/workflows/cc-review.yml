@@ -25,6 +25,29 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           base_branch: staging
+          allowed_tools: |
+            WebSearch
+            WebFetch
+            Bash(find:*)
+            Bash(grep:*)
+            Bash(ls:*)
+            Bash(cat:*)
+            Bash(head:*)
+            Bash(tail:*)
+            Bash(wc:*)
+            Bash(tree:*)
+            Bash(gh label:*)
+            Bash(gh issue:*)
+            Bash(gh project:*)
+            mcp__context7__resolve-library-id
+            mcp__context7__get-library-docs
+            mcp__godoc-mcp__get_doc
+            mcp__bloom__search_code
+          disallowed_tools: |
+            Edit
+            MultiEdit
+            NotebookEdit
+            Write
           direct_prompt: |
             You are conducting a comprehensive code review for a Go-based web application that follows Domain-Driven Design (DDD) architecture. 
 
