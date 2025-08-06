@@ -13,6 +13,14 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 )
 
+type StickyPosition string
+
+const (
+	StickyPositionNone  = StickyPosition("none")
+	StickyPositionLeft  = StickyPosition("left")
+	StickyPositionRight = StickyPosition("right")
+)
+
 type SortDirection string
 
 const (
@@ -49,12 +57,13 @@ func ParseSortDirection(value string) SortDirection {
 }
 
 type TableColumn struct {
-	Label    string
-	Key      string
-	Class    string
-	Sortable bool
-	SortDir  SortDirection
-	SortURL  string // URL for sorting this column
+	Label     string
+	Key       string
+	Class     string
+	Sortable  bool
+	SortDir   SortDirection
+	SortURL   string // URL for sorting this column
+	StickyPos StickyPosition
 }
 
 type TableRowProps struct {
@@ -244,7 +253,7 @@ func Table(props TableProps) templ.Component {
 		}
 		for _, col := range props.Columns {
 			if col.Sortable {
-				var templ_7745c5c3_Var8 = []any{"px-4 py-3 font-medium text-left border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class}
+				var templ_7745c5c3_Var8 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var8...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -269,7 +278,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(col.SortURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 101, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 110, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -282,7 +291,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 108, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 117, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -313,7 +322,7 @@ func Table(props TableProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				var templ_7745c5c3_Var12 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", col.Class}
+				var templ_7745c5c3_Var12 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", templ.KV("bg-surface-500 sticky shadow-lg", col.StickyPos == StickyPositionRight || col.StickyPos == StickyPositionLeft), templ.KV("right-0", col.StickyPos == StickyPositionRight), templ.KV("left-0", col.StickyPos == StickyPositionLeft), col.Class}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var12...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -338,7 +347,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 124, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 133, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
