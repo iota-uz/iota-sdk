@@ -373,7 +373,7 @@ func Rows(cfg *TableConfig) templ.Component {
 								Classes: templ.Classes(
 									templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
 									templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
-									templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
+									templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								),
 							}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
