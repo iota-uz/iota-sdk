@@ -130,7 +130,13 @@ templ Rows(cfg *TableConfig) {
 					Attrs: rowAttrs,
 				}) {
 					for i, cell := range row.Cells() {
-						@base.TableCell(base.TableCellProps{}) {
+						@base.TableCell(base.TableCellProps{
+							Classes: templ.Classes(
+								templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
+								templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
+								templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
+							),
+						}) {
 							@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
 						}
 					}
@@ -231,7 +237,7 @@ templ TableSection(config *TableConfig) {
 				</div>
 			}
 			<!-- Main content area with search, filters, and table -->
-			<div class="flex-1">
+			<div class="flex-1 max-w-full">
 				<div class="bg-surface-600 border border-primary rounded-lg">
 					<div class="p-4 flex flex-row md:items-center gap-3">
 						<div class="flex-1">
@@ -255,7 +261,9 @@ templ TableSection(config *TableConfig) {
 							}
 						</div>
 					</div>
-					@Table(config)
+					<div class="overflow-x-auto">
+						@Table(config)
+					</div>
 				</div>
 			</div>
 		</div>
@@ -327,12 +335,13 @@ func toBaseTableColumns(config *TableConfig, pageCtx *types.PageContext) []*base
 	result := make([]*base.TableColumn, len(config.Columns))
 	for i, col := range config.Columns {
 		result[i] = &base.TableColumn{
-			Key:      col.Key(),
-			Label:    col.Label(),
-			Class:    col.Class(),
-			Sortable: col.Sortable(),
-			SortDir:  col.SortDir(),
-			SortURL:  col.SortURL(),
+			Key:       col.Key(),
+			Label:     col.Label(),
+			Class:     col.Class(),
+			Sortable:  col.Sortable(),
+			SortDir:   col.SortDir(),
+			SortURL:   col.SortURL(),
+			StickyPos: col.StickyPos(),
 		}
 	}
 

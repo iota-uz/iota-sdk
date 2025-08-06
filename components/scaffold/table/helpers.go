@@ -33,6 +33,7 @@ type TableColumn interface {
 	Editable() bool
 	EditableField() crud.Field
 	SortURL() string
+	StickyPos() StickyPosition
 }
 
 type TableCell interface {
@@ -635,6 +636,7 @@ type tableColumnImpl struct {
 	sortURL       string
 	editable      bool
 	editableField crud.Field
+	stickyPos     StickyPosition
 }
 
 func (c *tableColumnImpl) Key() string               { return c.key }
@@ -645,6 +647,7 @@ func (c *tableColumnImpl) Sortable() bool            { return c.sortable }
 func (c *tableColumnImpl) SortDir() SortDirection    { return c.sortDir }
 func (c *tableColumnImpl) SortURL() string           { return c.sortURL }
 func (c *tableColumnImpl) Editable() bool            { return c.editable }
+func (c *tableColumnImpl) StickyPos() StickyPosition { return c.stickyPos }
 func (c *tableColumnImpl) EditableField() crud.Field { return c.editableField }
 
 type tableRowImpl struct {
@@ -689,6 +692,12 @@ func WithClass(classes string) ColumnOpt {
 func WithSortableState(sortable bool) ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.sortable = sortable
+	}
+}
+
+func WithSticky(pos StickyPosition) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.stickyPos = pos
 	}
 }
 
