@@ -134,7 +134,7 @@ templ Rows(cfg *TableConfig) {
 							Classes: templ.Classes(
 								templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
-								templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
+								templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 							),
 						}) {
 							@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
