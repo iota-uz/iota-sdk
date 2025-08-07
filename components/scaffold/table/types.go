@@ -20,6 +20,14 @@ const (
 	SortDirectionDesc = base.SortDirectionDesc
 )
 
+type StickyPosition = base.StickyPosition
+
+const (
+	StickyPositionLeft  = base.StickyPositionLeft
+	StickyPositionRight = base.StickyPositionRight
+	StickyPositionNone  = base.StickyPositionNone
+)
+
 // Re-export function for backwards compatibility
 func ParseSortDirection(value string) SortDirection {
 	return base.ParseSortDirection(value)
