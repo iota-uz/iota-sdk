@@ -70,26 +70,46 @@ func Perm(p *permission.Permission) Permission {
 }
 
 type RBAC interface {
-	Register(permissions ...*permission.Permission)
 	Get(id uuid.UUID) (*permission.Permission, error)
 	Permissions() []*permission.Permission
 	PermissionsByResource() map[string][]*permission.Permission
+	PermissionSets() []PermissionSet
+	Schema() *PermissionSchema
 }
 
 type rbac struct {
 	permissions []*permission.Permission
+	schema      *PermissionSchema
 }
 
 var _ RBAC = (*rbac)(nil)
 
-func NewRbac() RBAC {
-	return &rbac{
-		permissions: []*permission.Permission{},
+func NewRbac(schema *PermissionSchema) RBAC {
+	if schema == nil {
+		panic("RBAC schema is required")
 	}
-}
+	if len(schema.Sets) == 0 {
+		panic("RBAC schema must have at least one permission set defined")
+	}
 
-func (r *rbac) Register(permissions ...*permission.Permission) {
-	r.permissions = append(r.permissions, permissions...)
+	// Extract all unique permissions from the schema sets
+	permMap := make(map[string]*permission.Permission)
+	for _, set := range schema.Sets {
+		for _, perm := range set.Permissions {
+			permMap[perm.ID.String()] = perm
+		}
+	}
+
+	// Convert map to slice
+	permissions := make([]*permission.Permission, 0, len(permMap))
+	for _, perm := range permMap {
+		permissions = append(permissions, perm)
+	}
+
+	return &rbac{
+		permissions: permissions,
+		schema:      schema,
+	}
 }
 
 func (r *rbac) Get(id uuid.UUID) (*permission.Permission, error) {
@@ -114,4 +134,12 @@ func (r *rbac) PermissionsByResource() map[string][]*permission.Permission {
 	}
 
 	return result
+}
+
+func (r *rbac) Schema() *PermissionSchema {
+	return r.schema
+}
+
+func (r *rbac) PermissionSets() []PermissionSet {
+	return r.schema.Sets
 }

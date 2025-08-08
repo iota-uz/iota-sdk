@@ -3,7 +3,6 @@ package logging
 import (
 	"embed"
 
-	"github.com/iota-uz/iota-sdk/modules/logging/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
@@ -21,7 +20,6 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.Migrations().RegisterSchema(&migrationFiles)
 	return nil

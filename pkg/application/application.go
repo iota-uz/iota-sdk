@@ -87,11 +87,12 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 // ---- Application implementation ----
 
 type ApplicationOptions struct {
-	Pool     *pgxpool.Pool
-	EventBus eventbus.EventBus
-	Logger   *logrus.Logger
-	Bundle   *i18n.Bundle
-	Huber    Huber
+	Pool             *pgxpool.Pool
+	EventBus         eventbus.EventBus
+	Logger           *logrus.Logger
+	Bundle           *i18n.Bundle
+	Huber            Huber
+	PermissionSchema *rbac.PermissionSchema
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -102,13 +103,18 @@ func LoadBundle() *i18n.Bundle {
 }
 
 func New(opts *ApplicationOptions) Application {
+	if opts.PermissionSchema == nil {
+		panic("PermissionSchema is required in ApplicationOptions")
+	}
+
 	sl := spotlight.New()
 	quickLinks := &spotlight.QuickLinks{}
 	sl.Register(quickLinks)
+
 	return &application{
 		pool:           opts.Pool,
 		eventPublisher: opts.EventBus,
-		rbac:           rbac.NewRbac(),
+		rbac:           rbac.NewRbac(opts.PermissionSchema),
 		websocket:      opts.Huber,
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),

@@ -30,3 +30,13 @@ type PermissionGroup struct {
 	Resource    string
 	Permissions []*PermissionItem
 }
+
+// PermissionSetItem represents a permission set with its selection state
+// Used when RBAC has a schema configured
+type PermissionSetItem struct {
+	Key         string
+	Label       string
+	Description string
+	Checked     bool
+	IDs         []string // Permission IDs in this set
+}

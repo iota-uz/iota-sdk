@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 
 	"github.com/jackc/pgx/v5"
@@ -184,10 +185,11 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 	app := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		Pool:             pool,
+		Bundle:           bundle,
+		EventBus:         eventbus.NewEventPublisher(conf.Logger()),
+		Logger:           conf.Logger(),
+		PermissionSchema: defaults.PermissionSchema(),
 	})
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
@@ -203,10 +205,11 @@ func GetTestContext() *TestFixtures {
 	pool := NewPool(conf.Database.Opts)
 	bundle := application.LoadBundle()
 	app := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		Pool:             pool,
+		Bundle:           bundle,
+		EventBus:         eventbus.NewEventPublisher(conf.Logger()),
+		Logger:           conf.Logger(),
+		PermissionSchema: defaults.PermissionSchema(),
 	})
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
