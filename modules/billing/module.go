@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/billing/infrastructure/providers"
-	"github.com/iota-uz/iota-sdk/modules/billing/permissions"
 	"github.com/iota-uz/iota-sdk/modules/billing/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -114,7 +113,6 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&localeFiles)
 	app.Migrations().RegisterSchema(&migrationFiles)
 
