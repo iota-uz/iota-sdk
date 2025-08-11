@@ -73,10 +73,10 @@
     }
   },
   "Resources": {
-    "user": "Foydalanuvchi",
-    "role": "Rol",
+    "user": "Foydalanuvchilar",
+    "role": "Rollar",
     "group": "Guruhlar",
-    "upload": "Yuklash"
+    "upload": "Yuklashlar"
   },
   "Permissions": {
     "User": {
@@ -440,7 +440,7 @@
     }
   },
   "Modules": {
-    "Core": "Yadro",
+    "Core": "Boshqaruv",
     "Finance": "Moliya",
     "Projects": "Loyihalar",
     "Warehouse": "Ombor",

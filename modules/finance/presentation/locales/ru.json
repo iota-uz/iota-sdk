@@ -1,9 +1,9 @@
 {
   "Resources": {
-    "payment": "Платеж",
-    "expense": "Расход",
-    "expense_category": "Категория расходов",
-    "debt": "Долг"
+    "payment": "Платежи",
+    "expense": "Расходы",
+    "expense_category": "Категории расходов",
+    "debt": "Долги"
   },
   "Permissions": {
     "Payment": {

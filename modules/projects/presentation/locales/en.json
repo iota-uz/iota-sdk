@@ -1,18 +1,18 @@
 {
   "Resources": {
-    "project": "Project",
-    "project_stage": "Project stage"
+    "project": "Projects",
+    "project_stage": "Project stages"
   },
   "Permissions": {
     "Project": {
       "Create": "Create project",
-      "Read": "Read project",
+      "Read": "View project",
       "Update": "Update project",
       "Delete": "Delete project"
     },
     "ProjectStage": {
       "Create": "Create project stage",
-      "Read": "Read project stage",
+      "Read": "View project stage",
       "Update": "Update project stage",
       "Delete": "Delete project stage"
     }
