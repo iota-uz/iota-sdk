@@ -14,8 +14,10 @@ import (
 	moneyAccountEntity "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +38,9 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -84,7 +88,9 @@ func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -116,7 +122,9 @@ func TestMoneyAccountController_GetNew_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -146,7 +154,9 @@ func TestMoneyAccountController_Create_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -186,7 +196,9 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -223,7 +235,9 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -267,7 +281,9 @@ func TestMoneyAccountController_GetEdit_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -287,7 +303,9 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -337,7 +355,9 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -384,7 +404,9 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -422,7 +444,9 @@ func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -441,7 +465,9 @@ func TestMoneyAccountController_InvalidUUID(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -459,7 +485,9 @@ func TestMoneyAccountController_GetTransferDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -533,7 +561,9 @@ func TestMoneyAccountController_GetTransferDrawer_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -552,7 +582,9 @@ func TestMoneyAccountController_CreateTransfer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -623,7 +655,9 @@ func TestMoneyAccountController_CreateTransfer_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -736,7 +770,9 @@ func TestMoneyAccountController_CreateTransfer_SameAccount(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -787,7 +823,9 @@ func TestMoneyAccountController_CreateTransfer_LargeAmount(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -848,7 +886,9 @@ func TestMoneyAccountController_CreateTransfer_WithComment(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -911,7 +951,9 @@ func TestMoneyAccountController_CreateTransfer_DifferentCurrencies(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -1008,7 +1050,9 @@ func TestMoneyAccountController_GetTransferDrawer_DifferentCurrencies(t *testing
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -1075,7 +1119,9 @@ func TestMoneyAccountController_CreateTransfer_SameCurrencyDifferentAmounts(t *t
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -1138,7 +1184,9 @@ func TestMoneyAccountController_CreateTransfer_DifferentCurrencies_ValidationErr
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -1195,7 +1243,9 @@ func TestMoneyAccountController_CreateTransfer_ExchangeWithSameCurrency(t *testi
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

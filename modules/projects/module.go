@@ -5,7 +5,6 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/projects/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/projects/permissions"
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -63,8 +62,8 @@ func (m *Module) Register(app application.Application) error {
 		),
 	)
 
-	// Register permissions, locales, and migrations
-	app.RBAC().Register(permissions.Permissions...)
+	// Register locales and migrations
+	// Note: Permissions are now registered via defaults.AllPermissions()
 	app.RegisterLocaleFiles(&localeFiles)
 	app.Migrations().RegisterSchema(&migrationFiles)
 	return nil

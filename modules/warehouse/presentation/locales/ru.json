@@ -1,9 +1,9 @@
 {
   "Resources": {
-    "product": "Продукт",
-    "unit": "Единица измерения",
-    "position": "Должность",
-    "order": "Заказ",
+    "product": "Продукты",
+    "unit": "Единицы измерения",
+    "position": "Должности",
+    "order": "Заказы",
     "inventory": "Инвентаризация"
   },
   "Permissions": {

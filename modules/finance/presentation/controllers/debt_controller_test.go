@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -34,7 +35,9 @@ func TestDebtController_List_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -98,7 +101,9 @@ func TestDebtController_List_HTMX_Request(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -149,7 +154,9 @@ func TestDebtController_GetEditDrawer_Success(t *testing.T) {
 		permissions.DebtUpdate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -202,7 +209,9 @@ func TestDebtController_GetEditDrawer_NotFound(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -224,7 +233,9 @@ func TestDebtController_GetNewDrawer_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -265,7 +276,9 @@ func TestDebtController_Create_Success(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -324,7 +337,9 @@ func TestDebtController_Create_ValidationError(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -378,7 +393,9 @@ func TestDebtController_Update_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -446,7 +463,9 @@ func TestDebtController_Update_ValidationError(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -512,7 +531,9 @@ func TestDebtController_Settle_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -597,7 +618,9 @@ func TestDebtController_WriteOff_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -651,7 +674,9 @@ func TestDebtController_Delete_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -707,7 +732,9 @@ func TestDebtController_Delete_NotFound(t *testing.T) {
 		permissions.DebtDelete,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -728,7 +755,9 @@ func TestDebtController_InvalidUUID(t *testing.T) {
 		permissions.DebtRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -746,7 +775,9 @@ func TestDebtController_Permission_Forbidden(t *testing.T) {
 	t.Parallel()
 	userWithoutPermission := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
@@ -768,7 +799,9 @@ func TestDebtController_List_WithFilters(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

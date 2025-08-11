@@ -15,11 +15,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/modules/website"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
 var (
 	BuiltInModules = []application.Module{
-		core.NewModule(),
+		core.NewModule(&core.ModuleOptions{
+			PermissionSchema: defaults.PermissionSchema(),
+		}),
 		bichat.NewModule(),
 		hrm.NewModule(),
 		finance.NewModule(),

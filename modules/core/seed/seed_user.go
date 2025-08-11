@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -24,12 +25,14 @@ const (
 )
 
 type userSeeder struct {
-	user user.User
+	user        user.User
+	permissions []*permission.Permission
 }
 
-func UserSeedFunc(usr user.User) application.SeedFunc {
+func UserSeedFunc(usr user.User, permissions []*permission.Permission) application.SeedFunc {
 	s := &userSeeder{
-		user: usr,
+		user:        usr,
+		permissions: permissions,
 	}
 	return s.CreateUser
 }
@@ -80,7 +83,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	newRole := role.New(
 		adminRoleName,
 		role.WithDescription(adminRoleDesc),
-		role.WithPermissions(app.RBAC().Permissions()),
+		role.WithPermissions(s.permissions),
 		role.WithType(role.TypeSystem),
 		role.WithTenantID(tenantID),
 	)

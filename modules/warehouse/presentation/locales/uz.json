@@ -1,9 +1,9 @@
 {
   "Resources": {
-    "product": "Mahsulot",
-    "unit": "O'lchov birligi",
-    "position": "Lavozim",
-    "order": "Buyurtma",
+    "product": "Mahsulotlar",
+    "unit": "O'lchov birliklari",
+    "position": "Lavozimlar",
+    "order": "Buyurtmalar",
     "inventory": "Inventar"
   },
   "Permissions": {

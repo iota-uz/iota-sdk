@@ -23,6 +23,7 @@ var (
 	chartEvents   = "/assets/" + assets.HashFS.HashName("js/lib/chart-events.js")
 	htmxWS        = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
 	alpineTooltip = "/assets/" + assets.HashFS.HashName("js/lib/alpine-tooltip.min.js")
+	permissionsJs = "/assets/" + assets.HashFS.HashName("js/permissions.js")
 )
 
 templ DefaultHead() {
@@ -36,6 +37,7 @@ templ DefaultHead() {
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Medium.woff2" as="font" type="font/woff2" crossorigin/>
 	<link rel="preload" href="/assets/fonts/Gilroy/Gilroy-Semibold.woff2" as="font" type="font/woff2" crossorigin/>
 	<script src={ alpineTooltip } defer></script>
+	<script src={ permissionsJs }></script>
 	<script defer type="module" src={ alpine }></script>
 	<script src={ htmx }></script>
 	<script src={ htmxPreload }></script>

@@ -73,10 +73,10 @@
     }
   },
   "Resources": {
-    "user": "Foydalanuvchi",
-    "role": "Rol",
+    "user": "Foydalanuvchilar",
+    "role": "Rollar",
     "group": "Guruhlar",
-    "upload": "Yuklash"
+    "upload": "Yuklashlar"
   },
   "Permissions": {
     "User": {
@@ -376,6 +376,7 @@
   "Save": "Saqlash",
   "Search": "Qidirish",
   "PerPage": "Sahifada",
+  "PermissionSets": "Ruxsatlar",
   "Cancel": "Bekor qilish",
   "Back": "Orqaga",
   "Add": "Qo'shish",
@@ -391,6 +392,60 @@
     "ToCSV": "CSV ga eksport",
     "ToJSON": "JSON ga eksport",
     "ToTXT": "TXT ga eksport"
+  },
+  "PermissionSetDescriptions": {
+    "Core": {
+      "UserView": "Foydalanuvchi ma'lumotlarini faqat ko'rish",
+      "UserManage": "Foydalanuvchilarni to'liq boshqarish",
+      "RoleView": "Rollar ma'lumotlarini faqat ko'rish", 
+      "RoleManage": "Rollar va ruxsatlarni to'liq boshqarish",
+      "UploadView": "Yuklangan fayllarni faqat ko'rish",
+      "UploadManage": "Fayl yuklashni to'liq boshqarish"
+    },
+    "Finance": {
+      "PaymentView": "To'lovlar ma'lumotlarini faqat ko'rish",
+      "PaymentManage": "To'lovlarni to'liq boshqarish",
+      "ExpenseView": "Xarajatlar ma'lumotlarini faqat ko'rish", 
+      "ExpenseManage": "Xarajatlarni to'liq boshqarish",
+      "ExpenseCategoryView": "Xarajat toifalari ma'lumotlarini faqat ko'rish",
+      "ExpenseCategoryManage": "Xarajat toifalarini to'liq boshqarish",
+      "DebtView": "Qarzlar ma'lumotlarini faqat ko'rish",
+      "DebtManage": "Qarzlarni to'liq boshqarish"
+    },
+    "Projects": {
+      "ProjectView": "Loyihalar ma'lumotlarini faqat ko'rish",
+      "ProjectManage": "Loyihalarni to'liq boshqarish",
+      "ProjectStageView": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish",
+      "ProjectStageManage": "Loyiha bosqichlarini to'liq boshqarish"
+    },
+    "Warehouse": {
+      "ProductView": "Mahsulotlar ma'lumotlarini faqat ko'rish",
+      "ProductManage": "Mahsulotlarni to'liq boshqarish",
+      "PositionView": "Pozitsiyalar ma'lumotlarini faqat ko'rish",
+      "PositionManage": "Pozitsiyalarni to'liq boshqarish",
+      "OrderView": "Buyurtmalar ma'lumotlarini faqat ko'rish", 
+      "OrderManage": "Buyurtmalarni to'liq boshqarish",
+      "UnitView": "Birliklar ma'lumotlarini faqat ko'rish",
+      "UnitManage": "Birliklarni to'liq boshqarish",
+      "InventoryView": "Inventar ma'lumotlarini faqat ko'rish",
+      "InventoryManage": "Inventarni to'liq boshqarish"
+    },
+    "CRM": {
+      "ClientView": "Mijozlar ma'lumotlarini faqat ko'rish",
+      "ClientManage": "Mijozlarni to'liq boshqarish"
+    },
+    "HRM": {
+      "EmployeeView": "Xodimlar ma'lumotlarini faqat ko'rish",
+      "EmployeeManage": "Xodimlarni to'liq boshqarish"
+    }
+  },
+  "Modules": {
+    "Core": "Boshqaruv",
+    "Finance": "Moliya",
+    "Projects": "Loyihalar",
+    "Warehouse": "Ombor",
+    "CRM": "CRM",
+    "HRM": "Kadrlar boshqaruvi"
   },
   "Countries": {
     "AF": "Afg'oniston",

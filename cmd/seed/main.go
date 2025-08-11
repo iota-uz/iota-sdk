@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -84,18 +85,21 @@ func main() {
 		Domain: "default.localhost",
 	}
 
+	allPermissions := defaults.AllPermissions()
 	seeder.Register(
 		coreseed.CreateDefaultTenant,
 		coreseed.CreateCurrencies,
-		coreseed.CreatePermissions,
-		coreseed.UserSeedFunc(usr),
+		func(ctx context.Context, app application.Application) error {
+			return coreseed.CreatePermissions(ctx, app, allPermissions)
+		},
+		coreseed.UserSeedFunc(usr, allPermissions),
 		coreseed.UserSeedFunc(user.New(
 			"AI",
 			"User",
 			internet.MustParseEmail("ai@llm.com"),
 			user.UILanguageEN,
 			user.WithTenantID(defaultTenant.ID),
-		)),
+		), allPermissions),
 		websiteseed.AIChatConfigSeedFunc(aichatconfig.MustNew(
 			"gemma-12b-it",
 			aichatconfig.AIModelTypeOpenAI,

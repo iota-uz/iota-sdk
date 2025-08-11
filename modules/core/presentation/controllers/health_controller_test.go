@@ -6,19 +6,24 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHealthController_Key_ReturnsCorrectPath(t *testing.T) {
-	suite := itf.HTTP(t, core.NewModule())
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}))
 	controller := controllers.NewHealthController(suite.Environment().App)
 
 	require.Equal(t, "/health", controller.Key())
 }
 
 func TestHealthController_Get_Integration(t *testing.T) {
-	suite := itf.HTTP(t, core.NewModule())
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}))
 	controller := controllers.NewHealthController(suite.Environment().App)
 	suite.Register(controller)
 

@@ -6,7 +6,6 @@ import (
 	"reflect"
 
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 
@@ -32,7 +31,6 @@ type Application interface {
 	Middleware() []mux.MiddlewareFunc
 	Assets() []*embed.FS
 	HashFsAssets() []*hashfs.FS
-	RBAC() rbac.RBAC
 	Websocket() Huber
 	Spotlight() spotlight.Spotlight
 	QuickLinks() *spotlight.QuickLinks
