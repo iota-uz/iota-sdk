@@ -178,7 +178,7 @@ func BuildModulePermissionGroups(
 
 	// Convert nested maps to sorted slice
 	groups := make([]*viewmodels.ModulePermissionGroup, 0, len(moduleResourceMap))
-	
+
 	for module, resourceMap := range moduleResourceMap {
 		// Convert resource map to sorted resource groups
 		resourceGroups := make([]*viewmodels.ResourcePermissionGroup, 0, len(resourceMap))

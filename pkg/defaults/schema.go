@@ -16,16 +16,14 @@ import (
 
 // permissionSetBuilder helps create consistent permission sets
 type permissionSetBuilder struct {
-	module string
-	key    string
-	label  string
+	module     string
 	descPrefix string
 }
 
 // newPermissionSetBuilder creates a new builder for a module
 func newPermissionSetBuilder(module string) *permissionSetBuilder {
 	return &permissionSetBuilder{
-		module: module,
+		module:     module,
 		descPrefix: "PermissionSetDescriptions." + module + ".",
 	}
 }
@@ -42,13 +40,13 @@ func (b *permissionSetBuilder) viewSet(resource string, readPerm *permission.Per
 }
 
 // manageSet creates a "manage" permission set for a resource with full CRUD permissions
-func (b *permissionSetBuilder) manageSet(resource string, create, read, update, delete *permission.Permission) rbac.PermissionSet {
+func (b *permissionSetBuilder) manageSet(resource string, create, read, update, deletePerm *permission.Permission) rbac.PermissionSet {
 	return rbac.PermissionSet{
-		Key:         resource + "_manage", 
+		Key:         resource + "_manage",
 		Label:       "Manage " + resource + "s",
 		Description: b.descPrefix + resource + "Manage",
 		Module:      b.module,
-		Permissions: []*permission.Permission{create, read, update, delete},
+		Permissions: []*permission.Permission{create, read, update, deletePerm},
 	}
 }
 
@@ -56,15 +54,15 @@ func (b *permissionSetBuilder) manageSet(resource string, create, read, update, 
 // This is used for seeding and RBAC initialization
 func AllPermissions() []*permission.Permission {
 	// Pre-calculate total capacity to avoid slice re-allocations
-	totalCapacity := len(corePerms.Permissions) + 
-		len(billingPerms.Permissions) + 
-		len(crmPerms.Permissions) + 
-		len(financePerms.Permissions) + 
-		len(hrmPerms.Permissions) + 
-		len(loggingPerms.Permissions) + 
-		len(projectsPerms.Permissions) + 
+	totalCapacity := len(corePerms.Permissions) +
+		len(billingPerms.Permissions) +
+		len(crmPerms.Permissions) +
+		len(financePerms.Permissions) +
+		len(hrmPerms.Permissions) +
+		len(loggingPerms.Permissions) +
+		len(projectsPerms.Permissions) +
 		len(warehousePerms.Permissions)
-	
+
 	permissions := make([]*permission.Permission, 0, totalCapacity)
 	permissions = append(permissions, corePerms.Permissions...)
 	permissions = append(permissions, billingPerms.Permissions...)
@@ -90,13 +88,13 @@ func PermissionSchema() *rbac.PermissionSchema {
 // buildModulePermissionSets creates permission sets for all modules using the builder pattern
 func buildModulePermissionSets() []rbac.PermissionSet {
 	var sets []rbac.PermissionSet
-	
+
 	// Core module
 	core := newPermissionSetBuilder("Core")
 	sets = append(sets,
 		core.viewSet("User", corePerms.UserRead),
 		core.manageSet("User", corePerms.UserCreate, corePerms.UserRead, corePerms.UserUpdate, corePerms.UserDelete),
-		core.viewSet("Role", corePerms.RoleRead), 
+		core.viewSet("Role", corePerms.RoleRead),
 		core.manageSet("Role", corePerms.RoleCreate, corePerms.RoleRead, corePerms.RoleUpdate, corePerms.RoleDelete),
 		core.viewSet("Upload", corePerms.UploadRead),
 		core.manageSet("Upload", corePerms.UploadCreate, corePerms.UploadRead, corePerms.UploadUpdate, corePerms.UploadDelete),
@@ -115,7 +113,7 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 		finance.manageSet("Debt", financePerms.DebtCreate, financePerms.DebtRead, financePerms.DebtUpdate, financePerms.DebtDelete),
 	)
 
-	// Projects module  
+	// Projects module
 	projects := newPermissionSetBuilder("Projects")
 	sets = append(sets,
 		projects.viewSet("Project", projectsPerms.ProjectRead),
