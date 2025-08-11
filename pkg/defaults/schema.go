@@ -16,15 +16,15 @@ import (
 
 // permissionSetBuilder helps create consistent permission sets
 type permissionSetBuilder struct {
-	module     string
-	descPrefix string
+	module string
+	prefix string
 }
 
 // newPermissionSetBuilder creates a new builder for a module
 func newPermissionSetBuilder(module string) *permissionSetBuilder {
 	return &permissionSetBuilder{
-		module:     module,
-		descPrefix: "PermissionSetDescriptions." + module + ".",
+		module: module,
+		prefix: "PermissionSets." + module + ".",
 	}
 }
 
@@ -32,8 +32,8 @@ func newPermissionSetBuilder(module string) *permissionSetBuilder {
 func (b *permissionSetBuilder) viewSet(resource string, readPerm *permission.Permission) rbac.PermissionSet {
 	return rbac.PermissionSet{
 		Key:         resource + "_view",
-		Label:       "View " + resource + "s",
-		Description: b.descPrefix + resource + "View",
+		Label:       b.prefix + resource + "View.Label",
+		Description: b.prefix + resource + "View._Description",
 		Module:      b.module,
 		Permissions: []*permission.Permission{readPerm},
 	}
@@ -43,8 +43,8 @@ func (b *permissionSetBuilder) viewSet(resource string, readPerm *permission.Per
 func (b *permissionSetBuilder) manageSet(resource string, create, read, update, deletePerm *permission.Permission) rbac.PermissionSet {
 	return rbac.PermissionSet{
 		Key:         resource + "_manage",
-		Label:       "Manage " + resource + "s",
-		Description: b.descPrefix + resource + "Manage",
+		Label:       b.prefix + resource + "Manage.Label",
+		Description: b.prefix + resource + "Manage._Description",
 		Module:      b.module,
 		Permissions: []*permission.Permission{create, read, update, deletePerm},
 	}
@@ -96,6 +96,8 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 		core.manageSet("User", corePerms.UserCreate, corePerms.UserRead, corePerms.UserUpdate, corePerms.UserDelete),
 		core.viewSet("Role", corePerms.RoleRead),
 		core.manageSet("Role", corePerms.RoleCreate, corePerms.RoleRead, corePerms.RoleUpdate, corePerms.RoleDelete),
+		core.viewSet("Group", corePerms.GroupRead),
+		core.manageSet("Group", corePerms.GroupCreate, corePerms.GroupRead, corePerms.GroupUpdate, corePerms.GroupDelete),
 		core.viewSet("Upload", corePerms.UploadRead),
 		core.manageSet("Upload", corePerms.UploadCreate, corePerms.UploadRead, corePerms.UploadUpdate, corePerms.UploadDelete),
 	)
@@ -165,7 +167,7 @@ func appendRemainingPermissionSets(sets []rbac.PermissionSet) []rbac.PermissionS
 	for _, perm := range remainingPermissions {
 		sets = append(sets, rbac.PermissionSet{
 			Key:         perm.ID.String(),
-			Label:       perm.Name,
+			Label:       "Permissions." + perm.Name,
 			Module:      "Core", // Assign to Core module for now
 			Permissions: []*permission.Permission{perm},
 		})
