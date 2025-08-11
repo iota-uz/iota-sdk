@@ -20,7 +20,11 @@ import (
 )
 
 func toJSON(v interface{}) string {
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Return empty object on error to prevent frontend issues
+		return "{}"
+	}
 	return string(b)
 }
 
@@ -130,7 +134,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			templ_7745c5c3_Err = input.Switch(&input.SwitchProps{
 				ID:           toggleId,
 				Label:        label,
-				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full"),
+				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 				Checked:      props.Set.Checked,
 				Attrs: templ.Attributes{
 					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
@@ -146,9 +150,9 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var3 string
-				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.Set.Description)
+				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(props.Set.Description))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 83, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 87, Col: 86}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -171,20 +175,20 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("createPermissionSetData(%t, %t, %s)", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions))))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 90, Col: 149}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 94, Col: 149}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" x-init=\"init()\" @change=\"updateState()\"><div class=\"p-3\"><div class=\"flex items-center justify-between\"><div class=\"flex items-center gap-3 flex-1\"><button type=\"button\" class=\"flex items-center justify-between w-full\" @click=\"toggleAll()\"><span class=\"font-medium\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" x-init=\"init()\" @change=\"updateState()\"><div class=\"p-3\"><div class=\"flex items-center justify-between\"><div class=\"flex items-center gap-3 flex-1\"><button type=\"button\" class=\"flex items-center justify-between w-full\" @click=\"toggleAll()\"><span class=\"text-sm\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 98, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 102, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -210,7 +214,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("toggle-visual-%s", setId))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 104, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 108, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -251,9 +255,9 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var9 string
-				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.Set.Description)
+				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(props.Set.Description))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 120, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 124, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -352,106 +356,9 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(`{
-			allChecked: %t,
-			someChecked: %t,
-			permissionIds: %s,
-			init() {
-				// Set up mutation observer to watch for form field changes
-				this.$nextTick(() => {
-					this.updateState();
-				});
-			},
-			toggleAll() {
-				// First, determine what the new state should be
-				// If some are checked but not all, we want to check all
-				// If all are checked, we want to uncheck all
-				// If none are checked, we want to check all
-				const permissionCheckboxes = [];
-				this.permissionIds.forEach(permId => {
-					const checkbox = document.querySelector('input[name="Permissions[' + permId + ']"]');
-					if (checkbox) {
-						permissionCheckboxes.push(checkbox);
-					}
-				});
-				
-				const checkedCount = permissionCheckboxes.filter(cb => cb.checked).length;
-				const totalCount = permissionCheckboxes.length;
-				
-				// Determine new state
-				let newState;
-				if (checkedCount === totalCount && totalCount > 0) {
-					// All are checked, uncheck all
-					newState = false;
-				} else {
-					// Some or none are checked, check all
-					newState = true;
-				}
-				
-				this.allChecked = newState;
-				
-				// Update visual toggle
-				const toggleVisual = this.$el.querySelector('[id^="toggle-visual-"]');
-				if (toggleVisual) {
-					if (this.allChecked) {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-brand-600 after:translate-x-full after:border-white";
-					} else {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-gray-200 after:border-gray-300";
-					}
-				}
-				
-				// Update all found checkboxes
-				permissionCheckboxes.forEach(cb => {
-					cb.checked = newState;
-					// Trigger change event
-					const event = new Event('change', { bubbles: true });
-					cb.dispatchEvent(event);
-				});
-				
-				// Also update nested Alpine component states for permission sets
-				const nestedComponents = this.$el.querySelectorAll('[x-data]');
-				nestedComponents.forEach(el => {
-					if (el !== this.$el && el._x_dataStack && el._x_dataStack[0]) {
-						if (typeof el._x_dataStack[0].allChecked !== 'undefined') {
-							el._x_dataStack[0].allChecked = this.allChecked;
-							el._x_dataStack[0].someChecked = false;
-							if (el._x_dataStack[0].updateState) {
-								el._x_dataStack[0].updateState();
-							}
-						}
-					}
-				});
-				
-				this.updateState();
-			},
-			updateState() {
-				// Use the permission IDs to find the checkboxes
-				const permissionCheckboxes = [];
-				this.permissionIds.forEach(permId => {
-					// Look for checkboxes with name="Permissions[permId]"
-					const checkbox = document.querySelector('input[name="Permissions[' + permId + ']"]');
-					if (checkbox) {
-						permissionCheckboxes.push(checkbox);
-					}
-				});
-				
-				const checkedCount = permissionCheckboxes.filter(cb => cb.checked).length;
-				this.allChecked = checkedCount === permissionCheckboxes.length && permissionCheckboxes.length > 0;
-				this.someChecked = checkedCount > 0 && checkedCount < permissionCheckboxes.length;
-				
-				// Update visual toggle
-				const toggleVisual = this.$el.querySelector('[id^="toggle-visual-"]');
-				if (toggleVisual) {
-					if (this.allChecked) {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-brand-600 after:translate-x-full after:border-white";
-					} else {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-gray-200 after:border-gray-300";
-					}
-				}
-			}
-		}`, allChecked, someChecked, toJSON(permissionIds)))
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(`createPermissionFormData(%t, %t, %s)`, allChecked, someChecked, toJSON(permissionIds)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 277, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 184, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -464,7 +371,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(props.PageContext.T(fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 283, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 190, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -490,7 +397,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("toggle-visual-%d", props.GroupIndex))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 290, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/shared.templ`, Line: 197, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
