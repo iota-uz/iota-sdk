@@ -17,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/assert"
@@ -1261,7 +1262,9 @@ func (b *complexTestBuilder) Repository() crud.Repository[ComplexEntity] {
 func TestCrudController_JSONField_FormHandling(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule(nil)).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	})).
 		AsUser(adminUser)
 
 	service := &complexTestService{}

@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -787,7 +788,9 @@ func TestPaymentController_Create_TransactionDateValidation(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -882,7 +885,9 @@ func TestPaymentController_Create_VerifyIncomeStatementIntegration(t *testing.T)
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -991,7 +996,9 @@ func TestPaymentController_Create_WithoutCategoryVerifyIncomeStatement(t *testin
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

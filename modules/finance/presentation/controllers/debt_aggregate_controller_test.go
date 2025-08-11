@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,9 @@ func TestDebtAggregateController_List_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -93,7 +96,9 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -143,7 +148,9 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -168,7 +175,9 @@ func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -231,7 +240,9 @@ func TestDebtAggregateController_GetCounterpartyDrawer_NotFound(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -253,7 +264,9 @@ func TestDebtAggregateController_GetCounterpartyDrawer_InvalidUUID(t *testing.T)
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -271,7 +284,9 @@ func TestDebtAggregateController_Permission_Forbidden(t *testing.T) {
 	t.Parallel()
 	userWithoutPermission := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
@@ -293,7 +308,9 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 		permissions.DebtCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

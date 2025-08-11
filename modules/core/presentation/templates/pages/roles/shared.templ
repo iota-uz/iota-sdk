@@ -139,9 +139,9 @@ templ PermissionSet(props PermissionSetProps) {
 								LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 								Checked:      perm.Checked,
 								Attrs: templ.Attributes{
-									"name":    fmt.Sprintf("Permissions[%s]", perm.ID),
-									"form":    "save-form",
-									"@change": "updateState()",
+									"name":               fmt.Sprintf("Permissions[%s]", perm.ID),
+									"form":               "save-form",
+									"@change":            "updateState()",
 									"data-permission-id": perm.ID,
 								},
 							})
