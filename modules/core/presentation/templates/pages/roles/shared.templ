@@ -12,7 +12,11 @@ import (
 )
 
 func toJSON(v interface{}) string {
-	b, _ := json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Return empty object on error to prevent frontend issues
+		return "{}"
+	}
 	return string(b)
 }
 
@@ -72,7 +76,7 @@ templ PermissionSet(props PermissionSetProps) {
 			@input.Switch(&input.SwitchProps{
 				ID:           toggleId,
 				Label:        label,
-				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full"),
+				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 				Checked:      props.Set.Checked,
 				Attrs: templ.Attributes{
 					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
@@ -80,7 +84,7 @@ templ PermissionSet(props PermissionSetProps) {
 				},
 			})
 			if props.Set.Description != "" {
-				<p class="text-sm text-gray-600 mt-1">{ props.Set.Description }</p>
+				<p class="text-sm text-gray-600 mt-1">{ props.PageContext.T(props.Set.Description) }</p>
 			}
 		</div>
 	} else {
@@ -95,7 +99,7 @@ templ PermissionSet(props PermissionSetProps) {
 				<div class="flex items-center justify-between">
 					<div class="flex items-center gap-3 flex-1">
 						<button type="button" class="flex items-center justify-between w-full" @click="toggleAll()">
-							<span class="font-medium">{ label }</span>
+							<span class="text-sm">{ label }</span>
 							{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
 							{{if props.Set.Checked {
 	toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
@@ -117,7 +121,7 @@ templ PermissionSet(props PermissionSetProps) {
 					</button>
 				</div>
 				if props.Set.Description != "" {
-					<p class="text-sm text-gray-600 mt-1">{ props.Set.Description }</p>
+					<p class="text-sm text-gray-600 mt-1">{ props.PageContext.T(props.Set.Description) }</p>
 				}
 			</div>
 			<div
@@ -177,104 +181,7 @@ templ ResourceGroup(props ResourceGroupProps) {
 	}}
 	<div
 		class="space-y-3"
-		x-data={ fmt.Sprintf(`{
-			allChecked: %t,
-			someChecked: %t,
-			permissionIds: %s,
-			init() {
-				// Set up mutation observer to watch for form field changes
-				this.$nextTick(() => {
-					this.updateState();
-				});
-			},
-			toggleAll() {
-				// First, determine what the new state should be
-				// If some are checked but not all, we want to check all
-				// If all are checked, we want to uncheck all
-				// If none are checked, we want to check all
-				const permissionCheckboxes = [];
-				this.permissionIds.forEach(permId => {
-					const checkbox = document.querySelector('input[name="Permissions[' + permId + ']"]');
-					if (checkbox) {
-						permissionCheckboxes.push(checkbox);
-					}
-				});
-				
-				const checkedCount = permissionCheckboxes.filter(cb => cb.checked).length;
-				const totalCount = permissionCheckboxes.length;
-				
-				// Determine new state
-				let newState;
-				if (checkedCount === totalCount && totalCount > 0) {
-					// All are checked, uncheck all
-					newState = false;
-				} else {
-					// Some or none are checked, check all
-					newState = true;
-				}
-				
-				this.allChecked = newState;
-				
-				// Update visual toggle
-				const toggleVisual = this.$el.querySelector('[id^="toggle-visual-"]');
-				if (toggleVisual) {
-					if (this.allChecked) {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-brand-600 after:translate-x-full after:border-white";
-					} else {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-gray-200 after:border-gray-300";
-					}
-				}
-				
-				// Update all found checkboxes
-				permissionCheckboxes.forEach(cb => {
-					cb.checked = newState;
-					// Trigger change event
-					const event = new Event('change', { bubbles: true });
-					cb.dispatchEvent(event);
-				});
-				
-				// Also update nested Alpine component states for permission sets
-				const nestedComponents = this.$el.querySelectorAll('[x-data]');
-				nestedComponents.forEach(el => {
-					if (el !== this.$el && el._x_dataStack && el._x_dataStack[0]) {
-						if (typeof el._x_dataStack[0].allChecked !== 'undefined') {
-							el._x_dataStack[0].allChecked = this.allChecked;
-							el._x_dataStack[0].someChecked = false;
-							if (el._x_dataStack[0].updateState) {
-								el._x_dataStack[0].updateState();
-							}
-						}
-					}
-				});
-				
-				this.updateState();
-			},
-			updateState() {
-				// Use the permission IDs to find the checkboxes
-				const permissionCheckboxes = [];
-				this.permissionIds.forEach(permId => {
-					// Look for checkboxes with name="Permissions[permId]"
-					const checkbox = document.querySelector('input[name="Permissions[' + permId + ']"]');
-					if (checkbox) {
-						permissionCheckboxes.push(checkbox);
-					}
-				});
-				
-				const checkedCount = permissionCheckboxes.filter(cb => cb.checked).length;
-				this.allChecked = checkedCount === permissionCheckboxes.length && permissionCheckboxes.length > 0;
-				this.someChecked = checkedCount > 0 && checkedCount < permissionCheckboxes.length;
-				
-				// Update visual toggle
-				const toggleVisual = this.$el.querySelector('[id^="toggle-visual-"]');
-				if (toggleVisual) {
-					if (this.allChecked) {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-brand-600 after:translate-x-full after:border-white";
-					} else {
-						toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-gray-200 after:border-gray-300";
-					}
-				}
-			}
-		}`, allChecked, someChecked, toJSON(permissionIds)) }
+		x-data={ fmt.Sprintf(`createPermissionFormData(%t, %t, %s)`, allChecked, someChecked, toJSON(permissionIds)) }
 		x-init="init()"
 		@change="updateState()"
 	>
