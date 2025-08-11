@@ -10,6 +10,7 @@ import (
 	financePerms "github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	hrmPerms "github.com/iota-uz/iota-sdk/modules/hrm/permissions"
 	loggingPerms "github.com/iota-uz/iota-sdk/modules/logging/permissions"
+	projectsPerms "github.com/iota-uz/iota-sdk/modules/projects/permissions"
 	warehousePerms "github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 )
 
@@ -23,6 +24,7 @@ func AllPermissions() []*permission.Permission {
 	permissions = append(permissions, financePerms.Permissions...)
 	permissions = append(permissions, hrmPerms.Permissions...)
 	permissions = append(permissions, loggingPerms.Permissions...)
+	permissions = append(permissions, projectsPerms.Permissions...)
 	permissions = append(permissions, warehousePerms.Permissions...)
 	return permissions
 }
@@ -90,6 +92,7 @@ func PermissionSchema() *rbac.PermissionSchema {
 	otherPermissions = append(otherPermissions, financePerms.Permissions...)
 	otherPermissions = append(otherPermissions, hrmPerms.Permissions...)
 	otherPermissions = append(otherPermissions, loggingPerms.Permissions...)
+	otherPermissions = append(otherPermissions, projectsPerms.Permissions...)
 	otherPermissions = append(otherPermissions, warehousePerms.Permissions...)
 
 	for _, perm := range otherPermissions {
