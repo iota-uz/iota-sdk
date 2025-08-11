@@ -38,5 +38,13 @@ type PermissionSetItem struct {
 	Label       string
 	Description string
 	Checked     bool
-	IDs         []string // Permission IDs in this set
+	Partial     bool              // True if only some permissions in the set are checked
+	Permissions []*PermissionItem // Child permissions in this set
+}
+
+// ResourcePermissionGroup represents permissions grouped by resource
+// Each resource can have multiple permission sets
+type ResourcePermissionGroup struct {
+	Resource       string
+	PermissionSets []*PermissionSetItem
 }

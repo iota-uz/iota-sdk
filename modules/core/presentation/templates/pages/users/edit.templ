@@ -11,17 +11,17 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/utils/random"
 )
 
 type EditFormProps struct {
-	User             *viewmodels.User
-	Roles            []*viewmodels.Role
-	Groups           []*viewmodels.Group
-	PermissionGroups []*viewmodels.PermissionGroup
-	Errors           map[string]string
+	User                     *viewmodels.User
+	Roles                    []*viewmodels.Role
+	Groups                   []*viewmodels.Group
+	ResourcePermissionGroups []*viewmodels.ResourcePermissionGroup
+	Errors                   map[string]string
 }
 
 func useUploads(u *viewmodels.User) []*viewmodels.Upload {
@@ -146,33 +146,15 @@ templ EditForm(props *EditFormProps) {
 				</div>
 				<div x-show="selectedTab === 'permissions'" class="mt-5 flex flex-col gap-5">
 					{{ pageCtx := composables.UsePageCtx(ctx) }}
-					for _, group := range props.PermissionGroups {
+					for i, group := range props.ResourcePermissionGroups {
 						@card.Card(card.Props{
-							Class:  "space-y-3",
-							Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Resource))),
+							Class: "space-y-3",
 						}) {
-							<div class="space-y-3">
-								for _, permission := range group.Permissions {
-									{{ id := random.String(12, random.LowerCharSet) }}
-									<div class="flex justify-between items-center border border-gray-400 bg-gray-200 rounded-md py-2 px-3">
-										<label
-											class="form-control-label"
-											for={ id }
-										>
-											{ pageCtx.T(fmt.Sprintf("Permissions.%s", permission.Name)) }
-										</label>
-										@input.Switch(&input.SwitchProps{
-											ID:      id,
-											Checked: permission.Checked,
-											Attrs: templ.Attributes{
-												"name":  "PermissionIDs",
-												"value": permission.ID,
-												"form":  "save-form",
-											},
-										})
-									</div>
-								}
-							</div>
+							@roles.ResourceGroup(roles.ResourceGroupProps{
+								PageContext:   pageCtx,
+								ResourceGroup: group,
+								GroupIndex:    i,
+							})
 						}
 					}
 				</div>

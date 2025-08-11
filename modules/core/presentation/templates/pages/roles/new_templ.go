@@ -6,8 +6,6 @@ package roles
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
 import (
-	"fmt"
-
 	"github.com/a-h/templ"
 	templruntime "github.com/a-h/templ/runtime"
 	"github.com/iota-uz/iota-sdk/components/base/button"
@@ -19,9 +17,9 @@ import (
 )
 
 type CreateFormProps struct {
-	Role             *viewmodels.Role
-	PermissionGroups []*viewmodels.PermissionGroup
-	Errors           map[string]string
+	Role                     *viewmodels.Role
+	ResourcePermissionGroups []*viewmodels.ResourcePermissionGroup
+	Errors                   map[string]string
 }
 
 func CreateForm(props *CreateFormProps) templ.Component {
@@ -99,7 +97,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, group := range props.PermissionGroups {
+		for i, resourceGroup := range props.ResourcePermissionGroups {
 			templ_7745c5c3_Var3 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -112,24 +110,18 @@ func CreateForm(props *CreateFormProps) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				for _, perm := range group.Permissions {
-					templ_7745c5c3_Err = Permission(SharedProps{
-						Label: pageCtx.T(fmt.Sprintf("Permissions.%s", perm.Name)),
-						Attrs: templ.Attributes{
-							"name": fmt.Sprintf("Permissions[%s]", perm.ID),
-						},
-						Error:   props.Errors[fmt.Sprintf("Permissions[%s]", perm.ID)],
-						Checked: perm.Checked,
-					}).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
+				templ_7745c5c3_Err = ResourceGroup(ResourceGroupProps{
+					PageContext:   pageCtx,
+					ResourceGroup: resourceGroup,
+					GroupIndex:    i,
+				}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
 				}
 				return nil
 			})
 			templ_7745c5c3_Err = card.Card(card.Props{
-				Class:  "space-y-3",
-				Header: card.DefaultHeader(pageCtx.T(fmt.Sprintf("Resources.%s", group.Resource))),
+				Class: "space-y-3",
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -154,7 +146,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 76, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/roles/new.templ`, Line: 69, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {

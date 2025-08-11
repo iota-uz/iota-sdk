@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +37,9 @@ func (b *integrationTestBuilder) Repository() crud.Repository[TestEntity] {
 func TestCrudController_ConcurrentRequests(t *testing.T) {
 	t.Skip("TODO: Fix concurrent requests test - infrastructure issue")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -82,7 +85,9 @@ func TestCrudController_LargeDataset(t *testing.T) {
 	}
 
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -128,159 +133,161 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 	// because the validation error handling is not complete.
 
 	/*
-		adminUser := itf.User()
-		suite := itf.HTTP(t, core.NewModule()).
-			AsUser(adminUser)
+			adminUser := itf.User()
+			suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		})).
+				AsUser(adminUser)
 
-		// Create schema with comprehensive validation
-		validatedFields := crud.NewFields([]crud.Field{
-			crud.NewUUIDField("id", crud.WithKey()),
-			crud.NewStringField("name",
-				crud.WithSearchable(),
-				crud.WithRules(
-					crud.RequiredRule(),
-					crud.MinLengthRule(3),
-					crud.MaxLengthRule(50),
+			// Create schema with comprehensive validation
+			validatedFields := crud.NewFields([]crud.Field{
+				crud.NewUUIDField("id", crud.WithKey()),
+				crud.NewStringField("name",
+					crud.WithSearchable(),
+					crud.WithRules(
+						crud.RequiredRule(),
+						crud.MinLengthRule(3),
+						crud.MaxLengthRule(50),
+					),
 				),
-			),
-			crud.NewStringField("description",
-				crud.WithRules(
-					crud.MaxLengthRule(200),
+				crud.NewStringField("description",
+					crud.WithRules(
+						crud.MaxLengthRule(200),
+					),
 				),
-			),
-			crud.NewFloatField("amount",
-				crud.WithRules(
-					crud.MinValueRule(0),
-					crud.MaxValueRule(10000),
+				crud.NewFloatField("amount",
+					crud.WithRules(
+						crud.MinValueRule(0),
+						crud.MaxValueRule(10000),
+					),
 				),
-			),
-			crud.NewBoolField("is_active"),
-			crud.NewTimestampField("created_at", crud.WithReadonly()),
-			crud.NewTimestampField("updated_at", crud.WithReadonly()),
-		})
-		validatedSchema := crud.NewSchema(
-			"test_entities",
-			validatedFields,
-			&testMapper{},
-			crud.WithValidator[TestEntity](func(entity TestEntity) error {
-				if entity.Name == "forbidden" {
-					return fmt.Errorf("name 'forbidden' is not allowed")
-				}
-				return nil
-			}),
-		)
-
-		service := newTestService()
-		builder := &integrationTestBuilder{
-			schema:  validatedSchema,
-			service: service,
-		}
-
-		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-		suite.Register(controller)
-
-		// Test cases for validation
-		testCases := []struct {
-			name           string
-			formData       url.Values
-			expectedStatus int
-			expectError    bool
-			errorContains  string
-		}{
-			{
-				name: "valid entity",
-				formData: url.Values{
-					"name":        {"Valid Name"},
-					"description": {"Valid description"},
-					"amount":      {"100"},
-					"is_active":   {"true"},
-				},
-				expectedStatus: 303, // Redirect on success
-				expectError:    false,
-			},
-			{
-				name: "name too short",
-				formData: url.Values{
-					"name":        {"ab"},
-					"description": {"Valid description"},
-					"amount":      {"100"},
-				},
-				expectedStatus: 200, // Form with validation errors
-				expectError:    true,
-				errorContains:  "validation rule failed",
-			},
-			{
-				name: "name too long",
-				formData: url.Values{
-					"name":        {string(make([]byte, 51))},
-					"description": {"Valid description"},
-					"amount":      {"100"},
-				},
-				expectedStatus: 200, // Form with validation errors
-				expectError:    true,
-				errorContains:  "validation rule failed",
-			},
-			{
-				name: "amount negative",
-				formData: url.Values{
-					"name":        {"Valid Name"},
-					"description": {"Valid description"},
-					"amount":      {"-10"},
-				},
-				expectedStatus: 200, // Form with validation errors
-				expectError:    true,
-				errorContains:  "validation rule failed",
-			},
-			{
-				name: "amount too large",
-				formData: url.Values{
-					"name":        {"Valid Name"},
-					"description": {"Valid description"},
-					"amount":      {"10001"},
-				},
-				expectedStatus: 200, // Form with validation errors
-				expectError:    true,
-				errorContains:  "validation rule failed",
-			},
-			{
-				name: "forbidden name",
-				formData: url.Values{
-					"name":        {"forbidden"},
-					"description": {"Valid description"},
-					"amount":      {"100"},
-				},
-				expectedStatus: 200, // Form with validation errors
-				expectError:    true,
-				errorContains:  "not allowed",
-			},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				resp := suite.POST("/test").
-										WithForm(tc.formData).
-					Expect(t).
-										Status(tc.expectedStatus)
-
-				if tc.expectError {
-					doc := resp.HTML()
-					assert.NotEmpty(t, errorElements)
-					if tc.errorContains != "" {
-						// Check if any error element contains the expected text
-						found := false
-						for i := 1; i <= len(errorElements); i++ {
-							elem := doc.Element(fmt.Sprintf("(//small[@data-testid='field-error'])[%d]", i))
-							if strings.Contains(elem.Text(), tc.errorContains) {
-								found = true
-								break
-							}
-						}
-						assert.True(t, found, "Expected error message containing '%s' not found", tc.errorContains)
-					}
-				}
+				crud.NewBoolField("is_active"),
+				crud.NewTimestampField("created_at", crud.WithReadonly()),
+				crud.NewTimestampField("updated_at", crud.WithReadonly()),
 			})
-		}
+			validatedSchema := crud.NewSchema(
+				"test_entities",
+				validatedFields,
+				&testMapper{},
+				crud.WithValidator[TestEntity](func(entity TestEntity) error {
+					if entity.Name == "forbidden" {
+						return fmt.Errorf("name 'forbidden' is not allowed")
+					}
+					return nil
+				}),
+			)
+
+			service := newTestService()
+			builder := &integrationTestBuilder{
+				schema:  validatedSchema,
+				service: service,
+			}
+
+			env := suite.Environment()
+			controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+			suite.Register(controller)
+
+			// Test cases for validation
+			testCases := []struct {
+				name           string
+				formData       url.Values
+				expectedStatus int
+				expectError    bool
+				errorContains  string
+			}{
+				{
+					name: "valid entity",
+					formData: url.Values{
+						"name":        {"Valid Name"},
+						"description": {"Valid description"},
+						"amount":      {"100"},
+						"is_active":   {"true"},
+					},
+					expectedStatus: 303, // Redirect on success
+					expectError:    false,
+				},
+				{
+					name: "name too short",
+					formData: url.Values{
+						"name":        {"ab"},
+						"description": {"Valid description"},
+						"amount":      {"100"},
+					},
+					expectedStatus: 200, // Form with validation errors
+					expectError:    true,
+					errorContains:  "validation rule failed",
+				},
+				{
+					name: "name too long",
+					formData: url.Values{
+						"name":        {string(make([]byte, 51))},
+						"description": {"Valid description"},
+						"amount":      {"100"},
+					},
+					expectedStatus: 200, // Form with validation errors
+					expectError:    true,
+					errorContains:  "validation rule failed",
+				},
+				{
+					name: "amount negative",
+					formData: url.Values{
+						"name":        {"Valid Name"},
+						"description": {"Valid description"},
+						"amount":      {"-10"},
+					},
+					expectedStatus: 200, // Form with validation errors
+					expectError:    true,
+					errorContains:  "validation rule failed",
+				},
+				{
+					name: "amount too large",
+					formData: url.Values{
+						"name":        {"Valid Name"},
+						"description": {"Valid description"},
+						"amount":      {"10001"},
+					},
+					expectedStatus: 200, // Form with validation errors
+					expectError:    true,
+					errorContains:  "validation rule failed",
+				},
+				{
+					name: "forbidden name",
+					formData: url.Values{
+						"name":        {"forbidden"},
+						"description": {"Valid description"},
+						"amount":      {"100"},
+					},
+					expectedStatus: 200, // Form with validation errors
+					expectError:    true,
+					errorContains:  "not allowed",
+				},
+			}
+
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					resp := suite.POST("/test").
+											WithForm(tc.formData).
+						Expect(t).
+											Status(tc.expectedStatus)
+
+					if tc.expectError {
+						doc := resp.HTML()
+						assert.NotEmpty(t, errorElements)
+						if tc.errorContains != "" {
+							// Check if any error element contains the expected text
+							found := false
+							for i := 1; i <= len(errorElements); i++ {
+								elem := doc.Element(fmt.Sprintf("(//small[@data-testid='field-error'])[%d]", i))
+								if strings.Contains(elem.Text(), tc.errorContains) {
+									found = true
+									break
+								}
+							}
+							assert.True(t, found, "Expected error message containing '%s' not found", tc.errorContains)
+						}
+					}
+				})
+			}
 	*/
 }
 
@@ -288,7 +295,9 @@ func TestCrudController_FieldValidationIntegration(t *testing.T) {
 func TestCrudController_FormStatePreservation(t *testing.T) {
 	t.Skip("TODO: Fix form state preservation test")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	// Schema with validation
@@ -346,7 +355,9 @@ func TestCrudController_FormStatePreservation(t *testing.T) {
 func TestCrudController_ComplexFiltering(t *testing.T) {
 	t.Skip("TODO: Fix complex filtering test")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -430,7 +441,9 @@ func TestCrudController_ComplexFiltering(t *testing.T) {
 func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 	t.Skip("TODO: Fix readonly fields update test")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -488,7 +501,9 @@ func TestCrudController_UpdateWithReadonlyFields(t *testing.T) {
 func TestCrudController_EmptyListHandling(t *testing.T) {
 	t.Skip("TODO: Fix empty list handling test")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService() // Empty service
@@ -516,7 +531,9 @@ func TestCrudController_EmptyListHandling(t *testing.T) {
 func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 	t.Skip("TODO: Fix special character handling test")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -573,7 +590,9 @@ func TestCrudController_SpecialCharacterHandling(t *testing.T) {
 func TestCrudController_SessionHandling(t *testing.T) {
 	t.Skip("TODO: Fix session handling test")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -616,7 +635,9 @@ func TestCrudController_SessionHandling(t *testing.T) {
 func TestCrudController_HTTPMethodSafety(t *testing.T) {
 	t.Skip("TODO: Fix HTTP method safety test")
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()

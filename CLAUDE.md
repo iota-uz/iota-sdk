@@ -1,3 +1,9 @@
+## Overview
+IOTA SDK is a modular erp system. When designing new modules or interfaces / code follow these principles:
+-   **Modularity**: Each module should be self-contained and reusable. Modules can be developed independently and integrated into the system.
+- Modules can depend on other modules, but they should not create circular dependencies. Each module should have a clear purpose and responsibility.
+- Modules can depend on core module, but core module can't depend on other modules
+
 ## Rules
 
 -   DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
@@ -166,4 +172,5 @@ modules/{module}/
   - Add service to `app.RegisterServices()` call
   - Add controller to `app.RegisterControllers()` call  
   - Add quick links to `app.QuickLinks().Add()` call
+
 

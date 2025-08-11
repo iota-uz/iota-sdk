@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"net/http"
-	"sort"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -27,14 +26,28 @@ import (
 )
 
 type RolesController struct {
-	app      application.Application
-	basePath string
+	app              application.Application
+	basePath         string
+	permissionSchema *rbac.PermissionSchema
 }
 
-func NewRolesController(app application.Application) application.Controller {
+type RolesControllerOptions struct {
+	BasePath         string
+	PermissionSchema *rbac.PermissionSchema
+}
+
+func NewRolesController(app application.Application, opts *RolesControllerOptions) application.Controller {
+	if opts == nil || opts.PermissionSchema == nil {
+		panic("RolesController requires PermissionSchema in options")
+	}
+	basePath := opts.BasePath
+	if basePath == "" {
+		basePath = "/roles"
+	}
 	return &RolesController{
-		app:      app,
-		basePath: "/roles",
+		app:              app,
+		basePath:         basePath,
+		permissionSchema: opts.PermissionSchema,
 	}
 }
 
@@ -64,41 +77,10 @@ func (c *RolesController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 }
 
-func (c *RolesController) permissionGroups(
-	rbac rbac.RBAC,
+func (c *RolesController) resourcePermissionGroups(
 	selected ...*permission.Permission,
-) []*viewmodels.PermissionGroup {
-	isSelected := func(p2 *permission.Permission) bool {
-		for _, p1 := range selected {
-			if p1.ID == p2.ID {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Use the PermissionsByResource method
-	groupedByResource := rbac.PermissionsByResource()
-
-	groups := make([]*viewmodels.PermissionGroup, 0, len(groupedByResource))
-	for resource, permissions := range groupedByResource {
-		var permList []*viewmodels.PermissionItem
-		for _, perm := range permissions {
-			permList = append(permList, &viewmodels.PermissionItem{
-				ID:      perm.ID.String(),
-				Name:    perm.Name,
-				Checked: isSelected(perm),
-			})
-		}
-		groups = append(groups, &viewmodels.PermissionGroup{
-			Resource:    resource,
-			Permissions: permList,
-		})
-	}
-	sort.Slice(groups, func(i, j int) bool {
-		return groups[i].Resource < groups[j].Resource
-	})
-	return groups
+) []*viewmodels.ResourcePermissionGroup {
+	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
 }
 
 func (c *RolesController) List(
@@ -173,9 +155,9 @@ func (c *RolesController) GetEdit(
 		return
 	}
 	props := &roles.EditFormProps{
-		Role:             mappers.RoleToViewModel(roleEntity),
-		PermissionGroups: c.permissionGroups(c.app.RBAC(), roleEntity.Permissions()...),
-		Errors:           map[string]string{},
+		Role:                     mappers.RoleToViewModel(roleEntity),
+		ResourcePermissionGroups: c.resourcePermissionGroups(roleEntity.Permissions()...),
+		Errors:                   map[string]string{},
 	}
 	templ.Handler(roles.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -230,15 +212,15 @@ func (c *RolesController) Update(
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props := &roles.EditFormProps{
-			Role:             mappers.RoleToViewModel(roleEntity),
-			PermissionGroups: c.permissionGroups(c.app.RBAC(), roleEntity.Permissions()...),
-			Errors:           errors,
+			Role:                     mappers.RoleToViewModel(roleEntity),
+			ResourcePermissionGroups: c.resourcePermissionGroups(roleEntity.Permissions()...),
+			Errors:                   errors,
 		}
 		templ.Handler(roles.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	updatedEntity, err := dto.Apply(roleEntity, c.app.RBAC())
+	updatedEntity, err := dto.Apply(roleEntity, c.permissionSchema)
 	if err != nil {
 		logger.Errorf("Error updating role entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -260,9 +242,9 @@ func (c *RolesController) GetNew(
 	logger *logrus.Entry,
 ) {
 	props := &roles.CreateFormProps{
-		Role:             &viewmodels.Role{},
-		PermissionGroups: c.permissionGroups(c.app.RBAC()),
-		Errors:           map[string]string{},
+		Role:                     &viewmodels.Role{},
+		ResourcePermissionGroups: c.resourcePermissionGroups(),
+		Errors:                   map[string]string{},
 	}
 	templ.Handler(roles.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -281,22 +263,22 @@ func (c *RolesController) Create(
 	}
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
-		roleEntity, err := dto.ToEntity(c.app.RBAC())
+		roleEntity, err := dto.ToEntity(c.permissionSchema)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		props := &roles.CreateFormProps{
-			Role:             mappers.RoleToViewModel(roleEntity),
-			PermissionGroups: c.permissionGroups(c.app.RBAC()),
-			Errors:           errors,
+			Role:                     mappers.RoleToViewModel(roleEntity),
+			ResourcePermissionGroups: c.resourcePermissionGroups(),
+			Errors:                   errors,
 		}
 		templ.Handler(roles.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 
-	roleEntity, err := dto.ToEntity(c.app.RBAC())
+	roleEntity, err := dto.ToEntity(c.permissionSchema)
 	if err != nil {
 		logger.Errorf("Error converting DTO to entity: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

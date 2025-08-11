@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"sort"
 	"strconv"
 	"time"
 
@@ -133,19 +132,32 @@ func (ru *UserRealtimeUpdates) onUserUpdated(event *user.UpdatedEvent) {
 }
 
 type UsersController struct {
-	app      application.Application
-	basePath string
-	realtime *UserRealtimeUpdates
+	app              application.Application
+	basePath         string
+	realtime         *UserRealtimeUpdates
+	permissionSchema *rbac.PermissionSchema
 }
 
-func NewUsersController(app application.Application) application.Controller {
+type UsersControllerOptions struct {
+	BasePath         string
+	PermissionSchema *rbac.PermissionSchema
+}
+
+func NewUsersController(app application.Application, opts *UsersControllerOptions) application.Controller {
+	if opts == nil || opts.PermissionSchema == nil {
+		panic("UsersController requires PermissionSchema in options")
+	}
+	basePath := opts.BasePath
+	if basePath == "" {
+		basePath = "/users"
+	}
 	userService := app.Service(services.UserService{}).(*services.UserService)
-	basePath := "/users"
 
 	controller := &UsersController{
-		app:      app,
-		basePath: basePath,
-		realtime: NewUserRealtimeUpdates(app, userService, basePath),
+		app:              app,
+		basePath:         basePath,
+		realtime:         NewUserRealtimeUpdates(app, userService, basePath),
+		permissionSchema: opts.PermissionSchema,
 	}
 
 	return controller
@@ -178,41 +190,10 @@ func (c *UsersController) Register(r *mux.Router) {
 	c.realtime.Register()
 }
 
-func (c *UsersController) permissionGroups(
-	rbac rbac.RBAC,
+func (c *UsersController) resourcePermissionGroups(
 	selected ...*permission.Permission,
-) []*viewmodels.PermissionGroup {
-	isSelected := func(p2 *permission.Permission) bool {
-		for _, p1 := range selected {
-			if p1.ID == p2.ID {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Use the PermissionsByResource method from RBAC interface
-	groupedByResource := rbac.PermissionsByResource()
-
-	groups := make([]*viewmodels.PermissionGroup, 0, len(groupedByResource))
-	for resource, permissions := range groupedByResource {
-		var permList []*viewmodels.PermissionItem
-		for _, perm := range permissions {
-			permList = append(permList, &viewmodels.PermissionItem{
-				ID:      perm.ID.String(),
-				Name:    perm.Name,
-				Checked: isSelected(perm),
-			})
-		}
-		groups = append(groups, &viewmodels.PermissionGroup{
-			Resource:    resource,
-			Permissions: permList,
-		})
-	}
-	sort.Slice(groups, func(i, j int) bool {
-		return groups[i].Resource < groups[j].Resource
-	})
-	return groups
+) []*viewmodels.ResourcePermissionGroup {
+	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
 }
 
 func (c *UsersController) Users(
@@ -368,11 +349,11 @@ func (c *UsersController) GetEdit(
 	}
 
 	props := &users.EditFormProps{
-		User:             mappers.UserToViewModel(us),
-		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:           groups, // Already viewmodels from query service
-		PermissionGroups: c.permissionGroups(c.app.RBAC(), us.Permissions()...),
-		Errors:           map[string]string{},
+		User:                     mappers.UserToViewModel(us),
+		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Groups:                   groups, // Already viewmodels from query service
+		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
+		Errors:                   map[string]string{},
 	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -405,11 +386,11 @@ func (c *UsersController) GetNew(
 	}
 
 	props := &users.CreateFormProps{
-		User:             viewmodels.User{},
-		Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:           groups, // Already viewmodels from query service
-		PermissionGroups: c.permissionGroups(c.app.RBAC()),
-		Errors:           map[string]string{},
+		User:                     viewmodels.User{},
+		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Groups:                   groups, // Already viewmodels from query service
+		ResourcePermissionGroups: c.resourcePermissionGroups(),
+		Errors:                   map[string]string{},
 	}
 	templ.Handler(users.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -464,10 +445,10 @@ func (c *UsersController) Create(
 				Language:   dto.Language,
 				AvatarID:   fmt.Sprint(dto.AvatarID),
 			},
-			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Groups:           groups, // Already viewmodels from query service
-			PermissionGroups: c.permissionGroups(c.app.RBAC()),
-			Errors:           errors,
+			Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Groups:                   groups, // Already viewmodels from query service
+			ResourcePermissionGroups: c.resourcePermissionGroups(),
+			Errors:                   errors,
 		}
 
 		templ.Handler(users.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -602,10 +583,10 @@ func (c *UsersController) Update(
 				Permissions: mapping.MapViewModels(us.Permissions(), mappers.PermissionToViewModel),
 				AvatarID:    strconv.FormatUint(uint64(dto.AvatarID), 10),
 			},
-			Roles:            mapping.MapViewModels(roles, mappers.RoleToViewModel),
-			Groups:           groups, // Already viewmodels from query service
-			PermissionGroups: c.permissionGroups(c.app.RBAC(), us.Permissions()...),
-			Errors:           errors,
+			Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
+			Groups:                   groups, // Already viewmodels from query service
+			ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
+			Errors:                   errors,
 		}
 		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}

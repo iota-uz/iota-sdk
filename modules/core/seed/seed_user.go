@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -80,7 +81,7 @@ func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Applic
 	newRole := role.New(
 		adminRoleName,
 		role.WithDescription(adminRoleDesc),
-		role.WithPermissions(app.RBAC().Permissions()),
+		role.WithPermissions(defaults.AllPermissions()),
 		role.WithType(role.TypeSystem),
 		role.WithTenantID(tenantID),
 	)

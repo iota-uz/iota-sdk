@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -30,11 +31,21 @@ var LocaleFiles embed.FS
 //go:embed infrastructure/persistence/schema/core-schema.sql
 var MigrationFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+type ModuleOptions struct {
+	PermissionSchema *rbac.PermissionSchema // For UI-only use in RolesController
+}
+
+func NewModule(opts *ModuleOptions) application.Module {
+	if opts == nil {
+		opts = &ModuleOptions{}
+	}
+	return &Module{
+		options: opts,
+	}
 }
 
 type Module struct {
+	options *ModuleOptions
 }
 
 func (m *Module) Register(app application.Application) error {
@@ -144,8 +155,12 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewAccountController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
-		controllers.NewUsersController(app),
-		controllers.NewRolesController(app),
+		controllers.NewUsersController(app, &controllers.UsersControllerOptions{
+			PermissionSchema: m.options.PermissionSchema,
+		}),
+		controllers.NewRolesController(app, &controllers.RolesControllerOptions{
+			PermissionSchema: m.options.PermissionSchema,
+		}),
 		controllers.NewGroupsController(app),
 		controllers.NewShowcaseController(app),
 		controllers.NewWebSocketController(app),

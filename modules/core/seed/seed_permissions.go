@@ -6,13 +6,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
 func CreatePermissions(ctx context.Context, app application.Application) error {
 	conf := configuration.Use()
 	permissionRepository := persistence.NewPermissionRepository()
 
-	permissions := app.RBAC().Permissions()
+	permissions := defaults.AllPermissions()
 	conf.Logger().Infof("Seeding %d permissions", len(permissions))
 
 	for _, p := range permissions {
