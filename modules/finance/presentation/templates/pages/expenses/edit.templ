@@ -7,16 +7,16 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"net/url"
 )
 
 type EditPageProps struct {
-	Expense    *viewmodels.Expense
-	Accounts   []*viewmodels.MoneyAccount
-	Categories []*viewmodels.ExpenseCategory
-	Errors     map[string]string
+	Expense *viewmodels.Expense
+	Errors  map[string]string
 }
 
 templ EditForm(props *EditPageProps) {
@@ -53,22 +53,24 @@ templ EditForm(props *EditPageProps) {
 					"form":  "save-form",
 				},
 			})
-			@AccountSelect(&AccountSelectProps{
-				Value:    props.Expense.AccountID,
-				Accounts: props.Accounts,
-				Attrs: templ.Attributes{
-					"name": "AccountID",
-					"form": "save-form",
+			@loaders.LazyLoad(loaders.LazyLoadProps{
+				Endpoint: "/finance/expenses/selects/accounts",
+				Params: url.Values{
+					"value": {props.Expense.AccountID},
+					"form":  {"save-form"},
 				},
-			})
-			@CategorySelect(&CategorySelectProps{
-				Value:      props.Expense.CategoryID,
-				Categories: props.Categories,
-				Attrs: templ.Attributes{
-					"name": "CategoryID",
-					"form": "save-form",
+			}) {
+				@SelectSkeletonLoader()
+			}
+			@loaders.LazyLoad(loaders.LazyLoadProps{
+				Endpoint: "/finance/expenses/selects/categories",
+				Params: url.Values{
+					"value": {props.Expense.CategoryID},
+					"form":  {"save-form"},
 				},
-			})
+			}) {
+				@SelectSkeletonLoader()
+			}
 			@input.TextArea(&input.TextAreaProps{
 				Label: pageCtx.T("Expenses.Single.Comment"),
 				Attrs: templ.Attributes{

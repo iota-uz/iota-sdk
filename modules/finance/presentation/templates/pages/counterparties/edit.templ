@@ -35,6 +35,7 @@ templ EditForm(props *EditPageProps) {
 						Label: pageCtx.T("Counterparties.Single.TIN"),
 						Error: props.Errors["TIN"],
 						Attrs: templ.Attributes{
+							"id":    "TIN",
 							"name":  "TIN",
 							"value": props.Counterparty.TIN,
 						},

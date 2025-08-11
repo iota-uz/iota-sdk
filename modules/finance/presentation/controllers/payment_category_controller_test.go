@@ -95,7 +95,7 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 		Contains("HTMX Test Category")
 }
 
-func TestPaymentCategoryController_GetNew_Success(t *testing.T) {
+func TestPaymentCategoryController_GetNewDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
@@ -109,7 +109,8 @@ func TestPaymentCategoryController_GetNew_Success(t *testing.T) {
 	controller := controllers.NewPaymentCategoriesController(env.App)
 	suite.Register(controller)
 
-	response := suite.GET(PaymentCategoryBasePath + "/new").
+	response := suite.GET(PaymentCategoryBasePath + "/new/drawer").
+		HTMX().
 		Expect(t).
 		Status(200)
 
@@ -177,6 +178,8 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 
 	response := suite.POST(PaymentCategoryBasePath).
 		Form(formData).
+		HTMX().
+		Header("Hx-Target", "payment-category-create-drawer").
 		Expect(t).
 		Status(200)
 
@@ -188,7 +191,7 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 	require.Empty(t, categories)
 }
 
-func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
+func TestPaymentCategoryController_GetEditDrawer_Success(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
@@ -217,7 +220,8 @@ func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, createdCategory, 1)
 
-	response := suite.GET(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, createdCategory[0].ID().String())).
+	response := suite.GET(fmt.Sprintf("%s/%s/drawer", PaymentCategoryBasePath, createdCategory[0].ID().String())).
+		HTMX().
 		Expect(t).
 		Status(200)
 
@@ -230,7 +234,7 @@ func TestPaymentCategoryController_GetEdit_Success(t *testing.T) {
 	require.Equal(t, "Category to edit", html.Element("//textarea[@name='Description']").Text())
 }
 
-func TestPaymentCategoryController_GetEdit_NotFound(t *testing.T) {
+func TestPaymentCategoryController_GetEditDrawer_NotFound(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User()
 
@@ -245,7 +249,8 @@ func TestPaymentCategoryController_GetEdit_NotFound(t *testing.T) {
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
-	suite.GET(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, nonExistentID.String())).
+	suite.GET(fmt.Sprintf("%s/%s/drawer", PaymentCategoryBasePath, nonExistentID.String())).
+		HTMX().
 		Expect(t).
 		Status(500)
 }
@@ -334,6 +339,8 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 
 	response := suite.POST(fmt.Sprintf("%s/%s", PaymentCategoryBasePath, createdCategory.ID().String())).
 		Form(formData).
+		HTMX().
+		Header("Hx-Target", "payment-category-edit-drawer").
 		Expect(t).
 		Status(200)
 

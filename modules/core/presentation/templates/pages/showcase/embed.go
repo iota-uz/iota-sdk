@@ -35,6 +35,9 @@ var AdvancedDatepickerComponentSource string
 //go:embed components/table.templ
 var TableComponentSource string
 
+//go:embed components/editable_table.templ
+var EditableTableComponentSource string
+
 //go:embed components/buttons.templ
 var ButtonsComponentSource string
 
@@ -81,3 +84,6 @@ var RadarChartSource string
 
 //go:embed components/charts/polar_area_chart.templ
 var PolarAreaChartSource string
+
+//go:embed components/kanban.templ
+var KanbanBoardSource string

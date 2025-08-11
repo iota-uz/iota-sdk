@@ -1,0 +1,54 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/badge"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+templ TransactionTypeBadge(transactionType string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	// Map transaction type to badge variant using proper typed enums
+	switch transaction.Type(transactionType) {
+		case transaction.Deposit:
+			@badge.New(badge.Props{
+				Variant: badge.VariantGreen,
+				Size:    badge.SizeNormal,
+				Class:   templ.Classes("px-3"),
+			}) {
+				{ pageCtx.T("Transactions.Types." + transactionType) }
+			}
+		case transaction.Withdrawal:
+			@badge.New(badge.Props{
+				Variant: badge.VariantPink,
+				Size:    badge.SizeNormal,
+				Class:   templ.Classes("px-3"),
+			}) {
+				{ pageCtx.T("Transactions.Types." + transactionType) }
+			}
+		case transaction.Transfer:
+			@badge.New(badge.Props{
+				Variant: badge.VariantBlue,
+				Size:    badge.SizeNormal,
+				Class:   templ.Classes("px-3"),
+			}) {
+				{ pageCtx.T("Transactions.Types." + transactionType) }
+			}
+		case transaction.Exchange:
+			@badge.New(badge.Props{
+				Variant: badge.VariantYellow,
+				Size:    badge.SizeNormal,
+				Class:   templ.Classes("px-3"),
+			}) {
+				{ pageCtx.T("Transactions.Types." + transactionType) }
+			}
+		default:
+			@badge.New(badge.Props{
+				Variant: badge.VariantGray,
+				Size:    badge.SizeNormal,
+				Class:   templ.Classes("px-3"),
+			}) {
+				{ pageCtx.T("Transactions.Types." + transactionType) }
+			}
+	}
+}

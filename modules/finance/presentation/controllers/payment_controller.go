@@ -136,11 +136,17 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
+	isEmbedded := r.URL.Query().Get("embedded") == "true"
+
 	props := &payments.IndexPageProps{
 		Payments:        paginated.Payments,
 		PaginationState: paginated.PaginationState,
 	}
-	if isHxRequest {
+
+	if isEmbedded {
+		// For embedded view, just return the content without the full layout
+		templ.Handler(payments.PaymentsEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
+	} else if isHxRequest {
 		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(payments.Index(props), templ.WithStreaming()).ServeHTTP(w, r)

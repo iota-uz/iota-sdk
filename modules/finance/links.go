@@ -6,6 +6,12 @@ import (
 )
 
 var (
+	TransactionsItem = types.NavigationItem{
+		Name:        "NavigationLinks.Transactions",
+		Href:        "/finance/overview?tab=transactions",
+		Permissions: nil,
+		Children:    nil,
+	}
 	ExpenseCategoriesItem = types.NavigationItem{
 		Name:        "NavigationLinks.ExpenseCategories",
 		Href:        "/finance/expense-categories",
@@ -20,13 +26,13 @@ var (
 	}
 	PaymentsItem = types.NavigationItem{
 		Name:        "NavigationLinks.Payments",
-		Href:        "/finance/payments",
+		Href:        "/finance/overview?tab=payments",
 		Permissions: nil,
 		Children:    nil,
 	}
 	ExpensesItem = types.NavigationItem{
 		Name:        "NavigationLinks.Expenses",
-		Href:        "/finance/expenses",
+		Href:        "/finance/overview?tab=expenses",
 		Permissions: nil,
 		Children:    nil,
 	}
@@ -48,6 +54,46 @@ var (
 		Permissions: nil,
 		Children:    nil,
 	}
+	DebtsItem = types.NavigationItem{
+		Name:        "NavigationLinks.Debts",
+		Href:        "/finance/debts",
+		Permissions: nil,
+		Children:    nil,
+	}
+	DebtAggregatesItem = types.NavigationItem{
+		Name:        "NavigationLinks.DebtAggregates",
+		Href:        "/finance/debt-aggregates",
+		Permissions: nil,
+		Children:    nil,
+	}
+	EnumsItem = types.NavigationItem{
+		Name:        "NavigationLinks.Finance.Enums",
+		Href:        "/finance/enums",
+		Permissions: nil,
+		Children: []types.NavigationItem{
+			ExpenseCategoriesItem,
+			PaymentCategoriesItem,
+		},
+	}
+	ReportsItem = types.NavigationItem{
+		Name:        "NavigationLinks.Reports",
+		Href:        "/finance/reports",
+		Permissions: nil,
+		Children: []types.NavigationItem{
+			{
+				Name:        "NavigationLinks.IncomeStatement",
+				Href:        "/finance/reports/income-statement",
+				Permissions: nil,
+				Children:    nil,
+			},
+			{
+				Name:        "NavigationLinks.CashflowStatement",
+				Href:        "/finance/reports/cashflow",
+				Permissions: nil,
+				Children:    nil,
+			},
+		},
+	}
 )
 
 var FinanceItem = types.NavigationItem{
@@ -55,13 +101,19 @@ var FinanceItem = types.NavigationItem{
 	Href: "/finance",
 	Icon: icons.Money(icons.Props{Size: "20"}),
 	Children: []types.NavigationItem{
-		ExpenseCategoriesItem,
-		PaymentCategoriesItem,
-		PaymentsItem,
-		ExpensesItem,
+		{
+			Name:        "NavigationLinks.FinancialOverview",
+			Href:        "/finance/overview",
+			Permissions: nil,
+			Children:    nil,
+		},
+		DebtsItem,
+		DebtAggregatesItem,
 		AccountsItem,
 		CounterpartiesItem,
 		InventoryItem,
+		EnumsItem,
+		ReportsItem,
 	},
 }
 

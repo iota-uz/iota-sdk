@@ -19,18 +19,18 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	rep := crud.DefaultRepository[Report](schema)
 
 	t.Run("Create", func(t *testing.T) {
-		report := NewReport("Quarterly Results", WithAuthor("John"), WithSummary("Q1"))
+		report := NewReport(CreateMultiLangTitle("Quarterly Results"), WithAuthor("John"), WithSummary("Q1"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 
 		created, err := rep.Create(ctx, fields)
 		require.NoError(t, err)
 		assert.NotZero(t, created.ID())
-		assert.Equal(t, "Quarterly Results", created.Title())
+		assert.Equal(t, "Quarterly Results", created.Title().Default())
 	})
 
 	t.Run("Get", func(t *testing.T) {
-		report := NewReport("Get Test", WithAuthor("Alice"), WithSummary("Sample"))
+		report := NewReport(CreateMultiLangTitle("Get Test"), WithAuthor("Alice"), WithSummary("Sample"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 
@@ -44,12 +44,12 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		fieldsA, err := schema.Mapper().ToFieldValues(ctx, NewReport("All A", WithAuthor("A")))
+		fieldsA, err := schema.Mapper().ToFieldValues(ctx, NewReport(CreateMultiLangTitle("All A"), WithAuthor("A")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fieldsA)
 		require.NoError(t, err)
 
-		fieldsB, err := schema.Mapper().ToFieldValues(ctx, NewReport("All B", WithAuthor("B")))
+		fieldsB, err := schema.Mapper().ToFieldValues(ctx, NewReport(CreateMultiLangTitle("All B"), WithAuthor("B")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fieldsB)
 		require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Exists", func(t *testing.T) {
-		report := NewReport("Get Test", WithAuthor("Alice"), WithSummary("Sample"))
+		report := NewReport(CreateMultiLangTitle("Get Test"), WithAuthor("Alice"), WithSummary("Sample"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 
@@ -74,13 +74,12 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("List with filter", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Filter Me", WithAuthor("FilterTest")))
+		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport(CreateMultiLangTitle("Filter Me"), WithAuthor("FilterTest")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
 
 		list, err := rep.List(ctx, &crud.FindParams{
-			Query:   "Filter Me",
 			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("FilterTest")}},
 			Limit:   1,
 		})
@@ -90,7 +89,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("List with order", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Order Me", WithAuthor("OrderTest")))
+		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport(CreateMultiLangTitle("Order Me"), WithAuthor("OrderTest")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
@@ -110,7 +109,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Count with filter", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Count Me", WithAuthor("Counter")))
+		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport(CreateMultiLangTitle("Count Me"), WithAuthor("Counter")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)
@@ -123,7 +122,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		report := NewReport("ToUpdate", WithAuthor("Updater"), WithSummary("Initial"))
+		report := NewReport(CreateMultiLangTitle("ToUpdate"), WithAuthor("Updater"), WithSummary("Initial"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 		created, err := rep.Create(ctx, fields)
@@ -139,7 +138,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		report := NewReport("ToDelete", WithAuthor("Deleter"))
+		report := NewReport(CreateMultiLangTitle("ToDelete"), WithAuthor("Deleter"))
 		fields, err := schema.Mapper().ToFieldValues(ctx, report)
 		require.NoError(t, err)
 		created, err := rep.Create(ctx, fields)
@@ -167,7 +166,7 @@ func TestReportRepository_AllMethods(t *testing.T) {
 	})
 
 	t.Run("Offset beyond result", func(t *testing.T) {
-		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport("Out of bounds"))
+		fields, err := schema.Mapper().ToFieldValues(ctx, NewReport(CreateMultiLangTitle("Out of bounds")))
 		require.NoError(t, err)
 		_, err = rep.Create(ctx, fields)
 		require.NoError(t, err)

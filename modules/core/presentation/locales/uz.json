@@ -19,12 +19,15 @@
     "required": "Bu maydon to'ldirilishi shart",
     "emptySelect": "Qiymatni tanlang",
     "email": "Email formati noto'g'ri",
+    "min": "{{.Field}} minimal qiymatdan kam bo'lmasligi kerak",
+    "max": "{{.Field}} maksimal qiymatdan oshmasligi kerak",
     "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
     "custom": "{{.Field}}: {{.Error}}",
     "uuid": "Haqiqiy UUID bo'lishi kerak",
     "gte": "{0} dan katta yoki teng bo'lishi kerak",
     "len": "Uzunligi {0} ga teng bo'lishi kerak",
-    "gt": "{0} dan katta bo'lishi kerak"
+    "gt": "{0} dan katta bo'lishi kerak",
+    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak."
   },
   "Import": {
     "Error": {
@@ -39,7 +42,8 @@
       "Ereyesterday": "Ikki kun oldin",
       "ThisWeek": "Shu hafta",
       "LastWeek": "O'tgan hafta",
-      "ThisMonth": "Shu oy"
+      "ThisMonth": "Shu oy",
+      "LastMonth": "O'tgan oy"
     }
   },
   "Scaffold": {
@@ -58,8 +62,6 @@
     "NothingFound": "Hech narsa topilmadi",
     "Actions": {
       "AddUser": "Foydalanuvchi qo'shish",
-      "AddExpense": "Xarajat qo'shish",
-      "AddPayment": "To'lov qo'shish",
       "AddAccount": "Hisob qo'shish"
     }
   },
@@ -74,14 +76,6 @@
     "user": "Foydalanuvchi",
     "role": "Rol",
     "group": "Guruhlar",
-    "payment": "To'lov",
-    "expense": "Xarajat",
-    "expense_category": "Xarajat toifasi",
-    "product": "Mahsulot",
-    "unit": "O'lchov birligi",
-    "position": "Lavozim",
-    "order": "Buyurtma",
-    "inventory": "Inventar",
     "upload": "Yuklash"
   },
   "Permissions": {
@@ -109,69 +103,9 @@
       "Update": "Hisobni tahrirlash",
       "Delete": "Hisobni o'chirish"
     },
-    "Project": {
-      "Create": "Loyiha yaratish",
-      "Read": "Loyihani ko'rish",
-      "Update": "Loyihani tahrirlash",
-      "Delete": "Loyihani o'chirish"
-    },
-    "Stage": {
-      "Create": "Bosqich yaratish",
-      "Read": "Bosqichni ko'rish",
-      "Update": "Bosqichni tahrirlash",
-      "Delete": "Bosqichni o'chirish"
-    },
     "Settings": {
       "Update": "Sozlamalarni tahrirlash",
       "Read": "Sozlamalarni ko'rish"
-    },
-    "Payment": {
-      "Create": "To'lov yaratish",
-      "Read": "To'lovni ko'rish",
-      "Update": "To'lovni tahrirlash",
-      "Delete": "To'lovni o'chirish"
-    },
-    "Expense": {
-      "Create": "Xarajat yaratish",
-      "Read": "Xarajatni ko'rish",
-      "Update": "Xarajatni tahrirlash",
-      "Delete": "Xarajatni o'chirish"
-    },
-    "ExpenseCategory": {
-      "Create": "Xarajat toifasini yaratish",
-      "Read": "Xarajat toifasini ko'rish",
-      "Update": "Xarajat toifasini tahrirlash",
-      "Delete": "Xarajat toifasini o'chirish"
-    },
-    "Product": {
-      "Create": "Mahsulot yaratish",
-      "Read": "Mahsulotni ko'rish",
-      "Update": "Mahsulotni tahrirlash",
-      "Delete": "Mahsulotni o'chirish"
-    },
-    "Unit": {
-      "Create": "O'lchov birligi yaratish",
-      "Read": "O'lchov birligini ko'rish",
-      "Update": "O'lchov birligini tahrirlash",
-      "Delete": "O'lchov birligini o'chirish"
-    },
-    "Position": {
-      "Create": "Lavozim yaratish",
-      "Read": "Lavozimni ko'rish",
-      "Update": "Lavozimni tahrirlash",
-      "Delete": "Lavozimni o'chirish"
-    },
-    "Order": {
-      "Create": "Buyurtma yaratish",
-      "Read": "Buyurtmani ko'rish",
-      "Update": "Buyurtmani tahrirlash",
-      "Delete": "Buyurtmani o'chirish"
-    },
-    "Inventory": {
-      "Create": "Inventar yaratish",
-      "Read": "Inventarni ko'rish",
-      "Update": "Inventarni tahrirlash",
-      "Delete": "Inventarni o'chirish"
     },
     "Upload": {
       "Create": "Yuklash yaratish",
@@ -452,6 +386,7 @@
   "No": "Yo'q",
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Export": {
+    "Title": "Eksport",
     "ToExcel": "Excel ga eksport",
     "ToCSV": "CSV ga eksport",
     "ToJSON": "JSON ga eksport",
@@ -665,5 +600,13 @@
     "NoDataTitle": "Ma'lumot mavjud emas",
     "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
     "Categories": "Toifalar"
+  },
+  "multilang": {
+    "empty": "—",
+    "no_translations": "Tarjimalar mavjud emas",
+    "add_language": "+ Til qo'shish",
+    "remove_language": "Bu tilni o'chirish",
+    "locale_placeholder": "uz",
+    "text_placeholder": "Bu tilda matn kiriting"
   }
 }

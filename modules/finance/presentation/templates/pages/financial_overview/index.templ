@@ -1,0 +1,70 @@
+package financial_overview
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type IndexPageProps struct {
+	ActiveTab string
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("FinancialOverview.Meta.Title")},
+	}) {
+		<div class="m-6">
+			<h1 class="text-2xl font-medium mb-5">
+				{ pageCtx.T("NavigationLinks.FinancialOverview") }
+			</h1>
+			@tab.Root(tab.Props{
+				DefaultValue: props.ActiveTab,
+				Class:        "w-full",
+			}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Link("/finance/overview?tab=transactions", props.ActiveTab == "transactions") {
+						{ pageCtx.T("NavigationLinks.Transactions") }
+					}
+					@tab.Link("/finance/overview?tab=payments", props.ActiveTab == "payments") {
+						{ pageCtx.T("NavigationLinks.Payments") }
+					}
+					@tab.Link("/finance/overview?tab=expenses", props.ActiveTab == "expenses") {
+						{ pageCtx.T("NavigationLinks.Expenses") }
+					}
+				}
+				@tab.Content("transactions") {
+					<div
+						class="mt-5"
+						hx-get="/finance/transactions?embedded=true"
+						hx-trigger="load"
+						hx-swap="innerHTML"
+					>
+						<!-- Content will be loaded via HTMX -->
+					</div>
+				}
+				@tab.Content("payments") {
+					<div
+						class="mt-5"
+						hx-get="/finance/payments?embedded=true"
+						hx-trigger="load"
+						hx-swap="innerHTML"
+					>
+						<!-- Content will be loaded via HTMX -->
+					</div>
+				}
+				@tab.Content("expenses") {
+					<div
+						class="mt-5"
+						hx-get="/finance/expenses?embedded=true"
+						hx-trigger="load"
+						hx-swap="innerHTML"
+					>
+						<!-- Content will be loaded via HTMX -->
+					</div>
+				}
+			}
+		</div>
+	}
+}

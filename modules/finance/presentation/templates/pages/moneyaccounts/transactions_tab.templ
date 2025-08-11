@@ -1,0 +1,114 @@
+package moneyaccounts
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type TransactionsTabProps struct {
+	AccountID    string
+	Transactions []*viewmodels.Transaction
+}
+
+templ TransactionsTab(props *TransactionsTabProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex-1 p-6">
+		if len(props.Transactions) == 0 {
+			<div class="text-center py-12">
+				<div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+					@icons.Receipt(icons.Props{Size: "32", Class: "text-gray-400"})
+				</div>
+				<h3 class="text-lg font-medium text-gray-900 mb-1">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactions") }</h3>
+				<p class="text-gray-500">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactionsDescription") }</p>
+			</div>
+		} else {
+			<div class="space-y-1">
+				for _, transaction := range props.Transactions {
+					@transactionListItem(transaction, pageCtx)
+				}
+			</div>
+			if len(props.Transactions) >= 10 {
+				<div class="pt-4 text-center">
+					<a
+						href={ templ.URL(fmt.Sprintf("/finance/transactions?account=%s", props.AccountID)) }
+						class="text-blue-600 hover:text-blue-800 text-sm font-medium"
+					>
+						{ pageCtx.T("MoneyAccounts.Transactions.ViewAll") }
+					</a>
+				</div>
+			}
+		}
+	</div>
+}
+
+templ transactionListItem(transaction *viewmodels.Transaction, pageCtx any) {
+	<div
+		class="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow cursor-pointer"
+		hx-get={ fmt.Sprintf("/finance/transactions/%s/drawer", transaction.ID) }
+		hx-target="#view-drawer"
+		hx-swap="innerHTML"
+	>
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-3 flex-1">
+				<div class="flex-shrink-0">
+					@components.TransactionTypeBadge(transaction.TransactionType)
+				</div>
+				<div class="flex-1 min-w-0">
+					<div class="flex items-center justify-between">
+						<div class="flex-1">
+							<p class="text-sm font-medium text-gray-900 truncate">
+								if transaction.Comment != "" {
+									{ transaction.Comment }
+								} else {
+									{ getTransactionLabel(transaction) }
+								}
+							</p>
+							<p class="text-xs text-gray-600">
+								{ transaction.TransactionDate.Format("Jan 2, 2006 3:04 PM") }
+							</p>
+						</div>
+						<div class="text-right ml-3">
+							<p class="text-sm font-semibold text-gray-900">{ transaction.AmountWithCurrency }</p>
+							if transaction.Category != nil {
+								<p class="text-xs text-gray-500 truncate max-w-24">{ transaction.Category.Name }</p>
+							}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+func getTransactionLabel(transaction *viewmodels.Transaction) string {
+	switch transaction.TransactionType {
+	case "deposit":
+		if transaction.Counterparty != nil {
+			return "From " + transaction.Counterparty.Name
+		}
+		if transaction.DestinationAccount != nil {
+			return "Deposit to " + transaction.DestinationAccount.Name
+		}
+		return "Deposit"
+	case "withdrawal":
+		if transaction.Category != nil {
+			return transaction.Category.Name
+		}
+		if transaction.OriginAccount != nil {
+			return "From " + transaction.OriginAccount.Name
+		}
+		return "Withdrawal"
+	case "transfer":
+		if transaction.OriginAccount != nil && transaction.DestinationAccount != nil {
+			return "Transfer"
+		}
+		return "Transfer"
+	case "exchange":
+		return "Currency Exchange"
+	default:
+		return "Transaction"
+	}
+}
