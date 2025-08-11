@@ -73,43 +73,43 @@
     }
   },
   "Resources": {
-    "user": "User",
+    "user": "Users",
     "role": "Roles",
     "group": "Groups",
-    "upload": "Upload"
+    "upload": "Uploads"
   },
   "Permissions": {
     "User": {
       "Create": "Create user",
-      "Read": "Read user",
+      "Read": "View user",
       "Update": "Update user",
       "Delete": "Delete user"
     },
     "Role": {
       "Create": "Create role",
-      "Read": "Read role",
+      "Read": "View role",
       "Update": "Update role",
       "Delete": "Delete role"
     },
     "Group": {
       "Create": "Create group",
-      "Read": "Read group",
+      "Read": "View group",
       "Update": "Update group",
       "Delete": "Delete group"
     },
     "Account": {
       "Create": "Create account",
-      "Read": "Read account",
+      "Read": "View account",
       "Update": "Update account",
       "Delete": "Delete account"
     },
     "Settings": {
       "Update": "Update settings",
-      "Read": "Read settings"
+      "Read": "View settings"
     },
     "Upload": {
       "Create": "Create upload",
-      "Read": "Read upload",
+      "Read": "View upload",
       "Update": "Update upload",
       "Delete": "Delete upload"
     }
@@ -440,7 +440,7 @@
     }
   },
   "Modules": {
-    "Core": "Core",
+    "Core": "Administration",
     "Finance": "Finance",
     "Projects": "Projects",
     "Warehouse": "Warehouse",

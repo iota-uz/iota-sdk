@@ -1,9 +1,9 @@
 {
   "Resources": {
-    "payment": "To'lov",
-    "expense": "Xarajat",
-    "expense_category": "Xarajat toifasi",
-    "debt": "Qarz"
+    "payment": "To'lovlar",
+    "expense": "Xarajatlar",
+    "expense_category": "Xarajat toifalari",
+    "debt": "Qarzlar"
   },
   "Permissions": {
     "Payment": {
