@@ -76,14 +76,30 @@ func (dto *UpdateRoleDTO) Ok(ctx context.Context) (map[string]string, bool) {
 	return errorMessages, len(errorMessages) == 0
 }
 
-func (dto *CreateRoleDTO) ToEntity(rbac rbac.RBAC) (role.Role, error) {
+// getPermissionByID looks up a permission by ID from the schema
+func getPermissionByID(schema *rbac.PermissionSchema, permID uuid.UUID) (*permission.Permission, error) {
+	if schema == nil {
+		return nil, fmt.Errorf("permission schema not available")
+	}
+
+	for _, set := range schema.Sets {
+		for _, perm := range set.Permissions {
+			if perm.ID == permID {
+				return perm, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("permission with ID %s not found", permID)
+}
+
+func (dto *CreateRoleDTO) ToEntity(schema *rbac.PermissionSchema) (role.Role, error) {
 	perms := make([]*permission.Permission, 0, len(dto.Permissions))
 	for permID := range dto.Permissions {
 		permUUID, err := uuid.Parse(permID)
 		if err != nil {
 			return nil, err
 		}
-		perm, err := rbac.Get(permUUID)
+		perm, err := getPermissionByID(schema, permUUID)
 		if err != nil {
 			return nil, err
 		}
@@ -98,14 +114,14 @@ func (dto *CreateRoleDTO) ToEntity(rbac rbac.RBAC) (role.Role, error) {
 	return role.New(dto.Name, options...), nil
 }
 
-func (dto *UpdateRoleDTO) Apply(roleEntity role.Role, rbac rbac.RBAC) (role.Role, error) {
+func (dto *UpdateRoleDTO) Apply(roleEntity role.Role, schema *rbac.PermissionSchema) (role.Role, error) {
 	perms := make([]*permission.Permission, 0, len(dto.Permissions))
 	for permID := range dto.Permissions {
 		permUUID, err := uuid.Parse(permID)
 		if err != nil {
 			return nil, err
 		}
-		perm, err := rbac.Get(permUUID)
+		perm, err := getPermissionByID(schema, permUUID)
 		if err != nil {
 			return nil, err
 		}

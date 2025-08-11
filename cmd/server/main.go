@@ -15,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
 
@@ -56,11 +55,10 @@ func main() {
 	}
 	bundle := application.LoadBundle()
 	app := application.New(&application.ApplicationOptions{
-		Pool:             pool,
-		Bundle:           bundle,
-		EventBus:         eventbus.NewEventPublisher(logger),
-		Logger:           logger,
-		PermissionSchema: defaults.PermissionSchema(),
+		Pool:     pool,
+		Bundle:   bundle,
+		EventBus: eventbus.NewEventPublisher(logger),
+		Logger:   logger,
 		Huber: application.NewHub(&application.HuberOptions{
 			Pool:           pool,
 			Logger:         logger,

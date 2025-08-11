@@ -20,11 +20,11 @@ import (
 )
 
 type CreateFormProps struct {
-	User             viewmodels.User
-	Roles            []*viewmodels.Role
-	Groups           []*viewmodels.Group
-	PermissionGroups []*viewmodels.PermissionGroup
-	Errors           map[string]string
+	User                     viewmodels.User
+	Roles                    []*viewmodels.Role
+	Groups                   []*viewmodels.Group
+	ResourcePermissionGroups []*viewmodels.ResourcePermissionGroup
+	Errors                   map[string]string
 }
 
 func CreateForm(props *CreateFormProps) templ.Component {

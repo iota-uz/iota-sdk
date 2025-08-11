@@ -73,18 +73,33 @@ type RBAC interface {
 	Get(id uuid.UUID) (*permission.Permission, error)
 	Permissions() []*permission.Permission
 	PermissionsByResource() map[string][]*permission.Permission
+	// Deprecated: Use permission schema directly in UI controllers
 	PermissionSets() []PermissionSet
+	// Deprecated: Use permission schema directly in UI controllers
 	Schema() *PermissionSchema
 }
 
 type rbac struct {
 	permissions []*permission.Permission
-	schema      *PermissionSchema
+	schema      *PermissionSchema // Optional, for backward compatibility
 }
 
 var _ RBAC = (*rbac)(nil)
 
-func NewRbac(schema *PermissionSchema) RBAC {
+// NewRbac creates a new RBAC instance with just permissions (no schema required)
+func NewRbac(permissions []*permission.Permission) RBAC {
+	if permissions == nil {
+		permissions = []*permission.Permission{}
+	}
+	return &rbac{
+		permissions: permissions,
+		schema:      nil,
+	}
+}
+
+// NewRbacWithSchema creates a new RBAC instance with a schema (for backward compatibility)
+// Deprecated: Use NewRbac with permissions directly
+func NewRbacWithSchema(schema *PermissionSchema) RBAC {
 	if schema == nil {
 		panic("RBAC schema is required")
 	}
@@ -141,5 +156,8 @@ func (r *rbac) Schema() *PermissionSchema {
 }
 
 func (r *rbac) PermissionSets() []PermissionSet {
+	if r.schema == nil {
+		return []PermissionSet{}
+	}
 	return r.schema.Sets
 }

@@ -19,7 +19,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -87,12 +86,11 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 // ---- Application implementation ----
 
 type ApplicationOptions struct {
-	Pool             *pgxpool.Pool
-	EventBus         eventbus.EventBus
-	Logger           *logrus.Logger
-	Bundle           *i18n.Bundle
-	Huber            Huber
-	PermissionSchema *rbac.PermissionSchema
+	Pool     *pgxpool.Pool
+	EventBus eventbus.EventBus
+	Logger   *logrus.Logger
+	Bundle   *i18n.Bundle
+	Huber    Huber
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -103,10 +101,6 @@ func LoadBundle() *i18n.Bundle {
 }
 
 func New(opts *ApplicationOptions) Application {
-	if opts.PermissionSchema == nil {
-		panic("PermissionSchema is required in ApplicationOptions")
-	}
-
 	sl := spotlight.New()
 	quickLinks := &spotlight.QuickLinks{}
 	sl.Register(quickLinks)
@@ -114,7 +108,6 @@ func New(opts *ApplicationOptions) Application {
 	return &application{
 		pool:           opts.Pool,
 		eventPublisher: opts.EventBus,
-		rbac:           rbac.NewRbac(opts.PermissionSchema),
 		websocket:      opts.Huber,
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
@@ -130,7 +123,6 @@ type application struct {
 	pool           *pgxpool.Pool
 	eventPublisher eventbus.EventBus
 	websocket      Huber
-	rbac           rbac.RBAC
 	services       map[reflect.Type]interface{}
 	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
@@ -162,10 +154,6 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 
 func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
-}
-
-func (app *application) RBAC() rbac.RBAC {
-	return app.rbac
 }
 
 func (app *application) Middleware() []mux.MiddlewareFunc {
