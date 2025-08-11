@@ -1,10 +1,32 @@
 package roles
 
 import (
+	"encoding/json"
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/iota-uz/utils/random"
+	"strings"
 )
+
+func toJSON(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Return empty object on error to prevent frontend issues
+		return "{}"
+	}
+	return string(b)
+}
+
+func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
+	ids := make([]string, 0, len(permissions))
+	for _, p := range permissions {
+		ids = append(ids, p.ID)
+	}
+	return ids
+}
 
 type SharedProps struct {
 	*types.PageContext
@@ -27,5 +49,167 @@ templ Permission(props SharedProps) {
 			Attrs:        props.Attrs,
 			Error:        props.Error,
 		})
+	</div>
+}
+
+type PermissionSetProps struct {
+	*types.PageContext
+	Set          *viewmodels.PermissionSetItem
+	ResourceName string
+	SetIndex     int
+}
+
+templ PermissionSet(props PermissionSetProps) {
+	{{ setId := fmt.Sprintf("%s-set-%d", props.ResourceName, props.SetIndex) }}
+	{{ toggleId := fmt.Sprintf("toggle-%s", setId) }}
+	{{
+		// Check if label looks like a permission name (contains a dot)
+		label := props.Set.Label
+		if strings.Contains(label, ".") {
+			// It's a permission name like "Client.Create", translate it
+			label = props.PageContext.T(fmt.Sprintf("Permissions.%s", label))
+		}
+	}}
+	// For single permission sets, render a simple toggle
+	if len(props.Set.Permissions) == 1 {
+		<div class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3">
+			@input.Switch(&input.SwitchProps{
+				ID:           toggleId,
+				Label:        label,
+				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
+				Checked:      props.Set.Checked,
+				Attrs: templ.Attributes{
+					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
+					"form": "save-form",
+				},
+			})
+			if props.Set.Description != "" {
+				<p class="text-sm text-gray-600 mt-1">{ props.PageContext.T(props.Set.Description) }</p>
+			}
+		</div>
+	} else {
+		// For multiple permissions, render with accordion
+		<div
+			class="border border-gray-400 bg-surface-100 rounded-md"
+			x-data={ fmt.Sprintf("createPermissionSetData(%t, %t, %s, '%s')", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions)), setId) }
+			x-init="init()"
+			@change="updateState()"
+			data-set-id={ setId }
+		>
+			<div class="p-3">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-3 flex-1">
+						<button type="button" class="flex items-center justify-between w-full" @click="toggleAll()">
+							<span class="text-sm">{ label }</span>
+							{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
+							{{if props.Set.Checked {
+	toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
+}
+							}}
+							<div id={ fmt.Sprintf("toggle-visual-%s", setId) } class={ fmt.Sprintf("relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all %s", toggleClasses) }></div>
+						</button>
+					</div>
+					<button
+						type="button"
+						class="text-gray-500 hover:text-gray-700 p-1"
+						@click="expanded = !expanded"
+					>
+						@icons.CaretDown(icons.Props{
+							Size:       "20",
+							Class:      "transition-transform",
+							Attributes: templ.Attributes{"x-bind:class": "{'rotate-180': expanded}"},
+						})
+					</button>
+				</div>
+				if props.Set.Description != "" {
+					<p class="text-sm text-gray-600 mt-1">{ props.PageContext.T(props.Set.Description) }</p>
+				}
+			</div>
+			<div
+				x-show="expanded"
+				x-collapse
+				class="border-t border-gray-300"
+			>
+				<div class="p-3 space-y-2">
+					for _, perm := range props.Set.Permissions {
+						<div class="child-permission pl-4">
+							@input.Switch(&input.SwitchProps{
+								ID:           fmt.Sprintf("%s-perm-%s", setId, perm.ID),
+								Label:        props.PageContext.T(fmt.Sprintf("Permissions.%s", perm.Name)),
+								LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
+								Checked:      perm.Checked,
+								Attrs: templ.Attributes{
+									"name":               fmt.Sprintf("Permissions[%s]", perm.ID),
+									"form":               "save-form",
+									"@change":            "updateState()",
+									"data-permission-id": perm.ID,
+								},
+							})
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+type ResourceGroupProps struct {
+	*types.PageContext
+	ResourceGroup *viewmodels.ResourcePermissionGroup
+	GroupIndex    int
+}
+
+templ ResourceGroup(props ResourceGroupProps) {
+	// Calculate if all permissions in this resource are checked
+	{{
+		allChecked := true
+		someChecked := false
+		totalPerms := 0
+		checkedPerms := 0
+		permissionIds := []string{}
+
+		for _, set := range props.ResourceGroup.PermissionSets {
+			for _, perm := range set.Permissions {
+				totalPerms++
+				if perm.Checked {
+					checkedPerms++
+				}
+				permissionIds = append(permissionIds, perm.ID)
+			}
+		}
+
+		allChecked = totalPerms > 0 && checkedPerms == totalPerms
+		someChecked = checkedPerms > 0 && checkedPerms < totalPerms
+	}}
+	<div
+		class="space-y-3"
+		x-data={ fmt.Sprintf(`createPermissionFormData(%t, %t, %s)`, allChecked, someChecked, toJSON(permissionIds)) }
+		x-init="init()"
+		@change="updateState()"
+	>
+		<div class="flex items-center mb-2">
+			<button type="button" class="flex items-center justify-between w-full font-medium text-lg cursor-pointer" @click="toggleAll()">
+				<span>{ props.PageContext.T(fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)) }</span>
+				{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
+				{{if allChecked {
+	toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
+}
+				}}
+				<div
+					id={ fmt.Sprintf("toggle-visual-%d", props.GroupIndex) }
+					class={ fmt.Sprintf("relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all %s", toggleClasses) }
+				></div>
+			</button>
+		</div>
+		<div class="space-y-2">
+			for i, set := range props.ResourceGroup.PermissionSets {
+				@PermissionSet(PermissionSetProps{
+					PageContext:  props.PageContext,
+					Set:          set,
+					ResourceName: props.ResourceGroup.Resource,
+					SetIndex:     i,
+				})
+			}
+		</div>
 	</div>
 }

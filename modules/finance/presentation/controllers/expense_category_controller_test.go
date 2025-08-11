@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +28,9 @@ func TestExpenseCategoryController_List_Success(t *testing.T) {
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -71,7 +74,9 @@ func TestExpenseCategoryController_List_HTMX_Request(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -102,7 +107,9 @@ func TestExpenseCategoryController_GetNewDrawer_Success(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -128,7 +135,9 @@ func TestExpenseCategoryController_Create_Success(t *testing.T) {
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -163,7 +172,9 @@ func TestExpenseCategoryController_Create_ValidationError(t *testing.T) {
 		permissions.ExpenseCategoryCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -199,7 +210,9 @@ func TestExpenseCategoryController_GetEditDrawer_Success(t *testing.T) {
 		permissions.ExpenseCategoryUpdate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -242,7 +255,9 @@ func TestExpenseCategoryController_GetEditDrawer_NotFound(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -264,7 +279,9 @@ func TestExpenseCategoryController_Update_Success(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -312,7 +329,9 @@ func TestExpenseCategoryController_Update_ValidationError(t *testing.T) {
 		permissions.ExpenseCategoryUpdate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -362,7 +381,9 @@ func TestExpenseCategoryController_Delete_Success(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -405,7 +426,9 @@ func TestExpenseCategoryController_Delete_NotFound(t *testing.T) {
 		permissions.ExpenseCategoryDelete,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -425,7 +448,9 @@ func TestExpenseCategoryController_InvalidUUID(t *testing.T) {
 		permissions.ExpenseCategoryRead,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

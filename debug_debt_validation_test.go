@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -66,7 +67,9 @@ func setupLocalizer(t *testing.T) context.Context {
 
 func TestDebugDebtValidation(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

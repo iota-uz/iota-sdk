@@ -1,39 +1,39 @@
 {
   "Resources": {
-    "product": "Product",
-    "unit": "Unit",
-    "position": "Position",
-    "order": "Order",
+    "product": "Products",
+    "unit": "Units",
+    "position": "Positions",
+    "order": "Orders",
     "inventory": "Inventory"
   },
   "Permissions": {
     "Product": {
       "Create": "Create product",
-      "Read": "Read product",
+      "Read": "View product",
       "Update": "Update product",
       "Delete": "Delete product"
     },
     "Unit": {
       "Create": "Create unit",
-      "Read": "Read unit",
+      "Read": "View unit",
       "Update": "Update unit",
       "Delete": "Delete unit"
     },
     "Position": {
       "Create": "Create position",
-      "Read": "Read position",
+      "Read": "View position",
       "Update": "Update position",
       "Delete": "Delete position"
     },
     "Order": {
       "Create": "Create order",
-      "Read": "Read order",
+      "Read": "View order",
       "Update": "Update order",
       "Delete": "Delete order"
     },
     "Inventory": {
       "Create": "Create inventory",
-      "Read": "Read inventory",
+      "Read": "View inventory",
       "Update": "Update inventory",
       "Delete": "Delete inventory"
     }
