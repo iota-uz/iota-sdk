@@ -56,12 +56,8 @@ func BuildResourcePermissionGroups(
 		allChecked := checkedCount == len(set.Permissions) && len(set.Permissions) > 0
 		partial := checkedCount > 0 && checkedCount < len(set.Permissions)
 
-		// For single-permission sets, use the permission name as the label
+		// Use the set label as-is - it should be a proper translation key
 		label := set.Label
-		if len(set.Permissions) == 1 && set.Permissions[0] != nil {
-			// Use the permission name which will be translated in the template
-			label = set.Permissions[0].Name
-		}
 
 		permissionSet := &viewmodels.PermissionSetItem{
 			Key:         set.Key,
@@ -143,12 +139,8 @@ func BuildModulePermissionGroups(
 		allChecked := checkedCount == len(set.Permissions) && len(set.Permissions) > 0
 		partial := checkedCount > 0 && checkedCount < len(set.Permissions)
 
-		// For single-permission sets, use the permission name as the label
+		// Use the set label as-is - it should be a proper translation key
 		label := set.Label
-		if len(set.Permissions) == 1 && set.Permissions[0] != nil {
-			// Use the permission name which will be translated in the template
-			label = set.Permissions[0].Name
-		}
 
 		permissionSet := &viewmodels.PermissionSetItem{
 			Key:         set.Key,

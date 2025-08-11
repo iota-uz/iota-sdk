@@ -80,38 +80,38 @@
   },
   "Permissions": {
     "User": {
-      "Create": "Create user",
-      "Read": "View user",
-      "Update": "Update user",
-      "Delete": "Delete user"
+      "Create": "Create users",
+      "Read": "View users",
+      "Update": "Update users",
+      "Delete": "Delete users"
     },
     "Role": {
-      "Create": "Create role",
-      "Read": "View role",
-      "Update": "Update role",
-      "Delete": "Delete role"
+      "Create": "Create roles",
+      "Read": "View roles",
+      "Update": "Update roles",
+      "Delete": "Delete roles"
     },
     "Group": {
-      "Create": "Create group",
-      "Read": "View group",
-      "Update": "Update group",
-      "Delete": "Delete group"
+      "Create": "Create groups",
+      "Read": "View groups",
+      "Update": "Update groups",
+      "Delete": "Delete groups"
     },
     "Account": {
-      "Create": "Create account",
-      "Read": "View account",
-      "Update": "Update account",
-      "Delete": "Delete account"
+      "Create": "Create accounts",
+      "Read": "View accounts",
+      "Update": "Update accounts",
+      "Delete": "Delete accounts"
     },
     "Settings": {
       "Update": "Update settings",
       "Read": "View settings"
     },
     "Upload": {
-      "Create": "Create upload",
-      "Read": "View upload",
-      "Update": "Update upload",
-      "Delete": "Delete upload"
+      "Create": "Create uploads",
+      "Read": "View uploads",
+      "Update": "Update uploads",
+      "Delete": "Delete uploads"
     }
   },
   "NavigationLinks": {
@@ -393,50 +393,154 @@
     "ToJSON": "Export to JSON",
     "ToTXT": "Export to TXT"
   },
-  "PermissionSetDescriptions": {
+  "PermissionSets": {
     "Core": {
-      "UserView": "View user information only",
-      "UserManage": "Full user management capabilities",
-      "RoleView": "View role information only", 
-      "RoleManage": "Full role and permission management",
-      "UploadView": "View uploaded files only",
-      "UploadManage": "Full file upload management"
+      "UserView": {
+        "Label": "View Users",
+        "_Description": "View user information only"
+      },
+      "UserManage": {
+        "Label": "Manage Users", 
+        "_Description": "Full user management capabilities"
+      },
+      "RoleView": {
+        "Label": "View Roles",
+        "_Description": "View role information only"
+      },
+      "RoleManage": {
+        "Label": "Manage Roles",
+        "_Description": "Full role and permission management"
+      },
+      "GroupView": {
+        "Label": "View Groups",
+        "_Description": "View group information only"
+      },
+      "GroupManage": {
+        "Label": "Manage Groups",
+        "_Description": "Full group management capabilities"
+      },
+      "UploadView": {
+        "Label": "View Uploads",
+        "_Description": "View uploaded files only"
+      },
+      "UploadManage": {
+        "Label": "Manage Uploads",
+        "_Description": "Full file upload management"
+      }
     },
     "Finance": {
-      "PaymentView": "View payment information only",
-      "PaymentManage": "Full payment management capabilities",
-      "ExpenseView": "View expense information only", 
-      "ExpenseManage": "Full expense management capabilities",
-      "ExpenseCategoryView": "View expense category information only",
-      "ExpenseCategoryManage": "Full expense category management capabilities",
-      "DebtView": "View debt information only",
-      "DebtManage": "Full debt management capabilities"
+      "PaymentView": {
+        "Label": "View Payments",
+        "_Description": "View payment information only"
+      },
+      "PaymentManage": {
+        "Label": "Manage Payments",
+        "_Description": "Full payment management capabilities"
+      },
+      "ExpenseView": {
+        "Label": "View Expenses",
+        "_Description": "View expense information only"
+      },
+      "ExpenseManage": {
+        "Label": "Manage Expenses",
+        "_Description": "Full expense management capabilities"
+      },
+      "ExpenseCategoryView": {
+        "Label": "View Expense Categories",
+        "_Description": "View expense category information only"
+      },
+      "ExpenseCategoryManage": {
+        "Label": "Manage Expense Categories",
+        "_Description": "Full expense category management capabilities"
+      },
+      "DebtView": {
+        "Label": "View Debts",
+        "_Description": "View debt information only"
+      },
+      "DebtManage": {
+        "Label": "Manage Debts",
+        "_Description": "Full debt management capabilities"
+      }
     },
     "Projects": {
-      "ProjectView": "View project information only",
-      "ProjectManage": "Full project management capabilities",
-      "ProjectStageView": "View project stage information only",
-      "ProjectStageManage": "Full project stage management capabilities"
+      "ProjectView": {
+        "Label": "View Projects",
+        "_Description": "View project information only"
+      },
+      "ProjectManage": {
+        "Label": "Manage Projects",
+        "_Description": "Full project management capabilities"
+      },
+      "ProjectStageView": {
+        "Label": "View Project Stages",
+        "_Description": "View project stage information only"
+      },
+      "ProjectStageManage": {
+        "Label": "Manage Project Stages",
+        "_Description": "Full project stage management capabilities"
+      }
     },
     "Warehouse": {
-      "ProductView": "View product information only",
-      "ProductManage": "Full product management capabilities",
-      "PositionView": "View position information only",
-      "PositionManage": "Full position management capabilities",
-      "OrderView": "View order information only", 
-      "OrderManage": "Full order management capabilities",
-      "UnitView": "View unit information only",
-      "UnitManage": "Full unit management capabilities",
-      "InventoryView": "View inventory information only",
-      "InventoryManage": "Full inventory management capabilities"
+      "ProductView": {
+        "Label": "View Products",
+        "_Description": "View product information only"
+      },
+      "ProductManage": {
+        "Label": "Manage Products",
+        "_Description": "Full product management capabilities"
+      },
+      "PositionView": {
+        "Label": "View Positions",
+        "_Description": "View position information only"
+      },
+      "PositionManage": {
+        "Label": "Manage Positions",
+        "_Description": "Full position management capabilities"
+      },
+      "OrderView": {
+        "Label": "View Orders",
+        "_Description": "View order information only"
+      },
+      "OrderManage": {
+        "Label": "Manage Orders",
+        "_Description": "Full order management capabilities"
+      },
+      "UnitView": {
+        "Label": "View Units",
+        "_Description": "View unit information only"
+      },
+      "UnitManage": {
+        "Label": "Manage Units",
+        "_Description": "Full unit management capabilities"
+      },
+      "InventoryView": {
+        "Label": "View Inventory",
+        "_Description": "View inventory information only"
+      },
+      "InventoryManage": {
+        "Label": "Manage Inventory",
+        "_Description": "Full inventory management capabilities"
+      }
     },
     "CRM": {
-      "ClientView": "View client information only",
-      "ClientManage": "Full client management capabilities"
+      "ClientView": {
+        "Label": "View Clients",
+        "_Description": "View client information only"
+      },
+      "ClientManage": {
+        "Label": "Manage Clients",
+        "_Description": "Full client management capabilities"
+      }
     },
     "HRM": {
-      "EmployeeView": "View employee information only",
-      "EmployeeManage": "Full employee management capabilities"
+      "EmployeeView": {
+        "Label": "View Employees",
+        "_Description": "View employee information only"
+      },
+      "EmployeeManage": {
+        "Label": "Manage Employees",
+        "_Description": "Full employee management capabilities"
+      }
     }
   },
   "Modules": {

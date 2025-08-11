@@ -53,7 +53,6 @@ type Company struct {
 
 type Permission struct {
 	ID          string
-	TenantID    string
 	Name        string
 	Resource    string
 	Action      string

@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/iota-uz/utils/random"
-	"strings"
 )
 
 func toJSON(v interface{}) string {
@@ -62,14 +61,7 @@ type PermissionSetProps struct {
 templ PermissionSet(props PermissionSetProps) {
 	{{ setId := fmt.Sprintf("%s-set-%d", props.ResourceName, props.SetIndex) }}
 	{{ toggleId := fmt.Sprintf("toggle-%s", setId) }}
-	{{
-		// Check if label looks like a permission name (contains a dot)
-		label := props.Set.Label
-		if strings.Contains(label, ".") {
-			// It's a permission name like "Client.Create", translate it
-			label = props.PageContext.T(fmt.Sprintf("Permissions.%s", label))
-		}
-	}}
+	{{ label := props.PageContext.T(props.Set.Label) }}
 	// For single permission sets, render a simple toggle
 	if len(props.Set.Permissions) == 1 {
 		<div class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3">

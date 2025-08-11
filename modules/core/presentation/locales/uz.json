@@ -81,25 +81,25 @@
   "Permissions": {
     "User": {
       "Create": "Foydalanuvchi yaratish",
-      "Read": "Foydalanuvchini ko'rish",
+      "Read": "Foydalanuvchilarni ko'rish",
       "Update": "Foydalanuvchini tahrirlash",
       "Delete": "Foydalanuvchini o'chirish"
     },
     "Role": {
       "Create": "Rol yaratish",
-      "Read": "Rolni ko'rish",
+      "Read": "Rollarni ko'rish",
       "Update": "Rolni tahrirlash",
       "Delete": "Rolni o'chirish"
     },
     "Group": {
       "Create": "Guruh yaratish",
-      "Read": "Guruhni ko'rish",
+      "Read": "Guruhlarni ko'rish",
       "Update": "Guruhni tahrirlash",
       "Delete": "Guruhni o'chirish"
     },
     "Account": {
       "Create": "Hisob yaratish",
-      "Read": "Hisobni ko'rish",
+      "Read": "Hisoblarni ko'rish",
       "Update": "Hisobni tahrirlash",
       "Delete": "Hisobni o'chirish"
     },
@@ -109,7 +109,7 @@
     },
     "Upload": {
       "Create": "Yuklash yaratish",
-      "Read": "Yuklashni ko'rish",
+      "Read": "Yuklashlarni ko'rish",
       "Update": "Yuklashni tahrirlash",
       "Delete": "Yuklashni o'chirish"
     }
@@ -393,50 +393,154 @@
     "ToJSON": "JSON ga eksport",
     "ToTXT": "TXT ga eksport"
   },
-  "PermissionSetDescriptions": {
+  "PermissionSets": {
     "Core": {
-      "UserView": "Foydalanuvchi ma'lumotlarini faqat ko'rish",
-      "UserManage": "Foydalanuvchilarni to'liq boshqarish",
-      "RoleView": "Rollar ma'lumotlarini faqat ko'rish", 
-      "RoleManage": "Rollar va ruxsatlarni to'liq boshqarish",
-      "UploadView": "Yuklangan fayllarni faqat ko'rish",
-      "UploadManage": "Fayl yuklashni to'liq boshqarish"
+      "UserView": {
+        "Label": "Foydalanuvchilarni ko'rish",
+        "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
+      },
+      "UserManage": {
+        "Label": "Foydalanuvchilarni boshqarish",
+        "_Description": "Foydalanuvchilarni to'liq boshqarish"
+      },
+      "RoleView": {
+        "Label": "Rollarni ko'rish",
+        "_Description": "Rollar ma'lumotlarini faqat ko'rish"
+      },
+      "RoleManage": {
+        "Label": "Rollarni boshqarish",
+        "_Description": "Rollar va ruxsatlarni to'liq boshqarish"
+      },
+      "GroupView": {
+        "Label": "Guruhlarni ko'rish",
+        "_Description": "Guruhlar ma'lumotlarini faqat ko'rish"
+      },
+      "GroupManage": {
+        "Label": "Guruhlarni boshqarish",
+        "_Description": "Guruhlarni to'liq boshqarish"
+      },
+      "UploadView": {
+        "Label": "Fayllarni ko'rish",
+        "_Description": "Yuklangan fayllarni faqat ko'rish"
+      },
+      "UploadManage": {
+        "Label": "Fayllarni boshqarish",
+        "_Description": "Fayl yuklashni to'liq boshqarish"
+      }
     },
     "Finance": {
-      "PaymentView": "To'lovlar ma'lumotlarini faqat ko'rish",
-      "PaymentManage": "To'lovlarni to'liq boshqarish",
-      "ExpenseView": "Xarajatlar ma'lumotlarini faqat ko'rish", 
-      "ExpenseManage": "Xarajatlarni to'liq boshqarish",
-      "ExpenseCategoryView": "Xarajat toifalari ma'lumotlarini faqat ko'rish",
-      "ExpenseCategoryManage": "Xarajat toifalarini to'liq boshqarish",
-      "DebtView": "Qarzlar ma'lumotlarini faqat ko'rish",
-      "DebtManage": "Qarzlarni to'liq boshqarish"
+      "PaymentView": {
+        "Label": "To'lovlarni ko'rish",
+        "_Description": "To'lovlar ma'lumotlarini faqat ko'rish"
+      },
+      "PaymentManage": {
+        "Label": "To'lovlarni boshqarish",
+        "_Description": "To'lovlarni to'liq boshqarish"
+      },
+      "ExpenseView": {
+        "Label": "Xarajatlarni ko'rish",
+        "_Description": "Xarajatlar ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseManage": {
+        "Label": "Xarajatlarni boshqarish",
+        "_Description": "Xarajatlarni to'liq boshqarish"
+      },
+      "ExpenseCategoryView": {
+        "Label": "Xarajat toifalarini ko'rish",
+        "_Description": "Xarajat toifalari ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseCategoryManage": {
+        "Label": "Xarajat toifalarini boshqarish",
+        "_Description": "Xarajat toifalarini to'liq boshqarish"
+      },
+      "DebtView": {
+        "Label": "Qarzlarni ko'rish",
+        "_Description": "Qarzlar ma'lumotlarini faqat ko'rish"
+      },
+      "DebtManage": {
+        "Label": "Qarzlarni boshqarish",
+        "_Description": "Qarzlarni to'liq boshqarish"
+      }
     },
     "Projects": {
-      "ProjectView": "Loyihalar ma'lumotlarini faqat ko'rish",
-      "ProjectManage": "Loyihalarni to'liq boshqarish",
-      "ProjectStageView": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish",
-      "ProjectStageManage": "Loyiha bosqichlarini to'liq boshqarish"
+      "ProjectView": {
+        "Label": "Loyihalarni ko'rish",
+        "_Description": "Loyihalar ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectManage": {
+        "Label": "Loyihalarni boshqarish",
+        "_Description": "Loyihalarni to'liq boshqarish"
+      },
+      "ProjectStageView": {
+        "Label": "Loyiha bosqichlarini ko'rish",
+        "_Description": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectStageManage": {
+        "Label": "Loyiha bosqichlarini boshqarish",
+        "_Description": "Loyiha bosqichlarini to'liq boshqarish"
+      }
     },
     "Warehouse": {
-      "ProductView": "Mahsulotlar ma'lumotlarini faqat ko'rish",
-      "ProductManage": "Mahsulotlarni to'liq boshqarish",
-      "PositionView": "Pozitsiyalar ma'lumotlarini faqat ko'rish",
-      "PositionManage": "Pozitsiyalarni to'liq boshqarish",
-      "OrderView": "Buyurtmalar ma'lumotlarini faqat ko'rish", 
-      "OrderManage": "Buyurtmalarni to'liq boshqarish",
-      "UnitView": "Birliklar ma'lumotlarini faqat ko'rish",
-      "UnitManage": "Birliklarni to'liq boshqarish",
-      "InventoryView": "Inventar ma'lumotlarini faqat ko'rish",
-      "InventoryManage": "Inventarni to'liq boshqarish"
+      "ProductView": {
+        "Label": "Mahsulotlarni ko'rish",
+        "_Description": "Mahsulotlar ma'lumotlarini faqat ko'rish"
+      },
+      "ProductManage": {
+        "Label": "Mahsulotlarni boshqarish",
+        "_Description": "Mahsulotlarni to'liq boshqarish"
+      },
+      "PositionView": {
+        "Label": "Pozitsiyalarni ko'rish",
+        "_Description": "Pozitsiyalar ma'lumotlarini faqat ko'rish"
+      },
+      "PositionManage": {
+        "Label": "Pozitsiyalarni boshqarish",
+        "_Description": "Pozitsiyalarni to'liq boshqarish"
+      },
+      "OrderView": {
+        "Label": "Buyurtmalarni ko'rish",
+        "_Description": "Buyurtmalar ma'lumotlarini faqat ko'rish"
+      },
+      "OrderManage": {
+        "Label": "Buyurtmalarni boshqarish",
+        "_Description": "Buyurtmalarni to'liq boshqarish"
+      },
+      "UnitView": {
+        "Label": "Birliklarni ko'rish",
+        "_Description": "Birliklar ma'lumotlarini faqat ko'rish"
+      },
+      "UnitManage": {
+        "Label": "Birliklarni boshqarish",
+        "_Description": "Birliklarni to'liq boshqarish"
+      },
+      "InventoryView": {
+        "Label": "Inventarni ko'rish",
+        "_Description": "Inventar ma'lumotlarini faqat ko'rish"
+      },
+      "InventoryManage": {
+        "Label": "Inventarni boshqarish",
+        "_Description": "Inventarni to'liq boshqarish"
+      }
     },
     "CRM": {
-      "ClientView": "Mijozlar ma'lumotlarini faqat ko'rish",
-      "ClientManage": "Mijozlarni to'liq boshqarish"
+      "ClientView": {
+        "Label": "Mijozlarni ko'rish",
+        "_Description": "Mijozlar ma'lumotlarini faqat ko'rish"
+      },
+      "ClientManage": {
+        "Label": "Mijozlarni boshqarish",
+        "_Description": "Mijozlarni to'liq boshqarish"
+      }
     },
     "HRM": {
-      "EmployeeView": "Xodimlar ma'lumotlarini faqat ko'rish",
-      "EmployeeManage": "Xodimlarni to'liq boshqarish"
+      "EmployeeView": {
+        "Label": "Xodimlarni ko'rish",
+        "_Description": "Xodimlar ma'lumotlarini faqat ko'rish"
+      },
+      "EmployeeManage": {
+        "Label": "Xodimlarni boshqarish",
+        "_Description": "Xodimlarni to'liq boshqarish"
+      }
     }
   },
   "Modules": {
