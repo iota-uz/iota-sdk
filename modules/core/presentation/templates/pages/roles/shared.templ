@@ -91,9 +91,10 @@ templ PermissionSet(props PermissionSetProps) {
 		// For multiple permissions, render with accordion
 		<div
 			class="border border-gray-400 bg-surface-100 rounded-md"
-			x-data={ fmt.Sprintf("createPermissionSetData(%t, %t, %s)", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions))) }
+			x-data={ fmt.Sprintf("createPermissionSetData(%t, %t, %s, '%s')", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions)), setId) }
 			x-init="init()"
 			@change="updateState()"
+			data-set-id={ setId }
 		>
 			<div class="p-3">
 				<div class="flex items-center justify-between">
@@ -133,7 +134,7 @@ templ PermissionSet(props PermissionSetProps) {
 					for _, perm := range props.Set.Permissions {
 						<div class="child-permission pl-4">
 							@input.Switch(&input.SwitchProps{
-								ID:           fmt.Sprintf("perm-%s", perm.ID),
+								ID:           fmt.Sprintf("%s-perm-%s", setId, perm.ID),
 								Label:        props.PageContext.T(fmt.Sprintf("Permissions.%s", perm.Name)),
 								LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 								Checked:      perm.Checked,
@@ -141,6 +142,7 @@ templ PermissionSet(props PermissionSetProps) {
 									"name":    fmt.Sprintf("Permissions[%s]", perm.ID),
 									"form":    "save-form",
 									"@change": "updateState()",
+									"data-permission-id": perm.ID,
 								},
 							})
 						</div>

@@ -40,13 +40,12 @@ func NewRolesController(app application.Application, opts *RolesControllerOption
 	if opts == nil || opts.PermissionSchema == nil {
 		panic("RolesController requires PermissionSchema in options")
 	}
-	basePath := opts.BasePath
-	if basePath == "" {
-		basePath = "/roles"
+	if opts.BasePath == "" {
+		panic("RolesController requires explicit BasePath in options")
 	}
 	return &RolesController{
 		app:              app,
-		basePath:         basePath,
+		basePath:         opts.BasePath,
 		permissionSchema: opts.PermissionSchema,
 	}
 }
@@ -77,10 +76,10 @@ func (c *RolesController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 }
 
-func (c *RolesController) resourcePermissionGroups(
+func (c *RolesController) modulePermissionGroups(
 	selected ...*permission.Permission,
-) []*viewmodels.ResourcePermissionGroup {
-	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
+) []*viewmodels.ModulePermissionGroup {
+	return BuildModulePermissionGroups(c.permissionSchema, selected...)
 }
 
 func (c *RolesController) List(
@@ -155,9 +154,9 @@ func (c *RolesController) GetEdit(
 		return
 	}
 	props := &roles.EditFormProps{
-		Role:                     mappers.RoleToViewModel(roleEntity),
-		ResourcePermissionGroups: c.resourcePermissionGroups(roleEntity.Permissions()...),
-		Errors:                   map[string]string{},
+		Role:                   mappers.RoleToViewModel(roleEntity),
+		ModulePermissionGroups: c.modulePermissionGroups(roleEntity.Permissions()...),
+		Errors:                 map[string]string{},
 	}
 	templ.Handler(roles.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -212,9 +211,9 @@ func (c *RolesController) Update(
 
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		props := &roles.EditFormProps{
-			Role:                     mappers.RoleToViewModel(roleEntity),
-			ResourcePermissionGroups: c.resourcePermissionGroups(roleEntity.Permissions()...),
-			Errors:                   errors,
+			Role:                   mappers.RoleToViewModel(roleEntity),
+			ModulePermissionGroups: c.modulePermissionGroups(roleEntity.Permissions()...),
+			Errors:                 errors,
 		}
 		templ.Handler(roles.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -242,9 +241,9 @@ func (c *RolesController) GetNew(
 	logger *logrus.Entry,
 ) {
 	props := &roles.CreateFormProps{
-		Role:                     &viewmodels.Role{},
-		ResourcePermissionGroups: c.resourcePermissionGroups(),
-		Errors:                   map[string]string{},
+		Role:                   &viewmodels.Role{},
+		ModulePermissionGroups: c.modulePermissionGroups(),
+		Errors:                 map[string]string{},
 	}
 	templ.Handler(roles.New(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -270,9 +269,9 @@ func (c *RolesController) Create(
 			return
 		}
 		props := &roles.CreateFormProps{
-			Role:                     mappers.RoleToViewModel(roleEntity),
-			ResourcePermissionGroups: c.resourcePermissionGroups(),
-			Errors:                   errors,
+			Role:                   mappers.RoleToViewModel(roleEntity),
+			ModulePermissionGroups: c.modulePermissionGroups(),
+			Errors:                 errors,
 		}
 		templ.Handler(roles.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

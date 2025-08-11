@@ -48,3 +48,10 @@ type ResourcePermissionGroup struct {
 	Resource       string
 	PermissionSets []*PermissionSetItem
 }
+
+// ModulePermissionGroup represents permissions grouped by module
+// Each module contains resource groups to maintain the hierarchical structure
+type ModulePermissionGroup struct {
+	Module         string
+	ResourceGroups []*ResourcePermissionGroup
+}

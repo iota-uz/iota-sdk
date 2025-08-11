@@ -393,6 +393,60 @@
     "ToJSON": "Export to JSON",
     "ToTXT": "Export to TXT"
   },
+  "PermissionSetDescriptions": {
+    "Core": {
+      "UserView": "View user information only",
+      "UserManage": "Full user management capabilities",
+      "RoleView": "View role information only", 
+      "RoleManage": "Full role and permission management",
+      "UploadView": "View uploaded files only",
+      "UploadManage": "Full file upload management"
+    },
+    "Finance": {
+      "PaymentView": "View payment information only",
+      "PaymentManage": "Full payment management capabilities",
+      "ExpenseView": "View expense information only", 
+      "ExpenseManage": "Full expense management capabilities",
+      "ExpenseCategoryView": "View expense category information only",
+      "ExpenseCategoryManage": "Full expense category management capabilities",
+      "DebtView": "View debt information only",
+      "DebtManage": "Full debt management capabilities"
+    },
+    "Projects": {
+      "ProjectView": "View project information only",
+      "ProjectManage": "Full project management capabilities",
+      "ProjectStageView": "View project stage information only",
+      "ProjectStageManage": "Full project stage management capabilities"
+    },
+    "Warehouse": {
+      "ProductView": "View product information only",
+      "ProductManage": "Full product management capabilities",
+      "PositionView": "View position information only",
+      "PositionManage": "Full position management capabilities",
+      "OrderView": "View order information only", 
+      "OrderManage": "Full order management capabilities",
+      "UnitView": "View unit information only",
+      "UnitManage": "Full unit management capabilities",
+      "InventoryView": "View inventory information only",
+      "InventoryManage": "Full inventory management capabilities"
+    },
+    "CRM": {
+      "ClientView": "View client information only",
+      "ClientManage": "Full client management capabilities"
+    },
+    "HRM": {
+      "EmployeeView": "View employee information only",
+      "EmployeeManage": "Full employee management capabilities"
+    }
+  },
+  "Modules": {
+    "Core": "Core",
+    "Finance": "Finance",
+    "Projects": "Projects",
+    "Warehouse": "Warehouse",
+    "CRM": "CRM",
+    "HRM": "HR Management"
+  },
   "Countries": {
     "AF": "Afghanistan",
     "AL": "Albania",

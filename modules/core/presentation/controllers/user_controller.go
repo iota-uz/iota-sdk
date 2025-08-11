@@ -150,13 +150,12 @@ func NewUsersController(app application.Application, opts *UsersControllerOption
 	if opts.BasePath == "" {
 		panic("UsersController requires explicit BasePath in options")
 	}
-	basePath := opts.BasePath
 	userService := app.Service(services.UserService{}).(*services.UserService)
 
 	controller := &UsersController{
 		app:              app,
-		basePath:         basePath,
-		realtime:         NewUserRealtimeUpdates(app, userService, basePath),
+		basePath:         opts.BasePath,
+		realtime:         NewUserRealtimeUpdates(app, userService, opts.BasePath),
 		permissionSchema: opts.PermissionSchema,
 	}
 

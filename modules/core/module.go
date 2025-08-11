@@ -110,9 +110,11 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
 		controllers.NewUsersController(app, &controllers.UsersControllerOptions{
+			BasePath:         "/users",
 			PermissionSchema: m.options.PermissionSchema,
 		}),
 		controllers.NewRolesController(app, &controllers.RolesControllerOptions{
+			BasePath:         "/roles",
 			PermissionSchema: m.options.PermissionSchema,
 		}),
 		controllers.NewGroupsController(app),

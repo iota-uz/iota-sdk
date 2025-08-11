@@ -7,15 +7,16 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 type EditFormProps struct {
-	Role                     *viewmodels.Role
-	ResourcePermissionGroups []*viewmodels.ResourcePermissionGroup
-	Errors                   map[string]string
+	Role                   *viewmodels.Role
+	ModulePermissionGroups []*viewmodels.ModulePermissionGroup
+	Errors                 map[string]string
 }
 
 templ EditForm(props *EditFormProps) {
@@ -47,15 +48,49 @@ templ EditForm(props *EditFormProps) {
 					Error: props.Errors["Description"],
 				})
 			}
-			for i, resourceGroup := range props.ResourcePermissionGroups {
-				@card.Card(card.Props{
-					Class: "space-y-3",
+			if len(props.ModulePermissionGroups) > 0 {
+				{{
+					// Get first module as default
+					defaultModule := props.ModulePermissionGroups[0].Module
+				}}
+				@tab.Root(tab.Props{
+					DefaultValue: defaultModule,
+					Class:        "space-y-4",
 				}) {
-					@ResourceGroup(ResourceGroupProps{
-						PageContext:   pageCtx,
-						ResourceGroup: resourceGroup,
-						GroupIndex:    i,
-					})
+					@tab.List(tab.ListProps{
+						Class: "px-0",
+					}) {
+						for _, moduleGroup := range props.ModulePermissionGroups {
+							@tab.Button(moduleGroup.Module) {
+								{ pageCtx.T(fmt.Sprintf("Modules.%s", moduleGroup.Module)) }
+							}
+						}
+					}
+					for _, moduleGroup := range props.ModulePermissionGroups {
+						@tab.Content(moduleGroup.Module) {
+							<div class="space-y-3 pt-4">
+								for _, resourceGroup := range moduleGroup.ResourceGroups {
+									@card.Card(card.Props{
+										Class: "space-y-3",
+									}) {
+										<div class="space-y-3">
+											<h3 class="text-lg font-medium text-gray-900">
+												{ pageCtx.T(fmt.Sprintf("Resources.%s", resourceGroup.Resource)) }
+											</h3>
+											for setIndex, permissionSet := range resourceGroup.PermissionSets {
+												@PermissionSet(PermissionSetProps{
+													PageContext:  pageCtx,
+													Set:          permissionSet,
+													ResourceName: resourceGroup.Resource,
+													SetIndex:     setIndex,
+												})
+											}
+										</div>
+									}
+								}
+							</div>
+						}
+					}
 				}
 			}
 		</div>
