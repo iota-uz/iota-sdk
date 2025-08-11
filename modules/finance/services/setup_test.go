@@ -40,3 +40,11 @@ func getAccountService(env *itf.TestEnvironment) *services.MoneyAccountService {
 func getPaymentCategoryService(env *itf.TestEnvironment) *services.PaymentCategoryService {
 	return env.Service(services.PaymentCategoryService{}).(*services.PaymentCategoryService)
 }
+
+func getDebtService(env *itf.TestEnvironment) *services.DebtService {
+	return env.Service(services.DebtService{}).(*services.DebtService)
+}
+
+func getFinancialReportService(env *itf.TestEnvironment) *services.FinancialReportService {
+	return env.Service(services.FinancialReportService{}).(*services.FinancialReportService)
+}

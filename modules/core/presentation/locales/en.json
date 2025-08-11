@@ -19,12 +19,15 @@
     "required": "This field is required",
     "emptySelect": "Select value",
     "email": "Invalid email format",
+    "min": "{{.Field}} must be at least the minimum value",
+    "max": "{{.Field}} must not exceed the maximum value",
     "gt": "{{.Field}} must be greater than 0",
     "gte": "{{.Field}} must be greater than or equal to the specified value",
     "lte": "{{.Field}} must be less than or equal to the specified value",
     "len": "{{.Field}} must be exactly the required length",
     "uuid": "{{.Field}} must be a valid UUID",
-    "custom": "{{.Field}}: {{.Error}}"
+    "custom": "{{.Field}}: {{.Error}}",
+    "alphanum": "{{.Field}} may only contain alphanumeric characters (letters and numbers)."
   },
   "Import": {
     "Error": {
@@ -39,7 +42,8 @@
       "Ereyesterday": "Ereyesterday",
       "ThisWeek": "This week",
       "LastWeek": "Last week",
-      "ThisMonth": "This month"
+      "ThisMonth": "This month",
+      "LastMonth": "Last month"
     }
   },
   "Scaffold": {
@@ -58,8 +62,6 @@
     "NothingFound": "Nothing found",
     "Actions": {
       "AddUser": "Add user",
-      "AddExpense": "Add expense",
-      "AddPayment": "Add payment",
       "AddAccount": "Add account"
     }
   },
@@ -74,14 +76,6 @@
     "user": "User",
     "role": "Roles",
     "group": "Groups",
-    "payment": "Payment",
-    "expense": "Expense",
-    "expense_category": "Expense category",
-    "product": "Product",
-    "unit": "Unit",
-    "position": "Position",
-    "order": "Order",
-    "inventory": "Inventory",
     "upload": "Upload"
   },
   "Permissions": {
@@ -109,69 +103,9 @@
       "Update": "Update account",
       "Delete": "Delete account"
     },
-    "Project": {
-      "Create": "Create project",
-      "Read": "Read project",
-      "Update": "Update project",
-      "Delete": "Delete project"
-    },
-    "Stage": {
-      "Create": "Create stage",
-      "Read": "Read stage",
-      "Update": "Update stage",
-      "Delete": "Delete stage"
-    },
     "Settings": {
       "Update": "Update settings",
       "Read": "Read settings"
-    },
-    "Payment": {
-      "Create": "Create payment",
-      "Read": "Read payment",
-      "Update": "Update payment",
-      "Delete": "Delete payment"
-    },
-    "Expense": {
-      "Create": "Create expense",
-      "Read": "Read expense",
-      "Update": "Update expense",
-      "Delete": "Delete expense"
-    },
-    "ExpenseCategory": {
-      "Create": "Create expense category",
-      "Read": "Read expense category",
-      "Update": "Update expense category",
-      "Delete": "Delete expense category"
-    },
-    "Product": {
-      "Create": "Create product",
-      "Read": "Read product",
-      "Update": "Update product",
-      "Delete": "Delete product"
-    },
-    "Unit": {
-      "Create": "Create unit",
-      "Read": "Read unit",
-      "Update": "Update unit",
-      "Delete": "Delete unit"
-    },
-    "Position": {
-      "Create": "Create position",
-      "Read": "Read position",
-      "Update": "Update position",
-      "Delete": "Delete position"
-    },
-    "Order": {
-      "Create": "Create order",
-      "Read": "Read order",
-      "Update": "Update order",
-      "Delete": "Delete order"
-    },
-    "Inventory": {
-      "Create": "Create inventory",
-      "Read": "Read inventory",
-      "Update": "Update inventory",
-      "Delete": "Delete inventory"
     },
     "Upload": {
       "Create": "Create upload",
@@ -453,6 +387,7 @@
   "No": "No",
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Export": {
+    "Title": "Export",
     "ToExcel": "Export to Excel",
     "ToCSV": "Export to CSV",
     "ToJSON": "Export to JSON",
@@ -667,5 +602,13 @@
     "NoDataTitle": "No data available",
     "NoDataDescription": "No data available for the selected date",
     "Categories": "Categories"
+  },
+  "multilang": {
+    "empty": "—",
+    "no_translations": "No translations available",
+    "add_language": "+ Add Language",
+    "remove_language": "Remove this language",
+    "locale_placeholder": "en",
+    "text_placeholder": "Enter text in this language"
   }
 }

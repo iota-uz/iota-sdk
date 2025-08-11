@@ -50,10 +50,16 @@ func NewInvalidEmailError(field string, fieldLocaleKey string) *ValidationError 
 
 // NewInvalidTINError creates a new invalid TIN error
 func NewInvalidTINError(field string, fieldLocaleKey string, details string) *ValidationError {
+	// Use the clean error message directly if it's already user-friendly
+	message := details
+	if message == "" {
+		message = "Invalid TIN format"
+	}
+
 	return NewValidationError(
 		field,
 		"VALIDATION_TIN",
-		fmt.Sprintf("Invalid TIN format: %s", details),
+		message,
 		"ValidationErrors.invalidTIN",
 	).WithFieldName(fieldLocaleKey).WithDetails(details)
 }

@@ -22,7 +22,7 @@ func TestReportService_CRUD(t *testing.T) {
 	)
 
 	t.Run("Save (Create)", func(t *testing.T) {
-		report := NewReport("Service Create", WithAuthor("SAuthor"), WithSummary("SSummary"))
+		report := NewReport(CreateMultiLangTitle("Service Create"), WithAuthor("SAuthor"), WithSummary("SSummary"))
 		created, err := service.Save(ctx, report)
 		require.NoError(t, err)
 		assert.NotZero(t, created.ID())
@@ -30,7 +30,7 @@ func TestReportService_CRUD(t *testing.T) {
 	})
 
 	t.Run("Save (Update)", func(t *testing.T) {
-		original := NewReport("To Update", WithAuthor("Orig"), WithSummary("Old"))
+		original := NewReport(CreateMultiLangTitle("To Update"), WithAuthor("Orig"), WithSummary("Old"))
 		created, err := service.Save(ctx, original)
 		require.NoError(t, err)
 
@@ -41,7 +41,7 @@ func TestReportService_CRUD(t *testing.T) {
 	})
 
 	t.Run("Get", func(t *testing.T) {
-		report := NewReport("Service Get", WithAuthor("GetAuthor"))
+		report := NewReport(CreateMultiLangTitle("Service Get"), WithAuthor("GetAuthor"))
 		created, err := service.Save(ctx, report)
 		require.NoError(t, err)
 
@@ -52,9 +52,9 @@ func TestReportService_CRUD(t *testing.T) {
 	})
 
 	t.Run("GetAll", func(t *testing.T) {
-		_, err := service.Save(ctx, NewReport("All 1", WithAuthor("A")))
+		_, err := service.Save(ctx, NewReport(CreateMultiLangTitle("All 1"), WithAuthor("A")))
 		require.NoError(t, err)
-		_, err = service.Save(ctx, NewReport("All 2", WithAuthor("B")))
+		_, err = service.Save(ctx, NewReport(CreateMultiLangTitle("All 2"), WithAuthor("B")))
 		require.NoError(t, err)
 
 		all, err := service.GetAll(ctx)
@@ -63,7 +63,7 @@ func TestReportService_CRUD(t *testing.T) {
 	})
 
 	t.Run("Exists", func(t *testing.T) {
-		created, err := service.Save(ctx, NewReport("Exists", WithAuthor("Ex")))
+		created, err := service.Save(ctx, NewReport(CreateMultiLangTitle("Exists"), WithAuthor("Ex")))
 		require.NoError(t, err)
 
 		key := fixture.schema.Fields().KeyField().Value(created.ID())
@@ -73,11 +73,10 @@ func TestReportService_CRUD(t *testing.T) {
 	})
 
 	t.Run("List with filter", func(t *testing.T) {
-		_, err := service.Save(ctx, NewReport("Filter Test", WithAuthor("SvcFilter")))
+		_, err := service.Save(ctx, NewReport(CreateMultiLangTitle("Filter Test"), WithAuthor("SvcFilter")))
 		require.NoError(t, err)
 
 		list, err := service.List(ctx, &crud.FindParams{
-			Query:   "Filter",
 			Filters: []crud.Filter{{Column: "author", Filter: repo.Eq("SvcFilter")}},
 			Limit:   1,
 		})
@@ -87,7 +86,7 @@ func TestReportService_CRUD(t *testing.T) {
 	})
 
 	t.Run("Count with filter", func(t *testing.T) {
-		_, err := service.Save(ctx, NewReport("Countable", WithAuthor("SvcCounter")))
+		_, err := service.Save(ctx, NewReport(CreateMultiLangTitle("Countable"), WithAuthor("SvcCounter")))
 		require.NoError(t, err)
 
 		count, err := service.Count(ctx, &crud.FindParams{
@@ -98,7 +97,7 @@ func TestReportService_CRUD(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		created, err := service.Save(ctx, NewReport("To Be Deleted", WithAuthor("Del")))
+		created, err := service.Save(ctx, NewReport(CreateMultiLangTitle("To Be Deleted"), WithAuthor("Del")))
 		require.NoError(t, err)
 
 		key := fixture.schema.Fields().KeyField().Value(created.ID())

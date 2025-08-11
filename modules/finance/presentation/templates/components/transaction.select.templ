@@ -1,0 +1,32 @@
+package components
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+)
+
+type TransactionSelectProps struct {
+	Label        string
+	Placeholder  string
+	Value        string
+	Error        string
+	Transactions []*viewmodels.Transaction
+	Attrs        templ.Attributes
+}
+
+templ TransactionSelect(props *TransactionSelectProps) {
+	@base.Select(&base.SelectProps{
+		Label:       props.Label,
+		Placeholder: props.Placeholder,
+		Error:       props.Error,
+		Attrs:       props.Attrs,
+	}) {
+		<option value="">{ props.Placeholder }</option>
+		for _, transaction := range props.Transactions {
+			<option value={ transaction.ID } selected?={ props.Value == transaction.ID }>
+				{ fmt.Sprintf("%s - %s (%s)", transaction.AmountWithCurrency, transaction.TransactionType, transaction.TransactionDate.Format("2006-01-02")) }
+			</option>
+		}
+	}
+}

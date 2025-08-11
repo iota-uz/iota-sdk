@@ -34,13 +34,15 @@ func TestUUIDField(t *testing.T) {
 	t.Run("panics with invalid UUID value", func(t *testing.T) {
 		field := crud.NewUUIDField("id")
 
-		// Should panic with invalid type
+		// Should panic with invalid type when Value() is called
 		require.Panics(t, func() {
-			field.Value("not-a-uuid")
+			fieldValue := field.Value("not-a-uuid")
+			fieldValue.Value()
 		})
 
 		require.Panics(t, func() {
-			field.Value(123)
+			fieldValue := field.Value(123)
+			fieldValue.Value()
 		})
 	})
 }

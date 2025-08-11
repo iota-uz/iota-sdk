@@ -6,7 +6,7 @@ IOTA SDK is a modular erp system. When designing new modules or interfaces / cod
 
 ## Rules
 
--   DO NOT COMMENT EXECESSIVELY. Instead, write clear and concise code that is self-explanatory.
+-   DO NOT COMMENT EXCESSIVELY. Instead, write clear and concise code that is self-explanatory.
 -   DO NOT USE `sed` for file manipulation
 -   Use `pkg/htmx` for all UI interactions
 -   Use existing components from `components/` package before creating new ones
@@ -15,7 +15,8 @@ IOTA SDK is a modular erp system. When designing new modules or interfaces / cod
 -   Do not indent code manually.
 -   Error handling: use `pkg/serrors` for standard error types
 -   When writing a mapper function, always use utilities from `pkg/mapping` to ensure consistency
--   PREFER `mcp__bloom__search_code` for semantic search over manual file searching when you don't know exact file names or when exploring the codebase to understand functionality
+-   PREFER `mcp__bloom__search_code(repo: "iota-uz/iota-sdk")` for semantic search over manual file searching when you don't know exact file names or when exploring the codebase to understand functionality
+-   "Description", "ID" are reserved keys in translaction files (json/toml), use "_Description" and "_ID" instead.
 
 ## DevHub MCP Tools
 
@@ -172,5 +173,3 @@ modules/{module}/
   - Add service to `app.RegisterServices()` call
   - Add controller to `app.RegisterControllers()` call  
   - Add quick links to `app.QuickLinks().Add()` call
-
-

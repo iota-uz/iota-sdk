@@ -1,0 +1,93 @@
+package project_stages
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/pagination"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"strconv"
+)
+
+templ ProjectStagesTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col gap-4 table-wrapper">
+		if len(props.ProjectStages) == 0 {
+			@base.TableEmptyState(base.TableEmptyStateProps{
+				Title:       pageCtx.T("ProjectStages.List.NoProjectStages.Title"),
+				Description: pageCtx.T("ProjectStages.List.NoProjectStages._Description"),
+			})
+		} else {
+			@base.Table(base.TableProps{
+				Columns: []*base.TableColumn{
+					{Label: pageCtx.T("ProjectStages.List.StageNumber"), Key: "stage_number"},
+					{Label: pageCtx.T("ProjectStages.List._Description"), Key: "description"},
+					{Label: pageCtx.T("ProjectStages.List.TotalAmount"), Key: "total_amount"},
+					{Label: pageCtx.T("ProjectStages.List.PaidAmount"), Key: "paid_amount"},
+					{Label: pageCtx.T("ProjectStages.List.StartDate"), Key: "start_date"},
+					{Label: pageCtx.T("ProjectStages.List.PlannedEndDate"), Key: "planned_end_date"},
+					{Label: pageCtx.T("UpdatedAt"), Key: "updatedAt"},
+					{Label: pageCtx.T("Actions"), Class: "w-16"},
+				},
+			}) {
+				for _, stage := range props.ProjectStages {
+					@base.TableRow(base.TableRowProps{}) {
+						@base.TableCell(base.TableCellProps{}) {
+							{ strconv.Itoa(stage.StageNumber) }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ stage.Description }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ fmt.Sprintf("%.2f", float64(stage.TotalAmount)) }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							{ fmt.Sprintf("%.2f", float64(stage.PaidAmount)) }
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							if stage.StartDate != nil {
+								<div x-data="relativeformat">
+									<span x-text={ fmt.Sprintf("format('%s')", stage.StartDate.Format("2006-01-02T15:04:05Z07:00")) }></span>
+								</div>
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							if stage.PlannedEndDate != nil {
+								<div x-data="relativeformat">
+									<span x-text={ fmt.Sprintf("format('%s')", stage.PlannedEndDate.Format("2006-01-02T15:04:05Z07:00")) }></span>
+								</div>
+							} else {
+								<span class="text-gray-400">-</span>
+							}
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							<div x-data="relativeformat">
+								<span x-text={ fmt.Sprintf("format('%s')", stage.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")) }></span>
+							</div>
+						}
+						@base.TableCell(base.TableCellProps{}) {
+							@button.Secondary(button.Props{
+								Fixed: true,
+								Size:  button.SizeSM,
+								Class: "btn-fixed",
+								Attrs: templ.Attributes{
+									"hx-get":    fmt.Sprintf("/project-stages/%s/drawer", stage.ID),
+									"hx-target": "#view-drawer",
+									"hx-swap":   "innerHTML",
+								},
+							}) {
+								@icons.PencilSimple(icons.Props{Size: "20"})
+							}
+						}
+					}
+				}
+			}
+			if props.PaginationState != nil && len(props.PaginationState.Pages()) > 1 {
+				@pagination.Pagination(props.PaginationState)
+			}
+		}
+	</div>
+}
