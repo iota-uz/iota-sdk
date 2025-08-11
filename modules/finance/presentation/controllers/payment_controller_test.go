@@ -787,7 +787,7 @@ func TestPaymentController_Create_TransactionDateValidation(t *testing.T) {
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -882,7 +882,7 @@ func TestPaymentController_Create_VerifyIncomeStatementIntegration(t *testing.T)
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -991,7 +991,7 @@ func TestPaymentController_Create_WithoutCategoryVerifyIncomeStatement(t *testin
 		permissions.PaymentCreate,
 	)
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

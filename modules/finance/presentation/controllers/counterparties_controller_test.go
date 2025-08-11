@@ -482,7 +482,7 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()
@@ -518,7 +518,7 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 	t.Parallel()
 	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

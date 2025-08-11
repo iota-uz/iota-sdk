@@ -1261,7 +1261,7 @@ func (b *complexTestBuilder) Repository() crud.Repository[ComplexEntity] {
 func TestCrudController_JSONField_FormHandling(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(nil)).
 		AsUser(adminUser)
 
 	service := &complexTestService{}

@@ -66,7 +66,7 @@ func setupLocalizer(t *testing.T) context.Context {
 
 func TestDebugDebtValidation(t *testing.T) {
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule(), finance.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(nil), finance.NewModule()).
 		AsUser(adminUser)
 
 	env := suite.Environment()

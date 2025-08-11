@@ -11,14 +11,14 @@ import (
 )
 
 func TestHealthController_Key_ReturnsCorrectPath(t *testing.T) {
-	suite := itf.HTTP(t, core.NewModule())
+	suite := itf.HTTP(t, core.NewModule(nil))
 	controller := controllers.NewHealthController(suite.Environment().App)
 
 	require.Equal(t, "/health", controller.Key())
 }
 
 func TestHealthController_Get_Integration(t *testing.T) {
-	suite := itf.HTTP(t, core.NewModule())
+	suite := itf.HTTP(t, core.NewModule(nil))
 	controller := controllers.NewHealthController(suite.Environment().App)
 	suite.Register(controller)
 
