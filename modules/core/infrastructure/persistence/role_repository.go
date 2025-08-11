@@ -29,14 +29,13 @@ const (
 	rolePermissionsQuery = `
 		SELECT
 			p.id,
-			p.tenant_id,
 			p.name,
 			p.resource,
 			p.action,
 			p.modifier,
 			p.description,
 			rp.role_id
-		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1) AND p.tenant_id = $2`
+		FROM permissions p LEFT JOIN role_permissions rp ON rp.permission_id = p.id WHERE rp.role_id = ANY($1)`
 	roleCountQuery             = `SELECT COUNT(DISTINCT roles.id) FROM roles WHERE tenant_id = $1`
 	roleInsertQuery            = `INSERT INTO roles (type, name, description, tenant_id) VALUES ($1, $2, $3, $4) RETURNING id`
 	roleUpdateQuery            = `UPDATE roles SET name = $1, description = $2, updated_at = $3	WHERE id = $4 AND tenant_id = $5`
@@ -279,12 +278,7 @@ func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uin
 		return nil, err
 	}
 
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
-	}
-
-	rows, err := tx.Query(ctx, rolePermissionsQuery, roleIDs, tenantID.String())
+	rows, err := tx.Query(ctx, rolePermissionsQuery, roleIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +290,6 @@ func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uin
 		var p models.Permission
 		if err := rows.Scan(
 			&p.ID,
-			&p.TenantID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,
