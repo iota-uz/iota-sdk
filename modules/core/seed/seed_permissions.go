@@ -3,17 +3,16 @@ package seed
 import (
 	"context"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
-func CreatePermissions(ctx context.Context, app application.Application) error {
+func CreatePermissions(ctx context.Context, app application.Application, permissions []*permission.Permission) error {
 	conf := configuration.Use()
 	permissionRepository := persistence.NewPermissionRepository()
 
-	permissions := defaults.AllPermissions()
 	conf.Logger().Infof("Seeding %d permissions", len(permissions))
 
 	for _, p := range permissions {

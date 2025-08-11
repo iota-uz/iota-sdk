@@ -3,6 +3,7 @@ package roles
 import (
 	"encoding/json"
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -86,64 +87,7 @@ templ PermissionSet(props PermissionSetProps) {
 		// For multiple permissions, render with accordion
 		<div
 			class="border border-gray-400 bg-surface-100 rounded-md"
-			x-data={ fmt.Sprintf(`{
-				expanded: false,
-				allChecked: %t,
-				someChecked: %t,
-				permissionIds: %s,
-				init() {
-					this.$nextTick(() => {
-						this.updateState();
-					});
-				},
-				toggleAll() {
-					// Find all permission checkboxes for this set
-					const checkboxes = [];
-					this.permissionIds.forEach(permId => {
-						const checkbox = document.querySelector('input[name="Permissions[' + permId + ']"]');
-						if (checkbox) {
-							checkboxes.push(checkbox);
-						}
-					});
-					
-					// Determine new state
-					const checkedCount = checkboxes.filter(cb => cb.checked).length;
-					const newState = checkedCount < checkboxes.length;
-					
-					// Update all checkboxes
-					checkboxes.forEach(cb => {
-						cb.checked = newState;
-						const event = new Event('change', { bubbles: true });
-						cb.dispatchEvent(event);
-					});
-					
-					this.updateState();
-				},
-				updateState() {
-					// Find all permission checkboxes for this set
-					const checkboxes = [];
-					this.permissionIds.forEach(permId => {
-						const checkbox = document.querySelector('input[name="Permissions[' + permId + ']"]');
-						if (checkbox) {
-							checkboxes.push(checkbox);
-						}
-					});
-					
-					const checkedCount = checkboxes.filter(cb => cb.checked).length;
-					this.allChecked = checkedCount === checkboxes.length && checkboxes.length > 0;
-					this.someChecked = checkedCount > 0 && checkedCount < checkboxes.length;
-					
-					// Update toggle visual
-					const toggleVisual = this.$el.querySelector('[id^="toggle-visual-"]');
-					if (toggleVisual) {
-						if (this.allChecked) {
-							toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-brand-600 after:translate-x-full after:border-white";
-						} else {
-							toggleVisual.className = "relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all bg-gray-200 after:border-gray-300";
-						}
-					}
-				}
-			}`, props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions))) }
+			x-data={ fmt.Sprintf("createPermissionSetData(%t, %t, %s)", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions))) }
 			x-init="init()"
 			@change="updateState()"
 		>
@@ -165,15 +109,11 @@ templ PermissionSet(props PermissionSetProps) {
 						class="text-gray-500 hover:text-gray-700 p-1"
 						@click="expanded = !expanded"
 					>
-						<svg
-							class="w-5 h-5 transition-transform"
-							:class="{'rotate-180': expanded}"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-						</svg>
+						@icons.CaretDown(icons.Props{
+							Size:       "20",
+							Class:      "transition-transform",
+							Attributes: templ.Attributes{"x-bind:class": "{'rotate-180': expanded}"},
+						})
 					</button>
 				</div>
 				if props.Set.Description != "" {
