@@ -14,5 +14,6 @@ type PermissionSet struct {
 	Key         string                   // Unique identifier (e.g., "view", "manage")
 	Label       string                   // Display name
 	Description string                   // Optional description
+	Module      string                   // Module name (e.g., "Core", "Finance", "CRM")
 	Permissions []*permission.Permission // The actual permissions in this set
 }
