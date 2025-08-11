@@ -162,7 +162,6 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 func toDBPermission(entity *permission.Permission) *models.Permission {
 	return &models.Permission{
 		ID:       entity.ID.String(),
-		TenantID: entity.TenantID.String(),
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
 		Action:   string(entity.Action),
@@ -176,14 +175,8 @@ func toDomainPermission(dbPermission *models.Permission) (*permission.Permission
 		return nil, err
 	}
 
-	tenantID, err := uuid.Parse(dbPermission.TenantID)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse uuid")
-	}
-
 	return &permission.Permission{
 		ID:       id,
-		TenantID: tenantID,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),
 		Action:   permission.Action(dbPermission.Action),

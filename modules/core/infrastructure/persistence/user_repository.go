@@ -59,11 +59,11 @@ const (
 	userPermissionInsertQuery = `INSERT INTO user_permissions (user_id, permission_id) VALUES`
 
 	userRolePermissionsQuery = `
-				SELECT p.id, p.tenant_id, p.name, p.resource, p.action, p.modifier, p.description
+				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
 				FROM role_permissions rp LEFT JOIN permissions p ON rp.permission_id = p.id WHERE role_id = $1`
 
 	userPermissionsQuery = `
-				SELECT p.id, p.tenant_id, p.name, p.resource, p.action, p.modifier, p.description
+				SELECT p.id, p.name, p.resource, p.action, p.modifier, p.description
 				FROM user_permissions up LEFT JOIN permissions p ON up.permission_id = p.id WHERE up.user_id = $1`
 
 	userRolesQuery = `
@@ -650,7 +650,6 @@ func (g *PgUserRepository) rolePermissions(ctx context.Context, roleID uint) ([]
 		var p models.Permission
 		if err := rows.Scan(
 			&p.ID,
-			&p.TenantID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,
@@ -768,7 +767,6 @@ func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]
 		var p models.Permission
 		if err := rows.Scan(
 			&p.ID,
-			&p.TenantID,
 			&p.Name,
 			&p.Resource,
 			&p.Action,

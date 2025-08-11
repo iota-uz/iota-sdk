@@ -149,13 +149,11 @@ CREATE TABLE uploaded_images (
 
 CREATE TABLE permissions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid () NOT NULL,
-    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
-    name varchar(255) NOT NULL,
+    name varchar(255) NOT NULL UNIQUE,
     resource varchar(255) NOT NULL, -- roles, users, etc.
     action varchar(255) NOT NULL, -- create, read, update, delete
     modifier varchar(255) NOT NULL, -- all / own
-    description text,
-    UNIQUE (tenant_id, name)
+    description text
 );
 
 CREATE TABLE role_permissions (
@@ -213,7 +211,6 @@ CREATE INDEX roles_tenant_id_idx ON roles (tenant_id);
 
 CREATE INDEX user_groups_tenant_id_idx ON user_groups (tenant_id);
 
-CREATE INDEX permissions_tenant_id_idx ON permissions (tenant_id);
 
 CREATE INDEX tabs_tenant_id_idx ON tabs (tenant_id);
 
