@@ -51,7 +51,6 @@ func (c *AIChatController) Register(r *mux.Router) {
 		middleware.ProvideDynamicLogo(c.app),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.WithPageContext(),
-		middleware.Tabs(),
 		middleware.NavItems(),
 	)
 	router.HandleFunc("", di.H(c.configureAIChat)).Methods(http.MethodGet)
