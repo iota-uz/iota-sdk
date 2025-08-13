@@ -5,7 +5,6 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/base/tab"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -26,14 +25,6 @@ templ ProfileForm(props *ProfilePageProps) {
 		hx-swap="outerHTML"
 	>
 		<div class="flex flex-col gap-5 p-6">
-			@tab.Root(tab.Props{}) {
-				@tab.Link("/account", true) {
-					{ pageCtx.T("Account.Tabs.Profile") }
-				}
-				@tab.Link("/account/sidebar", false) {
-					{ pageCtx.T("Account.Tabs.Sidebar") }
-				}
-			}
 			@card.Card(card.Props{
 				Class: "grid grid-cols-3 gap-4",
 			}) {

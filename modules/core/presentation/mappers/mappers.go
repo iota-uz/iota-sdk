@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -76,13 +75,6 @@ func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
 		Code:   string(entity.Code),
 		Name:   entity.Name,
 		Symbol: string(entity.Symbol),
-	}
-}
-
-func TabToViewModel(entity *tab.Tab) *viewmodels.Tab {
-	return &viewmodels.Tab{
-		ID:   strconv.FormatUint(uint64(entity.ID), 10),
-		Href: entity.Href,
 	}
 }
 

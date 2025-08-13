@@ -3,7 +3,6 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -15,14 +14,11 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
 type AccountController struct {
 	app           application.Application
 	userService   *services.UserService
-	tabService    *services.TabService
 	tenantService *services.TenantService
 	uploadService *services.UploadService
 	basePath      string
@@ -32,7 +28,6 @@ func NewAccountController(app application.Application) application.Controller {
 	return &AccountController{
 		app:           app,
 		userService:   app.Service(services.UserService{}).(*services.UserService),
-		tabService:    app.Service(services.TabService{}).(*services.TabService),
 		tenantService: app.Service(services.TenantService{}).(*services.TenantService),
 		uploadService: app.Service(services.UploadService{}).(*services.UploadService),
 		basePath:      "/account",
@@ -49,7 +44,6 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.Tabs(),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
@@ -57,12 +51,10 @@ func (c *AccountController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.Get).Methods(http.MethodGet)
-	getRouter.HandleFunc("/sidebar", c.GetSettings).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
 	setRouter.HandleFunc("", c.Update).Methods(http.MethodPost)
-	setRouter.HandleFunc("/sidebar", c.PostSettings).Methods(http.MethodPost)
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {
@@ -132,57 +124,4 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		User:   mappers.UserToViewModel(entity),
 		Errors: map[string]string{},
 	})).ServeHTTP(w, r)
-}
-
-func (c *AccountController) GetSettings(w http.ResponseWriter, r *http.Request) {
-	tabs, err := composables.UseTabs(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	allNavItems, err := composables.UseAllNavItems(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	tabViewModels := mapping.MapViewModels(tabs, mappers.TabToViewModel)
-	props := &account.SettingsPageProps{
-		AllNavItems: allNavItems,
-		Tabs:        tabViewModels,
-	}
-	templ.Handler(account.SidebarSettings(props)).ServeHTTP(w, r)
-}
-
-func (c *AccountController) PostSettings(w http.ResponseWriter, r *http.Request) {
-	type hrefsDto struct {
-		Hrefs []string
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	hDto := hrefsDto{}
-	if err := shared.Decoder.Decode(&hDto, r.Form); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	u, err := composables.UseUser(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	dtos := make([]*tab.Tab, 0, len(hDto.Hrefs))
-	for i, href := range hDto.Hrefs {
-		dtos = append(dtos, &tab.Tab{
-			Href:     href,
-			Position: uint(i),
-			UserID:   u.ID(),
-			TenantID: u.TenantID(),
-		})
-	}
-	if err := c.tabService.CreateManyUserTabs(r.Context(), u.ID(), dtos); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/account/sidebar", http.StatusFound)
 }
