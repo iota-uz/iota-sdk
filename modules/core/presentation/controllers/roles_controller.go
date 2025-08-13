@@ -284,7 +284,7 @@ func (c *RolesController) Create(
 		return
 	}
 
-	if err := roleService.Create(r.Context(), roleEntity); err != nil {
+	if _, err := roleService.Create(r.Context(), roleEntity); err != nil {
 		logger.Errorf("Error creating role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
