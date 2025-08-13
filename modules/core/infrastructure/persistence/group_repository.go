@@ -53,6 +53,7 @@ func NewGroupRepository(userRepo user.Repository, roleRepo role.Repository) grou
 			group.CreatedAtField: "g.created_at",
 			group.UpdatedAtField: "g.updated_at",
 			group.TenantIDField:  "g.tenant_id",
+			group.NameField:      "g.name",
 		},
 	}
 }
