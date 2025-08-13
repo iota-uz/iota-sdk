@@ -2,7 +2,6 @@ package role
 
 import (
 	"context"
-	"errors"
 
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 
@@ -10,50 +9,50 @@ import (
 )
 
 func NewCreatedEvent(ctx context.Context, data Role) (*CreatedEvent, error) {
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-	if !ok {
-		return nil, errors.New("no session found")
+	var sess *session.Session
+	if sessionValue, ok := ctx.Value(constants.SessionKey).(*session.Session); ok {
+		sess = sessionValue
 	}
 	return &CreatedEvent{
-		Session: *sess,
+		Session: sess,
 		Data:    data,
 	}, nil
 }
 
 func NewUpdatedEvent(ctx context.Context, data Role) (*UpdatedEvent, error) {
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-	if !ok {
-		return nil, errors.New("no session found")
+	var sess *session.Session
+	if sessionValue, ok := ctx.Value(constants.SessionKey).(*session.Session); ok {
+		sess = sessionValue
 	}
 	return &UpdatedEvent{
-		Session: *sess,
+		Session: sess,
 		Data:    data,
 	}, nil
 }
 
 func NewDeletedEvent(ctx context.Context) (*DeletedEvent, error) {
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
-	if !ok {
-		return nil, errors.New("no session found")
+	var sess *session.Session
+	if sessionValue, ok := ctx.Value(constants.SessionKey).(*session.Session); ok {
+		sess = sessionValue
 	}
 	return &DeletedEvent{
-		Session: *sess,
+		Session: sess,
 	}, nil
 }
 
 type CreatedEvent struct {
-	Session session.Session
+	Session *session.Session
 	Data    Role
 	Result  Role
 }
 
 type UpdatedEvent struct {
-	Session session.Session
+	Session *session.Session
 	Data    Role
 	Result  Role
 }
 
 type DeletedEvent struct {
-	Session session.Session
+	Session *session.Session
 	Result  Role
 }
