@@ -178,7 +178,6 @@ CREATE TABLE sessions (
     created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
-
 CREATE INDEX users_tenant_id_idx ON users (tenant_id);
 
 CREATE INDEX users_first_name_idx ON users (first_name);
@@ -202,5 +201,4 @@ CREATE INDEX uploads_tenant_id_idx ON uploads (tenant_id);
 CREATE INDEX roles_tenant_id_idx ON roles (tenant_id);
 
 CREATE INDEX user_groups_tenant_id_idx ON user_groups (tenant_id);
-
 
