@@ -62,7 +62,6 @@ func (c *RolesController) Register(r *mux.Router) {
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.Tabs(),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),

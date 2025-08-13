@@ -178,15 +178,6 @@ CREATE TABLE sessions (
     created_at timestamp with time zone NOT NULL DEFAULT now()
 );
 
-CREATE TABLE tabs (
-    id serial PRIMARY KEY,
-    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
-    href varchar(255) NOT NULL,
-    user_id int NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    position int NOT NULL DEFAULT 0,
-    UNIQUE (tenant_id, href, user_id)
-);
-
 CREATE INDEX users_tenant_id_idx ON users (tenant_id);
 
 CREATE INDEX users_first_name_idx ON users (first_name);
@@ -210,6 +201,4 @@ CREATE INDEX uploads_tenant_id_idx ON uploads (tenant_id);
 CREATE INDEX roles_tenant_id_idx ON roles (tenant_id);
 
 CREATE INDEX user_groups_tenant_id_idx ON user_groups (tenant_id);
-
-CREATE INDEX tabs_tenant_id_idx ON tabs (tenant_id);
 

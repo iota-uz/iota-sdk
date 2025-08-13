@@ -276,7 +276,7 @@ func (c *ClientController) Register(r *mux.Router) {
 
 	router := r.PathPrefix(c.config.BasePath).Subrouter()
 	router.Use(commonMiddleware...)
-	router.Use(middleware.Tabs(), middleware.NavItems())
+	router.Use(middleware.NavItems())
 	router.HandleFunc("", di.H(c.List)).Methods(http.MethodGet)
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)

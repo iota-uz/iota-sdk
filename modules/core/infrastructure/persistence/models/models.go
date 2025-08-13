@@ -130,14 +130,6 @@ type AuthenticationLog struct {
 	CreatedAt time.Time
 }
 
-type Tab struct {
-	ID       uint
-	TenantID string
-	Href     string
-	Position uint
-	UserID   uint
-}
-
 type Passport struct {
 	ID                  string
 	TenantID            string

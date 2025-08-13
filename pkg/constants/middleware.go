@@ -17,7 +17,6 @@ const (
 	LogoKey         ContextKey = "logo"
 	HeadKey         ContextKey = "head"
 	SidebarPropsKey ContextKey = "sidebarProps"
-	TabsKey         ContextKey = "tabs"
 	RequestStart    ContextKey = "requestStart"
 
 	PageContext ContextKey = "pageContext"
