@@ -6,17 +6,14 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 
-	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 const (
@@ -48,12 +45,12 @@ func (s *userSeeder) CreateUser(ctx context.Context, app application.Application
 		return err
 	}
 
-	usr, err := s.getOrCreateUser(ctx, r, tenantID)
+	_, err = s.getOrCreateUser(ctx, r, tenantID)
 	if err != nil {
 		return err
 	}
 
-	return s.createUserTabs(ctx, usr, app)
+	return nil
 }
 
 func (s *userSeeder) getOrCreateRole(ctx context.Context, app application.Application) (role.Role, error) {
@@ -118,50 +115,4 @@ func (s *userSeeder) getOrCreateUser(ctx context.Context, r role.Role, tenantID 
 
 	logger.Infof("Creating user %s", s.user.Email().Value())
 	return userRepository.Create(ctx, newUser.AddRole(r))
-}
-
-func (s *userSeeder) createUserTabs(
-	ctx context.Context,
-	usr user.User,
-	app application.Application,
-) error {
-	tabsRepository := persistence.NewTabRepository()
-	localizer := i18n.NewLocalizer(app.Bundle(), string(s.user.UILanguage()))
-
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get tenant from context")
-	}
-
-	tabs := buildTabsFromNavItems(app.NavItems(localizer), usr.ID(), tenantID)
-
-	for _, t := range tabs {
-		if err := tabsRepository.CreateOrUpdate(ctx, t); err != nil {
-			return errors.Wrapf(err, "failed to create tab userID :%d | href: %s", t.UserID, t.Href)
-		}
-	}
-	return nil
-}
-
-func buildTabsFromNavItems(navItems []types.NavigationItem, userID uint, tenantID uuid.UUID) []*tab.Tab {
-	tabs := make([]*tab.Tab, 0, len(navItems)*4)
-	var position uint = 1
-
-	var build func(items []types.NavigationItem)
-	build = func(items []types.NavigationItem) {
-		for _, item := range items {
-			tabs = append(tabs, &tab.Tab{
-				ID:       position,
-				UserID:   userID,
-				TenantID: tenantID,
-				Position: position,
-				Href:     item.Href,
-			})
-			position++
-			build(item.Children)
-		}
-	}
-
-	build(navItems)
-	return tabs
 }

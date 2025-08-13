@@ -27,8 +27,3 @@ type Role struct {
 	CanUpdate   bool
 	CanDelete   bool
 }
-
-type Tab struct {
-	ID   string
-	Href string
-}
