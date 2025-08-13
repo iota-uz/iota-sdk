@@ -13,6 +13,7 @@ const (
 	CreatedAtField Field = iota
 	UpdatedAtField
 	TenantIDField
+	NameField
 )
 
 type SortBy = repo.SortBy[Field]
