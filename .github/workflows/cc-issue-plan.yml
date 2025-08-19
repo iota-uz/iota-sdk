@@ -11,6 +11,8 @@ jobs:
       contents: read
       issues: write
       id-token: write
+      repository-projects: write
+      organization-projects: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,91 +49,63 @@ jobs:
             NotebookEdit
             Write
           direct_prompt: |
-            Create a detailed implementation plan for this issue. Use the codebase search tools to understand the current implementation and web tools to research any external libraries or patterns mentioned.
+            Create a **CONCISE** implementation plan for this issue. Be precise but brief - avoid unnecessary elaboration.
 
-            **IMPORTANT:** You are in read-only mode and cannot edit files. Focus on analyzing and planning only.
+            **IMPORTANT:** 
+            - You are in read-only mode and cannot edit files. Focus on analyzing and planning only.
+            - Keep explanations minimal - focus on WHAT needs to be done, not WHY
+            - For simple issues (typos, small bugs, minor UI changes), keep the entire plan under 30 lines
+            - For complex features, be thorough but avoid repetition
 
             **Current Labels:** ${{ join(github.event.issue.labels.*.name, ', ') }}
 
             ## Your Task:
-            1. Analyze the issue thoroughly
-            2. Search the codebase to understand current implementation
-            3. For any external libraries or technologies mentioned, use WebSearch and WebFetch to gather relevant documentation
-            4. Create a detailed plan listing exactly which files need to be modified and how
-            5. If the issue doesn't have any labels yet, apply appropriate labels using `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`. First check available labels with `gh label list --repo ${{ github.repository }}` and only use existing labels
-            6. Set the issue type and project using GitHub CLI commands if not already set. Use `gh issue edit` to set custom fields and `gh project item-add` to add to projects
+            1. **Check for duplicates:** Run `gh issue list --repo ${{ github.repository }} --state all --limit 100` to find similar issues. If found, apply "duplicate" label.
+            2. **Quick analysis:** Determine issue type and scope (don't over-analyze simple issues)
+            3. **Search smartly:** Only search codebase for affected files - skip if issue is obvious
+            4. **External research (if needed):** For new libraries/complex features, use WebSearch/WebFetch to get essential docs
+            5. **Create concise plan:** List only essential file changes
+            6. **Apply labels:** Use `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`
+            7. **Add to project:**
+               - For general SDK issues: Add to "SDK core" project using `gh project item-add 3 --owner iota-uz --url https://github.com/iota-uz/iota-sdk/issues/${{ github.event.issue.number }}`
+               - Set priority: P0=Critical/Security, P1=Features, P2=Enhancements
 
-            ## Required Output Format:
+            ## Required Output Format (BE CONCISE):
 
-            ### 📋 Issue Analysis
-            **Type:** [Bug/Feature/Enhancement/Performance/Security]
-            **Summary:** [Brief description of what needs to be done]
+            ### 🔍 Duplicate Check
+            **Status:** [No duplicates / Found: #123, #456]
+            
+            ### 📋 Issue Summary
+            **Type:** [Bug/Feature/Enhancement]
+            **Scope:** [1-line description]
+            **Key Files:** [List only the main files affected]
 
-            ### 🔍 Codebase Investigation
-            [Your findings from searching the codebase - include specific file paths and line numbers]
+            ### 📚 External Research (only if needed for new libraries/APIs)
+            [Brief summary of key findings - max 3-4 lines]
 
-            ### 📚 External Research
-            [If any external libraries/APIs are involved, include relevant documentation snippets here]
-            [Use WebSearch and WebFetch to gather this information]
-
-            ### 📁 Files to Modify
-
-            **For Features/Enhancements:**
-            List each file that needs to be created or modified with a brief description of changes:
-
-            ```
-            CREATE: modules/{module}/domain/aggregates/{entity}/{entity}.go
-            - Define the entity interface with methods [list methods]
-            - Add business logic for [specific functionality]
-
-            MODIFY: modules/{module}/infrastructure/persistence/models/models.go
-            - Add new model struct for [entity]
-            - Include fields: [list key fields]
-
-            CREATE: modules/{module}/infrastructure/persistence/{entity}_repository.go
-            - Implement repository interface
-            - Add CRUD operations with proper error handling
-
-            [Continue for all files...]
-            ```
-
-            **For Bugs:**
-            Identify the root cause and affected files:
+            ### 📁 Implementation Changes
 
             ```
-            ROOT CAUSE: [Explain the bug's origin]
-
-            MODIFY: path/to/file.go:LineNumber
-            - Current behavior: [what's wrong]
-            - Fix: [what needs to change]
-            - Reason: [why this fixes it]
-
-            [List all files that need fixes...]
+            # Use concise format: ACTION path/to/file - brief change description
+            CREATE modules/foo/service.go - new service for handling X
+            MODIFY modules/bar/controller.go:45 - fix validation logic
+            DELETE old/deprecated/file.go - no longer needed
             ```
 
-            ### 🧪 Testing Strategy
-            - Which test files need to be created/modified
-            - Key test scenarios to cover
-            - Integration test requirements
+            ### 🚀 Implementation Steps (numbered list, one line each)
+            1. Step one
+            2. Step two
+            3. Step three
 
-            ### 🚀 Implementation Steps
-            1. [First concrete step]
-            2. [Second concrete step]
-            3. [Continue with ordered steps...]
+            ### ✅ Testing Required
+            - List only essential test files/scenarios (max 3-4 items)
 
-            ### ✅ Definition of Done
-            - [ ] All listed files created/modified
-            - [ ] Tests written and passing
-            - [ ] API endpoints functional (if applicable)
-            - [ ] Localization updated (if UI changes)
-            - [ ] Code follows DDD patterns
-            - [ ] No linting errors
-
-            ### 💡 Notes for Implementation
-            [Any additional context, tips, or warnings for the developer who will implement this]
+            ### 📌 Labels & Project
+            **Applied:** [bug, duplicate, etc.]
+            **Project:** SDK core (P0/P1/P2)
 
             ---
-            **Important:** Be specific about file paths and changes. This plan will be reviewed by a senior engineer before implementation.
+            **Note:** For complex issues requiring detailed analysis, expand relevant sections as needed.
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           mcp_config: |
             {
