@@ -1,0 +1,40 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipInteractive() {
+	<div class="flex flex-wrap gap-4" x-data="{ count: 0 }">
+		@button.Secondary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.interactive.html.raw": `<div class='p-2'><strong>Interactive Tooltip</strong><br>You can hover over this tooltip!</div>`,
+			},
+		}) {
+			Interactive HTML
+		}
+		<template x-ref="counter">
+			<div class="p-4 bg-surface-100 rounded">
+				<p class="text-lg mb-2">Click counter: <span x-text="count" class="font-bold"></span></p>
+				<button @click="count++" class="px-3 py-1 bg-primary-500 text-white rounded hover:bg-primary-600">
+					Increment
+				</button>
+				<button @click="count = 0" class="px-3 py-1 bg-danger-500 text-white rounded hover:bg-danger-600 ml-2">
+					Reset
+				</button>
+			</div>
+		</template>
+		@button.Secondary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip": `{
+					content: () => $refs.counter.innerHTML,
+					allowHTML: true,
+					interactive: true,
+					trigger: 'click',
+					placement: 'right',
+					appendTo: $root
+				}`,
+			},
+		}) {
+			Click for Counter
+		}
+	</div>
+}
