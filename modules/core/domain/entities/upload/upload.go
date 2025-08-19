@@ -3,6 +3,7 @@ package upload
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -42,6 +43,7 @@ type Upload interface {
 	TenantID() uuid.UUID
 	Type() UploadType
 	Hash() string
+	Slug() string
 	Path() string
 	Name() string
 	Size() Size
@@ -51,12 +53,18 @@ type Upload interface {
 	Mimetype() *mimetype.MIME
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+
+	SetHash(hash string)
+	SetSlug(slug string)
+	SetName(name string)
+	SetSize(size Size)
+	SetID(id uint)
 }
 
 // ---- Upload Implementation ----
 
 func New(
-	hash, path, name string,
+	hash, path, name, slug string,
 	size int,
 	mimetype *mimetype.MIME,
 ) Upload {
@@ -66,10 +74,14 @@ func New(
 	} else {
 		t = UploadTypeDocument
 	}
+	if slug == "" {
+		slug = hash
+	}
 	return &upload{
 		id:        0,
 		tenantID:  uuid.Nil,
 		hash:      hash,
+		slug:      slug,
 		path:      path,
 		name:      name,
 		size:      NewSize(size),
@@ -83,16 +95,20 @@ func New(
 func NewWithID(
 	id uint,
 	tenantID uuid.UUID,
-	hash, path, name string,
+	hash, path, name, slug string,
 	size int,
 	mimetype *mimetype.MIME,
 	_type UploadType,
 	createdAt, updatedAt time.Time,
 ) Upload {
+	if slug == "" {
+		slug = hash
+	}
 	return &upload{
 		id:        id,
 		tenantID:  tenantID,
 		hash:      hash,
+		slug:      slug,
 		path:      path,
 		name:      name,
 		size:      NewSize(size),
@@ -108,6 +124,7 @@ type upload struct {
 	tenantID  uuid.UUID
 	hash      string
 	path      string
+	slug      string
 	name      string
 	size      Size
 	_type     UploadType
@@ -132,6 +149,10 @@ func (u *upload) Hash() string {
 	return u.hash
 }
 
+func (u *upload) Slug() string {
+	return u.slug
+}
+
 func (u *upload) Path() string {
 	return u.path
 }
@@ -142,6 +163,29 @@ func (u *upload) Name() string {
 
 func (u *upload) Size() Size {
 	return u.size
+}
+
+func (u *upload) SetHash(hash string) {
+	u.hash = hash
+}
+
+func (u *upload) SetName(name string) {
+	u.name = name
+}
+
+func (u *upload) SetSlug(slug string) {
+	conf := configuration.Use()
+	u.slug = slug
+	ext := filepath.Ext(u.name)
+	u.path = filepath.Join(conf.UploadsPath, u.slug+ext)
+}
+
+func (u *upload) SetSize(size Size) {
+	u.size = size
+}
+
+func (u *upload) SetID(id uint) {
+	u.id = id
 }
 
 func (u *upload) URL() *url.URL {

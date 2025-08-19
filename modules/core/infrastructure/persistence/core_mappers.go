@@ -17,7 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tab"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
@@ -162,7 +161,6 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 func toDBPermission(entity *permission.Permission) *models.Permission {
 	return &models.Permission{
 		ID:       entity.ID.String(),
-		TenantID: entity.TenantID.String(),
 		Name:     entity.Name,
 		Resource: string(entity.Resource),
 		Action:   string(entity.Action),
@@ -176,14 +174,8 @@ func toDomainPermission(dbPermission *models.Permission) (*permission.Permission
 		return nil, err
 	}
 
-	tenantID, err := uuid.Parse(dbPermission.TenantID)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse uuid")
-	}
-
 	return &permission.Permission{
 		ID:       id,
-		TenantID: tenantID,
 		Name:     dbPermission.Name,
 		Resource: permission.Resource(dbPermission.Resource),
 		Action:   permission.Action(dbPermission.Action),
@@ -211,6 +203,7 @@ func ToDBUpload(upload upload.Upload) *models.Upload {
 		TenantID:  upload.TenantID().String(),
 		Path:      upload.Path(),
 		Hash:      upload.Hash(),
+		Slug:      upload.Slug(),
 		Name:      upload.Name(),
 		Size:      upload.Size().Bytes(),
 		Type:      upload.Type().String(),
@@ -237,6 +230,7 @@ func ToDomainUpload(dbUpload *models.Upload) (upload.Upload, error) {
 		dbUpload.Hash,
 		dbUpload.Path,
 		dbUpload.Name,
+		dbUpload.Slug,
 		dbUpload.Size,
 		mime,
 		upload.UploadType(dbUpload.Type),
@@ -268,31 +262,6 @@ func ToDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
 		Code:   code,
 		Name:   dbCurrency.Name,
 		Symbol: symbol,
-	}, nil
-}
-
-func ToDBTab(tab *tab.Tab) *models.Tab {
-	return &models.Tab{
-		ID:       tab.ID,
-		Href:     tab.Href,
-		Position: tab.Position,
-		UserID:   tab.UserID,
-		TenantID: tab.TenantID.String(),
-	}
-}
-
-func ToDomainTab(dbTab *models.Tab) (*tab.Tab, error) {
-	tenantID, err := uuid.Parse(dbTab.TenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &tab.Tab{
-		ID:       dbTab.ID,
-		Href:     dbTab.Href,
-		Position: dbTab.Position,
-		UserID:   dbTab.UserID,
-		TenantID: tenantID,
 	}, nil
 }
 

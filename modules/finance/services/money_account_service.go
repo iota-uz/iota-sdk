@@ -122,6 +122,6 @@ func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyac
 	return entity, nil
 }
 
-func (s *MoneyAccountService) Count(ctx context.Context) (int64, error) {
-	return s.repo.Count(ctx)
+func (s *MoneyAccountService) Count(ctx context.Context, params *moneyaccount.FindParams) (int64, error) {
+	return s.repo.Count(ctx, params)
 }

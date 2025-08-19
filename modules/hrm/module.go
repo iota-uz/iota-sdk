@@ -4,7 +4,6 @@ import (
 	"embed"
 
 	"github.com/iota-uz/iota-sdk/modules/hrm/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/hrm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -25,9 +24,6 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	app.RBAC().Register(
-		permissions.Permissions...,
-	)
 	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.RegisterServices(

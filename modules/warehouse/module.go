@@ -6,7 +6,6 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
@@ -61,28 +60,6 @@ func (m *Module) Register(app application.Application) error {
 		services.NewInventoryService(app.EventPublisher()),
 	)
 
-	app.RBAC().Register(
-		permissions.ProductCreate,
-		permissions.ProductRead,
-		permissions.ProductUpdate,
-		permissions.ProductDelete,
-		permissions.PositionCreate,
-		permissions.PositionRead,
-		permissions.PositionUpdate,
-		permissions.PositionDelete,
-		permissions.OrderCreate,
-		permissions.OrderRead,
-		permissions.OrderUpdate,
-		permissions.OrderDelete,
-		permissions.UnitCreate,
-		permissions.UnitRead,
-		permissions.UnitUpdate,
-		permissions.UnitDelete,
-		permissions.InventoryCreate,
-		permissions.InventoryRead,
-		permissions.InventoryUpdate,
-		permissions.InventoryDelete,
-	)
 	app.RegisterControllers(
 		controllers.NewProductsController(app),
 		controllers.NewPositionsController(app),

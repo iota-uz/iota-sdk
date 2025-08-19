@@ -9,3 +9,5 @@ ALTER TABLE tenants
 ALTER TABLE tenants
     DROP COLUMN IF EXISTS logo_compact_id,
     DROP COLUMN IF EXISTS logo_id;
+
+

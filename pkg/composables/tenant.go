@@ -23,6 +23,10 @@ func UseTenantID(ctx context.Context) (uuid.UUID, error) {
 	if !ok {
 		return uuid.Nil, ErrNoTenantIDFound
 	}
+	// Treat uuid.Nil as if there's no tenant ID
+	if t == uuid.Nil {
+		return uuid.Nil, ErrNoTenantIDFound
+	}
 	return t, nil
 }
 

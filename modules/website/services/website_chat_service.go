@@ -3,6 +3,9 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/gob"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -19,12 +22,17 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
+	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/cache"
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/chatthread"
+	infraCache "github.com/iota-uz/iota-sdk/modules/website/infrastructure/cache"
+	websitePersistence "github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/rag"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 )
@@ -47,13 +55,22 @@ type ReplyToThreadDTO struct {
 	Message  string
 }
 
+type DefaultWebsiteChatCacheConfig struct {
+	Enabled bool
+	Prefix  string
+	TTL     time.Duration
+}
+
 type WebsiteChatServiceConfig struct {
-	AIConfigRepo aichatconfig.Repository
-	UserRepo     user.Repository
-	ClientRepo   client.Repository
-	ChatRepo     chat.Repository
-	AIUserEmail  internet.Email
-	RAGProvider  rag.Provider
+	AIConfigRepo       aichatconfig.Repository
+	UserRepo           user.Repository
+	ClientRepo         client.Repository
+	ChatRepo           chat.Repository
+	ThreadRepo         chatthread.Repository
+	AIUserEmail        internet.Email
+	RAGProvider        rag.Provider
+	DefaultCacheConfig DefaultWebsiteChatCacheConfig
+	Cache              cache.Cache
 }
 
 type WebsiteChatService struct {
@@ -61,29 +78,40 @@ type WebsiteChatService struct {
 	userRepo     user.Repository
 	clientRepo   client.Repository
 	chatRepo     chat.Repository
+	threadRepo   chatthread.Repository
 	aiUserEmail  internet.Email
 	ragProvider  rag.Provider
-	threadsMap   ThreadsMap
+	cache        cache.Cache
 }
 
-type ThreadsMap map[uuid.UUID]chatthread.ChatThread
-
 func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
-	return &WebsiteChatService{
+	conf := configuration.Use()
+	if config.ThreadRepo == nil {
+		config.ThreadRepo = websitePersistence.NewInmemThreadRepository()
+	}
+	service := &WebsiteChatService{
 		aiconfigRepo: config.AIConfigRepo,
 		userRepo:     config.UserRepo,
 		clientRepo:   config.ClientRepo,
 		chatRepo:     config.ChatRepo,
+		threadRepo:   config.ThreadRepo,
 		aiUserEmail:  config.AIUserEmail,
 		ragProvider:  config.RAGProvider,
-		threadsMap:   make(ThreadsMap),
 	}
+
+	if config.Cache != nil {
+		service.cache = config.Cache
+	} else if config.DefaultCacheConfig.Enabled {
+		service.cache = infraCache.NewRedisCache(redis.NewClient(&redis.Options{Addr: conf.RedisURL}), config.DefaultCacheConfig.Prefix, config.DefaultCacheConfig.TTL)
+	}
+
+	return service
 }
 
 func (s *WebsiteChatService) GetThreadByID(ctx context.Context, threadID uuid.UUID) (chatthread.ChatThread, error) {
-	thread, ok := s.threadsMap[threadID]
-	if !ok {
-		return nil, chatthread.ErrChatThreadNotFound
+	thread, err := s.threadRepo.GetByID(ctx, threadID)
+	if err != nil {
+		return nil, err
 	}
 	chatEntity, err := s.chatRepo.GetByID(ctx, thread.ChatID())
 	if err != nil {
@@ -137,8 +165,9 @@ func (s *WebsiteChatService) CreateThread(ctx context.Context, dto CreateThreadD
 		createdChat.Messages(),
 		chatthread.WithID(threadID),
 	)
-	s.threadsMap[threadID] = thread
-
+	if thread, err = s.threadRepo.Save(ctx, thread); err != nil {
+		return nil, err
+	}
 	return thread, nil
 }
 
@@ -203,7 +232,9 @@ func (s *WebsiteChatService) SendMessageToThread(
 		chatthread.WithID(thread.ID()),
 		chatthread.WithTimestamp(thread.Timestamp()),
 	)
-	s.threadsMap[thread.ID()] = updatedThread
+	if _, err := s.threadRepo.Save(ctx, updatedThread); err != nil {
+		return nil, err
+	}
 
 	return updatedThread, nil
 }
@@ -275,7 +306,9 @@ func (s *WebsiteChatService) ReplyToThread(
 		chatthread.WithID(thread.ID()),
 		chatthread.WithTimestamp(thread.Timestamp()),
 	)
-	s.threadsMap[thread.ID()] = updatedThread
+	if _, err := s.threadRepo.Save(ctx, updatedThread); err != nil {
+		return nil, err
+	}
 
 	return updatedThread, nil
 }
@@ -384,6 +417,31 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 			openaiMessages = append(openaiMessages, openai.UserMessage(msg.Message()))
 		}
 	}
+	cachedResponse, err := s.getCachedAIResponse(ctx, config, openaiMessages)
+	if err != nil {
+		return nil, err
+	}
+	if cachedResponse != "" {
+		logger.WithFields(logrus.Fields{
+			"thread_id": threadID,
+			"response":  cachedResponse,
+		}).Info("Replying with cached response")
+		aiUser, err := s.userRepo.GetByEmail(ctx, s.aiUserEmail.Value())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AI user: %w", err)
+		}
+		respThread, err := s.ReplyToThread(ctx, ReplyToThreadDTO{
+			ThreadID: threadID,
+			UserID:   aiUser.ID(),
+			Message:  cachedResponse,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		return respThread, nil
+	}
 
 	var openaiClient openai.Client
 	if config.BaseURL() != "" {
@@ -436,7 +494,57 @@ func (s *WebsiteChatService) ReplyWithAI(ctx context.Context, threadID uuid.UUID
 		return nil, err
 	}
 
+	if err := s.saveAIResponse(ctx, config, openaiMessages, aiResponse); err != nil {
+		return nil, err
+	}
+
 	return respThread, nil
+}
+
+func (s *WebsiteChatService) getCacheKey(config aichatconfig.AIConfig, messages []openai.ChatCompletionMessageParamUnion) (string, error) {
+	var hashBuffer bytes.Buffer
+	configModel := websitePersistence.ToDBConfig(config)
+	if err := gob.NewEncoder(&hashBuffer).Encode(configModel); err != nil {
+		return "", err
+	}
+	var messageBuffer bytes.Buffer
+	if err := gob.NewEncoder(&messageBuffer).Encode(messages); err != nil {
+		return "", err
+	}
+	if _, err := hashBuffer.Write(messageBuffer.Bytes()); err != nil {
+		return "", err
+	}
+	hash := md5.Sum(hashBuffer.Bytes())
+	return hex.EncodeToString(hash[:]), nil
+}
+
+func (s *WebsiteChatService) getCachedAIResponse(ctx context.Context, config aichatconfig.AIConfig, messages []openai.ChatCompletionMessageParamUnion) (string, error) {
+	if s.cache == nil {
+		return "", nil
+	}
+	key, err := s.getCacheKey(config, messages)
+	if err != nil {
+		return "", err
+	}
+	result, err := s.cache.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, cache.ErrKeyNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	return result, nil
+}
+
+func (s *WebsiteChatService) saveAIResponse(ctx context.Context, config aichatconfig.AIConfig, messages []openai.ChatCompletionMessageParamUnion, response string) error {
+	if s.cache == nil {
+		return nil
+	}
+	key, err := s.getCacheKey(config, messages)
+	if err != nil {
+		return err
+	}
+	return s.cache.Set(ctx, key, response)
 }
 
 func (s *WebsiteChatService) memberFromUserID(ctx context.Context, userID uint) (chat.Member, error) {

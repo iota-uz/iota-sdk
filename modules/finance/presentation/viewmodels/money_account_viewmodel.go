@@ -9,6 +9,7 @@ type MoneyAccountCreateDTO struct {
 }
 
 type MoneyAccountUpdateDTO struct {
+	ID            string
 	Name          string
 	Description   string
 	AccountNumber string

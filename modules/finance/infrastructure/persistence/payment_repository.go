@@ -151,6 +151,8 @@ func (g *GormPaymentRepository) Create(ctx context.Context, data payment.Payment
 		dbTransaction.TransactionType,
 		dbTransaction.Comment,
 		dbTransaction.CreatedAt,
+		dbTransaction.ExchangeRate,
+		dbTransaction.DestinationAmount,
 	).Scan(&dbPayment.TransactionID); err != nil {
 		return nil, errors.Wrap(err, "failed to create transaction")
 	}

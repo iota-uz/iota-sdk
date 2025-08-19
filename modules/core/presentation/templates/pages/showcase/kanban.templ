@@ -1,0 +1,21 @@
+package showcase
+
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components"
+
+templ KanbanContent() {
+	@ComponentShowcase(ShowcaseProps{
+		Title: "Kanban board",
+		Code:  KanbanBoardSource,
+	}) {
+		@components.KanbanBoard()
+	}
+}
+
+templ KanbanPage(props IndexPageProps) {
+	@Layout(LayoutProps{
+		Title:        "Kanban",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@KanbanContent()
+	}
+}

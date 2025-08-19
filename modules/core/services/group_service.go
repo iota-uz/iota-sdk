@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -33,11 +34,17 @@ func (s *GroupService) Count(ctx context.Context, params *group.FindParams) (int
 
 // GetPaginated returns a paginated list of groups
 func (s *GroupService) GetPaginated(ctx context.Context, params *group.FindParams) ([]group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetPaginated(ctx, params)
 }
 
 // GetPaginatedWithTotal returns a paginated list of groups with total count
 func (s *GroupService) GetPaginatedWithTotal(ctx context.Context, params *group.FindParams) ([]group.Group, int64, error) {
+	if err := composables.CanUser(ctx, permissions.GroupRead); err != nil {
+		return nil, 0, err
+	}
 	groups, err := s.repo.GetPaginated(ctx, params)
 	if err != nil {
 		return nil, 0, err
@@ -53,11 +60,17 @@ func (s *GroupService) GetPaginatedWithTotal(ctx context.Context, params *group.
 
 // GetByID returns a group by its ID
 func (s *GroupService) GetByID(ctx context.Context, id uuid.UUID) (group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetByID(ctx, id)
 }
 
 // GetAll returns all groups
 func (s *GroupService) GetAll(ctx context.Context) ([]group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupRead); err != nil {
+		return nil, err
+	}
 	return s.repo.GetPaginated(ctx, &group.FindParams{
 		Limit: 1000, // Use a high limit to fetch all groups
 	})
@@ -65,6 +78,10 @@ func (s *GroupService) GetAll(ctx context.Context) ([]group.Group, error) {
 
 // Create creates a new group
 func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupCreate); err != nil {
+		return nil, err
+	}
+
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -87,6 +104,10 @@ func (s *GroupService) Create(ctx context.Context, g group.Group) (group.Group, 
 
 // Update updates an existing group
 func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupUpdate); err != nil {
+		return nil, err
+	}
+
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -121,6 +142,10 @@ func (s *GroupService) Update(ctx context.Context, g group.Group) (group.Group, 
 
 // Delete removes a group by its ID
 func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := composables.CanUser(ctx, permissions.GroupDelete); err != nil {
+		return err
+	}
+
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return err
@@ -157,6 +182,10 @@ func (s *GroupService) Delete(ctx context.Context, id uuid.UUID) error {
 
 // AddUser adds a user to a group
 func (s *GroupService) AddUser(ctx context.Context, groupID uuid.UUID, userToAdd user.User) (group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupUpdate); err != nil {
+		return nil, err
+	}
+
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -186,6 +215,10 @@ func (s *GroupService) AddUser(ctx context.Context, groupID uuid.UUID, userToAdd
 
 // RemoveUser removes a user from a group
 func (s *GroupService) RemoveUser(ctx context.Context, groupID uuid.UUID, userToRemove user.User) (group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupUpdate); err != nil {
+		return nil, err
+	}
+
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -215,6 +248,10 @@ func (s *GroupService) RemoveUser(ctx context.Context, groupID uuid.UUID, userTo
 
 // AssignRole assigns a role to a group
 func (s *GroupService) AssignRole(ctx context.Context, groupID uuid.UUID, roleToAssign role.Role) (group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupUpdate); err != nil {
+		return nil, err
+	}
+
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
@@ -246,6 +283,10 @@ func (s *GroupService) AssignRole(ctx context.Context, groupID uuid.UUID, roleTo
 
 // RemoveRole removes a role from a group
 func (s *GroupService) RemoveRole(ctx context.Context, groupID uuid.UUID, roleToRemove role.Role) (group.Group, error) {
+	if err := composables.CanUser(ctx, permissions.GroupUpdate); err != nil {
+		return nil, err
+	}
+
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err

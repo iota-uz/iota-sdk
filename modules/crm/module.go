@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/handlers"
 	cpassproviders "github.com/iota-uz/iota-sdk/modules/crm/infrastructure/cpass-providers"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/crm/permissions"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -94,7 +93,6 @@ func (m *Module) Register(app application.Application) error {
 		handlers.RegisterNotificationHandler(app, botToken)
 	}
 
-	app.RBAC().Register(permissions.Permissions...)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	app.Migrations().RegisterSchema(&MigrationFiles)
 	return nil

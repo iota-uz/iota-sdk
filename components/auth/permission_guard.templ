@@ -1,0 +1,12 @@
+package auth
+
+import (
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
+)
+
+templ Guard(permissions ...rbac.Permission) {
+	if user, err := composables.UseUser(ctx); err == nil && user != nil && rbac.And(permissions...).Can(user) {
+		{ children... }
+	}
+}

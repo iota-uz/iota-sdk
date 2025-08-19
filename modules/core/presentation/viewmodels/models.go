@@ -9,6 +9,7 @@ type Currency struct {
 type Upload struct {
 	ID        string
 	Hash      string
+	Slug      string
 	URL       string
 	Mimetype  string
 	Size      string
@@ -25,9 +26,4 @@ type Role struct {
 	UpdatedAt   string
 	CanUpdate   bool
 	CanDelete   bool
-}
-
-type Tab struct {
-	ID   string
-	Href string
 }

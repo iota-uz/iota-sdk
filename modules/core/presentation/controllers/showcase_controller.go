@@ -79,7 +79,6 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.Use(
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.Tabs(),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
@@ -87,6 +86,7 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Overview)).Methods(http.MethodGet)
 	router.HandleFunc("/components/form", di.H(c.Form)).Methods(http.MethodGet)
 	router.HandleFunc("/components/other", di.H(c.Other)).Methods(http.MethodGet)
+	router.HandleFunc("/components/kanban", di.H(c.Kanban)).Methods(http.MethodGet)
 	router.HandleFunc("/components/loaders", di.H(c.Loaders)).Methods(http.MethodGet)
 	router.HandleFunc("/components/charts", di.H(c.Charts)).Methods(http.MethodGet)
 	router.HandleFunc("/components/tooltips", di.H(c.Tooltips)).Methods(http.MethodGet)
@@ -103,6 +103,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 	items := []sidebar.Item{
 		sidebar.NewLink(c.basePath, "Overview", nil),
 		sidebar.NewLink(fmt.Sprintf("%s/lens", c.basePath), "Lens Dashboard", icons.MagnifyingGlass(icons.Props{Size: "20"})),
+		sidebar.NewLink(fmt.Sprintf("%s/crud", c.basePath), "Crud", icons.Buildings(icons.Props{Size: "20"})),
 		sidebar.NewGroup(
 			"Components",
 			icons.PuzzlePiece(icons.Props{Size: "20"}),
@@ -112,6 +113,7 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 				sidebar.NewLink(fmt.Sprintf("%s/components/charts", c.basePath), "Charts", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
 			},
 		),
 	}
@@ -163,6 +165,17 @@ func (c *ShowcaseController) Other(
 		SidebarProps: c.getSidebarProps(),
 	}
 	templ.Handler(showcase.OtherPage(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Kanban(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcase.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcase.KanbanPage(props)).ServeHTTP(w, r)
 }
 
 func (c *ShowcaseController) Loaders(

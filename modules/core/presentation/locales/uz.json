@@ -19,12 +19,15 @@
     "required": "Bu maydon to'ldirilishi shart",
     "emptySelect": "Qiymatni tanlang",
     "email": "Email formati noto'g'ri",
+    "min": "{{.Field}} minimal qiymatdan kam bo'lmasligi kerak",
+    "max": "{{.Field}} maksimal qiymatdan oshmasligi kerak",
     "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
     "custom": "{{.Field}}: {{.Error}}",
     "uuid": "Haqiqiy UUID bo'lishi kerak",
     "gte": "{0} dan katta yoki teng bo'lishi kerak",
     "len": "Uzunligi {0} ga teng bo'lishi kerak",
-    "gt": "{0} dan katta bo'lishi kerak"
+    "gt": "{0} dan katta bo'lishi kerak",
+    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak."
   },
   "Import": {
     "Error": {
@@ -39,7 +42,8 @@
       "Ereyesterday": "Ikki kun oldin",
       "ThisWeek": "Shu hafta",
       "LastWeek": "O'tgan hafta",
-      "ThisMonth": "Shu oy"
+      "ThisMonth": "Shu oy",
+      "LastMonth": "O'tgan oy"
     }
   },
   "Scaffold": {
@@ -58,8 +62,6 @@
     "NothingFound": "Hech narsa topilmadi",
     "Actions": {
       "AddUser": "Foydalanuvchi qo'shish",
-      "AddExpense": "Xarajat qo'shish",
-      "AddPayment": "To'lov qo'shish",
       "AddAccount": "Hisob qo'shish"
     }
   },
@@ -71,111 +73,43 @@
     }
   },
   "Resources": {
-    "user": "Foydalanuvchi",
-    "role": "Rol",
+    "user": "Foydalanuvchilar",
+    "role": "Rollar",
     "group": "Guruhlar",
-    "payment": "To'lov",
-    "expense": "Xarajat",
-    "expense_category": "Xarajat toifasi",
-    "product": "Mahsulot",
-    "unit": "O'lchov birligi",
-    "position": "Lavozim",
-    "order": "Buyurtma",
-    "inventory": "Inventar",
-    "upload": "Yuklash"
+    "upload": "Yuklashlar"
   },
   "Permissions": {
     "User": {
       "Create": "Foydalanuvchi yaratish",
-      "Read": "Foydalanuvchini ko'rish",
+      "Read": "Foydalanuvchilarni ko'rish",
       "Update": "Foydalanuvchini tahrirlash",
       "Delete": "Foydalanuvchini o'chirish"
     },
     "Role": {
       "Create": "Rol yaratish",
-      "Read": "Rolni ko'rish",
+      "Read": "Rollarni ko'rish",
       "Update": "Rolni tahrirlash",
       "Delete": "Rolni o'chirish"
     },
     "Group": {
       "Create": "Guruh yaratish",
-      "Read": "Guruhni ko'rish",
+      "Read": "Guruhlarni ko'rish",
       "Update": "Guruhni tahrirlash",
       "Delete": "Guruhni o'chirish"
     },
     "Account": {
       "Create": "Hisob yaratish",
-      "Read": "Hisobni ko'rish",
+      "Read": "Hisoblarni ko'rish",
       "Update": "Hisobni tahrirlash",
       "Delete": "Hisobni o'chirish"
-    },
-    "Project": {
-      "Create": "Loyiha yaratish",
-      "Read": "Loyihani ko'rish",
-      "Update": "Loyihani tahrirlash",
-      "Delete": "Loyihani o'chirish"
-    },
-    "Stage": {
-      "Create": "Bosqich yaratish",
-      "Read": "Bosqichni ko'rish",
-      "Update": "Bosqichni tahrirlash",
-      "Delete": "Bosqichni o'chirish"
     },
     "Settings": {
       "Update": "Sozlamalarni tahrirlash",
       "Read": "Sozlamalarni ko'rish"
     },
-    "Payment": {
-      "Create": "To'lov yaratish",
-      "Read": "To'lovni ko'rish",
-      "Update": "To'lovni tahrirlash",
-      "Delete": "To'lovni o'chirish"
-    },
-    "Expense": {
-      "Create": "Xarajat yaratish",
-      "Read": "Xarajatni ko'rish",
-      "Update": "Xarajatni tahrirlash",
-      "Delete": "Xarajatni o'chirish"
-    },
-    "ExpenseCategory": {
-      "Create": "Xarajat toifasini yaratish",
-      "Read": "Xarajat toifasini ko'rish",
-      "Update": "Xarajat toifasini tahrirlash",
-      "Delete": "Xarajat toifasini o'chirish"
-    },
-    "Product": {
-      "Create": "Mahsulot yaratish",
-      "Read": "Mahsulotni ko'rish",
-      "Update": "Mahsulotni tahrirlash",
-      "Delete": "Mahsulotni o'chirish"
-    },
-    "Unit": {
-      "Create": "O'lchov birligi yaratish",
-      "Read": "O'lchov birligini ko'rish",
-      "Update": "O'lchov birligini tahrirlash",
-      "Delete": "O'lchov birligini o'chirish"
-    },
-    "Position": {
-      "Create": "Lavozim yaratish",
-      "Read": "Lavozimni ko'rish",
-      "Update": "Lavozimni tahrirlash",
-      "Delete": "Lavozimni o'chirish"
-    },
-    "Order": {
-      "Create": "Buyurtma yaratish",
-      "Read": "Buyurtmani ko'rish",
-      "Update": "Buyurtmani tahrirlash",
-      "Delete": "Buyurtmani o'chirish"
-    },
-    "Inventory": {
-      "Create": "Inventar yaratish",
-      "Read": "Inventarni ko'rish",
-      "Update": "Inventarni tahrirlash",
-      "Delete": "Inventarni o'chirish"
-    },
     "Upload": {
       "Create": "Yuklash yaratish",
-      "Read": "Yuklashni ko'rish",
+      "Read": "Yuklashlarni ko'rish",
       "Update": "Yuklashni tahrirlash",
       "Delete": "Yuklashni o'chirish"
     }
@@ -396,10 +330,6 @@
     },
     "Password": "Parol",
     "Save": "Saqlash",
-    "Tabs": {
-      "Profile": "Profil sozlamalari",
-      "Sidebar": "Yon panel sozlamalari"
-    },
     "Logo": {
       "FullLogo": "To'liq logo",
       "FullLogoDescription": "Bu logo yon panel ochiq bo'lganda ko'rsatiladi",
@@ -442,6 +372,7 @@
   "Save": "Saqlash",
   "Search": "Qidirish",
   "PerPage": "Sahifada",
+  "PermissionSets": "Ruxsatlar",
   "Cancel": "Bekor qilish",
   "Back": "Orqaga",
   "Add": "Qo'shish",
@@ -452,10 +383,169 @@
   "No": "Yo'q",
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Export": {
+    "Title": "Eksport",
     "ToExcel": "Excel ga eksport",
     "ToCSV": "CSV ga eksport",
     "ToJSON": "JSON ga eksport",
     "ToTXT": "TXT ga eksport"
+  },
+  "PermissionSets": {
+    "Core": {
+      "UserView": {
+        "Label": "Foydalanuvchilarni ko'rish",
+        "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
+      },
+      "UserManage": {
+        "Label": "Foydalanuvchilarni boshqarish",
+        "_Description": "Foydalanuvchilarni to'liq boshqarish"
+      },
+      "RoleView": {
+        "Label": "Rollarni ko'rish",
+        "_Description": "Rollar ma'lumotlarini faqat ko'rish"
+      },
+      "RoleManage": {
+        "Label": "Rollarni boshqarish",
+        "_Description": "Rollar va ruxsatlarni to'liq boshqarish"
+      },
+      "GroupView": {
+        "Label": "Guruhlarni ko'rish",
+        "_Description": "Guruhlar ma'lumotlarini faqat ko'rish"
+      },
+      "GroupManage": {
+        "Label": "Guruhlarni boshqarish",
+        "_Description": "Guruhlarni to'liq boshqarish"
+      },
+      "UploadView": {
+        "Label": "Fayllarni ko'rish",
+        "_Description": "Yuklangan fayllarni faqat ko'rish"
+      },
+      "UploadManage": {
+        "Label": "Fayllarni boshqarish",
+        "_Description": "Fayl yuklashni to'liq boshqarish"
+      }
+    },
+    "Finance": {
+      "PaymentView": {
+        "Label": "To'lovlarni ko'rish",
+        "_Description": "To'lovlar ma'lumotlarini faqat ko'rish"
+      },
+      "PaymentManage": {
+        "Label": "To'lovlarni boshqarish",
+        "_Description": "To'lovlarni to'liq boshqarish"
+      },
+      "ExpenseView": {
+        "Label": "Xarajatlarni ko'rish",
+        "_Description": "Xarajatlar ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseManage": {
+        "Label": "Xarajatlarni boshqarish",
+        "_Description": "Xarajatlarni to'liq boshqarish"
+      },
+      "ExpenseCategoryView": {
+        "Label": "Xarajat toifalarini ko'rish",
+        "_Description": "Xarajat toifalari ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseCategoryManage": {
+        "Label": "Xarajat toifalarini boshqarish",
+        "_Description": "Xarajat toifalarini to'liq boshqarish"
+      },
+      "DebtView": {
+        "Label": "Qarzlarni ko'rish",
+        "_Description": "Qarzlar ma'lumotlarini faqat ko'rish"
+      },
+      "DebtManage": {
+        "Label": "Qarzlarni boshqarish",
+        "_Description": "Qarzlarni to'liq boshqarish"
+      }
+    },
+    "Projects": {
+      "ProjectView": {
+        "Label": "Loyihalarni ko'rish",
+        "_Description": "Loyihalar ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectManage": {
+        "Label": "Loyihalarni boshqarish",
+        "_Description": "Loyihalarni to'liq boshqarish"
+      },
+      "ProjectStageView": {
+        "Label": "Loyiha bosqichlarini ko'rish",
+        "_Description": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectStageManage": {
+        "Label": "Loyiha bosqichlarini boshqarish",
+        "_Description": "Loyiha bosqichlarini to'liq boshqarish"
+      }
+    },
+    "Warehouse": {
+      "ProductView": {
+        "Label": "Mahsulotlarni ko'rish",
+        "_Description": "Mahsulotlar ma'lumotlarini faqat ko'rish"
+      },
+      "ProductManage": {
+        "Label": "Mahsulotlarni boshqarish",
+        "_Description": "Mahsulotlarni to'liq boshqarish"
+      },
+      "PositionView": {
+        "Label": "Pozitsiyalarni ko'rish",
+        "_Description": "Pozitsiyalar ma'lumotlarini faqat ko'rish"
+      },
+      "PositionManage": {
+        "Label": "Pozitsiyalarni boshqarish",
+        "_Description": "Pozitsiyalarni to'liq boshqarish"
+      },
+      "OrderView": {
+        "Label": "Buyurtmalarni ko'rish",
+        "_Description": "Buyurtmalar ma'lumotlarini faqat ko'rish"
+      },
+      "OrderManage": {
+        "Label": "Buyurtmalarni boshqarish",
+        "_Description": "Buyurtmalarni to'liq boshqarish"
+      },
+      "UnitView": {
+        "Label": "Birliklarni ko'rish",
+        "_Description": "Birliklar ma'lumotlarini faqat ko'rish"
+      },
+      "UnitManage": {
+        "Label": "Birliklarni boshqarish",
+        "_Description": "Birliklarni to'liq boshqarish"
+      },
+      "InventoryView": {
+        "Label": "Inventarni ko'rish",
+        "_Description": "Inventar ma'lumotlarini faqat ko'rish"
+      },
+      "InventoryManage": {
+        "Label": "Inventarni boshqarish",
+        "_Description": "Inventarni to'liq boshqarish"
+      }
+    },
+    "CRM": {
+      "ClientView": {
+        "Label": "Mijozlarni ko'rish",
+        "_Description": "Mijozlar ma'lumotlarini faqat ko'rish"
+      },
+      "ClientManage": {
+        "Label": "Mijozlarni boshqarish",
+        "_Description": "Mijozlarni to'liq boshqarish"
+      }
+    },
+    "HRM": {
+      "EmployeeView": {
+        "Label": "Xodimlarni ko'rish",
+        "_Description": "Xodimlar ma'lumotlarini faqat ko'rish"
+      },
+      "EmployeeManage": {
+        "Label": "Xodimlarni boshqarish",
+        "_Description": "Xodimlarni to'liq boshqarish"
+      }
+    }
+  },
+  "Modules": {
+    "Core": "Boshqaruv",
+    "Finance": "Moliya",
+    "Projects": "Loyihalar",
+    "Warehouse": "Ombor",
+    "CRM": "CRM",
+    "HRM": "Kadrlar boshqaruvi"
   },
   "Countries": {
     "AF": "Afg'oniston",
@@ -665,5 +755,13 @@
     "NoDataTitle": "Ma'lumot mavjud emas",
     "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
     "Categories": "Toifalar"
+  },
+  "multilang": {
+    "empty": "—",
+    "no_translations": "Tarjimalar mavjud emas",
+    "add_language": "+ Til qo'shish",
+    "remove_language": "Bu tilni o'chirish",
+    "locale_placeholder": "uz",
+    "text_placeholder": "Bu tilda matn kiriting"
   }
 }

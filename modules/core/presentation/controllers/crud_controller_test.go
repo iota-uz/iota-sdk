@@ -17,7 +17,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -290,7 +292,9 @@ func TestCrudController_List_Success(t *testing.T) {
 		user.UILanguageEN,
 	)
 
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(testUser)
 
 	service := newTestService()
@@ -347,7 +351,9 @@ func TestCrudController_List_HTMX(t *testing.T) {
 	t.Skip("TODO: Fix HTMX list test")
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -368,7 +374,9 @@ func TestCrudController_List_Search(t *testing.T) {
 	t.Skip("TODO: Fix search test")
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -400,7 +408,9 @@ func TestCrudController_List_Pagination(t *testing.T) {
 	t.Skip("TODO: Fix pagination test")
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -434,7 +444,9 @@ func TestCrudController_GetNew(t *testing.T) {
 	t.Skip("TODO: Fix GetNew form rendering test")
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -460,7 +472,9 @@ func TestCrudController_GetNew(t *testing.T) {
 func TestCrudController_Create_Success(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -506,7 +520,9 @@ func TestCrudController_Create_ValidationError(t *testing.T) {
 	t.Skip("TODO: Fix validation error test")
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -556,7 +572,9 @@ func TestCrudController_GetEdit_Success(t *testing.T) {
 	t.Skip("TODO: Fix GetEdit form rendering test")
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -602,7 +620,9 @@ func TestCrudController_GetEdit_Success(t *testing.T) {
 func TestCrudController_GetEdit_NotFound(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -621,7 +641,9 @@ func TestCrudController_GetEdit_NotFound(t *testing.T) {
 func TestCrudController_Update_Success(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -682,7 +704,9 @@ func TestCrudController_Update_Success(t *testing.T) {
 func TestCrudController_Delete_Success(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -716,7 +740,9 @@ func TestCrudController_Delete_Success(t *testing.T) {
 func TestCrudController_Delete_NotFound(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -735,7 +761,9 @@ func TestCrudController_Delete_NotFound(t *testing.T) {
 func TestCrudController_InvalidUUID(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -753,7 +781,9 @@ func TestCrudController_InvalidUUID(t *testing.T) {
 func TestCrudController_WithoutEdit(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -774,7 +804,9 @@ func TestCrudController_WithoutEdit(t *testing.T) {
 func TestCrudController_WithoutDelete(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -794,7 +826,9 @@ func TestCrudController_WithoutDelete(t *testing.T) {
 func TestCrudController_WithoutCreate(t *testing.T) {
 	// Setup
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -832,7 +866,9 @@ func TestCrudController_FieldTypes(t *testing.T) {
 
 	// Test form rendering for each field type
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := &complexTestService{}
@@ -936,7 +972,9 @@ func (m *testDecimalMapper) ToFieldValuesList(_ context.Context, entities ...Tes
 func TestCrudController_DecimalFieldHandling(t *testing.T) {
 	// This test specifically covers the decimal field fix
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -987,7 +1025,9 @@ func TestCrudController_DecimalFieldHandling(t *testing.T) {
 func TestCrudController_ReadonlyFieldExclusion(t *testing.T) {
 	// This test covers the readonly field exclusion fix
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -1042,7 +1082,9 @@ func (s *preAssignedTestService) Save(ctx context.Context, entity TestEntity) (T
 func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 	// Test handling of entities with pre-assigned keys (like string IDs or UUIDs)
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	baseService := newTestService()
@@ -1085,7 +1127,9 @@ func TestCrudController_PreAssignedKeyHandling(t *testing.T) {
 func TestCrudController_FormFieldBuilder(t *testing.T) {
 	// Test the form field builder functionality
 	adminUser := itf.User()
-	suite := itf.HTTP(t, core.NewModule()).
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	})).
 		AsUser(adminUser)
 
 	service := newTestService()
@@ -1111,41 +1155,43 @@ func TestCrudController_ErrorHandling(t *testing.T) {
 	// Currently the error message display mechanism is being worked on
 
 	/*
-		// Test various error scenarios
-		adminUser := itf.User()
-		suite := itf.HTTP(t, core.NewModule()).
-			AsUser(adminUser)
+			// Test various error scenarios
+			adminUser := itf.User()
+			suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		})).
+				AsUser(adminUser)
 
-		baseService := newTestService()
+			baseService := newTestService()
 
-		// Create error service wrapper
-		errorService := &errorTestService{
-			testService: baseService,
-		}
+			// Create error service wrapper
+			errorService := &errorTestService{
+				testService: baseService,
+			}
 
-		builder := &testBuilder{
-			schema:  createTestSchema(),
-			service: errorService,
-		}
+			builder := &testBuilder{
+				schema:  createTestSchema(),
+				service: errorService,
+			}
 
-		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
-		suite.Register(controller)
+			env := suite.Environment()
+			controller := controllers.NewCrudController[TestEntity]("/test", env.App, builder)
+			suite.Register(controller)
 
-		// Test create with service error
-		formData := url.Values{
-			"name": {"Test"},
-		}
+			// Test create with service error
+			formData := url.Values{
+				"name": {"Test"},
+			}
 
-		resp := suite.POST("/test").
-			Form(formData).
-			Expect(t).
-			Status(http.StatusInternalServerError)
+			resp := suite.POST("/test").
+				Form(formData).
+				Expect(t).
+				Status(http.StatusInternalServerError)
 
-		// Should show error message
-		doc := resp.HTML()
-		errorMsg := doc.Element("//*[@data-testid='alert-message']").Text()
-		assert.Contains(t, errorMsg, "save failed")
+			// Should show error message
+			doc := resp.HTML()
+			errorMsg := doc.Element("//*[@data-testid='alert-message']").Text()
+			assert.Contains(t, errorMsg, "save failed")
 	*/
 }
 
@@ -1161,6 +1207,7 @@ type ComplexEntity struct {
 	DateTime  time.Time
 	Timestamp time.Time
 	UUID      uuid.UUID
+	JSON      string
 }
 
 // complexTestService implements crud.Service[ComplexEntity]
@@ -1210,4 +1257,122 @@ func (b *complexTestBuilder) Service() crud.Service[ComplexEntity] {
 
 func (b *complexTestBuilder) Repository() crud.Repository[ComplexEntity] {
 	return nil // Not needed for these tests
+}
+
+func TestCrudController_JSONField_FormHandling(t *testing.T) {
+	// Setup
+	adminUser := itf.User()
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	})).
+		AsUser(adminUser)
+
+	service := &complexTestService{}
+
+	// Create schema with JSON field
+	fields := crud.NewFields([]crud.Field{
+		crud.NewUUIDField("id", crud.WithKey()),
+		crud.NewStringField("string"),
+		crud.NewJSONField("json", crud.JSONFieldConfig[interface{}]{}),
+	})
+
+	schema := crud.NewSchema[ComplexEntity](
+		"complex_entities",
+		fields,
+		&complexTestMapper{fields: fields},
+	)
+
+	builder := &complexTestBuilder{
+		schema:  schema,
+		service: service,
+	}
+
+	env := suite.Environment()
+	controller := controllers.NewCrudController[ComplexEntity]("/complex", env.App, builder)
+	suite.Register(controller)
+
+	// Test GET /new - should render textarea for JSON field
+	doc := suite.GET("/complex/new").Expect(t).Status(200).HTML()
+
+	// Check that JSON field is rendered as textarea
+	jsonField := doc.Element("//textarea[@name='json']")
+	jsonField.Exists()
+
+	// Test POST with valid JSON - should redirect after successful creation
+	validJSON := `{"name": "test", "value": 123}`
+	formData := url.Values{
+		"string": {"test string"},
+		"json":   {validJSON},
+	}
+
+	suite.POST("/complex").
+		Form(formData).
+		Expect(t).
+		Status(303) // Redirect after successful create
+
+	// Test POST with invalid JSON - should return error
+	invalidJSON := `{"name": "test", "value": 123` // Missing closing brace
+	formData = url.Values{
+		"string": {"test string"},
+		"json":   {invalidJSON},
+	}
+
+	response := suite.POST("/complex").
+		Form(formData).
+		Expect(t).
+		Status(400)
+
+	// Check that error message is displayed
+	body := response.Body()
+	assert.Contains(t, body, "Invalid form data")
+}
+
+// complexTestMapper implements crud.Mapper[ComplexEntity]
+type complexTestMapper struct {
+	fields crud.Fields
+}
+
+func (m *complexTestMapper) ToEntities(ctx context.Context, values ...[]crud.FieldValue) ([]ComplexEntity, error) {
+	entities := make([]ComplexEntity, len(values))
+	for i, fvs := range values {
+		entity := ComplexEntity{}
+		for _, fv := range fvs {
+			switch fv.Field().Name() {
+			case "id":
+				if id, err := fv.AsUUID(); err == nil {
+					entity.ID = id
+				}
+			case "string":
+				if str, err := fv.AsString(); err == nil {
+					entity.String = str
+				}
+			case "json":
+				if json, err := fv.AsString(); err == nil {
+					entity.JSON = json
+				}
+			}
+		}
+		entities[i] = entity
+	}
+	return entities, nil
+}
+
+func (m *complexTestMapper) ToFieldValuesList(ctx context.Context, entities ...ComplexEntity) ([][]crud.FieldValue, error) {
+	result := make([][]crud.FieldValue, len(entities))
+	for i, entity := range entities {
+		fvs := make([]crud.FieldValue, 0)
+
+		if field, err := m.fields.Field("id"); err == nil {
+			fvs = append(fvs, field.Value(entity.ID))
+		}
+		if field, err := m.fields.Field("string"); err == nil {
+			fvs = append(fvs, field.Value(entity.String))
+		}
+		if field, err := m.fields.Field("json"); err == nil {
+			fvs = append(fvs, field.Value(entity.JSON))
+		}
+
+		result[i] = fvs
+	}
+	return result, nil
 }

@@ -1,6 +1,7 @@
 package crud_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -50,15 +51,15 @@ func TestFieldOptions(t *testing.T) {
 	})
 
 	t.Run("WithInitialValue", func(t *testing.T) {
-		field := crud.NewStringField("test", crud.WithInitialValue(func() any {
+		field := crud.NewStringField("test", crud.WithInitialValue(func(ctx context.Context) any {
 			return "initial"
 		}))
-		assert.Equal(t, "initial", field.InitialValue())
+		assert.Equal(t, "initial", field.InitialValue(context.Background()))
 
-		field2 := crud.NewIntField("test2", crud.WithInitialValue(func() any {
+		field2 := crud.NewIntField("test2", crud.WithInitialValue(func(ctx context.Context) any {
 			return 42
 		}))
-		assert.Equal(t, 42, field2.InitialValue())
+		assert.Equal(t, 42, field2.InitialValue(context.Background()))
 	})
 
 	t.Run("WithRules", func(t *testing.T) {
