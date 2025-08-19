@@ -1,0 +1,32 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type DebtTypeSelectProps struct {
+	Label       string
+	Placeholder string
+	Value       string
+	Error       string
+	Attrs       templ.Attributes
+}
+
+templ DebtTypeSelect(props *DebtTypeSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Select(&base.SelectProps{
+		Label:       props.Label,
+		Placeholder: props.Placeholder,
+		Error:       props.Error,
+		Attrs:       props.Attrs,
+	}) {
+		<option value="">{ props.Placeholder }</option>
+		<option value="RECEIVABLE" selected?={ props.Value == "RECEIVABLE" }>
+			{ pageCtx.T("Debts.Types.RECEIVABLE") }
+		</option>
+		<option value="PAYABLE" selected?={ props.Value == "PAYABLE" }>
+			{ pageCtx.T("Debts.Types.PAYABLE") }
+		</option>
+	}
+}

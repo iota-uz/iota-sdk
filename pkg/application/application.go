@@ -19,7 +19,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -105,10 +104,10 @@ func New(opts *ApplicationOptions) Application {
 	sl := spotlight.New()
 	quickLinks := &spotlight.QuickLinks{}
 	sl.Register(quickLinks)
+
 	return &application{
 		pool:           opts.Pool,
 		eventPublisher: opts.EventBus,
-		rbac:           rbac.NewRbac(),
 		websocket:      opts.Huber,
 		controllers:    make(map[string]Controller),
 		services:       make(map[reflect.Type]interface{}),
@@ -124,7 +123,6 @@ type application struct {
 	pool           *pgxpool.Pool
 	eventPublisher eventbus.EventBus
 	websocket      Huber
-	rbac           rbac.RBAC
 	services       map[reflect.Type]interface{}
 	controllers    map[string]Controller
 	middleware     []mux.MiddlewareFunc
@@ -156,10 +154,6 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 
 func (app *application) RegisterNavItems(items ...types.NavigationItem) {
 	app.navItems = append(app.navItems, items...)
-}
-
-func (app *application) RBAC() rbac.RBAC {
-	return app.rbac
 }
 
 func (app *application) Middleware() []mux.MiddlewareFunc {

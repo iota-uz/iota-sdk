@@ -2,25 +2,19 @@ package core
 
 import (
 	"embed"
-	"time"
-
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
-	"github.com/iota-uz/iota-sdk/pkg/crud"
 
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
+	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/modules/core/handlers"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
-	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -31,17 +25,24 @@ var LocaleFiles embed.FS
 //go:embed infrastructure/persistence/schema/core-schema.sql
 var MigrationFiles embed.FS
 
-func NewModule() application.Module {
-	return &Module{}
+type ModuleOptions struct {
+	PermissionSchema *rbac.PermissionSchema // For UI-only use in RolesController
+}
+
+func NewModule(opts *ModuleOptions) application.Module {
+	if opts == nil {
+		opts = &ModuleOptions{}
+	}
+	return &Module{
+		options: opts,
+	}
 }
 
 type Module struct {
+	options *ModuleOptions
 }
 
 func (m *Module) Register(app application.Application) error {
-	app.RBAC().Register(
-		permissions.Permissions...,
-	)
 	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	fsStorage, err := persistence.NewFSStorage()
@@ -65,7 +66,6 @@ func (m *Module) Register(app application.Application) error {
 	userValidator := validators.NewUserValidator(userRepo)
 
 	// Create services
-	tabService := services.NewTabService(persistence.NewTabRepository())
 	tenantService := services.NewTenantService(tenantRepo)
 	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
 
@@ -81,64 +81,14 @@ func (m *Module) Register(app application.Application) error {
 		services.NewAuthService(app),
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
 		services.NewRoleService(roleRepo, app.EventPublisher()),
-		tabService,
 		tenantService,
 		services.NewPermissionService(permRepo, app.EventPublisher()),
-		services.NewTabService(persistence.NewTabRepository()),
 		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
 	)
 
-	tabHandler := handlers.NewTabHandler(
-		app,
-		configuration.Use().Logger(),
-	)
-	tabHandler.Register(app.EventPublisher())
+	// handlers.RegisterUserHandler(app)
 
-	handlers.RegisterUserHandler(app)
-
-	fields := crud.NewFields([]crud.Field{
-		crud.NewStringField(
-			"code",
-			crud.WithKey(),
-			crud.WithMaxLen(3),
-			crud.WithSearchable(),
-		),
-		crud.NewStringField(
-			"name",
-			crud.WithMaxLen(255),
-			crud.WithSearchable(),
-		),
-		crud.NewStringField(
-			"symbol",
-			crud.WithMaxLen(3),
-			crud.WithSearchable(),
-		),
-		crud.NewDateTimeField("created_at",
-			crud.WithHidden(),
-			crud.WithInitialValue(func() any {
-				return time.Now()
-			}),
-		),
-		crud.NewDateTimeField(
-			"updated_at",
-			crud.WithHidden(),
-			crud.WithInitialValue(func() any {
-				return time.Now()
-			}),
-		),
-	})
-
-	schema := crud.NewSchema[currency.Currency](
-		"currencies",
-		fields,
-		currency.NewMapper(fields),
-	)
-
-	builder := crud.NewBuilder[currency.Currency](
-		schema,
-		app.EventPublisher(),
-	)
-
+	//controllers.InitCrudShowcase(app)
 	app.RegisterControllers(
 		controllers.NewHealthController(app),
 		controllers.NewDashboardController(app),
@@ -148,17 +98,19 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewAccountController(app),
 		controllers.NewLogoutController(app),
 		controllers.NewUploadController(app),
-		controllers.NewUsersController(app),
-		controllers.NewRolesController(app),
+		controllers.NewUsersController(app, &controllers.UsersControllerOptions{
+			BasePath:         "/users",
+			PermissionSchema: m.options.PermissionSchema,
+		}),
+		controllers.NewRolesController(app, &controllers.RolesControllerOptions{
+			BasePath:         "/roles",
+			PermissionSchema: m.options.PermissionSchema,
+		}),
 		controllers.NewGroupsController(app),
 		controllers.NewShowcaseController(app),
+		controllers.NewCrudShowcaseController(app),
 		controllers.NewWebSocketController(app),
 		controllers.NewSettingsController(app),
-		controllers.NewCrudController[currency.Currency](
-			"/currencies",
-			app,
-			builder,
-		),
 	)
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{

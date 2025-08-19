@@ -2,13 +2,17 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/iota-uz/iota-sdk/components/multilang"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -20,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
@@ -49,10 +54,17 @@ type CrudController[TEntity any] struct {
 	formFields      []crud.Field
 	primaryKeyField crud.Field
 
+	// custom rendering
+	rendererRegistry *crud.RendererRegistry
+
 	// options
 	enableEdit   bool
 	enableDelete bool
 	enableCreate bool
+
+	// custom actions
+	customHeaderActions []actions.ActionProps
+	customRowActions    []func(primaryKey any) actions.ActionProps
 }
 
 // CrudOption defines options for CrudController
@@ -79,6 +91,27 @@ func WithoutCreate[TEntity any]() CrudOption[TEntity] {
 	}
 }
 
+// WithMultiLangRenderer registers the MultiLang renderer for the showcase controller
+func WithMultiLangRenderer[TEntity any]() CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.RegisterRenderer("multilang", multilang.NewMultiLangRendererWithSchema(c.schema))
+	}
+}
+
+// WithCustomHeaderAction adds a custom header action to the list view
+func WithCustomHeaderAction[TEntity any](action actions.ActionProps) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.customHeaderActions = append(c.customHeaderActions, action)
+	}
+}
+
+// WithCustomRowAction adds a custom row action to each row in the table
+func WithCustomRowAction[TEntity any](actionBuilder func(primaryKey any) actions.ActionProps) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.customRowActions = append(c.customRowActions, actionBuilder)
+	}
+}
+
 func NewCrudController[TEntity any](
 	basePath string,
 	app application.Application,
@@ -86,13 +119,16 @@ func NewCrudController[TEntity any](
 	opts ...CrudOption[TEntity],
 ) application.Controller {
 	controller := &CrudController[TEntity]{
-		basePath:     basePath,
-		app:          app,
-		schema:       builder.Schema(),
-		service:      builder.Service(),
-		enableEdit:   true,
-		enableDelete: true,
-		enableCreate: true,
+		basePath:            basePath,
+		app:                 app,
+		schema:              builder.Schema(),
+		service:             builder.Service(),
+		rendererRegistry:    crud.NewRendererRegistry(),
+		enableEdit:          true,
+		enableDelete:        true,
+		enableCreate:        true,
+		customHeaderActions: make([]actions.ActionProps, 0),
+		customRowActions:    make([]func(primaryKey any) actions.ActionProps, 0),
 	}
 
 	// Apply options
@@ -106,6 +142,8 @@ func NewCrudController[TEntity any](
 	return controller
 }
 
+// schema/core-schema.sql
+
 func (c *CrudController[TEntity]) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
@@ -113,7 +151,6 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.Tabs(),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
@@ -139,6 +176,11 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 
 func (c *CrudController[TEntity]) Key() string {
 	return c.basePath
+}
+
+// RegisterRenderer registers a custom field renderer for the given type
+func (c *CrudController[TEntity]) RegisterRenderer(rendererType string, renderer crud.FieldRenderer) {
+	c.rendererRegistry.Register(rendererType, renderer)
 }
 
 // initFieldCache pre-computes commonly used field collections
@@ -196,7 +238,7 @@ func (c *CrudController[TEntity]) validateID(id string) error {
 		if _, err := uuid.Parse(id); err != nil {
 			return fmt.Errorf("invalid UUID: %s", id)
 		}
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
 		// These types don't need special validation for ID format
 	}
 	return nil
@@ -222,7 +264,7 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 		}
 		// If parsing fails, return nil UUID instead of nil
 		return uuid.Nil
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
 		// For all other types, return the string as-is
 		return id
 	}
@@ -284,8 +326,18 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				} else {
 					continue
 				}
+			case crud.UUIDFieldType:
+				if formValue != "" {
+					if uuidVal, err := uuid.Parse(formValue); err == nil {
+						value = uuidVal
+					} else {
+						return nil, fmt.Errorf("invalid UUID value for select field %s: %v", fieldName, err)
+					}
+				} else {
+					continue // Skip empty values
+				}
 			case crud.StringFieldType, crud.DecimalFieldType, crud.DateFieldType,
-				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
 				value = formValue
 			default:
 				// Default to string for any unknown types
@@ -320,7 +372,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				} else {
 					continue // Skip empty values
 				}
-			case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType:
+			case crud.DateFieldType, crud.DateTimeFieldType, crud.TimeFieldType, crud.TimestampFieldType:
 				if formValue != "" {
 					parsedTime, err := time.Parse(time.RFC3339, formValue)
 					if err != nil {
@@ -333,7 +385,9 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							formats = []string{"15:04", "15:04:05"}
 						case crud.DateTimeFieldType:
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
-						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.TimestampFieldType, crud.UUIDFieldType:
+						case crud.TimestampFieldType:
+							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05", time.RFC3339}
+						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.UUIDFieldType, crud.JSONFieldType:
 							// These types are handled elsewhere
 							formats = []string{}
 						}
@@ -363,10 +417,25 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					continue // Skip empty values
 				}
 			case crud.DecimalFieldType:
-				// Decimal fields are stored as strings
-				value = formValue
-			case crud.StringFieldType, crud.TimestampFieldType:
-				// String and timestamp fields are handled as strings from forms
+				// Decimal fields are stored as strings, but skip empty values
+				if formValue != "" {
+					value = formValue
+				} else {
+					continue // Skip empty values
+				}
+			case crud.JSONFieldType:
+				if formValue != "" {
+					// Validate JSON format
+					var jsonTest interface{}
+					if err := json.Unmarshal([]byte(formValue), &jsonTest); err != nil {
+						return nil, fmt.Errorf("invalid JSON format for field %s: %v", fieldName, err)
+					}
+					value = formValue
+				} else {
+					continue // Skip empty JSON values
+				}
+			case crud.StringFieldType:
+				// String fields are handled as strings from forms
 				value = formValue
 			}
 		}
@@ -421,6 +490,17 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		params.Query = searchQuery
 	}
 
+	// Handle sorting parameters
+	sortField := table.UseSortQuery(r)
+	sortOrder := table.UseOrderQuery(r)
+	if sortField != "" {
+		params.SortBy = crud.SortBy{
+			Fields: []repo.SortByField[string]{
+				{Field: sortField, Ascending: sortOrder == "asc"},
+			},
+		}
+	}
+
 	// Fetch entities and count in parallel for better performance
 	type listResult struct {
 		entities []TEntity
@@ -473,11 +553,17 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 
 	// Build the data URL with query parameters preserved
 	dataURL := c.basePath
-	if params.Query != "" {
-		// Preserve search query in the URL for infinity scroll
+	if params.Query != "" || sortField != "" {
+		// Preserve search query and sort parameters in the URL for infinity scroll
 		u, _ := url.Parse(dataURL)
 		q := u.Query()
-		q.Set("Search", params.Query)
+		if params.Query != "" {
+			q.Set("Search", params.Query)
+		}
+		if sortField != "" {
+			q.Set("sort", sortField)
+			q.Set("order", sortOrder)
+		}
 		u.RawQuery = q.Encode()
 		dataURL = u.String()
 	}
@@ -503,32 +589,51 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	// Add columns based on visible fields (only for initial load)
-	if !htmx.IsHxRequest(r) {
-		columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
-		for _, f := range c.visibleFields {
-			// Localize field label
-			fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name()), f.Name())
-			if err != nil {
-				fieldLabel = f.Name()
-			}
-			columns = append(columns, table.Column(f.Name(), fieldLabel))
+	// Add columns based on visible fields (needed for all requests to maintain table structure)
+	columns := make([]table.TableColumn, 0, len(c.visibleFields)+1)
+	for _, f := range c.visibleFields {
+		// Localize field label using custom key if provided, otherwise use default pattern
+		localizationKey := f.LocalizationKey()
+		if localizationKey == "" {
+			localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), f.Name())
+		}
+		fieldLabel, err := c.localize(ctx, localizationKey, f.Name())
+		if err != nil {
+			fieldLabel = f.Name()
 		}
 
-		// Add actions column if edit or delete is enabled
-		if c.enableEdit || c.enableDelete {
-			actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
-			columns = append(columns, table.Column("actions", actionsLabel))
+		// Create column with sorting support
+		// Get current query parameters to preserve them in sort URLs
+		currentParams := r.URL.Query()
+		// Remove pagination params as they should reset on sort
+		currentParams.Del("page")
+		currentParams.Del("limit")
+
+		// Only enable sorting for explicitly sortable fields
+		col := table.Column(f.Name(), fieldLabel)
+		if f.Sortable() {
+			col = table.Column(f.Name(), fieldLabel,
+				table.WithSortable(),
+				table.WithSortDir(table.GetSortDirection(f.Name(), sortField, sortOrder)),
+				table.WithSortURL(table.GenerateSortURLWithParams(c.basePath, f.Name(), sortField, sortOrder, currentParams)),
+			)
 		}
+		columns = append(columns, col)
+	}
 
-		cfg.AddCols(columns...)
+	// Add actions column if edit or delete is enabled (not sortable)
+	if c.enableEdit || c.enableDelete {
+		actionsLabel, _ := c.localize(ctx, "Actions", "Actions")
+		columns = append(columns, table.Column("actions", actionsLabel))
+	}
 
-		// Add header actions
-		headerActions := c.buildHeaderActions(ctx)
-		if len(headerActions) > 0 {
-			for _, action := range headerActions {
-				cfg.AddActions(actions.RenderAction(action))
-			}
+	cfg.AddCols(columns...)
+
+	// Add header actions
+	headerActions := c.buildHeaderActions(ctx)
+	if len(headerActions) > 0 {
+		for _, action := range headerActions {
+			cfg.AddActions(actions.RenderAction(action))
 		}
 	}
 
@@ -554,13 +659,8 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		table.WithInfiniteScroll(hasMore, paginationParams.Page, paginationParams.Limit)(cfg)
 	}
 
-	// Render response
-	var component templ.Component
-	if htmx.IsHxRequest(r) {
-		component = table.Rows(cfg)
-	} else {
-		component = table.Page(cfg)
-	}
+	// Render response using ContentHTMX for proper HTMX handling
+	component := table.ContentHTMX(cfg)
 
 	if err := component.Render(ctx, w); err != nil {
 		log.Printf("[CrudController.List] Failed to render template: %v", err)
@@ -625,8 +725,12 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 	detailFields := make([]table.DetailFieldValue, 0, len(c.visibleFields))
 	for _, field := range c.visibleFields {
 		if fv, exists := fieldValueMap[field.Name()]; exists {
-			// Localize field label
-			fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
+			// Localize field label using custom key if provided, otherwise use default pattern
+			localizationKey := field.LocalizationKey()
+			if localizationKey == "" {
+				localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name())
+			}
+			fieldLabel, err := c.localize(ctx, localizationKey, field.Name())
 			if err != nil {
 				fieldLabel = field.Name()
 			}
@@ -639,8 +743,21 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 				valueStr = ""
 				fieldType = table.DetailFieldTypeText
 			} else {
-				// Check if this is a select field and get the label
-				if selectField, ok := field.(crud.SelectField); ok {
+				// Check for custom renderer first
+				if rendererType := field.RendererType(); rendererType != "" {
+					if renderer, exists := c.rendererRegistry.Get(rendererType); exists {
+						// Render the component to HTML string
+						component := renderer.RenderDetails(ctx, field, fv)
+						var htmlBuffer strings.Builder
+						if err := component.Render(ctx, &htmlBuffer); err != nil {
+							log.Printf("[CrudController.Details] Failed to render custom component: %v", err)
+							valueStr = fmt.Sprintf("CustomRenderer: %s", rendererType)
+						} else {
+							valueStr = htmlBuffer.String()
+						}
+						fieldType = table.DetailFieldTypeHTML
+					}
+				} else if selectField, ok := field.(crud.SelectField); ok {
 					// Get options
 					options := selectField.Options()
 					if options == nil && selectField.OptionsLoader() != nil {
@@ -696,6 +813,9 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
 					case crud.UUIDFieldType:
+						valueStr = fmt.Sprintf("%v", fv.Value())
+						fieldType = table.DetailFieldTypeText
+					case crud.JSONFieldType:
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
 					default:
@@ -763,7 +883,7 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 // buildTableRow creates a table row from field values
 func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues []crud.FieldValue) (table.TableRow, error) {
 	var primaryKey any
-	components := make([]templ.Component, 0, len(c.visibleFields)+1)
+	cells := make([]table.TableCell, 0, len(c.visibleFields)+1)
 
 	// Create a map for quick field value lookup
 	fieldValueMap := make(map[string]crud.FieldValue, len(fieldValues))
@@ -777,9 +897,9 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 	// Build components in the order of visible fields
 	for _, field := range c.visibleFields {
 		if fv, exists := fieldValueMap[field.Name()]; exists {
-			components = append(components, c.fieldValueToTableCell(ctx, field, fv))
+			cells = append(cells, table.Cell(c.fieldValueToTableCell(ctx, field, fv), fv.Value()))
 		} else {
-			components = append(components, templ.Raw(""))
+			cells = append(cells, table.Cell(templ.Raw(""), ""))
 		}
 	}
 
@@ -790,16 +910,23 @@ func (c *CrudController[TEntity]) buildTableRow(ctx context.Context, fieldValues
 	// Add row actions
 	rowActions := c.buildRowActions(ctx, primaryKey)
 	if len(rowActions) > 0 {
-		components = append(components, actions.RenderRowActions(rowActions...))
+		cells = append(cells, table.Cell(actions.RenderRowActions(rowActions...), ""))
 	}
 
 	fetchUrl := fmt.Sprintf("%s/%v/details", c.basePath, primaryKey)
-	return table.Row(components...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
+	return table.Row(cells...).ApplyOpts(table.WithDrawer(fetchUrl)), nil
 }
 
 // buildHeaderActions creates header actions for the list view
 func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []actions.ActionProps {
-	var headerActions []actions.ActionProps
+	// Pre-allocate slice with estimated capacity
+	capacity := 0
+	if c.enableCreate {
+		capacity++
+	}
+	capacity += len(c.customHeaderActions)
+
+	headerActions := make([]actions.ActionProps, 0, capacity)
 
 	if c.enableCreate {
 		createLabel, err := c.localize(ctx, fmt.Sprintf("%s.List.New", c.schema.Name()), "New")
@@ -810,12 +937,25 @@ func (c *CrudController[TEntity]) buildHeaderActions(ctx context.Context) []acti
 		headerActions = append(headerActions, createAction)
 	}
 
+	// Add custom header actions
+	headerActions = append(headerActions, c.customHeaderActions...)
+
 	return headerActions
 }
 
 // buildRowActions creates row actions for table rows
 func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey any) []actions.ActionProps {
-	var rowActions []actions.ActionProps
+	// Pre-allocate slice with estimated capacity
+	capacity := 0
+	if c.enableEdit {
+		capacity++
+	}
+	if c.enableDelete {
+		capacity++
+	}
+	capacity += len(c.customRowActions)
+
+	rowActions := make([]actions.ActionProps, 0, capacity)
 
 	if c.enableEdit {
 		editAction := actions.EditAction(fmt.Sprintf("%s/%v/edit", c.basePath, primaryKey))
@@ -825,6 +965,12 @@ func (c *CrudController[TEntity]) buildRowActions(_ context.Context, primaryKey 
 	if c.enableDelete {
 		deleteAction := actions.DeleteAction(fmt.Sprintf("%s/%v", c.basePath, primaryKey))
 		rowActions = append(rowActions, deleteAction)
+	}
+
+	// Add custom row actions
+	for _, actionBuilder := range c.customRowActions {
+		customAction := actionBuilder(primaryKey)
+		rowActions = append(rowActions, customAction)
 	}
 
 	return rowActions
@@ -981,7 +1127,7 @@ func (c *CrudController[TEntity]) Create(w http.ResponseWriter, r *http.Request)
 
 	for _, f := range c.schema.Fields().Fields() {
 		if !existingFields[f.Name()] {
-			fieldValues = append(fieldValues, f.Value(f.InitialValue()))
+			fieldValues = append(fieldValues, f.Value(f.InitialValue(ctx)))
 		}
 	}
 
@@ -1194,8 +1340,12 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		return nil
 	}
 
-	// Localize field label
-	fieldLabel, err := c.localize(ctx, fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name()), field.Name())
+	// Localize field label using custom key if provided, otherwise use default pattern
+	localizationKey := field.LocalizationKey()
+	if localizationKey == "" {
+		localizationKey = fmt.Sprintf("%s.Fields.%s", c.schema.Name(), field.Name())
+	}
+	fieldLabel, err := c.localize(ctx, localizationKey, field.Name())
 	if err != nil {
 		fieldLabel = field.Name()
 	}
@@ -1204,8 +1354,21 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 	var currentValue any
 	if value != nil && !value.IsZero() {
 		currentValue = value.Value()
-	} else if field.InitialValue() != nil {
-		currentValue = field.InitialValue()
+	} else if field.InitialValue(ctx) != nil {
+		currentValue = field.InitialValue(ctx)
+	}
+
+	// Check for custom renderer first
+	if rendererType := field.RendererType(); rendererType != "" {
+		if renderer, exists := c.rendererRegistry.Get(rendererType); exists {
+			// Create a wrapper that implements form.Field interface for custom renderers
+			// This returns a component that renders the custom form control
+			return &customFormField{
+				key:       field.Name(),
+				label:     fieldLabel,
+				component: renderer.RenderFormControl(ctx, field, value),
+			}
+		}
 	}
 
 	switch field.Type() {
@@ -1454,6 +1617,11 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 		return builder.Build()
 
 	case crud.UUIDFieldType:
+		// Check if this is actually a select field
+		if selectField, ok := field.(crud.SelectField); ok {
+			return c.handleSelectField(ctx, selectField, fieldLabel, currentValue)
+		}
+
 		builder := form.Text(field.Name(), fieldLabel)
 
 		if field.Readonly() {
@@ -1556,6 +1724,36 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 
 		return builder.Build()
 
+	case crud.JSONFieldType:
+		// Handle JSON field as a textarea for editing
+		builder := form.Textarea(field.Name(), fieldLabel)
+
+		if field.Readonly() {
+			builder = builder.Attrs(templ.Attributes{"disabled": true})
+		}
+
+		if len(field.Rules()) > 0 {
+			builder = builder.Required()
+		}
+
+		// Convert JSON value to formatted string for editing
+		if currentValue != nil {
+			var jsonStr string
+			if str, ok := currentValue.(string); ok {
+				jsonStr = str
+			} else {
+				// Pretty print JSON for better editing experience
+				if jsonBytes, err := json.MarshalIndent(currentValue, "", "  "); err == nil {
+					jsonStr = string(jsonBytes)
+				} else {
+					jsonStr = fmt.Sprintf("%v", currentValue)
+				}
+			}
+			builder = builder.Default(jsonStr)
+		}
+
+		return builder.Build()
+
 	default:
 		builder := form.Text(field.Name(), field.Name())
 		if currentValue != nil {
@@ -1597,6 +1795,8 @@ func (c *CrudController[TEntity]) handleSelectField(ctx context.Context, selectF
 				optValueStr = strconv.FormatBool(v)
 			case float64:
 				optValueStr = strconv.FormatFloat(v, 'f', -1, 64)
+			case uuid.UUID:
+				optValueStr = v.String()
 			default:
 				optValueStr = fmt.Sprintf("%v", v)
 			}
@@ -1706,6 +1906,9 @@ func (c *CrudController[TEntity]) convertValueToString(value any, fieldType crud
 			return strconv.FormatFloat(float64(v), 'f', -1, 32)
 		}
 	case crud.StringFieldType, crud.DecimalFieldType, crud.UUIDFieldType:
+		return fmt.Sprintf("%v", value)
+	case crud.JSONFieldType:
+		// For JSON fields, return as string
 		return fmt.Sprintf("%v", value)
 	case crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType:
 		// For date/time types, format as string
@@ -1835,6 +2038,10 @@ func (c *CrudController[TEntity]) compareSelectValues(optionValue, fieldValue an
 		// Fallback to string comparison
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
 
+	case crud.JSONFieldType:
+		// For JSON fields, use string comparison
+		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
+
 	default:
 		// For other types, use string comparison as fallback
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
@@ -1844,6 +2051,13 @@ func (c *CrudController[TEntity]) compareSelectValues(optionValue, fieldValue an
 func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, field crud.Field, value crud.FieldValue) templ.Component {
 	if value.IsZero() {
 		return templ.Raw("")
+	}
+
+	// Check for custom renderer first
+	if rendererType := field.RendererType(); rendererType != "" {
+		if renderer, exists := c.rendererRegistry.Get(rendererType); exists {
+			return renderer.RenderTableCell(ctx, field, value)
+		}
 	}
 
 	// Check if this is a select field and handle label display
@@ -1961,6 +2175,18 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 		}
 		return templ.Raw(uuidVal.String())
 
+	case crud.JSONFieldType:
+		jsonStr, err := value.AsString()
+		if err != nil {
+			return templ.Raw("")
+		}
+
+		// For table display, show a truncated/formatted version
+		if len(jsonStr) > 100 {
+			return templ.Raw(jsonStr[:100] + "...")
+		}
+		return templ.Raw(jsonStr)
+
 	default:
 		return templ.Raw(fmt.Sprintf("%v", value.Value()))
 	}
@@ -2024,25 +2250,17 @@ func (c *CrudController[TEntity]) handleValidationError(w http.ResponseWriter, r
 
 // renderCreateFormWithErrors renders the create form with validation errors
 func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWriter, r *http.Request, ctx context.Context, fieldValues []crud.FieldValue, fieldErrors map[string]string) {
+	// Set proper content type for HTML
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK) // 200 status for form with errors
 
-	// For now, just use the existing form building approach
-	// TODO: Enhance form package to support field-level errors
+	// Log errors for debugging
+	if len(fieldErrors) > 0 {
+		log.Printf("[CrudController.renderCreateFormWithErrors] Field validation errors: %v", fieldErrors)
+	}
 
 	// Build form fields with errors added as HTML comments for now
 	formFields := c.buildFormFields(ctx, fieldValues)
-
-	// Add error display at the top of the form
-	if len(fieldErrors) > 0 {
-		// For now, we'll log the errors and add a generic error indicator
-		log.Printf("[CrudController.renderCreateFormWithErrors] Field validation errors: %v", fieldErrors)
-
-		// Add a small error element that tests can find
-		errorHTML := `<small data-testid="field-error" class="text-red-500">Field validation failed</small>`
-		if _, err := w.Write([]byte(errorHTML)); err != nil {
-			log.Printf("[CrudController.renderCreateFormWithErrors] Failed to write error HTML: %v", err)
-		}
-	}
 
 	// Localize form title
 	formTitle, err := c.localize(ctx, fmt.Sprintf("%s.New.Title", c.schema.Name()), "New")
@@ -2065,7 +2283,17 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 		submitLabel,
 	).Add(formFields...)
 
-	if err := form.Page(cfg).Render(ctx, w); err != nil {
+	// Choose component based on request type
+	var component templ.Component
+	if htmx.IsHxRequest(r) {
+		// For HTMX requests, use FormWithErrors which includes the edit-content wrapper
+		component = form.FormWithErrors(cfg, fieldErrors)
+	} else {
+		// For regular requests, return full page
+		component = form.Page(cfg)
+	}
+
+	if err := component.Render(ctx, w); err != nil {
 		log.Printf("[CrudController.renderCreateFormWithErrors] Failed to render form: %v", err)
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
@@ -2073,6 +2301,8 @@ func (c *CrudController[TEntity]) renderCreateFormWithErrors(w http.ResponseWrit
 
 // renderEditFormWithErrors renders the edit form with validation errors
 func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter, r *http.Request, ctx context.Context, fieldValues []crud.FieldValue, fieldErrors map[string]string) {
+	// Set proper content type for HTML
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK) // 200 status for form with errors
 
 	// Get ID from URL for the form action
@@ -2118,8 +2348,53 @@ func (c *CrudController[TEntity]) renderEditFormWithErrors(w http.ResponseWriter
 		submitLabel,
 	).Add(formFields...)
 
-	if err := form.Page(cfg).Render(ctx, w); err != nil {
+	// Choose component based on request type
+	var component templ.Component
+	if htmx.IsHxRequest(r) {
+		// For HTMX requests, use FormWithErrors which includes the edit-content wrapper
+		component = form.FormWithErrors(cfg, fieldErrors)
+	} else {
+		// For regular requests, return full page
+		component = form.Page(cfg)
+	}
+
+	if err := component.Render(ctx, w); err != nil {
 		log.Printf("[CrudController.renderEditFormWithErrors] Failed to render form: %v", err)
 		http.Error(w, "Failed to render form", http.StatusInternalServerError)
 	}
+}
+
+// customFormField wraps a custom renderer component to implement the form.Field interface
+type customFormField struct {
+	key       string
+	label     string
+	component templ.Component
+}
+
+func (c *customFormField) Component() templ.Component {
+	return c.component
+}
+
+func (c *customFormField) Type() form.FieldType {
+	return "custom"
+}
+
+func (c *customFormField) Key() string {
+	return c.key
+}
+
+func (c *customFormField) Label() string {
+	return c.label
+}
+
+func (c *customFormField) Required() bool {
+	return false // Custom renderers should handle their own validation
+}
+
+func (c *customFormField) Attrs() templ.Attributes {
+	return templ.Attributes{}
+}
+
+func (c *customFormField) Validators() []form.Validator {
+	return nil // Custom renderers should handle their own validation
 }

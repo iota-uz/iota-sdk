@@ -1,6 +1,7 @@
 package groups
 
 import (
+	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -13,6 +14,7 @@ type RoleSelectProps struct {
 	Name     string
 	Form     string
 	Error    string
+	IDPrefix string
 }
 
 func isRoleSelected(id string, roles []*viewmodels.Role) bool {
@@ -43,7 +45,7 @@ templ ModernRoleSelect(props *RoleSelectProps) {
 			for _, role := range props.Roles {
 				{{
 					isSelected := isRoleSelected(role.ID, props.Selected)
-					checkboxID := "role-" + role.ID
+					checkboxID := fmt.Sprintf("%s-role-%s", props.IDPrefix, role.ID)
 				}}
 				<label
 					class={

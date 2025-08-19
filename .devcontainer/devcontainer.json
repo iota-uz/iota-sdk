@@ -2,7 +2,7 @@
   "name": "IOTA-SDK Dev Container",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": "."
+    "context": ".."
   },
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
@@ -10,14 +10,15 @@
     },
     "ghcr.io/devcontainers/features/docker-in-docker:2": {},
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/tailscale/devcontainer-feature:1": {}
+    "ghcr.io/tailscale/codespace/tailscale:1": {
+      "version": "latest"
+    }
   },
-  "postCreateCommand": "bash -c 'go mod download && if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi'",
+  "postCreateCommand": "bash -c 'npm install -g @anthropic-ai/claude-code && go mod download && if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi'",
   "forwardPorts": [
     3200,
     5432,
-    9000,
-    4000
+    9000
   ],
   "portsAttributes": {
     "3200": {
@@ -30,10 +31,6 @@
     },
     "9000": {
       "label": "Air Proxy",
-      "onAutoForward": "silent"
-    },
-    "4000": {
-      "label": "Tunnel",
       "onAutoForward": "silent"
     }
   },
@@ -114,8 +111,8 @@
   "securityOpt": ["seccomp=unconfined"],
   "waitFor": "postCreateCommand",
   "hostRequirements": {
-    "cpus": 2,
-    "memory": "4gb",
-    "storage": "32gb"
+    "cpus": 8,
+    "memory": "32gb",
+    "storage": "64gb"
   }
 }

@@ -24,6 +24,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"test-hash",
 			"uploads/test.jpg",
 			"test.jpg",
+			"",
 			1024,
 			mime,
 		)
@@ -50,6 +51,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"pdf-hash",
 			"uploads/document.pdf",
 			"document.pdf",
+			"",
 			2048,
 			mime,
 		)
@@ -79,6 +81,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			uniqueHash,
 			"uploads/text.txt",
 			"text.txt",
+			"",
 			512,
 			mime,
 		)
@@ -92,6 +95,27 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, uniqueHash, retrievedUpload.Hash())
 		assert.Equal(t, "uploads/text.txt", retrievedUpload.Path())
+		assert.Equal(t, "text.txt", retrievedUpload.Name())
+		assert.Equal(t, 512, retrievedUpload.Size().Bytes())
+		assert.Equal(t, "text/plain", retrievedUpload.Mimetype().String())
+		assert.Equal(t, upload.UploadTypeDocument, retrievedUpload.Type())
+	})
+
+	t.Run("GetBySlug", func(t *testing.T) {
+		uniqueHash := "unique-slug-hash-" + time.Now().Format("20060102150405")
+		slug := "unique-slug-" + time.Now().Format("20060102150405")
+		mime := mimetype.Lookup("text/plain")
+
+		uploadData := upload.New(uniqueHash, "uploads/unique-hash.txt", "text.txt", slug, 512, mime)
+
+		_, err := uploadRepository.Create(f.Ctx, uploadData)
+		require.NoError(t, err)
+
+		retrievedUpload, err := uploadRepository.GetBySlug(f.Ctx, slug)
+		require.NoError(t, err)
+
+		assert.Equal(t, slug, retrievedUpload.Slug())
+		assert.Equal(t, "uploads/unique-hash.txt", retrievedUpload.Path())
 		assert.Equal(t, "text.txt", retrievedUpload.Name())
 		assert.Equal(t, 512, retrievedUpload.Size().Bytes())
 		assert.Equal(t, "text/plain", retrievedUpload.Mimetype().String())
@@ -119,6 +143,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"update-hash",
 			"uploads/update.png",
 			"update.png",
+			"",
 			4096,
 			mime,
 		)
@@ -135,6 +160,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"updated-hash",
 			"uploads/updated.png",
 			"updated.png",
+			"",
 			8192,
 			updatedMime,
 			upload.UploadTypeImage,
@@ -163,6 +189,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 				"page-hash-"+time.Now().Format("20060102150405")+"-"+string(rune(i+48)),
 				"uploads/page"+string(rune(i+48))+".jpg",
 				"page"+string(rune(i+48))+".jpg",
+				"",
 				1024*(i+1),
 				mime,
 			)
@@ -229,6 +256,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"delete-hash",
 			"uploads/delete.gif",
 			"delete.gif",
+			"",
 			2048,
 			mime,
 		)

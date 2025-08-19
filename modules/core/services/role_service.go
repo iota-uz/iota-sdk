@@ -38,15 +38,15 @@ func (s *RoleService) GetPaginated(ctx context.Context, params *role.FindParams)
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *RoleService) Create(ctx context.Context, data role.Role) error {
+func (s *RoleService) Create(ctx context.Context, data role.Role) (role.Role, error) {
 	err := composables.CanUser(ctx, permissions.RoleCreate)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	createdEvent, err := role.NewCreatedEvent(ctx, data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var createdRole role.Role
@@ -59,13 +59,13 @@ func (s *RoleService) Create(ctx context.Context, data role.Role) error {
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	createdEvent.Result = createdRole
 
 	s.publisher.Publish(createdEvent)
 
-	return nil
+	return createdRole, nil
 }
 
 func (s *RoleService) Update(ctx context.Context, data role.Role) error {

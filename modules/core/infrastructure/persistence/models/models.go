@@ -21,6 +21,7 @@ type Upload struct {
 	TenantID  string
 	Hash      string
 	Path      string
+	Slug      string
 	Name      string
 	Size      int
 	Mimetype  string
@@ -52,7 +53,6 @@ type Company struct {
 
 type Permission struct {
 	ID          string
-	TenantID    string
 	Name        string
 	Resource    string
 	Action      string
@@ -128,14 +128,6 @@ type AuthenticationLog struct {
 	IP        string
 	UserAgent string
 	CreatedAt time.Time
-}
-
-type Tab struct {
-	ID       uint
-	TenantID string
-	Href     string
-	Position uint
-	UserID   uint
 }
 
 type Passport struct {

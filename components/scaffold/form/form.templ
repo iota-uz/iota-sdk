@@ -76,6 +76,131 @@ templ Form(cfg *FormConfig) {
 	</div>
 }
 
+// FormContent renders just the form content without the edit-content wrapper (for HTMX responses)
+templ FormContent(cfg *FormConfig) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	<form
+		id="save-form"
+		method="post"
+		hx-post={ cfg.SaveURL }
+		hx-indicator="#save-btn"
+		hx-target="#edit-content"
+		hx-swap="outerHTML"
+		class="flex flex-col flex-1"
+	>
+		<div class="flex-1 overflow-y-auto p-6">
+			@card.Card(card.Props{
+				Class: "grid grid-cols-2 gap-4",
+			}) {
+				@FormFields(cfg)
+			}
+		</div>
+		<div
+			x-data
+			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+		>
+			<form
+				id="delete-form"
+				hx-delete={ cfg.DeleteURL }
+				hx-trigger="submit"
+				hx-target="closest .content"
+				hx-swap="innerHTML"
+				hx-indicator="#delete-user-btn"
+				hx-disabled-elt="find button"
+			>
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":   "_action",
+						"value":  "delete",
+						"type":   "button",
+						"@click": "$dispatch('open-delete-user-confirmation')",
+						"id":     "delete-user-btn",
+					},
+				}) {
+					{ pgCtx.T("Delete") }
+				}
+			</form>
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Attrs: templ.Attributes{
+					"name":  "_action",
+					"value": "save",
+					"type":  "submit",
+					"id":    "save-btn",
+				},
+			}) {
+				{ pgCtx.T("Save") }
+			}
+		</div>
+	</form>
+}
+
+// FormWithErrors renders inner form content with validation errors for HTMX innerHTML replacement
+templ FormWithErrors(cfg *FormConfig, fieldErrors map[string]string) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
+		if len(fieldErrors) > 0 {
+			<small data-testid="field-error" class="text-red-500">Field validation failed</small>
+		}
+		<form
+			id="save-form"
+			method="post"
+			hx-post={ cfg.SaveURL }
+			hx-indicator="#save-btn"
+			hx-target="#edit-content"
+			hx-swap="outerHTML"
+			class="flex flex-col flex-1"
+		>
+			<div class="flex-1 overflow-y-auto p-6">
+				@card.Card(card.Props{
+					Class: "grid grid-cols-2 gap-4",
+				}) {
+					@FormFields(cfg)
+				}
+			</div>
+			<div
+				x-data
+				class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
+			>
+				<form
+					id="delete-form"
+					hx-delete={ cfg.DeleteURL }
+					hx-trigger="submit"
+					hx-target="closest .content"
+					hx-swap="innerHTML"
+					hx-indicator="#delete-user-btn"
+					hx-disabled-elt="find button"
+				>
+					@button.Danger(button.Props{
+						Size: button.SizeMD,
+						Attrs: templ.Attributes{
+							"name":   "_action",
+							"value":  "delete",
+							"type":   "button",
+							"@click": "$dispatch('open-delete-user-confirmation')",
+							"id":     "delete-user-btn",
+						},
+					}) {
+						{ pgCtx.T("Delete") }
+					}
+				</form>
+				@button.Primary(button.Props{
+					Size: button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"type":  "submit",
+						"id":    "save-btn",
+					},
+				}) {
+					{ pgCtx.T("Save") }
+				}
+			</div>
+		</form>
+	</div>
+}
+
 // Page wraps Form in authenticated layout
 templ Page(cfg *FormConfig) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{

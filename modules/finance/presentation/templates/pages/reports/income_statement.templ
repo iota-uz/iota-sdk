@@ -1,0 +1,425 @@
+package reports
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+templ IncomeStatementPage(formData map[string]interface{}) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Reports.IncomeStatement.Title")},
+	}) {
+		<div class="container mx-auto px-4 py-6">
+			<div class="flex flex-col gap-4">
+				<div class="flex justify-between items-center">
+					<h1 class="text-2xl font-bold text-gray-900">
+						{ pageCtx.T("Reports.IncomeStatement.Title") }
+					</h1>
+				</div>
+				<!-- Report Generation Form -->
+				<div class="bg-white rounded-lg shadow p-6">
+					<h2 class="text-lg font-semibold text-gray-900 mb-4">
+						{ pageCtx.T("Reports.IncomeStatement.GenerateReport") }
+					</h2>
+					<form
+						hx-post="/finance/reports/income-statement/generate"
+						hx-target="#report-container"
+						hx-indicator="#report-loading"
+						class="space-y-4"
+					>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+							<!-- Start Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.IncomeStatement.StartDate"),
+									Attrs: templ.Attributes{
+										"name":     "start_date",
+										"id":       "start_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["startDate"]),
+									},
+								})
+							</div>
+							<!-- End Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.IncomeStatement.EndDate"),
+									Attrs: templ.Attributes{
+										"name":     "end_date",
+										"id":       "end_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["endDate"]),
+									},
+								})
+							</div>
+							<!-- Generate Button -->
+							<div class="flex items-end">
+								@button.Primary(button.Props{
+									Class: "w-full",
+									Attrs: templ.Attributes{
+										"type": "submit",
+									},
+								}) {
+									@icons.ChartLine(icons.Props{Size: "20", Class: "mr-2"})
+									{ pageCtx.T("Reports.IncomeStatement.Generate") }
+								}
+							</div>
+						</div>
+					</form>
+				</div>
+				<!-- Loading Indicator -->
+				<div id="report-loading" class="htmx-indicator">
+					<div class="bg-white rounded-lg shadow p-6">
+						<div class="flex items-center justify-center">
+							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+							<span class="ml-3 text-gray-600">{ pageCtx.T("Reports.IncomeStatement.Generating") }</span>
+						</div>
+					</div>
+				</div>
+				<!-- Report Container -->
+				<div id="report-container" class="min-h-[200px]">
+					<div class="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+						<div class="text-gray-500">
+							@icons.ChartLine(icons.Props{Size: "48", Class: "mx-auto mb-4 text-gray-400"})
+							<h3 class="text-lg font-medium text-gray-900 mb-2">
+								{ pageCtx.T("Reports.IncomeStatement.NoReportGenerated") }
+							</h3>
+							<p class="text-gray-600">
+								{ pageCtx.T("Reports.IncomeStatement.SelectDatesAndGenerate") }
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ IncomeStatementPageWithReport(formData map[string]interface{}, report *viewmodels.IncomeStatement) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Reports.IncomeStatement.Title")},
+	}) {
+		<div class="container mx-auto px-4 py-6">
+			<div class="flex flex-col gap-4">
+				<div class="flex justify-between items-center">
+					<h1 class="text-2xl font-bold text-gray-900">
+						{ pageCtx.T("Reports.IncomeStatement.Title") }
+					</h1>
+				</div>
+				<!-- Report Generation Form -->
+				<div class="bg-white rounded-lg shadow p-6">
+					<h2 class="text-lg font-semibold text-gray-900 mb-4">
+						{ pageCtx.T("Reports.IncomeStatement.GenerateReport") }
+					</h2>
+					<form
+						hx-post="/finance/reports/income-statement/generate"
+						hx-target="#report-container"
+						hx-indicator="#report-loading"
+						class="space-y-4"
+					>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+							<!-- Start Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.IncomeStatement.StartDate"),
+									Attrs: templ.Attributes{
+										"name":     "start_date",
+										"id":       "start_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["startDate"]),
+									},
+								})
+							</div>
+							<!-- End Date -->
+							<div>
+								@input.Date(&input.Props{
+									Label: pageCtx.T("Reports.IncomeStatement.EndDate"),
+									Attrs: templ.Attributes{
+										"name":     "end_date",
+										"id":       "end_date",
+										"required": "required",
+										"value":    fmt.Sprintf("%v", formData["endDate"]),
+									},
+								})
+							</div>
+							<!-- Generate Button -->
+							<div class="flex items-end">
+								@button.Primary(button.Props{
+									Class: "w-full",
+									Attrs: templ.Attributes{
+										"type": "submit",
+									},
+								}) {
+									@icons.ChartLine(icons.Props{Size: "20", Class: "mr-2"})
+									{ pageCtx.T("Reports.IncomeStatement.Generate") }
+								}
+							</div>
+						</div>
+					</form>
+				</div>
+				<!-- Loading Indicator -->
+				<div id="report-loading" class="htmx-indicator">
+					<div class="bg-white rounded-lg shadow p-6">
+						<div class="flex items-center justify-center">
+							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+							<span class="ml-3 text-gray-600">{ pageCtx.T("Reports.IncomeStatement.Generating") }</span>
+						</div>
+					</div>
+				</div>
+				<!-- Report Container with Auto-Generated Report -->
+				<div id="report-container" class="min-h-[200px]">
+					@IncomeStatementReport(report)
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ IncomeStatementReport(report *viewmodels.IncomeStatement) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="bg-white rounded-lg shadow">
+		<!-- Report Header -->
+		<div class="px-6 py-4 border-b border-gray-200">
+			<div class="flex justify-between items-center">
+				<div>
+					<h2 class="text-xl font-semibold text-gray-900">
+						{ pageCtx.T("Reports.IncomeStatement.Title") }
+					</h2>
+					<p class="text-sm text-gray-600">
+						{ pageCtx.T("Reports.IncomeStatement.Period") }: { report.Period }
+					</p>
+				</div>
+			</div>
+		</div>
+		<!-- Report Content with Horizontal Scroll -->
+		<div class="overflow-x-auto">
+			<div class="p-6 min-w-max">
+				@IncomeStatementTable(report)
+			</div>
+		</div>
+	</div>
+}
+
+templ IncomeStatementTable(report *viewmodels.IncomeStatement) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="w-full">
+		<table class="min-w-full table-auto border-collapse">
+			<!-- Table Header -->
+			<thead>
+				<tr class="border-b-2 border-gray-900">
+					<th class="text-left py-3 px-4 font-semibold text-gray-900 sticky left-0 bg-white z-10 min-w-[200px]">
+						{ pageCtx.T("Reports.IncomeStatement.Category") }
+					</th>
+					if len(report.Months) > 0 {
+						for _, month := range report.Months {
+							<th class="text-right py-3 px-4 font-semibold text-gray-900 min-w-[120px]">
+								{ month }
+							</th>
+						}
+					}
+					<th class="text-right py-3 px-4 font-semibold text-gray-900 min-w-[120px] bg-gray-50">
+						{ pageCtx.T("Reports.IncomeStatement.Total") }
+					</th>
+				</tr>
+			</thead>
+			<tbody>
+				<!-- Revenue Section -->
+				<tr class="bg-green-50 border-b border-gray-200">
+					<td colspan={ fmt.Sprintf("%d", len(report.Months)+2) } class="py-2 px-4 font-semibold text-green-800">
+						{ report.RevenueSection.Title }
+					</td>
+				</tr>
+				@IncomeStatementTableSection(report.RevenueSection, report.Months)
+				<!-- Revenue Subtotal -->
+				<tr class="bg-green-100 border-b border-gray-300 font-semibold">
+					<td class="py-3 px-4 sticky left-0 bg-green-100 z-10">
+						{ pageCtx.T("Reports.IncomeStatement.OperationalIncome") }
+					</td>
+					if len(report.RevenueSection.MonthlySubtotals) > 0 {
+						for _, monthlyTotal := range report.RevenueSection.MonthlySubtotals {
+							<td class="text-right py-3 px-4 bg-green-100">
+								{ monthlyTotal.AmountWithCurrency }
+							</td>
+						}
+					} else {
+						for range report.Months {
+							<td class="text-right py-3 px-4 bg-green-100 text-gray-400">
+								-
+							</td>
+						}
+					}
+					<td class="text-right py-3 px-4 bg-gray-50 font-bold">
+						{ report.RevenueSection.SubtotalWithCurrency }
+					</td>
+				</tr>
+				<!-- Gross Profit (if different from revenue) -->
+				if report.GrossProfitWithCurrency != report.RevenueSection.SubtotalWithCurrency {
+					<tr class="bg-gray-50 border-b border-gray-300 font-semibold">
+						<td class="py-3 px-4 sticky left-0 bg-gray-50 z-10">
+							{ pageCtx.T("Reports.IncomeStatement.GrossProfit") }
+						</td>
+						if len(report.MonthlyGrossProfit) > 0 {
+							for _, monthlyProfit := range report.MonthlyGrossProfit {
+								<td
+									class={
+										"text-right py-3 px-4 bg-gray-50",
+										templ.KV("text-green-600", monthlyProfit.Amount != "0"),
+										templ.KV("text-red-600", monthlyProfit.Amount == "0"),
+									}
+								>
+									{ monthlyProfit.AmountWithCurrency }
+								</td>
+							}
+						} else {
+							for range report.Months {
+								<td class="text-right py-3 px-4 bg-gray-50 text-gray-400">
+									-
+								</td>
+							}
+						}
+						<td
+							class={
+								"text-right py-3 px-4 bg-gray-50 font-bold",
+								templ.KV("text-green-600", report.GrossProfitRatio >= 0),
+								templ.KV("text-red-600", report.GrossProfitRatio < 0),
+							}
+						>
+							{ report.GrossProfitWithCurrency }
+						</td>
+					</tr>
+				}
+				<!-- Expense Section -->
+				<tr class="bg-red-50 border-b border-gray-200">
+					<td colspan={ fmt.Sprintf("%d", len(report.Months)+2) } class="py-2 px-4 font-semibold text-red-800">
+						{ report.ExpenseSection.Title }
+					</td>
+				</tr>
+				@IncomeStatementTableSection(report.ExpenseSection, report.Months)
+				<!-- Expense Subtotal -->
+				<tr class="bg-gray-200 border-b border-gray-300 font-semibold">
+					<td class="py-3 px-4 sticky left-0 bg-gray-200 z-10">
+						{ pageCtx.T("Reports.IncomeStatement.TotalExpenses") }
+					</td>
+					if len(report.ExpenseSection.MonthlySubtotals) > 0 {
+						for _, monthlyTotal := range report.ExpenseSection.MonthlySubtotals {
+							<td class="text-right py-3 px-4 bg-gray-200">
+								{ monthlyTotal.AmountWithCurrency }
+							</td>
+						}
+					} else {
+						for range report.Months {
+							<td class="text-right py-3 px-4 bg-gray-200 text-gray-400">
+								-
+							</td>
+						}
+					}
+					<td class="text-right py-3 px-4 bg-gray-50 font-bold">
+						{ report.ExpenseSection.SubtotalWithCurrency }
+					</td>
+				</tr>
+				<!-- Net Profit -->
+				<tr class="bg-gray-100 border-t-2 border-gray-900 font-bold">
+					<td class="py-4 px-4 sticky left-0 bg-gray-100 z-10 text-lg">
+						{ pageCtx.T("Reports.IncomeStatement.NetProfit") }
+					</td>
+					if len(report.MonthlyNetProfit) > 0 {
+						for _, monthlyProfit := range report.MonthlyNetProfit {
+							<td
+								class={
+									"text-right py-4 px-4 bg-gray-100 font-bold",
+									templ.KV("text-green-600", monthlyProfit.Amount != "0"),
+									templ.KV("text-red-600", monthlyProfit.Amount == "0"),
+								}
+							>
+								{ monthlyProfit.AmountWithCurrency }
+							</td>
+						}
+					} else {
+						for range report.Months {
+							<td class="text-right py-4 px-4 bg-gray-100 font-bold text-gray-400">
+								-
+							</td>
+						}
+					}
+					<td
+						class={
+							"text-right py-4 px-4 bg-gray-200 font-bold text-lg",
+							templ.KV("text-green-600", report.IsProfit),
+							templ.KV("text-red-600", !report.IsProfit),
+						}
+					>
+						{ report.NetProfitWithCurrency }
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+}
+
+templ IncomeStatementTableSection(section viewmodels.IncomeStatementSection, months []string) {
+	if len(section.LineItems) > 0 {
+		for _, item := range section.LineItems {
+			<tr class="border-b border-gray-100 hover:bg-gray-50">
+				<td class="py-2 px-4 text-gray-700 sticky left-0 bg-white z-10">
+					{ item.Name }
+				</td>
+				if len(item.MonthlyAmounts) > 0 {
+					for _, monthlyAmount := range item.MonthlyAmounts {
+						<td class="text-right py-2 px-4 font-medium">
+							{ monthlyAmount.AmountWithCurrency }
+						</td>
+					}
+				} else {
+					for range months {
+						<td class="text-right py-2 px-4 text-gray-400">
+							-
+						</td>
+					}
+				}
+				<td class="text-right py-2 px-4 bg-gray-50 font-semibold">
+					{ item.AmountWithCurrency }
+				</td>
+			</tr>
+		}
+	}
+}
+
+templ IncomeStatementSection(section viewmodels.IncomeStatementSection) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="mb-6">
+		<h3 class="text-lg font-semibold text-gray-900 mb-3">{ section.Title }</h3>
+		if len(section.LineItems) == 0 {
+			<div class="text-gray-500 text-center py-4">
+				{ pageCtx.T("Reports.IncomeStatement.NoItemsInSection") }
+			</div>
+		} else {
+			<div class="space-y-2">
+				for _, item := range section.LineItems {
+					<div class="flex justify-between items-center py-2 border-b border-gray-100">
+						<span class="text-gray-700">{ item.Name }</span>
+						<div class="text-right">
+							<span class="font-medium">{ item.AmountWithCurrency }</span>
+							if item.Percentage > 0 {
+								<span class="text-sm text-gray-600 ml-2">
+									({ fmt.Sprintf("%.1f%%", item.Percentage) })
+								</span>
+							}
+						</div>
+					</div>
+				}
+				<!-- Subtotal -->
+				<div class="flex justify-between items-center pt-3 font-semibold text-lg border-t border-gray-300">
+					<span>{ pageCtx.T("Reports.IncomeStatement.Total") } { section.Title }</span>
+					<span>{ section.SubtotalWithCurrency }</span>
+				</div>
+			</div>
+		}
+	</div>
+}

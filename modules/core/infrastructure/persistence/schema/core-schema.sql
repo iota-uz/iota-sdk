@@ -15,12 +15,14 @@ CREATE TABLE uploads (
     name varchar(255) NOT NULL, -- original file name
     hash VARCHAR(255) NOT NULL, -- md5 hash of the file
     path varchar(1024) NOT NULL DEFAULT '', -- relative path to the file
+    slug varchar(255) NOT NULL,
     size int NOT NULL DEFAULT 0, -- in bytes
     mimetype varchar(255) NOT NULL, -- image/jpeg, application/pdf, etc.
     type VARCHAR(255) NOT NULL, -- image, document, etc.
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    UNIQUE (tenant_id, hash)
+    UNIQUE (tenant_id, hash),
+    UNIQUE (tenant_id, slug)
 );
 
 CREATE TABLE passports (
@@ -147,13 +149,11 @@ CREATE TABLE uploaded_images (
 
 CREATE TABLE permissions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid () NOT NULL,
-    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
-    name varchar(255) NOT NULL,
+    name varchar(255) NOT NULL UNIQUE,
     resource varchar(255) NOT NULL, -- roles, users, etc.
     action varchar(255) NOT NULL, -- create, read, update, delete
     modifier varchar(255) NOT NULL, -- all / own
-    description text,
-    UNIQUE (tenant_id, name)
+    description text
 );
 
 CREATE TABLE role_permissions (
@@ -176,15 +176,6 @@ CREATE TABLE sessions (
     ip varchar(255) NOT NULL,
     user_agent varchar(255) NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now()
-);
-
-CREATE TABLE tabs (
-    id serial PRIMARY KEY,
-    tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
-    href varchar(255) NOT NULL,
-    user_id int NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    position int NOT NULL DEFAULT 0,
-    UNIQUE (tenant_id, href, user_id)
 );
 
 CREATE INDEX users_tenant_id_idx ON users (tenant_id);
@@ -210,8 +201,4 @@ CREATE INDEX uploads_tenant_id_idx ON uploads (tenant_id);
 CREATE INDEX roles_tenant_id_idx ON roles (tenant_id);
 
 CREATE INDEX user_groups_tenant_id_idx ON user_groups (tenant_id);
-
-CREATE INDEX permissions_tenant_id_idx ON permissions (tenant_id);
-
-CREATE INDEX tabs_tenant_id_idx ON tabs (tenant_id);
 

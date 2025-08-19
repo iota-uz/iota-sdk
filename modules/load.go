@@ -11,17 +11,22 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/hrm"
 	"github.com/iota-uz/iota-sdk/modules/logging"
+	"github.com/iota-uz/iota-sdk/modules/projects"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
 	"github.com/iota-uz/iota-sdk/modules/website"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
 var (
 	BuiltInModules = []application.Module{
-		core.NewModule(),
+		core.NewModule(&core.ModuleOptions{
+			PermissionSchema: defaults.PermissionSchema(),
+		}),
 		bichat.NewModule(),
 		hrm.NewModule(),
 		finance.NewModule(),
+		projects.NewModule(),
 		logging.NewModule(),
 		warehouse.NewModule(),
 		crm.NewModule(),
@@ -34,6 +39,7 @@ var (
 		bichat.NavItems,
 		hrm.NavItems,
 		finance.NavItems,
+		projects.NavItems,
 		warehouse.NavItems,
 		crm.NavItems,
 		website.NavItems,

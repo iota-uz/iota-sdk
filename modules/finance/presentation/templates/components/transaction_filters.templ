@@ -1,0 +1,75 @@
+package components
+
+import (
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// TransactionTypeFilter renders a select filter for transaction types
+templ TransactionTypeFilter() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Select(&base.SelectProps{
+		Placeholder: pageCtx.T("Transactions.List.Type"),
+		Class:       "w-fit",
+		Attrs: templ.Attributes{
+			"name": "type",
+		},
+	}) {
+		<option value="" selected>{ pageCtx.T("Transactions.Filters.AllTypes") }</option>
+		<option value={ string(transaction.Deposit) }>{ pageCtx.T("Transactions.Types." + string(transaction.Deposit)) }</option>
+		<option value={ string(transaction.Withdrawal) }>{ pageCtx.T("Transactions.Types." + string(transaction.Withdrawal)) }</option>
+		<option value={ string(transaction.Transfer) }>{ pageCtx.T("Transactions.Types." + string(transaction.Transfer)) }</option>
+		<option value={ string(transaction.Exchange) }>{ pageCtx.T("Transactions.Types." + string(transaction.Exchange)) }</option>
+	}
+}
+
+// TransactionDateFilter renders a date range filter for transactions
+templ TransactionDateFilter() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div x-data="dateFns" class="contents">
+		<div x-data="{transactionDate: ''}" class="contents">
+			@base.Select(&base.SelectProps{
+				Placeholder: pageCtx.T("Transactions.List.Date"),
+				Class:       "w-fit",
+				Attrs: templ.Attributes{
+					"x-model": "transactionDate",
+				},
+			}) {
+				<option value="" selected>{ pageCtx.T("Transactions.Filters.AllTime") }</option>
+				<option :value="`${startOfDay(0)}|${endOfDay(0)}`">{ pageCtx.T("Filters.CreatedAt.Today") }</option>
+				<option :value="`${startOfDay(1)}|${endOfDay(1)}`">{ pageCtx.T("Filters.CreatedAt.Yesterday") }</option>
+				<option :value="`${startOfWeek()}|${endOfWeek()}`">{ pageCtx.T("Filters.CreatedAt.ThisWeek") }</option>
+				<option :value="`${startOfWeek(1)}|${endOfWeek(1)}`">{ pageCtx.T("Filters.CreatedAt.LastWeek") }</option>
+				<option :value="`${startOfMonth()}|${endOfMonth()}`">{ pageCtx.T("Transactions.Filters.ThisMonth") }</option>
+				<option :value="`${startOfMonth(1)}|${endOfMonth(1)}`">{ pageCtx.T("Transactions.Filters.LastMonth") }</option>
+			}
+			<input type="hidden" name="TransactionDate.From" :value="transactionDate.split('|')[0]"/>
+			<input type="hidden" name="TransactionDate.To" :value="transactionDate.split('|')?.[1]"/>
+		</div>
+	</div>
+}
+
+// AccountingPeriodFilter renders a month/year filter for accounting periods
+templ AccountingPeriodFilter() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div x-data="dateFns" class="contents">
+		<div x-data="{accountingPeriod: ''}" class="contents">
+			@base.Select(&base.SelectProps{
+				Placeholder: pageCtx.T("Transactions.Filters.AccountingPeriod"),
+				Class:       "w-fit",
+				Attrs: templ.Attributes{
+					"x-model": "accountingPeriod",
+				},
+			}) {
+				<option value="" selected>{ pageCtx.T("Transactions.Filters.AllPeriods") }</option>
+				<option :value="`${startOfMonth()}|${endOfMonth()}`">{ pageCtx.T("Transactions.Filters.ThisMonth") }</option>
+				<option :value="`${startOfMonth(1)}|${endOfMonth(1)}`">{ pageCtx.T("Transactions.Filters.LastMonth") }</option>
+				<option :value="`${startOfMonth(2)}|${endOfMonth(2)}`">{ pageCtx.T("Transactions.Filters.TwoMonthsAgo") }</option>
+				<option :value="`${startOfMonth(3)}|${endOfMonth(3)}`">{ pageCtx.T("Transactions.Filters.ThreeMonthsAgo") }</option>
+			}
+			<input type="hidden" name="AccountingPeriod.From" :value="accountingPeriod.split('|')[0]"/>
+			<input type="hidden" name="AccountingPeriod.To" :value="accountingPeriod.split('|')?.[1]"/>
+		</div>
+	</div>
+}

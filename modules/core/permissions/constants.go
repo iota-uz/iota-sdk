@@ -9,6 +9,7 @@ import (
 const (
 	ResourceUser   permission.Resource = "user"
 	ResourceRole   permission.Resource = "role"
+	ResourceGroup  permission.Resource = "group"
 	ResourceUpload permission.Resource = "upload"
 )
 
@@ -69,6 +70,34 @@ var (
 		Action:   permission.ActionDelete,
 		Modifier: permission.ModifierAll,
 	}
+	GroupCreate = &permission.Permission{
+		ID:       uuid.MustParse("7e8f9a0b-1c2d-3e4f-5a6b-7c8d9e0f1a2b"),
+		Name:     "Group.Create",
+		Resource: ResourceGroup,
+		Action:   permission.ActionCreate,
+		Modifier: permission.ModifierAll,
+	}
+	GroupRead = &permission.Permission{
+		ID:       uuid.MustParse("8f9a0b1c-2d3e-4f5a-6b7c-8d9e0f1a2b3c"),
+		Name:     "Group.Read",
+		Resource: ResourceGroup,
+		Action:   permission.ActionRead,
+		Modifier: permission.ModifierAll,
+	}
+	GroupUpdate = &permission.Permission{
+		ID:       uuid.MustParse("9a0b1c2d-3e4f-5a6b-7c8d-9e0f1a2b3c4d"),
+		Name:     "Group.Update",
+		Resource: ResourceGroup,
+		Action:   permission.ActionUpdate,
+		Modifier: permission.ModifierAll,
+	}
+	GroupDelete = &permission.Permission{
+		ID:       uuid.MustParse("a0b1c2d3-4e5f-6a7b-8c9d-0e1f2a3b4c5d"),
+		Name:     "Group.Delete",
+		Resource: ResourceGroup,
+		Action:   permission.ActionDelete,
+		Modifier: permission.ModifierAll,
+	}
 	UploadCreate = &permission.Permission{
 		ID:       uuid.MustParse("a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
 		Name:     "Upload.Create",
@@ -108,6 +137,10 @@ var Permissions = []*permission.Permission{
 	RoleRead,
 	RoleUpdate,
 	RoleDelete,
+	GroupCreate,
+	GroupRead,
+	GroupUpdate,
+	GroupDelete,
 	UploadCreate,
 	UploadRead,
 	UploadUpdate,
