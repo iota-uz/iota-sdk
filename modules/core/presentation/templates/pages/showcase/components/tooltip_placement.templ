@@ -1,0 +1,52 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipPlacement() {
+	<div class="grid grid-cols-3 gap-4 max-w-md mx-auto">
+		<div></div>
+		@button.Primary(button.Props{
+			Size: button.SizeSM,
+			Attrs: templ.Attributes{
+				"x-tooltip.placement.top.raw": "Top",
+			},
+		}) {
+			Top
+		}
+		<div></div>
+		@button.Primary(button.Props{
+			Size: button.SizeSM,
+			Attrs: templ.Attributes{
+				"x-tooltip.placement.left.raw": "Left",
+			},
+		}) {
+			Left
+		}
+		@button.Primary(button.Props{
+			Size: button.SizeSM,
+			Attrs: templ.Attributes{
+				"x-tooltip.raw": "Center (default)",
+			},
+		}) {
+			Center
+		}
+		@button.Primary(button.Props{
+			Size: button.SizeSM,
+			Attrs: templ.Attributes{
+				"x-tooltip.placement.right.raw": "Right",
+			},
+		}) {
+			Right
+		}
+		<div></div>
+		@button.Primary(button.Props{
+			Size: button.SizeSM,
+			Attrs: templ.Attributes{
+				"x-tooltip.placement.bottom.raw": "Bottom",
+			},
+		}) {
+			Bottom
+		}
+		<div></div>
+	</div>
+}

@@ -70,6 +70,12 @@
       "Title": "404",
       "Message": "Sahifa topilmadi",
       "Home": "Bosh sahifa"
+    },
+    "Forbidden": {
+      "Title": "403",
+      "Message": "Kirish taqiqlangan",
+      "_Description": "Sizda ushbu resursga kirish uchun ruxsat yo'q.",
+      "Home": "Bosh sahifa"
     }
   },
   "Resources": {

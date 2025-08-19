@@ -1,0 +1,29 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipCursor() {
+	<div class="flex flex-wrap gap-4">
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.cursor.raw": "Following your cursor!",
+			},
+		}) {
+			Follow Cursor
+		}
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.cursor.x.raw": "Following X axis only",
+			},
+		}) {
+			Follow X Only
+		}
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.cursor.initial.raw": "Shows at initial cursor position",
+			},
+		}) {
+			Initial Position
+		}
+	</div>
+}
