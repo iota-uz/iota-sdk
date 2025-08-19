@@ -70,6 +70,12 @@
       "Title": "404",
       "Message": "Page not found",
       "Home": "Home"
+    },
+    "Forbidden": {
+      "Title": "403",
+      "Message": "Access Denied",
+      "_Description": "You don't have permission to access this resource.",
+      "Home": "Home"
     }
   },
   "Resources": {

@@ -1,0 +1,34 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipProgrammatic() {
+	<div class="flex flex-wrap gap-4">
+		@button.Danger(button.Props{
+			Attrs: templ.Attributes{
+				"@click": "$tooltip('Quick tooltip!')",
+			},
+		}) {
+			Quick Tooltip (2s)
+		}
+		@button.Danger(button.Props{
+			Attrs: templ.Attributes{
+				"@click": "$tooltip('This shows for 5 seconds', { timeout: 5000 })",
+			},
+		}) {
+			5 Second Tooltip
+		}
+		@button.Danger(button.Props{
+			Attrs: templ.Attributes{
+				"@click": `$tooltip('Custom styled tooltip', { 
+					placement: 'top',
+					animation: 'scale',
+					theme: 'light',
+					arrow: false
+				})`,
+			},
+		}) {
+			Styled Tooltip
+		}
+	</div>
+}

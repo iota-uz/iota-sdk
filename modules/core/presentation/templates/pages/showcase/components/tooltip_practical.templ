@@ -1,0 +1,47 @@
+package components
+
+templ TooltipPractical() {
+	<div
+		class="space-y-6"
+		x-data="{
+			email: '',
+			emailError: '',
+			items: [
+				{ id: 1, name: 'Alpine.js', description: 'A rugged, minimal framework for composing JavaScript behavior' },
+				{ id: 2, name: 'HTMX', description: 'High power tools for HTML' },
+				{ id: 3, name: 'Templ', description: 'A language for writing HTML user interfaces in Go' }
+			]
+		}"
+	>
+		<div>
+			<h4 class="font-medium mb-3">Form Validation</h4>
+			<div class="max-w-md">
+				<label class="block text-sm font-medium mb-1">Email Address</label>
+				<input
+					type="email"
+					x-model="email"
+					@blur="emailError = !email.includes('@') && email.length > 0 ? 'Please enter a valid email' : ''"
+					x-tooltip="emailError"
+					x-tooltip.placement.right
+					x-tooltip.theme.light
+					class="input w-full"
+					:class="emailError ? 'input-error' : ''"
+					placeholder="Enter your email"
+				/>
+			</div>
+		</div>
+		<div>
+			<h4 class="font-medium mb-3">List with Descriptions</h4>
+			<ul class="space-y-2 max-w-md">
+				<template x-for="item in items" :key="item.id">
+					<li
+						x-tooltip="item.description"
+						x-tooltip.placement.right
+						class="px-3 py-2 bg-surface-100 rounded hover:bg-surface-200 cursor-pointer transition-colors"
+						x-text="item.name"
+					></li>
+				</template>
+			</ul>
+		</div>
+	</div>
+}
