@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/sidebar"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	showcase "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -91,6 +92,11 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/components/charts", di.H(c.Charts)).Methods(http.MethodGet)
 	router.HandleFunc("/components/tooltips", di.H(c.Tooltips)).Methods(http.MethodGet)
 	router.HandleFunc("/lens", di.H(c.Lens)).Methods(http.MethodGet)
+	router.HandleFunc("/error-pages/403", di.H(c.Error403Page)).Methods(http.MethodGet)
+	router.HandleFunc("/error-pages/404", di.H(c.Error404Page)).Methods(http.MethodGet)
+	// Preview routes for actual error pages without sidebar
+	router.HandleFunc("/error-preview/403", di.H(c.Error403Preview)).Methods(http.MethodGet)
+	router.HandleFunc("/error-preview/404", di.H(c.Error404Preview)).Methods(http.MethodGet)
 
 	log.Printf(
 		"See %s%s for docs\n",
@@ -114,6 +120,14 @@ func (c *ShowcaseController) getSidebarProps() sidebar.Props {
 				sidebar.NewLink(fmt.Sprintf("%s/components/tooltips", c.basePath), "Tooltips", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/other", c.basePath), "Other", nil),
 				sidebar.NewLink(fmt.Sprintf("%s/components/kanban", c.basePath), "Kanban", nil),
+			},
+		),
+		sidebar.NewGroup(
+			"Error Pages",
+			icons.Warning(icons.Props{Size: "20"}),
+			[]sidebar.Item{
+				sidebar.NewLink(fmt.Sprintf("%s/error-pages/403", c.basePath), "403 Forbidden", nil),
+				sidebar.NewLink(fmt.Sprintf("%s/error-pages/404", c.basePath), "404 Not Found", nil),
 			},
 		),
 	}
@@ -327,4 +341,44 @@ func (c *ShowcaseController) Lens(
 		DashboardResult: dashboardResult,
 	}
 	templ.Handler(showcase.LensPage(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Error403Page(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcase.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcase.Error403Page(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Error404Page(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	props := showcase.IndexPageProps{
+		SidebarProps: c.getSidebarProps(),
+	}
+	templ.Handler(showcase.Error404Page(props)).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Error403Preview(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	w.WriteHeader(http.StatusForbidden)
+	templ.Handler(error_pages.ForbiddenContent()).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) Error404Preview(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	w.WriteHeader(http.StatusNotFound)
+	templ.Handler(error_pages.NotFoundContent()).ServeHTTP(w, r)
 }

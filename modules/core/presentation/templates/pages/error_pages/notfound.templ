@@ -17,10 +17,8 @@ templ NotFoundContent() {
 				</h2>
 				<div class="mt-4">
 					@button.Primary(button.Props{
-						Attrs: templ.Attributes{
-							"type": "submit",
-						}},
-					) {
+						Href: "/",
+					}) {
 						{ intl.MustT(ctx, "ErrorPages.NotFound.Home") }
 					}
 				</div>

@@ -87,3 +87,39 @@ var PolarAreaChartSource string
 
 //go:embed components/kanban.templ
 var KanbanBoardSource string
+
+//go:embed components/tooltip_basic.templ
+var TooltipBasicComponentSource string
+
+//go:embed components/tooltip_placement.templ
+var TooltipPlacementComponentSource string
+
+//go:embed components/tooltip_triggers.templ
+var TooltipTriggersComponentSource string
+
+//go:embed components/tooltip_animations.templ
+var TooltipAnimationsComponentSource string
+
+//go:embed components/tooltip_timing.templ
+var TooltipTimingComponentSource string
+
+//go:embed components/tooltip_interactive.templ
+var TooltipInteractiveComponentSource string
+
+//go:embed components/tooltip_cursor.templ
+var TooltipCursorComponentSource string
+
+//go:embed components/tooltip_programmatic.templ
+var TooltipProgrammaticComponentSource string
+
+//go:embed components/tooltip_themes.templ
+var TooltipThemesComponentSource string
+
+//go:embed components/tooltip_practical.templ
+var TooltipPracticalComponentSource string
+
+//go:embed components/error_403.templ
+var Error403ComponentSource string
+
+//go:embed components/error_404.templ
+var Error404ComponentSource string

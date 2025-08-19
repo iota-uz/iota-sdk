@@ -1,0 +1,29 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipTriggers() {
+	<div class="flex flex-wrap gap-4">
+		@button.Secondary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.on.mouseenter.raw": "Hover me (default)",
+			},
+		}) {
+			Hover
+		}
+		@button.Secondary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.on.click.raw": "Click me to show tooltip",
+			},
+		}) {
+			Click
+		}
+		@button.Secondary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.on.focus.raw": "Focus me (tab to me)",
+			},
+		}) {
+			Focus
+		}
+	</div>
+}

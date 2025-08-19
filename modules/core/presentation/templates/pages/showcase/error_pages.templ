@@ -1,0 +1,43 @@
+package showcase
+
+import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase/components"
+
+templ Error403Content() {
+	<div class="flex flex-col gap-5 p-5">
+		@ComponentShowcase(ShowcaseProps{
+			Title: "403 Forbidden Error Page",
+			Code:  Error403ComponentSource,
+		}) {
+			@components.Error403Example()
+		}
+	</div>
+}
+
+templ Error403Page(props IndexPageProps) {
+	@Layout(LayoutProps{
+		Title:        "403 Forbidden",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@Error403Content()
+	}
+}
+
+templ Error404Content() {
+	<div class="flex flex-col gap-5 p-5">
+		@ComponentShowcase(ShowcaseProps{
+			Title: "404 Not Found Error Page",
+			Code:  Error404ComponentSource,
+		}) {
+			@components.Error404Example()
+		}
+	</div>
+}
+
+templ Error404Page(props IndexPageProps) {
+	@Layout(LayoutProps{
+		Title:        "404 Not Found",
+		SidebarProps: props.SidebarProps,
+	}) {
+		@Error404Content()
+	}
+}
