@@ -604,10 +604,11 @@ let disableFormElementsWhen = (query) => ({
   }
 })
 
-let editableTableRows = (rows = []) => ({
+let editableTableRows = ({rows, emptyRow} = {rows: [], emptyRow: ''}) => ({
+  emptyRow,
   rows,
-  addRow(withValue) {
-    this.rows.push({id: Math.random().toString(32).slice(2), withValue})
+  addRow() {
+    this.rows.push({id: Math.random().toString(32).slice(2), html: this.emptyRow})
   },
   removeRow(id) {
     this.rows = this.rows.filter((row) => row.id !== id);
