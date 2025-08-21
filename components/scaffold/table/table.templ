@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"context"
 	"github.com/google/uuid"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
@@ -83,32 +84,7 @@ templ Rows(cfg *TableConfig) {
 	} else {
 		if cfg.Editable.Enabled {
 			<template x-for="(row, index) in rows" :key="row.id">
-				@base.TableRow(base.TableRowProps{}) {
-					for i, cell := range cfg.Rows[0].Cells() {
-						@base.TableCell(base.TableCellProps{}) {
-							<template x-if="row.withValue">
-								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())})
-							</template>
-							<template x-if="!row.withValue">
-								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, false, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", cfg.Editable.Key, cfg.Columns[i].EditableField().Name())})
-							</template>
-						}
-					}
-					if  !cfg.Editable.WithoutDelete {
-						@base.TableCell(base.TableCellProps{
-							Classes: templ.Classes("w-16"),
-						}) {
-							@button.Danger(button.Props{
-								Size: button.SizeMD,
-								Icon: icons.Trash(icons.Props{Size: "20"}),
-								Attrs: templ.Attributes{
-									"type":   "button",
-									"@click": "() => removeRow(row.id)",
-								},
-							})
-						}
-					}
-				}
+				<tbody x-html="row.html"></tbody>
 			</template>
 		} else {
 			for i, row := range cfg.Rows {
@@ -157,21 +133,60 @@ templ InfiniteScrollSpinner(cfg *TableConfig) {
 }
 
 type editableRow struct {
-	ID        string `json:"id"`
-	WithValue bool   `json:"withValue"`
+	ID   string `json:"id"`
+	HTML string `json:"html"`
 }
 
-func setupAlpineData(config *TableConfig) templ.Attributes {
+templ editableTableRow(row TableRow, config *TableConfig, withValue bool) {
+	@base.TableRow(base.TableRowProps{}) {
+		for i, cell := range row.Cells() {
+			@base.TableCell(base.TableCellProps{}) {
+				@cell.Component(config.Columns[i], config.Editable.Enabled, withValue, templ.Attributes{":name": fmt.Sprintf("`%s[${index}].%s`", config.Editable.Key, config.Columns[i].EditableField().Name())})
+			}
+		}
+		if  !config.Editable.WithoutDelete {
+			@base.TableCell(base.TableCellProps{
+				Classes: templ.Classes("w-16"),
+			}) {
+				@button.Danger(button.Props{
+					Size: button.SizeMD,
+					Icon: icons.Trash(icons.Props{Size: "20"}),
+					Attrs: templ.Attributes{
+						"type":   "button",
+						"@click": "() => removeRow(row.id)",
+					},
+				})
+			}
+		}
+	}
+}
+
+func setupAlpineData(ctx context.Context, config *TableConfig) templ.Attributes {
 	rows := make([]*editableRow, 0)
-	for range config.Rows {
-		rows = append(rows, &editableRow{ID: uuid.New().String(), WithValue: true})
+	var emptyHTML string
+	for i, row := range config.Rows {
+		if i == 0 {
+			empty, err := templ.ToGoHTML(ctx, editableTableRow(row, config, false))
+			if err != nil {
+				panic(err)
+			}
+			emptyHTML = string(empty)
+		}
+		html, err := templ.ToGoHTML(ctx, editableTableRow(row, config, true))
+		if err != nil {
+			panic(err)
+		}
+		rows = append(rows, &editableRow{
+			ID:   uuid.New().String(),
+			HTML: string(html),
+		})
 	}
 	jsRows, err := js.ToJS(rows)
 	if err != nil {
 		return templ.Attributes{}
 	}
 	return templ.Attributes{
-		"x-data": fmt.Sprintf("editableTableRows(%s)", jsRows),
+		"x-data": fmt.Sprintf("editableTableRows({rows: %s, emptyRow: '%s'})", jsRows, emptyHTML),
 	}
 }
 
@@ -188,7 +203,7 @@ templ Table(config *TableConfig) {
 			id="sortable-table-container"
 			hx-disinherit="*"
 			if config.Editable.Enabled {
-				{ setupAlpineData(config)... }
+				{ setupAlpineData(ctx, config)... }
 			}
 		>
 			@base.Table(base.TableProps{
@@ -197,6 +212,7 @@ templ Table(config *TableConfig) {
 					"id":          "table-body",
 					"hx-push-url": "false",
 				},
+				NoTBody: config.Editable.Enabled,
 			}) {
 				@Rows(config)
 				if config.Infinite.HasMore {
@@ -204,7 +220,7 @@ templ Table(config *TableConfig) {
 				}
 			}
 			if config.Editable.Enabled && !config.Editable.WithoutCreate {
-				<div class="pt-4 px-4 border-t border-primary" @click="() => addRow(false)">
+				<div class="pt-4 px-4 border-t border-primary" @click="addRow">
 					@button.Secondary(button.Props{Size: button.SizeMD, Icon: icons.Plus(icons.Props{Size: "20"}), Class: "w-full justify-center", Attrs: templ.Attributes{"type": "button"}}) {
 						if len(config.Editable.CreateLabel) > 0 {
 							{ config.Editable.CreateLabel }

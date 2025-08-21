@@ -88,6 +88,7 @@ type TableProps struct {
 	Attrs        templ.Attributes
 	TBodyClasses templ.CSSClasses
 	TBodyAttrs   templ.Attributes
+	NoTBody      bool
 }
 
 templ Table(props TableProps) {
@@ -136,12 +137,16 @@ templ Table(props TableProps) {
 					}
 				</tr>
 			</thead>
-			<tbody
-				class={ props.TBodyClasses }
-				{ props.TBodyAttrs... }
-			>
+			if props.NoTBody {
 				{ children... }
-			</tbody>
+			} else {
+				<tbody
+					class={ props.TBodyClasses }
+					{ props.TBodyAttrs... }
+				>
+					{ children... }
+				</tbody>
+			}
 		</table>
 	</div>
 }
