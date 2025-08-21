@@ -136,19 +136,16 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 
 		if selectField.Placeholder() != "" {
 			fieldAttrs["data-placeholder"] = selectField.Placeholder()
-			// Set placeholder through attributes since the builder doesn't have a method
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if selectField.Readonly() {
 			fieldAttrs["disabled"] = true
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
 			builder = builder.Required()
 		}
-
+		builder = builder.Attrs(fieldAttrs)
 		if valueStr != "" {
 			builder = builder.Default(valueStr)
 		}
@@ -164,7 +161,6 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 
 		if selectField.Readonly() {
 			fieldAttrs["disabled"] = true
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -175,7 +171,7 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 			builder = builder.WithValue(valueStr)
 		}
 
-		return builder.Build().Component()
+		return builder.Attrs(fieldAttrs).Build().Component()
 
 	case crud.SelectTypeCombobox:
 		builder := form.Combobox().
@@ -187,7 +183,6 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 
 		if selectField.Readonly() {
 			fieldAttrs["disabled"] = true
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -197,8 +192,7 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 		if valueStr != "" {
 			builder = builder.WithValue(valueStr)
 		}
-
-		return builder.Build().Component()
+		return builder.Attrs(fieldAttrs).Build().Component()
 
 	default:
 		// Fallback to regular select
@@ -225,7 +219,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				currentValue = field.InitialValue(ctx)
 			}
 		}
-
 		switch field.Type() {
 		case crud.StringFieldType:
 			// Check if this is actually a select field
@@ -553,16 +546,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			}
 
 			maps.Copy(attrs, fieldAttrs)
-			// Set decimal value if present
-			// if value != nil && !value.IsZero() {
-			// 	// Use AsDecimal to handle all possible decimal value types
-			// 	if decimalStr, err := value.AsDecimal(); err == nil {
-			// 		// Validate it's a proper number format and set the value directly in attrs
-			// 		if _, err := strconv.ParseFloat(decimalStr, 64); err == nil {
-			// 			attrs["value"] = decimalStr
-			// 		}
-			// 	}
-			// }
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
