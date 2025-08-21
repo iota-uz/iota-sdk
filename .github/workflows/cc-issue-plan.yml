@@ -9,7 +9,6 @@ permissions:
   issues: write
   id-token: write
   repository-projects: write
-  organization-projects: write
 
 jobs:
   implementation-plan:
@@ -62,7 +61,7 @@ jobs:
               "url": "https://api.bloom.pw/api/mcp",
               "name": "bloom",
               "headers": {
-                "Authorization": "Bearer ${{ secrets.BLOOM_MCP_TOKEN }}"
+                "Authorization": "Bearer ${BLOOM_MCP_TOKEN}"
               }
             }
           }
