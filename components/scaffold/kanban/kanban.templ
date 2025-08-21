@@ -17,12 +17,12 @@ templ Content[C Card](cfg *Config[C]) {
 		}
 	</style>
 	<div x-data="kanban" class="contents">
-		<div class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged">
+		<div class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged" hx-swap="none">
 			<input type="hidden" name="colKey" x-model="col.key"/>
 			<input type="hidden" name="colOldIndex" x-model="col.oldIndex"/>
 			<input type="hidden" name="colNewIndex" x-model="col.newIndex"/>
 		</div>
-		<div class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged">
+		<div class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged" hx-swap="none">
 			<input type="hidden" name="cardKey" x-model="card.key"/>
 			<input type="hidden" name="cardOldCol" x-model="card.oldCol"/>
 			<input type="hidden" name="cardNewCol" x-model="card.newCol"/>
@@ -73,13 +73,5 @@ templ Content[C Card](cfg *Config[C]) {
 				}
 			</ol>
 		</div>
-	</div>
-}
-
-templ TaskCard(tag, title, amount string) {
-	<div class="flex flex-col gap-2 bg-white rounded-xl p-3">
-		<span class="text-200">{ tag }</span>
-		<span class="font-medium">{ title }</span>
-		<span class="text-brand-500">{ amount }</span>
 	</div>
 }
