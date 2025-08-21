@@ -16,19 +16,19 @@ templ Content[C Card](cfg *Config[C]) {
 			opacity: 0.4;
 		}
 	</style>
-	<div x-data="kanban">
-		<form class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged">
-			<input name="colKey" x-model="col.key"/>
-			<input name="oldIndex" x-model="col.oldIndex"/>
-			<input name="newIndex" x-model="col.newIndex"/>
-		</form>
-		<form class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged">
-			<input name="cardKey" x-model="card.key"/>
-			<input name="oldCol" x-model="card.oldCol"/>
-			<input name="newCol" x-model="card.newCol"/>
-			<input name="oldIndex" x-model="card.oldIndex"/>
-			<input name="newIndex" x-model="card.newIndex"/>
-		</form>
+	<div x-data="kanban" class="contents">
+		<div class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged">
+			<input type="hidden" name="colKey" x-model="col.key"/>
+			<input type="hidden" name="colOldIndex" x-model="col.oldIndex"/>
+			<input type="hidden" name="colNewIndex" x-model="col.newIndex"/>
+		</div>
+		<div class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged">
+			<input type="hidden" name="cardKey" x-model="card.key"/>
+			<input type="hidden" name="cardOldCol" x-model="card.oldCol"/>
+			<input type="hidden" name="cardNewCol" x-model="card.newCol"/>
+			<input type="hidden" name="cardOldIndex" x-model="card.oldIndex"/>
+			<input type="hidden" name="cardNewIndex" x-model="card.newIndex"/>
+		</div>
 		<div class="flex bg-gray-200 rounded-xl h-full">
 			<ol
 				class="flex divide-x divide-gray-300"
@@ -53,7 +53,6 @@ templ Content[C Card](cfg *Config[C]) {
 							x-sort.ghost
 							x-sort:group="cards"
 							x-sort:config="{onEnd: (event) => {
-								console.log(event);
 								changeCard({
 									key: event.item.dataset.cardKey,
 									newCol: event.to.dataset.colKey,
