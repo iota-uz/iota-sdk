@@ -13,7 +13,7 @@ permissions:
 jobs:
   review:
     if: github.event.pull_request.draft == false
-    uses: iota-uz/.github/workflows/cc-shared-review.yml@main
+    uses: iota-uz/.github/.github/workflows/cc-shared-review.yml@main
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BLOOM_MCP_TOKEN: ${{ secrets.BLOOM_MCP_TOKEN }}
