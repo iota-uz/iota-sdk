@@ -1,68 +1,22 @@
-name: Claude Issue Implementation Plan
+name: Claude — Issue Implementation Plan
 
 on:
   issues:
     types: [opened]
 
-permissions:
-  contents: read
-  issues: write
-  id-token: write
-  repository-projects: write
-
 jobs:
   implementation-plan:
+    name: Generate Plan
     uses: iota-uz/.github/.github/workflows/cc-shared-issue-plan.yml@main
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BLOOM_MCP_TOKEN: ${{ secrets.BLOOM_MCP_TOKEN }}
     with:
       base_branch: staging
-      tech_stack: go
-      project_id: "3"
+      tech_stack: iota-sdk
+      project_id: PVT_kwDOCGNubc4AvE2N
       project_owner: iota-uz
-      allowed_tools: |
-        WebSearch
-        WebFetch
-        Bash(find:*)
-        Bash(grep:*)
-        Bash(ls:*)
-        Bash(cat:*)
-        Bash(head:*)
-        Bash(tail:*)
-        Bash(wc:*)
-        Bash(tree:*)
-        Bash(gh label:*)
-        Bash(gh issue:*)
-        Bash(gh project:*)
-        mcp__context7__resolve-library-id
-        mcp__context7__get-library-docs
-        mcp__godoc-mcp__get_doc
-        mcp__bloom__search_code
-      disallowed_tools: |
-        Edit
-        MultiEdit
-        NotebookEdit
-        Write
-      mcp_config: |
-        {
-          "mcpServers": {
-            "context7": {
-              "type": "http",
-              "url": "https://mcp.context7.com/mcp",
-              "name": "context7"
-            },
-            "godoc-mcp": {
-              "command": "go",
-              "args": ["run", "github.com/mrjoshuak/godoc-mcp@latest"]
-            },
-            "bloom": {
-              "type": "http",
-              "url": "https://api.bloom.pw/api/mcp",
-              "name": "bloom",
-              "headers": {
-                "Authorization": "Bearer ${BLOOM_MCP_TOKEN}"
-              }
-            }
-          }
-        }
+      prompt: |
+        **Additional Context:**
+        This application follows Domain-Driven Design (DDD) architecture with strict layer separation.
+        Pay special attention to DDD principles and ensure proper separation between domain, infrastructure, services, and presentation layers.
