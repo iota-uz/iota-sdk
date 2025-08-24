@@ -19,7 +19,7 @@ jobs:
       BLOOM_MCP_TOKEN: ${{ secrets.BLOOM_MCP_TOKEN }}
     with:
       base_branch: staging
-      tech_stack: go
+      tech_stack: iota-sdk
       allowed_tools: |
         WebSearch
         WebFetch
