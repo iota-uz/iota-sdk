@@ -47,6 +47,13 @@ jobs:
         **Additional Context:**
         This application follows Domain-Driven Design (DDD) architecture with strict layer separation.
         Pay special attention to DDD principles and ensure proper separation between domain, infrastructure, services, and presentation layers.
+        
+        **Documentation Requirements:**
+        - All exported types, functions, methods, and constants MUST have Go doc comments
+        - Doc comments should start with the name of the thing being documented
+        - Examples: `// User represents...`, `// NewUser creates...`, `// GetUserByID retrieves...`
+        - Flag any missing documentation on public APIs as a Minor 🟡 issue
+        - Ensure doc comments are clear, complete, and follow Go documentation conventions
       mcp_config: |
         {
           "mcpServers": {
