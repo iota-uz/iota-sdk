@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   implementation-plan:
-    uses: iota-uz/.github/workflows/cc-shared-issue-plan.yml@main
+    uses: iota-uz/.github/.github/workflows/cc-shared-issue-plan.yml@main
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BLOOM_MCP_TOKEN: ${{ secrets.BLOOM_MCP_TOKEN }}
