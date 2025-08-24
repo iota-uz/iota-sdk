@@ -17,12 +17,12 @@ templ Content[C Card](cfg *Config[C]) {
 		}
 	</style>
 	<div x-data="kanban" class="contents">
-		<div class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged" hx-swap="none" hx-push-url="false">
+		<div class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged" hx-swap="none" hx-push-url="false" hx-include="this">
 			<input type="hidden" name="colKey" x-model="col.key"/>
 			<input type="hidden" name="colOldIndex" x-model="col.oldIndex"/>
 			<input type="hidden" name="colNewIndex" x-model="col.newIndex"/>
 		</div>
-		<div class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged" hx-swap="none" hx-push-url="false">
+		<div class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged" hx-swap="none" hx-push-url="false" hx-include="this">
 			<input type="hidden" name="cardKey" x-model="card.key"/>
 			<input type="hidden" name="cardOldCol" x-model="card.oldCol"/>
 			<input type="hidden" name="cardNewCol" x-model="card.newCol"/>
@@ -31,16 +31,18 @@ templ Content[C Card](cfg *Config[C]) {
 		</div>
 		<div class="flex bg-gray-200 rounded-lg h-full">
 			<ol
-				class="flex divide-x divide-gray-300"
+				class="flex divide-x divide-gray-300 w-full overflow-x-auto"
 				x-sort.ghost
-				x-sort:config="{onEnd: (event) => {
-					changeCol({
-						key: event.item.dataset.colKey,
-						oldIndex: event.oldIndex,
-						newIndex: event.newIndex
-					});
-					$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
-				}}"
+				x-sort:config="{
+					onEnd: (event) => {
+						changeCol({
+							key: event.item.dataset.colKey,
+							oldIndex: event.oldIndex,
+							newIndex: event.newIndex
+						});
+						$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
+					}
+				}"
 			>
 				for _, c := range cfg.Board.Columns() {
 					<li data-col-key={ c.Key() } x-sort:item class="flex flex-col gap-2 p-3 basis-72 shrink-0 flex-1">
