@@ -19,6 +19,7 @@ type Props struct {
 	Class        string
 	Attrs        templ.Attributes
 	WrapperProps templ.Attributes
+	WrapperClass templ.CSSClasses
 	AddonRight   *Addon
 	AddonLeft    *Addon
 	Error        string
@@ -39,7 +40,7 @@ func newInput(props *Props) *Props {
 }
 
 templ (p *Props) render() {
-	<div class="flex flex-col w-full">
+	<div class={ twmerge.Merge("flex flex-col w-full", p.WrapperClass.String()) }>
 		if len(p.Label) > 0 {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
@@ -93,6 +94,7 @@ templ Text(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -107,6 +109,7 @@ templ Number(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -121,6 +124,7 @@ templ Email(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -135,6 +139,7 @@ templ Tel(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -149,6 +154,7 @@ templ Date(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -163,6 +169,7 @@ templ DateTime(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -272,5 +279,6 @@ templ Password(props *Props) {
 			},
 		},
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
