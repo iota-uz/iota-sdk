@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -248,9 +249,10 @@ func (g *ClientRepository) GetPaginated(
 		args = append(args, filter.Filter.Value()...)
 	}
 
+	params.Search = strings.TrimSpace(params.Search)
 	if params.Search != "" {
 		searchPlaceholder := fmt.Sprintf("$%d", len(args)+1)
-		where = append(where, fmt.Sprintf("c.first_name ILIKE %s OR c.last_name ILIKE %s OR c.middle_name ILIKE %s OR c.phone_number ILIKE %s", searchPlaceholder, searchPlaceholder, searchPlaceholder, searchPlaceholder))
+		where = append(where, fmt.Sprintf("(CONCAT(c.first_name,' ',c.last_name,' ',c.middle_name) ILIKE %s OR c.phone_number ILIKE %s)", searchPlaceholder, searchPlaceholder))
 		args = append(args, "%"+params.Search+"%")
 	}
 
