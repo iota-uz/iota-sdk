@@ -458,9 +458,14 @@ let datePicker = ({
       let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
       plugins.push(yearSelect())
     }
+    if (selected) {
+      this.selected = selected;
+    }
     let self = this;
     flatpickr(this.$refs.input, {
       altInput: true,
+      static: true,
+      altInputClass: "form-control-input input outline-none w-full",
       altFormat: labelFormat,
       dateFormat: dateFormat,
       mode,
