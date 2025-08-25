@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -323,8 +324,29 @@ func (c *MoneyAccountController) Update(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		if _, err := c.moneyAccountService.Update(r.Context(), entity); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			if !errors.Is(err, services.ErrMoneyAccountDuplicateAccountNumber) {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			currencies, err := c.viewModelCurrencies(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			pageCtx := composables.UsePageCtx(r.Context())
+			props := &moneyaccounts.DrawerEditProps{
+				Account:    mappers.MoneyAccountToViewModel(entity),
+				UpdateData: mappers.MoneyAccountToViewUpdateModel(entity),
+				Currencies: currencies,
+				Errors: map[string]string{
+					"AccountNumber": pageCtx.T("MoneyAccounts.Single.DuplicateAccountNumber"),
+				},
+			}
+			templ.Handler(moneyaccounts.EditDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
 		}
 
@@ -399,7 +421,27 @@ func (c *MoneyAccountController) Create(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if _, err := c.moneyAccountService.Create(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if !errors.Is(err, services.ErrMoneyAccountDuplicateAccountNumber) || !isDrawer {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		currencies, err := c.viewModelCurrencies(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		pageCtx := composables.UsePageCtx(r.Context())
+		props := &moneyaccounts.DrawerCreateProps{
+			Errors: map[string]string{
+				"AccountNumber": pageCtx.T("MoneyAccounts.Single.DuplicateAccountNumber"),
+			},
+			Account:    *dto,
+			Currencies: currencies,
+		}
+
+		templ.Handler(moneyaccounts.CreateDrawer(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
 

@@ -273,6 +273,7 @@
       },
       "_Description": "Tavsif",
       "AccountNumber": "Hisob raqami",
+      "DuplicateAccountNumber": "Hisob raqami mavjud",
       "Delete": "Hisobni o'chirish",
       "DeleteConfirmation": "Ushbu hisobni o'chirishni xohlaysizmi?",
       "General": "Umumiy",

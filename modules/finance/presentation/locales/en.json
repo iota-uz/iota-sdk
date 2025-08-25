@@ -273,6 +273,7 @@
       },
       "_Description": "Description",
       "AccountNumber": "Account number",
+      "DuplicateAccountNumber": "Already exists",
       "Delete": "Delete account",
       "DeleteConfirmation": "Are you sure you want to delete this account?",
       "General": "General",
