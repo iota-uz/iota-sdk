@@ -273,6 +273,7 @@
       },
       "_Description": "Описание",
       "AccountNumber": "Номер счета",
+      "DuplicateAccountNumber": "Запись уже существует",
       "Delete": "Удалить счет",
       "DeleteConfirmation": "Вы уверены что хотите удалить этот счет?",
       "General": "Общее",

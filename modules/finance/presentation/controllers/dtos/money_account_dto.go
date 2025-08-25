@@ -23,10 +23,10 @@ type MoneyAccountCreateDTO struct {
 }
 
 type MoneyAccountUpdateDTO struct {
-	Name          string  `validate:"lte=255"`
+	Name          string  `validate:"required,lte=255"`
 	Balance       float64 `validate:"gte=0"`
 	AccountNumber string
-	CurrencyCode  string `validate:"len=3"`
+	CurrencyCode  string `validate:"required,len=3"`
 	Description   string
 }
 
