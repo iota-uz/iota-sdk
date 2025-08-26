@@ -241,7 +241,7 @@ templ TableSection(config *TableConfig) {
 	<form
 		hx-get={ config.DataURL }
 		hx-push-url="true"
-		hx-trigger="keyup changed delay:300ms from:input, change from:select, change from:input[type='checkbox']"
+		hx-trigger="keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type='checkbox']"
 		hx-target="#table-body"
 		hx-swap="innerHTML"
 		hx-indicator="#table-body"
