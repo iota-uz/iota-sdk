@@ -721,6 +721,12 @@ func WithEditableColumn(field crud.Field) ColumnOpt {
 
 type TableConfigOpt func(c *TableConfig)
 
+func WithoutSearch() TableConfigOpt {
+	return func(c *TableConfig) {
+		c.WithoutSearch = true
+	}
+}
+
 func WithEditable(config TableEditableConfig) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.Editable = config
@@ -751,15 +757,16 @@ type TableEditableConfig struct {
 }
 
 type TableConfig struct {
-	Title      string
-	DataURL    string
-	Filters    []templ.Component
-	Actions    []templ.Component // Actions like Create button
-	Columns    []TableColumn
-	Rows       []TableRow
-	Infinite   *InfiniteScrollConfig
-	SideFilter templ.Component
-	Editable   TableEditableConfig
+	Title         string
+	DataURL       string
+	Filters       []templ.Component
+	Actions       []templ.Component // Actions like Create button
+	Columns       []TableColumn
+	Rows          []TableRow
+	Infinite      *InfiniteScrollConfig
+	SideFilter    templ.Component
+	Editable      TableEditableConfig
+	WithoutSearch bool
 
 	// Sorting configuration
 	CurrentSort      string // Current sort field
