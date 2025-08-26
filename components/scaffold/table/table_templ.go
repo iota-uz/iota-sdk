@@ -667,7 +667,7 @@ func TableSection(config *TableConfig) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" hx-push-url=\"true\" hx-trigger=\"keyup changed delay:300ms from:input, change from:select, change from:input[type=&#39;checkbox&#39;]\" hx-target=\"#table-body\" hx-swap=\"innerHTML\" hx-indicator=\"#table-body\"><div class=\"flex gap-5\"><!-- Left sidebar with filters -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" hx-push-url=\"true\" hx-trigger=\"keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type=&#39;checkbox&#39;]\" hx-target=\"#table-body\" hx-swap=\"innerHTML\" hx-indicator=\"#table-body\"><div class=\"flex gap-5\"><!-- Left sidebar with filters -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
