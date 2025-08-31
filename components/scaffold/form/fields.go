@@ -308,9 +308,11 @@ type dateField struct {
 
 func (f *dateField) Component() templ.Component {
 	attrs := templ.Attributes{
-		"name":  f.key,
-		"value": f.defaultVal,
-		"type":  string(FieldTypeDate),
+		"name": f.key,
+		"type": string(FieldTypeDate),
+	}
+	if !f.defaultVal.IsZero() {
+		attrs["value"] = f.defaultVal.Format(time.DateOnly)
 	}
 	for k, v := range f.attrs {
 		attrs[k] = v
@@ -475,9 +477,12 @@ type numberField struct {
 
 func (f *numberField) Component() templ.Component {
 	attrs := templ.Attributes{
-		"name":  f.key,
-		"type":  string(FieldTypeNumber),
-		"value": mapping.Or(f.value, f.defaultVal),
+		"name": f.key,
+		"type": string(FieldTypeNumber),
+	}
+	val := mapping.Or(f.value, f.defaultVal)
+	if val != 0 {
+		attrs["value"] = strconv.FormatFloat(val, 'f', -1, 64)
 	}
 	for k, v := range f.attrs {
 		attrs[k] = v

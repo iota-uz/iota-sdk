@@ -22,6 +22,7 @@ import (
 
 type RowOpt func(r *tableRowImpl)
 type ColumnOpt func(c *tableColumnImpl)
+type CellOpt func(c *tableCellImpl)
 
 type TableColumn interface {
 	Key() string
@@ -38,11 +39,13 @@ type TableColumn interface {
 
 type TableCell interface {
 	Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component
+	Classes() templ.CSSClasses
 }
 
 type tableCellImpl struct {
 	component templ.Component
 	value     any
+	classes   templ.CSSClasses
 }
 
 func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType) string {
@@ -136,19 +139,16 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 
 		if selectField.Placeholder() != "" {
 			fieldAttrs["data-placeholder"] = selectField.Placeholder()
-			// Set placeholder through attributes since the builder doesn't have a method
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if selectField.Readonly() {
 			fieldAttrs["disabled"] = true
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
 			builder = builder.Required()
 		}
-
+		builder = builder.Attrs(fieldAttrs)
 		if valueStr != "" {
 			builder = builder.Default(valueStr)
 		}
@@ -164,7 +164,6 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 
 		if selectField.Readonly() {
 			fieldAttrs["disabled"] = true
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -175,7 +174,7 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 			builder = builder.WithValue(valueStr)
 		}
 
-		return builder.Build().Component()
+		return builder.Attrs(fieldAttrs).Build().Component()
 
 	case crud.SelectTypeCombobox:
 		builder := form.Combobox().
@@ -187,7 +186,6 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 
 		if selectField.Readonly() {
 			fieldAttrs["disabled"] = true
-			builder = builder.Attrs(fieldAttrs)
 		}
 
 		if len(selectField.Rules()) > 0 {
@@ -197,13 +195,16 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 		if valueStr != "" {
 			builder = builder.WithValue(valueStr)
 		}
-
-		return builder.Build().Component()
+		return builder.Attrs(fieldAttrs).Build().Component()
 
 	default:
 		// Fallback to regular select
 		return form.Select(selectField.Name(), "").Build().Component()
 	}
+}
+
+func (c *tableCellImpl) Classes() templ.CSSClasses {
+	return c.classes
 }
 
 func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component {
@@ -225,7 +226,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				currentValue = field.InitialValue(ctx)
 			}
 		}
-
 		switch field.Type() {
 		case crud.StringFieldType:
 			// Check if this is actually a select field
@@ -553,16 +553,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			}
 
 			maps.Copy(attrs, fieldAttrs)
-			// Set decimal value if present
-			// if value != nil && !value.IsZero() {
-			// 	// Use AsDecimal to handle all possible decimal value types
-			// 	if decimalStr, err := value.AsDecimal(); err == nil {
-			// 		// Validate it's a proper number format and set the value directly in attrs
-			// 		if _, err := strconv.ParseFloat(decimalStr, 64); err == nil {
-			// 			attrs["value"] = decimalStr
-			// 		}
-			// 	}
-			// }
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
@@ -731,6 +721,12 @@ func WithEditableColumn(field crud.Field) ColumnOpt {
 
 type TableConfigOpt func(c *TableConfig)
 
+func WithoutSearch() TableConfigOpt {
+	return func(c *TableConfig) {
+		c.WithoutSearch = true
+	}
+}
+
 func WithEditable(config TableEditableConfig) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.Editable = config
@@ -761,15 +757,16 @@ type TableEditableConfig struct {
 }
 
 type TableConfig struct {
-	Title      string
-	DataURL    string
-	Filters    []templ.Component
-	Actions    []templ.Component // Actions like Create button
-	Columns    []TableColumn
-	Rows       []TableRow
-	Infinite   *InfiniteScrollConfig
-	SideFilter templ.Component
-	Editable   TableEditableConfig
+	Title         string
+	DataURL       string
+	Filters       []templ.Component
+	Actions       []templ.Component // Actions like Create button
+	Columns       []TableColumn
+	Rows          []TableRow
+	Infinite      *InfiniteScrollConfig
+	SideFilter    templ.Component
+	Editable      TableEditableConfig
+	WithoutSearch bool
 
 	// Sorting configuration
 	CurrentSort      string // Current sort field
@@ -816,11 +813,20 @@ func Row(cells ...TableCell) TableRow {
 	}
 }
 
-func Cell(component templ.Component, value any) TableCell {
-	return &tableCellImpl{
+func WithCellClasses(classes templ.CSSClasses) CellOpt {
+	return func(c *tableCellImpl) {
+		c.classes = classes
+	}
+}
+func Cell(component templ.Component, value any, opts ...CellOpt) TableCell {
+	cell := &tableCellImpl{
 		component: component,
 		value:     value,
 	}
+	for _, opt := range opts {
+		opt(cell)
+	}
+	return cell
 }
 
 func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
