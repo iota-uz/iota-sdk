@@ -1,4 +1,4 @@
-name: Claude Issue Implementation Plan
+name: Claude — Issue Implementation Plan
 
 on:
   issues:
@@ -6,126 +6,17 @@ on:
 
 jobs:
   implementation-plan:
-    runs-on: blacksmith-8vcpu-ubuntu-2204
-    permissions:
-      contents: read
-      issues: write
-      id-token: write
-      repository-projects: write
-      organization-projects: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: staging
-          fetch-depth: 0
-
-      - name: Generate Implementation Plan
-        id: claude-plan
-        uses: anthropics/claude-code-action@beta
-        with:
-          base_branch: staging
-          allowed_tools: |
-            WebSearch
-            WebFetch
-            Bash(find:*)
-            Bash(grep:*)
-            Bash(ls:*)
-            Bash(cat:*)
-            Bash(head:*)
-            Bash(tail:*)
-            Bash(wc:*)
-            Bash(tree:*)
-            Bash(gh label:*)
-            Bash(gh issue:*)
-            Bash(gh project:*)
-            mcp__context7__resolve-library-id
-            mcp__context7__get-library-docs
-            mcp__godoc-mcp__get_doc
-            mcp__bloom__search_code
-          disallowed_tools: |
-            Edit
-            MultiEdit
-            NotebookEdit
-            Write
-          direct_prompt: |
-            Create a **CONCISE** implementation plan for this issue. Be precise but brief - avoid unnecessary elaboration.
-
-            **IMPORTANT:** 
-            - You are in read-only mode and cannot edit files. Focus on analyzing and planning only.
-            - Keep explanations minimal - focus on WHAT needs to be done, not WHY
-            - For simple issues (typos, small bugs, minor UI changes), keep the entire plan under 30 lines
-            - For complex features, be thorough but avoid repetition
-
-            **Current Labels:** ${{ join(github.event.issue.labels.*.name, ', ') }}
-
-            ## Your Task:
-            1. **Check for duplicates:** Run `gh issue list --repo ${{ github.repository }} --state all --limit 100` to find similar issues. If found, apply "duplicate" label.
-            2. **Quick analysis:** Determine issue type and scope (don't over-analyze simple issues)
-            3. **Search smartly:** Only search codebase for affected files - skip if issue is obvious
-            4. **External research (if needed):** For new libraries/complex features, use WebSearch/WebFetch to get essential docs
-            5. **Create concise plan:** List only essential file changes
-            6. **Apply labels:** Use `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`
-            7. **Add to project:**
-               - For general SDK issues: Add to "SDK core" project using `gh project item-add 3 --owner iota-uz --url https://github.com/iota-uz/iota-sdk/issues/${{ github.event.issue.number }}`
-               - Set priority: P0=Critical/Security, P1=Features, P2=Enhancements
-
-            ## Required Output Format (BE CONCISE):
-
-            ### 🔍 Duplicate Check
-            **Status:** [No duplicates / Found: #123, #456]
-            
-            ### 📋 Issue Summary
-            **Type:** [Bug/Feature/Enhancement]
-            **Scope:** [1-line description]
-            **Key Files:** [List only the main files affected]
-
-            ### 📚 External Research (only if needed for new libraries/APIs)
-            [Brief summary of key findings - max 3-4 lines]
-
-            ### 📁 Implementation Changes
-
-            ```
-            # Use concise format: ACTION path/to/file - brief change description
-            CREATE modules/foo/service.go - new service for handling X
-            MODIFY modules/bar/controller.go:45 - fix validation logic
-            DELETE old/deprecated/file.go - no longer needed
-            ```
-
-            ### 🚀 Implementation Steps (numbered list, one line each)
-            1. Step one
-            2. Step two
-            3. Step three
-
-            ### ✅ Testing Required
-            - List only essential test files/scenarios (max 3-4 items)
-
-            ### 📌 Labels & Project
-            **Applied:** [bug, duplicate, etc.]
-            **Project:** SDK core (P0/P1/P2)
-
-            ---
-            **Note:** For complex issues requiring detailed analysis, expand relevant sections as needed.
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          mcp_config: |
-            {
-              "mcpServers": {
-                "context7": {
-                  "type": "http",
-                  "url": "https://mcp.context7.com/mcp",
-                  "name": "context7"
-                },
-                "godoc-mcp": {
-                  "command": "go",
-                  "args": ["run", "github.com/mrjoshuak/godoc-mcp@latest"]
-                },
-                "bloom": {
-                  "type": "http",
-                  "url": "https://api.bloom.pw/api/mcp",
-                  "name": "bloom",
-                  "headers": {
-                    "Authorization": "Bearer ${{ secrets.BLOOM_MCP_TOKEN }}"
-                  }
-                }
-              }
-            }
+    name: Generate Plan
+    uses: iota-uz/.github/.github/workflows/cc-shared-issue-plan.yml@main
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BLOOM_MCP_TOKEN: ${{ secrets.BLOOM_MCP_TOKEN }}
+    with:
+      base_branch: staging
+      tech_stack: iota-sdk
+      project_id: PVT_kwDOCGNubc4AvE2N
+      project_owner: iota-uz
+      prompt: |
+        **Additional Context:**
+        This application follows Domain-Driven Design (DDD) architecture with strict layer separation.
+        Pay special attention to DDD principles and ensure proper separation between domain, infrastructure, services, and presentation layers.
