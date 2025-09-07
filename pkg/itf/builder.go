@@ -19,10 +19,10 @@ type SuiteBuilder struct {
 }
 
 // NewSuiteBuilder creates a new SuiteBuilder for HTTP controller testing
-func NewSuiteBuilder(t testing.TB) *SuiteBuilder {
-	t.Helper()
+func NewSuiteBuilder(tb testing.TB) *SuiteBuilder {
+	tb.Helper()
 	return &SuiteBuilder{
-		t: t,
+		t: tb,
 	}
 }
 

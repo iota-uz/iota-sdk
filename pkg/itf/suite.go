@@ -541,7 +541,7 @@ func (r *Request) Expect(tb testing.TB) *Response {
 func (r *Request) Assert(tb testing.TB) *ResponseAssertion {
 	tb.Helper()
 	response := r.Expect(tb)
-	return newResponseAssertion(response, tb)
+	return newResponseAssertion(tb, response)
 }
 
 type Response struct {
@@ -703,7 +703,6 @@ func (s *Suite) RunCases(cases []TestCase) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture loop variable
 		runner.Run(tc.Name, func(t *testing.T) {
 			if tc.Skip {
 				t.Skip("Test case marked as skipped")
@@ -814,7 +813,6 @@ func (s *Suite) RunBatch(cases []TestCase, config *BatchTestConfig) {
 	if config.Parallel {
 		// Run test cases in parallel
 		for _, tc := range testCases {
-			tc := tc
 			runner.Run(tc.Name, func(t *testing.T) {
 				t.Parallel()
 				s.runSingleCase(t, tc, config)
@@ -823,7 +821,6 @@ func (s *Suite) RunBatch(cases []TestCase, config *BatchTestConfig) {
 	} else {
 		// Run test cases sequentially
 		for _, tc := range testCases {
-			tc := tc
 			runner.Run(tc.Name, func(t *testing.T) {
 				s.runSingleCase(t, tc, config)
 			})
