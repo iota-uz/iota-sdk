@@ -18,11 +18,11 @@ type ResponseAssertion struct {
 }
 
 // newResponseAssertion creates a new ResponseAssertion
-func newResponseAssertion(response *Response, t testing.TB) *ResponseAssertion {
-	t.Helper()
+func newResponseAssertion(tb testing.TB, response *Response) *ResponseAssertion {
+	tb.Helper()
 	return &ResponseAssertion{
 		response: response,
-		t:        t,
+		t:        tb,
 	}
 }
 
@@ -362,7 +362,7 @@ func (ra *ResponseAssertion) ExpectHTMXTriggerWithData(expectedEvent string, exp
 		"Expected HX-Trigger to contain event '%s', got '%s'", expectedEvent, trigger)
 
 	// If expectedData is provided, try to validate the JSON structure
-	if expectedData != nil && len(expectedData) > 0 {
+	if len(expectedData) > 0 {
 		// This is a simplified validation - in a real implementation you might
 		// want to parse the JSON and validate the structure more thoroughly
 		var triggerData map[string]interface{}
