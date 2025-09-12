@@ -2,6 +2,7 @@ package itf
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"log"
@@ -139,12 +140,114 @@ func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Ten
 	return testTenant, nil
 }
 
+const (
+	// PostgreSQL database name maximum length is 63 characters
+	maxDBNameLength = 63
+	// Reserve space for hash suffix when truncating (8 chars + underscore)
+	hashSuffixLength = 9
+)
+
 // sanitizeDBName replaces special characters in database names with underscores
+// and ensures the name doesn't exceed PostgreSQL's 63-character limit
 func sanitizeDBName(name string) string {
-	sanitized := strings.ReplaceAll(name, "/", "_")
+	// Convert to lowercase (PostgreSQL convention)
+	sanitized := strings.ToLower(name)
+
+	// Replace special characters with underscores
+	sanitized = strings.ReplaceAll(sanitized, "/", "_")
 	sanitized = strings.ReplaceAll(sanitized, " ", "_")
 	sanitized = strings.ReplaceAll(sanitized, "-", "_")
-	return sanitized
+	sanitized = strings.ReplaceAll(sanitized, ".", "_")
+	sanitized = strings.ReplaceAll(sanitized, "(", "_")
+	sanitized = strings.ReplaceAll(sanitized, ")", "_")
+	sanitized = strings.ReplaceAll(sanitized, "[", "_")
+	sanitized = strings.ReplaceAll(sanitized, "]", "_")
+
+	// Remove consecutive underscores
+	for strings.Contains(sanitized, "__") {
+		sanitized = strings.ReplaceAll(sanitized, "__", "_")
+	}
+
+	// Trim leading/trailing underscores
+	sanitized = strings.Trim(sanitized, "_")
+
+	// Handle edge case where sanitization results in empty string
+	if sanitized == "" {
+		sanitized = "test_db"
+	}
+
+	// If name is within limit, return as-is
+	if len(sanitized) <= maxDBNameLength {
+		return sanitized
+	}
+
+	// Name is too long, need to truncate and add hash for uniqueness
+	return truncateWithHash(sanitized, name)
+}
+
+// truncateWithHash truncates a database name and adds a hash suffix for uniqueness
+func truncateWithHash(sanitized, original string) string {
+	// Calculate hash of the original name for uniqueness
+	hasher := sha256.New()
+	hasher.Write([]byte(original))
+	hash := fmt.Sprintf("%x", hasher.Sum(nil))[:8] // Use first 8 chars of hash
+
+	// Calculate available space for the name part
+	maxNameLength := maxDBNameLength - hashSuffixLength
+
+	// Truncate intelligently - try to keep meaningful parts
+	truncated := intelligentTruncate(sanitized, maxNameLength)
+
+	// Combine truncated name with hash
+	return fmt.Sprintf("%s_%s", truncated, hash)
+}
+
+// intelligentTruncate tries to keep the most meaningful parts of a test name
+func intelligentTruncate(name string, maxLength int) string {
+	if len(name) <= maxLength {
+		return name
+	}
+
+	// Split by underscores to identify segments
+	parts := strings.Split(name, "_")
+
+	// If we have multiple parts, try to keep the most important ones
+	if len(parts) > 1 {
+		// Keep the first and last parts if possible, as they're often most meaningful
+		first := parts[0]
+		last := parts[len(parts)-1]
+
+		// If first and last alone fit, use them
+		combined := first + "_" + last
+		if len(combined) <= maxLength && first != last {
+			return combined
+		}
+
+		// If first part is reasonable length, start with it
+		if len(first) <= maxLength/2 {
+			result := first
+			remaining := maxLength - len(first) - 1 // -1 for underscore
+
+			// Add as many subsequent parts as we can fit
+			for i := 1; i < len(parts) && len(result) < maxLength; i++ {
+				part := parts[i]
+				if len(part)+1 <= remaining { // +1 for underscore
+					result += "_" + part
+					remaining -= len(part) + 1
+				} else {
+					// If we can fit a truncated version of this part, do it
+					if remaining > 4 { // Minimum meaningful length
+						result += "_" + part[:remaining-1]
+					}
+					break
+				}
+			}
+			return result
+		}
+	}
+
+	// Fallback: simple truncation
+	return name[:maxLength]
 }
 
 func CreateDB(name string) {
