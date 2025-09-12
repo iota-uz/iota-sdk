@@ -21,7 +21,7 @@ templ Spotlight() {
 	>
 		<button
 			@click="open()"
-			class="flex items-center justify-center w-9 h-9 rounded-full bg-surface-400 text-black cursor-pointer"
+			class="flex items-center justify-center w-9 h-9 rounded-full bg-surface-400 text-100 cursor-pointer"
 		>
 			@icons.MagnifyingGlass(icons.Props{
 				Size: "20",
@@ -37,7 +37,7 @@ templ Spotlight() {
 			x-cloak
 		>
 			<div
-				class="flex flex-col bg-white p-6 rounded-lg shadow-lg w-2/3 max-h-[400px]"
+				class="flex flex-col bg-surface-200 p-6 rounded-lg shadow-lg w-2/3 max-h-[400px]"
 				@click.away="close()"
 				x-transition
 			>
@@ -48,7 +48,7 @@ templ Spotlight() {
 					@keydown.up="highlightPrevious"
 					@keydown.down="highlightNext"
 					@keydown.enter="goToLink"
-					class="w-full border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+					class="w-full border-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:outline-none bg-surface-100 text-100"
 					placeholder={ intl.MustT(ctx, "Spotlight.Placeholder") }
 					hx-get="/spotlight/search"
 					hx-trigger="input changed delay:250ms, search"
@@ -92,10 +92,10 @@ templ LinkItem(title, link string, icon templ.Component) {
 templ SpotlightItem(i int) {
 	<li
 		class={
-			"border border-gray-200 px-4 py-3 rounded-md cursor-pointer",
-			"hover:bg-brand-500 hover:text-white transition-all duration-200",
+			"border border-200 px-4 py-3 rounded-md cursor-pointer text-100",
+			"hover:bg-primary-500 hover:text-white transition-all duration-200",
 		}
-		:class={ fmt.Sprintf("{'bg-brand-500 text-white': highlightedIndex === %d }", i) }
+		:class={ fmt.Sprintf("{'bg-primary-500 text-white': highlightedIndex === %d }", i) }
 	>
 		{ children... }
 	</li>
@@ -103,7 +103,7 @@ templ SpotlightItem(i int) {
 
 // NotFound renders a message indicating that no search results were found.
 templ NotFound() {
-	<li class="text-center text-gray-700">
+	<li class="text-center text-200">
 		{ intl.MustT(ctx, "Spotlight.NothingFound") }
 	</li>
 }
