@@ -80,6 +80,7 @@ type PaymentCreateDTO struct {
 	PaymentCategoryID string          `validate:"required,uuid"`
 	UserID            uint            `validate:"required"`
 	Comment           string
+	Attachments       []uint // Upload IDs to attach
 }
 
 type PaymentUpdateDTO struct {
@@ -91,6 +92,7 @@ type PaymentUpdateDTO struct {
 	AccountingPeriod  shared.DateOnly
 	Comment           string
 	UserID            uint
+	Attachments       []uint // Upload IDs to attach
 }
 
 func (p *PaymentCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
