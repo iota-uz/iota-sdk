@@ -234,11 +234,7 @@ func (c *PaymentsController) AttachFile(
 		return
 	}
 
-	if htmx.IsHxRequest(r) {
-		htmx.Redirect(w, fmt.Sprintf("%s/%s", c.basePath, id.String()))
-	} else {
-		shared.Redirect(w, r, fmt.Sprintf("%s/%s", c.basePath, id.String()))
-	}
+	shared.Redirect(w, r, fmt.Sprintf("%s/%s", c.basePath, id.String()))
 }
 
 // DetachFile detaches a file upload from a payment
@@ -360,8 +356,8 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 	for _, uploadID := range dto.Attachments {
 		if uploadID > 0 {
 			if err := c.paymentService.AttachFileToPayment(r.Context(), id, uploadID); err != nil {
-				// Log error but don't fail the entire operation
-				// TODO: Add proper logging here
+				http.Error(w, "Error attaching file to payment", http.StatusInternalServerError)
+				return
 			}
 		}
 	}
@@ -464,8 +460,8 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	for _, uploadID := range dto.Attachments {
 		if uploadID > 0 {
 			if err := c.paymentService.AttachFileToPayment(r.Context(), createdEntity.ID(), uploadID); err != nil {
-				// Log error but don't fail the entire operation
-				// TODO: Add proper logging here
+				http.Error(w, "Error attaching file to payment", http.StatusInternalServerError)
+				return
 			}
 		}
 	}
