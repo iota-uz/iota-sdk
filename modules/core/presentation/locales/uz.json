@@ -202,6 +202,9 @@
     "Errors": {
       "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",
       "EmailUnique": "Email allaqachon ishlatilgan."
+    },
+    "Delete": {
+      "NotAllowed": "O'chirib bo'lmaydi: Siz ushbu tenantdagi yagona foydalanuvchisiz"
     }
   },
   "Roles": {
