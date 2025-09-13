@@ -9,6 +9,8 @@ type Tenant struct {
 	ID            string
 	Name          string
 	Domain        sql.NullString
+	Phone         sql.NullString
+	Email         sql.NullString
 	IsActive      bool
 	LogoID        sql.NullInt32
 	LogoCompactID sql.NullInt32
