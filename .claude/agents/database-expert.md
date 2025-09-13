@@ -48,7 +48,7 @@ You are a PostgreSQL database expert for the SHY ELD transportation management s
 ### Connection Examples
 ```bash
 # Default local
-PGPASSWORD=password psql -h localhost -p 5432 -U postgres -d shy_llc
+PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d iota_erp
 
 # Environment-based
 if [ -f .env ]; then
