@@ -35,6 +35,11 @@ const (
 		WHERE id = $3`
 
 	expenseDeleteQuery = `DELETE FROM expenses where id = $1`
+
+	// Attachment queries
+	expenseAttachmentsQuery = `SELECT upload_id FROM expense_attachments WHERE expense_id = $1`
+	expenseAttachFileQuery  = `INSERT INTO expense_attachments (expense_id, upload_id, attached_at) VALUES ($1, $2, NOW()) ON CONFLICT (expense_id, upload_id) DO NOTHING`
+	expenseDetachFileQuery  = `DELETE FROM expense_attachments WHERE expense_id = $1 AND upload_id = $2`
 )
 
 var (
@@ -97,6 +102,10 @@ func (g *GormExpenseRepository) buildExpenseFilters(ctx context.Context, params 
 }
 
 func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string, args ...interface{}) ([]expense.Expense, error) {
+	return g.queryExpensesWithAttachments(ctx, query, nil, args...)
+}
+
+func (g *GormExpenseRepository) queryExpensesWithAttachments(ctx context.Context, query string, attachments []uint, args ...interface{}) ([]expense.Expense, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -137,7 +146,12 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 			return nil, errors.Wrap(err, "failed to scan expense row")
 		}
 
-		domainExpense, err := ToDomainExpense(&dbExpense, &dbTransaction)
+		var domainExpense expense.Expense
+		if attachments != nil {
+			domainExpense, err = ToDomainExpense(&dbExpense, &dbTransaction, attachments)
+		} else {
+			domainExpense, err = ToDomainExpense(&dbExpense, &dbTransaction)
+		}
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to convert to domain expense")
 		}
@@ -161,18 +175,26 @@ func (g *GormExpenseRepository) queryExpenses(ctx context.Context, query string,
 			return nil, errors.Wrap(err, fmt.Sprintf("failed to get category for expense ID: %s", data.expense.ID))
 		}
 
-		// Create a new expense with the retrieved category
-		exp := expense.New(
-			data.domainExpense.Amount(),
-			data.domainExpense.Account(),
-			domainCategory,
-			data.domainExpense.Date(),
+		// Create options including attachments if provided
+		opts := []expense.Option{
 			expense.WithID(data.domainExpense.ID()),
 			expense.WithComment(data.domainExpense.Comment()),
 			expense.WithTransactionID(data.domainExpense.TransactionID()),
 			expense.WithAccountingPeriod(data.domainExpense.AccountingPeriod()),
 			expense.WithCreatedAt(data.domainExpense.CreatedAt()),
 			expense.WithUpdatedAt(data.domainExpense.UpdatedAt()),
+		}
+		if attachments != nil {
+			opts = append(opts, expense.WithAttachments(attachments))
+		}
+
+		// Create a new expense with the retrieved category
+		exp := expense.New(
+			data.domainExpense.Amount(),
+			data.domainExpense.Account(),
+			domainCategory,
+			data.domainExpense.Date(),
+			opts...,
 		)
 		expenses = append(expenses, exp)
 	}
@@ -239,18 +261,25 @@ func (g *GormExpenseRepository) GetByID(ctx context.Context, id uuid.UUID) (expe
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
 
+	// Load attachments for the expense
+	attachments, err := g.GetAttachments(ctx, id)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load expense attachments")
+	}
+
 	query := repo.Join(
 		expenseFindQuery,
 		repo.JoinWhere("ex.id = $1 AND ex.tenant_id = $2"),
 	)
 
-	expenses, err := g.queryExpenses(ctx, query, id, tenantID)
+	expenses, err := g.queryExpensesWithAttachments(ctx, query, attachments, id, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to get expense with ID: %s", id))
 	}
 	if len(expenses) == 0 {
 		return nil, errors.Wrap(ErrExpenseNotFound, fmt.Sprintf("id: %s", id))
 	}
+
 	return expenses[0], nil
 }
 
@@ -309,5 +338,69 @@ func (g *GormExpenseRepository) Delete(ctx context.Context, id uuid.UUID) error 
 	if _, err := tx.Exec(ctx, expenseDeleteQuery, id); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete expense with ID: %s", id))
 	}
+	return nil
+}
+
+// GetAttachments retrieves all attachment upload IDs for an expense
+func (g *GormExpenseRepository) GetAttachments(ctx context.Context, expenseID uuid.UUID) ([]uint, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	rows, err := tx.Query(ctx, expenseAttachmentsQuery, expenseID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query expense attachments")
+	}
+	defer rows.Close()
+
+	var attachments []uint
+	for rows.Next() {
+		var uploadID uint
+		if err := rows.Scan(&uploadID); err != nil {
+			return nil, errors.Wrap(err, "failed to scan upload ID")
+		}
+		attachments = append(attachments, uploadID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, errors.Wrap(err, "row iteration error")
+	}
+
+	return attachments, nil
+}
+
+// AttachFile associates an upload with an expense
+func (g *GormExpenseRepository) AttachFile(ctx context.Context, expenseID uuid.UUID, uploadID uint) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get transaction")
+	}
+
+	_, err = tx.Exec(ctx, expenseAttachFileQuery, expenseID, uploadID)
+	if err != nil {
+		return errors.Wrap(err, "failed to attach file to expense")
+	}
+
+	return nil
+}
+
+// DetachFile removes an upload association from an expense
+func (g *GormExpenseRepository) DetachFile(ctx context.Context, expenseID uuid.UUID, uploadID uint) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get transaction")
+	}
+
+	result, err := tx.Exec(ctx, expenseDetachFileQuery, expenseID, uploadID)
+	if err != nil {
+		return errors.Wrap(err, "failed to detach file from expense")
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return errors.Wrap(fmt.Errorf("attachment not found"), fmt.Sprintf("expense ID: %s, upload ID: %d", expenseID, uploadID))
+	}
+
 	return nil
 }
