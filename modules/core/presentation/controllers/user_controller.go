@@ -346,12 +346,23 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
+	canDelete, err := userService.CanUserBeDeleted(r.Context(), id)
+	if err != nil {
+		logger.Errorf("Error checking if user can be deleted: %v", err)
+		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
+		return
+	}
+
+	userViewModel := mappers.UserToViewModel(us)
+	userViewModel.CanDelete = canDelete
+
 	props := &users.EditFormProps{
-		User:                     mappers.UserToViewModel(us),
+		User:                     userViewModel,
 		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
 		Groups:                   groups, // Already viewmodels from query service
 		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
 		Errors:                   map[string]string{},
+		CanDelete:                canDelete,
 	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -559,6 +570,13 @@ func (c *UsersController) Update(
 			return
 		}
 
+		canDelete, err := userService.CanUserBeDeleted(ctx, id)
+		if err != nil {
+			logger.Errorf("Error checking if user can be deleted: %v", err)
+			http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
+			return
+		}
+
 		var avatar *viewmodels.Upload
 		if us.Avatar() != nil {
 			avatar = mappers.UploadToViewModel(us.Avatar())
@@ -580,11 +598,13 @@ func (c *UsersController) Update(
 				GroupIDs:    dto.GroupIDs,
 				Permissions: mapping.MapViewModels(us.Permissions(), mappers.PermissionToViewModel),
 				AvatarID:    strconv.FormatUint(uint64(dto.AvatarID), 10),
+				CanDelete:   canDelete,
 			},
 			Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
 			Groups:                   groups, // Already viewmodels from query service
 			ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
 			Errors:                   errors,
+			CanDelete:                canDelete,
 		}
 		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}

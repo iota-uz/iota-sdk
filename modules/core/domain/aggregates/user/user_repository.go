@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -36,6 +37,7 @@ type FindParams struct {
 
 type Repository interface {
 	Count(ctx context.Context, params *FindParams) (int64, error)
+	CountByTenantID(ctx context.Context, tenantID uuid.UUID) (int64, error)
 	GetAll(ctx context.Context) ([]User, error)
 	GetByEmail(ctx context.Context, email string) (User, error)
 	GetByPhone(ctx context.Context, phone string) (User, error)
