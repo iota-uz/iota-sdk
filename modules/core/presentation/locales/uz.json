@@ -346,6 +346,14 @@
       "CompactLogo": "Ixcham logo",
       "CompactLogoDescription": "Bu logo yon panel yopiq bo'lganda ko'rsatiladi",
       "CompactLogoPlaceholder": "Kompaniyangizning ixcham logosini tanlang (PNG, JPG, SVG)"
+    },
+    "Contact": {
+      "Information": "Aloqa ma'lumotlari",
+      "DescText": "Tashkilotingizning aloqa ma'lumotlarini boshqaring",
+      "Phone": "Telefon raqami",
+      "PhonePlaceholder": "Telefon raqamini kiriting (masalan +1234567890)",
+      "Email": "Elektron pochta manzili",
+      "EmailPlaceholder": "Elektron pochta manzilini kiriting"
     }
   },
   "Login": {

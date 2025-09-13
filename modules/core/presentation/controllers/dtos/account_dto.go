@@ -68,8 +68,10 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 }
 
 type SaveLogosDTO struct {
-	LogoID        int `validate:"omitempty,min=1"`
-	LogoCompactID int `validate:"omitempty,min=1"`
+	LogoID        int    `validate:"omitempty,min=1"`
+	LogoCompactID int    `validate:"omitempty,min=1"`
+	Phone         string `validate:"omitempty"`
+	Email         string `validate:"omitempty,email"`
 }
 
 func (d *SaveLogosDTO) Ok(ctx context.Context) (map[string]string, bool) {
