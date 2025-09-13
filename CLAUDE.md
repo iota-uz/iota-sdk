@@ -56,7 +56,7 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 - **HTMX-First**: Server-side rendering with HTMX + Alpine.js + Templ
 
 ### Environment Branches
-- **Production**: `ADV-deployment` branch
+- **Production**: `main` branch
 - **Staging**: `staging` branch
 
 ## CODE ORGANIZATION

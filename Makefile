@@ -7,7 +7,7 @@ deps:
 	go get ./...
 
 fmt:
-	goimports -w . && templ fmt . && go mod tidy
+	goimports -w . && templ fmt . && go mod tidy && templ generate
 
 # Seed database
 seed:
