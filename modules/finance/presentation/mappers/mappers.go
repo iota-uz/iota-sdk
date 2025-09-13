@@ -124,6 +124,36 @@ func CounterpartyToViewModel(entity counterparty.Counterparty) *viewmodels.Count
 	}
 }
 
+// CounterpartyCreateDTOToViewModel creates a viewmodel from a create DTO,
+// preserving submitted form values including invalid ones for form redisplay on validation errors.
+func CounterpartyCreateDTOToViewModel(dto *dtos.CounterpartyCreateDTO) *viewmodels.Counterparty {
+	return &viewmodels.Counterparty{
+		ID:           "",      // Empty for new entities
+		TIN:          dto.TIN, // Preserve submitted TIN value even if invalid
+		Name:         dto.Name,
+		Type:         viewmodels.CounterpartyTypeFromString(dto.Type),
+		LegalType:    viewmodels.CounterpartyLegalTypeFromString(dto.LegalType),
+		LegalAddress: dto.LegalAddress,
+		CreatedAt:    "",
+		UpdatedAt:    "",
+	}
+}
+
+// CounterpartyUpdateDTOToViewModel creates a viewmodel from an update DTO,
+// preserving submitted form values including invalid ones for form redisplay on validation errors.
+func CounterpartyUpdateDTOToViewModel(dto *dtos.CounterpartyUpdateDTO, existingID string) *viewmodels.Counterparty {
+	return &viewmodels.Counterparty{
+		ID:           existingID,
+		TIN:          dto.TIN, // Preserve submitted TIN value even if invalid
+		Name:         dto.Name,
+		Type:         viewmodels.CounterpartyTypeFromString(dto.Type),
+		LegalType:    viewmodels.CounterpartyLegalTypeFromString(dto.LegalType),
+		LegalAddress: dto.LegalAddress,
+		CreatedAt:    "",
+		UpdatedAt:    "",
+	}
+}
+
 func InventoryToViewModel(entity inventory.Inventory) *viewmodels.Inventory {
 	price := entity.Price()
 	totalValue := price.Multiply(int64(entity.Quantity()))
