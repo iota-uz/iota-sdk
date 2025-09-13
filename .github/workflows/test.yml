@@ -101,7 +101,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: iota_erp
-          POSTGRES_INITDB_ARGS: "-c max_connections=500 -c shared_buffers=2GB \
+          POSTGRES_INITDB_ARGS: "-c max_connections=1000 -c shared_buffers=2GB \
                                  -c effective_cache_size=6GB -c maintenance_work_mem=512MB \
                                  -c work_mem=32MB -c fsync=off -c synchronous_commit=off \
                                  -c full_page_writes=off -c wal_buffers=64MB \
