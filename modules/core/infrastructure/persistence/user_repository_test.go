@@ -540,3 +540,74 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		require.ErrorIs(t, err, persistence.ErrUserNotFound)
 	})
 }
+
+func TestPgUserRepository_CountByTenantID(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+
+	uploadRepository := persistence.NewUploadRepository()
+	userRepository := persistence.NewUserRepository(uploadRepository)
+
+	tenant, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	t.Run("Count_Multiple_Users", func(t *testing.T) {
+		// Create multiple users in the same tenant
+		email1, err := internet.NewEmail("count1@test.com")
+		require.NoError(t, err)
+		user1 := user.New("User", "One", email1, user.UILanguageEN, user.WithTenantID(tenant))
+		_, err = userRepository.Create(f.Ctx, user1)
+		require.NoError(t, err)
+
+		email2, err := internet.NewEmail("count2@test.com")
+		require.NoError(t, err)
+		user2 := user.New("User", "Two", email2, user.UILanguageEN, user.WithTenantID(tenant))
+		_, err = userRepository.Create(f.Ctx, user2)
+		require.NoError(t, err)
+
+		email3, err := internet.NewEmail("count3@test.com")
+		require.NoError(t, err)
+		user3 := user.New("User", "Three", email3, user.UILanguageEN, user.WithTenantID(tenant))
+		_, err = userRepository.Create(f.Ctx, user3)
+		require.NoError(t, err)
+
+		count, err := userRepository.CountByTenantID(f.Ctx, tenant)
+		require.NoError(t, err)
+		assert.GreaterOrEqual(t, count, int64(3), "Should count at least 3 users we created")
+	})
+
+	t.Run("Count_Single_User", func(t *testing.T) {
+		// Create a new tenant with only one user
+		secondTenant, err := itf.CreateTestTenant(f.Ctx, f.Pool)
+		require.NoError(t, err)
+
+		email, err := internet.NewEmail("single@test.com")
+		require.NoError(t, err)
+		userEntity := user.New("Single", "User", email, user.UILanguageEN, user.WithTenantID(secondTenant.ID))
+
+		// Switch context to second tenant for creation
+		secondTenantCtx := composables.WithTenantID(f.Ctx, secondTenant.ID)
+		_, err = userRepository.Create(secondTenantCtx, userEntity)
+		require.NoError(t, err)
+
+		count, err := userRepository.CountByTenantID(f.Ctx, secondTenant.ID)
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), count, "Should count exactly 1 user in new tenant")
+	})
+
+	t.Run("Count_NonExistent_Tenant", func(t *testing.T) {
+		nonExistentTenant := uuid.New()
+
+		count, err := userRepository.CountByTenantID(f.Ctx, nonExistentTenant)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), count, "Should count 0 users for non-existent tenant")
+	})
+
+	t.Run("Count_Invalid_TenantID", func(t *testing.T) {
+		invalidTenant := uuid.Nil
+
+		count, err := userRepository.CountByTenantID(f.Ctx, invalidTenant)
+		require.NoError(t, err)
+		assert.Equal(t, int64(0), count, "Should count 0 users for nil tenant ID")
+	})
+}
