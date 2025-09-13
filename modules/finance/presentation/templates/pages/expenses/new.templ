@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"net/url"
@@ -71,6 +72,15 @@ templ CreateForm(props *CreatePageProps) {
 				WrapperClass: "col-span-3",
 				Value:        props.Expense.Comment,
 				Error:        props.Errors["Comment"],
+			})
+			@components.AttachmentUpload(&components.AttachmentUploadProps{
+				Label:       pageCtx.T("Finance.Attachments.Title"),
+				Placeholder: pageCtx.T("Finance.Attachments.SupportedFormats"),
+				Name:        "Attachments",
+				Form:        "", // Form is inline, no explicit ID needed
+				Attachments: props.Expense.Attachments,
+				Error:       props.Errors["Attachments"],
+				Class:       "col-span-3",
 			})
 		}
 		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
