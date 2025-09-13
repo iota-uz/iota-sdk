@@ -76,7 +76,7 @@ CREATE TABLE currencies (
 
 CREATE TABLE roles (
     id serial PRIMARY KEY,
-type varchar(50) NOT NULL CHECK (type IN ('system', 'user')),
+    type varchar(50) NOT NULL CHECK (type IN ('system', 'user')),
     name varchar(255) NOT NULL UNIQUE,
     tenant_id uuid REFERENCES tenants (id) ON DELETE CASCADE,
     description text,
