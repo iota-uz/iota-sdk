@@ -22,11 +22,9 @@ type LogoPageProps struct {
 
 templ LogoForm(props *LogoPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div id="logo-form-fields">
-		<div class="flex flex-col gap-5 p-6">
-			@card.Card(card.Props{
-				Class: "grid grid-cols-1 lg:grid-cols-2 gap-6",
-			}) {
+	<div id="logo-form-fields" class="flex flex-col gap-6 p-6">
+		@card.Card(card.Props{}) {
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				<div class="space-y-4">
 					<div class="space-y-1">
 						<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Logo.FullLogo") }</h3>
@@ -79,49 +77,49 @@ templ LogoForm(props *LogoPageProps) {
 						<p class="text-red-500 text-sm">{ props.Errors["LogoCompactID"] }</p>
 					}
 				</div>
-			}
-		</div>
-		@card.Card(card.Props{
-			Class: "mt-6",
-		}) {
-			<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-				<div class="space-y-4">
-					<div class="space-y-1">
-						<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Contact.Information") }</h3>
-						<p class="text-sm text-gray-600">{ pageCtx.T("Account.Contact.DescText") }</p>
-					</div>
-					@input.Tel(&input.Props{
-						Label:       pageCtx.T("Account.Contact.Phone"),
-						Placeholder: pageCtx.T("Account.Contact.PhonePlaceholder"),
-						Error:       props.Errors["Phone"],
-						Attrs: templ.Attributes{
-							"name":  "Phone",
-							"value": props.Phone,
-						},
-						AddonRight: &input.Addon{
-							Component: icons.Phone(icons.Props{
-								Size:  "18",
-								Class: "text-gray-500",
-							}),
-						},
-					})
+			</div>
+		}
+		@card.Card(card.Props{}) {
+			<div class="space-y-6">
+				<div class="space-y-1">
+					<h3 class="text-lg font-semibold">{ pageCtx.T("Account.Contact.Information") }</h3>
+					<p class="text-sm text-gray-600">{ pageCtx.T("Account.Contact.DescText") }</p>
 				</div>
-				<div class="space-y-4">
-					@input.Email(&input.Props{
-						Label:       pageCtx.T("Account.Contact.Email"),
-						Placeholder: pageCtx.T("Account.Contact.EmailPlaceholder"),
-						Error:       props.Errors["Email"],
-						Attrs: templ.Attributes{
-							"name":  "Email",
-							"value": props.Email,
-						},
-						AddonRight: &input.Addon{
-							Component: icons.EnvelopeSimple(icons.Props{
-								Size:  "18",
-								Class: "text-gray-500",
-							}),
-						},
-					})
+				<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+					<div class="space-y-2">
+						@input.Tel(&input.Props{
+							Label:       pageCtx.T("Account.Contact.Phone"),
+							Placeholder: pageCtx.T("Account.Contact.PhonePlaceholder"),
+							Error:       props.Errors["Phone"],
+							Attrs: templ.Attributes{
+								"name":  "Phone",
+								"value": props.Phone,
+							},
+							AddonRight: &input.Addon{
+								Component: icons.Phone(icons.Props{
+									Size:  "18",
+									Class: "text-gray-500",
+								}),
+							},
+						})
+					</div>
+					<div class="space-y-2">
+						@input.Email(&input.Props{
+							Label:       pageCtx.T("Account.Contact.Email"),
+							Placeholder: pageCtx.T("Account.Contact.EmailPlaceholder"),
+							Error:       props.Errors["Email"],
+							Attrs: templ.Attributes{
+								"name":  "Email",
+								"value": props.Email,
+							},
+							AddonRight: &input.Addon{
+								Component: icons.EnvelopeSimple(icons.Props{
+									Size:  "18",
+									Class: "text-gray-500",
+								}),
+							},
+						})
+					</div>
 				</div>
 			</div>
 		}
