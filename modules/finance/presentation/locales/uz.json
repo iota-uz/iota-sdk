@@ -567,6 +567,28 @@
       "Title": "Qarz tafsilotlari"
     }
   },
+  "Attachments": {
+    "Title": "Ilovalar",
+    "AddFiles": "Fayllar qo'shish",
+    "ChooseFiles": "Fayllarni tanlash",
+    "SupportedFormats": "Qo'llab-quvvatlanadigan formatlar: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX",
+    "ExistingFiles": "Mavjud fayllar",
+    "AttachedFiles": "Biriktirilgan fayllar",
+    "DeleteConfirmation": "Haqiqatan ham bu ilovani o'chirmoqchimisiz?",
+    "DeleteFile": "Faylni o'chirish"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "Moliyaviy hujjatlar",
+      "AddFiles": "Hujjatlar qo'shish",
+      "ChooseFiles": "Hujjatlarni tanlash",
+      "SupportedFormats": "Kvitansiyalar, schyot-fakturalar, shartnomalar va boshqa moliyaviy hujjatlarni yuklang",
+      "ExistingFiles": "Mavjud hujjatlar",
+      "AttachedFiles": "Biriktirilgan hujjatlar",
+      "DeleteConfirmation": "Haqiqatan ham bu hujjatni o'chirmoqchimisiz?",
+      "DeleteFile": "Hujjatni o'chirish"
+    }
+  },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }
