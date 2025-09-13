@@ -24,6 +24,7 @@ type ExpenseCreateDTO struct {
 	Comment          string
 	AccountingPeriod shared.DateOnly `validate:"required"`
 	Date             shared.DateOnly `validate:"required"`
+	Attachments      []uint          // Upload IDs to attach
 }
 
 type ExpenseUpdateDTO struct {
@@ -33,6 +34,7 @@ type ExpenseUpdateDTO struct {
 	Comment          string
 	AccountingPeriod shared.DateOnly
 	Date             shared.DateOnly
+	Attachments      []uint // Upload IDs to attach
 }
 
 func (d *ExpenseCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
