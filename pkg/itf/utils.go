@@ -151,7 +151,12 @@ func CreateDB(name string) {
 	sanitizedName := sanitizeDBName(name)
 
 	c := configuration.Use()
-	db, err := sql.Open("postgres", c.Database.ConnectionString())
+	// Create connection string for postgres admin database
+	adminConnStr := fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
+		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+	)
+	db, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		panic(err)
 	}
