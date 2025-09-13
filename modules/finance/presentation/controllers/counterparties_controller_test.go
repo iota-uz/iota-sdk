@@ -23,25 +23,24 @@ var (
 
 func TestCounterpartiesController_List_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
-		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
-		AsUser(adminUser)
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(core.NewModule(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		}), finance.NewModule()).
+		AsAdmin().
+		Build()
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Test Customer",
 		counterparty.Customer,
 		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 		counterparty.WithLegalAddress("123 Test Street"),
 	)
 
@@ -49,13 +48,13 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 		"Test Vendor",
 		counterparty.Supplier,
 		counterparty.LegalEntity,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 		counterparty.WithLegalAddress("456 Business Ave"),
 	)
 
-	_, err := service.Create(env.Ctx, counterparty1)
+	_, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
-	_, err = service.Create(env.Ctx, counterparty2)
+	_, err = service.Create(suite.Env().Ctx, counterparty2)
 	require.NoError(t, err)
 
 	response := suite.GET(CounterpartyBasePath).
@@ -71,28 +70,27 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 
 func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
-	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
-		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
-		AsUser(adminUser)
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(core.NewModule(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		}), finance.NewModule()).
+		AsAdmin().
+		Build()
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"HTMX Test Counterparty",
 		counterparty.Customer,
 		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 	)
 
-	_, err := service.Create(env.Ctx, counterparty1)
+	_, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
 
 	suite.GET(CounterpartyBasePath).
@@ -104,16 +102,15 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 
 func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
-		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
-		AsUser(adminUser)
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(core.NewModule(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		}), finance.NewModule()).
+		AsAdmin().
+		Build()
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
 	response := suite.GET(CounterpartyBasePath + "/new").
@@ -132,24 +129,23 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 
 func TestCounterpartiesController_Create_Success(t *testing.T) {
 	t.Parallel()
-	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
-		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
-		AsUser(adminUser)
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(core.NewModule(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		}), finance.NewModule()).
+		AsAdmin().
+		Build()
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	formData := url.Values{}
 	formData.Set("Name", "New Test Counterparty")
-	formData.Set("Type", "CUSTOMER")
-	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("Type", string(counterparty.Customer))
+	formData.Set("LegalType", string(counterparty.Individual))
 	formData.Set("LegalAddress", "789 New Street")
 
 	suite.POST(CounterpartyBasePath).
@@ -158,7 +154,7 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 		Status(302).
 		RedirectTo(CounterpartyBasePath)
 
-	counterparties, err := service.GetAll(env.Ctx)
+	counterparties, err := service.GetAll(suite.Env().Ctx)
 	require.NoError(t, err)
 	require.Len(t, counterparties, 1)
 
@@ -171,24 +167,23 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 
 func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 	t.Parallel()
-	adminUser := itf.User()
 
-	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
-		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
-	}), finance.NewModule()).
-		AsUser(adminUser)
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(core.NewModule(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		}), finance.NewModule()).
+		AsAdmin().
+		Build()
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
-	formData.Set("Type", "CUSTOMER")
-	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("Type", string(counterparty.Customer))
+	formData.Set("LegalType", string(counterparty.Individual))
 	formData.Set("LegalAddress", "")
 
 	response := suite.POST(CounterpartyBasePath).
@@ -199,7 +194,7 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
-	counterparties, err := service.GetAll(env.Ctx)
+	counterparties, err := service.GetAll(suite.Env().Ctx)
 	require.NoError(t, err)
 	require.Empty(t, counterparties)
 }
@@ -213,22 +208,20 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Edit Test Counterparty",
 		counterparty.Supplier,
 		counterparty.LegalEntity,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 		counterparty.WithLegalAddress("Edit Street 123"),
 	)
 
-	createdCounterparty, err := service.Create(env.Ctx, counterparty1)
+	createdCounterparty, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
 
 	response := suite.GET(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
@@ -255,9 +248,7 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -275,28 +266,26 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Original Counterparty",
 		counterparty.Customer,
 		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 		counterparty.WithLegalAddress("Original Address"),
 	)
 
-	createdCounterparty, err := service.Create(env.Ctx, counterparty1)
+	createdCounterparty, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
 
 	formData := url.Values{}
 	formData.Set("Name", "Updated Counterparty Name")
-	formData.Set("Type", "SUPPLIER")
-	formData.Set("LegalType", "LEGAL_ENTITY")
+	formData.Set("Type", string(counterparty.Supplier))
+	formData.Set("LegalType", string(counterparty.LegalEntity))
 	formData.Set("LegalAddress", "Updated Address")
 
 	suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
@@ -305,7 +294,7 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 		Status(302).
 		RedirectTo(CounterpartyBasePath)
 
-	updatedCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
+	updatedCounterparty, err := service.GetByID(suite.Env().Ctx, createdCounterparty.ID())
 	require.NoError(t, err)
 
 	require.Equal(t, "Updated Counterparty Name", updatedCounterparty.Name())
@@ -323,27 +312,25 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Test Counterparty",
 		counterparty.Customer,
 		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 	)
 
-	createdCounterparty, err := service.Create(env.Ctx, counterparty1)
+	createdCounterparty, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
 
 	formData := url.Values{}
 	formData.Set("Name", "")
-	formData.Set("Type", "CUSTOMER")
-	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("Type", string(counterparty.Customer))
+	formData.Set("LegalType", string(counterparty.Individual))
 	formData.Set("LegalAddress", "")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
@@ -354,7 +341,7 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 	html := response.HTML()
 	require.NotEmpty(t, html.Elements("//small[@data-testid='field-error']"))
 
-	unchangedCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
+	unchangedCounterparty, err := service.GetByID(suite.Env().Ctx, createdCounterparty.ID())
 	require.NoError(t, err)
 	require.Equal(t, "Test Counterparty", unchangedCounterparty.Name())
 }
@@ -368,24 +355,22 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Counterparty to Delete",
 		counterparty.Customer,
 		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 	)
 
-	createdCounterparty, err := service.Create(env.Ctx, counterparty1)
+	createdCounterparty, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
 
-	existingCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
+	existingCounterparty, err := service.GetByID(suite.Env().Ctx, createdCounterparty.ID())
 	require.NoError(t, err)
 	require.Equal(t, "Counterparty to Delete", existingCounterparty.Name())
 
@@ -394,7 +379,7 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 		Status(302).
 		RedirectTo(CounterpartyBasePath)
 
-	_, err = service.GetByID(env.Ctx, createdCounterparty.ID())
+	_, err = service.GetByID(suite.Env().Ctx, createdCounterparty.ID())
 	require.Error(t, err)
 }
 
@@ -407,9 +392,7 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -427,30 +410,28 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	counterparty1 := counterparty.New(
 		"Searchable Customer",
 		counterparty.Customer,
 		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 	)
 
 	counterparty2 := counterparty.New(
 		"Another Vendor",
 		counterparty.Supplier,
 		counterparty.LegalEntity,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 	)
 
-	_, err := service.Create(env.Ctx, counterparty1)
+	_, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
-	_, err = service.Create(env.Ctx, counterparty2)
+	_, err = service.Create(suite.Env().Ctx, counterparty2)
 	require.NoError(t, err)
 
 	response := suite.GET(CounterpartyBasePath + "/search?q=Searchable").
@@ -469,9 +450,7 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
 	suite.GET(CounterpartyBasePath + "/invalid-uuid").
@@ -488,18 +467,16 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	formData := url.Values{}
 	formData.Set("Name", "Test Company")
 	formData.Set("TIN", "invalid-tin") // Invalid TIN format
-	formData.Set("Type", "CUSTOMER")
-	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("Type", string(counterparty.Customer))
+	formData.Set("LegalType", string(counterparty.Individual))
 	formData.Set("LegalAddress", "Test Address")
 
 	response := suite.POST(CounterpartyBasePath).
@@ -512,7 +489,7 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 	require.True(t, html.HasErrorFor("TIN"), "Expected TIN validation error to be displayed")
 
 	// Verify no counterparty was created
-	counterparties, err := service.GetAll(env.Ctx)
+	counterparties, err := service.GetAll(suite.Env().Ctx)
 	require.NoError(t, err)
 	require.Empty(t, counterparties)
 }
@@ -526,29 +503,27 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 	}), finance.NewModule()).
 		AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewCounterpartiesController(env.App)
+	controller := controllers.NewCounterpartiesController(suite.Env().App)
 	suite.Register(controller)
 
-	service := env.App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
+	service := suite.Env().App.Service(services.CounterpartyService{}).(*services.CounterpartyService)
 
 	// Create a counterparty first
 	counterparty1 := counterparty.New(
 		"Test Counterparty",
 		counterparty.Customer,
 		counterparty.Individual,
-		counterparty.WithTenantID(env.Tenant.ID),
+		counterparty.WithTenantID(suite.Env().Tenant.ID),
 	)
 
-	createdCounterparty, err := service.Create(env.Ctx, counterparty1)
+	createdCounterparty, err := service.Create(suite.Env().Ctx, counterparty1)
 	require.NoError(t, err)
 
 	formData := url.Values{}
 	formData.Set("Name", "Updated Company")
 	formData.Set("TIN", "12345") // Invalid TIN format (too short)
-	formData.Set("Type", "CUSTOMER")
-	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("Type", string(counterparty.Customer))
+	formData.Set("LegalType", string(counterparty.Individual))
 	formData.Set("LegalAddress", "Updated Address")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
@@ -561,7 +536,7 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 	require.True(t, html.HasErrorFor("TIN"), "Expected TIN validation error to be displayed")
 
 	// Verify counterparty was not updated
-	unchangedCounterparty, err := service.GetByID(env.Ctx, createdCounterparty.ID())
+	unchangedCounterparty, err := service.GetByID(suite.Env().Ctx, createdCounterparty.ID())
 	require.NoError(t, err)
 	require.Equal(t, "Test Counterparty", unchangedCounterparty.Name())
 }
@@ -622,8 +597,8 @@ func TestCreate_ValidationError_PreservesFormData(t *testing.T) {
 			formData := url.Values{}
 			formData.Set("Name", "Test Company")
 			formData.Set("TIN", tc.invalidTIN)
-			formData.Set("Type", "CUSTOMER")
-			formData.Set("LegalType", "INDIVIDUAL")
+			formData.Set("Type", string(counterparty.Customer))
+			formData.Set("LegalType", string(counterparty.Individual))
 			formData.Set("LegalAddress", "Test Address 123")
 
 			response := suite.POST(CounterpartyBasePath).
@@ -683,11 +658,11 @@ func TestCreate_MultipleValidationErrors_PreservesAllFields(t *testing.T) {
 
 	// Submit form with multiple validation errors
 	formData := url.Values{}
-	formData.Set("Name", "A")                     // Too short (min 2 chars required)
-	formData.Set("TIN", "invalid-tin-format")     // Invalid TIN format
-	formData.Set("Type", "CUSTOMER")              // Valid type to avoid 500 error
-	formData.Set("LegalType", "INDIVIDUAL")       // Valid legal type to avoid 500 error
-	formData.Set("LegalAddress", "Valid Address") // This field should be valid
+	formData.Set("Name", "A")                                  // Too short (min 2 chars required)
+	formData.Set("TIN", "invalid-tin-format")                  // Invalid TIN format
+	formData.Set("Type", string(counterparty.Customer))        // Valid type to avoid 500 error
+	formData.Set("LegalType", string(counterparty.Individual)) // Valid legal type to avoid 500 error
+	formData.Set("LegalAddress", "Valid Address")              // This field should be valid
 
 	response := suite.POST(CounterpartyBasePath).
 		Form(formData).
@@ -776,8 +751,8 @@ func TestUpdate_ValidationError_PreservesFormData(t *testing.T) {
 			formData := url.Values{}
 			formData.Set("Name", "Updated Company Name")
 			formData.Set("TIN", tc.invalidTIN)
-			formData.Set("Type", "SUPPLIER")
-			formData.Set("LegalType", "LEGAL_ENTITY")
+			formData.Set("Type", string(counterparty.Supplier))
+			formData.Set("LegalType", string(counterparty.LegalEntity))
 			formData.Set("LegalAddress", "Updated Address 456")
 
 			response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
@@ -852,11 +827,11 @@ func TestUpdate_ValidTINWithOtherValidationErrors_PreservesUserInput(t *testing.
 
 	// Submit valid TIN but invalid other fields
 	formData := url.Values{}
-	formData.Set("Name", "")                    // Invalid - required field
-	formData.Set("TIN", "987654321")            // Valid TIN format
-	formData.Set("Type", "CUSTOMER")            // Valid
-	formData.Set("LegalType", "INDIVIDUAL")     // Valid
-	formData.Set("LegalAddress", "New Address") // Valid
+	formData.Set("Name", "")                                   // Invalid - required field
+	formData.Set("TIN", "987654321")                           // Valid TIN format
+	formData.Set("Type", string(counterparty.Customer))        // Valid
+	formData.Set("LegalType", string(counterparty.Individual)) // Valid
+	formData.Set("LegalAddress", "New Address")                // Valid
 
 	response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
 		Form(formData).
@@ -909,8 +884,8 @@ func TestCreate_EmptyTIN_ShouldBeAllowed(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("Name", "Company Without TIN")
 	formData.Set("TIN", "") // Empty TIN should be allowed
-	formData.Set("Type", "CUSTOMER")
-	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("Type", string(counterparty.Customer))
+	formData.Set("LegalType", string(counterparty.Individual))
 	formData.Set("LegalAddress", "Test Address")
 
 	suite.POST(CounterpartyBasePath).
@@ -951,8 +926,8 @@ func TestCreate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("Name", "HTMX Test Company")
 	formData.Set("TIN", invalidTIN)
-	formData.Set("Type", "CUSTOMER")
-	formData.Set("LegalType", "INDIVIDUAL")
+	formData.Set("Type", string(counterparty.Customer))
+	formData.Set("LegalType", string(counterparty.Individual))
 	formData.Set("LegalAddress", "HTMX Address")
 
 	response := suite.POST(CounterpartyBasePath).
@@ -1005,8 +980,8 @@ func TestUpdate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("Name", "HTMX Updated Company")
 	formData.Set("TIN", invalidTIN)
-	formData.Set("Type", "SUPPLIER")
-	formData.Set("LegalType", "LEGAL_ENTITY")
+	formData.Set("Type", string(counterparty.Supplier))
+	formData.Set("LegalType", string(counterparty.LegalEntity))
 	formData.Set("LegalAddress", "HTMX Updated Address")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
