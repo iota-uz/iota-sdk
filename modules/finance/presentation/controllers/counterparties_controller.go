@@ -123,7 +123,7 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		// Use DTO-to-ViewModel mapping to preserve submitted form values including invalid TIN
 		props := &counterpartiesui.CreatePageProps{
-			Counterparty: mappers.CounterpartyCreateDTOToViewModel(dto),
+			Counterparty: dto.ToViewModel(),
 			Errors:       errorsMap,
 			PostPath:     c.basePath,
 		}
@@ -208,7 +208,7 @@ func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		// Use DTO-to-ViewModel mapping to preserve submitted form values including invalid TIN
 		props := &counterpartiesui.EditPageProps{
-			Counterparty: mappers.CounterpartyUpdateDTOToViewModel(dto, id.String()),
+			Counterparty: dto.ToViewModel(id.String()),
 			Errors:       errorsMap,
 			PostPath:     c.basePath + "/" + id.String(),
 			DeletePath:   c.basePath + "/" + id.String(),
