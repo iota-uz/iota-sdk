@@ -38,4 +38,9 @@ type Repository interface {
 	Create(ctx context.Context, data Expense) (Expense, error)
 	Update(ctx context.Context, data Expense) (Expense, error)
 	Delete(ctx context.Context, id uuid.UUID) error
+
+	// Attachment methods
+	GetAttachments(ctx context.Context, expenseID uuid.UUID) ([]uint, error)
+	AttachFile(ctx context.Context, expenseID uuid.UUID, uploadID uint) error
+	DetachFile(ctx context.Context, expenseID uuid.UUID, uploadID uint) error
 }
