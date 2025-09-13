@@ -23,6 +23,7 @@ var (
 	chartEvents   = "/assets/" + assets.HashFS.HashName("js/lib/chart-events.js")
 	htmxWS        = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
 	alpineTooltip = "/assets/" + assets.HashFS.HashName("js/lib/alpine-tooltip.min.js")
+	htmxAlpineInit = "/assets/" + assets.HashFS.HashName("js/lib/htmx-alpine-init.js")
 	permissionsJs = "/assets/" + assets.HashFS.HashName("js/permissions.js")
 )
 
@@ -46,6 +47,7 @@ templ DefaultHead() {
 	<script src={ apexJs }></script>
 	<script defer src={ chartEvents }></script>
 	<script src={ htmxWS }></script>
+	<script src={ htmxAlpineInit }></script>
 }
 
 type BaseProps struct {
