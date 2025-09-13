@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -153,4 +154,34 @@ func (dto *CounterpartyUpdateDTO) Apply(existing counterparty.Counterparty) (cou
 	existing.SetLegalAddress(dto.LegalAddress)
 
 	return existing, nil
+}
+
+// ToViewModel creates a viewmodel from a create DTO,
+// preserving submitted form values including invalid ones for form redisplay on validation errors.
+func (dto *CounterpartyCreateDTO) ToViewModel() *viewmodels.Counterparty {
+	return &viewmodels.Counterparty{
+		ID:           "",      // Empty for new entities
+		TIN:          dto.TIN, // Preserve submitted TIN value even if invalid
+		Name:         dto.Name,
+		Type:         viewmodels.CounterpartyTypeFromString(dto.Type),
+		LegalType:    viewmodels.CounterpartyLegalTypeFromString(dto.LegalType),
+		LegalAddress: dto.LegalAddress,
+		CreatedAt:    "",
+		UpdatedAt:    "",
+	}
+}
+
+// ToViewModel creates a viewmodel from an update DTO,
+// preserving submitted form values including invalid ones for form redisplay on validation errors.
+func (dto *CounterpartyUpdateDTO) ToViewModel(existingID string) *viewmodels.Counterparty {
+	return &viewmodels.Counterparty{
+		ID:           existingID,
+		TIN:          dto.TIN, // Preserve submitted TIN value even if invalid
+		Name:         dto.Name,
+		Type:         viewmodels.CounterpartyTypeFromString(dto.Type),
+		LegalType:    viewmodels.CounterpartyLegalTypeFromString(dto.LegalType),
+		LegalAddress: dto.LegalAddress,
+		CreatedAt:    "",
+		UpdatedAt:    "",
+	}
 }
