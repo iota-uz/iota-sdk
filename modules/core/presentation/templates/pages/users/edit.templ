@@ -22,6 +22,7 @@ type EditFormProps struct {
 	Groups                   []*viewmodels.Group
 	ResourcePermissionGroups []*viewmodels.ResourcePermissionGroup
 	Errors                   map[string]string
+	CanDelete                bool
 }
 
 func useUploads(u *viewmodels.User) []*viewmodels.Upload {
@@ -173,18 +174,35 @@ templ EditForm(props *EditFormProps) {
 				hx-indicator="#delete-user-btn"
 				hx-disabled-elt="find button"
 			>
-				@button.Danger(button.Props{
-					Disabled: !props.User.CanDelete,
-					Size:     button.SizeMD,
-					Attrs: templ.Attributes{
-						"name":   "_action",
-						"value":  "delete",
-						"type":   "button",
-						"@click": "$dispatch('open-delete-user-confirmation')",
-						"id":     "delete-user-btn",
-					},
-				}) {
-					{ pageCtx.T("Delete") }
+				if !props.CanDelete {
+					@button.Danger(button.Props{
+						Disabled: true,
+						Size:     button.SizeMD,
+						Attrs: templ.Attributes{
+							"name":          "_action",
+							"value":         "delete",
+							"type":          "button",
+							"@click":        "$dispatch('open-delete-user-confirmation')",
+							"id":            "delete-user-btn",
+							"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
+						},
+					}) {
+						{ pageCtx.T("Delete") }
+					}
+				} else {
+					@button.Danger(button.Props{
+						Disabled: false,
+						Size:     button.SizeMD,
+						Attrs: templ.Attributes{
+							"name":   "_action",
+							"value":  "delete",
+							"type":   "button",
+							"@click": "$dispatch('open-delete-user-confirmation')",
+							"id":     "delete-user-btn",
+						},
+					}) {
+						{ pageCtx.T("Delete") }
+					}
 				}
 			</form>
 			<form
