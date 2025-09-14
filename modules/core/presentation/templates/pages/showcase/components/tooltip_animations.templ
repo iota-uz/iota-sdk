@@ -1,0 +1,36 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipAnimations() {
+	<div class="flex flex-wrap gap-4">
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.animation.scale.raw": "Scale animation",
+			},
+		}) {
+			Scale
+		}
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.animation.shift-away.raw": "Shift away animation",
+			},
+		}) {
+			Shift Away
+		}
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.animation.shift-toward.raw": "Shift toward animation",
+			},
+		}) {
+			Shift Toward
+		}
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.animation.perspective.raw": "Perspective animation",
+			},
+		}) {
+			Perspective
+		}
+	</div>
+}

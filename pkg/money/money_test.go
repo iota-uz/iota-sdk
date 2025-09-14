@@ -955,3 +955,130 @@ func TestCustomUnmarshal(t *testing.T) {
 		t.Errorf("Expected %s got %s", expected, m.Display())
 	}
 }
+
+func TestMoney_DisplayWithSpaces(t *testing.T) {
+	tcs := []struct {
+		amount   int64
+		code     string
+		expected string
+	}{
+		{566666, USDSPACE, "$5 666.66"},   // Space-separated thousands
+		{100, USDSPACE, "$1.00"},          // No thousands separator needed
+		{1000, USDSPACE, "$10.00"},        // No thousands separator needed
+		{100000, USDSPACE, "$1 000.00"},   // Space separator
+		{1234567, USDSPACE, "$12 345.67"}, // Multiple space separators
+		{-566666, USDSPACE, "-$5 666.66"}, // Negative numbers
+		{0, USDSPACE, "$0.00"},            // Zero
+		{1, USDSPACE, "$0.01"},            // Small amounts
+	}
+
+	for _, tc := range tcs {
+		m := New(tc.amount, tc.code)
+		r := m.Display()
+
+		if r != tc.expected {
+			t.Errorf("Expected formatted %d with %s to be %s got %s", tc.amount, tc.code, tc.expected, r)
+		}
+	}
+}
+
+func TestMoney_USDSpace_BackwardCompatibility(t *testing.T) {
+	// Test that regular USD still uses comma separators
+	usdAmount := int64(566666)
+	usdMoney := New(usdAmount, USD)
+	expectedUSD := "$5,666.66"
+	actualUSD := usdMoney.Display()
+
+	if actualUSD != expectedUSD {
+		t.Errorf("Expected USD to use comma separator: %s, got: %s", expectedUSD, actualUSD)
+	}
+
+	// Test that USDSPACE uses space separators
+	usdSpaceMoney := New(usdAmount, USDSPACE)
+	expectedUSDSpace := "$5 666.66"
+	actualUSDSpace := usdSpaceMoney.Display()
+
+	if actualUSDSpace != expectedUSDSpace {
+		t.Errorf("Expected USDSPACE to use space separator: %s, got: %s", expectedUSDSpace, actualUSDSpace)
+	}
+}
+
+func TestMoney_USDSpace_FloatConstructor(t *testing.T) {
+	tcs := []struct {
+		amount   float64
+		expected string
+	}{
+		{5666.66, "$5 666.66"},
+		{1.00, "$1.00"},
+		{10.50, "$10.50"},
+		{1000.75, "$1 000.75"},
+		{12345.67, "$12 345.67"},
+		{-5666.66, "-$5 666.66"},
+		{0.01, "$0.01"},
+	}
+
+	for _, tc := range tcs {
+		m := NewFromFloat(tc.amount, USDSPACE)
+		r := m.Display()
+
+		if r != tc.expected {
+			t.Errorf("Expected NewFromFloat(%f, USDSPACE) to be %s got %s", tc.amount, tc.expected, r)
+		}
+	}
+}
+
+func TestMoney_USDSpace_Operations(t *testing.T) {
+	// Test arithmetic operations work correctly with USDSPACE
+	m1 := NewFromFloat(1000.50, USDSPACE)
+	m2 := NewFromFloat(500.25, USDSPACE)
+
+	// Addition
+	sum, err := m1.Add(m2)
+	if err != nil {
+		t.Errorf("Addition failed: %v", err)
+	}
+	expectedSum := "$1 500.75"
+	if sum.Display() != expectedSum {
+		t.Errorf("Expected sum to be %s, got %s", expectedSum, sum.Display())
+	}
+
+	// Subtraction
+	diff, err := m1.Subtract(m2)
+	if err != nil {
+		t.Errorf("Subtraction failed: %v", err)
+	}
+	expectedDiff := "$500.25"
+	if diff.Display() != expectedDiff {
+		t.Errorf("Expected difference to be %s, got %s", expectedDiff, diff.Display())
+	}
+
+	// Multiplication
+	mult := m1.Multiply(2)
+	expectedMult := "$2 001.00"
+	if mult.Display() != expectedMult {
+		t.Errorf("Expected multiplication result to be %s, got %s", expectedMult, mult.Display())
+	}
+}
+
+func TestMoney_USDSpace_CompactDisplay(t *testing.T) {
+	tcs := []struct {
+		amount   int64
+		decimals int
+		expected string
+	}{
+		{123456700, 1, "1.2M $"},    // 1,234,567.00 -> 1.2M $
+		{123456700, 2, "1.23M $"},   // 1,234,567.00 -> 1.23M $
+		{2252423200, 2, "22.52M $"}, // 22,524,232.00 -> 22.52M $
+		{123400, 2, "1.23K $"},      // 1,234.00 -> 1.23K $
+		{50000, 1, "$500.00"},       // Uses regular format for smaller amounts
+	}
+
+	for _, tc := range tcs {
+		m := New(tc.amount, USDSPACE)
+		r := m.DisplayCompact(tc.decimals)
+
+		if r != tc.expected {
+			t.Errorf("Expected compact format of %d to be %s got %s", tc.amount, tc.expected, r)
+		}
+	}
+}

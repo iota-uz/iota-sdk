@@ -1,0 +1,29 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipThemes() {
+	<div class="flex flex-wrap gap-4">
+		@button.Primary(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.raw": "Dark theme (default)",
+			},
+		}) {
+			Dark Theme
+		}
+		@button.PrimaryOutline(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.theme.light.raw": "Light theme",
+			},
+		}) {
+			Light Theme
+		}
+		@button.PrimaryOutline(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.theme.light.arrowless.raw": "Light theme without arrow",
+			},
+		}) {
+			Light + No Arrow
+		}
+	</div>
+}

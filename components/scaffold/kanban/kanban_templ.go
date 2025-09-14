@@ -81,33 +81,33 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t.sortable-ghost {\n\t\t\topacity: 0.4;\n\t\t}\n\t</style><div x-data=\"kanban\"><form class=\"hidden\" id=\"column-trigger\" hx-post=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t.sortable-ghost {\n\t\t\topacity: 0.4;\n\t\t}\n\t</style><div x-data=\"kanban\" class=\"contents\"><div class=\"hidden\" id=\"column-trigger\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(cfg.ColumnChangeURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 20, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 20, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" hx-trigger=\"columnChanged\"><input name=\"colKey\" x-model=\"col.key\"> <input name=\"oldIndex\" x-model=\"col.oldIndex\"> <input name=\"newIndex\" x-model=\"col.newIndex\"></form><form class=\"hidden\" id=\"card-trigger\" hx-post=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" hx-trigger=\"columnChanged\" hx-swap=\"none\" hx-push-url=\"false\" hx-include=\"this\"><input type=\"hidden\" name=\"colKey\" x-model=\"col.key\"> <input type=\"hidden\" name=\"colOldIndex\" x-model=\"col.oldIndex\"> <input type=\"hidden\" name=\"colNewIndex\" x-model=\"col.newIndex\"></div><div class=\"hidden\" id=\"card-trigger\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(cfg.CardChangeURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 25, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 25, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" hx-trigger=\"cardChanged\"><input name=\"cardKey\" x-model=\"card.key\"> <input name=\"oldCol\" x-model=\"card.oldCol\"> <input name=\"newCol\" x-model=\"card.newCol\"> <input name=\"oldIndex\" x-model=\"card.oldIndex\"> <input name=\"newIndex\" x-model=\"card.newIndex\"></form><div class=\"flex bg-gray-200 rounded-xl h-full\"><ol class=\"flex divide-x divide-gray-300\" x-sort.ghost x-sort:config=\"{onEnd: (event) =&gt; {\n\t\t\t\t\tchangeCol({\n\t\t\t\t\t\tkey: event.item.dataset.colKey,\n\t\t\t\t\t\toldIndex: event.oldIndex,\n\t\t\t\t\t\tnewIndex: event.newIndex\n\t\t\t\t\t});\n\t\t\t\t\t$nextTick(() =&gt; htmx.trigger(&#39;#column-trigger&#39;, &#39;columnChanged&#39;));\n\t\t\t\t}}\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" hx-trigger=\"cardChanged\" hx-swap=\"none\" hx-push-url=\"false\" hx-include=\"this\"><input type=\"hidden\" name=\"cardKey\" x-model=\"card.key\"> <input type=\"hidden\" name=\"cardOldCol\" x-model=\"card.oldCol\"> <input type=\"hidden\" name=\"cardNewCol\" x-model=\"card.newCol\"> <input type=\"hidden\" name=\"cardOldIndex\" x-model=\"card.oldIndex\"> <input type=\"hidden\" name=\"cardNewIndex\" x-model=\"card.newIndex\"></div><div class=\"flex bg-gray-200 rounded-lg h-full\"><ol class=\"flex divide-x divide-gray-300 w-full overflow-x-auto\" x-sort.ghost x-sort:config=\"{\n\t\t\t\t\tonEnd: (event) =&gt; {\n\t\t\t\t\t\tchangeCol({\n\t\t\t\t\t\t\tkey: event.item.dataset.colKey,\n\t\t\t\t\t\t\toldIndex: event.oldIndex,\n\t\t\t\t\t\t\tnewIndex: event.newIndex\n\t\t\t\t\t\t});\n\t\t\t\t\t\t$nextTick(() =&gt; htmx.trigger(&#39;#column-trigger&#39;, &#39;columnChanged&#39;));\n\t\t\t\t\t}\n\t\t\t\t}\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -119,7 +119,7 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(c.Key())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 46, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 48, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -140,13 +140,13 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(c.Key())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 52, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 54, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" x-sort.ghost x-sort:group=\"cards\" x-sort:config=\"{onEnd: (event) =&gt; {\n\t\t\t\t\t\t\t\tconsole.log(event);\n\t\t\t\t\t\t\t\tchangeCard({\n\t\t\t\t\t\t\t\t\tkey: event.item.dataset.cardKey,\n\t\t\t\t\t\t\t\t\tnewCol: event.to.dataset.colKey,\n\t\t\t\t\t\t\t\t\toldCol: event.from.dataset.colKey,\n\t\t\t\t\t\t\t\t\toldIndex: event.oldIndex,\n\t\t\t\t\t\t\t\t\tnewIndex: event.newIndex\n\t\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t\t$nextTick(() =&gt; htmx.trigger(&#39;#card-trigger&#39;, &#39;cardChanged&#39;));\n\t\t\t\t\t\t\t}}\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" x-sort.ghost x-sort:group=\"cards\" x-sort:config=\"{onEnd: (event) =&gt; {\n\t\t\t\t\t\t\t\tchangeCard({\n\t\t\t\t\t\t\t\t\tkey: event.item.dataset.cardKey,\n\t\t\t\t\t\t\t\t\tnewCol: event.to.dataset.colKey,\n\t\t\t\t\t\t\t\t\toldCol: event.from.dataset.colKey,\n\t\t\t\t\t\t\t\t\toldIndex: event.oldIndex,\n\t\t\t\t\t\t\t\t\tnewIndex: event.newIndex\n\t\t\t\t\t\t\t\t})\n\t\t\t\t\t\t\t\t$nextTick(() =&gt; htmx.trigger(&#39;#card-trigger&#39;, &#39;cardChanged&#39;));\n\t\t\t\t\t\t\t}}\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -158,7 +158,7 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(card.Key())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 68, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 69, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -183,74 +183,6 @@ func Content[C Card](cfg *Config[C]) templ.Component {
 			}
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</ol></div></div>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		return nil
-	})
-}
-
-func TaskCard(tag, title, amount string) templ.Component {
-	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
-			return templ_7745c5c3_CtxErr
-		}
-		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-		if !templ_7745c5c3_IsBuffer {
-			defer func() {
-				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err == nil {
-					templ_7745c5c3_Err = templ_7745c5c3_BufErr
-				}
-			}()
-		}
-		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var9 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var9 == nil {
-			templ_7745c5c3_Var9 = templ.NopComponent
-		}
-		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"flex flex-col gap-2 bg-white rounded-xl p-3\"><span class=\"text-200\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(tag)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 82, Col: 30}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</span> <span class=\"font-medium\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(title)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 83, Col: 35}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</span> <span class=\"text-brand-500\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(amount)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/kanban/kanban.templ`, Line: 84, Col: 39}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</span></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

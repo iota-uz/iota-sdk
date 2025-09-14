@@ -1,0 +1,29 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipTiming() {
+	<div class="flex flex-wrap gap-4">
+		@button.PrimaryOutline(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.delay.1000.raw": "1 second delay",
+			},
+		}) {
+			Delayed (1s)
+		}
+		@button.PrimaryOutline(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.duration.2000.raw": "2 second duration",
+			},
+		}) {
+			Slow (2s)
+		}
+		@button.PrimaryOutline(button.Props{
+			Attrs: templ.Attributes{
+				"x-tooltip.delay.500-0.raw": "500ms show, instant hide",
+			},
+		}) {
+			Custom Delay
+		}
+	</div>
+}
