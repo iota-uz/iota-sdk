@@ -27,13 +27,3 @@ func (f *DocFlags) AddToCommand(cmd *cobra.Command) {
 	cmd.Flags().BoolVarP(&f.Recursive, "recursive", "r", f.Recursive, "Process directories recursively")
 	cmd.Flags().StringVarP(&f.ExcludeDirs, "exclude", "e", f.ExcludeDirs, "Comma-separated list of directories to exclude")
 }
-
-// MigrateFlags holds common flags for migrate commands (future extensibility)
-type MigrateFlags struct {
-	// Reserved for future migration-specific flags
-}
-
-// E2EFlags holds common flags for e2e commands (future extensibility)
-type E2EFlags struct {
-	// Reserved for future e2e-specific flags
-}

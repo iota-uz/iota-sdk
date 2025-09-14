@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/iota-uz/iota-sdk/pkg/cli/commands"
+	"github.com/iota-uz/iota-sdk/pkg/commands"
 )
 
 // NewRootCommand creates the root command with all subcommands
