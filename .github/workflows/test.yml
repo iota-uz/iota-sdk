@@ -294,6 +294,7 @@ jobs:
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
           GO_APP_ENV: production
+          ENABLE_TEST_ENDPOINTS: true
           CYPRESS_BASE_URL: http://localhost:3201
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}

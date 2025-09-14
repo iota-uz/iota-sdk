@@ -2,8 +2,9 @@
 
 describe("user realtime behavior", () => {
     before(() => {
-        cy.task("resetDatabase");
-        cy.task("seedDatabase");
+        // Reset database and seed with comprehensive data for user management tests
+        cy.resetTestDatabase({ reseedMinimal: false });
+        cy.seedScenario("comprehensive");
     });
 
     beforeEach(() => {

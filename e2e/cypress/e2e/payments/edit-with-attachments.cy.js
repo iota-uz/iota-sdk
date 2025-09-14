@@ -2,8 +2,9 @@
 
 describe("Payment Edit Form with Attachments", () => {
 	before(() => {
-		cy.task("resetDatabase");
-		cy.task("seedDatabase");
+		// Reset database and seed with finance-focused data
+		cy.resetTestDatabase({ reseedMinimal: false });
+		cy.seedScenario("finance");
 	});
 
 	beforeEach(() => {

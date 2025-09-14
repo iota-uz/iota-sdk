@@ -113,7 +113,7 @@ e2e:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
 		go run cmd/command/main.go e2e drop; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
-		PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e air; \
+		PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e ENABLE_TEST_ENDPOINTS=true air; \
 	else \
 		echo "Usage: make e2e [test|reset|seed|migrate|run|dev|clean]"; \
 		echo "  test         - Set up database and run all e2e tests"; \

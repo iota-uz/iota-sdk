@@ -2,8 +2,9 @@
 
 describe("employees CRUD operations", () => {
 	before(() => {
-		cy.task("resetDatabase");
-		cy.task("seedDatabase");
+		// Reset database and seed with comprehensive data for employee management
+		cy.resetTestDatabase({ reseedMinimal: false });
+		cy.seedScenario("comprehensive");
 	});
 
 	beforeEach(() => {
