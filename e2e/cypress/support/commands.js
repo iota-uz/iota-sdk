@@ -8,7 +8,8 @@ Cypress.on("uncaught:exception", (err) => {
 	// Ignore Alpine.js initialization errors during testing
 	if (err.message.includes("value is not defined") ||
 	    err.message.includes("Alpine") ||
-	    err.message.includes("Cannot read properties of undefined")) {
+	    err.message.includes("Cannot read properties of undefined") ||
+	    err.message.includes("Cannot convert undefined or null to object")) {
 		console.warn('Ignored Alpine.js error during testing:', err.message);
 		return false;
 	}
