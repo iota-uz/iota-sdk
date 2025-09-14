@@ -10,7 +10,7 @@ const [DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME] = [
 	env.DB_PASSWORD ?? "postgres",
 	env.DB_HOST ?? "localhost",
 	env.DB_PORT ?? 5432,
-	env.DB_NAME ?? "iota_erp",
+	env.DB_NAME ?? "iota_erp_e2e",
 ];
 const pool = new Pool({
 	connectionString: `postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`,
@@ -32,7 +32,7 @@ async function resetDatabase() {
 }
 
 async function seedDatabase() {
-	await exec("cd .. && go run cmd/seed/main.go");
+	await exec("cd .. && go run cmd/command/main.go e2e seed");
 	return null;
 }
 
