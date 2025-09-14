@@ -29,6 +29,9 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 - **Database work**: `database-expert` ONLY
 - **Deployments**: `railway-ops` ONLY
 - **migrations/*.sql**: `database-expert` ONLY
+- **Configuration files**: `config-manager` ONLY
+- **CLAUDE.md updates**: `config-manager` ONLY
+- **Documentation maintenance**: `config-manager` ONLY
 
 ## PROJECT OVERVIEW
 
@@ -221,6 +224,7 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 | **Cross-Module Work**   | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`, `test-editor`                                   | Architecture changes, large refactoring         |
 | **Bulk Operations**     | `speed-editor` → specialist agents                     | `refactoring-expert` (review)                                                   | Mass renaming, pattern standardization          |
 | **Pattern Discovery**   | `speed-editor` → analysis agents                       | `go-editor`, `refactoring-expert`                                               | Code scanning, hardcoded values, anti-patterns  |
+| **Config Management**   | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs  |
 
 **Agent Launch Rules:**
 - **Always parallel**: Launch required agents simultaneously in single message
@@ -342,6 +346,7 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | **ui-editor** | `go-editor`, `test-editor` | Controller changes | `go-editor`, `test-editor`, `speed-editor` |
 | **test-editor** | `refactoring-expert` | `go-editor`, `ui-editor` | `go-editor`, `ui-editor` |
 | **speed-editor** | Other agents (bulk work) | Task specifications | `go-editor`, `ui-editor` |
+| **config-manager** | Agent coordination, documentation | Project requirements | None (configuration coordination) |
 | **refactoring-expert** | Final output | All other agents | None (final review) |
 
 ### Single Agent Exceptions
@@ -396,6 +401,9 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | "Standardize import patterns"               | `speed-editor` && `refactoring-expert`                                                            |
 | "Find hardcoded strings for enum constants" | `speed-editor` && `go-editor` && `refactoring-expert`                                             |
 | "Scan for duplicate code patterns"          | `speed-editor` && `go-editor` && `refactoring-expert`                                             |
+| "Update CLAUDE.md with new agent"           | `config-manager`                                                                                  |
+| "Fix environment configuration issues"      | `config-manager`                                                                                  |
+| "Add new documentation section"             | `config-manager`                                                                                  |
 | "Deploy to staging"                         | `railway-ops`                                                                                     |
 
 **Agent Execution Syntax:**
