@@ -16,8 +16,8 @@ describe("user realtime behavior", () => {
 
     it("updates user table in realtime when a user is created, edited, and deleted", () => {
         cy.login("test@gmail.com", "TestPass123!");
-        cy.visit("http://localhost:3200/users");
-        cy.url().should("eq", "http://localhost:3200/users");
+        cy.visit("/users");
+        cy.url().should("eq", Cypress.config().baseUrl + "/users");
 
         // Get initial row count
         cy.get("tbody tr").then($initialRows => {
@@ -26,7 +26,7 @@ describe("user realtime behavior", () => {
             // This simulates adding a user through a different session
             cy.request({
                 method: "POST",
-                url: "http://localhost:3200/users",
+                url: "/users",
                 form: true,
                 body: {
                     FirstName: "Realtime",
@@ -51,7 +51,7 @@ describe("user realtime behavior", () => {
                 // Edit the user through a direct request (staying on the users page)
                 cy.request({
                     method: "POST",
-                    url: `http://localhost:3200/users/${userId}`,
+                    url: `/users/${userId}`,
                     form: true,
                     body: {
                         FirstName: "RealtimeUpdated",
@@ -72,7 +72,7 @@ describe("user realtime behavior", () => {
                 // Delete the user through a direct request
                 cy.request({
                     method: "DELETE",
-                    url: `http://localhost:3200/users/${userId}`
+                    url: `/users/${userId}`
                 });
 
                 // Verify user was removed from the table without refreshing

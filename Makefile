@@ -46,9 +46,9 @@ db:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "stop" ]; then \
 		docker compose -f compose.dev.yml down db; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
-		rm -rf postgres-data/; \
+		docker volume rm sdk-data || true; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "reset" ]; then \
-		docker compose -f compose.dev.yml down db && rm -rf postgres-data/ && docker compose -f compose.dev.yml up db; \
+		docker compose -f compose.dev.yml down db && docker volume rm sdk-data || true && docker compose -f compose.dev.yml up db; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "seed" ]; then \
 		go run cmd/command/main.go seed; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "migrate" ]; then \
@@ -65,6 +65,9 @@ db:
 
 # Run tests with optional subcommands (test, watch, coverage, verbose, package, docker)
 test:
+	@if [ "$(word 1,$(MAKECMDGOALS))" != "test" ]; then \
+		exit 0; \
+	fi
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "watch" ]; then \
 		gow test -v ./...; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "coverage" ]; then \
@@ -100,7 +103,12 @@ e2e:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "setup" ]; then \
 		go run cmd/command/main.go e2e setup; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "test" ]; then \
+		make e2e setup && \
+		( DB_NAME=iota_erp_e2e PORT=3201 ORIGIN=http://localhost:3201 go run cmd/server/main.go & echo $$! > /tmp/e2e_server.pid ) && \
+		sleep 5 && \
 		cd e2e && npm run test; \
+		kill `cat /tmp/e2e_server.pid` 2>/dev/null || true; \
+		rm -f /tmp/e2e_server.pid; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "reset" ]; then \
 		go run cmd/command/main.go e2e reset; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "seed" ]; then \
@@ -112,7 +120,7 @@ e2e:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
 		go run cmd/command/main.go e2e drop; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "server" ]; then \
-		DB_NAME=iota_erp_e2e PORT=3201 go run cmd/server/main.go; \
+		DB_NAME=iota_erp_e2e PORT=3201 ORIGIN=http://localhost:3201 go run cmd/server/main.go; \
 	else \
 		echo "Usage: make e2e [setup|test|reset|seed|migrate|run|server|clean]"; \
 		echo "  setup        - Create e2e database, run migrations, and seed"; \
@@ -180,4 +188,6 @@ setup: deps css
 %:
 	@:
 
-.PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check
+.PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check \
+        up down restart logs local stop reset seed migrate watch coverage verbose package docker score report \
+        dev fmt lint tr linux docker-base docker-prod run server

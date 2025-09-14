@@ -18,7 +18,7 @@ describe("Payment Attachment Form Submission Bug Fix", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to payments and create a new payment first
-		cy.visit("http://localhost:3200/finance/payments/new");
+		cy.visit("/finance/payments/new");
 
 		// Fill minimal required fields
 		cy.get("[name=Amount]").type("500.00");
@@ -65,7 +65,7 @@ describe("Payment Attachment Form Submission Bug Fix", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to an existing payment edit page
-		cy.visit("http://localhost:3200/finance/payments");
+		cy.visit("/finance/payments");
 		cy.get("tbody tr").first().find("td a").first().click();
 
 		// Upload a file
@@ -89,7 +89,7 @@ describe("Payment Attachment Form Submission Bug Fix", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to payment edit
-		cy.visit("http://localhost:3200/finance/payments");
+		cy.visit("/finance/payments");
 		cy.get("tbody tr").first().find("td a").first().click();
 
 		// Upload multiple files

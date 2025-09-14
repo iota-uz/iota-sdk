@@ -17,8 +17,8 @@ describe("user auth and registration flow", () => {
 	it("creates a user and displays changes in users table", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
-		cy.visit("http://localhost:3200/users");
-		cy.url().should("eq", "http://localhost:3200/users");
+		cy.visit("/users");
+		cy.url().should("eq", Cypress.config().baseUrl + "/users");
 
 		cy.get('a[href="/users/new"]').filter(":visible").first().click();
 		cy.get("[name=FirstName]").type("Test");
@@ -39,7 +39,7 @@ describe("user auth and registration flow", () => {
 		cy.logout();
 
 		cy.login("test1@gmail.com", "TestPass123!");
-		cy.visit("http://localhost:3200/users");
+		cy.visit("/users");
 
 		cy.url().should("include", "/users");
 		cy.get("tbody tr").should("have.length", 4); // including the spinner row
@@ -48,7 +48,7 @@ describe("user auth and registration flow", () => {
 	it("edits a user and displays changes in users table", () => {
 		cy.login("test1@gmail.com", "TestPass123!");
 
-		cy.visit("http://localhost:3200/users");
+		cy.visit("/users");
 		cy.url().should("include", "/users");
 
 		cy.get("tbody tr").contains("td", "Test User").parent("tr").find("td a").click();
@@ -61,7 +61,7 @@ describe("user auth and registration flow", () => {
 		cy.get("[name=Language]").select(1);
 		cy.get("[id=save-btn]").click();
 
-		cy.visit("http://localhost:3200/users");
+		cy.visit("/users");
 		cy.get("tbody tr").should("have.length", 4); // including the spinner row
 		cy.get("tbody tr").should("contain.text", "TestNew UserNew");
 
@@ -72,13 +72,13 @@ describe("user auth and registration flow", () => {
 
 		cy.logout();
 		cy.login("test1new@gmail.com", "TestPass123!");
-		cy.visit("http://localhost:3200/users");
+		cy.visit("/users");
 		cy.url().should("include", "/users");
 	});
 	
 	it("newly created user should see tabs in the sidebar", () => {
 		cy.login("test1@gmail.com", "TestPass123!");
-		cy.visit("http://localhost:3200/");
+		cy.visit("/");
 		cy.url().should("not.include", "/login");
 		
 		// Check that the sidebar contains at least one tab/link
