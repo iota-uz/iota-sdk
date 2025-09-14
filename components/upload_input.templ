@@ -47,11 +47,11 @@ templ UploadTarget(p *UploadInputProps) {
 	</div>
 	if p.Multiple {
 		for _, upload := range p.Uploads {
-			<input type="hidden" name={ p.Name } value={ upload.ID }/>
+			<input type="hidden" name={ p.Name } value={ upload.ID } form={ p.Form }/>
 		}
 	} else {
 		if len(p.Uploads) > 0 {
-			<input type="hidden" name={ p.Name } value={ p.Uploads[0].ID }/>
+			<input type="hidden" name={ p.Name } value={ p.Uploads[0].ID } form={ p.Form }/>
 		}
 	}
 }
