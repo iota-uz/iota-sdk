@@ -95,7 +95,7 @@ func E2ECreate() error {
 		return fmt.Errorf("failed to create e2e database: %w", err)
 	}
 
-	conf.Logger().Info(" Created e2e database: %s\n", E2E_DB_NAME)
+	conf.Logger().Info("Created e2e database", "database", E2E_DB_NAME)
 	return nil
 }
 
@@ -121,7 +121,7 @@ func E2EDrop() error {
 		return fmt.Errorf("failed to drop e2e database: %w", err)
 	}
 
-	conf.Logger().Info(" Dropped e2e database: %s\n", E2E_DB_NAME)
+	conf.Logger().Info("Dropped e2e database", "database", E2E_DB_NAME)
 	return nil
 }
 
@@ -183,7 +183,7 @@ func E2EMigrate() error {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	conf.Logger().Info(" Applied migrations to e2e database\n")
+	conf.Logger().Info("Applied migrations to e2e database")
 	return nil
 }
 
@@ -275,12 +275,13 @@ func E2ESeed() error {
 		return err
 	}
 
-	conf.Logger().Info(" Seeded e2e database with test data\n")
+	conf.Logger().Info("Seeded e2e database with test data")
 	return nil
 }
 
 func E2ESetup() error {
-	fmt.Println("🚀 Setting up e2e database...")
+	conf := configuration.Use()
+	conf.Logger().Info("Setting up e2e database...")
 	if err := E2ECreate(); err != nil {
 		return err
 	}
@@ -290,12 +291,13 @@ func E2ESetup() error {
 	if err := E2ESeed(); err != nil {
 		return err
 	}
-	fmt.Println("✅ E2E database setup complete!")
+	conf.Logger().Info("E2E database setup complete!")
 	return nil
 }
 
 func E2EReset() error {
-	fmt.Println("🔄 Resetting e2e database...")
+	conf := configuration.Use()
+	conf.Logger().Info("Resetting e2e database...")
 	if err := E2ECreate(); err != nil { // This drops and recreates
 		return err
 	}
@@ -305,6 +307,6 @@ func E2EReset() error {
 	if err := E2ESeed(); err != nil {
 		return err
 	}
-	fmt.Println("✅ E2E database reset complete!")
+	conf.Logger().Info("E2E database reset complete!")
 	return nil
 }

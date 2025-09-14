@@ -121,6 +121,6 @@ func SeedDatabase(mods ...application.Module) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Println("✅ Database seeded successfully!")
+	conf.Logger().Info("Database seeded successfully!")
 	return nil
 }
