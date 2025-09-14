@@ -124,16 +124,11 @@ Cypress E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). 
 
 ### Commands:
 - Setup/reset: `make e2e setup|reset|seed|migrate|clean`
-- Run tests: `make e2e test|test-payments|run` or `cd e2e && npm run test:headed`
-
-### Prerequisites:
-PostgreSQL running (`make db local`), server on localhost:3200, initial setup (`make e2e setup`)
+- Run tests: `make e2e test|run` or `cd e2e && npm run test:headed`
+- Server: `make e2e server` - Start server connected to e2e database on port 3201
 
 ### Structure:
 Tests in `/e2e/cypress/e2e/{module}/`, commands in `/e2e/cypress/support/commands.js`, fixtures in `/e2e/cypress/fixtures/`
-
-### Troubleshooting:
-DB issues: check PostgreSQL (`make db local`), reset DB (`make e2e reset`), verify server on port 3200, check DB permissions
 
 ## Code Style Guidelines
 - Use Go v1.23.2 and follow standard Go idioms
