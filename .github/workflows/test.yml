@@ -191,17 +191,6 @@ jobs:
           name: code-coverage
           path: coverage.out
 
-      - name: Drop test databases
-        if: always()
-        run: |
-          # Connect to postgres and drop all test databases
-          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c "
-            SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";'
-            FROM pg_database 
-            WHERE datname NOT IN ('postgres', 'template0', 'template1', 'iota_erp_e2e')
-            AND datname ~ '^test'
-          " -t | PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres
-
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2204
     name: E2E Tests
@@ -305,7 +294,3 @@ jobs:
           start: go run ../cmd/server/main.go
           wait-on: 'http://localhost:3201'
           browser: chrome
-
-      - name: Test database migrate down
-        run: make db migrate down
-
