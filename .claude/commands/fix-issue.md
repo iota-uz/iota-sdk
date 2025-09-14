@@ -1,19 +1,36 @@
 ---
-allowed-tools: Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh issue create:*),
+allowed-tools: Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh issue create:*), Bash(gh issue edit:*),
+  Bash(gh project list:*), Bash(gh project item-list:*), Bash(gh project item-edit:*), Bash(gh project field-list:*),
   Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*),
   Bash(git push:*), Bash(git pull:*), Bash(git checkout:*), Bash(git branch:*),
   Bash(gh pr create:*), Bash(make:*), Bash(go test:*), Bash(templ generate:*),
   Task, TodoWrite, Read, Edit, MultiEdit, Write, Grep, Glob, LS, mcp__bloom__search_code
 description: Fix a GitHub issue following a structured workflow
-argument-hint: <issue-number>
+argument-hint: Issue URL or issue number (e.g., https://github.com/owner/repo/issues/123 or 123)
 ---
 
-# Fix GitHub Issue #$ARGUMENTS
+# Fix GitHub Issue
+
+You have been given an issue URL or issue number: $ARGUMENTS
 
 ## Context
-- Issue details: !`gh issue view $ARGUMENTS`
-- Current branch: !`git branch --show-current`
-- Git status: !`git status --short`
+Current branch: !`git branch --show-current`
+Git status: !`git status --short`
+
+## Parse Issue Reference
+
+First, let me determine the issue number:
+- If given a full URL (e.g., https://github.com/owner/repo/issues/123), I'll extract the issue number
+- If given just a number, I'll use it directly with the current repository
+
+I'll run `gh issue view $ARGUMENTS --comments` to see the issue details.
+
+## Mark Issue as In Progress
+
+I'll move the issue to "In Progress" status in the SHY ELD GitHub Project:
+1. Find the issue in the project items: `gh project item-list 11 --owner iota-uz --format json`
+2. Extract the item ID for issue #$ARGUMENTS from the JSON output
+3. Update the issue status to "In Progress": `gh project item-edit --id <item-id> --field-id PVTSSF_lADOCGNubc4BAYI8zgzMyio --project-id PVT_kwDOCGNubc4BAYI8 --single-select-option-id 47fc9ee4`
 
 ## Workflow
 
@@ -43,15 +60,7 @@ argument-hint: <issue-number>
 - Implement minimal code to make tests pass
 - Refactor while keeping tests green
 
-### 5. Implementation
-- Follow the task list systematically
-- Use `mcp__bloom__search_code` for semantic code search when needed
-- Apply changes following CLAUDE.md guidelines
-- For UI changes: run `make css` after `.css` or `.templ` modifications
-- For template changes: run `templ generate` after `.templ` modifications
-- Continuously run tests during implementation
-
-### 6. Testing & Validation
+### 5. Testing & Validation
 - Run all relevant tests: `go test -v ./path/to/modified/package`
 - Run specific test: `go test -v ./path/to/package -run TestName`
 - Run linting: `make check lint`

@@ -4,12 +4,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 )
 
 type Tenant struct {
 	id            uuid.UUID
 	name          string
 	domain        string
+	phone         phone.Phone
+	email         internet.Email
 	isActive      bool
 	logoID        *int
 	logoCompactID *int
@@ -61,6 +65,18 @@ func WithLogoCompactID(logoCompactID *int) Option {
 	}
 }
 
+func WithPhone(p phone.Phone) Option {
+	return func(t *Tenant) {
+		t.phone = p
+	}
+}
+
+func WithEmail(e internet.Email) Option {
+	return func(t *Tenant) {
+		t.email = e
+	}
+}
+
 func New(name string, opts ...Option) *Tenant {
 	t := &Tenant{
 		id:        uuid.New(),
@@ -107,6 +123,14 @@ func (t *Tenant) LogoCompactID() *int {
 	return t.logoCompactID
 }
 
+func (t *Tenant) Phone() phone.Phone {
+	return t.phone
+}
+
+func (t *Tenant) Email() internet.Email {
+	return t.email
+}
+
 func (t *Tenant) SetLogoID(logoID *int) {
 	t.logoID = logoID
 	t.updatedAt = time.Now()
@@ -114,5 +138,15 @@ func (t *Tenant) SetLogoID(logoID *int) {
 
 func (t *Tenant) SetLogoCompactID(logoCompactID *int) {
 	t.logoCompactID = logoCompactID
+	t.updatedAt = time.Now()
+}
+
+func (t *Tenant) SetPhone(p phone.Phone) {
+	t.phone = p
+	t.updatedAt = time.Now()
+}
+
+func (t *Tenant) SetEmail(e internet.Email) {
+	t.email = e
 	t.updatedAt = time.Now()
 }

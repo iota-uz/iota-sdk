@@ -1,0 +1,47 @@
+package components
+
+import "github.com/iota-uz/iota-sdk/components/base/button"
+
+templ TooltipBasic() {
+	<div
+		class="flex flex-col gap-4"
+		x-data="{ 
+			tooltip: 'This is a dynamic tooltip!',
+			enabled: true
+		}"
+	>
+		<div class="flex flex-wrap gap-4">
+			@button.Primary(button.Props{
+				Attrs: templ.Attributes{
+					"x-tooltip": "tooltip",
+				},
+			}) {
+				Dynamic Tooltip
+			}
+			@button.Secondary(button.Props{
+				Attrs: templ.Attributes{
+					"x-tooltip.raw": "This is a static tooltip!",
+				},
+			}) {
+				Static Tooltip
+			}
+			@button.Secondary(button.Props{
+				Attrs: templ.Attributes{
+					"x-tooltip": "enabled ? 'Tooltip is enabled' : ''",
+					"@click":    "enabled = !enabled",
+				},
+			}) {
+				Toggle Tooltip (<span x-text="enabled ? 'ON' : 'OFF'"></span>)
+			}
+		</div>
+		<div class="flex items-center space-x-4">
+			<label class="text-sm">Dynamic tooltip text:</label>
+			<input
+				type="text"
+				x-model="tooltip"
+				class="input input-sm"
+				placeholder="Enter tooltip text"
+			/>
+		</div>
+	</div>
+}

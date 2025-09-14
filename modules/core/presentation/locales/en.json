@@ -70,6 +70,12 @@
       "Title": "404",
       "Message": "Page not found",
       "Home": "Home"
+    },
+    "Forbidden": {
+      "Title": "403",
+      "Message": "Access Denied",
+      "_Description": "You don't have permission to access this resource.",
+      "Home": "Home"
     }
   },
   "Resources": {
@@ -196,6 +202,9 @@
     "Errors": {
       "PhoneUnique": "Phone number is already used",
       "EmailUnique": "Email is already used"
+    },
+    "Delete": {
+      "NotAllowed": "Cannot delete: You are the only user in this tenant"
     }
   },
   "Roles": {
@@ -337,6 +346,14 @@
       "CompactLogo": "Compact Logo",
       "CompactLogoDescription": "This logo will be displayed when the sidebar is collapsed",
       "CompactLogoPlaceholder": "Choose your company's compact logo (PNG, JPG, SVG)"
+    },
+    "Contact": {
+      "Information": "Contact Information",
+      "DescText": "Manage your organization's contact details",
+      "Phone": "Phone Number",
+      "PhonePlaceholder": "Enter phone number (e.g. +1234567890)",
+      "Email": "Email Address",
+      "EmailPlaceholder": "Enter email address"
     }
   },
   "Login": {
