@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"github.com/iota-uz/iota-sdk/pkg/commands/e2e"
 	"github.com/spf13/cobra"
 )
 
@@ -10,8 +11,8 @@ func NewE2ECommand() *cobra.Command {
 		Use:   "e2e",
 		Short: "E2E database management",
 		Long:  `Manage end-to-end testing database including creation, seeding, migrations, and cleanup operations.`,
-		Example: `  # Set up complete e2e environment
-  command e2e setup
+		Example: `  # Run e2e tests with database setup
+  command e2e test
 
   # Reset database with fresh data
   command e2e reset
@@ -21,7 +22,6 @@ func NewE2ECommand() *cobra.Command {
 	}
 
 	// Add all e2e subcommands
-	e2eCmd.AddCommand(newE2ESetupCmd())
 	e2eCmd.AddCommand(newE2EResetCmd())
 	e2eCmd.AddCommand(newE2ECreateCmd())
 	e2eCmd.AddCommand(newE2EDropCmd())
@@ -32,24 +32,13 @@ func NewE2ECommand() *cobra.Command {
 	return e2eCmd
 }
 
-func newE2ESetupCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "setup",
-		Short: "Create database, run migrations, and seed test data",
-		Long:  `Performs a complete e2e database setup by creating the database, applying all migrations, and seeding with test data.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return E2ESetup()
-		},
-	}
-}
-
 func newE2EResetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "reset",
 		Short: "Drop and recreate database with fresh data",
 		Long:  `Completely resets the e2e database by dropping it, recreating it, running migrations, and seeding fresh test data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return E2EReset()
+			return e2e.Reset()
 		},
 	}
 }
@@ -60,7 +49,7 @@ func newE2ECreateCmd() *cobra.Command {
 		Short: "Create empty e2e database",
 		Long:  `Creates an empty e2e database without running migrations or seeding data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return E2ECreate()
+			return e2e.Create()
 		},
 	}
 }
@@ -71,7 +60,7 @@ func newE2EDropCmd() *cobra.Command {
 		Short: "Drop e2e database",
 		Long:  `Completely removes the e2e database and all its data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return E2EDrop()
+			return e2e.Drop()
 		},
 	}
 }
@@ -82,7 +71,7 @@ func newE2EMigrateCmd() *cobra.Command {
 		Short: "Run migrations on existing e2e database",
 		Long:  `Applies all pending migrations to the existing e2e database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return E2EMigrate()
+			return e2e.Migrate()
 		},
 	}
 }
@@ -93,7 +82,7 @@ func newE2ESeedCmd() *cobra.Command {
 		Short: "Seed existing e2e database with test data",
 		Long:  `Populates the existing e2e database with test data required for end-to-end testing.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return E2ESeed()
+			return e2e.Seed()
 		},
 	}
 }
@@ -101,10 +90,10 @@ func newE2ESeedCmd() *cobra.Command {
 func newE2ETestCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "test",
-		Short: "Run e2e tests with proper server lifecycle management",
-		Long:  `Sets up the e2e environment, starts the server, runs Cypress tests, and ensures proper cleanup.`,
+		Short: "Set up database and run e2e tests",
+		Long:  `Sets up the e2e database with migrations and seed data, then runs Cypress tests against a running e2e development server.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return E2ETest()
+			return e2e.Test()
 		},
 	}
 }
