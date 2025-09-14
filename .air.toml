@@ -48,11 +48,6 @@ main = "magenta"
 runner = "green"
 watcher = "cyan"
 
-[proxy]
-enabled = true
-proxy_port = 9000
-app_port = 3200
-
 [log]
 main_only = false
 time = false

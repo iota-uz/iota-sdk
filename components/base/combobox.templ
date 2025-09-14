@@ -117,7 +117,6 @@ templ Combobox(props ComboboxProps) {
 				} else if props.Trigger.Render != nil {
 					@props.Trigger.Render(&TriggerProps{
 						InputAttrs: templ.Attributes{
-							":value":                     "value",
 							"hx-get":                     props.Endpoint,
 							"hx-trigger":                 "input changed delay:250ms, search",
 							"hx-sync":                    "this:replace",
@@ -152,7 +151,6 @@ templ Combobox(props ComboboxProps) {
 						},
 					},
 					Attrs: templ.Attributes{
-						"x-model":                    "value",
 						"hx-get":                     props.Endpoint,
 						"hx-trigger":                 "input changed delay:250ms, search",
 						"hx-sync":                    "this:replace",

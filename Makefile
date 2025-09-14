@@ -181,5 +181,5 @@ setup: deps css
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check \
-        up down restart logs local stop reset seed migrate watch coverage verbose package docker score report \
+        down restart logs local stop reset watch coverage verbose package docker score report \
         dev fmt lint tr linux docker-base docker-prod run server
