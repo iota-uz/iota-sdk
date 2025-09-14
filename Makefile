@@ -177,7 +177,7 @@ setup: deps css
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-%:
+watch coverage verbose package docker score report linux docker-base docker-prod run server up down restart logs local stop reset seed migrate:
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check \
