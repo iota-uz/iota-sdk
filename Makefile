@@ -103,12 +103,7 @@ e2e:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "setup" ]; then \
 		go run cmd/command/main.go e2e setup; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "test" ]; then \
-		make e2e setup && \
-		( DB_NAME=iota_erp_e2e PORT=3201 ORIGIN=http://localhost:3201 go run cmd/server/main.go & echo $$! > /tmp/e2e_server.pid ) && \
-		sleep 5 && \
-		cd e2e && npm run test; \
-		kill `cat /tmp/e2e_server.pid` 2>/dev/null || true; \
-		rm -f /tmp/e2e_server.pid; \
+		go run cmd/command/main.go e2e test; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "reset" ]; then \
 		go run cmd/command/main.go e2e reset; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "seed" ]; then \

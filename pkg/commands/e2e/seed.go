@@ -1,8 +1,9 @@
-package commands
+package e2e
 
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -18,17 +19,24 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 )
 
-// SeedDatabase seeds the main database with initial data
-func SeedDatabase(mods ...application.Module) error {
+// Seed populates the e2e database with test data
+func Seed() error {
+	// Set environment variable for e2e database
+	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
+
 	conf := configuration.Use()
 	ctx := context.Background()
 
-	app, pool, err := common.NewApplicationWithDefaults(mods...)
+	pool, err := GetE2EPool()
 	if err != nil {
-		return fmt.Errorf("failed to initialize application: %w", err)
+		return fmt.Errorf("failed to connect to e2e database: %w", err)
 	}
 	defer pool.Close()
 
+	app, err := common.NewApplication(pool, modules.BuiltInModules...)
+	if err != nil {
+		return fmt.Errorf("failed to create application: %w", err)
+	}
 	app.RegisterNavItems(modules.NavLinks...)
 
 	tx, err := pool.Begin(ctx)
@@ -88,13 +96,13 @@ func SeedDatabase(mods ...application.Module) error {
 		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
 			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
 		}
-		return fmt.Errorf("failed to seed database: %w", err)
+		return err
 	}
 
 	if err := tx.Commit(ctxWithTenant); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return err
 	}
 
-	conf.Logger().Info("Database seeded successfully!")
+	conf.Logger().Info("Seeded e2e database with test data")
 	return nil
 }
