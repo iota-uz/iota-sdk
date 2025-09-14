@@ -203,7 +203,7 @@ jobs:
           PORT: 3201
           DB_HOST: localhost
           DB_PORT: 5432
-          DB_NAME: iota_erp_e2e
+          DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
