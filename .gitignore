@@ -16,3 +16,6 @@ logs/
 go.work*
 
 **/.claude/settings.local.json
+
+# E2E test artifacts
+e2e/cypress/screenshots/
