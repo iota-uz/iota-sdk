@@ -101,21 +101,10 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 ## E2E Testing Commands
 Cypress E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/cypress.config.js`
 
-### Two-Step E2E Testing Workflow:
-1. **Start E2E development server** (with Air hot reload): `make e2e dev`
-2. **Run tests in separate terminal**: `make e2e test` or `cd e2e && npm run test:headed`
-
 ### Commands:
 - Setup/reset: `make e2e test|reset|seed|migrate|clean`
-- Development server: `make e2e dev` - Start server with Air hot reload connected to e2e database on port 3201
 - Run tests: `make e2e test|run` - Execute Cypress tests against running e2e server
 - Run individual e2e test: `cd e2e && npm run cy:run --spec "cypress/e2e/module/specific-test.cy.js"` (for debugging/focused testing)
-
-### Workflow Description:
-The e2e testing process is now separated into two distinct phases:
-- **Development Phase**: `make e2e dev` starts the server with Air for automatic code reloading during development
-- **Testing Phase**: `make e2e test` runs the Cypress test suite against the running e2e development server
-- This separation allows for better development experience with hot reload while maintaining clean test execution
 
 ### Structure:
 Tests in `/e2e/cypress/e2e/{module}/`, commands in `/e2e/cypress/support/commands.js`, fixtures in `/e2e/cypress/fixtures/`
