@@ -150,11 +150,11 @@ graph:
 # Code quality checks with subcommands (fmt, lint, tr)
 check:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "fmt" ]; then \
-		goimports -w . && templ fmt . && go mod tidy; \
+		goimports -w . && templ fmt . && go mod tidy && templ generate; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "lint" ]; then \
 		golangci-lint run ./...; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "tr" ]; then \
-		go run cmd/command/main.go; \
+		go run cmd/command/main.go check_tr_keys; \
 	else \
 		echo "Usage: make check [fmt|lint|tr]"; \
 		echo "  fmt  - Format Go code, templates, and tidy modules"; \
