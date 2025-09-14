@@ -91,7 +91,6 @@ jobs:
   test-unit-integration:
     runs-on: blacksmith-8vcpu-ubuntu-2204
     name: Unit & Integration Tests
-    needs: [lint-and-format]
 
     services:
       postgres:
@@ -194,7 +193,6 @@ jobs:
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2204
     name: E2E Tests
-    needs: [lint-and-format]
 
     services:
       postgres:
