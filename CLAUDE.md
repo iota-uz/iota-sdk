@@ -85,13 +85,6 @@ DevHub is a development environment orchestrator that manages all development se
 - Generate coverage report: `make test report`
 - Check coverage score: `make test score`
 
-### Database Commands:
-- Start local database: `make db local`
-- Stop database: `make db stop`
-- Reset database (clean slate): `make db reset`
-- Seed database with test data: `make db seed`
-- Clean database data: `make db clean`
-
 ### CSS Commands:
 - Compile CSS: `make css`
 - Compile CSS in development mode: `make css dev`
