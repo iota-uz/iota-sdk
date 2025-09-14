@@ -70,6 +70,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 
 	id := r.FormValue("_id")
 	name := r.FormValue("_name")
+	multiple := r.FormValue("_multiple") == "true"
 
 	dtos := make([]*upload.CreateDTO, 0, len(files))
 	for _, header := range files {
@@ -98,10 +99,11 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			props := &components.UploadInputProps{
-				ID:      id,
-				Uploads: nil,
-				Error:   "",
-				Name:    name,
+				ID:       id,
+				Uploads:  nil,
+				Error:    "",
+				Name:     name,
+				Multiple: multiple,
 			}
 			templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
 			return
@@ -116,9 +118,10 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := &components.UploadInputProps{
-		ID:      id,
-		Uploads: mapping.MapViewModels(uploadEntities, mappers.UploadToViewModel),
-		Name:    name,
+		ID:       id,
+		Uploads:  mapping.MapViewModels(uploadEntities, mappers.UploadToViewModel),
+		Name:     name,
+		Multiple: multiple,
 	}
 
 	templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
