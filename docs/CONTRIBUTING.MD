@@ -71,18 +71,18 @@ Ensure these tools are installed before you begin:
 
 4. **Run PostgreSQL**:
    ```bash
-   make localdb
+   make db local
    ```
    Ensure Docker is running before executing this command
 
 5. **Apply migrations**:
    ```bash
-   make migrate up && make seed
+   make db migrate up && make db seed
    ```
 
 6. **Run TailwindCSS in watch mode** (new terminal):
    ```bash
-   make css-watch
+   make css watch
    ```
 
 7. **Start development server**:
@@ -134,7 +134,7 @@ Generate code documentation:
 make docs
 
 # With specific options
-go run cmd/document/main.go -dir [directory] -out [output file] [-recursive] [-exclude "dir1,dir2"]
+go run cmd/command/main.go doc -dir [directory] -out [output file] [-recursive] [-exclude "dir1,dir2"]
 ```
 
 Options:

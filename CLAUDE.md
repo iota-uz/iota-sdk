@@ -69,16 +69,71 @@ DevHub is a development environment orchestrator that manages all development se
 - **Reviewing older logs**: Use `get_logs("server", lines=100, offset=200)` to see logs from earlier in the session
 
 ## Build/Lint/Test Commands
-- Format code and remove unused imports: `make fmt`
-- Apply migrations: `make migrate up`
-- After changes to .templ files: `templ generate`
-- After changes to Go code: `go vet ./...` 
-- Do NOT run `go build`, as it does the same thing as `go vet`
-- Run all tests: `make test` or `go test -v ./...`
-- Run single test: `go test -v ./path/to/package -run TestName`
-- Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
-- Linting translation files: `make check-tr`
-- Linting code: `make lint`
+- Format code and remove unused imports: `make check fmt`
+- Template generation: `make generate` (or `make generate watch` for watch mode)
+- Apply migrations: `make db migrate up` / `make db migrate down`
+- After changes to Go code: `go vet ./...`
+- DO NOT run `go build`, as it does the same thing as `go vet`
+
+### Testing Commands:
+- Run all tests: `make test`
+- Run tests with coverage: `make test coverage`
+- Run tests in watch mode: `make test watch`
+- Run tests with verbose output: `make test verbose`
+- Run specific package tests: `make test package ./path/to/package`
+- Run tests in Docker: `make test docker`
+- Generate coverage report: `make test report`
+- Check coverage score: `make test score`
+
+### Database Commands:
+- Start local database: `make db local`
+- Stop database: `make db stop`
+- Reset database (clean slate): `make db reset`
+- Seed database with test data: `make db seed`
+- Clean database data: `make db clean`
+
+### CSS Commands:
+- Compile CSS: `make css`
+- Compile CSS in development mode: `make css dev`
+- Watch CSS changes: `make css watch`
+- Clean CSS artifacts: `make css clean`
+
+### Docker Compose Commands:
+- Start all services: `make compose up`
+- Stop all services: `make compose down`
+- Restart services: `make compose restart`
+- View logs: `make compose logs`
+
+### Build Commands:
+- Build for local OS: `make build local`
+- Build for Linux (production): `make build linux`
+- Build Docker base image: `make build docker-base`
+- Build Docker production image: `make build docker-prod`
+
+### Code Quality Commands:
+- Format code and remove unused imports: `make check fmt`
+- Lint code (check unused variables/functions): `make check lint`
+- Check translation files: `make check tr`
+
+### Other Commands:
+- Generate dependency graph: `make graph`
+- Generate documentation: `make docs`
+
+## E2E Testing Commands
+Cypress E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/cypress.config.js`
+
+### Commands:
+- Setup/reset: `make e2e setup|reset|seed|migrate|clean`
+- Run tests: `make e2e test|test-payments|run` or `cd e2e && npm run test:headed`
+
+### Prerequisites:
+PostgreSQL running (`make db local`), server on localhost:3200, initial setup (`make e2e setup`)
+
+### Structure:
+Tests in `/e2e/cypress/e2e/{module}/`, commands in `/e2e/cypress/support/commands.js`, fixtures in `/e2e/cypress/fixtures/`
+
+### Troubleshooting:
+DB issues: check PostgreSQL (`make db local`), reset DB (`make e2e reset`), verify server on port 3200, check DB permissions
 
 ## Code Style Guidelines
 - Use Go v1.23.2 and follow standard Go idioms

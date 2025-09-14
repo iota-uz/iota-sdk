@@ -48,7 +48,7 @@ jobs:
           git diff --exit-code
 
       - name: Check translation files
-        run: make check-tr
+        run: make check tr
 
       - name: Check Go files formatting
         run: |
@@ -86,7 +86,7 @@ jobs:
       - name: Run lint and vet
         run: |
           go vet ./...
-          make lint
+          make check lint
 
   test-and-integration:
     runs-on: blacksmith-8vcpu-ubuntu-2204
@@ -160,10 +160,10 @@ jobs:
 
       - name: Test Makefile targets
         run: |
-          make migrate up
-          make migrate up
-          make seed
-          make seed
+          make db migrate up
+          make db migrate up
+          make db seed
+          make db seed
 
       - name: Run tests with coverage
         run: go test -v ./... -coverprofile=coverage.out -covermode=atomic
@@ -219,4 +219,4 @@ jobs:
           browser: chrome
 
       - name: Test database migrate down
-        run: make migrate down
+        run: make db migrate down
