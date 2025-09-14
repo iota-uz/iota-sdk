@@ -262,7 +262,7 @@ jobs:
 
       - name: Setup E2E database
         run: |
-          make db migrate up
+          make e2e reset
 
       - name: Install PNPM
         uses: pnpm/action-setup@v4
