@@ -200,6 +200,7 @@ jobs:
         env:
           SESSION_DURATION: 720h
           DOMAIN: localhost
+          PORT: 3201
           DB_HOST: localhost
           DB_PORT: 5432
           DB_NAME: iota_erp_e2e
@@ -207,6 +208,7 @@ jobs:
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
           GO_APP_ENV: production
+          CYPRESS_BASE_URL: http://localhost:3201
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
@@ -215,7 +217,7 @@ jobs:
           working-directory: e2e
           install-command: pnpm install
           start: go run ../cmd/server/main.go
-          wait-on: 'http://localhost:3200'
+          wait-on: 'http://localhost:3201'
           browser: chrome
 
       - name: Test database migrate down
