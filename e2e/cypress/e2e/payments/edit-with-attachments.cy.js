@@ -18,7 +18,7 @@ describe("Payment Edit Form with Attachments", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to payments and create a new payment
-		cy.visit("http://localhost:3200/finance/payments");
+		cy.visit("/finance/payments");
 		cy.url().should("include", "/finance/payments");
 
 		// Click new payment button
@@ -60,7 +60,7 @@ describe("Payment Edit Form with Attachments", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to payments and find the existing payment
-		cy.visit("http://localhost:3200/finance/payments");
+		cy.visit("/finance/payments");
 		cy.get("tbody tr").contains("td", "1000.00").parent("tr").find("td a").first().click();
 
 		// Create a test file for upload
@@ -101,7 +101,7 @@ describe("Payment Edit Form with Attachments", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to payments and find the existing payment
-		cy.visit("http://localhost:3200/finance/payments");
+		cy.visit("/finance/payments");
 		cy.get("tbody tr").contains("td", "1000.00").parent("tr").find("td a").first().click();
 
 		// Create multiple test files
@@ -154,7 +154,7 @@ describe("Payment Edit Form with Attachments", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to the payment with attachments
-		cy.visit("http://localhost:3200/finance/payments");
+		cy.visit("/finance/payments");
 		cy.get("tbody tr").contains("td", "1000.00").parent("tr").find("td a").first().click();
 
 		// Verify attachments exist
@@ -180,7 +180,7 @@ describe("Payment Edit Form with Attachments", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
 		// Navigate to payment edit
-		cy.visit("http://localhost:3200/finance/payments");
+		cy.visit("/finance/payments");
 		cy.get("tbody tr").contains("td", "1000.00").parent("tr").find("td a").first().click();
 
 		// Fill out some form data
