@@ -88,9 +88,10 @@ jobs:
           go vet ./...
           make check lint
 
-  test-and-integration:
+  test-unit-integration:
     runs-on: blacksmith-8vcpu-ubuntu-2204
-    name: Tests & Integration
+    name: Unit & Integration Tests
+    needs: [lint-and-format]
 
     services:
       postgres:
@@ -190,6 +191,81 @@ jobs:
             AND datname ~ '^test'
           " -t | PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres
 
+  test-e2e:
+    runs-on: blacksmith-8vcpu-ubuntu-2204
+    name: E2E Tests
+    needs: [lint-and-format]
+
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_erp
+          POSTGRES_INITDB_ARGS: "-c max_connections=1000 -c shared_buffers=2GB \
+                                 -c effective_cache_size=6GB -c maintenance_work_mem=512MB \
+                                 -c work_mem=32MB -c fsync=off -c synchronous_commit=off \
+                                 -c full_page_writes=off -c wal_buffers=64MB \
+                                 -c max_wal_size=4GB -c min_wal_size=1GB \
+                                 -c checkpoint_completion_target=0.9 -c wal_compression=on \
+                                 -c random_page_cost=1.0 -c seq_page_cost=1.0 \
+                                 -c cpu_tuple_cost=0.01 -c cpu_index_tuple_cost=0.001 \
+                                 -c cpu_operator_cost=0.0005 -c log_min_duration_statement=0 \
+                                 -c log_statement=none -c log_checkpoints=off \
+                                 -c log_connections=off -c log_disconnections=off \
+                                 -c autovacuum=off -c track_activities=off \
+                                 -c track_counts=off -c jit=off -c huge_pages=try \
+                                 -c temp_buffers=128MB -c max_prepared_transactions=0 \
+                                 -c bgwriter_delay=10000ms -c bgwriter_lru_maxpages=0 \
+                                 -c effective_io_concurrency=200 -c maintenance_io_concurrency=200 \
+                                 -c max_parallel_workers_per_gather=4 -c max_parallel_workers=8 \
+                                 -c max_parallel_maintenance_workers=4 -c default_statistics_target=10 \
+                                 -c enable_partitionwise_join=on -c enable_partitionwise_aggregate=on"
+        options: >-
+          --tmpfs /var/lib/postgresql/data:rw,size=6g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_erp"
+          --health-interval=5s --health-timeout=5s --health-retries=5
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --tmpfs /data:rw,size=6g
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.23.2"
+
+      - name: Install tools
+        run: |
+          # Install templ (needed for CSS generation)
+          go install github.com/a-h/templ/cmd/templ@v0.3.857
+
+          # Install TailwindCSS
+          echo "Installing TailwindCSS for x64 architecture..."
+          mkdir -p downloaded
+          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
+          chmod +x downloaded/tailwindcss
+          echo "$PWD/downloaded" >> $GITHUB_PATH
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Generate CSS files
+        run: make css
+
+      - name: Setup E2E database
+        run: |
+          make db migrate up
+
       - name: Install PNPM
         uses: pnpm/action-setup@v4
         with:
@@ -222,3 +298,4 @@ jobs:
 
       - name: Test database migrate down
         run: make db migrate down
+
