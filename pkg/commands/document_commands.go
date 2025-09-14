@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/document"
 )
 
@@ -28,7 +29,8 @@ func GenerateDocumentation(opts DocumentGenerateOptions) error {
 		return fmt.Errorf("failed to generate documentation: %w", err)
 	}
 
-	fmt.Printf("✅ Documentation generated successfully at %s\n", opts.OutputPath)
+	conf := configuration.Use()
+	conf.Logger().Info("Documentation generated successfully", "output", opts.OutputPath)
 	return nil
 }
 

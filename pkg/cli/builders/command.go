@@ -1,8 +1,7 @@
 package builders
 
 import (
-	"fmt"
-
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/spf13/cobra"
 )
 
@@ -76,7 +75,8 @@ func MessageCommand(use, short, long, message string, fn func() error, context s
 		Long:  long,
 		Run: func() error {
 			if message != "" {
-				fmt.Println(message)
+				conf := configuration.Use()
+				conf.Logger().Info(message)
 			}
 			return fn()
 		},
