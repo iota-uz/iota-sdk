@@ -69,3 +69,6 @@ Cypress.Commands.add("uploadFileAndWaitForAttachment", (fileContent, fileName, m
 		.should("have.value")
 		.invoke("val").should("not.be.empty");
 });
+
+// Import test data management commands
+import './test-data-commands.js';
