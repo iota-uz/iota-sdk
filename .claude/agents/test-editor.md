@@ -787,20 +787,22 @@ func setupDatabaseTest(t *testing.T) *itf.DatabaseManager {
 - **Detailed coverage**: `make test detailed-coverage` - Comprehensive coverage analysis with insights & recommendations (use 10-minute timeout)
 - **Verbose output**: `make test verbose` - Show detailed test execution (use 10-minute timeout)
 - **Package tests**: `make test package ./modules/logistics/...` - Test specific module
-- **Single test**: `go test -run TestName ./path/to/package` - Run specific test by name
+- **Single test**: `go test -v ./path/to/package -run TestSpecificName` - Run specific test by name with verbose output
 
 ### E2E Testing (Cypress Framework)
-- **Setup E2E environment**: `make e2e setup` - Create e2e database, run migrations, and seed test data
+**Note**: E2E testing requires a separate dev server to be running on port 3201 connected to the e2e database. This server management is the developer's responsibility, not the test-editor agent's.
+
+- **Setup and run E2E tests**: `make e2e test` - Set up database and run all e2e tests
 - **Run all E2E tests**: `make e2e test` or `cd e2e && npm run test` - Execute full E2E test suite
 - **Interactive testing**: `make e2e run` or `cd e2e && npm run cy:open` - Open Cypress interactive mode
 - **Headed testing**: `cd e2e && npm run test:headed` - Run tests with browser visible
 - **Module-specific tests**: `cd e2e && npm run test:payments` - Run specific module tests
+- **Individual E2E test**: `cd e2e && npm run cy:run --spec "cypress/e2e/module/specific-test.cy.js"` - Run specific test file
 - **Database management**:
   - `make e2e reset` - Drop and recreate e2e database with fresh data
   - `make e2e seed` - Seed e2e database with test data
   - `make e2e migrate` - Run migrations on e2e database
   - `make e2e clean` - Drop e2e database
-- **E2E server**: `make e2e server` - Start server connected to e2e database on port 3201
 
 ## E2E Testing with Cypress
 
@@ -929,10 +931,10 @@ cy.get("[hx-swap='outerHTML']").should("be.visible");
 #### 1. Environment Setup
 ```bash
 # One-time setup: create e2e database and seed data
-make e2e setup
+make e2e test
 
-# Start E2E server (separate terminal)
-make e2e server
+# Note: E2E server needs to be started separately by developer
+# The test-editor agent does not manage server startup
 ```
 
 #### 2. Writing E2E Tests
@@ -942,6 +944,9 @@ make e2e run
 
 # Write tests in /e2e/cypress/e2e/{module}/
 # Use existing patterns from payments/edit-with-attachments.cy.js
+
+# Run individual test during development
+cd e2e && npm run cy:run --spec "cypress/e2e/module/specific-test.cy.js"
 ```
 
 #### 3. Running E2E Tests

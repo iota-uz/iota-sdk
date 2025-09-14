@@ -100,9 +100,7 @@ css:
 
 # E2E testing management with subcommands (setup, test, reset, seed, run, clean)
 e2e:
-	@if [ "$(word 2,$(MAKECMDGOALS))" = "setup" ]; then \
-		go run cmd/command/main.go e2e setup; \
-	elif [ "$(word 2,$(MAKECMDGOALS))" = "test" ]; then \
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "test" ]; then \
 		go run cmd/command/main.go e2e test; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "reset" ]; then \
 		go run cmd/command/main.go e2e reset; \
@@ -114,17 +112,16 @@ e2e:
 		cd e2e && npm run cy:open; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
 		go run cmd/command/main.go e2e drop; \
-	elif [ "$(word 2,$(MAKECMDGOALS))" = "server" ]; then \
-		DB_NAME=iota_erp_e2e PORT=3201 ORIGIN=http://localhost:3201 go run cmd/server/main.go; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
+		PORT=3201 ORIGIN='http://localhost:3201' air -c .air.e2e.toml; \
 	else \
-		echo "Usage: make e2e [setup|test|reset|seed|migrate|run|server|clean]"; \
-		echo "  setup        - Create e2e database, run migrations, and seed"; \
-		echo "  test         - Run all e2e tests"; \
+		echo "Usage: make e2e [test|reset|seed|migrate|run|dev|clean]"; \
+		echo "  test         - Set up database and run all e2e tests"; \
 		echo "  reset        - Drop and recreate e2e database with fresh data"; \
 		echo "  seed         - Seed e2e database with test data"; \
 		echo "  migrate      - Run migrations on e2e database"; \
 		echo "  run          - Open Cypress interactive mode"; \
-		echo "  server       - Start server connected to e2e database on port 3201"; \
+		echo "  dev          - Start e2e development server with hot reload on port 3201"; \
 		echo "  clean        - Drop e2e database"; \
 	fi
 
