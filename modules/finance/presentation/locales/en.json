@@ -567,6 +567,28 @@
       "Title": "Debt Details"
     }
   },
+  "Attachments": {
+    "Title": "Attachments",
+    "AddFiles": "Add Files",
+    "ChooseFiles": "Choose Files",
+    "SupportedFormats": "Supported formats: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX",
+    "ExistingFiles": "Existing Files",
+    "AttachedFiles": "Attached Files",
+    "DeleteConfirmation": "Are you sure you want to delete this attachment?",
+    "DeleteFile": "Delete File"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "Financial Documents",
+      "AddFiles": "Add Documents",
+      "ChooseFiles": "Choose Documents",
+      "SupportedFormats": "Upload receipts, invoices, contracts and other financial documents",
+      "ExistingFiles": "Existing Documents",
+      "AttachedFiles": "Attached Documents",
+      "DeleteConfirmation": "Are you sure you want to delete this document?",
+      "DeleteFile": "Delete Document"
+    }
+  },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }

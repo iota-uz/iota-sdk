@@ -1,0 +1,99 @@
+package expenses
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type ShowPageProps struct {
+	Expense *viewmodels.Expense
+}
+
+templ ShowDetails(props *ShowPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-col h-full" id="show-content">
+		<div class="flex-1 p-6">
+			@card.Card(card.Props{
+				Class:        "grid grid-cols-3 gap-4",
+				WrapperClass: "mb-6",
+			}) {
+				<div class="space-y-1">
+					<label class="block text-sm font-medium text-200">
+						{ pageCtx.T("Expenses.Single.Amount") }
+					</label>
+					<div class="text-lg font-semibold">
+						{ props.Expense.AmountWithCurrency }
+					</div>
+				</div>
+				<div class="space-y-1">
+					<label class="block text-sm font-medium text-200">
+						{ pageCtx.T("Expenses.Single.Date") }
+					</label>
+					<div>
+						{ props.Expense.Date }
+					</div>
+				</div>
+				<div class="space-y-1">
+					<label class="block text-sm font-medium text-200">
+						{ pageCtx.T("Expenses.Single.AccountingPeriod") }
+					</label>
+					<div>
+						{ props.Expense.AccountingPeriod }
+					</div>
+				</div>
+				if props.Expense.Category != nil {
+					<div class="space-y-1">
+						<label class="block text-sm font-medium text-200">
+							{ pageCtx.T("Expenses.Single.CategoryID") }
+						</label>
+						<div>
+							{ props.Expense.Category.Name }
+						</div>
+					</div>
+				}
+				if props.Expense.Comment != "" {
+					<div class="space-y-1 col-span-3">
+						<label class="block text-sm font-medium text-200">
+							{ pageCtx.T("Expenses.Single.Comment") }
+						</label>
+						<div class="p-3 bg-surface-500 rounded-md border border-secondary">
+							{ props.Expense.Comment }
+						</div>
+					</div>
+				}
+			}
+			if len(props.Expense.Attachments) > 0 {
+				@components.AttachmentList(&components.AttachmentListProps{
+					Attachments:    props.Expense.Attachments,
+					Title:          pageCtx.T("Finance.Attachments.AttachedFiles"),
+					ShowDelete:     false,
+					DeleteEndpoint: "",
+				})
+			}
+		</div>
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary gap-4">
+			@button.Primary(button.Props{
+				Size: button.SizeMD,
+				Href: fmt.Sprintf("/finance/expenses/%s", props.Expense.ID),
+				Icon: icons.PencilSimple(icons.Props{Size: "16"}),
+			}) {
+				{ pageCtx.T("Edit") }
+			}
+		</div>
+	</div>
+}
+
+templ Show(props *ShowPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Expenses.Meta.Show.Title")},
+	}) {
+		@ShowDetails(props)
+	}
+}

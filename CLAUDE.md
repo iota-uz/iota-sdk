@@ -29,6 +29,9 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 - **Database work**: `database-expert` ONLY
 - **Deployments**: `railway-ops` ONLY
 - **migrations/*.sql**: `database-expert` ONLY
+- **Configuration files**: `config-manager` ONLY
+- **CLAUDE.md updates**: `config-manager` ONLY
+- **Documentation maintenance**: `config-manager` ONLY
 
 ## PROJECT OVERVIEW
 
@@ -50,10 +53,61 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 - **Auth**: Cookie-based sessions with RBAC
 - **Payments**: Stripe subscriptions
 
-### Architecture Overview
-- **DDD with strict layer separation** (see Code Organization for details)
-- **Multi-tenant**: PostgreSQL with dual isolation (tenant_id/organization_id)
-- **HTMX-First**: Server-side rendering with HTMX + Alpine.js + Templ
+## Build/Lint/Test Commands
+- Format code and remove unused imports: `make check fmt`
+- Template generation: `make generate` (or `make generate watch` for watch mode)
+- Apply migrations: `make db migrate up` / `make db migrate down`
+- After changes to Go code: `go vet ./...`
+- DO NOT run `go build`, as it does the same thing as `go vet`
+
+### Testing Commands:
+- Run all tests: `make test`
+- Run tests with coverage: `make test coverage`
+- Run tests in watch mode: `make test watch`
+- Run tests with verbose output: `make test verbose`
+- Run specific package tests: `make test package ./path/to/package`
+- Run individual test by name: `go test -v ./path/to/package -run TestSpecificName` (for debugging/focused testing)
+- Run tests in Docker: `make test docker`
+- Generate coverage report: `make test report`
+- Check coverage score: `make test score`
+
+### CSS Commands:
+- Compile CSS: `make css`
+- Compile CSS in development mode: `make css dev`
+- Watch CSS changes: `make css watch`
+- Clean CSS artifacts: `make css clean`
+
+### Docker Compose Commands:
+- Start all services: `make compose up`
+- Stop all services: `make compose down`
+- Restart services: `make compose restart`
+- View logs: `make compose logs`
+
+### Build Commands:
+- Build for local OS: `make build local`
+- Build for Linux (production): `make build linux`
+- Build Docker base image: `make build docker-base`
+- Build Docker production image: `make build docker-prod`
+
+### Code Quality Commands:
+- Format code and remove unused imports: `make check fmt`
+- Lint code (check unused variables/functions): `make check lint`
+- Check translation files: `make check tr`
+
+### Other Commands:
+- Generate dependency graph: `make graph`
+- Generate documentation: `make docs`
+
+## E2E Testing Commands
+Cypress E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/cypress.config.js`
+
+### Commands:
+- Setup/reset: `make e2e test|reset|seed|migrate|clean`
+- Run tests: `make e2e test|run` - Execute Cypress tests against running e2e server
+- Run individual e2e test: `cd e2e && npm run cy:run --spec "cypress/e2e/module/specific-test.cy.js"` (for debugging/focused testing)
+
+### Structure:
+Tests in `/e2e/cypress/e2e/{module}/`, commands in `/e2e/cypress/support/commands.js`, fixtures in `/e2e/cypress/fixtures/`
 
 ### Environment Branches
 - **Production**: `main` branch
@@ -131,7 +185,7 @@ make test coverage                    # Run tests with simple coverage report (G
 make test detailed-coverage           # Run tests with detailed coverage analysis & insights (use 10-minute timeout)
 make test verbose                     # Run tests with verbose output (use 10-minute timeout)
 make test package ./path/to/package   # Test specific package
-go test -v ./path/to/package -run TestName  # Single test by name
+go test -v ./path/to/package -run TestSpecificName  # Run individual test by name (for debugging/focused testing)
 make check-tr                         # Validate translations
 
 # Linting & Code Quality
@@ -171,6 +225,7 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 | **Cross-Module Work**   | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`, `test-editor`                                   | Architecture changes, large refactoring         |
 | **Bulk Operations**     | `speed-editor` → specialist agents                     | `refactoring-expert` (review)                                                   | Mass renaming, pattern standardization          |
 | **Pattern Discovery**   | `speed-editor` → analysis agents                       | `go-editor`, `refactoring-expert`                                               | Code scanning, hardcoded values, anti-patterns  |
+| **Config Management**   | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs  |
 
 **Agent Launch Rules:**
 - **Always parallel**: Launch required agents simultaneously in single message
@@ -292,6 +347,7 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | **ui-editor** | `go-editor`, `test-editor` | Controller changes | `go-editor`, `test-editor`, `speed-editor` |
 | **test-editor** | `refactoring-expert` | `go-editor`, `ui-editor` | `go-editor`, `ui-editor` |
 | **speed-editor** | Other agents (bulk work) | Task specifications | `go-editor`, `ui-editor` |
+| **config-manager** | Agent coordination, documentation | Project requirements | None (configuration coordination) |
 | **refactoring-expert** | Final output | All other agents | None (final review) |
 
 ### Single Agent Exceptions
@@ -346,6 +402,9 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | "Standardize import patterns"               | `speed-editor` && `refactoring-expert`                                                            |
 | "Find hardcoded strings for enum constants" | `speed-editor` && `go-editor` && `refactoring-expert`                                             |
 | "Scan for duplicate code patterns"          | `speed-editor` && `go-editor` && `refactoring-expert`                                             |
+| "Update CLAUDE.md with new agent"           | `config-manager`                                                                                  |
+| "Fix environment configuration issues"      | `config-manager`                                                                                  |
+| "Add new documentation section"             | `config-manager`                                                                                  |
 | "Deploy to staging"                         | `railway-ops`                                                                                     |
 
 **Agent Execution Syntax:**

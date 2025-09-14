@@ -1,0 +1,156 @@
+package components
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type AttachmentUploadProps struct {
+	Label       string
+	Placeholder string
+	Name        string
+	Form        string
+	Attachments []*coreviewmodels.Upload
+	Error       string
+	Class       string
+}
+
+// AttachmentUpload renders a file upload section for attachments
+templ AttachmentUpload(props *AttachmentUploadProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class={ "space-y-3", props.Class }>
+		<h3 class="text-lg font-medium">
+			{ props.Label }
+		</h3>
+		@components.UploadInput(&components.UploadInputProps{
+			Label:       pageCtx.T("Finance.Attachments.ChooseFiles"),
+			Placeholder: props.Placeholder,
+			Name:        props.Name,
+			Form:        props.Form,
+			Multiple:    true,
+			Accept:      "*/*",
+			Uploads:     props.Attachments,
+			Error:       props.Error,
+		})
+	</div>
+}
+
+type AttachmentListProps struct {
+	Attachments    []*coreviewmodels.Upload
+	Title          string
+	ShowDelete     bool
+	DeleteEndpoint string // Base endpoint for delete operations (e.g. "/finance/payments/123/attachments")
+	Class          string
+}
+
+// AttachmentList displays a list of file attachments with download and optional delete functionality
+templ AttachmentList(props *AttachmentListProps) {
+	if len(props.Attachments) > 0 {
+		@card.Card(card.Props{
+			Class:        props.Class,
+			WrapperClass: "space-y-3",
+		}) {
+			if props.Title != "" {
+				<h3 class="text-lg font-medium">
+					{ props.Title }
+				</h3>
+			}
+			<div class="space-y-2">
+				for _, attachment := range props.Attachments {
+					@AttachmentItem(&AttachmentItemProps{
+						Upload:         attachment,
+						ShowDelete:     props.ShowDelete,
+						DeleteEndpoint: fmt.Sprintf("%s/%s", props.DeleteEndpoint, attachment.ID),
+					})
+				}
+			</div>
+		}
+	}
+}
+
+type AttachmentItemProps struct {
+	Upload         *coreviewmodels.Upload
+	ShowDelete     bool
+	DeleteEndpoint string
+}
+
+// AttachmentItem renders a single attachment item with download and optional delete
+templ AttachmentItem(props *AttachmentItemProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex items-center justify-between p-3 border border-secondary rounded-md bg-surface-500">
+		<div class="flex items-center space-x-3">
+			<div class="flex-shrink-0">
+				@AttachmentIcon(props.Upload.Mimetype)
+			</div>
+			<div class="min-w-0 flex-1">
+				<div class="flex items-center space-x-2">
+					<a
+						href={ templ.URL(props.Upload.URL) }
+						target="_blank"
+						rel="noopener noreferrer"
+						class="text-primary-500 hover:text-primary-600 font-medium truncate"
+					>
+						{ getFileName(props.Upload.Slug) }
+					</a>
+					@icons.ArrowSquareOut(icons.Props{Size: "16", Class: "text-300"})
+				</div>
+				<p class="text-sm text-300">
+					{ props.Upload.Size }
+				</p>
+			</div>
+		</div>
+		if props.ShowDelete && props.DeleteEndpoint != "" {
+			<div class="flex-shrink-0">
+				@button.Danger(button.Props{
+					Size:  button.SizeXS,
+					Fixed: true,
+					Attrs: templ.Attributes{
+						"hx-delete":     props.DeleteEndpoint,
+						"hx-target":     "closest .attachment-list",
+						"hx-swap":       "outerHTML",
+						"hx-confirm":    pageCtx.T("Finance.Attachments.DeleteConfirmation"),
+						"hx-indicator":  ".htmx-indicator",
+						"x-tooltip.raw": pageCtx.T("Finance.Attachments.DeleteFile"),
+					},
+				}) {
+					@icons.Trash(icons.Props{Size: "14"})
+				}
+			</div>
+		}
+	</div>
+}
+
+// AttachmentIcon returns appropriate icon based on file mimetype
+templ AttachmentIcon(mimetype string) {
+	switch  {
+		case contains(mimetype, "image/"):
+			@icons.Image(icons.Props{Size: "20", Class: "text-green-500"})
+		case contains(mimetype, "application/pdf"):
+			@icons.FilePdf(icons.Props{Size: "20", Class: "text-red-500"})
+		case contains(mimetype, "application/vnd.ms-excel") || contains(mimetype, "application/vnd.openxmlformats-officedocument.spreadsheetml"):
+			@icons.FileXls(icons.Props{Size: "20", Class: "text-green-600"})
+		case contains(mimetype, "application/msword") || contains(mimetype, "application/vnd.openxmlformats-officedocument.wordprocessingml"):
+			@icons.FileDoc(icons.Props{Size: "20", Class: "text-blue-600"})
+		case contains(mimetype, "text/"):
+			@icons.FileText(icons.Props{Size: "20", Class: "text-300"})
+		default:
+			@icons.File(icons.Props{Size: "20", Class: "text-300"})
+	}
+}
+
+// Helper functions (to be moved to utility package if needed)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && s[:len(substr)] == substr
+}
+
+func getFileName(slug string) string {
+	if slug == "" {
+		return "Unnamed file"
+	}
+	return slug
+}

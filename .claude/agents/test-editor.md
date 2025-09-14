@@ -779,13 +779,226 @@ func setupDatabaseTest(t *testing.T) *itf.DatabaseManager {
 - **New features**: Write tests first (TDD) → cover all requirements → test errors/edge cases
 
 ## Test Execution Commands
+
+### Unit Testing (ITF Framework)
 - **Quick test run**: `make test` - Runs all tests (default, use 10-minute timeout for full suite)
 - **Show only failures**: `make test failures` - Shows only failing tests in JSON format (use 10-minute timeout)
 - **Coverage analysis**: `make test coverage` - Runs tests with simple coverage report (creates coverage.out, use 10-minute timeout)
 - **Detailed coverage**: `make test detailed-coverage` - Comprehensive coverage analysis with insights & recommendations (use 10-minute timeout)
 - **Verbose output**: `make test verbose` - Show detailed test execution (use 10-minute timeout)
 - **Package tests**: `make test package ./modules/logistics/...` - Test specific module
-- **Single test**: `go test -run TestName ./path/to/package` - Run specific test by name
+- **Single test**: `go test -v ./path/to/package -run TestSpecificName` - Run specific test by name with verbose output
+
+### E2E Testing (Cypress Framework)
+**Note**: E2E testing requires a separate dev server to be running on port 3201 connected to the e2e database. This server management is the developer's responsibility, not the test-editor agent's.
+
+- **Setup and run E2E tests**: `make e2e test` - Set up database and run all e2e tests
+- **Run all E2E tests**: `make e2e test` or `cd e2e && npm run test` - Execute full E2E test suite
+- **Interactive testing**: `make e2e run` or `cd e2e && npm run cy:open` - Open Cypress interactive mode
+- **Headed testing**: `cd e2e && npm run test:headed` - Run tests with browser visible
+- **Module-specific tests**: `cd e2e && npm run test:payments` - Run specific module tests
+- **Individual E2E test**: `cd e2e && npm run cy:run --spec "cypress/e2e/module/specific-test.cy.js"` - Run specific test file
+- **Database management**:
+  - `make e2e reset` - Drop and recreate e2e database with fresh data
+  - `make e2e seed` - Seed e2e database with test data
+  - `make e2e migrate` - Run migrations on e2e database
+  - `make e2e clean` - Drop e2e database
+
+## E2E Testing with Cypress
+
+### Overview
+End-to-end testing validates complete user workflows using Cypress framework, complementing ITF unit tests by testing full application integration including UI, controllers, services, and database interactions.
+
+**Key Characteristics:**
+- **Separate environment**: Uses `iota_erp_e2e` database (isolated from dev `iota_erp`)
+- **Different port**: E2E server runs on port 3201 (vs 3200 for development)
+- **Browser-based**: Tests real user interactions in actual browser environment
+- **Full-stack validation**: Tests complete request/response cycles with UI interactions
+
+### E2E vs Unit Test Decision Matrix
+
+| Scenario | Use E2E Tests | Use ITF Unit Tests |
+|----------|---------------|-------------------|
+| **User workflows** | ✅ Login, form submissions, multi-step processes | ❌ Too complex for unit level |
+| **UI interactions** | ✅ Button clicks, form validation, HTMX updates | ❌ No browser context |
+| **Cross-layer integration** | ✅ Controller → Service → Repository → DB | ✅ Can mock layers |
+| **Business logic** | ❌ Slow, brittle for logic testing | ✅ Fast, isolated testing |
+| **Edge cases** | ❌ Setup overhead too high | ✅ Easy to create specific scenarios |
+| **Regression testing** | ✅ Critical user paths | ✅ Specific bug scenarios |
+| **Performance testing** | ❌ Inconsistent timing | ✅ Controlled environment |
+| **Authentication flows** | ✅ Full session management | ✅ Token validation logic |
+
+### E2E Test Environment Setup
+
+**Database Isolation:**
+```bash
+# E2E tests use completely separate database
+DB_NAME=iota_erp_e2e    # vs iota_erp for dev
+SERVER_PORT=3201        # vs 3200 for dev
+```
+
+**Environment Files:**
+- **Configuration**: `/e2e/.env.e2e` - E2E-specific environment variables
+- **Cypress config**: `/e2e/cypress.config.js` - Test runner configuration with database tasks
+- **NPM config**: `/e2e/package.json` - Test scripts and dependencies
+
+### E2E Test Structure
+
+```
+e2e/
+├── cypress/
+│   ├── e2e/{module}/                    # Tests organized by business module
+│   │   ├── payments/edit-with-attachments.cy.js
+│   │   ├── employees/employees.cy.js
+│   │   └── users/register.cy.js
+│   ├── support/
+│   │   ├── commands.js                  # Custom Cypress commands (login, logout)
+│   │   └── e2e.js                      # Global test configuration
+│   └── fixtures/                       # Test data files
+├── .env.e2e                            # E2E environment configuration
+├── cypress.config.js                   # Cypress test runner config
+└── package.json                        # E2E test scripts and dependencies
+```
+
+### E2E Testing Patterns
+
+#### Database Management Pattern
+```javascript
+describe("Feature Tests", () => {
+  before(() => {
+    // Reset database to clean state before test suite
+    cy.task("resetDatabase");    // Truncates all tables
+    cy.task("seedDatabase");     // Seeds with fresh test data
+  });
+
+  beforeEach(() => {
+    cy.viewport(1280, 720);      // Consistent viewport
+  });
+
+  afterEach(() => {
+    cy.logout();                 // Clean session state
+  });
+});
+```
+
+#### Authentication Pattern
+```javascript
+// Custom command: cy.login(email, password)
+cy.login("test@gmail.com", "TestPass123!");
+
+// Session-based authentication with caching
+Cypress.Commands.add("login", (email, password) => {
+  cy.session([email, password], () => {
+    cy.visit("http://localhost:3201/login");
+    cy.get("[type=email]").type(email);
+    cy.get("[type=password]").type(password);
+    cy.get("[type=submit]").click();
+    cy.url().should("not.include", "/login");
+  });
+});
+```
+
+#### Form Testing with File Uploads
+```javascript
+// File upload testing with attachment workflows
+const fileName = "test-receipt.txt";
+const fileContent = "Test file content";
+
+cy.get('input[type="file"]').selectFile({
+  contents: Cypress.Buffer.from(fileContent),
+  fileName: fileName,
+  mimeType: "text/plain",
+}, { force: true });
+
+// Wait for upload processing
+cy.get('input[type="hidden"][name="Attachments"]', { timeout: 10000 })
+  .should("exist");
+```
+
+#### HTMX-Specific E2E Patterns
+```javascript
+// Test HTMX form submissions and partial page updates
+cy.get("#htmx-form").submit();
+cy.get("#target-element").should("contain", "Updated content");
+
+// Test HTMX triggers and swaps
+cy.get("[hx-trigger='click']").click();
+cy.get("[hx-swap='outerHTML']").should("be.visible");
+```
+
+### E2E Test Development Workflow
+
+#### 1. Environment Setup
+```bash
+# One-time setup: create e2e database and seed data
+make e2e test
+
+# Note: E2E server needs to be started separately by developer
+# The test-editor agent does not manage server startup
+```
+
+#### 2. Writing E2E Tests
+```bash
+# Open interactive Cypress for test development
+make e2e run
+
+# Write tests in /e2e/cypress/e2e/{module}/
+# Use existing patterns from payments/edit-with-attachments.cy.js
+
+# Run individual test during development
+cd e2e && npm run cy:run --spec "cypress/e2e/module/specific-test.cy.js"
+```
+
+#### 3. Running E2E Tests
+```bash
+# Run all E2E tests headless
+make e2e test
+
+# Run with browser visible for debugging
+cd e2e && npm run test:headed
+
+# Run specific module tests
+cd e2e && npm run test:payments
+```
+
+#### 4. E2E Test Maintenance
+```bash
+# Reset database when test data becomes inconsistent
+make e2e reset
+
+# Re-seed database with fresh test data
+make e2e seed
+
+# Clean up (drop e2e database)
+make e2e clean
+```
+
+### E2E Testing Best Practices
+
+#### When to Create E2E Tests
+- ✅ **Critical user journeys**: Login, checkout, data entry workflows
+- ✅ **Integration points**: Payment processing, file uploads, external APIs
+- ✅ **Complex UI interactions**: Multi-step forms, dynamic content, HTMX
+- ✅ **Regression protection**: Previously broken user workflows
+- ❌ **Unit-testable logic**: Business rules, validation, calculations
+- ❌ **Error handling**: Exception scenarios (better in unit tests)
+
+#### E2E Test Characteristics
+- **Slow but comprehensive**: Test complete user workflows
+- **Brittle but realistic**: Tests real browser/server interactions
+- **Expensive to maintain**: UI changes break tests frequently
+- **High confidence**: Validates actual user experience
+
+#### Integration with ITF Unit Tests
+E2E tests complement ITF unit tests by providing:
+1. **Workflow validation**: End-to-end user scenarios
+2. **Integration validation**: Cross-layer communication
+3. **UI validation**: Browser-specific behavior
+4. **Deployment validation**: Production-like environment testing
+
+Use both test types for comprehensive coverage:
+- **ITF unit tests**: Fast feedback, specific logic, edge cases
+- **E2E tests**: User confidence, integration validation, critical paths
 
 ## Critical Lessons Learned from Production Testing
 

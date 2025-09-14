@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -91,8 +92,29 @@ templ EditForm(props *EditPageProps) {
 				},
 				WrapperClass: "col-span-3",
 			})
+			@components.AttachmentUpload(&components.AttachmentUploadProps{
+				Label:       pageCtx.T("Finance.Attachments.AddFiles"),
+				Placeholder: pageCtx.T("Finance.Attachments.SupportedFormats"),
+				Name:        "Attachments",
+				Form:        "save-form",
+				Attachments: []*coreviewmodels.Upload{}, // Empty for new uploads
+				Error:       props.Errors["Attachments"],
+				Class:       "col-span-3",
+			})
 		}
-		<div x-data class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+		if len(props.Payment.Attachments) > 0 {
+			<div class="m-6 mt-0">
+				<div class="attachment-list">
+					@components.AttachmentList(&components.AttachmentListProps{
+						Attachments:    props.Payment.Attachments,
+						Title:          pageCtx.T("Finance.Attachments.ExistingFiles"),
+						ShowDelete:     true,
+						DeleteEndpoint: fmt.Sprintf("/finance/payments/%s/attachments", props.Payment.ID),
+					})
+				</div>
+			</div>
+		}
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="delete-form"
 				hx-delete={ fmt.Sprintf("/finance/payments/%s", props.Payment.ID) }
