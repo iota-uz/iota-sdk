@@ -1,10 +1,8 @@
-package main
+package commands
 
 import (
 	"context"
-	"log"
-	"os"
-	"runtime/debug"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,35 +21,28 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func pgxPool() *pgxpool.Pool {
+func pgxPoolForSeed() (*pgxpool.Pool, error) {
 	conf := configuration.Use()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	pool, err := pgxpool.New(ctx, conf.Database.Opts)
 	if err != nil {
-		panicWithStack(err)
+		return nil, err
 	}
-	return pool
+	return pool, nil
 }
 
-func panicWithStack(err error) {
-	errorWithStack := string(debug.Stack()) + "\n\nError: " + err.Error()
-	panic(errorWithStack)
-}
-
-func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			configuration.Use().Unload()
-			log.Println(r)
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
+// SeedDatabase seeds the main database with initial data
+func SeedDatabase(mods ...application.Module) error {
 	conf := configuration.Use()
 	ctx := context.Background()
-	pool := pgxPool()
+
+	pool, err := pgxPoolForSeed()
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer pool.Close()
+
 	bundle := application.LoadBundle()
 	app := application.New(&application.ApplicationOptions{
 		Pool:     pool,
@@ -59,15 +50,21 @@ func main() {
 		EventBus: eventbus.NewEventPublisher(conf.Logger()),
 		Logger:   conf.Logger(),
 	})
-	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
-		panicWithStack(err)
+
+	if err := modules.Load(app, mods...); err != nil {
+		return fmt.Errorf("failed to load modules: %w", err)
 	}
+
 	app.RegisterNavItems(modules.NavLinks...)
+
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		panicWithStack(err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
 	seeder := application.NewSeeder()
+
+	// Create test user
 	usr, err := user.New(
 		"Test",
 		"User",
@@ -75,7 +72,7 @@ func main() {
 		user.UILanguageEN,
 	).SetPassword("TestPass123!")
 	if err != nil {
-		panicWithStack(err)
+		return fmt.Errorf("failed to create test user: %w", err)
 	}
 
 	// Add default tenant to context
@@ -114,9 +111,16 @@ func main() {
 	)
 
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		panicWithStack(err)
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
+		}
+		return fmt.Errorf("failed to seed database: %w", err)
 	}
+
 	if err := tx.Commit(ctxWithTenant); err != nil {
-		panicWithStack(err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	fmt.Println("✅ Database seeded successfully!")
+	return nil
 }

@@ -126,3 +126,16 @@ func handleMigrationCommands(
 
 	return nil
 }
+
+// MigrateWithSubcommand runs migration with a specific subcommand
+// This is a wrapper for the unified command tool
+func MigrateWithSubcommand(subcommand string, mods ...application.Module) error {
+	// Temporarily modify os.Args to match the expected format
+	originalArgs := os.Args
+	defer func() { os.Args = originalArgs }()
+
+	// Set os.Args to simulate direct migrate command call
+	os.Args = []string{"migrate", subcommand}
+
+	return Migrate(mods...)
+}
