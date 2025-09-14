@@ -79,7 +79,9 @@ func E2ECreate() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to postgres database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer func() {
+		_ = conn.Close(ctx)
+	}()
 
 	// Drop existing e2e database if exists
 	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2E_DB_NAME))
@@ -93,7 +95,7 @@ func E2ECreate() error {
 		return fmt.Errorf("failed to create e2e database: %w", err)
 	}
 
-	fmt.Printf("✅ Created e2e database: %s\n", E2E_DB_NAME)
+	conf.Logger().Info(" Created e2e database: %s\n", E2E_DB_NAME)
 	return nil
 }
 
@@ -109,7 +111,9 @@ func E2EDrop() error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to postgres database: %w", err)
 	}
-	defer conn.Close(ctx)
+	defer func() {
+		_ = conn.Close(ctx)
+	}()
 
 	// Drop e2e database
 	_, err = conn.Exec(ctx, fmt.Sprintf("DROP DATABASE IF EXISTS %s", E2E_DB_NAME))
@@ -117,7 +121,7 @@ func E2EDrop() error {
 		return fmt.Errorf("failed to drop e2e database: %w", err)
 	}
 
-	fmt.Printf("✅ Dropped e2e database: %s\n", E2E_DB_NAME)
+	conf.Logger().Info(" Dropped e2e database: %s\n", E2E_DB_NAME)
 	return nil
 }
 
@@ -146,7 +150,7 @@ func E2EMigrate() error {
 	}
 
 	// Set environment variable for e2e database
-	os.Setenv("DB_NAME", E2E_DB_NAME)
+	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
 
 	// Run migrations using the existing migrate command
 	conf := configuration.Use()
@@ -179,13 +183,13 @@ func E2EMigrate() error {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	fmt.Printf("✅ Applied migrations to e2e database\n")
+	conf.Logger().Info(" Applied migrations to e2e database\n")
 	return nil
 }
 
 func E2ESeed() error {
 	// Set environment variable for e2e database
-	os.Setenv("DB_NAME", E2E_DB_NAME)
+	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
 
 	conf := configuration.Use()
 	ctx := context.Background()
@@ -271,7 +275,7 @@ func E2ESeed() error {
 		return err
 	}
 
-	fmt.Printf("✅ Seeded e2e database with test data\n")
+	conf.Logger().Info(" Seeded e2e database with test data\n")
 	return nil
 }
 
