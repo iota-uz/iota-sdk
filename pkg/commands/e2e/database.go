@@ -127,12 +127,31 @@ func Setup() error {
 	conf := configuration.Use()
 	conf.Logger().Info("Setting up e2e database...")
 
-	if err := Create(); err != nil {
-		return err
+	// Check if database exists first
+	exists, err := DatabaseExists()
+	if err != nil {
+		return fmt.Errorf("failed to check if database exists: %w", err)
 	}
-	if err := Migrate(); err != nil {
-		return err
+
+	if exists {
+		conf.Logger().Info("E2E database exists, clearing data instead of recreating...")
+		// Database exists, just clear the data to avoid connection conflicts
+		if err := TruncateAllTables(); err != nil {
+			return fmt.Errorf("failed to truncate tables: %w", err)
+		}
+	} else {
+		conf.Logger().Info("E2E database does not exist, creating fresh database...")
+		// Database doesn't exist, create it
+		if err := Create(); err != nil {
+			return err
+		}
+		// Apply migrations for new database
+		if err := Migrate(); err != nil {
+			return err
+		}
 	}
+
+	// Always seed with fresh test data
 	if err := Seed(); err != nil {
 		return err
 	}
@@ -157,5 +176,91 @@ func Reset() error {
 	}
 
 	conf.Logger().Info("E2E database reset complete!")
+	return nil
+}
+
+// DatabaseExists checks if the e2e database exists
+func DatabaseExists() (bool, error) {
+	ctx := context.Background()
+	conf := configuration.Use()
+
+	// Connect directly to postgres database
+	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
+		conf.Database.Host, conf.Database.Port, conf.Database.User, conf.Database.Password)
+
+	conn, err := pgx.Connect(ctx, connString)
+	if err != nil {
+		return false, fmt.Errorf("failed to connect to postgres database: %w", err)
+	}
+	defer func() {
+		_ = conn.Close(ctx)
+	}()
+
+	// Check if database exists
+	var exists bool
+	query := "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
+	err = conn.QueryRow(ctx, query, E2E_DB_NAME).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if database exists: %w", err)
+	}
+
+	return exists, nil
+}
+
+// TruncateAllTables clears all data from the e2e database while preserving connections
+func TruncateAllTables() error {
+	ctx := context.Background()
+	conf := configuration.Use()
+
+	// Set environment variable for e2e database
+	_ = os.Setenv("DB_NAME", E2E_DB_NAME)
+
+	pool, err := GetE2EPool()
+	if err != nil {
+		return fmt.Errorf("failed to connect to e2e database: %w", err)
+	}
+	defer pool.Close()
+
+	// Get all table names
+	query := `
+		SELECT tablename
+		FROM pg_tables
+		WHERE schemaname = 'public'
+		AND tablename NOT LIKE 'schema_migrations%'
+		ORDER BY tablename
+	`
+
+	rows, err := pool.Query(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to get table names: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			return fmt.Errorf("failed to scan table name: %w", err)
+		}
+		tables = append(tables, tableName)
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating table names: %w", err)
+	}
+
+	// Truncate all tables with CASCADE to handle foreign keys
+	if len(tables) > 0 {
+		for _, table := range tables {
+			truncateQuery := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", table)
+			if _, err := pool.Exec(ctx, truncateQuery); err != nil {
+				return fmt.Errorf("failed to truncate table %s: %w", table, err)
+			}
+		}
+		conf.Logger().Info("Truncated all tables in e2e database", "count", len(tables))
+	} else {
+		conf.Logger().Info("No tables found to truncate in e2e database")
+	}
+
 	return nil
 }
