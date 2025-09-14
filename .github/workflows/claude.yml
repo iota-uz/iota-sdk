@@ -46,7 +46,7 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           base_branch: staging
-          custom_instructions: "ALWAYS run `make fmt`, `make lint`, `make generate` before pushing code"
+          custom_instructions: "ALWAYS run `make check fmt`, `make check lint`, `make generate` before pushing code"
           allowed_tools: |
             Bash(templ:*)
             Bash(go:*)
