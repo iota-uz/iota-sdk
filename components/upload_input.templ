@@ -45,8 +45,14 @@ templ UploadTarget(p *UploadInputProps) {
 			}
 		}
 	</div>
-	if len(p.Uploads) > 0 {
-		<input type="hidden" name={ p.Name } value={ p.Uploads[0].ID }/>
+	if p.Multiple {
+		for _, upload := range p.Uploads {
+			<input type="hidden" name={ p.Name } value={ upload.ID }/>
+		}
+	} else {
+		if len(p.Uploads) > 0 {
+			<input type="hidden" name={ p.Name } value={ p.Uploads[0].ID }/>
+		}
 	}
 }
 
