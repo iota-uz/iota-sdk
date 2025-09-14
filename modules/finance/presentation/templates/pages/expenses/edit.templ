@@ -9,6 +9,8 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/modules/finance/presentation/templates/components"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"net/url"
@@ -81,6 +83,27 @@ templ EditForm(props *EditPageProps) {
 				WrapperClass: "col-span-3",
 				Error:        props.Errors["Comment"],
 			})
+			@components.AttachmentUpload(&components.AttachmentUploadProps{
+				Label:       pageCtx.T("Finance.Attachments.AddFiles"),
+				Placeholder: pageCtx.T("Finance.Attachments.SupportedFormats"),
+				Name:        "Attachments",
+				Form:        "save-form",
+				Attachments: []*coreviewmodels.Upload{}, // Empty for new uploads
+				Error:       props.Errors["Attachments"],
+				Class:       "col-span-3",
+			})
+		}
+		if len(props.Expense.Attachments) > 0 {
+			<div class="m-6 mt-0">
+				<div class="attachment-list">
+					@components.AttachmentList(&components.AttachmentListProps{
+						Attachments:    props.Expense.Attachments,
+						Title:          pageCtx.T("Finance.Attachments.ExistingFiles"),
+						ShowDelete:     true,
+						DeleteEndpoint: fmt.Sprintf("/finance/expenses/%s/attachments", props.Expense.ID),
+					})
+				</div>
+			</div>
 		}
 		<div
 			x-data

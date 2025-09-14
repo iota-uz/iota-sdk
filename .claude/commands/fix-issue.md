@@ -63,7 +63,9 @@ I'll move the issue to "In Progress" status in the SHY ELD GitHub Project:
 ### 5. Testing & Validation
 - Run all relevant tests: `go test -v ./path/to/modified/package`
 - Run specific test: `go test -v ./path/to/package -run TestName`
-- For translations: `make check-tr`
+- Run linting: `make check lint`
+- Format code: `make check fmt`
+- For translations: `make check tr`
 - Ensure 100% of tests pass
 - Add integration tests if needed
 

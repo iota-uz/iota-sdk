@@ -1,11 +1,8 @@
-package main
+package commands
 
 import (
 	"context"
-	"log"
-	"os"
-	"runtime/debug"
-	"time"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -15,59 +12,33 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/website/domain/entities/aichatconfig"
 	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func pgxPool() *pgxpool.Pool {
-	conf := configuration.Use()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	pool, err := pgxpool.New(ctx, conf.Database.Opts)
-	if err != nil {
-		panicWithStack(err)
-	}
-	return pool
-}
-
-func panicWithStack(err error) {
-	errorWithStack := string(debug.Stack()) + "\n\nError: " + err.Error()
-	panic(errorWithStack)
-}
-
-func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			configuration.Use().Unload()
-			log.Println(r)
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
+// SeedDatabase seeds the main database with initial data
+func SeedDatabase(mods ...application.Module) error {
 	conf := configuration.Use()
 	ctx := context.Background()
-	pool := pgxPool()
-	bundle := application.LoadBundle()
-	app := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
-	})
-	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
-		panicWithStack(err)
+
+	app, pool, err := common.NewApplicationWithDefaults(mods...)
+	if err != nil {
+		return fmt.Errorf("failed to initialize application: %w", err)
 	}
+	defer pool.Close()
+
 	app.RegisterNavItems(modules.NavLinks...)
+
 	tx, err := pool.Begin(ctx)
 	if err != nil {
-		panicWithStack(err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
+
 	seeder := application.NewSeeder()
+
+	// Create test user
 	usr, err := user.New(
 		"Test",
 		"User",
@@ -75,7 +46,7 @@ func main() {
 		user.UILanguageEN,
 	).SetPassword("TestPass123!")
 	if err != nil {
-		panicWithStack(err)
+		return fmt.Errorf("failed to create test user: %w", err)
 	}
 
 	// Add default tenant to context
@@ -114,9 +85,16 @@ func main() {
 	)
 
 	if err := seeder.Seed(ctxWithTenant, app); err != nil {
-		panicWithStack(err)
+		if rollbackErr := tx.Rollback(ctx); rollbackErr != nil {
+			return fmt.Errorf("rollback failed: %w (original error: %w)", rollbackErr, err)
+		}
+		return fmt.Errorf("failed to seed database: %w", err)
 	}
+
 	if err := tx.Commit(ctxWithTenant); err != nil {
-		panicWithStack(err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	conf.Logger().Info("Database seeded successfully!")
+	return nil
 }

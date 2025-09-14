@@ -2,29 +2,35 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/payment"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type PaymentService struct {
 	repo           payment.Repository
 	publisher      eventbus.EventBus
 	accountService *MoneyAccountService
+	uploadRepo     upload.Repository
 }
 
 func NewPaymentService(
 	repo payment.Repository,
 	publisher eventbus.EventBus,
 	accountService *MoneyAccountService,
+	uploadRepo upload.Repository,
 ) *PaymentService {
 	return &PaymentService{
 		repo:           repo,
 		publisher:      publisher,
 		accountService: accountService,
+		uploadRepo:     uploadRepo,
 	}
 }
 
@@ -138,4 +144,68 @@ func (s *PaymentService) Delete(ctx context.Context, id uuid.UUID) (payment.Paym
 
 func (s *PaymentService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
+}
+
+// AttachFileToPayment attaches an upload to a payment
+func (s *PaymentService) AttachFileToPayment(ctx context.Context, paymentID uuid.UUID, uploadID uint) error {
+	if err := composables.CanUser(ctx, permissions.PaymentUpdate); err != nil {
+		return err
+	}
+
+	// Validate payment exists and user has access
+	_, err := s.repo.GetByID(ctx, paymentID)
+	if err != nil {
+		return fmt.Errorf("failed to find payment: %w", err)
+	}
+
+	// Validate upload exists and belongs to same tenant
+	upload, err := s.uploadRepo.GetByID(ctx, uploadID)
+	if err != nil {
+		return fmt.Errorf("failed to find upload: %w", err)
+	}
+
+	// Check tenant isolation
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant ID: %w", err)
+	}
+	if upload.TenantID() != tenantID {
+		return serrors.NewError("TENANT_MISMATCH", "upload does not belong to this tenant", "upload.tenant_mismatch")
+	}
+
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.AttachFile(txCtx, paymentID, uploadID)
+	})
+}
+
+// DetachFileFromPayment detaches an upload from a payment
+func (s *PaymentService) DetachFileFromPayment(ctx context.Context, paymentID uuid.UUID, uploadID uint) error {
+	if err := composables.CanUser(ctx, permissions.PaymentUpdate); err != nil {
+		return err
+	}
+
+	// Validate payment exists and user has access
+	_, err := s.repo.GetByID(ctx, paymentID)
+	if err != nil {
+		return fmt.Errorf("failed to find payment: %w", err)
+	}
+
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.DetachFile(txCtx, paymentID, uploadID)
+	})
+}
+
+// GetPaymentAttachments returns all upload IDs attached to a payment
+func (s *PaymentService) GetPaymentAttachments(ctx context.Context, paymentID uuid.UUID) ([]uint, error) {
+	if err := composables.CanUser(ctx, permissions.PaymentRead); err != nil {
+		return nil, err
+	}
+
+	// Validate payment exists and user has access
+	_, err := s.repo.GetByID(ctx, paymentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find payment: %w", err)
+	}
+
+	return s.repo.GetAttachments(ctx, paymentID)
 }

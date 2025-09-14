@@ -40,4 +40,10 @@ type Payment interface {
 	User() user.User
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
+
+	// Attachment methods
+	GetAttachments() []uint
+	HasAttachment(uploadID uint) bool
+	AttachFile(uploadID uint) (Payment, error)
+	DetachFile(uploadID uint) (Payment, error)
 }

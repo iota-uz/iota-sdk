@@ -45,8 +45,14 @@ templ UploadTarget(p *UploadInputProps) {
 			}
 		}
 	</div>
-	if len(p.Uploads) > 0 {
-		<input type="hidden" name={ p.Name } value={ p.Uploads[0].ID }/>
+	if p.Multiple {
+		for _, upload := range p.Uploads {
+			<input type="hidden" name={ p.Name } value={ upload.ID } form={ p.Form }/>
+		}
+	} else {
+		if len(p.Uploads) > 0 {
+			<input type="hidden" name={ p.Name } value={ p.Uploads[0].ID } form={ p.Form }/>
+		}
 	}
 }
 
@@ -63,7 +69,7 @@ templ (p *UploadInputProps) render() {
 					hx-target={ fmt.Sprintf("#target-%s", p.ID) }
 					hx-post="/uploads"
 					hx-encoding="multipart/form-data"
-					hx-vals={ fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s"}`, p.ID, p.Form, p.Name) }
+					hx-vals={ fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s", "_multiple": "%t"}`, p.ID, p.Form, p.Name, p.Multiple) }
 					name="file"
 					multiple?={ p.Multiple }
 					hx-on::after-request="this.value = ''"

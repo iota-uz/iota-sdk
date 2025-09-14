@@ -89,11 +89,17 @@ templ CreateForm(props *CreatePageProps) {
 				},
 				WrapperClass: "col-span-3",
 			})
+			@components.AttachmentUpload(&components.AttachmentUploadProps{
+				Label:       pageCtx.T("Finance.Attachments.Title"),
+				Placeholder: pageCtx.T("Finance.Attachments.SupportedFormats"),
+				Name:        "Attachments",
+				Form:        "save-form",
+				Attachments: props.Payment.Attachments,
+				Error:       props.Errors["Attachments"],
+				Class:       "col-span-3",
+			})
 		}
-		<div
-			x-data
-			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
-		>
+		<div class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			<form
 				id="save-form"
 				method="post"

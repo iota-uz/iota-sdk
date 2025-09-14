@@ -22,5 +22,7 @@ services:
 
 volumes:
   sdk-data:
+    name: sdk-data
   sdk-redis:
+    name: sdk-redis
 
