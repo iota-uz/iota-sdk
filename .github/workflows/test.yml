@@ -100,7 +100,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: iota_erp_e2e
+          POSTGRES_DB: iota_erp
           POSTGRES_INITDB_ARGS: "-c max_connections=1000 -c shared_buffers=2GB \
                                  -c effective_cache_size=6GB -c maintenance_work_mem=512MB \
                                  -c work_mem=32MB -c fsync=off -c synchronous_commit=off \
@@ -122,7 +122,7 @@ jobs:
                                  -c enable_partitionwise_join=on -c enable_partitionwise_aggregate=on"
         options: >-
           --tmpfs /var/lib/postgresql/data:rw,size=6g,noatime
-          --health-cmd="pg_isready -U postgres -d iota_erp_e2e"
+          --health-cmd="pg_isready -U postgres -d iota_erp"
           --health-interval=5s --health-timeout=5s --health-retries=5
       redis:
         image: redis:latest
@@ -159,6 +159,12 @@ jobs:
         run: make css
 
       - name: Test Makefile targets
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
         run: |
           make db migrate up
           make db migrate up
@@ -166,6 +172,12 @@ jobs:
           make db seed
 
       - name: Run tests with coverage
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
         run: go test -v ./... -coverprofile=coverage.out -covermode=atomic
 
       - name: Generate coverage report
