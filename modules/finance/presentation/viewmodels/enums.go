@@ -103,6 +103,10 @@ func CounterpartyTypeFromDomain(domainType counterparty.Type) CounterpartyType {
 	return CounterpartyType(domainType)
 }
 
+func CounterpartyTypeFromString(typeStr string) CounterpartyType {
+	return CounterpartyType(typeStr)
+}
+
 func (l CounterpartyLegalType) String() string {
 	return string(l)
 }
@@ -118,4 +122,8 @@ func (l CounterpartyLegalType) ToDomain() counterparty.LegalType {
 
 func CounterpartyLegalTypeFromDomain(domainType counterparty.LegalType) CounterpartyLegalType {
 	return CounterpartyLegalType(domainType)
+}
+
+func CounterpartyLegalTypeFromString(typeStr string) CounterpartyLegalType {
+	return CounterpartyLegalType(typeStr)
 }

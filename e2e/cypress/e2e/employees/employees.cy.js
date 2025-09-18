@@ -17,8 +17,8 @@ describe("employees CRUD operations", () => {
 	it("displays employees list page", () => {
 		cy.login("test@gmail.com", "TestPass123!");
 
-		cy.visit("http://localhost:3200/hrm/employees");
-		cy.url().should("eq", "http://localhost:3200/hrm/employees");
+		cy.visit("/hrm/employees");
+		cy.url().should("eq", Cypress.config().baseUrl + "/hrm/employees");
 
 		// Check page title and main elements
 		cy.get("h1").should("contain.text", "Employees");

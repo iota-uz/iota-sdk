@@ -567,6 +567,28 @@
       "Title": "Детали долгов"
     }
   },
+  "Attachments": {
+    "Title": "Вложения",
+    "AddFiles": "Добавить файлы",
+    "ChooseFiles": "Выбрать файлы",
+    "SupportedFormats": "Поддерживаемые форматы: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX",
+    "ExistingFiles": "Существующие файлы",
+    "AttachedFiles": "Прикрепленные файлы",
+    "DeleteConfirmation": "Вы уверены, что хотите удалить это вложение?",
+    "DeleteFile": "Удалить файл"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "Финансовые документы",
+      "AddFiles": "Добавить документы",
+      "ChooseFiles": "Выбрать документы",
+      "SupportedFormats": "Загрузите чеки, счета, договоры и другие финансовые документы",
+      "ExistingFiles": "Существующие документы",
+      "AttachedFiles": "Прикрепленные документы",
+      "DeleteConfirmation": "Вы уверены, что хотите удалить этот документ?",
+      "DeleteFile": "Удалить документ"
+    }
+  },
   "ValidationErrors": {
     "invalidTIN": "{{.Details}}"
   }

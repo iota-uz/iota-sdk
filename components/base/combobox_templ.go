@@ -342,7 +342,6 @@ func Combobox(props ComboboxProps) templ.Component {
 			} else if props.Trigger.Render != nil {
 				templ_7745c5c3_Err = props.Trigger.Render(&TriggerProps{
 					InputAttrs: templ.Attributes{
-						":value":                     "value",
 						"hx-get":                     props.Endpoint,
 						"hx-trigger":                 "input changed delay:250ms, search",
 						"hx-sync":                    "this:replace",
@@ -380,7 +379,6 @@ func Combobox(props ComboboxProps) templ.Component {
 					},
 				},
 				Attrs: templ.Attributes{
-					"x-model":                    "value",
 					"hx-get":                     props.Endpoint,
 					"hx-trigger":                 "input changed delay:250ms, search",
 					"hx-sync":                    "this:replace",
@@ -431,7 +429,7 @@ func Combobox(props ComboboxProps) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(props.Placeholder)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 191, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 189, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -449,7 +447,7 @@ func Combobox(props ComboboxProps) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(props.Placeholder)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 198, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 196, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -511,7 +509,7 @@ func Combobox(props ComboboxProps) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.NotFoundText)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 238, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 236, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {

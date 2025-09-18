@@ -1,39 +1,23 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 )
 
 func CheckTrKeys(mods ...application.Module) error {
 	conf := configuration.Use()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-	pool, err := pgxpool.New(ctx, conf.Database.Opts)
+	app, pool, err := common.NewApplicationWithDefaults(mods...)
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		return fmt.Errorf("failed to initialize application: %w", err)
 	}
 	defer pool.Close()
-	bundle := application.LoadBundle()
-	app := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
-	})
-	if err := modules.Load(app, mods...); err != nil {
-		return err
-	}
 
 	messages := app.Bundle().Messages()
 

@@ -5,15 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 	"github.com/iota-uz/utils/env"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
@@ -38,8 +35,6 @@ func Migrate(mods ...application.Module) error {
 	}
 
 	conf := configuration.Use()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
 
 	if err := ensureDirectories(); err != nil {
 		return err
@@ -47,22 +42,13 @@ func Migrate(mods ...application.Module) error {
 
 	command := os.Args[1]
 
-	pool, err := pgxpool.New(ctx, conf.Database.Opts)
+	app, pool, err := common.NewApplicationWithDefaults(mods...)
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		return fmt.Errorf("failed to initialize application: %w", err)
 	}
 	defer pool.Close()
 
-	bundle := application.LoadBundle()
-	app := application.New(&application.ApplicationOptions{
-		Pool:     pool,
-		Bundle:   bundle,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
-	})
-	if err := modules.Load(app, mods...); err != nil {
-		return err
-	}
+	ctx := context.Background()
 
 	switch command {
 	case "collect":
@@ -125,4 +111,17 @@ func handleMigrationCommands(
 	}
 
 	return nil
+}
+
+// MigrateWithSubcommand runs migration with a specific subcommand
+// This is a wrapper for the unified command tool
+func MigrateWithSubcommand(subcommand string, mods ...application.Module) error {
+	// Temporarily modify os.Args to match the expected format
+	originalArgs := os.Args
+	defer func() { os.Args = originalArgs }()
+
+	// Set os.Args to simulate direct migrate command call
+	os.Args = []string{"migrate", subcommand}
+
+	return Migrate(mods...)
 }

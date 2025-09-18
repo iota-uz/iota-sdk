@@ -9,14 +9,18 @@ argument-hint: [optional: --base <branch> for PR base branch]
 description: "Commit changes and automatically create/update PR - uses GitHub MCP tools for PR management"
 ---
 
-# Commit Changes & Create Pull Request
-
-**Usage:**
-- `/commit-pr` - Analyze changes, commit with proper messages, and intelligently create PR when needed
-- `/commit-pr --base main` - Commit, push, and create PR with main as base branch (instead of staging)
-- `/commit-pr --base <branch>` - Commit, push, and create PR with custom base branch
+# Commit Changes & Create a Pull Request
 
 This command handles the complete workflow from uncommitted changes to pull request creation.
+
+
+## Context
+
+- Current git status: !`git status --porcelain`
+- Changed files: !`git diff --name-only`
+- Current git diff: !`git diff`
+- Current git branch: !`git branch`
+- Recent commits: !`git log --oneline -5`
 
 **🚨 INTELLIGENT BEHAVIOR:**
 - **On `staging` branch:** Always creates new feature branch + PR (prevents direct staging commits)
@@ -26,20 +30,18 @@ This command handles the complete workflow from uncommitted changes to pull requ
 ## Workflow Process
 
 ### 1. Pre-Commit Preparation (CRITICAL)
-**ALWAYS perform these steps before committing:**
-- Run `make fmt` to format all Go code
-- Run `templ generate` to regenerate template files (always run, not just when .templ modified)
-- Pull latest changes to avoid conflicts
-- **These steps are MANDATORY** - they ensure code consistency and prevent CI failures
-
-### 2. Change Analysis & Commit Creation
-- Analyze all changed files to understand nature of changes
-- Spot files that should not be committed to VCS
+Based on the current git status:
+- Analyze changed files to understand the nature of changes
+- If `.go` files were changed, format them using `make fmt`
+- If `.toml` files were changed, test them using `make check-tr`. If failed, ask the user how to proceed.
+- If `.templ` files were changed, regenerate them using `templ generate` (always run templ generate after make fmt)
 - Delete build artifacts or temporary files (ask user if unsure)
-- **NEVER delete or commit root markdown files** (*.md) like FOLLOW_UP_ISSUES.md or PR-239-REVIEW.md
 - Group related changes into logical commits
 - Create multiple commits if changes span different features or fixes
 - Commit `*_templ.go` files even though they are generated
+- Pull the latest changes from remote to avoid conflicts (CRITICAL)
+- Push commits to the current branch
+- Report a successful push with commit count
 
 ### 3. Smart Branch Management & PR Detection
 **ALWAYS create new branch + PR when on staging:**
@@ -50,8 +52,8 @@ If currently on staging branch with uncommitted changes:
 4. Create PR from new branch to specified base (default: staging)
 
 **When on feature branch:**
-1. Commit and push changes directly to current branch
-2. **Automatically check if PR exists** for current branch using GitHub MCP tools
+1. Commit and push changes directly to the current branch
+2. **Automatically check if PR exists** for the current branch using GitHub MCP tools
 3. **If NO PR exists:** Create new PR with multilingual description
 4. **If PR exists:** Just push commits (PR will auto-update)
 
@@ -63,7 +65,7 @@ Use conventional commit prefixes:
 - `feat:` - New features  
 - `docs:` - Documentation updates
 - `ci:` - CI/CD configuration changes
-- `wip:` - Work in progress (not for main branch)
+- `wip:` - Work in progress (not for the ADV-deployment branch)
 - `style:` - Code formatting, missing semicolons, etc. (no functional changes)
 - `perf:` - Performance improvements
 - `test:` - Adding or updating tests
@@ -154,27 +156,27 @@ Resolves #<issue-number>
 ### When on staging branch (ALWAYS creates branch + PR):
 1. Check git status and analyze changes
 2. Run formatting and template generation if needed  
-3. Create new feature branch with descriptive name
+3. Create a new feature branch with a descriptive name
 4. Create appropriate commits with conventional messages on new branch
 5. Push new branch to remote
 6. Get commit history since diverging from base branch
-7. Create pull request with multilingual description
+7. Create a pull request with a multilingual description
 8. Return PR URL for user reference
 
 ### When on feature branch (INTELLIGENT PR detection):
 1. Check git status and analyze changes
 2. Run formatting and template generation if needed
 3. Create appropriate commits with conventional messages
-4. Push changes to current branch
+4. Push changes to the current branch
 5. **Check if PR already exists** using GitHub MCP tools (`mcp__github__list_pull_requests`)
 6. **If NO PR exists:**
-   - Get commit history since diverging from base branch
+   - Get commit history since diverging from the base branch
    - Create pull request with multilingual description using `mcp__github__create_pull_request`
    - Return PR URL for user reference
 7. **If PR already exists:**
    - Push commits (PR auto-updates with new commits)
    - **Update PR description** if significant new changes were added using `mcp__github__update_pull_request`
-   - Analyze new commits to determine if PR description needs updating
+   - Analyze new commits to determine if the PR description needs updating
    - Append new test scenarios if new features/fixes were added
    - Return existing PR URL for user reference
 
@@ -198,9 +200,7 @@ Resolves #<issue-number>
 
 ## Error Handling
 
-- If git conflicts occur during pull, stop and ask user to resolve
-- If PR creation fails, provide clear error message and suggested fixes  
+- If git conflicts occur during pull, stop and ask the user to resolve
+- If PR creation fails, provide a clear error message and suggested fixes  
 - If formatting or template generation fails, report specific errors
 - Always validate that commits were successful before proceeding to PR creation
-
-Begin by checking current git status and analyzing the scope of changes to determine the appropriate workflow path.

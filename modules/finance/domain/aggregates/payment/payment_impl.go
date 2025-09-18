@@ -1,6 +1,7 @@
 package payment
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -79,6 +80,12 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 	}
 }
 
+func WithAttachments(attachments []uint) Option {
+	return func(p *payment) {
+		p.attachments = attachments
+	}
+}
+
 func New(
 	amount *money.Money,
 	category paymentcategory.PaymentCategory,
@@ -98,6 +105,7 @@ func New(
 		user:             nil,
 		createdAt:        time.Now(),
 		updatedAt:        time.Now(),
+		attachments:      []uint{},
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -119,6 +127,7 @@ type payment struct {
 	user             user.User
 	createdAt        time.Time
 	updatedAt        time.Time
+	attachments      []uint
 }
 
 func (p *payment) ID() uuid.UUID {
@@ -223,4 +232,58 @@ func (p *payment) UpdateTenantID(id uuid.UUID) Payment {
 	result := *p
 	result.tenantID = id
 	return &result
+}
+
+// Attachment methods
+func (p *payment) GetAttachments() []uint {
+	// Return a copy to prevent external modification
+	attachments := make([]uint, len(p.attachments))
+	copy(attachments, p.attachments)
+	return attachments
+}
+
+func (p *payment) HasAttachment(uploadID uint) bool {
+	for _, id := range p.attachments {
+		if id == uploadID {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *payment) AttachFile(uploadID uint) (Payment, error) {
+	if uploadID == 0 {
+		return nil, fmt.Errorf("upload ID cannot be zero")
+	}
+
+	if p.HasAttachment(uploadID) {
+		return nil, fmt.Errorf("file with ID %d is already attached", uploadID)
+	}
+
+	result := *p
+	result.attachments = make([]uint, len(p.attachments)+1)
+	copy(result.attachments, p.attachments)
+	result.attachments[len(p.attachments)] = uploadID
+	result.updatedAt = time.Now()
+	return &result, nil
+}
+
+func (p *payment) DetachFile(uploadID uint) (Payment, error) {
+	if uploadID == 0 {
+		return nil, fmt.Errorf("upload ID cannot be zero")
+	}
+
+	if !p.HasAttachment(uploadID) {
+		return nil, fmt.Errorf("file with ID %d is not attached", uploadID)
+	}
+
+	result := *p
+	result.attachments = make([]uint, 0, len(p.attachments)-1)
+	for _, id := range p.attachments {
+		if id != uploadID {
+			result.attachments = append(result.attachments, id)
+		}
+	}
+	result.updatedAt = time.Now()
+	return &result, nil
 }
