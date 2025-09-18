@@ -1,5 +1,9 @@
 package viewmodels
 
+import (
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels" // Import for Upload
+)
+
 type Payment struct {
 	ID                 string
 	Amount             string
@@ -14,4 +18,5 @@ type Payment struct {
 	Comment            string
 	CreatedAt          string
 	UpdatedAt          string
+	Attachments        []*viewmodels.Upload // File attachments
 }

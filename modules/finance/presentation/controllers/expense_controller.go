@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/a-h/templ"
@@ -76,6 +78,10 @@ func (c *ExpenseController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", di.H(c.Delete)).Methods(http.MethodDelete)
 	router.HandleFunc("/selects/accounts", di.H(c.GetAccountsSelect)).Methods(http.MethodGet)
 	router.HandleFunc("/selects/categories", di.H(c.GetCategoriesSelect)).Methods(http.MethodGet)
+
+	// Attachment endpoints
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/attachments", di.H(c.AttachFile)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/attachments/{uploadId:[0-9]+}", di.H(c.DetachFile)).Methods(http.MethodDelete)
 }
 
 func (c *ExpenseController) List(
@@ -355,6 +361,16 @@ func (c *ExpenseController) Update(
 		return
 	}
 
+	// Handle file attachments
+	for _, uploadID := range dto.Attachments {
+		if uploadID > 0 {
+			if err := expenseService.AttachFileToExpense(r.Context(), id, uploadID); err != nil {
+				logger.Errorf("Error attaching file to expense: %v", err)
+				// Don't fail the entire operation
+			}
+		}
+	}
+
 	shared.Redirect(w, r, c.basePath)
 }
 
@@ -447,10 +463,21 @@ func (c *ExpenseController) Create(
 		return
 	}
 
-	if _, err := expenseService.Create(r.Context(), entity); err != nil {
+	createdEntity, err := expenseService.Create(r.Context(), entity)
+	if err != nil {
 		logger.Errorf("Error creating expense: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Handle file attachments
+	for _, uploadID := range dto.Attachments {
+		if uploadID > 0 {
+			if err := expenseService.AttachFileToExpense(r.Context(), createdEntity.ID(), uploadID); err != nil {
+				logger.Errorf("Error attaching file to expense: %v", err)
+				// Don't fail the entire operation
+			}
+		}
 	}
 
 	shared.Redirect(w, r, c.basePath)
@@ -514,4 +541,84 @@ func (c *ExpenseController) GetCategoriesSelect(
 	}
 
 	templ.Handler(expensesui.CategorySelect(props), templ.WithStreaming()).ServeHTTP(w, r)
+}
+
+// AttachFile attaches a file upload to an expense
+func (c *ExpenseController) AttachFile(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+) {
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		logger.Errorf("Error parsing expense ID: %v", err)
+		http.Error(w, "Error parsing expense ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse upload ID from form data
+	uploadIDStr := r.FormValue("uploadId")
+	if uploadIDStr == "" {
+		logger.Error("Upload ID is required")
+		http.Error(w, "Upload ID is required", http.StatusBadRequest)
+		return
+	}
+
+	uploadID, err := strconv.ParseUint(uploadIDStr, 10, 32)
+	if err != nil {
+		logger.Errorf("Invalid upload ID: %v", err)
+		http.Error(w, "Invalid upload ID", http.StatusBadRequest)
+		return
+	}
+
+	err = expenseService.AttachFileToExpense(r.Context(), id, uint(uploadID))
+	if err != nil {
+		logger.Errorf("Error attaching file to expense: %v", err)
+		http.Error(w, "Error attaching file", http.StatusInternalServerError)
+		return
+	}
+
+	if htmx.IsHxRequest(r) {
+		htmx.Redirect(w, fmt.Sprintf("%s/%s", c.basePath, id.String()))
+	} else {
+		http.Redirect(w, r, fmt.Sprintf("%s/%s", c.basePath, id.String()), http.StatusSeeOther)
+	}
+}
+
+// DetachFile detaches a file upload from an expense
+func (c *ExpenseController) DetachFile(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	expenseService *services.ExpenseService,
+) {
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		logger.Errorf("Error parsing expense ID: %v", err)
+		http.Error(w, "Error parsing expense ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse upload ID from URL path
+	uploadIDStr := mux.Vars(r)["uploadId"]
+	uploadID, err := strconv.ParseUint(uploadIDStr, 10, 32)
+	if err != nil {
+		logger.Errorf("Invalid upload ID: %v", err)
+		http.Error(w, "Invalid upload ID", http.StatusBadRequest)
+		return
+	}
+
+	err = expenseService.DetachFileFromExpense(r.Context(), id, uint(uploadID))
+	if err != nil {
+		logger.Errorf("Error detaching file from expense: %v", err)
+		http.Error(w, "Error detaching file", http.StatusInternalServerError)
+		return
+	}
+
+	if htmx.IsHxRequest(r) {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		http.Redirect(w, r, fmt.Sprintf("%s/%s", c.basePath, id.String()), http.StatusSeeOther)
+	}
 }

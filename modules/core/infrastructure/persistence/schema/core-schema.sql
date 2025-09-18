@@ -2,6 +2,8 @@ CREATE TABLE tenants (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     name varchar(255) NOT NULL UNIQUE,
     domain varchar(255),
+    phone varchar(255),
+    email varchar(255),
     is_active boolean NOT NULL DEFAULT TRUE,
     logo_id int REFERENCES uploads (id) ON DELETE SET NULL,
     logo_compact_id int REFERENCES uploads (id) ON DELETE SET NULL,

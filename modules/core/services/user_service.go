@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -145,6 +146,25 @@ func (s *UserService) Update(ctx context.Context, data user.User) (user.User, er
 	return updatedUser, nil
 }
 
+func (s *UserService) CanUserBeDeleted(ctx context.Context, userID uint) (bool, error) {
+	entity, err := s.GetByID(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+
+	if !entity.CanDelete() {
+		return false, nil
+	}
+
+	tenantID := entity.TenantID()
+	userCount, err := s.repo.CountByTenantID(ctx, tenantID)
+	if err != nil {
+		return false, err
+	}
+
+	return userCount > 1, nil
+}
+
 func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	err := composables.CanUser(ctx, permissions.UserDelete)
 	if err != nil {
@@ -158,6 +178,16 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 
 	if !entity.CanDelete() {
 		return nil, composables.ErrForbidden
+	}
+
+	tenantID := entity.TenantID()
+	userCount, err := s.repo.CountByTenantID(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	if userCount <= 1 {
+		return nil, errors.New("cannot delete the last user in tenant")
 	}
 
 	deletedEvent := user.NewDeletedEvent(ctx)

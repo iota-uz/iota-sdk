@@ -49,6 +49,11 @@ const (
 	paymentUpdateQuery        = `UPDATE payments SET counterparty_id = $1, updated_at = $2 WHERE id = $3`
 	paymentDeleteRelatedQuery = `DELETE FROM transactions WHERE id = $1 AND tenant_id = $2`
 	paymentDeleteQuery        = `DELETE FROM payments WHERE id = $1`
+
+	// Attachment queries
+	paymentAttachmentsQuery = `SELECT upload_id FROM payment_attachments WHERE payment_id = $1`
+	paymentAttachFileQuery  = `INSERT INTO payment_attachments (payment_id, upload_id, attached_at) VALUES ($1, $2, NOW()) ON CONFLICT (payment_id, upload_id) DO NOTHING`
+	paymentDetachFileQuery  = `DELETE FROM payment_attachments WHERE payment_id = $1 AND upload_id = $2`
 )
 
 type GormPaymentRepository struct{}
@@ -115,13 +120,20 @@ func (g *GormPaymentRepository) GetByID(ctx context.Context, id uuid.UUID) (paym
 		return nil, fmt.Errorf("failed to get tenant from context: %w", err)
 	}
 
-	payments, err := g.queryPayments(ctx, repo.Join(paymentFindQuery, "WHERE p.id = $1 AND t.tenant_id = $2"), id, tenantID)
+	// Load attachments for the payment
+	attachments, err := g.GetAttachments(ctx, id)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load payment attachments")
+	}
+
+	payments, err := g.queryPaymentsWithAttachments(ctx, repo.Join(paymentFindQuery, "WHERE p.id = $1 AND t.tenant_id = $2"), attachments, id, tenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get payment by id")
 	}
 	if len(payments) == 0 {
 		return nil, ErrPaymentNotFound
 	}
+
 	return payments[0], nil
 }
 
@@ -227,6 +239,10 @@ func (g *GormPaymentRepository) Delete(ctx context.Context, id uuid.UUID) error 
 }
 
 func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string, args ...interface{}) ([]payment.Payment, error) {
+	return g.queryPaymentsWithAttachments(ctx, query, nil, args...)
+}
+
+func (g *GormPaymentRepository) queryPaymentsWithAttachments(ctx context.Context, query string, attachments []uint, args ...interface{}) ([]payment.Payment, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -259,9 +275,15 @@ func (g *GormPaymentRepository) queryPayments(ctx context.Context, query string,
 		); err != nil {
 			return nil, err
 		}
-		entity, err := ToDomainPayment(&paymentRow, &transactionRow)
-		if err != nil {
-			return nil, err
+		var entity payment.Payment
+		var entityErr error
+		if attachments != nil {
+			entity, entityErr = ToDomainPayment(&paymentRow, &transactionRow, attachments)
+		} else {
+			entity, entityErr = ToDomainPayment(&paymentRow, &transactionRow)
+		}
+		if entityErr != nil {
+			return nil, entityErr
 		}
 		entities = append(entities, entity)
 	}
@@ -275,4 +297,68 @@ func (g *GormPaymentRepository) execQuery(ctx context.Context, query string, arg
 	}
 	_, err = tx.Exec(ctx, query, args...)
 	return err
+}
+
+// GetAttachments retrieves all attachment upload IDs for a payment
+func (g *GormPaymentRepository) GetAttachments(ctx context.Context, paymentID uuid.UUID) ([]uint, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	rows, err := tx.Query(ctx, paymentAttachmentsQuery, paymentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query payment attachments: %w", err)
+	}
+	defer rows.Close()
+
+	var attachments []uint
+	for rows.Next() {
+		var uploadID uint
+		if err := rows.Scan(&uploadID); err != nil {
+			return nil, fmt.Errorf("failed to scan upload ID: %w", err)
+		}
+		attachments = append(attachments, uploadID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return attachments, nil
+}
+
+// AttachFile associates an upload with a payment
+func (g *GormPaymentRepository) AttachFile(ctx context.Context, paymentID uuid.UUID, uploadID uint) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, paymentAttachFileQuery, paymentID, uploadID)
+	if err != nil {
+		return fmt.Errorf("failed to attach file to payment: %w", err)
+	}
+
+	return nil
+}
+
+// DetachFile removes an upload association from a payment
+func (g *GormPaymentRepository) DetachFile(ctx context.Context, paymentID uuid.UUID, uploadID uint) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	result, err := tx.Exec(ctx, paymentDetachFileQuery, paymentID, uploadID)
+	if err != nil {
+		return fmt.Errorf("failed to detach file from payment: %w", err)
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("attachment not found for payment ID %s and upload ID %d", paymentID, uploadID)
+	}
+
+	return nil
 }

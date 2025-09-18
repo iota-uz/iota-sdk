@@ -71,18 +71,18 @@ Ensure these tools are installed before you begin:
 
 4. **Run PostgreSQL**:
    ```bash
-   make localdb
+   make db local
    ```
    Ensure Docker is running before executing this command
 
 5. **Apply migrations**:
    ```bash
-   make migrate up && make seed
+   make db migrate up && make db seed
    ```
 
 6. **Run TailwindCSS in watch mode** (new terminal):
    ```bash
-   make css-watch
+   make css watch
    ```
 
 7. **Start development server**:
@@ -116,14 +116,48 @@ Navigate with arrow keys, toggle services with Space/Enter, and quit with 'q'.
 
 ## 🧪 Running Tests
 
-To run end-to-end Cypress tests:
-1. Ensure you have a migrated and seeded database with a running backend
-2. Set environment variables (`DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `DB_NAME`) or use default local settings
-3. Run the tests:
+### E2E Testing
+
+The project includes Cypress end-to-end tests that run against a separate database to isolate test data from development data.
+
+#### Setup:
+1. **Create and prepare e2e database**:
    ```bash
+   make e2e setup
+   ```
+
+2. **Start e2e server** (in a separate terminal):
+   ```bash
+   make e2e server
+   ```
+   This starts the server on port 3201 connected to the e2e database (`iota_erp_e2e`).
+
+3. **Run tests**:
+   ```bash
+   # All tests
+   make e2e test
+
+   # Interactive mode
+   make e2e run
+
+   # Or directly with npm
    cd e2e/
    pnpm cypress run --headed
    ```
+
+#### Available E2E Commands:
+- `make e2e setup` - Create e2e database, run migrations, and seed
+- `make e2e reset` - Drop and recreate e2e database with fresh data
+- `make e2e server` - Start server on port 3201 (connected to e2e database)
+- `make e2e test` - Run all e2e tests
+- `make e2e run` - Open Cypress interactive mode
+- `make e2e clean` - Drop e2e database
+
+#### Important Notes:
+- E2E tests use a separate database (`iota_erp_e2e`) from development (`iota_erp`)
+- E2E server runs on port 3201, development server runs on port 3200
+- Always run `make e2e server` before running tests to ensure server connects to correct database
+- Configuration files: `/e2e/.env.e2e`, `/e2e/cypress.config.js`
 
 ## 📚 Documentation
 
@@ -134,7 +168,7 @@ Generate code documentation:
 make docs
 
 # With specific options
-go run cmd/document/main.go -dir [directory] -out [output file] [-recursive] [-exclude "dir1,dir2"]
+go run cmd/command/main.go doc -dir [directory] -out [output file] [-recursive] [-exclude "dir1,dir2"]
 ```
 
 Options:

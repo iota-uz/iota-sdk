@@ -42,6 +42,8 @@ const (
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
 
+	userCountByTenantQuery = `SELECT COUNT(*) FROM users WHERE tenant_id = $1`
+
 	userExistsQuery = `SELECT 1 FROM users u`
 
 	userUpdateLastLoginQuery = `UPDATE users SET last_login = NOW() WHERE id = $1 AND tenant_id = $2`
@@ -218,6 +220,20 @@ func (g *PgUserRepository) Count(ctx context.Context, params *user.FindParams) (
 	err = tx.QueryRow(ctx, query, args...).Scan(&count)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to count users")
+	}
+	return count, nil
+}
+
+func (g *PgUserRepository) CountByTenantID(ctx context.Context, tenantID uuid.UUID) (int64, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to get transaction")
+	}
+
+	var count int64
+	err = tx.QueryRow(ctx, userCountByTenantQuery, tenantID).Scan(&count)
+	if err != nil {
+		return 0, errors.Wrap(err, "failed to count users by tenant ID")
 	}
 	return count, nil
 }

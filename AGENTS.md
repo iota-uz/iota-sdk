@@ -103,8 +103,8 @@ modules/{module}/
 - Run all tests: `make test` or `go test -v ./...` 
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
-- Linting translation files: `make check-tr`
-- Apply migrations: `make migrate up`
+- Check translation files: `make check tr`
+- Apply migrations: `make db migrate up`
 
 ## Code Style Guidelines
 - Use `go fmt` for formatting. Do not indent code manually.
