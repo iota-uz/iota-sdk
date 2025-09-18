@@ -49,7 +49,7 @@ export const ru: Translations = {
 
   // Welcome message
   welcomeGreeting: 'Привет! 👋',
-  welcomeMessage: 'Я Али, ваш виртуальный помощник от Euroasia Insurance. Готов помочь разобраться в мире страхования, подобрать нужный полис или ответить на любые ваши вопросы. Спрашивайте, не стесняйтесь! Чем могу быть полезен сегодня?',
+  welcomeMessage: 'Я Али, ваш виртуальный помощник от Euroasia Insurance. Готов помочь разобраться в мире страхования, подобрать нужный полис или ответить на любые ваши вопросы. Я стараюсь предоставлять максимально точную информацию, но для важных решений рекомендую дополнительно уточнить детали на сайте или у наших консультантов номер 1147. Спрашивайте, не стесняйтесь! Чем могу быть полезен сегодня?',
   phoneRequestMessage:
     'Чтобы начать, пожалуйста, введите свой номер телефона — мы используем его для связи и сохранения истории обращений.',
 
@@ -108,7 +108,7 @@ export const oz: Translations = {
   // Welcome message
   welcomeGreeting: 'Assalomu alaykum! 👋',
   welcomeMessage:
-    "Men Ali, Euroasia Insurance'dan sizning virtual yordamchingizman. Sug'urta olamida yo'l ko'rsatish, kerakli polisni tanlash yoki har qanday savollaringizga javob berishga tayyorman. Bemalol murojaat qiling! Bugun sizga qanday yordam bera olaman?",
+    "Men Ali, Euroasia Insurance kompaniyasining virtual yordamchisiman. Sug'urta olamida yo'lingizni topishga, mos polis tanlashga va barcha savollaringizga javob berishga tayyorman. Imkon qadar aniq ma'lumot berishga harakat qilaman, ammo muhim qarorlar uchun saytimizdan yoki 1147 raqamli konsultantlarimizdan qo'shimcha maslahat olishingizni tavsiya qilaman. Qo'rqmay so'rang! Bugun sizga qanday yordam kerak?",
   phoneRequestMessage:
     'Boshlash uchun, iltimos, telefon raqamingizni kiriting — biz undan aloqa va murojaat tarixini saqlash uchun foydalanamiz.',
 
@@ -169,7 +169,7 @@ export const uz: Translations = {
   // Welcome message
   welcomeGreeting: 'Ассалому алайкум! 👋',
   welcomeMessage:
-    'Мен Али, Euroasia Insurance\'дан сизнинг виртуал ёрдамчингизман. Суғурта оламида йўл кўрсатиш, керакли полисни танлаш ёки ҳар қандай саволларингизга жавоб беришга тайёрман. Бемалол мурожаат қилинг! Бугун сизга қандай ёрдам бера оламан?',
+    'Мен Али, Euroasia Insurance компаниясининг виртуал ёрдамчисиман. Суғурта оламида йўлингизни топишга, мос полис танлашга ва барча саволларингизга жавоб беришга тайёрман. Имкон қадар аниқ маълумот беришга ҳаракат қиламан, аммо муҳим қарорлар учун сайтимиздан ёки 1147 рақамли консультантларимиздан қўшимча маслаҳат олишингизни тавсия қиламан. Қўрқмай сўранг! Бугун сизга қандай ёрдам керак?',
   phoneRequestMessage:
     'Бошлаш учун, илтимос, телефон рақамингизни киритинг — биз ундан алоқа ва мурожаат тарихини сақлаш учун фойдаланамиз.',
 
@@ -228,7 +228,7 @@ export const en: Translations = {
 
   // Welcome message
   welcomeGreeting: 'Hi there! 👋',
-  welcomeMessage: "I'm Ally, your virtual assistant from Euroasia Insurance. I'm ready to help you navigate the world of insurance, pick the right policy, or answer any questions you have. Feel free to ask! How can I help you today?",
+  welcomeMessage: "I'm Ali, your virtual assistant from Euroasia Insurance. I'm here to help you understand the insurance world, find the perfect policy, or answer any questions you might have. I do my best to provide accurate information, but for important decisions, I recommend double-checking details on our website or speaking with our consultants at 1147. Don't hesitate to ask anything! What can I help you with today?",
   phoneRequestMessage:
     'To get started, please enter your phone number — we use it for communication and to save your request history.',
 
