@@ -62,7 +62,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			if user.LastAction != "" {
+			if user.RolesVerbose() != "" {
 				<div>
 					{ user.RolesVerbose() }
 				</div>
