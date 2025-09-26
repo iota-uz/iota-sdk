@@ -418,10 +418,12 @@ func Edit(props *EditFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = dialog.Confirmation(&dialog.Props{
-				Heading: pageCtx.T("Roles.Single.Delete"),
-				Text:    pageCtx.T("Roles.Single.DeleteConfirmation"),
-				Icon:    icons.Trash(icons.Props{Size: "20"}),
-				Action:  "open-delete-role-confirmation",
+				Heading:     pageCtx.T("Roles.Single.Delete"),
+				Text:        pageCtx.T("Roles.Single.DeleteConfirmation"),
+				Icon:        icons.Trash(icons.Props{Size: "20"}),
+				Action:      "open-delete-role-confirmation",
+				CancelText:  pageCtx.T("Cancel"),
+				ConfirmText: pageCtx.T("Delete"),
 				Attrs: templ.Attributes{
 					"@closing": `({target}) => {
 					if (target.returnValue === "confirm") {
