@@ -181,7 +181,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				if user.LastAction != "" {
+				if user.RolesVerbose() != "" {
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
