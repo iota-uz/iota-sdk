@@ -285,14 +285,14 @@ func Table(props TableProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" hx-target=\"#sortable-table-container\" hx-swap=\"outerHTML\" hx-push-url=\"true\" hx-indicator=\"#table-body\"><div class=\"flex items-center gap-2\"><span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" hx-target=\"#sortable-table-container\" hx-swap=\"outerHTML\" hx-include=\"closest form\"><div class=\"flex items-center gap-2\"><span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 118, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 117, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -348,7 +348,7 @@ func Table(props TableProps) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 134, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 133, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {

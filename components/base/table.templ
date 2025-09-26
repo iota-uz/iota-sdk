@@ -111,8 +111,7 @@ templ Table(props TableProps) {
 								hx-get={ col.SortURL }
 								hx-target="#sortable-table-container"
 								hx-swap="outerHTML"
-								hx-push-url="true"
-								hx-indicator="#table-body"
+								hx-include="closest form"
 							>
 								<div class="flex items-center gap-2">
 									<span>{ col.Label }</span>
