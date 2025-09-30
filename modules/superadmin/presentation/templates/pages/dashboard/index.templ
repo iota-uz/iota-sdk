@@ -129,7 +129,9 @@ templ MetricsContent(props *MetricsProps) {
 				pageCtx.T("SuperAdmin.Dashboard.Metrics.TotalUsers"),
 				fmt.Sprintf("%d", props.UserCount),
 			)
-			@ActiveUsersCard(props.DAU, props.WAU, props.MAU)
+			<div class="lg:col-span-2">
+				@ActiveUsersCard(props.DAU, props.WAU, props.MAU)
+			</div>
 			@MetricsCard(
 				pageCtx.T("SuperAdmin.Dashboard.Metrics.TotalSessions"),
 				fmt.Sprintf("%d", props.SessionCount),
