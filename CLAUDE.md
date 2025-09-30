@@ -65,7 +65,6 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 - Run tests with coverage: `make test coverage`
 - Run tests in watch mode: `make test watch`
 - Run tests with verbose output: `make test verbose`
-- Run specific package tests: `make test package ./path/to/package`
 - Run individual test by name: `go test -v ./path/to/package -run TestSpecificName` (for debugging/focused testing)
 - Run tests in Docker: `make test docker`
 - Generate coverage report: `make test report`
@@ -184,7 +183,6 @@ make test failures                    # Show only failing tests (JSON format, us
 make test coverage                    # Run tests with simple coverage report (Go default, use 10-minute timeout)
 make test detailed-coverage           # Run tests with detailed coverage analysis & insights (use 10-minute timeout)
 make test verbose                     # Run tests with verbose output (use 10-minute timeout)
-make test package ./path/to/package   # Test specific package
 go test -v ./path/to/package -run TestSpecificName  # Run individual test by name (for debugging/focused testing)
 make check-tr                         # Validate translations
 
