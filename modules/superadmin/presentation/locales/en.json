@@ -1,0 +1,48 @@
+{
+  "SuperAdmin": {
+    "NavigationLinks": {
+      "Dashboard": "Dashboard",
+      "Tenants": "Tenants"
+    },
+    "Dashboard": {
+      "Title": "Super Admin Dashboard",
+      "DateRange": "Date Range",
+      "Meta": {
+        "Title": "Dashboard - Super Admin"
+      },
+      "Metrics": {
+        "TotalTenants": "Total Tenants",
+        "TotalUsers": "Total Users",
+        "ActiveUsers": "Active Users",
+        "DAU": "Daily Active Users",
+        "WAU": "Weekly Active Users",
+        "MAU": "Monthly Active Users",
+        "TotalSessions": "Total Sessions"
+      },
+      "Charts": {
+        "UserSignups": "User Sign-ups",
+        "TenantSignups": "Tenant Sign-ups"
+      }
+    },
+    "Tenants": {
+      "Title": "Tenants",
+      "Name": "Tenant Name",
+      "Domain": "Domain",
+      "UserCount": "User Count",
+      "StatusColumn": "Status",
+      "CreatedAt": "Created Date",
+      "Export": "Export to Excel",
+      "FilterByDate": "Filter by Date Range",
+      "StartDate": "Start Date",
+      "EndDate": "End Date",
+      "ClearFilter": "Clear Filter",
+      "Meta": {
+        "Title": "Tenants - Super Admin"
+      },
+      "Status": {
+        "Active": "Active",
+        "Inactive": "Inactive"
+      }
+    }
+  }
+}
