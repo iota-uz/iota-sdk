@@ -38,20 +38,27 @@ func (s *SortBy[T]) ToSQL(mapping map[T]string) string {
 	if len(s.Fields) == 0 {
 		return ""
 	}
-	fields := make([]string, len(s.Fields))
-	for i, sort := range s.Fields {
+	fields := make([]string, 0, len(s.Fields))
+	for _, sort := range s.Fields {
 		field := mapping[sort.Field]
+		// Skip invalid fields (empty mappings)
+		if field == "" {
+			continue
+		}
 		if sort.Ascending {
 			field += " ASC"
 		} else {
 			field += " DESC"
 		}
+		// Only add NULLS clause if explicitly set
 		if sort.NullsLast {
 			field += " NULLS LAST"
-		} else {
-			field += " NULLS FIRST"
 		}
-		fields[i] = field
+		fields = append(fields, field)
+	}
+	// Return empty if no valid fields found
+	if len(fields) == 0 {
+		return ""
 	}
 	return fmt.Sprintf("ORDER BY %s", strings.Join(fields, ", "))
 }

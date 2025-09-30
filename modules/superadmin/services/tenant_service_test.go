@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/services"
@@ -22,28 +23,28 @@ func TestTenantService_ListTenants(t *testing.T) {
 	service := services.NewTenantService(repo)
 
 	t.Run("Happy_Path_Default_Limit", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 10, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 10)
 	})
 
 	t.Run("Zero_Limit_Uses_Default_50", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 0, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 0, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 50)
 	})
 
 	t.Run("Negative_Limit_Uses_Default_50", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, -10, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, -10, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 50)
 	})
 
 	t.Run("Limit_Exceeds_Maximum_1000", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 2000, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 2000, 0)
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
@@ -51,35 +52,35 @@ func TestTenantService_ListTenants(t *testing.T) {
 	})
 
 	t.Run("Negative_Offset_Defaults_To_Zero", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, -5, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 10, -5)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 10)
 	})
 
 	t.Run("Offset_Beyond_Total_Returns_Empty", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 10000, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 10, 10000)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.Equal(t, 0, len(tenants))
 	})
 
 	t.Run("Small_Limit_Returns_Correct_Count", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 1, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 1, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 1)
 	})
 
 	t.Run("Pagination_First_Page", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 5, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 5, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 5)
 	})
 
 	t.Run("Pagination_Second_Page", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 5, 5, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 5, 5)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 5)
@@ -89,14 +90,14 @@ func TestTenantService_ListTenants(t *testing.T) {
 		ctx, cancel := context.WithCancel(f.Ctx)
 		cancel()
 
-		tenants, total, err := service.ListTenants(ctx, 10, 0, "", "")
+		tenants, total, err := service.ListTenants(ctx, 10, 0)
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
 	})
 
 	t.Run("Tenant_Fields_Are_Populated", func(t *testing.T) {
-		tenants, _, err := service.ListTenants(f.Ctx, 10, 0, "", "")
+		tenants, _, err := service.ListTenants(f.Ctx, 10, 0)
 		require.NoError(t, err)
 
 		if len(tenants) > 0 {
@@ -108,149 +109,6 @@ func TestTenantService_ListTenants(t *testing.T) {
 			assert.False(t, tenant.CreatedAt.IsZero(), "CreatedAt should not be zero")
 			assert.False(t, tenant.UpdatedAt.IsZero(), "UpdatedAt should not be zero")
 		}
-	})
-}
-
-func TestTenantService_ListTenants_SortAscending(t *testing.T) {
-	t.Parallel()
-	f := setupTest(t)
-
-	repo := persistence.NewPgAnalyticsQueryRepository()
-	service := services.NewTenantService(repo)
-
-	t.Run("Sort_By_Created_At_Asc", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "created_at", "asc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify ascending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.True(t,
-					tenants[i].CreatedAt.Before(tenants[i+1].CreatedAt) ||
-						tenants[i].CreatedAt.Equal(tenants[i+1].CreatedAt),
-					"Tenants should be sorted by CreatedAt ascending",
-				)
-			}
-		}
-	})
-
-	t.Run("Sort_By_Name_Asc", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "name", "asc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify ascending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.LessOrEqual(t, tenants[i].Name, tenants[i+1].Name,
-					"Tenants should be sorted by Name ascending")
-			}
-		}
-	})
-
-	t.Run("Sort_By_User_Count_Asc", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "user_count", "asc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify ascending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.LessOrEqual(t, tenants[i].UserCount, tenants[i+1].UserCount,
-					"Tenants should be sorted by UserCount ascending")
-			}
-		}
-	})
-}
-
-func TestTenantService_ListTenants_SortDescending(t *testing.T) {
-	t.Parallel()
-	f := setupTest(t)
-
-	repo := persistence.NewPgAnalyticsQueryRepository()
-	service := services.NewTenantService(repo)
-
-	t.Run("Sort_By_Created_At_Desc", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "created_at", "desc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify descending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.True(t,
-					tenants[i].CreatedAt.After(tenants[i+1].CreatedAt) ||
-						tenants[i].CreatedAt.Equal(tenants[i+1].CreatedAt),
-					"Tenants should be sorted by CreatedAt descending",
-				)
-			}
-		}
-	})
-
-	t.Run("Sort_By_Name_Desc", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "name", "desc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify descending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.GreaterOrEqual(t, tenants[i].Name, tenants[i+1].Name,
-					"Tenants should be sorted by Name descending")
-			}
-		}
-	})
-
-	t.Run("Sort_By_User_Count_Desc", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "user_count", "desc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify descending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.GreaterOrEqual(t, tenants[i].UserCount, tenants[i+1].UserCount,
-					"Tenants should be sorted by UserCount descending")
-			}
-		}
-	})
-}
-
-func TestTenantService_ListTenants_DefaultSort(t *testing.T) {
-	t.Parallel()
-	f := setupTest(t)
-
-	repo := persistence.NewPgAnalyticsQueryRepository()
-	service := services.NewTenantService(repo)
-
-	t.Run("Empty_Sort_Params_Uses_Default", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "", "")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Default should be created_at DESC
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.True(t,
-					tenants[i].CreatedAt.After(tenants[i+1].CreatedAt) ||
-						tenants[i].CreatedAt.Equal(tenants[i+1].CreatedAt),
-					"Default sort should be CreatedAt descending",
-				)
-			}
-		}
-	})
-
-	t.Run("Invalid_Sort_Field_Uses_Default", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "invalid_field", "asc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-	})
-
-	t.Run("Invalid_Sort_Order_Uses_Default", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "name", "invalid")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
 	})
 }
 
@@ -267,7 +125,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.AddDate(0, 0, -30)
 		endDate := now
 
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 10)
@@ -276,7 +134,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 	t.Run("Zero_Start_Date_Uses_Default", func(t *testing.T) {
 		endDate := now
 
-		_, total, err := service.FilterByDateRange(f.Ctx, time.Time{}, endDate, 10, 0, "", "")
+		_, total, err := service.FilterByDateRange(f.Ctx, time.Time{}, endDate, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 	})
@@ -284,13 +142,13 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 	t.Run("Zero_End_Date_Uses_Now", func(t *testing.T) {
 		startDate := now.AddDate(0, 0, -30)
 
-		_, total, err := service.FilterByDateRange(f.Ctx, startDate, time.Time{}, 10, 0, "", "")
+		_, total, err := service.FilterByDateRange(f.Ctx, startDate, time.Time{}, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("Both_Dates_Zero_Returns_All", func(t *testing.T) {
-		tenants, total, err := service.FilterByDateRange(f.Ctx, time.Time{}, time.Time{}, 10, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(f.Ctx, time.Time{}, time.Time{}, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 10)
@@ -300,7 +158,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now
 		endDate := now.AddDate(0, 0, -30)
 
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
@@ -311,7 +169,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.Truncate(24 * time.Hour)
 		endDate := startDate.Add(24 * time.Hour)
 
-		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 	})
@@ -320,7 +178,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.AddDate(-1, 0, 0)
 		endDate := now
 
-		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 	})
@@ -329,7 +187,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.AddDate(0, 0, -30)
 		endDate := now
 
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 0, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 0, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		assert.LessOrEqual(t, len(tenants), 50)
@@ -339,7 +197,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.AddDate(0, 0, -30)
 		endDate := now
 
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 2000, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 2000, 0, domain.TenantSortBy{})
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
@@ -350,7 +208,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.AddDate(0, 0, -30)
 		endDate := now
 
-		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, -5, "", "")
+		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, -5, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 	})
@@ -360,12 +218,12 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		endDate := now
 
 		// Get first page
-		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 5, 0, "", "")
+		_, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 5, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 
 		// Get second page
-		_, total2, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 5, 5, "", "")
+		_, total2, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 5, 5, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.Equal(t, total, total2, "Total count should be same across pages")
 	})
@@ -374,7 +232,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.AddDate(0, 0, 1)
 		endDate := now.AddDate(0, 0, 7)
 
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
 		assert.Equal(t, 0, len(tenants))
@@ -387,73 +245,10 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		startDate := now.AddDate(0, 0, -30)
 		endDate := now
 
-		tenants, total, err := service.FilterByDateRange(ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
-	})
-}
-
-func TestTenantService_FilterByDateRange_WithSort(t *testing.T) {
-	t.Parallel()
-	f := setupTest(t)
-
-	repo := persistence.NewPgAnalyticsQueryRepository()
-	service := services.NewTenantService(repo)
-
-	now := time.Now()
-	startDate := now.AddDate(0, 0, -30)
-	endDate := now
-
-	t.Run("Sort_By_Name_Asc_With_Date_Filter", func(t *testing.T) {
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "name", "asc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify ascending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.LessOrEqual(t, tenants[i].Name, tenants[i+1].Name,
-					"Tenants should be sorted by Name ascending")
-			}
-		}
-	})
-
-	t.Run("Sort_By_Created_At_Desc_With_Date_Filter", func(t *testing.T) {
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "created_at", "desc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify descending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.True(t,
-					tenants[i].CreatedAt.After(tenants[i+1].CreatedAt) ||
-						tenants[i].CreatedAt.Equal(tenants[i+1].CreatedAt),
-					"Tenants should be sorted by CreatedAt descending",
-				)
-			}
-		}
-	})
-
-	t.Run("Sort_By_User_Count_Desc_With_Date_Filter", func(t *testing.T) {
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "user_count", "desc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
-
-		// Verify descending order
-		if len(tenants) > 1 {
-			for i := 0; i < len(tenants)-1; i++ {
-				assert.GreaterOrEqual(t, tenants[i].UserCount, tenants[i+1].UserCount,
-					"Tenants should be sorted by UserCount descending")
-			}
-		}
-	})
-
-	t.Run("Invalid_Sort_Field_Uses_Default_With_Date_Filter", func(t *testing.T) {
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "invalid_field", "asc")
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, total, 0)
 	})
 }
 
@@ -596,7 +391,7 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 	})
 
 	t.Run("Export_With_Real_Tenants", func(t *testing.T) {
-		tenants, _, err := service.ListTenants(f.Ctx, 10, 0, "", "")
+		tenants, _, err := service.ListTenants(f.Ctx, 10, 0)
 		require.NoError(t, err)
 
 		if len(tenants) > 0 {
@@ -690,7 +485,7 @@ func TestTenantService_Integration(t *testing.T) {
 
 	t.Run("List_Then_Get_Details", func(t *testing.T) {
 		// List tenants
-		tenants, total, err := service.ListTenants(f.Ctx, 10, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 10, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 1)
 
@@ -714,7 +509,7 @@ func TestTenantService_Integration(t *testing.T) {
 		endDate := now
 
 		// Filter tenants
-		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 
@@ -730,7 +525,7 @@ func TestTenantService_Integration(t *testing.T) {
 		testTenantID := f.TenantID()
 
 		// It should appear in the list
-		tenants, _, err := service.ListTenants(f.Ctx, 1000, 0, "", "")
+		tenants, _, err := service.ListTenants(f.Ctx, 1000, 0)
 		require.NoError(t, err)
 
 		found := false
@@ -771,7 +566,7 @@ func TestTenantService_LimitValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tenants, total, err := service.ListTenants(f.Ctx, tc.limit, 0, "", "")
+			tenants, total, err := service.ListTenants(f.Ctx, tc.limit, 0)
 
 			if tc.wantError {
 				require.Error(t, err)
@@ -796,7 +591,7 @@ func BenchmarkTenantService_ListTenants(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, err := service.ListTenants(f.Ctx, 10, 0, "", "")
+		_, _, err := service.ListTenants(f.Ctx, 10, 0)
 		if err != nil {
 			b.Fatalf("unexpected error: %v", err)
 		}
@@ -809,7 +604,7 @@ func BenchmarkTenantService_PrepareExcelExport(b *testing.B) {
 	service := services.NewTenantService(repo)
 
 	// Get some tenants first
-	tenants, _, err := service.ListTenants(f.Ctx, 100, 0, "", "")
+	tenants, _, err := service.ListTenants(f.Ctx, 100, 0)
 	if err != nil {
 		b.Fatalf("failed to get tenants: %v", err)
 	}
@@ -846,7 +641,7 @@ func TestTenantService_MultiTenant(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Both_Tenants_Appear_In_List", func(t *testing.T) {
-		tenants, total, err := service.ListTenants(f.Ctx, 1000, 0, "", "")
+		tenants, total, err := service.ListTenants(f.Ctx, 1000, 0)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 2, "Should have at least 2 tenants")
 

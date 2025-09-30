@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/pkg/errors"
 )
 
@@ -39,7 +40,9 @@ func (s *TenantService) ListTenants(ctx context.Context, limit, offset int) ([]*
 		offset = 0
 	}
 
-	tenants, total, err := s.repo.ListTenants(ctx, limit, offset, "", "")
+	// Default DESC sort
+	sortBy := domain.TenantSortBy{Fields: []repo.SortByField[string]{{Field: "created_at", Ascending: false}}}
+	tenants, total, err := s.repo.ListTenants(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to list tenants")
 	}
@@ -50,7 +53,7 @@ func (s *TenantService) ListTenants(ctx context.Context, limit, offset int) ([]*
 // FilterByDateRange returns tenants created within the specified date range
 // If startDate is zero, returns all tenants from the beginning
 // If endDate is zero, defaults to now
-func (s *TenantService) FilterByDateRange(ctx context.Context, startDate, endDate time.Time, limit, offset int, sortField, sortOrder string) ([]*entities.TenantInfo, int, error) {
+func (s *TenantService) FilterByDateRange(ctx context.Context, startDate, endDate time.Time, limit, offset int, sortBy domain.TenantSortBy) ([]*entities.TenantInfo, int, error) {
 	// Set default date range if not provided
 	if startDate.IsZero() {
 		startDate = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -77,7 +80,7 @@ func (s *TenantService) FilterByDateRange(ctx context.Context, startDate, endDat
 		offset = 0
 	}
 
-	tenants, total, err := s.repo.FilterTenantsByDateRange(ctx, startDate, endDate, limit, offset, sortField, sortOrder)
+	tenants, total, err := s.repo.FilterTenantsByDateRange(ctx, startDate, endDate, limit, offset, sortBy)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to filter tenants by date range")
 	}
@@ -136,7 +139,9 @@ func (s *TenantService) PrepareExcelExport(ctx context.Context, tenants []*entit
 
 // GetTenantsSummary returns a summary of tenant statistics
 func (s *TenantService) GetTenantsSummary(ctx context.Context) (string, error) {
-	tenants, total, err := s.repo.ListTenants(ctx, 1000, 0, "", "")
+	// Default DESC sort
+	sortBy := domain.TenantSortBy{Fields: []repo.SortByField[string]{{Field: "created_at", Ascending: false}}}
+	tenants, total, err := s.repo.ListTenants(ctx, 1000, 0, sortBy)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get tenants for summary")
 	}
