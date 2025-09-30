@@ -278,8 +278,15 @@ ALTER TABLE payments
 ALTER TABLE payments
     DROP CONSTRAINT payments_counterparty_id_fkey;
 
+CREATE SEQUENCE IF NOT EXISTS payments_id_seq;
+
 ALTER TABLE payments
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE payments
+    ALTER COLUMN id SET DEFAULT nextval('payments_id_seq');
+
+ALTER SEQUENCE payments_id_seq OWNED BY payments.id;
 
 ALTER TABLE payments
     ALTER COLUMN transaction_id TYPE int;
@@ -316,8 +323,15 @@ ALTER TABLE expenses
 ALTER TABLE expenses
     DROP CONSTRAINT expenses_category_id_fkey;
 
+CREATE SEQUENCE IF NOT EXISTS expenses_id_seq;
+
 ALTER TABLE expenses
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE expenses
+    ALTER COLUMN id SET DEFAULT nextval('expenses_id_seq');
+
+ALTER SEQUENCE expenses_id_seq OWNED BY expenses.id;
 
 ALTER TABLE expenses
     ALTER COLUMN transaction_id TYPE int;
@@ -361,8 +375,15 @@ ALTER TABLE transactions
 ALTER TABLE transactions
     DROP CONSTRAINT transactions_destination_account_id_fkey;
 
+CREATE SEQUENCE IF NOT EXISTS transactions_id_seq;
+
 ALTER TABLE transactions
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE transactions
+    ALTER COLUMN id SET DEFAULT nextval('transactions_id_seq');
+
+ALTER SEQUENCE transactions_id_seq OWNED BY transactions.id;
 
 ALTER TABLE transactions
     ALTER COLUMN origin_account_id TYPE int;
@@ -383,8 +404,15 @@ ALTER TABLE transactions
 ALTER TABLE money_accounts
     DROP CONSTRAINT money_accounts_pkey;
 
+CREATE SEQUENCE IF NOT EXISTS money_accounts_id_seq;
+
 ALTER TABLE money_accounts
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE money_accounts
+    ALTER COLUMN id SET DEFAULT nextval('money_accounts_id_seq');
+
+ALTER SEQUENCE money_accounts_id_seq OWNED BY money_accounts.id;
 
 ALTER TABLE money_accounts
     ADD PRIMARY KEY (id);
@@ -398,8 +426,15 @@ ALTER TABLE expense_categories
 ALTER TABLE expense_categories
     DROP CONSTRAINT expense_categories_pkey;
 
+CREATE SEQUENCE IF NOT EXISTS expense_categories_id_seq;
+
 ALTER TABLE expense_categories
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE expense_categories
+    ALTER COLUMN id SET DEFAULT nextval('expense_categories_id_seq');
+
+ALTER SEQUENCE expense_categories_id_seq OWNED BY expense_categories.id;
 
 ALTER TABLE expense_categories
     ADD PRIMARY KEY (id);
@@ -408,8 +443,15 @@ ALTER TABLE expense_categories
 ALTER TABLE inventory
     DROP CONSTRAINT inventory_pkey;
 
+CREATE SEQUENCE IF NOT EXISTS inventory_id_seq;
+
 ALTER TABLE inventory
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE inventory
+    ALTER COLUMN id SET DEFAULT nextval('inventory_id_seq');
+
+ALTER SEQUENCE inventory_id_seq OWNED BY inventory.id;
 
 ALTER TABLE inventory
     ADD PRIMARY KEY (id);
@@ -421,8 +463,15 @@ ALTER TABLE counterparty_contacts
 ALTER TABLE counterparty_contacts
     DROP CONSTRAINT counterparty_contacts_counterparty_id_fkey;
 
+CREATE SEQUENCE IF NOT EXISTS counterparty_contacts_id_seq;
+
 ALTER TABLE counterparty_contacts
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE counterparty_contacts
+    ALTER COLUMN id SET DEFAULT nextval('counterparty_contacts_id_seq');
+
+ALTER SEQUENCE counterparty_contacts_id_seq OWNED BY counterparty_contacts.id;
 
 ALTER TABLE counterparty_contacts
     ALTER COLUMN counterparty_id TYPE int;
@@ -437,8 +486,15 @@ ALTER TABLE counterparty_contacts
 ALTER TABLE counterparty
     DROP CONSTRAINT counterparty_pkey;
 
+CREATE SEQUENCE IF NOT EXISTS counterparty_id_seq;
+
 ALTER TABLE counterparty
-    ALTER COLUMN id TYPE serial;
+    ALTER COLUMN id TYPE INTEGER;
+
+ALTER TABLE counterparty
+    ALTER COLUMN id SET DEFAULT nextval('counterparty_id_seq');
+
+ALTER SEQUENCE counterparty_id_seq OWNED BY counterparty.id;
 
 ALTER TABLE counterparty
     ADD PRIMARY KEY (id);
