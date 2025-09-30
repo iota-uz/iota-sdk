@@ -88,7 +88,7 @@ Create structured markdown file at: `CONTEXT_DUMP_[timestamp].md` or custom file
 ## Output Format
 
 ```markdown
-# Project Context Dump - SHY ELD
+# Project Context Dump - IOTA SDK
 Generated: [timestamp]
 Branch: [branch_name]
 Developer: [user]
@@ -164,9 +164,9 @@ Location | Priority | Description
 
 ## Agent Delegation Suggestions
 Based on current state:
-- Use `go-editor` for: [specific tasks]
+- Use `go-editor` for: [specific Go code changes and test coverage]
 - Use `database-expert` for: [migration needs]
-- Use `test-editor` for: [test gaps]
+- Use `ui-editor` for: [template and frontend changes]
 - Use `refactoring-expert` for: [final review before deploy]
 
 ## Quick Resume Commands

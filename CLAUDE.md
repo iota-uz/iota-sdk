@@ -1,4 +1,4 @@
-# SHY ELD - Claude Code Orchestrator Configuration
+# IOTA SDK - Claude Code Orchestrator Configuration
 
 Claude serves as a **pure orchestrator** with general project knowledge, translating business requirements into specific code paths and delegating all implementation work to specialized agents.
 
@@ -6,14 +6,14 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 
 **Task Classification → Agent Selection (Use this first)**
 
-| Task Scope | File Count | Agent Combination | Example Triggers |
-|------------|------------|------------------|------------------|
-| **Single Read** | 1-3 files | **No agents needed** | Documentation lookup, code reading |
-| **Small Fix** | 1-5 files | `debugger` + 1 specialist | Single controller bug, small template fix |
-| **Medium Feature** | 6-15 files | 3-4 agents parallel | New form, API endpoint, page updates |
-| **Large Feature** | 16-30 files | 5-7 agents parallel | New module, major refactoring |
-| **Cross-Module** | 30+ files | 7-10+ agents parallel | Architecture changes, bulk renaming |
-| **Pattern Scanning** | Variable | `speed-editor` + specialists | Code analysis, hardcoded values, duplicate patterns |
+| Task Scope           | File Count  | Agent Combination            | Example Triggers                                    |
+|----------------------|-------------|------------------------------|-----------------------------------------------------|
+| **Single Read**      | 1-3 files   | **No agents needed**         | Documentation lookup, code reading                  |
+| **Small Fix**        | 1-5 files   | `debugger` + 1 specialist    | Single controller bug, small template fix           |
+| **Medium Feature**   | 6-15 files  | 3-4 agents parallel          | New form, API endpoint, page updates                |
+| **Large Feature**    | 16-30 files | 5-7 agents parallel          | New module, major refactoring                       |
+| **Cross-Module**     | 30+ files   | 7-10+ agents parallel        | Architecture changes, bulk renaming                 |
+| **Pattern Scanning** | Variable    | `speed-editor` + specialists | Code analysis, hardcoded values, duplicate patterns |
 
 **Agent Selection Matrix:**
 - **Errors/Failures**: Always start with `debugger`
@@ -217,12 +217,12 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 
 | Workflow Type           | Required Agents                                        | Optional Agents                                                                 | When to Use                                     |
 |-------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------|-------------------------------------------------|
-| **Feature Development** | `go-editor` + `ui-editor` + `test-editor`              | `database-expert` (data changes), `refactoring-expert` (always after go-editor) | New features, enhancements, major functionality |
-| **Bug Resolution**      | `debugger` → `go-editor` + `refactoring-expert`        | `test-editor` (regression tests), `ui-editor` (UI bugs)                         | Bug fixes, error resolution, system failures    |
+| **Feature Development** | `go-editor` + `ui-editor`                              | `database-expert` (data changes), `refactoring-expert` (always after go-editor) | New features, enhancements, major functionality |
+| **Bug Resolution**      | `debugger` → `go-editor` + `refactoring-expert`        | `ui-editor` (UI bugs)                                                           | Bug fixes, error resolution, system failures    |
 | **Performance Issues**  | `debugger` + `go-editor` + `refactoring-expert`        | `database-expert` (query optimization)                                          | Slow queries, high latency, resource usage      |
-| **UI/Template Changes** | `ui-editor`                                            | `go-editor` (controller changes), `test-editor` (coverage)                      | UI updates, forms, frontend functionality       |
-| **Database Changes**    | `database-expert` + `go-editor` + `refactoring-expert` | `test-editor` (data validation tests)                                           | Schema changes, migrations, query optimization  |
-| **Cross-Module Work**   | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`, `test-editor`                                   | Architecture changes, large refactoring         |
+| **UI/Template Changes** | `ui-editor`                                            | `go-editor` (controller changes and test coverage)                              | UI updates, forms, frontend functionality       |
+| **Database Changes**    | `database-expert` + `go-editor` + `refactoring-expert` | None (go-editor handles test coverage)                                          | Schema changes, migrations, query optimization  |
+| **Cross-Module Work**   | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`                                                  | Architecture changes, large refactoring         |
 | **Bulk Operations**     | `speed-editor` → specialist agents                     | `refactoring-expert` (review)                                                   | Mass renaming, pattern standardization          |
 | **Pattern Discovery**   | `speed-editor` → analysis agents                       | `go-editor`, `refactoring-expert`                                               | Code scanning, hardcoded values, anti-patterns  |
 | **Config Management**   | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs  |
@@ -278,10 +278,10 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 ```
 1. Run: find . -name "*_test.go" + coverage analysis
 2. Analysis: Missing tests in 8 services, 12 controllers, 5 repositories
-3. Launch test-editor agents with balanced scope:
-   → test-editor (1): Services (8 files)
-   → test-editor (2): Controllers (12 files)
-   → test-editor (3): Repositories (5 files)
+3. Launch go-editor agents with balanced scope:
+   → go-editor (1): Services (8 files) - implement missing tests
+   → go-editor (2): Controllers (12 files) - implement missing tests
+   → go-editor (3): Repositories (5 files) - implement missing tests
 ```
 
 **Example: Bulk Renaming with Speed-Editor**
@@ -339,16 +339,15 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 
 ### Agent Collaboration Matrix
 
-| Primary Agent | Provides Input To | Receives Input From | Parallel Partners |
-|---------------|-------------------|---------------------|-------------------|
-| **debugger** | `go-editor`, `database-expert` | Error logs, user reports | None (investigation first) |
-| **go-editor** | `test-editor`, `refactoring-expert` | `debugger`, `database-expert` | `ui-editor`, `database-expert`, `speed-editor` |
-| **database-expert** | `go-editor`, `refactoring-expert` | Business requirements | `go-editor`, `ui-editor` |
-| **ui-editor** | `go-editor`, `test-editor` | Controller changes | `go-editor`, `test-editor`, `speed-editor` |
-| **test-editor** | `refactoring-expert` | `go-editor`, `ui-editor` | `go-editor`, `ui-editor` |
-| **speed-editor** | Other agents (bulk work) | Task specifications | `go-editor`, `ui-editor` |
-| **config-manager** | Agent coordination, documentation | Project requirements | None (configuration coordination) |
-| **refactoring-expert** | Final output | All other agents | None (final review) |
+| Primary Agent          | Provides Input To                 | Receives Input From           | Parallel Partners                              |
+|------------------------|-----------------------------------|-------------------------------|------------------------------------------------|
+| **debugger**           | `go-editor`, `database-expert`    | Error logs, user reports      | None (investigation first)                     |
+| **go-editor**          | `refactoring-expert`              | `debugger`, `database-expert` | `ui-editor`, `database-expert`, `speed-editor` |
+| **database-expert**    | `go-editor`, `refactoring-expert` | Business requirements         | `go-editor`, `ui-editor`                       |
+| **ui-editor**          | `go-editor`                       | Controller changes            | `go-editor`, `speed-editor`                    |
+| **speed-editor**       | Other agents (bulk work)          | Task specifications           | `go-editor`, `ui-editor`                       |
+| **config-manager**     | Agent coordination, documentation | Project requirements          | None (configuration coordination)              |
+| **refactoring-expert** | Final output                      | All other agents              | None (final review)                            |
 
 ### Single Agent Exceptions
 
@@ -371,7 +370,7 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 - Using `ui-editor` for Go logic changes
 - Using `go-editor` for database schema modifications
 - Using `speed-editor` for complex business logic
-- Using `test-editor` without existing implementation
+- Splitting Go code and test creation across multiple agents (go-editor handles both)
 
 **❌ Workflow Mistakes:**
 - Launching agents sequentially when parallel is possible
@@ -392,20 +391,20 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 #### Business Context Translation
 **Business Request → Multi-Agent Orchestration**
 
-| Business Context                            | Standard Multi-Agent Launch                                                                       |
-|---------------------------------------------|---------------------------------------------------------------------------------------------------|
-| "Fix dashboard bug"                         | `debugger` && (`go-editor` & `ui-editor` & `test-editor` & `refactoring-expert`)                  |
-| "Add new driver form"                       | (`go-editor` & `database-expert` & `ui-editor`) && `test-editor` && `refactoring-expert`          |
-| "Optimize accounting performance"           | `debugger` && (`database-expert` & `go-editor`) && `refactoring-expert`                           |
-| "Update finance module"                     | (Multiple `go-editor` & `database-expert` & `ui-editor`) && `test-editor` && `refactoring-expert` |
-| "Rename functions across codebase"          | `speed-editor` && `go-editor` && `refactoring-expert`                                             |
-| "Standardize import patterns"               | `speed-editor` && `refactoring-expert`                                                            |
-| "Find hardcoded strings for enum constants" | `speed-editor` && `go-editor` && `refactoring-expert`                                             |
-| "Scan for duplicate code patterns"          | `speed-editor` && `go-editor` && `refactoring-expert`                                             |
-| "Update CLAUDE.md with new agent"           | `config-manager`                                                                                  |
-| "Fix environment configuration issues"      | `config-manager`                                                                                  |
-| "Add new documentation section"             | `config-manager`                                                                                  |
-| "Deploy to staging"                         | `railway-ops`                                                                                     |
+| Business Context                            | Standard Multi-Agent Launch                                                        |
+|---------------------------------------------|------------------------------------------------------------------------------------|
+| "Fix dashboard bug"                         | `debugger` && (`go-editor` & `ui-editor` & `refactoring-expert`)                   |
+| "Add new driver form"                       | (`go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`            |
+| "Optimize accounting performance"           | `debugger` && (`database-expert` & `go-editor`) && `refactoring-expert`            |
+| "Update finance module"                     | (Multiple `go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`   |
+| "Rename functions across codebase"          | `speed-editor` && `go-editor` && `refactoring-expert`                              |
+| "Standardize import patterns"               | `speed-editor` && `refactoring-expert`                                             |
+| "Find hardcoded strings for enum constants" | `speed-editor` && `go-editor` && `refactoring-expert`                              |
+| "Scan for duplicate code patterns"          | `speed-editor` && `go-editor` && `refactoring-expert`                              |
+| "Update CLAUDE.md with new agent"           | `config-manager`                                                                   |
+| "Fix environment configuration issues"      | `config-manager`                                                                   |
+| "Add new documentation section"             | `config-manager`                                                                   |
+| "Deploy to staging"                         | `railway-ops`                                                                      |
 
 **Agent Execution Syntax:**
 - `&` = Parallel execution (agents run simultaneously)
