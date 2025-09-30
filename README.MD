@@ -82,7 +82,33 @@ go install github.com/iota-uz/devhub/cmd/devhub@latest
 
 Learn more in the [DevHub documentation](https://github.com/iota-uz/devhub).
 
----  
+---
+
+## 🔐 Super Admin
+
+IOTA SDK includes a separate Super Admin server for managing tenants and platform-wide operations. This deployment is isolated from the main application and requires super admin authentication for all routes.
+
+**Key Features:**
+- Separate deployment context (uses same environment variables)
+- Only core + superadmin modules loaded (lightweight)
+- Global authentication middleware enforcing super admin access
+- Tenant management and platform analytics
+
+**Quick Start:**
+```bash
+# Build Super Admin server
+docker build -f Dockerfile.superadmin -t iota-sdk-superadmin .
+
+# Run Super Admin server (uses same env vars as main app)
+docker run -p 3000:3000 \
+  -e DATABASE_URL=postgres://... \
+  -e PORT=3000 \
+  iota-sdk-superadmin
+```
+
+For detailed documentation, deployment guides, and authentication flow, see [Super Admin Documentation](docs/SUPERADMIN.md).
+
+---
 
 ## 📄 Licence
 
