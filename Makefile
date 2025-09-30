@@ -6,8 +6,6 @@ TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 deps:
 	go get ./...
 
-
-
 # Generate code documentation
 docs:
 	go run cmd/command/main.go doc --dir . --out docs/LLMS.md --recursive --exclude "vendor,node_modules,tmp,e2e,cmd"

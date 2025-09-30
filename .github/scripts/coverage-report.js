@@ -1,24 +1,43 @@
 const fs = require('fs');
 const { execSync } = require('child_process');
 
+/**
+ * Simplified Coverage Reporter - Analyzes and reports Go test coverage
+ * Focuses on core functionality used in CI workflows
+ */
 class CoverageReporter {
   constructor(options = {}) {
-    this.coverageFile = options.coverageFile || process.env.COVERAGE_FILE || 'coverage.out';
-    // Check environment variable first, then options, then default
-    this.threshold = process.env.COVERAGE_THRESHOLD ? parseInt(process.env.COVERAGE_THRESHOLD) : (options.threshold || 70);
-    this.outputFormat = options.outputFormat || process.env.COVERAGE_OUTPUT || 'github';
-    
-    // Status thresholds from environment variables
+    // Helper function for environment variable parsing
+    const getEnvInt = (envVar, optionValue, defaultValue) =>
+      process.env[envVar] ? parseInt(process.env[envVar]) : (optionValue || defaultValue);
+
+    const getEnvValue = (envVar, optionValue, defaultValue) =>
+      process.env[envVar] || optionValue || defaultValue;
+
+    // Core configuration
+    this.coverageFile = getEnvValue('COVERAGE_FILE', options.coverageFile, 'coverage.out');
+    this.threshold = getEnvInt('COVERAGE_THRESHOLD', options.threshold, 70);
+    this.outputFormat = getEnvValue('COVERAGE_OUTPUT', options.outputFormat, 'github');
+
+    // Display limits
+    this.maxLowCoverageDisplay = getEnvInt('COVERAGE_MAX_LOW_COVERAGE_DISPLAY', null, 20);
+    this.maxFilesDisplay = getEnvInt('COVERAGE_MAX_FILES_DISPLAY', null, 50);
+
+    // Status thresholds
     this.thresholds = {
-      excellent: process.env.COVERAGE_THRESHOLD_EXCELLENT ? parseInt(process.env.COVERAGE_THRESHOLD_EXCELLENT) : 80,
-      good: process.env.COVERAGE_THRESHOLD_GOOD ? parseInt(process.env.COVERAGE_THRESHOLD_GOOD) : 70,
-      fair: process.env.COVERAGE_THRESHOLD_FAIR ? parseInt(process.env.COVERAGE_THRESHOLD_FAIR) : 60,
-      poor: process.env.COVERAGE_THRESHOLD_POOR ? parseInt(process.env.COVERAGE_THRESHOLD_POOR) : 40
+      excellent: getEnvInt('COVERAGE_THRESHOLD_EXCELLENT', null, 80),
+      good: getEnvInt('COVERAGE_THRESHOLD_GOOD', null, 70),
+      fair: getEnvInt('COVERAGE_THRESHOLD_FAIR', null, 60),
+      poor: getEnvInt('COVERAGE_THRESHOLD_POOR', null, 40)
     };
-    
-    // Display limits from environment variables
-    this.maxLowCoverageDisplay = process.env.COVERAGE_MAX_LOW_COVERAGE_DISPLAY ? parseInt(process.env.COVERAGE_MAX_LOW_COVERAGE_DISPLAY) : 20;
-    this.maxPackagesDisplay = process.env.COVERAGE_MAX_PACKAGES_DISPLAY ? parseInt(process.env.COVERAGE_MAX_PACKAGES_DISPLAY) : 15;
+
+    // Parse ignore patterns
+    const defaultIgnore = 'cmd/,*_templ.go';
+    const envIgnore = process.env.COVERAGE_IGNORE_PATTERNS;
+    const rawPatterns = options.ignorePatterns || envIgnore || defaultIgnore;
+    this.ignorePatterns = (Array.isArray(rawPatterns) ? rawPatterns : rawPatterns.split(','))
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
   }
 
   checkCoverageFile() {
@@ -27,101 +46,143 @@ class CoverageReporter {
     }
   }
 
+  /**
+   * Simplified ignore check - combines file and package logic
+   */
+  shouldIgnore(filePath) {
+    return this.ignorePatterns.some(pattern => {
+      if (pattern.includes('*')) {
+        // File pattern (e.g., *_templ.go)
+        const regex = new RegExp(pattern.replace(/\*/g, '.*') + '$');
+        return regex.test(filePath);
+      } else {
+        // Directory pattern (e.g., cmd/, viewmodels/)
+        const cleanPattern = pattern.endsWith('/') ? pattern.slice(0, -1) : pattern;
+        return filePath.includes(cleanPattern + '/') || filePath.startsWith(cleanPattern + '/');
+      }
+    });
+  }
+
+  /**
+   * Parse coverage data from go tool cover output
+   */
+  parseCoverageData(lines) {
+    const functions = [];
+    const fileCoverage = {};
+
+    lines
+      .filter(line => line.includes('.go:') && !line.includes('total:'))
+      .forEach(line => {
+        const parts = line.split('\t').filter(p => p.length > 0);
+        if (parts.length >= 2) {
+          const pathWithLine = parts[0].trim();
+          const functionName = parts.length >= 3 ? parts[parts.length - 2].trim() : '';
+          const coverage = parts[parts.length - 1].trim();
+          const coverageNum = parseFloat(coverage.replace('%', ''));
+
+          // Extract file path
+          const pathMatch = pathWithLine.match(/^(.+?)\/([^/]+\.go):(\d+):$/);
+          if (pathMatch) {
+            const filePath = pathMatch[1] + '/' + pathMatch[2];
+            const fileName = pathMatch[2];
+            const lineNumber = pathMatch[3];
+            const shortPath = filePath.replace('github.com/iota-uz/iota-sdk/', '');
+
+            // Skip if should be ignored
+            if (this.shouldIgnore(shortPath)) return;
+
+            // Add to functions
+            functions.push({
+              functionName,
+              fileName,
+              shortPath,
+              lineNumber,
+              coverage,
+              coverageNum
+            });
+
+            // Add to file coverage stats
+            if (!fileCoverage[shortPath]) {
+              fileCoverage[shortPath] = { sum: 0, count: 0 };
+            }
+            fileCoverage[shortPath].sum += coverageNum;
+            fileCoverage[shortPath].count++;
+          }
+        }
+      });
+
+    // Calculate file averages and sort
+    const files = Object.entries(fileCoverage)
+      .map(([filePath, stats]) => ({
+        file: filePath,
+        coverage: `${(stats.sum / stats.count).toFixed(1)}%`,
+        coverageNum: stats.sum / stats.count
+      }))
+      .sort((a, b) => a.coverageNum - b.coverageNum);
+
+    return { functions, files };
+  }
+
+  /**
+   * Calculate total coverage from filtered functions
+   */
+  calculateTotalCoverage(functions) {
+    if (functions.length === 0) return { percentage: 0, formatted: '0.0%' };
+
+    const totalCoverage = functions.reduce((sum, func) => sum + func.coverageNum, 0);
+    const avgCoverage = totalCoverage / functions.length;
+
+    return {
+      percentage: avgCoverage,
+      formatted: `${avgCoverage.toFixed(1)}%`
+    };
+  }
+
+  /**
+   * Calculate coverage distribution
+   */
+  calculateDistribution(functions) {
+    return {
+      uncovered: functions.filter(f => f.coverageNum === 0).length,
+      poor: functions.filter(f => f.coverageNum > 0 && f.coverageNum <= 25).length,
+      fair: functions.filter(f => f.coverageNum > 25 && f.coverageNum <= 50).length,
+      good: functions.filter(f => f.coverageNum > 50 && f.coverageNum <= 75).length,
+      veryGood: functions.filter(f => f.coverageNum > 75 && f.coverageNum < 100).length,
+      perfect: functions.filter(f => f.coverageNum === 100).length,
+      get total() { return this.uncovered + this.poor + this.fair + this.good + this.veryGood + this.perfect; },
+      get withTests() { return this.total - this.uncovered; }
+    };
+  }
+
+  /**
+   * Get coverage data
+   */
   getCoverageData() {
     try {
       const output = execSync(`go tool cover -func="${this.coverageFile}"`, { encoding: 'utf8' });
       const lines = output.trim().split('\n');
 
-      // Parse total coverage
-      const totalLine = lines.find(line => line.includes('total:'));
-      if (!totalLine) {
-        throw new Error('Could not find total coverage in output');
-      }
+      // Parse coverage data
+      const { functions, files } = this.parseCoverageData(lines);
 
-      const coverageMatch = totalLine.match(/(\d+(?:\.\d+)?)%/);
-      if (!coverageMatch) {
-        throw new Error('Could not parse coverage percentage');
-      }
+      // Calculate totals
+      const totalCoverage = this.calculateTotalCoverage(functions);
+      const distribution = this.calculateDistribution(functions);
 
-      const coverage = parseFloat(coverageMatch[1]);
-      const coverageStr = `${coverage.toFixed(1)}%`;
-
-      // Parse package coverage by aggregating function coverage
-      const packageCoverage = {};
-      const packageStats = {};
-      
-      // First, collect all functions and their coverage by package
-      lines
-        .filter(line => line.includes('.go:') && !line.includes('total:'))
-        .forEach(line => {
-          const parts = line.trim().split(/\s+/);
-          if (parts.length >= 3) {
-            const funcPath = parts[0];
-            const cov = parts[2];
-            const covNum = parseFloat(cov.replace('%', ''));
-            
-            // Extract package from function path
-            const packageMatch = funcPath.match(/^(.+?)\/[^/]+\.go:/);
-            if (packageMatch) {
-              const pkg = packageMatch[1].replace('github.com/iota-uz/iota-sdk/', '');
-              
-              if (!packageStats[pkg]) {
-                packageStats[pkg] = { covered: 0, total: 0 };
-              }
-              
-              packageStats[pkg].total++;
-              if (covNum > 0) {
-                packageStats[pkg].covered++;
-              }
-              
-              // Store the sum for average calculation
-              if (!packageCoverage[pkg]) {
-                packageCoverage[pkg] = { sum: 0, count: 0 };
-              }
-              packageCoverage[pkg].sum += covNum;
-              packageCoverage[pkg].count++;
-            }
-          }
-        });
-      
-      // Calculate average coverage per package
-      const packages = Object.entries(packageCoverage)
-        .map(([pkg, stats]) => {
-          const avgCoverage = stats.count > 0 ? (stats.sum / stats.count) : 0;
-          return {
-            package: pkg,
-            coverage: `${avgCoverage.toFixed(1)}%`,
-            coverageNum: avgCoverage
-          };
-        })
-        .filter(pkg => pkg.package && pkg.package.length > 0)
-        .sort((a, b) => b.coverageNum - a.coverageNum);
-
-      // Parse function coverage
-      const functions = lines
-        .filter(line => line.includes('.go:'))
-        .map(line => {
-          const parts = line.trim().split(/\s+/);
-          if (parts.length >= 3) {
-            const func = parts[0];
-            const cov = parts[2];
-            const covNum = parseFloat(cov.replace('%', ''));
-            return { function: func, coverage: cov, coverageNum: covNum };
-          }
-          return null;
-        })
-        .filter(Boolean);
-
+      // Get low coverage functions
       const lowCoverageFunctions = functions
-        .filter(f => f.coverageNum > 0 && f.coverageNum < this.threshold)
-        .sort((a, b) => a.coverageNum - b.coverageNum);
+        .filter(f => f.coverageNum < this.threshold)
+        .sort((a, b) => a.coverageNum - b.coverageNum)
+        .slice(0, this.maxLowCoverageDisplay);
 
       return {
-        coverage: coverageStr,
-        coverageNum: coverage,
+        coverage: totalCoverage.formatted,
+        coverageNum: totalCoverage.percentage,
         fileCount: functions.length,
-        packages: packages.slice(0, this.maxPackagesDisplay),
-        lowCoverageFunctions: lowCoverageFunctions.slice(0, this.maxLowCoverageDisplay)
+        files: files.slice(0, this.maxFilesDisplay),
+        lowCoverageFunctions,
+        distribution,
+        allFunctions: functions
       };
     } catch (error) {
       throw new Error(`Failed to get coverage data: ${error.message}`);
@@ -136,6 +197,11 @@ class CoverageReporter {
     return { status: '🔴 Critical', color: 'red' };
   }
 
+  formatPercentage(value, total) {
+    if (total === 0) return '0.0%';
+    return `${((value / total) * 100).toFixed(1)}%`;
+  }
+
   generateGitHubSummary(data) {
     const { status, color } = this.getStatus(data.coverageNum);
     const summaryFile = process.env.GITHUB_STEP_SUMMARY;
@@ -144,6 +210,8 @@ class CoverageReporter {
       console.warn('GITHUB_STEP_SUMMARY not set, outputting to console');
       return this.generateConsoleOutput(data);
     }
+
+    const { distribution } = data;
 
     const summary = [
       '## 📊 Test Coverage Report',
@@ -154,30 +222,53 @@ class CoverageReporter {
       '|--------|-------|-----------|',
       `| **Total Coverage** | **${data.coverage}** | ${this.threshold}% |`,
       `| **Status** | ${status} | - |`,
-      `| **Files Tested** | ${data.fileCount} | - |`,
-      '',
-      '### 📋 Coverage by Package',
-      '',
-      '| Package | Coverage |',
-      '|---------|----------|',
-      ...data.packages.map(pkg => `| \`${pkg.package}\` | ${pkg.coverage} |`),
-      ''
+      `| **Functions Tested** | ${distribution.withTests}/${distribution.total} (${this.formatPercentage(distribution.withTests, distribution.total)}) | - |`,
     ];
+
+    if (this.ignorePatterns.length > 0) {
+      summary.push(`| **Ignored Patterns** | ${this.ignorePatterns.join(', ')} | - |`);
+    }
+
+    summary.push(
+      '',
+      '### 📋 Coverage by File (sorted lowest to highest)',
+      '',
+      '| File | Coverage |',
+      '|------|----------|',
+      ...data.files.map(file => `| \`${file.file}\` | ${file.coverage} |`),
+      ''
+    );
 
     if (data.lowCoverageFunctions.length > 0) {
       summary.push(
         '<details>',
         `<summary>🔍 Functions with Low Coverage (< ${this.threshold}%)</summary>`,
-        '',
-        '```',
-        ...data.lowCoverageFunctions.map(f => `${f.function} ${f.coverage}`),
-        '```',
-        '</details>',
         ''
       );
+
+      // Group by file
+      const grouped = {};
+      data.lowCoverageFunctions.forEach(func => {
+        if (!grouped[func.shortPath]) grouped[func.shortPath] = [];
+        grouped[func.shortPath].push(func);
+      });
+
+      Object.entries(grouped).forEach(([filePath, functions]) => {
+        summary.push(
+          '',
+          `**${filePath}**`,
+          '| Function | Line | Coverage |',
+          '|----------|------|----------|'
+        );
+        functions.forEach(func => {
+          summary.push(`| \`${func.functionName}\` | ${func.lineNumber} | ${func.coverage} |`);
+        });
+      });
+
+      summary.push('</details>', '');
     }
 
-    // Coverage status
+    // Status message
     if (data.coverageNum < this.threshold) {
       summary.push(`❌ Coverage ${data.coverage} is below the required threshold of ${this.threshold}%`);
     } else {
@@ -189,26 +280,40 @@ class CoverageReporter {
 
   generateConsoleOutput(data) {
     const { status } = this.getStatus(data.coverageNum);
+    const { distribution } = data;
 
     console.log('==================== Test Coverage Report ====================');
     console.log(`Total Coverage: ${data.coverage} (${status})`);
-    console.log(`Files Tested: ${data.fileCount}`);
+    console.log(`Functions Tested: ${distribution.withTests}/${distribution.total} (${this.formatPercentage(distribution.withTests, distribution.total)})`);
     console.log(`Threshold: ${this.threshold}%`);
+    if (this.ignorePatterns.length > 0) {
+      console.log(`Ignored Patterns: ${this.ignorePatterns.join(', ')}`);
+    }
     console.log('');
-    console.log('Package Coverage (Top 10):');
-    console.log('----------------------------------------');
 
-    data.packages.slice(0, 10).forEach(pkg => {
-      console.log(`${pkg.package.padEnd(50)} ${pkg.coverage}`);
+    console.log(`📋 File Coverage (Lowest ${this.maxFilesDisplay} by coverage):`);
+    console.log('----------------------------------------');
+    data.files.forEach(file => {
+      console.log(`${file.file.padEnd(50)} ${file.coverage}`);
     });
 
     if (data.lowCoverageFunctions.length > 0) {
       console.log('');
-      console.log(`Functions with Low Coverage (< ${this.threshold}%):`);
+      console.log(`🔍 Functions with Low Coverage (< ${this.threshold}%):`);
       console.log('----------------------------------------');
-      data.lowCoverageFunctions.slice(0, 10).forEach(f => {
-        console.log(`${f.function} ${f.coverage}`);
+
+      const grouped = {};
+      data.lowCoverageFunctions.forEach(func => {
+        if (!grouped[func.shortPath]) grouped[func.shortPath] = [];
+        grouped[func.shortPath].push(func);
       });
+
+      for (const [filePath, functions] of Object.entries(grouped)) {
+        console.log(`\n${filePath}:`);
+        functions.forEach(func => {
+          console.log(`  L${func.lineNumber.padEnd(5)} ${func.functionName.padEnd(30)} ${func.coverage}`);
+        });
+      }
     }
 
     console.log('');
@@ -265,9 +370,8 @@ class CoverageReporter {
   }
 }
 
-// CLI interface
-function main() {
-  const args = process.argv.slice(2);
+// Command line argument parsing (simplified)
+function parseArguments(args) {
   const options = {};
 
   for (let i = 0; i < args.length; i++) {
@@ -290,34 +394,36 @@ function main() {
         options.outputFormat = value;
         i++;
         break;
+      case '--ignore':
+        options.ignorePatterns = value ? value.split(',') : [];
+        i++;
+        break;
       case '-h':
       case '--help':
         console.log('Usage: node coverage-report.js [OPTIONS]');
-        console.log('');
         console.log('Options:');
-        console.log('  -f, --file       Coverage file (default: coverage.out)');
-        console.log('  -t, --threshold  Coverage threshold percentage (default: 70)');
-        console.log('  -o, --output     Output format: github|console (default: github)');
-        console.log('  -h, --help       Show this help message');
-        console.log('');
-        console.log('Environment variables:');
-        console.log('  COVERAGE_FILE                    Coverage file path (default: coverage.out)');
-        console.log('  COVERAGE_THRESHOLD               Coverage threshold percentage (default: 70)');
-        console.log('  COVERAGE_OUTPUT                  Output format: github|console (default: github)');
-        console.log('  COVERAGE_THRESHOLD_EXCELLENT     Excellent status threshold (default: 80)');
-        console.log('  COVERAGE_THRESHOLD_GOOD          Good status threshold (default: 70)');
-        console.log('  COVERAGE_THRESHOLD_FAIR          Fair status threshold (default: 60)');
-        console.log('  COVERAGE_THRESHOLD_POOR          Poor status threshold (default: 40)');
-        console.log('  COVERAGE_MAX_LOW_COVERAGE_DISPLAY Max low-coverage functions shown (default: 20)');
-        console.log('  COVERAGE_MAX_PACKAGES_DISPLAY    Max packages shown in summary (default: 15)');
-        console.log('');
-        console.log('Priority: CLI options > Environment variables > Defaults');
+        console.log('  -f, --file <file>     Coverage file (default: coverage.out)');
+        console.log('  -t, --threshold <n>   Coverage threshold percentage (default: 70)');
+        console.log('  -o, --output <format> Output format: github|console (default: github)');
+        console.log('  --ignore <patterns>   Comma-separated patterns to ignore');
+        console.log('  -h, --help           Show this help message');
         process.exit(0);
+        break;
       default:
-        console.error(`Unknown option: ${flag}`);
-        process.exit(1);
+        if (flag.startsWith('-')) {
+          console.error(`Unknown option: ${flag}`);
+          process.exit(1);
+        }
     }
   }
+
+  return options;
+}
+
+// Main entry point
+function main() {
+  const args = process.argv.slice(2);
+  const options = parseArguments(args);
 
   const reporter = new CoverageReporter(options);
   reporter.run();
