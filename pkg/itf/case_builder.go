@@ -444,7 +444,7 @@ func Cases(builders ...*TestCaseBuilder) []TestCase {
 	return cases
 }
 
-// Common patterns for SHY ELD application
+// Common patterns for IOTA SDK application
 
 // FilterTest creates a test case for filtering with query parameters
 func FilterTest(path, filterName, filterValue string) *TestCaseBuilder {
