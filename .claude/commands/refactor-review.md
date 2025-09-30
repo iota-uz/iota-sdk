@@ -1,77 +1,111 @@
 ---
-allowed-tools: Task, Bash(git status:*), Bash(git diff:*), Bash(go vet:*), Bash(make:*), Read, Glob
-argument-hint: [optional: specific files or patterns to focus on, or empty for uncommitted changes]
-description: "Comprehensive code review and production-grade refactoring orchestrator - /refactor-review [files/packages] or /refactor-review for uncommitted changes"
+allowed-tools: |
+  Bash(git status:*), Bash(git diff:*), Bash(go vet:*), Bash(make *),
+  Read, Glob, Task(subagent_type:speed-editor), Task(subagent_type:go-editor)
+argument-hint: "[optional] files/dirs/globs (defaults to uncommitted changes)"
+description: "Holistic refactor with permission to break compatibility; replace layered hacks with simpler architectures"
 ---
 
-# Production-Grade Code Review & Refactoring Orchestrator
+# /refactor-review
 
-**Usage:**
-- `/refactor-review` - Review and refactor all uncommitted changes (staged and unstaged)
-- `/refactor-review file1.go file2.go` - Review and refactor specific files
-- `/refactor-review ./pkg/module` - Review and refactor specific package/directory
-- `/refactor-review $ARGUMENTS` - Review and refactor specified files or directories
+**Usage**
 
-This command orchestrates a comprehensive code review and refactoring workflow by leveraging the specialized refactoring-expert agent.
+- `/refactor-review` — analyze uncommitted changes (staged+unstaged) and perform holistic refactor
+- `/refactor-review ./pkg/...` — focus scope
+- Flags: `--dry-run`, `--max-chunk=<int>` (default: 700 LOC), `--tests=auto|none|^TestName$` (default: auto),
+  `--make-target="check lint"`
 
-## Workflow
+---
 
-### 1. Identify Target Files
-- If no arguments provided (`$ARGUMENTS` is empty): Run `git status` and `git diff` to identify uncommitted changes
-- If arguments provided: Use the specified files/packages from `$ARGUMENTS`
-- Focus on code files (ignore generated files, logs, etc.)
+## Guardrails (hard rules)
 
-### 2. Delegate to Refactoring Expert
-Launch the refactoring-expert agent with detailed instructions to:
-- Conduct a comprehensive code review of the target files
-- Apply production-grade refactoring following IOTA SDK standards
-- Identify and fix critical issues, minor issues, and style improvements
-- Verify all changes with appropriate validation commands
+- Prefer **replacement** over patch-on-patch; if multiple nested fixes exist, **redesign**.
+- Allowed to **break backwards compatibility** when it meaningfully simplifies the system. Emit migration notes.
+- Keep public surface **small and cohesive**; hide complexity behind narrow interfaces.
+- Idempotent edits: re-running yields no churn.
+- Never edit `vendor/**`, `node_modules/**`, generated files (`*.pb.*`, `*.gen.*`, `*.min.*`), migrations.
 
-### 3. Verification
-After the refactoring agent completes its work:
-- Run `go vet ./...` to ensure Go code quality
-- Run any additional validation commands specified in CLAUDE.md
-- Review the final changes for completeness
+---
 
-## Task Instructions for Refactoring Agent
+## Orchestration
 
-When launching the refactoring-expert agent, provide the following task:
+### 0) Target selection
 
-**Task:** "Conduct comprehensive code review and production-grade refactoring for the following files: [FILE_LIST]. Apply all IOTA SDK standards including SQL query management, HTMX workflows, repository patterns, DDD architecture, error handling, testing patterns, and security best practices. Identify issues in three categories: Critical (❌), Minor (🟡), and Style/Nits (🟢). Implement fixes for all identified issues and provide a detailed report with file:line references."
+- If args present → use via **Glob**; else use `git status --porcelain` + `git diff --name-only`.
+- Filter to sources (`go, ts, tsx, js, py`) and exclude paths above.
 
-## Output Format
+### 1) **Holistic Exploration (always)**
 
-The command will present the refactoring agent's findings in this format:
+Read targets + neighbors; output a concise **System Map**:
 
-```
-## Code Review & Refactoring Summary
-[Agent's summary of changes and assessment]
+- Responsibilities per file; edges (data/flow), hot paths, owning tests.
+- **Pain Points:** duplication, tight coupling, leaky/temporal abstractions.
+- **Design Options (A/B/C):** each with 1–2 bullets (benefits/tradeoffs) + *estimated edit size*.
+- **Pick the simplest option that removes layered hacks**, even if large refactor is required.
 
-### Critical Issues Found & Fixed ❌
-[Critical issues and their resolutions]
+### 2) **Apply Changes (clarity > minimality)**
 
-### Minor Issues Found & Fixed 🟡  
-[Important improvements implemented]
+**Task(subagent_type:speed-editor) → prompt:**
 
-### Style Improvements & Nits Fixed 🟢
-[Style and best practice improvements]
+Goal: Deliver code that is easy to read and reason about by replacing brittle,
+layered patches with simpler, cohesive architectures. You MAY break compatibility
+to achieve a meaningfully simpler design; include migration notes.
 
-## Architecture Notes
-[Observations about design patterns and architectural improvements]
+ENFORCE THIS RUBRIC
 
-## Security Considerations
-[Security analysis and implemented fixes]
+1. Boundaries & Cohesion: extract modules with single responsibility; no cross-layer leaks.
+2. Flow: early returns; flatten nesting; max func ~30 LOC unless clearly readable.
+3. Naming: precise, pronounceable; avoid cryptic abbreviations.
+4. Errors: wrap with context; centralize logging; no swallowing.
+5. Data Shapes: explicit structs/DTOs at boundaries; avoid ad-hoc maps.
+6. Interfaces: accept interfaces; return concrete; narrow signatures.
+7. Tests: table-driven; Given/When/Then; stabilize flaky paths; cover new boundaries.
+8. Performance: obvious wins that don’t harm clarity (prealloc, reduce allocs in hot paths).
+9. Security: validate inputs; safe SQL/HTML building; enforce role/permission checks.
+10. Delete dead code; merge duplicates; replace multi-branch hacks with a single clear path.
 
-## Performance Notes
-[Performance-related observations and optimizations]
+IOTA SDK norms (when relevant): SQL mgmt, repository pattern, DDD naming,
+HTMX flows, consistent error/logging, role/permission checks for broadcasts.
+
+WORK MODE
+
+* Batch ≤ {{--max-chunk}} LOC; show unified diff per batch.
+* For each change: add a one-line “Why this is clearer”.
+
+OUTPUT (strict):
+
+## System Map
+
+## Chosen Design (why; tradeoffs; files N; LOC ~X)
+
+## Changes
+
+### Critical ❌
+
+### Minor 🟡
+
+### Style/Nits 🟢
+
+## Next Steps (optional)
+
+Idempotence: re-runs produce no noisy churn.
+
+### 3) Verification loop (stop on red)
+
+- `go vet ./...`
+- If `--make-target` → `make <target>`
+- Tests:
+    - `--tests=none` → skip
+    - `--tests=^TestName$` → targeted run
+    - `auto` → run tests referenced by agent; else `go test ./... -count=1`
+- On failure: classify (impl|test|fixture|dep) → one corrective batch → re-verify.
+
+---
+
+## Output footer
 
 ## Verification Results
-[Results of validation commands and testing]
-```
 
-## Additional Instructions
-
-$ARGUMENTS
-
-Begin by identifying target files, then launch the refactoring-expert agent with the identified files and let it handle all review and refactoring work.
+* go vet: PASS/FAIL
+* make {{--make-target}}: PASS/FAIL (if run)
+* tests: PASS/FAIL summary
