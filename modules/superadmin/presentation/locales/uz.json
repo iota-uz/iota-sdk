@@ -1,0 +1,44 @@
+{
+  "SuperAdmin": {
+    "NavigationLinks": {
+      "Dashboard": "Boshqaruv paneli",
+      "Tenants": "Ijarachilar"
+    },
+    "Dashboard": {
+      "Title": "Super Admin boshqaruv paneli",
+      "DateRange": "Sana oralig'i",
+      "Meta": {
+        "Title": "Boshqaruv paneli - Super Admin"
+      },
+      "Metrics": {
+        "TotalTenants": "Jami ijarachilar",
+        "TotalUsers": "Jami foydalanuvchilar",
+        "ActiveUsers": "Faol foydalanuvchilar",
+        "DAU": "Kunlik faol foydalanuvchilar",
+        "WAU": "Haftalik faol foydalanuvchilar",
+        "MAU": "Oylik faol foydalanuvchilar",
+        "TotalSessions": "Jami seanslar"
+      }
+    },
+    "Tenants": {
+      "Title": "Ijarachilar",
+      "Name": "Ijarachi nomi",
+      "Domain": "Domen",
+      "UserCount": "Foydalanuvchilar soni",
+      "StatusColumn": "Holat",
+      "CreatedAt": "Yaratilgan sana",
+      "Export": "Excel ga eksport",
+      "FilterByDate": "Sana oralig'i bo'yicha filter",
+      "StartDate": "Boshlanish sanasi",
+      "EndDate": "Tugash sanasi",
+      "ClearFilter": "Filterni tozalash",
+      "Meta": {
+        "Title": "Ijarachilar - Super Admin"
+      },
+      "Status": {
+        "Active": "Faol",
+        "Inactive": "Nofaol"
+      }
+    }
+  }
+}

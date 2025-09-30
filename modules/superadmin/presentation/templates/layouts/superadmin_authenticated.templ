@@ -1,0 +1,99 @@
+package layouts
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/sidebar"
+	corelayouts "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type BaseProps = corelayouts.BaseProps
+
+type SuperAdminAuthenticatedProps struct {
+	BaseProps
+}
+
+func getSuperAdminSidebarItems(pageCtx *types.PageContext) []sidebar.Item {
+	return []sidebar.Item{
+		sidebar.NewLink(
+			"/superadmin/dashboard",
+			pageCtx.T("SuperAdmin.NavigationLinks.Dashboard"),
+			icons.ChartBar(icons.Props{Size: "20"}),
+		),
+		sidebar.NewLink(
+			"/superadmin/tenants",
+			pageCtx.T("SuperAdmin.NavigationLinks.Tenants"),
+			icons.Buildings(icons.Props{Size: "20"}),
+		),
+	}
+}
+
+templ SuperAdminSidebarHeader() {
+	<div class="flex flex-col items-center justify-center space-y-4">
+		<a href="/superadmin/dashboard" class="flex items-center gap-2 transition-transform duration-200 hover:scale-105">
+			@corelayouts.MustUseLogo(ctx)
+		</a>
+		<!-- Collapsed view: badge only -->
+		<div x-show="isCollapsed" class="bg-primary-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs font-semibold shadow-md">
+			SA
+		</div>
+		<!-- Expanded view: full indicator -->
+		<div x-show="!isCollapsed" class="bg-primary-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-md hover:shadow-lg transition-shadow duration-200">
+			Super Admin
+		</div>
+	</div>
+}
+
+templ SuperAdminAuthenticated(props SuperAdminAuthenticatedProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		sidebarProps := sidebar.Props{
+			TabGroups: sidebar.TabGroupCollection{
+				Groups: []sidebar.TabGroup{
+					{
+						Label: "SuperAdmin",
+						Value: "superadmin",
+						Items: getSuperAdminSidebarItems(pageCtx),
+					},
+				},
+				DefaultValue: "superadmin",
+			},
+			Header: SuperAdminSidebarHeader(),
+			Footer: corelayouts.DefaultSidebarFooter(),
+		}
+	}}
+	if props.WebsocketURL == "" {
+		{{ props.WebsocketURL = "/ws" }}
+	}
+	@corelayouts.Base(&props.BaseProps) {
+		@corelayouts.MobileSidebar(sidebarProps)
+		<div
+			x-data="{
+				sidebarCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+				init() {
+					this.$nextTick(() => {
+						window.addEventListener('storage', (e) => {
+							if (e.key === 'sidebar-collapsed') {
+								this.sidebarCollapsed = e.newValue === 'true';
+							}
+						});
+					});
+				}
+			}"
+			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
+			:class="{ 'lg:grid-cols-[4rem_1fr]': sidebarCollapsed, 'lg:grid-cols-[280px_1fr]': !sidebarCollapsed }"
+			class="grid min-h-screen w-full overflow-y-auto"
+		>
+			<div class="hidden lg:block">
+				@sidebar.Sidebar(sidebarProps)
+			</div>
+			<div class="flex flex-col h-screen overflow-x-hidden">
+				@corelayouts.Navbar(pageCtx)
+				<div class="flex-1 overflow-y-auto content">
+					{ children... }
+				</div>
+			</div>
+		</div>
+	}
+}

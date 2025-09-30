@@ -1,0 +1,160 @@
+package tenants
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/export"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+type IndexPageProps struct {
+	Tenants   []*entities.TenantInfo
+	Total     int
+	StartDate string
+	EndDate   string
+}
+
+templ DateRangeFilter() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex flex-wrap gap-4 items-end mb-6 p-5 bg-surface-500 rounded-xl shadow-sm">
+		<div class="flex-1 min-w-[200px]">
+			@input.DatePicker(input.DatePickerProps{
+				Mode:       input.DatePickerModeRange,
+				StartName:  "start_date",
+				EndName:    "end_date",
+				DateFormat: "yyyy-MM-dd",
+				Attrs: templ.Attributes{
+					"@change": `
+						const startDate = $el.querySelector('input[name="start_date"]').value;
+						const endDate = $el.querySelector('input[name="end_date"]').value;
+						if (startDate && endDate) {
+							htmx.ajax('GET', '/superadmin/tenants?start_date=' + startDate + '&end_date=' + endDate, {
+								target: '#tenants-table-body',
+								swap: 'innerHTML'
+							});
+						}
+					`,
+				},
+			})
+		</div>
+		<div>
+			@button.Secondary(button.Props{
+				Size: button.SizeNormal,
+				Icon: icons.X(icons.Props{Size: "16"}),
+				Attrs: templ.Attributes{
+					"@click": `
+						const datePickerInput = $el.closest('.flex').querySelector('input[x-ref="input"]');
+						if (datePickerInput) {
+							datePickerInput.value = '';
+							datePickerInput.dispatchEvent(new Event('input', { bubbles: true }));
+						}
+						htmx.ajax('GET', '/superadmin/tenants', {
+							target: '#tenants-table-body',
+							swap: 'innerHTML'
+						});
+						window.history.replaceState({}, '', '/superadmin/tenants');
+					`,
+				},
+			}) {
+				{ pageCtx.T("SuperAdmin.Tenants.ClearFilter") }
+			}
+		</div>
+	</div>
+}
+
+templ ExportButton() {
+	@export.ExportDropdown(export.ExportDropdownProps{
+		Formats:   []export.ExportFormat{export.ExportFormatExcel},
+		ExportURL: "/superadmin/tenants/export",
+	})
+}
+
+func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.PageContext) *table.TableConfig {
+	columns := []table.TableColumn{
+		table.Column("name", pageCtx.T("SuperAdmin.Tenants.Name")),
+		table.Column("domain", pageCtx.T("SuperAdmin.Tenants.Domain")),
+		table.Column("user_count", pageCtx.T("SuperAdmin.Tenants.UserCount")),
+		table.Column("status", pageCtx.T("SuperAdmin.Tenants.StatusColumn")),
+		table.Column("created_at", pageCtx.T("SuperAdmin.Tenants.CreatedAt"), table.WithSortable()),
+	}
+
+	rows := make([]table.TableRow, len(tenants))
+	for i, tenant := range tenants {
+		status := pageCtx.T("SuperAdmin.Tenants.Status.Active")
+
+		rows[i] = table.Row(
+			table.Cell(templ.Raw(tenant.Name), tenant.Name),
+			table.Cell(templ.Raw(tenant.Domain), tenant.Domain),
+			table.Cell(templ.Raw(fmt.Sprintf("%d", tenant.UserCount)), tenant.UserCount),
+			table.Cell(templ.Raw(status), status),
+			table.Cell(table.DateTime(tenant.CreatedAt), tenant.CreatedAt),
+		)
+	}
+
+	config := &table.TableConfig{
+		Title:   pageCtx.T("SuperAdmin.Tenants.Title"),
+		DataURL: "/superadmin/tenants",
+		Columns: columns,
+		Rows:    rows,
+		Actions: []templ.Component{ExportButton()},
+		Filters: []templ.Component{DateRangeFilter()},
+		Infinite: &table.InfiniteScrollConfig{
+			HasMore: false,
+			Page:    1,
+			PerPage: 20,
+		},
+	}
+
+	config.UpdateColumnsWithSorting(pageCtx.Request)
+
+	return config
+}
+
+templ TableRows(tenants []*entities.TenantInfo) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if len(tenants) == 0 {
+		<tr>
+			<td colspan="5" class="text-center py-12">
+				<p class="text-sm text-gray-800 font-medium">{ pageCtx.T("Scaffold.Table.NothingFound") }</p>
+				<p class="text-xs text-300 mt-2">No tenants match the current filters</p>
+			</td>
+		</tr>
+	} else {
+		for _, tenant := range tenants {
+			{{ status := pageCtx.T("SuperAdmin.Tenants.Status.Active") }}
+			<tr class="border-b border-secondary hover:bg-surface-500 transition-all duration-200 ease-in-out">
+				<td class="px-4 py-4 font-medium text-gray-800">{ tenant.Name }</td>
+				<td class="px-4 py-4 text-200">{ tenant.Domain }</td>
+				<td class="px-4 py-4 text-200">{ fmt.Sprintf("%d", tenant.UserCount) }</td>
+				<td class="px-4 py-4">
+					<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+						{ status }
+					</span>
+				</td>
+				<td class="px-4 py-4 text-200">
+					@table.DateTime(tenant.CreatedAt)
+				</td>
+			</tr>
+		}
+	}
+}
+
+templ List(props *IndexPageProps) {
+	@TableRows(props.Tenants)
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ config := buildTableConfig(props.Tenants, props.Total, pageCtx) }}
+	@layouts.SuperAdminAuthenticated(layouts.SuperAdminAuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("SuperAdmin.Tenants.Meta.Title")},
+	}) {
+		@table.Content(config)
+	}
+}

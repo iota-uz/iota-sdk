@@ -1,0 +1,199 @@
+package dashboard
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/base/tab"
+	"github.com/iota-uz/iota-sdk/components/charts"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type MetricsProps struct {
+	TenantCount             int
+	UserCount               int
+	DAU                     int
+	WAU                     int
+	MAU                     int
+	SessionCount            int
+	UserSignupsTimeSeries   []entities.TimeSeriesDataPoint
+	TenantSignupsTimeSeries []entities.TimeSeriesDataPoint
+}
+
+type IndexPageProps struct {
+	Metrics *MetricsProps
+}
+
+templ MetricsCard(title, value string) {
+	@card.Card(card.Props{
+		WrapperClass: "h-full shadow-sm hover:shadow-md transition-shadow duration-200",
+	}) {
+		<div class="flex flex-col gap-5 p-1">
+			<h3 class="text-sm font-medium text-gray-800">{ title }</h3>
+			<p class="text-3xl font-semibold text-100">{ value }</p>
+		</div>
+	}
+}
+
+templ ActiveUsersCard(dau, wau, mau int) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@card.Card(card.Props{
+		WrapperClass: "h-full shadow-sm hover:shadow-md transition-shadow duration-200",
+	}) {
+		<div class="flex flex-col gap-5 p-1">
+			<h3 class="text-sm font-medium text-gray-800">{ pageCtx.T("SuperAdmin.Dashboard.Metrics.ActiveUsers") }</h3>
+			@tab.Root(tab.Props{
+				DefaultValue: "dau",
+				Class:        "w-full max-w-full overflow-hidden",
+			}) {
+				@tab.List(tab.ListProps{
+					Class: "overflow-x-auto",
+				}) {
+					@tab.Button("dau") {
+						<span class="text-sm whitespace-nowrap">{ pageCtx.T("SuperAdmin.Dashboard.Metrics.DAU") }</span>
+					}
+					@tab.Button("wau") {
+						<span class="text-sm whitespace-nowrap">{ pageCtx.T("SuperAdmin.Dashboard.Metrics.WAU") }</span>
+					}
+					@tab.Button("mau") {
+						<span class="text-sm whitespace-nowrap">{ pageCtx.T("SuperAdmin.Dashboard.Metrics.MAU") }</span>
+					}
+				}
+				@tab.Content("dau") {
+					<p class="text-3xl font-semibold text-100 mt-5">{ fmt.Sprintf("%d", dau) }</p>
+				}
+				@tab.Content("wau") {
+					<p class="text-3xl font-semibold text-100 mt-5">{ fmt.Sprintf("%d", wau) }</p>
+				}
+				@tab.Content("mau") {
+					<p class="text-3xl font-semibold text-100 mt-5">{ fmt.Sprintf("%d", mau) }</p>
+				}
+			}
+		</div>
+	}
+}
+
+func toChartDataPoints(dataPoints []entities.TimeSeriesDataPoint) []float64 {
+	result := make([]float64, len(dataPoints))
+	for i, dp := range dataPoints {
+		result[i] = float64(dp.Count)
+	}
+	return result
+}
+
+func toChartLabels(dataPoints []entities.TimeSeriesDataPoint) []string {
+	result := make([]string, len(dataPoints))
+	for i, dp := range dataPoints {
+		result[i] = dp.Date.Format("Jan 02")
+	}
+	return result
+}
+
+templ SignupsChart(title string, dataPoints []entities.TimeSeriesDataPoint) {
+	@card.Card(card.Props{
+		WrapperClass: "h-full shadow-sm hover:shadow-md transition-shadow duration-200",
+	}) {
+		<div class="flex flex-col gap-5 p-1">
+			<h3 class="text-sm font-medium text-gray-800">{ title }</h3>
+			if len(dataPoints) > 0 {
+				@charts.Chart(charts.Props{
+					Options: charts.NewLineChart().
+						WithSeries("Sign-ups", toChartDataPoints(dataPoints)).
+						WithCategories(toChartLabels(dataPoints)).
+						WithHeight("200px").
+						WithColors("#3b82f6").
+						Build(),
+				})
+			} else {
+				<div class="py-12 text-center">
+					<p class="text-sm text-gray-800 font-medium">No data available for this period</p>
+					<p class="text-xs text-300 mt-2">Try adjusting the date range to see more data</p>
+				</div>
+			}
+		</div>
+	}
+}
+
+templ MetricsContent(props *MetricsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="space-y-8">
+		<!-- Metric cards -->
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+			@MetricsCard(
+				pageCtx.T("SuperAdmin.Dashboard.Metrics.TotalTenants"),
+				fmt.Sprintf("%d", props.TenantCount),
+			)
+			@MetricsCard(
+				pageCtx.T("SuperAdmin.Dashboard.Metrics.TotalUsers"),
+				fmt.Sprintf("%d", props.UserCount),
+			)
+			@ActiveUsersCard(props.DAU, props.WAU, props.MAU)
+			@MetricsCard(
+				pageCtx.T("SuperAdmin.Dashboard.Metrics.TotalSessions"),
+				fmt.Sprintf("%d", props.SessionCount),
+			)
+		</div>
+		<!-- Charts -->
+		<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+			@SignupsChart(
+				pageCtx.T("SuperAdmin.Dashboard.Charts.UserSignups"),
+				props.UserSignupsTimeSeries,
+			)
+			@SignupsChart(
+				pageCtx.T("SuperAdmin.Dashboard.Charts.TenantSignups"),
+				props.TenantSignupsTimeSeries,
+			)
+		</div>
+	</div>
+}
+
+templ DashboardContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="m-6">
+		<div class="flex justify-between items-center mb-8">
+			<h1 class="text-2xl font-semibold text-gray-800">
+				{ pageCtx.T("SuperAdmin.Dashboard.Title") }
+			</h1>
+			<div class="w-64">
+				@input.DatePicker(input.DatePickerProps{
+					Label:      pageCtx.T("SuperAdmin.Dashboard.DateRange"),
+					Mode:       input.DatePickerModeRange,
+					StartName:  "startDate",
+					EndName:    "endDate",
+					DateFormat: "yyyy-MM-dd",
+					Attrs: templ.Attributes{
+						"@change": `
+							const startDate = $el.querySelector('input[name="startDate"]').value;
+							const endDate = $el.querySelector('input[name="endDate"]').value;
+							htmx.ajax('GET', '/superadmin/dashboard/metrics?startDate=' + startDate + '&endDate=' + endDate, {
+								target: '#metrics-container',
+								swap: 'innerHTML'
+							});
+						`,
+					},
+				})
+			</div>
+		</div>
+		<div
+			id="metrics-container"
+			hx-get="/superadmin/dashboard/metrics"
+			hx-trigger="load"
+			hx-swap="innerHTML"
+		>
+			if props.Metrics != nil {
+				@MetricsContent(props.Metrics)
+			}
+		</div>
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.SuperAdminAuthenticated(layouts.SuperAdminAuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("SuperAdmin.Dashboard.Meta.Title")},
+	}) {
+		@DashboardContent(props)
+	}
+}
