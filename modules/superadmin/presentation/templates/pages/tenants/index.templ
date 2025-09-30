@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"net/http"
 )
 
 type IndexPageProps struct {
@@ -75,7 +76,7 @@ templ ExportButton() {
 	})
 }
 
-func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.PageContext) *table.TableConfig {
+func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.PageContext, r *http.Request) *table.TableConfig {
 	columns := []table.TableColumn{
 		table.Column("name", pageCtx.T("SuperAdmin.Tenants.Name")),
 		table.Column("domain", pageCtx.T("SuperAdmin.Tenants.Domain")),
@@ -111,7 +112,7 @@ func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.
 		},
 	}
 
-	config.UpdateColumnsWithSorting(pageCtx.Request)
+	config.UpdateColumnsWithSorting(r)
 
 	return config
 }
@@ -151,7 +152,8 @@ templ List(props *IndexPageProps) {
 
 templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	{{ config := buildTableConfig(props.Tenants, props.Total, pageCtx) }}
+	{{ params, _ := composables.UseParams(ctx) }}
+	{{ config := buildTableConfig(props.Tenants, props.Total, pageCtx, params.Request) }}
 	@layouts.SuperAdminAuthenticated(layouts.SuperAdminAuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("SuperAdmin.Tenants.Meta.Title")},
 	}) {

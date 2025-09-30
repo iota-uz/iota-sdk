@@ -20,21 +20,21 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 	service := services.NewTenantQueryService(repo)
 
 	t.Run("Happy_Path_Without_Search", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("Happy_Path_With_Search", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "Test")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "Test", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("Default_Limit_When_Zero", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 0, 0, "")
+		tenants, total, err := service.FindTenants(f.Ctx, 0, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -43,7 +43,7 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 	})
 
 	t.Run("Default_Offset_When_Negative", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 10, -5, "")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, -5, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -54,24 +54,24 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 		_, err := itf.CreateTestTenant(f.Ctx, f.Pool)
 		require.NoError(t, err)
 
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "Test")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "Test", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 1)
 	})
 
 	t.Run("Search_By_Domain", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, ".com")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, ".com", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("Search_Case_Insensitive", func(t *testing.T) {
-		lowerTenants, lowerTotal, err := service.FindTenants(f.Ctx, 10, 0, "test")
+		lowerTenants, lowerTotal, err := service.FindTenants(f.Ctx, 10, 0, "test", domain.TenantSortBy{})
 		require.NoError(t, err)
 
-		upperTenants, upperTotal, err := service.FindTenants(f.Ctx, 10, 0, "TEST")
+		upperTenants, upperTotal, err := service.FindTenants(f.Ctx, 10, 0, "TEST", domain.TenantSortBy{})
 		require.NoError(t, err)
 
 		// Should return same results regardless of case
@@ -80,7 +80,7 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 	})
 
 	t.Run("Search_No_Results", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "NonExistentTenant12345")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "NonExistentTenant12345", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.Equal(t, 0, total)
@@ -94,35 +94,35 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 		require.NoError(t, err)
 
 		// First page
-		firstPage, total, err := service.FindTenants(f.Ctx, 5, 0, "")
+		firstPage, total, err := service.FindTenants(f.Ctx, 5, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(firstPage), 5)
 
 		// Second page
-		_, total2, err := service.FindTenants(f.Ctx, 5, 5, "")
+		_, total2, err := service.FindTenants(f.Ctx, 5, 5, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.Equal(t, total, total2, "Total should be same across pages")
 	})
 
 	t.Run("Pagination_With_Search", func(t *testing.T) {
 		// First page with search
-		firstPage, total, err := service.FindTenants(f.Ctx, 5, 0, "Test")
+		firstPage, total, err := service.FindTenants(f.Ctx, 5, 0, "Test", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(firstPage), 5)
 
 		// Second page with search
-		_, total2, err := service.FindTenants(f.Ctx, 5, 5, "Test")
+		_, total2, err := service.FindTenants(f.Ctx, 5, 5, "Test", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.Equal(t, total, total2, "Total should be same across pages")
 	})
 
 	t.Run("Empty_Search_Uses_ListTenants", func(t *testing.T) {
 		// Empty search should fall back to ListTenants
-		emptySearchTenants, emptyTotal, err := service.FindTenants(f.Ctx, 10, 0, "")
+		emptySearchTenants, emptyTotal, err := service.FindTenants(f.Ctx, 10, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 
 		// Get all tenants directly
-		allTenants, allTotal, err := service.FindTenants(f.Ctx, 10, 0, "")
+		allTenants, allTotal, err := service.FindTenants(f.Ctx, 10, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 
 		// Should return same results
@@ -132,7 +132,7 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 
 	t.Run("Whitespace_Only_Search", func(t *testing.T) {
 		// Whitespace-only should be treated as non-empty search
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "   ")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "   ", domain.TenantSortBy{})
 		require.NoError(t, err)
 		// Can be empty slice if no matches
 		assert.GreaterOrEqual(t, total, 0)
@@ -149,7 +149,7 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 		}
 
 		for _, searchTerm := range testCases {
-			tenants, total, err := service.FindTenants(f.Ctx, 10, 0, searchTerm)
+			tenants, total, err := service.FindTenants(f.Ctx, 10, 0, searchTerm, domain.TenantSortBy{})
 			require.NoError(t, err, "Search should not error with special character: %s", searchTerm)
 			// Can be empty slice if no matches
 			assert.GreaterOrEqual(t, total, 0)
@@ -158,7 +158,7 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 	})
 
 	t.Run("Large_Limit", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 1000, 0, "")
+		tenants, total, err := service.FindTenants(f.Ctx, 1000, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		// Should return all tenants when limit is large enough
@@ -167,7 +167,7 @@ func TestTenantQueryService_FindTenants(t *testing.T) {
 	})
 
 	t.Run("High_Offset", func(t *testing.T) {
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 100000, "")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 100000, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
 		// High offset should return empty results
@@ -233,7 +233,7 @@ func TestTenantQueryService_GetAll(t *testing.T) {
 		require.NoError(t, err)
 
 		// Compare with FindTenants with large limit
-		paginatedTenants, total, err := service.FindTenants(f.Ctx, 10000, 0, "")
+		paginatedTenants, total, err := service.FindTenants(f.Ctx, 10000, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 
 		// Should return same number of tenants
@@ -255,7 +255,7 @@ func TestTenantQueryService_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Search for tenant
-		searchResults, _, err := service.FindTenants(f.Ctx, 10, 0, "Test")
+		searchResults, _, err := service.FindTenants(f.Ctx, 10, 0, "Test", domain.TenantSortBy{})
 		require.NoError(t, err)
 
 		// Find the tenant in search results
@@ -286,7 +286,7 @@ func TestTenantQueryService_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Search for specific tenants
-		searchResults, _, err := service.FindTenants(f.Ctx, 100, 0, "Test")
+		searchResults, _, err := service.FindTenants(f.Ctx, 100, 0, "Test", domain.TenantSortBy{})
 		require.NoError(t, err)
 
 		// All search results should be in GetAll results
@@ -323,13 +323,13 @@ func TestTenantQueryService_RepositoryIntegration(t *testing.T) {
 		service := services.NewTenantQueryService(repo)
 
 		// Test that service delegates to repository correctly
-		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "")
+		tenants, total, err := service.FindTenants(f.Ctx, 10, 0, "", domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
 
 		// Verify repository method is called by checking results are consistent
-		repoTenants, repoTotal, err := repo.ListTenants(f.Ctx, 10, 0)
+		repoTenants, repoTotal, err := repo.ListTenants(f.Ctx, 10, 0, persistence.SortBy{})
 		require.NoError(t, err)
 
 		assert.Equal(t, total, repoTotal)
@@ -341,11 +341,11 @@ func TestTenantQueryService_RepositoryIntegration(t *testing.T) {
 		service := services.NewTenantQueryService(repo)
 
 		// Service should use SearchTenants when search is provided
-		serviceTenants, serviceTotal, err := service.FindTenants(f.Ctx, 10, 0, "Test")
+		serviceTenants, serviceTotal, err := service.FindTenants(f.Ctx, 10, 0, "Test", domain.TenantSortBy{})
 		require.NoError(t, err)
 
 		// Compare with direct repository call
-		repoTenants, repoTotal, err := repo.SearchTenants(f.Ctx, "Test", 10, 0)
+		repoTenants, repoTotal, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, persistence.SortBy{})
 		require.NoError(t, err)
 
 		assert.Equal(t, serviceTotal, repoTotal)

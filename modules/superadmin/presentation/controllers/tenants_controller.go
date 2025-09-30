@@ -15,10 +15,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 )
 
 type TenantsController struct {
@@ -69,6 +71,17 @@ func (c *TenantsController) Index(
 	sortField := table.UseSortQuery(r)
 	sortOrder := table.UseOrderQuery(r)
 
+	// Convert to repo.SortBy format
+	var sortBy domain.TenantSortBy
+	if sortField != "" {
+		sortBy = domain.TenantSortBy{
+			Fields: []repo.SortByField[string]{
+				{Field: sortField, Ascending: sortOrder == "asc"},
+			},
+		}
+	}
+	// If empty, services will use default DESC sort
+
 	// Get search parameter
 	search := r.URL.Query().Get("search")
 
@@ -103,7 +116,7 @@ func (c *TenantsController) Index(
 		}
 
 		// Fetch tenants with date range filter
-		tenantsList, total, err = tenantService.FilterByDateRange(ctx, startDate, endDate, params.Limit, params.Offset, sortField, sortOrder)
+		tenantsList, total, err = tenantService.FilterByDateRange(ctx, startDate, endDate, params.Limit, params.Offset, sortBy)
 		if err != nil {
 			logger.Errorf("Error retrieving tenants by date range: %v", err)
 			http.Error(w, "Error retrieving tenants", http.StatusInternalServerError)
@@ -111,7 +124,7 @@ func (c *TenantsController) Index(
 		}
 	} else {
 		// Fetch tenants without date filter (existing behavior)
-		tenantsList, total, err = tenantQueryService.FindTenants(ctx, params.Limit, params.Offset, search, sortField, sortOrder)
+		tenantsList, total, err = tenantQueryService.FindTenants(ctx, params.Limit, params.Offset, search, sortBy)
 		if err != nil {
 			logger.Errorf("Error retrieving tenants: %v", err)
 			http.Error(w, "Error retrieving tenants", http.StatusInternalServerError)

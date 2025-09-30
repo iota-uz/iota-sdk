@@ -8,9 +8,25 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
+
+// Field type aliases for sorting and filtering
+type Field = string
+
+const (
+	FieldID        Field = "id"
+	FieldName      Field = "name"
+	FieldDomain    Field = "domain"
+	FieldUserCount Field = "user_count"
+	FieldCreatedAt Field = "created_at"
+	FieldUpdatedAt Field = "updated_at"
+)
+
+type SortBy = repo.SortBy[Field]
+type Filter = repo.FieldFilter[Field]
 
 type pgAnalyticsQueryRepository struct{}
 
@@ -141,18 +157,16 @@ const (
 	`
 )
 
-// buildOrderByClause generates ORDER BY clause for tenant queries
-// Defaults to DESC (newest first) if no valid sort specified
-func buildOrderByClause(sortField, sortOrder string) string {
-	// Only allow created_at for security
-	if sortField == "created_at" {
-		if sortOrder == "asc" {
-			return "ORDER BY t.created_at ASC"
-		}
-		return "ORDER BY t.created_at DESC"
+// fieldMapping returns the mapping between logical field names and SQL column names
+func (r *pgAnalyticsQueryRepository) fieldMapping() map[Field]string {
+	return map[Field]string{
+		FieldID:        "t.id",
+		FieldName:      "t.name",
+		FieldDomain:    "t.domain",
+		FieldUserCount: "COALESCE(u.user_count, 0)",
+		FieldCreatedAt: "t.created_at",
+		FieldUpdatedAt: "t.updated_at",
 	}
-	// Default: newest first
-	return "ORDER BY t.created_at DESC"
 }
 
 func (r *pgAnalyticsQueryRepository) GetDashboardMetrics(ctx context.Context, startDate, endDate time.Time) (*entities.Analytics, error) {
@@ -222,7 +236,7 @@ func (r *pgAnalyticsQueryRepository) GetActiveUsersCount(ctx context.Context, si
 	return count, nil
 }
 
-func (r *pgAnalyticsQueryRepository) ListTenants(ctx context.Context, limit, offset int, sortField, sortOrder string) ([]*entities.TenantInfo, int, error) {
+func (r *pgAnalyticsQueryRepository) ListTenants(ctx context.Context, limit, offset int, sortBy SortBy) ([]*entities.TenantInfo, int, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
@@ -235,12 +249,27 @@ func (r *pgAnalyticsQueryRepository) ListTenants(ctx context.Context, limit, off
 		return nil, 0, errors.Wrap(err, "failed to count tenants")
 	}
 
+	// Default sort if empty
+	if len(sortBy.Fields) == 0 {
+		sortBy = SortBy{Fields: []repo.SortByField[Field]{{Field: FieldCreatedAt, Ascending: false}}}
+	}
+
 	// Build query with sorting
-	orderBy := buildOrderByClause(sortField, sortOrder)
-	query := listTenantsQuery + " " + orderBy + " LIMIT $1 OFFSET $2"
+	orderBy := sortBy.ToSQL(r.fieldMapping())
+	// If no valid sort fields, use default
+	if orderBy == "" {
+		sortBy = SortBy{Fields: []repo.SortByField[Field]{{Field: FieldCreatedAt, Ascending: false}}}
+		orderBy = sortBy.ToSQL(r.fieldMapping())
+	}
+
+	query := repo.Join(
+		listTenantsQuery,
+		orderBy,
+		repo.FormatLimitOffset(limit, offset),
+	)
 
 	// Get tenants with user counts
-	rows, err := tx.Query(ctx, query, limit, offset)
+	rows, err := tx.Query(ctx, query)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to list tenants")
 	}
@@ -254,7 +283,7 @@ func (r *pgAnalyticsQueryRepository) ListTenants(ctx context.Context, limit, off
 	return tenants, total, nil
 }
 
-func (r *pgAnalyticsQueryRepository) SearchTenants(ctx context.Context, search string, limit, offset int, sortField, sortOrder string) ([]*entities.TenantInfo, int, error) {
+func (r *pgAnalyticsQueryRepository) SearchTenants(ctx context.Context, search string, limit, offset int, sortBy SortBy) ([]*entities.TenantInfo, int, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
@@ -270,12 +299,27 @@ func (r *pgAnalyticsQueryRepository) SearchTenants(ctx context.Context, search s
 		return nil, 0, errors.Wrap(err, "failed to count tenants with search")
 	}
 
+	// Default sort if empty
+	if len(sortBy.Fields) == 0 {
+		sortBy = SortBy{Fields: []repo.SortByField[Field]{{Field: FieldCreatedAt, Ascending: false}}}
+	}
+
 	// Build query with sorting
-	orderBy := buildOrderByClause(sortField, sortOrder)
-	query := searchTenantsQuery + " " + orderBy + " LIMIT $1 OFFSET $2"
+	orderBy := sortBy.ToSQL(r.fieldMapping())
+	// If no valid sort fields, use default
+	if orderBy == "" {
+		sortBy = SortBy{Fields: []repo.SortByField[Field]{{Field: FieldCreatedAt, Ascending: false}}}
+		orderBy = sortBy.ToSQL(r.fieldMapping())
+	}
+
+	query := repo.Join(
+		searchTenantsQuery,
+		orderBy,
+		repo.FormatLimitOffset(limit, offset),
+	)
 
 	// Get tenants matching search
-	rows, err := tx.Query(ctx, query, searchPattern, limit, offset)
+	rows, err := tx.Query(ctx, query, searchPattern)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to search tenants")
 	}
@@ -289,7 +333,7 @@ func (r *pgAnalyticsQueryRepository) SearchTenants(ctx context.Context, search s
 	return tenants, total, nil
 }
 
-func (r *pgAnalyticsQueryRepository) FilterTenantsByDateRange(ctx context.Context, startDate, endDate time.Time, limit, offset int, sortField, sortOrder string) ([]*entities.TenantInfo, int, error) {
+func (r *pgAnalyticsQueryRepository) FilterTenantsByDateRange(ctx context.Context, startDate, endDate time.Time, limit, offset int, sortBy SortBy) ([]*entities.TenantInfo, int, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
@@ -302,12 +346,27 @@ func (r *pgAnalyticsQueryRepository) FilterTenantsByDateRange(ctx context.Contex
 		return nil, 0, errors.Wrap(err, "failed to count tenants by date range")
 	}
 
+	// Default sort if empty
+	if len(sortBy.Fields) == 0 {
+		sortBy = SortBy{Fields: []repo.SortByField[Field]{{Field: FieldCreatedAt, Ascending: false}}}
+	}
+
 	// Build query with sorting
-	orderBy := buildOrderByClause(sortField, sortOrder)
-	query := filterTenantsByDateRangeQuery + " " + orderBy + " LIMIT $1 OFFSET $2"
+	orderBy := sortBy.ToSQL(r.fieldMapping())
+	// If no valid sort fields, use default
+	if orderBy == "" {
+		sortBy = SortBy{Fields: []repo.SortByField[Field]{{Field: FieldCreatedAt, Ascending: false}}}
+		orderBy = sortBy.ToSQL(r.fieldMapping())
+	}
+
+	query := repo.Join(
+		filterTenantsByDateRangeQuery,
+		orderBy,
+		repo.FormatLimitOffset(limit, offset),
+	)
 
 	// Get tenants within date range
-	rows, err := tx.Query(ctx, query, startDate, endDate, limit, offset)
+	rows, err := tx.Query(ctx, query, startDate, endDate)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to filter tenants by date range")
 	}

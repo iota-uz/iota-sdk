@@ -13,9 +13,22 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/superadmin/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// Helper to create empty SortBy for default sorting
+var emptySortBy = persistence.SortBy{}
+
+// Helper to create SortBy for specific fields
+func sortBy(field string, ascending bool) persistence.SortBy {
+	return persistence.SortBy{
+		Fields: []repo.SortByField[string]{
+			{Field: field, Ascending: ascending},
+		},
+	}
+}
 
 func TestPgAnalyticsQueryRepository_GetDashboardMetrics(t *testing.T) {
 	t.Parallel()
@@ -311,7 +324,7 @@ func TestPgAnalyticsQueryRepository_ListTenants(t *testing.T) {
 	repo := persistence.NewPgAnalyticsQueryRepository()
 
 	t.Run("Happy_Path_With_Pagination", func(t *testing.T) {
-		tenants, total, err := repo.ListTenants(f.Ctx, 10, 0, "", "")
+		tenants, total, err := repo.ListTenants(f.Ctx, 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -327,35 +340,35 @@ func TestPgAnalyticsQueryRepository_ListTenants(t *testing.T) {
 	})
 
 	t.Run("First_Page_Limit_5", func(t *testing.T) {
-		tenants, total, err := repo.ListTenants(f.Ctx, 5, 0, "", "")
+		tenants, total, err := repo.ListTenants(f.Ctx, 5, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(tenants), 5)
 		assert.GreaterOrEqual(t, total, len(tenants))
 	})
 
 	t.Run("Second_Page_Offset_5", func(t *testing.T) {
-		_, total, err := repo.ListTenants(f.Ctx, 5, 5, "", "")
+		_, total, err := repo.ListTenants(f.Ctx, 5, 5, emptySortBy)
 		require.NoError(t, err)
 		// Result can be empty if there are fewer than 6 tenants total
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("Large_Limit", func(t *testing.T) {
-		tenants, total, err := repo.ListTenants(f.Ctx, 1000, 0, "", "")
+		tenants, total, err := repo.ListTenants(f.Ctx, 1000, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.Equal(t, len(tenants), total, "With large limit, should return all tenants")
 	})
 
 	t.Run("Zero_Limit_Returns_Empty", func(t *testing.T) {
-		tenants, total, err := repo.ListTenants(f.Ctx, 0, 0, "", "")
+		tenants, total, err := repo.ListTenants(f.Ctx, 0, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("High_Offset_Returns_Empty", func(t *testing.T) {
-		tenants, total, err := repo.ListTenants(f.Ctx, 10, 1000000, "", "")
+		tenants, total, err := repo.ListTenants(f.Ctx, 10, 1000000, emptySortBy)
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -364,7 +377,7 @@ func TestPgAnalyticsQueryRepository_ListTenants(t *testing.T) {
 	t.Run("With_Transaction_Context", func(t *testing.T) {
 		txCtx := f.WithTx(f.Ctx)
 
-		tenants, total, err := repo.ListTenants(txCtx, 10, 0, "", "")
+		tenants, total, err := repo.ListTenants(txCtx, 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -374,14 +387,14 @@ func TestPgAnalyticsQueryRepository_ListTenants(t *testing.T) {
 		ctx, cancel := context.WithCancel(f.Ctx)
 		cancel() // Cancel immediately
 
-		tenants, total, err := repo.ListTenants(ctx, 10, 0, "", "")
+		tenants, total, err := repo.ListTenants(ctx, 10, 0, emptySortBy)
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
 	})
 
 	t.Run("Tenants_Sorted_By_CreatedAt_Descending", func(t *testing.T) {
-		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, "", "")
+		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		if len(tenants) > 1 {
@@ -419,7 +432,7 @@ func TestPgAnalyticsQueryRepository_ListTenants(t *testing.T) {
 		require.NoError(t, err)
 
 		// List tenants and find the new one
-		tenants, _, err := repo.ListTenants(f.Ctx, 100, 0, "", "")
+		tenants, _, err := repo.ListTenants(f.Ctx, 100, 0, emptySortBy)
 		require.NoError(t, err)
 
 		var foundTenant *struct {
@@ -451,7 +464,7 @@ func TestPgAnalyticsQueryRepository_ListTenants_Sorting(t *testing.T) {
 	repo := persistence.NewPgAnalyticsQueryRepository()
 
 	t.Run("Sort_By_Created_At_Asc", func(t *testing.T) {
-		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, "created_at", "asc")
+		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, sortBy("created_at", true))
 		require.NoError(t, err)
 
 		// Verify ascending order
@@ -467,7 +480,7 @@ func TestPgAnalyticsQueryRepository_ListTenants_Sorting(t *testing.T) {
 	})
 
 	t.Run("Sort_By_Created_At_Desc", func(t *testing.T) {
-		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, "created_at", "desc")
+		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, sortBy("created_at", false))
 		require.NoError(t, err)
 
 		// Verify descending order
@@ -483,7 +496,7 @@ func TestPgAnalyticsQueryRepository_ListTenants_Sorting(t *testing.T) {
 	})
 
 	t.Run("Invalid_Sort_Field_Uses_Default", func(t *testing.T) {
-		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, "invalid_field", "asc")
+		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, sortBy("invalid_field", true))
 		require.NoError(t, err)
 
 		// Should default to created_at DESC
@@ -499,7 +512,7 @@ func TestPgAnalyticsQueryRepository_ListTenants_Sorting(t *testing.T) {
 	})
 
 	t.Run("Invalid_Sort_Order_Uses_Default", func(t *testing.T) {
-		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, "created_at", "invalid")
+		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, sortBy("created_at", false))
 		require.NoError(t, err)
 
 		// Should default to DESC
@@ -515,7 +528,7 @@ func TestPgAnalyticsQueryRepository_ListTenants_Sorting(t *testing.T) {
 	})
 
 	t.Run("Empty_Sort_Params_Uses_Default", func(t *testing.T) {
-		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, "", "")
+		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		// Should default to created_at DESC
@@ -532,7 +545,7 @@ func TestPgAnalyticsQueryRepository_ListTenants_Sorting(t *testing.T) {
 
 	t.Run("SQL_Injection_Protection", func(t *testing.T) {
 		// Should not cause SQL errors or execute malicious code
-		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, "name; DROP TABLE tenants;", "asc")
+		tenants, _, err := repo.ListTenants(f.Ctx, 10, 0, sortBy("name; DROP TABLE tenants;", true))
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 	})
@@ -548,7 +561,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -7)
 		endDate := time.Now()
 
-		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -567,7 +580,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -30)
 		endDate := time.Now()
 
-		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -577,7 +590,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().Truncate(24 * time.Hour)
 		endDate := startDate.Add(24 * time.Hour)
 
-		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -587,7 +600,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, 1)
 		endDate := time.Now().AddDate(0, 0, 7)
 
-		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.Equal(t, 0, total)
@@ -598,12 +611,12 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		endDate := time.Now()
 
 		// First page
-		firstPage, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 5, 0, "", "")
+		firstPage, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 5, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(firstPage), 5)
 
 		// Second page
-		secondPage, total2, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 5, 5, "", "")
+		secondPage, total2, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 5, 5, emptySortBy)
 		require.NoError(t, err)
 		assert.Equal(t, total, total2, "Total should be same across pages")
 
@@ -621,7 +634,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -7)
 		endDate := time.Now()
 
-		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 0, 0, "", "")
+		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 0, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -632,7 +645,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -7)
 		endDate := time.Now()
 
-		tenants, total, err := repo.FilterTenantsByDateRange(txCtx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := repo.FilterTenantsByDateRange(txCtx, startDate, endDate, 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -645,7 +658,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -7)
 		endDate := time.Now()
 
-		tenants, total, err := repo.FilterTenantsByDateRange(ctx, startDate, endDate, 10, 0, "", "")
+		tenants, total, err := repo.FilterTenantsByDateRange(ctx, startDate, endDate, 10, 0, emptySortBy)
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
@@ -655,7 +668,7 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		startDate := time.Now().AddDate(0, 0, -90)
 		endDate := time.Now()
 
-		tenants, _, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, "", "")
+		tenants, _, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		if len(tenants) > 1 {
@@ -830,7 +843,7 @@ func TestPgAnalyticsQueryRepository_DateRanges(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, metrics)
 
-			tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, tc.startDate, tc.endDate, 10, 0, "", "")
+			tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, tc.startDate, tc.endDate, 10, 0, emptySortBy)
 			require.NoError(t, err)
 			assert.NotNil(t, tenants)
 			assert.GreaterOrEqual(t, total, 0)
@@ -874,7 +887,7 @@ func BenchmarkPgAnalyticsQueryRepository_ListTenants(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, err := repo.ListTenants(f.Ctx, 10, 0, "", "")
+		_, _, err := repo.ListTenants(f.Ctx, 10, 0, emptySortBy)
 		if err != nil {
 			b.Fatalf("unexpected error: %v", err)
 		}
@@ -888,7 +901,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 	repo := persistence.NewPgAnalyticsQueryRepository()
 
 	t.Run("Happy_Path_Search_By_Name", func(t *testing.T) {
-		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -903,15 +916,15 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 
 	t.Run("Case_Insensitive_Search", func(t *testing.T) {
 		// Search with lowercase
-		lowerResults, lowerTotal, err := repo.SearchTenants(f.Ctx, "test", 10, 0, "", "")
+		lowerResults, lowerTotal, err := repo.SearchTenants(f.Ctx, "test", 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		// Search with uppercase
-		upperResults, upperTotal, err := repo.SearchTenants(f.Ctx, "TEST", 10, 0, "", "")
+		upperResults, upperTotal, err := repo.SearchTenants(f.Ctx, "TEST", 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		// Search with mixed case
-		mixedResults, mixedTotal, err := repo.SearchTenants(f.Ctx, "TeSt", 10, 0, "", "")
+		mixedResults, mixedTotal, err := repo.SearchTenants(f.Ctx, "TeSt", 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		// All should return same results
@@ -923,7 +936,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 
 	t.Run("Search_By_Domain", func(t *testing.T) {
 		// Search for common domain pattern
-		tenants, total, err := repo.SearchTenants(f.Ctx, ".com", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, ".com", 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -935,7 +948,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 	})
 
 	t.Run("Partial_Match", func(t *testing.T) {
-		tenants, total, err := repo.SearchTenants(f.Ctx, "Ten", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, "Ten", 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -951,14 +964,14 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 	t.Run("Empty_Search_Returns_All", func(t *testing.T) {
 		// Empty search should be handled by service layer
 		// But repository should handle it gracefully
-		tenants, total, err := repo.SearchTenants(f.Ctx, "", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, "", 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("No_Results_Found", func(t *testing.T) {
-		tenants, total, err := repo.SearchTenants(f.Ctx, "NonExistentTenantName12345", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, "NonExistentTenantName12345", 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.Equal(t, 0, total)
@@ -966,12 +979,12 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 
 	t.Run("Search_With_Pagination", func(t *testing.T) {
 		// First page
-		firstPage, total, err := repo.SearchTenants(f.Ctx, "Test", 5, 0, "", "")
+		firstPage, total, err := repo.SearchTenants(f.Ctx, "Test", 5, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(firstPage), 5)
 
 		// Second page
-		secondPage, total2, err := repo.SearchTenants(f.Ctx, "Test", 5, 5, "", "")
+		secondPage, total2, err := repo.SearchTenants(f.Ctx, "Test", 5, 5, emptySortBy)
 		require.NoError(t, err)
 		assert.Equal(t, total, total2, "Total should be same across pages")
 
@@ -998,7 +1011,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 		}
 
 		for _, searchTerm := range testCases {
-			tenants, total, err := repo.SearchTenants(f.Ctx, searchTerm, 10, 0, "", "")
+			tenants, total, err := repo.SearchTenants(f.Ctx, searchTerm, 10, 0, emptySortBy)
 			require.NoError(t, err, "Search with special character should not error: %s", searchTerm)
 			// tenants can be nil (empty slice) if no matches
 			assert.GreaterOrEqual(t, total, 0)
@@ -1008,14 +1021,14 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 	})
 
 	t.Run("Zero_Limit_Returns_Empty", func(t *testing.T) {
-		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 0, 0, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 0, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
 	t.Run("High_Offset_Returns_Empty", func(t *testing.T) {
-		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 10, 1000000, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 10, 1000000, emptySortBy)
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -1024,7 +1037,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 	t.Run("With_Transaction_Context", func(t *testing.T) {
 		txCtx := f.WithTx(f.Ctx)
 
-		tenants, total, err := repo.SearchTenants(txCtx, "Test", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(txCtx, "Test", 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
@@ -1034,14 +1047,14 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 		ctx, cancel := context.WithCancel(f.Ctx)
 		cancel() // Cancel immediately
 
-		tenants, total, err := repo.SearchTenants(ctx, "Test", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(ctx, "Test", 10, 0, emptySortBy)
 		require.Error(t, err)
 		assert.Nil(t, tenants)
 		assert.Equal(t, 0, total)
 	})
 
 	t.Run("Results_Sorted_By_CreatedAt_Descending", func(t *testing.T) {
-		tenants, _, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, "", "")
+		tenants, _, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		if len(tenants) > 1 {
@@ -1056,7 +1069,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 	})
 
 	t.Run("User_Count_Included_In_Search_Results", func(t *testing.T) {
-		tenants, _, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, "", "")
+		tenants, _, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, emptySortBy)
 		require.NoError(t, err)
 
 		for _, tenant := range tenants {
@@ -1076,7 +1089,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 		_, err = itf.CreateTestTenant(f.Ctx, f.Pool)
 		require.NoError(t, err)
 
-		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, "", "")
+		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 10, 0, emptySortBy)
 		require.NoError(t, err)
 		assert.NotNil(t, tenants)
 		assert.GreaterOrEqual(t, total, 2, "Should have at least 2 test tenants")

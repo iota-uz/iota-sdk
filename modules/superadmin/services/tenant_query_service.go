@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/pkg/errors"
 )
 
@@ -23,7 +24,7 @@ func NewTenantQueryService(repo domain.AnalyticsQueryRepository) *TenantQuerySer
 
 // FindTenants returns paginated list of tenants with user counts
 // Supports optional search filtering by name or domain
-func (s *TenantQueryService) FindTenants(ctx context.Context, limit, offset int, search, sortField, sortOrder string) ([]*entities.TenantInfo, int, error) {
+func (s *TenantQueryService) FindTenants(ctx context.Context, limit, offset int, search string, sortBy domain.TenantSortBy) ([]*entities.TenantInfo, int, error) {
 	if limit <= 0 {
 		limit = 20 // Default page size
 	}
@@ -33,7 +34,7 @@ func (s *TenantQueryService) FindTenants(ctx context.Context, limit, offset int,
 
 	// Use search if provided
 	if search != "" {
-		tenants, total, err := s.repo.SearchTenants(ctx, search, limit, offset, sortField, sortOrder)
+		tenants, total, err := s.repo.SearchTenants(ctx, search, limit, offset, sortBy)
 		if err != nil {
 			return nil, 0, errors.Wrap(err, "failed to search tenants")
 		}
@@ -41,7 +42,7 @@ func (s *TenantQueryService) FindTenants(ctx context.Context, limit, offset int,
 	}
 
 	// Fall back to listing all tenants
-	tenants, total, err := s.repo.ListTenants(ctx, limit, offset, sortField, sortOrder)
+	tenants, total, err := s.repo.ListTenants(ctx, limit, offset, sortBy)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to find tenants")
 	}
@@ -62,7 +63,8 @@ func (s *TenantQueryService) GetByID(ctx context.Context, id uuid.UUID) (*entiti
 // GetAll retrieves all tenants (useful for exports)
 func (s *TenantQueryService) GetAll(ctx context.Context) ([]*entities.TenantInfo, error) {
 	// Use a large limit to get all tenants, default DESC sort
-	tenants, _, err := s.repo.ListTenants(ctx, 10000, 0, "", "")
+	sortBy := domain.TenantSortBy{Fields: []repo.SortByField[string]{{Field: "created_at", Ascending: false}}}
+	tenants, _, err := s.repo.ListTenants(ctx, 10000, 0, sortBy)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get all tenants")
 	}

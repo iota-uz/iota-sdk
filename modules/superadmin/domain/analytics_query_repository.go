@@ -6,7 +6,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
+
+// TenantSortBy is a type alias for sorting tenant queries
+type TenantSortBy = repo.SortBy[string]
 
 // AnalyticsQueryRepository provides read-only analytics queries for superadmin
 type AnalyticsQueryRepository interface {
@@ -23,13 +27,13 @@ type AnalyticsQueryRepository interface {
 	GetActiveUsersCount(ctx context.Context, since time.Time) (int, error)
 
 	// ListTenants returns all tenants with user counts
-	ListTenants(ctx context.Context, limit, offset int, sortField, sortOrder string) ([]*entities.TenantInfo, int, error)
+	ListTenants(ctx context.Context, limit, offset int, sortBy TenantSortBy) ([]*entities.TenantInfo, int, error)
 
 	// SearchTenants returns tenants matching search criteria with user counts
-	SearchTenants(ctx context.Context, search string, limit, offset int, sortField, sortOrder string) ([]*entities.TenantInfo, int, error)
+	SearchTenants(ctx context.Context, search string, limit, offset int, sortBy TenantSortBy) ([]*entities.TenantInfo, int, error)
 
 	// FilterTenantsByDateRange returns tenants created within date range
-	FilterTenantsByDateRange(ctx context.Context, startDate, endDate time.Time, limit, offset int, sortField, sortOrder string) ([]*entities.TenantInfo, int, error)
+	FilterTenantsByDateRange(ctx context.Context, startDate, endDate time.Time, limit, offset int, sortBy TenantSortBy) ([]*entities.TenantInfo, int, error)
 
 	// GetTenantDetails returns detailed information about a specific tenant
 	GetTenantDetails(ctx context.Context, tenantID uuid.UUID) (*entities.TenantInfo, error)
