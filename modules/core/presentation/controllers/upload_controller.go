@@ -70,6 +70,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 
 	id := r.FormValue("_id")
 	name := r.FormValue("_name")
+	formName := r.FormValue("_formName")
 	multiple := r.FormValue("_multiple") == "true"
 
 	dtos := make([]*upload.CreateDTO, 0, len(files))
@@ -103,6 +104,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 				Uploads:  nil,
 				Error:    "",
 				Name:     name,
+				Form:     formName,
 				Multiple: multiple,
 			}
 			templ.Handler(components.UploadTarget(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -121,6 +123,7 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		ID:       id,
 		Uploads:  mapping.MapViewModels(uploadEntities, mappers.UploadToViewModel),
 		Name:     name,
+		Form:     formName,
 		Multiple: multiple,
 	}
 
