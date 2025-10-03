@@ -887,12 +887,20 @@ func (c *TableConfig) AddActions(actions ...templ.Component) *TableConfig {
 
 // UseSearchQuery gets the "Search" query parameter from the request
 func UseSearchQuery(r *http.Request) string {
-	return r.URL.Query().Get(QueryParamSearch)
+	values := r.URL.Query()[QueryParamSearch]
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	return ""
 }
 
 // UsePageQuery gets the "page" query parameter from the request and converts it to int
 func UsePageQuery(r *http.Request) int {
-	pageStr := r.URL.Query().Get(QueryParamPage)
+	values := r.URL.Query()[QueryParamPage]
+	pageStr := ""
+	if len(values) > 0 {
+		pageStr = values[len(values)-1]
+	}
 	if pageStr == "" {
 		return 1 // default to page 1
 	}
@@ -921,12 +929,20 @@ func UseLimitQuery(r *http.Request) int {
 
 // UseSortQuery gets the "sort" query parameter from the request
 func UseSortQuery(r *http.Request) string {
-	return r.URL.Query().Get(QueryParamSort)
+	values := r.URL.Query()[QueryParamSort]
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	return ""
 }
 
 // UseOrderQuery gets the "order" query parameter from the request (asc/desc)
 func UseOrderQuery(r *http.Request) string {
-	order := r.URL.Query().Get(QueryParamOrder)
+	values := r.URL.Query()[QueryParamOrder]
+	order := ""
+	if len(values) > 0 {
+		order = values[len(values)-1]
+	}
 	// Only return a value if explicitly set, otherwise return empty string
 	if order == SortDirectionAsc.String() || order == SortDirectionDesc.String() {
 		return order
