@@ -22,19 +22,22 @@ import (
 )
 
 type AIChatAPIControllerConfig struct {
-	BasePath string
-	App      application.Application
+	BasePath    string
+	App         application.Application
+	Middlewares []mux.MiddlewareFunc // Optional: Additional middleware to apply
 }
 
 type AIChatAPIController struct {
-	basePath string
-	app      application.Application
+	basePath    string
+	app         application.Application
+	middlewares []mux.MiddlewareFunc
 }
 
 func NewAIChatAPIController(cfg AIChatAPIControllerConfig) application.Controller {
 	return &AIChatAPIController{
-		basePath: cfg.BasePath,
-		app:      cfg.App,
+		basePath:    cfg.BasePath,
+		app:         cfg.App,
+		middlewares: cfg.Middlewares,
 	}
 }
 
@@ -44,6 +47,13 @@ func (c *AIChatAPIController) Key() string {
 
 func (c *AIChatAPIController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
+
+	// Apply custom middlewares first
+	for _, mw := range c.middlewares {
+		router.Use(mw)
+	}
+
+	// Always apply localizer
 	router.Use(middleware.ProvideLocalizer(c.app.Bundle()))
 
 	router.HandleFunc("/messages", di.H(c.createThread)).Methods(http.MethodPost)
