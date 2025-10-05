@@ -201,7 +201,7 @@ func isProcessableStatus(status LoadStatus) bool {
 
 3. **After translation changes**:
    ```bash
-   make check-tr
+   make check tr
    ```
 
 4. **After migration changes**:
@@ -218,7 +218,7 @@ func isProcessableStatus(status LoadStatus) bool {
 go vet ./...
 
 # Translation validation (if changed)
-make check-tr
+make check tr
 
 # Check for remaining issues
 git diff --check
@@ -248,7 +248,7 @@ STYLE IMPROVEMENTS 🟢: [Count]
 
 VALIDATION STATUS:
 ✅ go vet: PASSED
-✅ make check-tr: PASSED (if applicable)
+✅ make check tr: PASSED (if applicable)
 ✅ All tests compile
 
 NEXT RECOMMENDED ACTIONS:
@@ -987,7 +987,7 @@ PENDING = "Pending"
 - `ID` → Use `ENTITY_ID`, `RECORD_ID`
 - `DESCRIPTION` → Use `DESC_TEXT`, `DETAILS`
 
-**Always run**: `make check-tr` after edits
+**Always run**: `make check tr` after edits
 
 ---
 
@@ -1060,7 +1060,7 @@ const (
 ### Validation Commands
 ```bash
 go vet ./...                 # After Go changes
-make check-tr                # After translation changes
+make check tr                # After translation changes
 git diff --check            # Check whitespace
 ```
 

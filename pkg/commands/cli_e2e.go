@@ -91,7 +91,7 @@ func newE2ETestCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "test",
 		Short: "Set up database and run e2e tests",
-		Long:  `Sets up the e2e database with migrations and seed data, then runs Cypress tests against a running e2e development server.`,
+		Long:  `Sets up the e2e database with migrations and seed data, then runs Playwright tests against a running e2e development server.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return e2e.Test()
 		},

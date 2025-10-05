@@ -87,10 +87,18 @@ templ ViewButton(url string) {
 	})
 }
 
+func safeString(s *string) string {
+	if s == nil || *s == "" {
+		return "-"
+	}
+	return *s
+}
+
 func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.PageContext, r *http.Request) *table.TableConfig {
 	columns := []table.TableColumn{
 		table.Column("name", pageCtx.T("SuperAdmin.Tenants.Name"), table.WithSortable()),
-		table.Column("domain", pageCtx.T("SuperAdmin.Tenants.Domain")),
+		table.Column("email", pageCtx.T("SuperAdmin.Tenants.Email")),
+		table.Column("phone", pageCtx.T("SuperAdmin.Tenants.Phone")),
 		table.Column("user_count", pageCtx.T("SuperAdmin.Tenants.UserCount")),
 		table.Column("status", pageCtx.T("SuperAdmin.Tenants.StatusColumn")),
 		table.Column("created_at", pageCtx.T("SuperAdmin.Tenants.CreatedAt"), table.WithSortable()),
@@ -104,7 +112,8 @@ func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.
 
 		rows[i] = table.Row(
 			table.Cell(SafeText(tenant.Name), tenant.Name),
-			table.Cell(SafeText(tenant.Domain), tenant.Domain),
+			table.Cell(SafeText(safeString(tenant.Email)), safeString(tenant.Email)),
+			table.Cell(SafeText(safeString(tenant.Phone)), safeString(tenant.Phone)),
 			table.Cell(SafeText(fmt.Sprintf("%d", tenant.UserCount)), tenant.UserCount),
 			table.Cell(StatusBadge(status, badge.VariantGreen), status),
 			table.Cell(table.DateTime(tenant.CreatedAt), tenant.CreatedAt),
@@ -135,7 +144,7 @@ templ TableRows(tenants []*entities.TenantInfo) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	if len(tenants) == 0 {
 		<tr>
-			<td colspan="6" class="text-center py-12">
+			<td colspan="7" class="text-center py-12">
 				<p class="text-sm text-gray-800 font-medium">{ pageCtx.T("Scaffold.Table.NothingFound") }</p>
 				<p class="text-xs text-300 mt-2">No tenants match the current filters</p>
 			</td>
@@ -148,7 +157,8 @@ templ TableRows(tenants []*entities.TenantInfo) {
 			}}
 			<tr class="border-b border-secondary hover:bg-surface-500 transition-all duration-200 ease-in-out">
 				<td class="px-4 py-4 font-medium text-gray-800">{ tenant.Name }</td>
-				<td class="px-4 py-4 text-200">{ tenant.Domain }</td>
+				<td class="px-4 py-4 text-200">{ safeString(tenant.Email) }</td>
+				<td class="px-4 py-4 text-200">{ safeString(tenant.Phone) }</td>
 				<td class="px-4 py-4 text-200">{ fmt.Sprintf("%d", tenant.UserCount) }</td>
 				<td class="px-4 py-4">
 					@badge.New(badge.Props{Variant: badge.VariantGreen}) {
