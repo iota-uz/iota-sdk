@@ -107,7 +107,7 @@ e2e:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "run" ]; then \
 		cd e2e && npx playwright test --ui; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "ci" ]; then \
-		cd e2e && npx playwright test --workers=1; \
+		cd e2e && npx playwright test --workers=1 --reporter=list; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
 		go run cmd/command/main.go e2e drop; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
