@@ -44,9 +44,9 @@ db:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "stop" ]; then \
 		docker compose -f compose.dev.yml down db; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
-		docker volume rm sdk-data || true; \
+		docker volume rm iota-sdk-data || true; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "reset" ]; then \
-		docker compose -f compose.dev.yml down db && docker volume rm sdk-data || true && docker compose -f compose.dev.yml up db; \
+		docker compose -f compose.dev.yml down db && docker volume rm iota-sdk-data || true && docker compose -f compose.dev.yml up db; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "seed" ]; then \
 		go run cmd/command/main.go seed; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "migrate" ]; then \
@@ -75,7 +75,7 @@ test:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "docker" ]; then \
 		docker compose -f compose.testing.yml up --build erp_local; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "score" ]; then \
-		go tool cover -func ./coverage/coverage.out | grep "total:" | awk '{print ((int($$3) > 80) != 1) }'; \
+		go tool cover -func coverage.out | grep "total:" | awk '{print ((int($$3) > 80) != 1) }'; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "report" ]; then \
 		go tool cover -html=coverage.out -o ./coverage/cover.html; \
 	else \
@@ -183,10 +183,11 @@ clean:
 
 # Full setup
 setup: deps css
+	make check fmt
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose docker score report linux docker-base docker-prod run server up down restart logs local stop reset seed migrate dev:
+watch coverage verbose docker score report linux docker-base docker-prod up down restart logs local stop reset seed migrate dev:
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check superadmin \
