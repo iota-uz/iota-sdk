@@ -142,11 +142,11 @@ build:
 # Super Admin server management with subcommands (default, dev, seed)
 superadmin:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
-		PORT=4000 ORIGIN='http://localhost:4000' air -c .air.superadmin.toml; \
+		PORT=4000 DOMAIN='localhost:4000' ORIGIN='http://localhost:4000' air -c .air.superadmin.toml; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "seed" ]; then \
 		LOG_LEVEL=info go run cmd/command/main.go seed_superadmin; \
 	else \
-		PORT=4000 go run cmd/superadmin/main.go; \
+		PORT=4000 DOMAIN='localhost:4000' go run cmd/superadmin/main.go; \
 	fi
 
 # Dependency graph generation

@@ -11,6 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/export"
@@ -50,7 +51,7 @@ func DateRangeFilter() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-wrap gap-3 items-end mb-4 p-3 bg-surface-500 rounded-xl shadow-sm\"><div class=\"flex-1 min-w-[200px]\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form id=\"date-filter-form\" class=\"flex flex-wrap gap-3 items-end mb-4 p-3 bg-surface-500 rounded-xl shadow-sm\"><div class=\"flex-1 min-w-[200px]\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -60,16 +61,12 @@ func DateRangeFilter() templ.Component {
 			EndName:    "end_date",
 			DateFormat: "yyyy-MM-dd",
 			Attrs: templ.Attributes{
-				"@change": `
-						const startDate = $el.querySelector('input[name="start_date"]').value;
-						const endDate = $el.querySelector('input[name="end_date"]').value;
-						if (startDate && endDate) {
-							htmx.ajax('GET', '/superadmin/tenants?start_date=' + startDate + '&end_date=' + endDate, {
-								target: '#tenants-table-body',
-								swap: 'innerHTML'
-							});
-						}
-					`,
+				"hx-get":      "/superadmin/tenants",
+				"hx-trigger":  "change",
+				"hx-include":  "[name='start_date'], [name='end_date']",
+				"hx-target":   "#table-body",
+				"hx-swap":     "innerHTML",
+				"hx-push-url": "true",
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -84,23 +81,32 @@ func DateRangeFilter() templ.Component {
 			Icon: icons.X(icons.Props{Size: "16"}),
 			Attrs: templ.Attributes{
 				"@click": `
-						const datePickerInput = $el.closest('.flex').querySelector('input[x-ref="input"]');
+						const datePickerInput = $el.closest('form').querySelector('input[x-ref="input"]');
 						if (datePickerInput) {
 							datePickerInput.value = '';
 							datePickerInput.dispatchEvent(new Event('input', { bubbles: true }));
 						}
-						htmx.ajax('GET', '/superadmin/tenants', {
-							target: '#tenants-table-body',
+
+						// Get current URL without date params
+						const url = new URL(window.location);
+						url.searchParams.delete('start_date');
+						url.searchParams.delete('end_date');
+
+						// Update browser URL
+						window.history.replaceState({}, '', url.toString());
+
+						// Trigger HTMX request without date params
+						htmx.ajax('GET', url.pathname + url.search, {
+							target: '#table-body',
 							swap: 'innerHTML'
 						});
-						window.history.replaceState({}, '', '/superadmin/tenants');
 					`,
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -192,7 +198,7 @@ func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.
 			table.Cell(SafeText(tenant.Name), tenant.Name),
 			table.Cell(SafeText(tenant.Domain), tenant.Domain),
 			table.Cell(SafeText(fmt.Sprintf("%d", tenant.UserCount)), tenant.UserCount),
-			table.Cell(SafeText(status), status),
+			table.Cell(StatusBadge(status, badge.VariantGreen), status),
 			table.Cell(table.DateTime(tenant.CreatedAt), tenant.CreatedAt),
 			table.Cell(ViewButton(usersURL), nil),
 		)
@@ -203,6 +209,7 @@ func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.
 		DataURL: "/superadmin/tenants",
 		Columns: columns,
 		Rows:    rows,
+		Filters: []templ.Component{DateRangeFilter()},
 		Actions: []templ.Component{ExportButton()},
 		Infinite: &table.InfiniteScrollConfig{
 			HasMore: false,
@@ -246,7 +253,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Scaffold.Table.NothingFound"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 132, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 139, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -268,7 +275,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(tenant.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 143, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 150, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -281,7 +288,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(tenant.Domain)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 144, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 151, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -294,26 +301,44 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", tenant.UserCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 145, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 152, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</td><td class=\"px-4 py-4\"><span class=\"inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</td><td class=\"px-4 py-4\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var9 string
-				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(status)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 148, Col: 14}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+				templ_7745c5c3_Var9 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+					if !templ_7745c5c3_IsBuffer {
+						defer func() {
+							templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+							if templ_7745c5c3_Err == nil {
+								templ_7745c5c3_Err = templ_7745c5c3_BufErr
+							}
+						}()
+					}
+					ctx = templ.InitializeContext(ctx)
+					var templ_7745c5c3_Var10 string
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(status)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 155, Col: 14}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					return nil
+				})
+				templ_7745c5c3_Err = badge.New(badge.Props{Variant: badge.VariantGreen}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</span></td><td class=\"px-4 py-4 text-200\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</td><td class=\"px-4 py-4 text-200\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -355,9 +380,9 @@ func List(props *IndexPageProps) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var10 == nil {
-			templ_7745c5c3_Var10 = templ.NopComponent
+		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var11 == nil {
+			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = TableRows(props.Tenants).Render(ctx, templ_7745c5c3_Buffer)
@@ -384,9 +409,9 @@ func Table(props *IndexPageProps) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var11 == nil {
-			templ_7745c5c3_Var11 = templ.NopComponent
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
@@ -416,15 +441,15 @@ func Index(props *IndexPageProps) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var12 == nil {
-			templ_7745c5c3_Var12 = templ.NopComponent
+		templ_7745c5c3_Var13 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var13 == nil {
+			templ_7745c5c3_Var13 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
 		params, _ := composables.UseParams(ctx)
 		config := buildTableConfig(props.Tenants, props.Total, pageCtx, params.Request)
-		templ_7745c5c3_Var13 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var14 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -436,14 +461,6 @@ func Index(props *IndexPageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = DateRangeFilter().Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, " ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
 			templ_7745c5c3_Err = table.Content(config).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -452,7 +469,7 @@ func Index(props *IndexPageProps) templ.Component {
 		})
 		templ_7745c5c3_Err = layouts.SuperAdminAuthenticated(layouts.SuperAdminAuthenticatedProps{
 			BaseProps: layouts.BaseProps{Title: pageCtx.T("SuperAdmin.Tenants.Meta.Title")},
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
