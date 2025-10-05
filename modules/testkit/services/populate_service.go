@@ -4,9 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
 type PopulateService struct {
@@ -45,7 +51,8 @@ func (s *PopulateService) Execute(ctx context.Context, req *schemas.PopulateRequ
 
 	// Handle tenant setup
 	if req.Tenant != nil {
-		if err := s.setupTenant(ctxWithTx, req.Tenant); err != nil {
+		ctxWithTx, err = s.setupTenant(ctxWithTx, req.Tenant)
+		if err != nil {
 			return nil, fmt.Errorf("failed to setup tenant: %w", err)
 		}
 	}
@@ -74,14 +81,21 @@ func (s *PopulateService) Execute(ctx context.Context, req *schemas.PopulateRequ
 	}, nil
 }
 
-func (s *PopulateService) setupTenant(ctx context.Context, tenant *schemas.TenantSpec) error {
+func (s *PopulateService) setupTenant(ctx context.Context, tenant *schemas.TenantSpec) (context.Context, error) {
 	logger := composables.UseLogger(ctx)
-
-	// TODO: Implement tenant creation
-	// For now, we'll use the default tenant setup similar to seed command
 	logger.WithField("tenantName", tenant.Name).Debug("Setting up tenant")
 
-	return nil
+	// Parse tenant ID from spec
+	tenantID, err := uuid.Parse(tenant.ID)
+	if err != nil {
+		return ctx, fmt.Errorf("invalid tenant ID %s: %w", tenant.ID, err)
+	}
+
+	// Add tenant ID to context
+	ctxWithTenant := composables.WithTenantID(ctx, tenantID)
+
+	logger.WithField("tenantID", tenantID).Debug("Tenant context set successfully")
+	return ctxWithTenant, nil
 }
 
 func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSpec) error {
@@ -119,22 +133,118 @@ func (s *PopulateService) populateData(ctx context.Context, data *schemas.DataSp
 func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserSpec) error {
 	logger := composables.UseLogger(ctx)
 
-	for _, user := range users {
-		logger.WithField("email", user.Email).Debug("Creating user")
+	// Get tenant ID from context
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant ID: %w", err)
+	}
 
-		// TODO: Implement user creation using core module services
-		// This would involve:
-		// 1. Creating user aggregate
-		// 2. Setting password
-		// 3. Assigning permissions
-		// 4. Saving to database
+	// Initialize repositories
+	uploadRepo := persistence.NewUploadRepository()
+	userRepo := persistence.NewUserRepository(uploadRepo)
+	roleRepo := persistence.NewRoleRepository()
 
-		// For now, store the reference for later resolution
-		if user.Ref != "" {
-			s.referenceMap["users."+user.Ref] = map[string]interface{}{
-				"email":     user.Email,
-				"firstName": user.FirstName,
-				"lastName":  user.LastName,
+	for _, userSpec := range users {
+		logger.WithField("email", userSpec.Email).Debug("Creating user")
+
+		// 1. Parse email value object
+		email, err := internet.NewEmail(userSpec.Email)
+		if err != nil {
+			return fmt.Errorf("invalid email %s: %w", userSpec.Email, err)
+		}
+
+		// Check if user already exists
+		existingUser, err := userRepo.GetByEmail(ctx, userSpec.Email)
+		if err == nil && existingUser != nil {
+			logger.WithField("email", userSpec.Email).Debug("User already exists, skipping creation")
+
+			// Store reference even if user exists
+			if userSpec.Ref != "" {
+				s.referenceMap["users."+userSpec.Ref] = map[string]interface{}{
+					"id":        existingUser.ID(),
+					"email":     existingUser.Email().Value(),
+					"firstName": existingUser.FirstName(),
+					"lastName":  existingUser.LastName(),
+				}
+			}
+
+			s.createdEntities["users"] = append(
+				s.getSliceFromMap("users"),
+				map[string]interface{}{
+					"id":    existingUser.ID(),
+					"email": userSpec.Email,
+					"ref":   userSpec.Ref,
+				},
+			)
+			continue
+		}
+
+		// 2. Determine UI language (default to English if not specified)
+		uiLanguage := user.UILanguageEN
+		if userSpec.Language != "" {
+			lang, err := user.NewUILanguage(userSpec.Language)
+			if err != nil {
+				logger.WithField("language", userSpec.Language).Warn("Invalid language, defaulting to English")
+			} else {
+				uiLanguage = lang
+			}
+		}
+
+		// 3. Create user aggregate with password
+		newUser := user.New(
+			userSpec.FirstName,
+			userSpec.LastName,
+			email,
+			uiLanguage,
+			user.WithTenantID(tenantID),
+			user.WithType(user.TypeUser),
+		)
+
+		// 4. Set password (hashed)
+		if userSpec.Password != "" {
+			newUser, err = newUser.SetPassword(userSpec.Password)
+			if err != nil {
+				return fmt.Errorf("failed to hash password for user %s: %w", userSpec.Email, err)
+			}
+		}
+
+		// 5. Assign default role if no specific permissions provided
+		// Find or create a default role for the user
+		if len(userSpec.Permissions) == 0 {
+			// Try to find an existing "Admin" or "User" role
+			roles, err := roleRepo.GetPaginated(ctx, &role.FindParams{
+				Filters: []role.Filter{
+					{
+						Column: role.NameField,
+						Filter: repo.Eq("Admin"),
+					},
+				},
+				Limit: 1,
+			})
+
+			if err == nil && len(roles) > 0 {
+				newUser = newUser.AddRole(roles[0])
+				logger.WithField("email", userSpec.Email).Debug("Assigned Admin role to user")
+			} else {
+				logger.WithField("email", userSpec.Email).Warn("No default role found, user created without roles")
+			}
+		}
+
+		// 6. Save to database
+		createdUser, err := userRepo.Create(ctx, newUser)
+		if err != nil {
+			return fmt.Errorf("failed to create user %s: %w", userSpec.Email, err)
+		}
+
+		logger.WithField("email", userSpec.Email).WithField("id", createdUser.ID()).Info("User created successfully")
+
+		// Store reference for later resolution
+		if userSpec.Ref != "" {
+			s.referenceMap["users."+userSpec.Ref] = map[string]interface{}{
+				"id":        createdUser.ID(),
+				"email":     createdUser.Email().Value(),
+				"firstName": createdUser.FirstName(),
+				"lastName":  createdUser.LastName(),
 			}
 		}
 
@@ -142,8 +252,9 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		s.createdEntities["users"] = append(
 			s.getSliceFromMap("users"),
 			map[string]interface{}{
-				"email": user.Email,
-				"ref":   user.Ref,
+				"id":    createdUser.ID(),
+				"email": userSpec.Email,
+				"ref":   userSpec.Ref,
 			},
 		)
 	}
