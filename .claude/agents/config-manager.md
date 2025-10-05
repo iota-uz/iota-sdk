@@ -1,7 +1,7 @@
 ---
 name: config-manager
 description: Configuration and documentation specialist for IOTA SDK project management. Use PROACTIVELY for environment configuration, docker configs, build system configuration, and project documentation maintenance. MUST BE USED when modifying .env files, docker-compose files, Makefile, or project documentation (README.md, docs/). DO NOT USE for editing .claude/ directory files or CLAUDE.md - use claude-code-expert agent for those instead.
-tools: Read, Write, Edit, MultiEdit, Grep, Glob, Bash(make check-tr:*), Bash(make docs:*), Bash(git status:*), Bash(git diff:*), Bash(find:*), Bash(grep:*)
+tools: Read, Write, Edit, MultiEdit, Grep, Glob, Bash(make check tr:*), Bash(make docs:*), Bash(git status:*), Bash(git diff:*), Bash(find:*), Bash(grep:*)
 model: sonnet
 ---
 
@@ -152,7 +152,7 @@ You are a Configuration Manager expert specializing in IOTA SDK environment conf
 
 3. **Validation**:
    ```bash
-   make check-tr  # Validate translation consistency
+   make check tr  # Validate translation consistency
    git status     # Check for uncommitted config changes
    git diff       # Review configuration modifications
    ```
@@ -330,7 +330,7 @@ You are a Configuration Manager expert specializing in IOTA SDK environment conf
 ### Configuration Validation
 ```bash
 # Check translation consistency
-make check-tr
+make check tr
 
 # Generate current documentation
 make docs

@@ -3,7 +3,7 @@ allowed-tools: |
   Bash(go test:*), Bash(make test:*), Bash(go vet:*),
   Bash(make lint:*), Bash(golangci-lint:*),
   Read, Edit, MultiEdit, Grep, Glob,
-  Bash(go build:*), Bash(make check-tr:*),
+  Bash(go build:*), Bash(make check tr:*),
   Task
 description: Systematically identify and fix broken tests and linting errors using iterative approach
 ---
@@ -68,7 +68,7 @@ For each failing test:
 - Run `make lint` to ensure no unused code remains
 - Run full test suite with `make test` to ensure no regressions (use 10-minute timeout for full suite)
 - Use `make test failures` to quickly identify any remaining failed tests (use 10-minute timeout)
-- Run `make check-tr` if translation files were modified
+- Run `make check tr` if translation files were modified
 
 ## Best Practices
 
