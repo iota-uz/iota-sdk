@@ -3,6 +3,7 @@ package superadmin
 import (
 	"embed"
 
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/services"
@@ -36,11 +37,16 @@ func (m *Module) Register(app application.Application) error {
 	// Register repositories
 	analyticsRepo := persistence.NewPgAnalyticsQueryRepository()
 
+	// User repository for tenant users service
+	uploadRepo := corepersistence.NewUploadRepository()
+	userRepo := corepersistence.NewUserRepository(uploadRepo)
+
 	// Register services
 	app.RegisterServices(
 		services.NewAnalyticsService(analyticsRepo),
 		services.NewTenantQueryService(analyticsRepo),
 		services.NewTenantService(analyticsRepo),
+		services.NewTenantUsersService(userRepo),
 	)
 
 	// Register controllers

@@ -72,7 +72,7 @@ func TestNavItems(t *testing.T) {
 		t.Parallel()
 
 		assert.Equal(t, "SuperAdmin.NavigationLinks.Dashboard", superadmin.DashboardLink.Name)
-		assert.Equal(t, "/superadmin", superadmin.DashboardLink.Href)
+		assert.Equal(t, "/", superadmin.DashboardLink.Href)
 		assert.NotNil(t, superadmin.DashboardLink.Icon)
 	})
 

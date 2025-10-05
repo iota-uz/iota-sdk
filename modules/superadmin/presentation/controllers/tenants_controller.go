@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
@@ -19,6 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 )
@@ -52,6 +54,7 @@ func (c *TenantsController) Register(r *mux.Router) {
 	)
 	router.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)
 	router.HandleFunc("/export", di.H(c.Export)).Methods(http.MethodPost)
+	router.HandleFunc("/{id}/users", di.H(c.TenantUsers)).Methods(http.MethodGet)
 }
 
 // Index renders the tenants table page and handles HTMX filtering requests
@@ -83,7 +86,7 @@ func (c *TenantsController) Index(
 	// If empty, services will use default DESC sort
 
 	// Get search parameter
-	search := r.URL.Query().Get("search")
+	search := table.UseSearchQuery(r)
 
 	// Parse optional date range parameters
 	startDateStr := r.URL.Query().Get("start_date")
@@ -142,7 +145,14 @@ func (c *TenantsController) Index(
 
 	// Check if HTMX request
 	if htmx.IsHxRequest(r) {
-		templ.Handler(tenants.TableRows(props.Tenants), templ.WithStreaming()).ServeHTTP(w, r)
+		hxTarget := r.Header.Get("HX-Target")
+		if hxTarget == "sortable-table-container" {
+			// Sorting request - return full table to update headers with new sort direction
+			templ.Handler(tenants.Table(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			// Filter/search request - return only rows to update table body
+			templ.Handler(tenants.TableRows(props.Tenants), templ.WithStreaming()).ServeHTTP(w, r)
+		}
 	} else {
 		templ.Handler(tenants.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
@@ -192,5 +202,132 @@ func (c *TenantsController) Export(
 		htmx.Redirect(w, upload.URL().String())
 	} else {
 		http.Redirect(w, r, upload.URL().String(), http.StatusSeeOther)
+	}
+}
+
+// TenantUsers renders the users list for a specific tenant
+func (c *TenantsController) TenantUsers(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	tenantUsersService *services.TenantUsersService,
+	tenantQueryService *services.TenantQueryService,
+) {
+	ctx := r.Context()
+
+	// Parse tenant ID from URL path
+	vars := mux.Vars(r)
+	tenantIDStr := vars["id"]
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		logger.Errorf("Invalid tenant ID: %v", err)
+		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get tenant info
+	tenant, err := tenantQueryService.GetByID(ctx, tenantID)
+	if err != nil {
+		logger.Errorf("Error retrieving tenant %s: %v", tenantID, err)
+		http.Error(w, "Tenant not found", http.StatusNotFound)
+		return
+	}
+
+	// Verify tenant exists (nil check)
+	if tenant == nil {
+		logger.Warnf("Tenant %s not found", tenantID)
+		http.Error(w, "Tenant not found", http.StatusNotFound)
+		return
+	}
+
+	// Get pagination parameters
+	params := composables.UsePaginated(r)
+
+	// Handle sorting parameters
+	sortField := table.UseSortQuery(r)
+	sortOrder := table.UseOrderQuery(r)
+
+	// Convert to user.SortBy format
+	var sortBy user.SortBy
+	if sortField != "" {
+		// Map sortField to user.Field constants
+		var field user.Field
+		switch sortField {
+		case "first_name":
+			field = user.FirstNameField
+		case "last_name":
+			field = user.LastNameField
+		case "email":
+			field = user.EmailField
+		case "phone":
+			field = user.PhoneField
+		case "created_at":
+			field = user.CreatedAtField
+		default:
+			field = user.CreatedAtField // Default sort field
+		}
+
+		sortBy = user.SortBy{
+			Fields: []repo.SortByField[user.Field]{
+				{Field: field, Ascending: sortOrder == "asc"},
+			},
+		}
+	}
+
+	// Get search parameter
+	search := table.UseSearchQuery(r)
+
+	// Get users for tenant
+	users, total, err := tenantUsersService.GetUsersByTenantID(ctx, tenantID, params.Limit, params.Offset, search, sortBy)
+	if err != nil {
+		logger.Errorf("Error retrieving users for tenant %s: %v", tenantID, err)
+		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert users to template format
+	tenantUsers := make([]*tenants.TenantUser, len(users))
+	for i, u := range users {
+		roleName := ""
+		if len(u.Roles()) > 0 {
+			roleName = u.Roles()[0].Name()
+		}
+
+		phone := ""
+		if u.Phone() != nil {
+			phone = u.Phone().Value()
+		}
+
+		tenantUsers[i] = &tenants.TenantUser{
+			ID:        u.ID(),
+			FirstName: u.FirstName(),
+			LastName:  u.LastName(),
+			Email:     u.Email().Value(),
+			Phone:     phone,
+			RoleName:  roleName,
+			LastLogin: u.LastLogin(),
+			CreatedAt: u.CreatedAt(),
+		}
+	}
+
+	// Create props for template
+	props := &tenants.UsersPageProps{
+		Tenant: tenant,
+		Users:  tenantUsers,
+		Total:  total,
+	}
+
+	// Render template
+	if htmx.IsHxRequest(r) {
+		hxTarget := r.Header.Get("HX-Target")
+		if hxTarget == "sortable-table-container" {
+			// Sorting request - return full table to update headers with new sort direction
+			templ.Handler(tenants.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
+		} else {
+			// Filter/search request - return only rows to update table body
+			templ.Handler(tenants.UsersTableRows(props.Users), templ.WithStreaming()).ServeHTTP(w, r)
+		}
+	} else {
+		templ.Handler(tenants.Users(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
 }

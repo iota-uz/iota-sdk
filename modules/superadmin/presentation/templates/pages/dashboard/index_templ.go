@@ -5,11 +5,11 @@ package dashboard
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
+import "github.com/a-h/templ"
+import templruntime "github.com/a-h/templ/runtime"
+
 import (
 	"fmt"
-
-	"github.com/a-h/templ"
-	templruntime "github.com/a-h/templ/runtime"
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
@@ -681,7 +681,7 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 				"@change": `
 							const startDate = $el.querySelector('input[name="startDate"]').value;
 							const endDate = $el.querySelector('input[name="endDate"]').value;
-							htmx.ajax('GET', '/superadmin/dashboard/metrics?startDate=' + startDate + '&endDate=' + endDate, {
+							htmx.ajax('GET', '/metrics?startDate=' + startDate + '&endDate=' + endDate, {
 								target: '#metrics-container',
 								swap: 'innerHTML'
 							});
@@ -691,7 +691,7 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div></div><div id=\"metrics-container\" hx-get=\"/superadmin/dashboard/metrics\" hx-trigger=\"load\" hx-swap=\"innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div></div><div id=\"metrics-container\" hx-get=\"/metrics\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-on::after-swap=\"document.dispatchEvent(new Event(&#39;sdk:rerenderCharts&#39;))\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

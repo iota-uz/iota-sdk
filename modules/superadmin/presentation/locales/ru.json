@@ -18,6 +18,10 @@
         "WAU": "Активные за неделю",
         "MAU": "Активные за месяц",
         "TotalSessions": "Всего сессий"
+      },
+      "Charts": {
+        "UserSignups": "Регистрации пользователей",
+        "TenantSignups": "Регистрации арендаторов"
       }
     },
     "Tenants": {
@@ -27,6 +31,8 @@
       "UserCount": "Количество пользователей",
       "StatusColumn": "Статус",
       "CreatedAt": "Дата создания",
+      "Actions": "Действия",
+      "ViewUsers": "Просмотр пользователей",
       "Export": "Экспорт в Excel",
       "FilterByDate": "Фильтр по диапазону дат",
       "StartDate": "Дата начала",
@@ -38,6 +44,23 @@
       "Status": {
         "Active": "Активен",
         "Inactive": "Неактивен"
+      },
+      "Users": {
+        "Title": "Пользователи арендатора",
+        "ViewUsers": "Просмотр пользователей",
+        "BackToTenants": "Назад к арендаторам",
+        "TenantInfo": "Информация об арендаторе",
+        "FirstName": "Имя",
+        "LastName": "Фамилия",
+        "Email": "Email",
+        "Phone": "Телефон",
+        "Role": "Роль",
+        "CreatedAt": "Дата создания",
+        "LastLogin": "Последний вход",
+        "Status": "Статус",
+        "Meta": {
+          "Title": "Пользователи арендатора - Super Admin"
+        }
       }
     }
   }

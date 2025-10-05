@@ -162,8 +162,9 @@ func UseForm[T comparable](v T, r *http.Request) (T, error) {
 // occurrences may be stale values from the URL.
 //
 // Example:
-//   URL: /loads?driver=uuid-1&sort=load&driver=uuid-2
-//   GetLastQueryParam(r, "driver") returns "uuid-2"
+//
+//	URL: /loads?driver=uuid-1&sort=load&driver=uuid-2
+//	GetLastQueryParam(r, "driver") returns "uuid-2"
 func GetLastQueryParam(r *http.Request, key string) string {
 	values := r.URL.Query()[key]
 	if len(values) > 0 {
@@ -176,9 +177,10 @@ func GetLastQueryParam(r *http.Request, key string) string {
 // This is optimized for retrieving several filter parameters at once.
 //
 // Example:
-//   params := GetLastQueryParams(r, "driver", "status", "broker")
-//   driverID := params["driver"]
-//   status := params["status"]
+//
+//	params := GetLastQueryParams(r, "driver", "status", "broker")
+//	driverID := params["driver"]
+//	status := params["status"]
 func GetLastQueryParams(r *http.Request, keys ...string) map[string]string {
 	result := make(map[string]string, len(keys))
 	query := r.URL.Query()
