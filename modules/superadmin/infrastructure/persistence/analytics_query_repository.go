@@ -242,11 +242,21 @@ func (r *pgAnalyticsQueryRepository) ListTenants(ctx context.Context, limit, off
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
 	}
 
+	// Validate limit parameter
+	if limit < 0 {
+		return nil, 0, errors.New("limit cannot be negative")
+	}
+
 	// Get total count
 	var total int
 	err = tx.QueryRow(ctx, countTenantsSQL).Scan(&total)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to count tenants")
+	}
+
+	// Handle limit=0 case - return empty slice
+	if limit == 0 {
+		return []*entities.TenantInfo{}, total, nil
 	}
 
 	// Default sort if empty
@@ -289,6 +299,11 @@ func (r *pgAnalyticsQueryRepository) SearchTenants(ctx context.Context, search s
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
 	}
 
+	// Validate limit parameter
+	if limit < 0 {
+		return nil, 0, errors.New("limit cannot be negative")
+	}
+
 	// Add wildcards for ILIKE pattern matching
 	searchPattern := "%" + search + "%"
 
@@ -297,6 +312,11 @@ func (r *pgAnalyticsQueryRepository) SearchTenants(ctx context.Context, search s
 	err = tx.QueryRow(ctx, countTenantsSearchSQL, searchPattern).Scan(&total)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to count tenants with search")
+	}
+
+	// Handle limit=0 case - return empty slice
+	if limit == 0 {
+		return []*entities.TenantInfo{}, total, nil
 	}
 
 	// Default sort if empty
@@ -339,11 +359,21 @@ func (r *pgAnalyticsQueryRepository) FilterTenantsByDateRange(ctx context.Contex
 		return nil, 0, errors.Wrap(err, "failed to get transaction")
 	}
 
+	// Validate limit parameter
+	if limit < 0 {
+		return nil, 0, errors.New("limit cannot be negative")
+	}
+
 	// Get total count for date range
 	var total int
 	err = tx.QueryRow(ctx, countTenantsByDateRangeSQL, startDate, endDate).Scan(&total)
 	if err != nil {
 		return nil, 0, errors.Wrap(err, "failed to count tenants by date range")
+	}
+
+	// Handle limit=0 case - return empty slice
+	if limit == 0 {
+		return []*entities.TenantInfo{}, total, nil
 	}
 
 	// Default sort if empty

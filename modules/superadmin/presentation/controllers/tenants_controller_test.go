@@ -6,18 +6,48 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
 
+// createSuperAdminUserForTenants creates a test user with TypeSuperAdmin for tenant tests
+func createSuperAdminUserForTenants() user.User {
+	email, _ := internet.NewEmail("superadmin@tenants-test.com")
+	return user.New(
+		"Super",
+		"Admin",
+		email,
+		user.UILanguageEN,
+		user.WithID(1),
+		user.WithType(user.TypeSuperAdmin),
+		user.WithTenantID(uuid.New()),
+	)
+}
+
+// createRegularUserForTenants creates a test user with TypeUser (non-superadmin) for tenant tests
+func createRegularUserForTenants() user.User {
+	email, _ := internet.NewEmail("user@tenants-test.com")
+	return user.New(
+		"Regular",
+		"User",
+		email,
+		user.UILanguageEN,
+		user.WithID(2),
+		user.WithType(user.TypeUser),
+		user.WithTenantID(uuid.New()),
+	)
+}
+
 func TestTenantsController_Index(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -34,7 +64,7 @@ func TestTenantsController_Index_HTMX(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -52,7 +82,7 @@ func TestTenantsController_Index_WithPagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -102,7 +132,7 @@ func TestTenantsController_Index_WithSearch(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -142,7 +172,7 @@ func TestTenantsController_Export(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -159,23 +189,34 @@ func TestTenantsController_Export(t *testing.T) {
 func TestTenantsController_Permissions(t *testing.T) {
 	t.Parallel()
 
-	// Test with different permission levels
+	// Test with different user types and permission levels
 	testCases := []struct {
-		name        string
-		setupSuite  func(*testing.T) *itf.Suite
-		expectation func(*itf.Request) *itf.ResponseAssertion
+		name           string
+		setupSuite     func(*testing.T) *itf.Suite
+		expectedStatus int
+		description    string
 	}{
 		{
-			name: "Admin_Access",
+			name: "SuperAdmin_Access_Allowed",
 			setupSuite: func(t *testing.T) *itf.Suite {
 				return itf.NewSuiteBuilder(t).
 					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-					AsAdmin().
+					WithUser(createSuperAdminUserForTenants()).
 					Build()
 			},
-			expectation: func(req *itf.Request) *itf.ResponseAssertion {
-				return req.Assert(t).ExpectOK()
+			expectedStatus: 200,
+			description:    "Superadmin users should have full access to tenants",
+		},
+		{
+			name: "Regular_User_Blocked",
+			setupSuite: func(t *testing.T) *itf.Suite {
+				return itf.NewSuiteBuilder(t).
+					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+					WithUser(createRegularUserForTenants()).
+					Build()
 			},
+			expectedStatus: 403,
+			description:    "Regular users should be blocked with 403 Forbidden",
 		},
 		{
 			name: "Anonymous_User_Redirect",
@@ -185,10 +226,8 @@ func TestTenantsController_Permissions(t *testing.T) {
 					AsAnonymous().
 					Build()
 			},
-			expectation: func(req *itf.Request) *itf.ResponseAssertion {
-				// Anonymous users should be redirected to login
-				return req.Assert(t).ExpectStatus(302)
-			},
+			expectedStatus: 302,
+			description:    "Anonymous users should be redirected to login",
 		},
 	}
 
@@ -198,9 +237,109 @@ func TestTenantsController_Permissions(t *testing.T) {
 			controller := controllers.NewTenantsController(suite.Env().App)
 			suite.Register(controller)
 
-			tc.expectation(suite.GET("/superadmin/tenants"))
+			suite.GET("/superadmin/tenants").
+				Assert(t).
+				ExpectStatus(tc.expectedStatus)
 		})
 	}
+}
+
+// TestTenantsController_SuperAdminOnly verifies only superadmin users can access all endpoints
+func TestTenantsController_SuperAdminOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Tenants_Index_SuperAdmin_OK", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createSuperAdminUserForTenants()).
+			Build()
+
+		controller := controllers.NewTenantsController(suite.Env().App)
+		suite.Register(controller)
+
+		suite.GET("/superadmin/tenants").
+			Assert(t).
+			ExpectOK()
+	})
+
+	t.Run("Tenants_Index_RegularUser_Forbidden", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createRegularUserForTenants()).
+			Build()
+
+		controller := controllers.NewTenantsController(suite.Env().App)
+		suite.Register(controller)
+
+		suite.GET("/superadmin/tenants").
+			Assert(t).
+			ExpectForbidden()
+	})
+
+	t.Run("Tenants_Export_SuperAdmin_OK", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createSuperAdminUserForTenants()).
+			Build()
+
+		controller := controllers.NewTenantsController(suite.Env().App)
+		suite.Register(controller)
+
+		// Export endpoint redirects (303)
+		suite.POST("/superadmin/tenants/export").
+			Assert(t).
+			ExpectStatus(303)
+	})
+
+	t.Run("Tenants_Export_RegularUser_Forbidden", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createRegularUserForTenants()).
+			Build()
+
+		controller := controllers.NewTenantsController(suite.Env().App)
+		suite.Register(controller)
+
+		suite.POST("/superadmin/tenants/export").
+			Assert(t).
+			ExpectForbidden()
+	})
+
+	t.Run("Tenants_Users_SuperAdmin_OK", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createSuperAdminUserForTenants()).
+			Build()
+
+		controller := controllers.NewTenantsController(suite.Env().App)
+		suite.Register(controller)
+
+		// Create test tenant within this test's suite/database
+		tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+		require.NoError(t, err)
+
+		suite.GET(fmt.Sprintf("/superadmin/tenants/%s/users", tenant.ID.String())).
+			Assert(t).
+			ExpectOK()
+	})
+
+	t.Run("Tenants_Users_RegularUser_Forbidden", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createRegularUserForTenants()).
+			Build()
+
+		controller := controllers.NewTenantsController(suite.Env().App)
+		suite.Register(controller)
+
+		// Create test tenant within this test's suite/database
+		tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+		require.NoError(t, err)
+
+		suite.GET(fmt.Sprintf("/superadmin/tenants/%s/users", tenant.ID.String())).
+			Assert(t).
+			ExpectForbidden()
+	})
 }
 
 func TestTenantsController_Routes(t *testing.T) {
@@ -208,7 +347,7 @@ func TestTenantsController_Routes(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -241,7 +380,7 @@ func TestTenantsController_EdgeCases(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -290,7 +429,7 @@ func TestTenantsController_HTMX(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -308,7 +447,7 @@ func TestTenantsController_Index_WithDateRange(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -374,7 +513,7 @@ func TestTenantsController_Index_SortAscending(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -426,7 +565,7 @@ func TestTenantsController_Index_SortDescending(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -478,7 +617,7 @@ func TestTenantsController_Index_DefaultSort(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -526,7 +665,7 @@ func TestTenantsController_Index_InvalidSortField(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -578,7 +717,7 @@ func TestTenantsController_Index_SortWithDateFilter(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -637,7 +776,7 @@ func TestTenantsController_Index_SortWithSearch(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -693,7 +832,7 @@ func TestTenantsController_Index_SortWithPagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -741,7 +880,7 @@ func TestTenantsController_Index_DateRangeWithPagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -789,7 +928,7 @@ func TestTenantsController_TenantUsers(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -825,7 +964,7 @@ func TestTenantsController_TenantUsers_HTMX(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -846,7 +985,7 @@ func TestTenantsController_TenantUsers_Pagination(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -891,7 +1030,7 @@ func TestTenantsController_TenantUsers_Search(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -934,7 +1073,7 @@ func TestTenantsController_TenantUsers_Sorting(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -980,7 +1119,7 @@ func TestTenantsController_Index_HTMXTargetHandling(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)
@@ -1033,7 +1172,7 @@ func TestTenantsController_TenantUsers_HTMXTargetHandling(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
 	controller := controllers.NewTenantsController(suite.Env().App)

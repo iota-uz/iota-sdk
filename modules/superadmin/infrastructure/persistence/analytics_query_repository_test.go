@@ -367,6 +367,14 @@ func TestPgAnalyticsQueryRepository_ListTenants(t *testing.T) {
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
+	t.Run("Negative_Limit_Returns_Error", func(t *testing.T) {
+		tenants, total, err := repo.ListTenants(f.Ctx, -1, 0, emptySortBy)
+		require.Error(t, err)
+		assert.Nil(t, tenants)
+		assert.Equal(t, 0, total)
+		assert.Contains(t, err.Error(), "limit cannot be negative")
+	})
+
 	t.Run("High_Offset_Returns_Empty", func(t *testing.T) {
 		tenants, total, err := repo.ListTenants(f.Ctx, 10, 1000000, emptySortBy)
 		require.NoError(t, err)
@@ -638,6 +646,17 @@ func TestPgAnalyticsQueryRepository_FilterTenantsByDateRange(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, tenants)
 		assert.GreaterOrEqual(t, total, 0)
+	})
+
+	t.Run("Negative_Limit_Returns_Error", func(t *testing.T) {
+		startDate := time.Now().AddDate(0, 0, -7)
+		endDate := time.Now()
+
+		tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, -5, 0, emptySortBy)
+		require.Error(t, err)
+		assert.Nil(t, tenants)
+		assert.Equal(t, 0, total)
+		assert.Contains(t, err.Error(), "limit cannot be negative")
 	})
 
 	t.Run("With_Transaction_Context", func(t *testing.T) {
@@ -1027,6 +1046,14 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 		assert.GreaterOrEqual(t, total, 0)
 	})
 
+	t.Run("Negative_Limit_Returns_Error", func(t *testing.T) {
+		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", -10, 0, emptySortBy)
+		require.Error(t, err)
+		assert.Nil(t, tenants)
+		assert.Equal(t, 0, total)
+		assert.Contains(t, err.Error(), "limit cannot be negative")
+	})
+
 	t.Run("High_Offset_Returns_Empty", func(t *testing.T) {
 		tenants, total, err := repo.SearchTenants(f.Ctx, "Test", 10, 1000000, emptySortBy)
 		require.NoError(t, err)
@@ -1099,4 +1126,121 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 // contains checks if a string contains a substring (case-insensitive)
 func contains(s, substr string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}
+
+// TestPgAnalyticsQueryRepository_LimitEdgeCases tests limit parameter validation across all methods
+func TestPgAnalyticsQueryRepository_LimitEdgeCases(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+
+	repo := persistence.NewPgAnalyticsQueryRepository()
+
+	testCases := []struct {
+		name          string
+		limit         int
+		expectError   bool
+		expectEmpty   bool
+		errorContains string
+	}{
+		{
+			name:        "Zero_Limit",
+			limit:       0,
+			expectError: false,
+			expectEmpty: true,
+		},
+		{
+			name:          "Negative_Limit",
+			limit:         -1,
+			expectError:   true,
+			expectEmpty:   true,
+			errorContains: "limit cannot be negative",
+		},
+		{
+			name:          "Large_Negative_Limit",
+			limit:         -999999,
+			expectError:   true,
+			expectEmpty:   true,
+			errorContains: "limit cannot be negative",
+		},
+		{
+			name:        "Small_Positive_Limit",
+			limit:       1,
+			expectError: false,
+			expectEmpty: false,
+		},
+		{
+			name:        "Very_Large_Limit",
+			limit:       999999,
+			expectError: false,
+			expectEmpty: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run("ListTenants_"+tc.name, func(t *testing.T) {
+			tenants, total, err := repo.ListTenants(f.Ctx, tc.limit, 0, emptySortBy)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, tenants)
+				assert.Equal(t, 0, total)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, tenants)
+				assert.GreaterOrEqual(t, total, 0)
+
+				if tc.expectEmpty {
+					assert.Empty(t, tenants)
+				}
+			}
+		})
+
+		t.Run("SearchTenants_"+tc.name, func(t *testing.T) {
+			tenants, total, err := repo.SearchTenants(f.Ctx, "Test", tc.limit, 0, emptySortBy)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, tenants)
+				assert.Equal(t, 0, total)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, tenants)
+				assert.GreaterOrEqual(t, total, 0)
+
+				if tc.expectEmpty {
+					assert.Empty(t, tenants)
+				}
+			}
+		})
+
+		t.Run("FilterTenantsByDateRange_"+tc.name, func(t *testing.T) {
+			startDate := time.Now().AddDate(0, 0, -7)
+			endDate := time.Now()
+
+			tenants, total, err := repo.FilterTenantsByDateRange(f.Ctx, startDate, endDate, tc.limit, 0, emptySortBy)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Nil(t, tenants)
+				assert.Equal(t, 0, total)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, tenants)
+				assert.GreaterOrEqual(t, total, 0)
+
+				if tc.expectEmpty {
+					assert.Empty(t, tenants)
+				}
+			}
+		})
+	}
 }

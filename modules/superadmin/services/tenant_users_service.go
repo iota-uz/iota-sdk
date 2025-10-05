@@ -34,7 +34,7 @@ func (s *TenantUsersService) GetUsersByTenantID(
 ) ([]user.User, int, error) {
 	// Validate inputs
 	if limit <= 0 {
-		limit = 20 // Default page size
+		limit = DefaultPageSize
 	}
 	if offset < 0 {
 		offset = 0

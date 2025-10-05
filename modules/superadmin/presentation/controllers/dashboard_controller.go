@@ -12,6 +12,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
+
+	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
 )
 
 type DashboardController struct {
@@ -36,6 +38,7 @@ func (c *DashboardController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
+		superadminMiddleware.RequireSuperAdmin(),
 		middleware.ProvideDynamicLogo(c.app),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
