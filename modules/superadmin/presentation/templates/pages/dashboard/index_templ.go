@@ -667,7 +667,7 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</h1><div class=\"w-64\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</h1><div class=\"w-64\" id=\"date-filter\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -676,16 +676,14 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 			Mode:       input.DatePickerModeRange,
 			StartName:  "startDate",
 			EndName:    "endDate",
-			DateFormat: "yyyy-MM-dd",
+			DateFormat: "Y-m-d",
 			Attrs: templ.Attributes{
-				"@change": `
-							const startDate = $el.querySelector('input[name="startDate"]').value;
-							const endDate = $el.querySelector('input[name="endDate"]').value;
-							htmx.ajax('GET', '/metrics?startDate=' + startDate + '&endDate=' + endDate, {
-								target: '#metrics-container',
-								swap: 'innerHTML'
-							});
-						`,
+				"hx-get":            "/metrics",
+				"hx-trigger":        "date-selected delay:300ms",
+				"hx-include":        "[name='startDate'],[name='endDate']",
+				"hx-target":         "#metrics-container",
+				"hx-swap":           "innerHTML",
+				"hx-on::after-swap": "document.dispatchEvent(new Event('sdk:rerenderCharts'))",
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

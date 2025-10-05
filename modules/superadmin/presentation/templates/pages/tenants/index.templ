@@ -32,7 +32,7 @@ templ DateRangeFilter() {
 				DateFormat: "yyyy-MM-dd",
 				Attrs: templ.Attributes{
 					"hx-get":      "/superadmin/tenants",
-					"hx-trigger":  "change",
+					"hx-trigger":  "date-selected",
 					"hx-include":  "[name='start_date'], [name='end_date']",
 					"hx-target":   "#table-body",
 					"hx-swap":     "innerHTML",

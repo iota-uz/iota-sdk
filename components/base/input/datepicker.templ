@@ -47,7 +47,7 @@ func (p DatePickerProps) json(locale string) (string, error) {
 templ DatePicker(props DatePickerProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ args, _ := props.json(pageCtx.Locale.String()) }}
-	<div x-data={ fmt.Sprintf("datePicker(%s)", args) }>
+	<div x-data={ fmt.Sprintf("datePicker(%s)", args) } { props.Attrs... }>
 		@Text(&Props{
 			Label:       props.Label,
 			Placeholder: props.Placeholder,
