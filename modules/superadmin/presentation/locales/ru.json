@@ -1,0 +1,67 @@
+{
+  "SuperAdmin": {
+    "NavigationLinks": {
+      "Dashboard": "Панель управления",
+      "Tenants": "Арендаторы"
+    },
+    "Dashboard": {
+      "Title": "Панель Super Admin",
+      "DateRange": "Период дат",
+      "Meta": {
+        "Title": "Панель управления - Super Admin"
+      },
+      "Metrics": {
+        "TotalTenants": "Всего арендаторов",
+        "TotalUsers": "Всего пользователей",
+        "ActiveUsers": "Активные пользователи",
+        "DAU": "Активные за день",
+        "WAU": "Активные за неделю",
+        "MAU": "Активные за месяц",
+        "TotalSessions": "Всего сессий"
+      },
+      "Charts": {
+        "UserSignups": "Регистрации пользователей",
+        "TenantSignups": "Регистрации арендаторов"
+      }
+    },
+    "Tenants": {
+      "Title": "Арендаторы",
+      "Name": "Название арендатора",
+      "Domain": "Домен",
+      "UserCount": "Количество пользователей",
+      "StatusColumn": "Статус",
+      "CreatedAt": "Дата создания",
+      "Actions": "Действия",
+      "ViewUsers": "Просмотр пользователей",
+      "Export": "Экспорт в Excel",
+      "FilterByDate": "Фильтр по диапазону дат",
+      "StartDate": "Дата начала",
+      "EndDate": "Дата окончания",
+      "ClearFilter": "Очистить фильтр",
+      "Meta": {
+        "Title": "Арендаторы - Super Admin"
+      },
+      "Status": {
+        "Active": "Активен",
+        "Inactive": "Неактивен"
+      },
+      "Users": {
+        "Title": "Пользователи арендатора",
+        "ViewUsers": "Просмотр пользователей",
+        "BackToTenants": "Назад к арендаторам",
+        "TenantInfo": "Информация об арендаторе",
+        "FirstName": "Имя",
+        "LastName": "Фамилия",
+        "Email": "Email",
+        "Phone": "Телефон",
+        "Role": "Роль",
+        "CreatedAt": "Дата создания",
+        "LastLogin": "Последний вход",
+        "Status": "Статус",
+        "Meta": {
+          "Title": "Пользователи арендатора - Super Admin"
+        }
+      }
+    }
+  }
+}

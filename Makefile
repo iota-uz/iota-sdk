@@ -6,8 +6,6 @@ TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 deps:
 	go get ./...
 
-
-
 # Generate code documentation
 docs:
 	go run cmd/command/main.go doc --dir . --out docs/LLMS.md --recursive --exclude "vendor,node_modules,tmp,e2e,cmd"
@@ -74,8 +72,6 @@ test:
 		go test -v ./... -coverprofile=./coverage/coverage.out; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "verbose" ]; then \
 		go test -v ./...; \
-	elif [ "$(word 2,$(MAKECMDGOALS))" = "package" ]; then \
-		go test -v $(word 3,$(MAKECMDGOALS)); \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "docker" ]; then \
 		docker compose -f compose.testing.yml up --build erp_local; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "score" ]; then \
@@ -143,6 +139,16 @@ build:
 		echo "  docker-prod - Build and push production Docker image"; \
 	fi
 
+# Super Admin server management with subcommands (default, dev, seed)
+superadmin:
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
+		PORT=4000 DOMAIN='localhost:4000' ORIGIN='http://localhost:4000' air -c .air.superadmin.toml; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "seed" ]; then \
+		LOG_LEVEL=info go run cmd/command/main.go seed_superadmin; \
+	else \
+		PORT=4000 DOMAIN='localhost:4000' go run cmd/superadmin/main.go; \
+	fi
+
 # Dependency graph generation
 graph:
 	goda graph ./modules/... | dot -Tpng -o dependencies.png
@@ -177,9 +183,9 @@ setup: deps css
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose package docker score report linux docker-base docker-prod run server up down restart logs local stop reset seed migrate:
+watch coverage verbose docker score report linux docker-base docker-prod run server up down restart logs local stop reset seed migrate dev:
 	@:
 
-.PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check \
-        down restart logs local stop reset watch coverage verbose package docker score report \
+.PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check superadmin \
+        down restart logs local stop reset watch coverage verbose docker score report \
         dev fmt lint tr linux docker-base docker-prod run server

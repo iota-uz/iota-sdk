@@ -27,7 +27,12 @@
     "len": "{{.Field}} must be exactly the required length",
     "uuid": "{{.Field}} must be a valid UUID",
     "custom": "{{.Field}}: {{.Error}}",
-    "alphanum": "{{.Field}} may only contain alphanumeric characters (letters and numbers)."
+    "alphanum": "{{.Field}} may only contain alphanumeric characters (letters and numbers).",
+    "oneof": "{{.Field}} must be one of the allowed values",
+    "datetime": "{{.Field}} must be a valid date",
+    "gtfield": "{{.Field}} must be greater than {{.Param}}",
+    "invalidTIN": "Invalid TIN format: {{.Details}}",
+    "invalidPIN": "Invalid PIN format: {{.Details}}"
   },
   "Import": {
     "Error": {

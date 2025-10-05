@@ -27,7 +27,12 @@
     "gte": "{0} dan katta yoki teng bo'lishi kerak",
     "len": "Uzunligi {0} ga teng bo'lishi kerak",
     "gt": "{0} dan katta bo'lishi kerak",
-    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak."
+    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak.",
+    "oneof": "{{.Field}} ruxsat etilgan qiymatlardan biri bo'lishi kerak",
+    "datetime": "{{.Field}} to'g'ri sana bo'lishi kerak",
+    "gtfield": "{{.Field}} {{.Param}}dan katta bo'lishi kerak",
+    "invalidTIN": "Noto'g'ri STIR formati: {{.Details}}",
+    "invalidPIN": "Noto'g'ri JSHSHR formati: {{.Details}}"
   },
   "Import": {
     "Error": {

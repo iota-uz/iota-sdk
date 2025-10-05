@@ -157,9 +157,7 @@ func (g *GormUploadRepository) GetAll(ctx context.Context) ([]upload.Upload, err
 }
 
 func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (upload.Upload, error) {
-	uploads, err := g.GetPaginated(ctx, &upload.FindParams{
-		ID: id,
-	})
+	uploads, err := g.queryUploads(ctx, selectUploadQuery+" WHERE id = $1", id)
 	if err != nil {
 		return nil, err
 	}

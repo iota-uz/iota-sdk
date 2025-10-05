@@ -1,6 +1,6 @@
 ---
 name: config-manager
-description: Configuration and documentation specialist for IOTA SDK project management. Use PROACTIVELY for CLAUDE.md updates, configuration file management, documentation maintenance, and project structure optimization. MUST BE USED when modifying CLAUDE.md, .env files, docker configs, agent definitions, or documentation files.
+description: Configuration and documentation specialist for IOTA SDK project management. Use PROACTIVELY for environment configuration, docker configs, build system configuration, and project documentation maintenance. MUST BE USED when modifying .env files, docker-compose files, Makefile, or project documentation (README.md, docs/). DO NOT USE for editing .claude/ directory files or CLAUDE.md - use claude-code-expert agent for those instead.
 tools: Read, Write, Edit, MultiEdit, Grep, Glob, Bash(make check-tr:*), Bash(make docs:*), Bash(git status:*), Bash(git diff:*), Bash(find:*), Bash(grep:*), WebFetch(domain:docs.anthropic.com)
 model: sonnet
 ---
