@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
@@ -182,6 +183,13 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 	uploadRepo := persistence.NewUploadRepository()
 	userRepo := persistence.NewUserRepository(uploadRepo)
 	roleRepo := persistence.NewRoleRepository()
+	permissionRepo := persistence.NewPermissionRepository()
+
+	// Ensure default "Admin" role exists before creating users
+	adminRole, err := s.ensureAdminRole(ctx, roleRepo, permissionRepo, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to ensure admin role exists: %w", err)
+	}
 
 	for _, userSpec := range users {
 		logger.WithField("email", userSpec.Email).Debug("Creating user")
@@ -248,25 +256,10 @@ func (s *PopulateService) createUsers(ctx context.Context, users []schemas.UserS
 		}
 
 		// 5. Assign default role if no specific permissions provided
-		// Find or create a default role for the user
+		// Use the admin role that was ensured to exist earlier
 		if len(userSpec.Permissions) == 0 {
-			// Try to find an existing "Admin" or "User" role
-			roles, err := roleRepo.GetPaginated(ctx, &role.FindParams{
-				Filters: []role.Filter{
-					{
-						Column: role.NameField,
-						Filter: repo.Eq("Admin"),
-					},
-				},
-				Limit: 1,
-			})
-
-			if err == nil && len(roles) > 0 {
-				newUser = newUser.AddRole(roles[0])
-				logger.WithField("email", userSpec.Email).Debug("Assigned Admin role to user")
-			} else {
-				logger.WithField("email", userSpec.Email).Warn("No default role found, user created without roles")
-			}
+			newUser = newUser.AddRole(adminRole)
+			logger.WithField("email", userSpec.Email).Debug("Assigned Admin role to user")
 		}
 
 		// 6. Save to database
@@ -494,4 +487,59 @@ func (s *PopulateService) getSliceFromMap(key string) []interface{} {
 		}
 	}
 	return []interface{}{}
+}
+
+// ensureAdminRole ensures that an "Admin" role exists for the tenant.
+// If it doesn't exist, it creates one with all available permissions.
+// This is idempotent - if the role already exists, it returns the existing role.
+func (s *PopulateService) ensureAdminRole(
+	ctx context.Context,
+	roleRepo role.Repository,
+	permissionRepo permission.Repository,
+	tenantID uuid.UUID,
+) (role.Role, error) {
+	logger := composables.UseLogger(ctx)
+
+	// Try to find existing "Admin" role
+	roles, err := roleRepo.GetPaginated(ctx, &role.FindParams{
+		Filters: []role.Filter{
+			{
+				Column: role.NameField,
+				Filter: repo.Eq("Admin"),
+			},
+		},
+		Limit: 1,
+	})
+
+	if err == nil && len(roles) > 0 {
+		logger.Debug("Admin role already exists")
+		return roles[0], nil
+	}
+
+	// Admin role doesn't exist, create it
+	logger.Info("Creating default Admin role with all permissions")
+
+	// Get all available permissions
+	allPermissions, err := permissionRepo.GetAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all permissions: %w", err)
+	}
+
+	// Create Admin role with all permissions
+	adminRole := role.New(
+		"Admin",
+		role.WithDescription("Administrator with all permissions"),
+		role.WithPermissions(allPermissions),
+		role.WithType(role.TypeSystem),
+		role.WithTenantID(tenantID),
+	)
+
+	// Save to database
+	createdRole, err := roleRepo.Create(ctx, adminRole)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Admin role: %w", err)
+	}
+
+	logger.WithField("roleID", createdRole.ID()).Info("Admin role created successfully")
+	return createdRole, nil
 }

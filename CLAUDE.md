@@ -20,6 +20,8 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 - **Database Changes**: Always include `database-expert`
 - **Template/Translation**: Always include `ui-editor`
 - **Production Changes**: `refactoring-expert` ALWAYS
+- **Complex Research/Discovery**: Use `general-purpose` when uncertain about code location or architecture
+- **Multi-Step Search Operations**: Use `general-purpose` when simple grep/glob won't suffice
 
 **File-Type Mandates:**
 - **.templ or .json files**: `ui-editor` ONLY
@@ -29,6 +31,7 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 - **Configuration files**: `config-manager` ONLY
 - **CLAUDE.md updates**: `config-manager` ONLY
 - **Documentation maintenance**: `config-manager` ONLY
+- **E2E tests (e2e/**/*.spec.ts)**: `e2e-tester` ONLY
 
 ## PROJECT OVERVIEW
 
@@ -97,14 +100,29 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 ## E2E Testing Commands
 Playwright E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/playwright.config.ts`
 
+**IMPORTANT**: For ANY E2E test work (writing, editing, debugging), ALWAYS use the `e2e-tester` agent.
+
 ### Commands:
 - Setup/reset: `make e2e test|reset|seed|migrate|clean`
 - Run tests: `make e2e test|run` - Execute Playwright tests against running e2e server
 - Run individual e2e test: `cd e2e && npx playwright test tests/module/specific-test.spec.ts` (for debugging/focused testing)
 - Run with UI mode: `cd e2e && npx playwright test --ui` (interactive debugging)
+- Debug mode: `cd e2e && npx playwright test --debug` (Playwright Inspector)
+- Generate traces: `cd e2e && npx playwright test --trace on` (for debugging)
+- View traces: `cd e2e && npx playwright show-trace trace.zip`
 
 ### Structure:
 Tests in `/e2e/tests/{module}/`, fixtures in `/e2e/fixtures/`, page objects in `/e2e/pages/`
+
+### When to Use e2e-tester Agent:
+- Writing new Playwright test files (.spec.ts)
+- Editing existing E2E tests
+- Debugging failing Playwright tests
+- Creating test fixtures (auth, test-data)
+- Building page objects for UI interactions
+- Adding test coverage for new features
+- Improving test reliability and reducing flakiness
+- Testing HTMX interactions and realtime SSE updates
 
 ### Environment Branches
 - **Production**: `main` branch
@@ -226,6 +244,8 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 | **Database Changes**    | `database-expert` + `go-editor` + `refactoring-expert` | None (go-editor handles test coverage)                                          | Schema changes, migrations, query optimization  |
 | **Cross-Module Work**   | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`                                                  | Architecture changes, large refactoring         |
 | **Config Management**   | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs  |
+| **E2E Test Work**       | `e2e-tester`                                           | `debugger` (for debugging failing tests)                                        | Playwright tests, fixtures, page objects        |
+| **Research & Discovery** | `general-purpose`                                     | None (feeds findings to implementation agents)                                   | Codebase exploration, pattern analysis, architecture understanding, complex searches |
 
 **Agent Launch Rules:**
 - **Always parallel**: Launch required agents simultaneously in single message
@@ -328,6 +348,8 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | **ui-editor**          | `go-editor`                       | Controller changes            | `go-editor`                                     |
 | **config-manager**     | Agent coordination, documentation | Project requirements          | None (configuration coordination)              |
 | **refactoring-expert** | Final output                      | All other agents              | None (final review)                            |
+| **e2e-tester**         | None (test-only)                  | `debugger`, `ui-editor`       | None (independent testing)                     |
+| **general-purpose**    | All implementation agents         | Business requirements, initial questions | None (research first, then delegate)   |
 
 ### Single Agent Exceptions
 
@@ -370,6 +392,14 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | "Fix environment configuration issues"      | `config-manager`                                                                   |
 | "Add new documentation section"             | `config-manager`                                                                   |
 | "Deploy to staging"                         | `railway-ops`                                                                      |
+| "Write E2E tests for user registration"     | `e2e-tester`                                                                       |
+| "Debug failing Playwright test"             | `debugger` && `e2e-tester`                                                         |
+| "Add page objects for vehicles module"      | `e2e-tester`                                                                       |
+| "How is authentication implemented?"        | `general-purpose` (research) → findings inform implementation agents               |
+| "Find all places where payment is processed" | `general-purpose` (multi-step search) → guide `go-editor` to relevant files      |
+| "Understand the multi-tenant architecture"  | `general-purpose` (architecture exploration) → inform feature design               |
+| "Where should I add new RBAC check?"        | `general-purpose` (pattern analysis) → guide `go-editor` to correct location      |
+| "What's the standard error handling pattern?" | `general-purpose` (codebase patterns) → inform implementation approach           |
 
 **Agent Execution Syntax:**
 - `&` = Parallel execution (agents run simultaneously)

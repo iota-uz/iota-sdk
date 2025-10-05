@@ -38,11 +38,11 @@ test.describe('user auth and registration flow', () => {
 
 		// Handle Alpine.js dropdown for RoleIDs
 		const roleSelect = page.locator('select[name="RoleIDs"]');
-		const roleContainer = await roleSelect.locator('xpath=ancestor::div[1]');
+		const roleContainer = roleSelect.locator('xpath=ancestor::div[1]');
 		await roleContainer.locator('button[x-ref="trigger"]').click();
 
-		// Wait for dropdown to be visible and click first option
-		const dropdown = page.locator('ul[x-ref=list]');
+		// Wait for dropdown to be visible and click first option (scope to role container)
+		const dropdown = roleContainer.locator('ul[x-ref=list]');
 		await expect(dropdown).toBeVisible();
 		await dropdown.locator('li').first().click();
 

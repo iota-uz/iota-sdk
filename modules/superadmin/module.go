@@ -10,7 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
-//go:embed presentation/locales/*.json
+//go:embed presentation/locales/*.toml
 var LocaleFiles embed.FS
 
 type ModuleOptions struct {

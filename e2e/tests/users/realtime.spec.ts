@@ -40,9 +40,9 @@ test.describe('user realtime behavior', () => {
 			}
 		});
 
-		// Verify user was added in realtime
+		// Verify user was added in realtime (wait for SSE update)
+		await expect(page.locator('tbody tr').filter({ hasText: 'Realtime Test' })).toBeVisible({ timeout: 10000 });
 		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount + 1);
-		await expect(page.locator('tbody tr').filter({ hasText: 'Realtime Test' })).toBeVisible();
 
 		// Get the user ID from the href attribute of the edit link
 		const realtimeUserRow = page.locator('tbody tr').filter({ hasText: 'Realtime Test' });
