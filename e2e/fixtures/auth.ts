@@ -1,14 +1,11 @@
 /**
  * Authentication fixtures for Playwright tests
- *
- * Migrated from Cypress custom commands (cypress/support/commands.js)
  */
 
 import { Page } from '@playwright/test';
 
 /**
  * Login helper function
- * Migrates Cypress.Commands.add("login")
  *
  * @param page - Playwright page object
  * @param email - User email
@@ -29,7 +26,6 @@ export async function login(page: Page, email: string, password: string) {
 
 /**
  * Logout helper function
- * Migrates Cypress.Commands.add("logout")
  *
  * @param page - Playwright page object
  */
@@ -39,7 +35,6 @@ export async function logout(page: Page) {
 
 /**
  * Wait for Alpine.js initialization
- * Migrates Cypress.Commands.add("waitForAlpine")
  *
  * @param page - Playwright page object
  * @param timeout - Maximum wait time in ms (default: 5000)

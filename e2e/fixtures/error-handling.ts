@@ -1,11 +1,7 @@
 /**
  * Error handling configuration for Playwright tests
  *
- * Migrated from Cypress uncaught exception handler
- * (cypress/support/commands.js - Cypress.on("uncaught:exception"))
- *
- * In Playwright, we can't globally ignore errors like Cypress, but we can
- * provide utilities to handle expected errors in page context.
+ * Provides utilities to handle expected errors in page context.
  */
 
 import { Page } from '@playwright/test';

@@ -1,14 +1,11 @@
 /**
  * File upload fixtures for Playwright tests
- *
- * Migrated from Cypress custom commands (cypress/support/commands.js)
  */
 
 import { Page } from '@playwright/test';
 
 /**
  * Upload a file and wait for attachment processing
- * Migrates Cypress.Commands.add("uploadFileAndWaitForAttachment")
  *
  * @param page - Playwright page object
  * @param fileContent - File content as string

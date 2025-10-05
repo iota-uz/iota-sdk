@@ -108,7 +108,7 @@ export default defineConfig({
 		// Video on failure
 		video: 'retain-on-failure',
 
-		// Timeout settings matching Cypress config
+		// Timeout settings
 		actionTimeout: 15000, // defaultCommandTimeout
 		navigationTimeout: 60000, // pageLoadTimeout
 	},

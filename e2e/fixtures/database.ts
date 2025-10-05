@@ -1,8 +1,7 @@
 /**
  * Database fixtures for Playwright tests
  *
- * This module provides utilities for database operations in tests,
- * matching the functionality of Cypress tasks.
+ * This module provides utilities for database operations in tests.
  */
 
 import { resetDatabase, seedDatabase, getEnvironmentInfo } from '../playwright.config';

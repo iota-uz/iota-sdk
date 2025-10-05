@@ -1,7 +1,6 @@
 /**
  * Test data management fixtures for Playwright tests
  *
- * Migrated from Cypress custom commands (cypress/support/test-data-commands.js)
  * These interact with the testkit module endpoints
  */
 
@@ -16,7 +15,6 @@ interface ResetOptions {
 
 /**
  * Reset the test database
- * Migrates Cypress.Commands.add("resetTestDatabase")
  *
  * @param request - Playwright API request context
  * @param options - Reset options
@@ -42,7 +40,6 @@ export async function resetTestDatabase(
 
 /**
  * Populate test data using JSON specification
- * Migrates Cypress.Commands.add("populateTestData")
  *
  * @param request - Playwright API request context
  * @param dataSpec - The data specification object
@@ -68,7 +65,6 @@ export async function populateTestData(
 
 /**
  * Seed a predefined scenario
- * Migrates Cypress.Commands.add("seedScenario")
  *
  * @param request - Playwright API request context
  * @param scenarioName - Name of the scenario to seed (default: 'minimal')
@@ -94,7 +90,6 @@ export async function seedScenario(
 
 /**
  * Get list of available scenarios
- * Migrates Cypress.Commands.add("getAvailableScenarios")
  *
  * @param request - Playwright API request context
  */
@@ -113,7 +108,6 @@ export async function getAvailableScenarios(request: APIRequestContext) {
 
 /**
  * Check test endpoints health
- * Migrates Cypress.Commands.add("checkTestEndpointsHealth")
  *
  * @param request - Playwright API request context
  */
@@ -131,7 +125,6 @@ export async function checkTestEndpointsHealth(request: APIRequestContext) {
 
 /**
  * Data builder helpers for common test scenarios
- * Migrated from TestDataBuilders export
  */
 export const TestDataBuilders = {
 	/**
