@@ -199,6 +199,7 @@ func TestTenantsController_Permissions(t *testing.T) {
 		{
 			name: "SuperAdmin_Access_Allowed",
 			setupSuite: func(t *testing.T) *itf.Suite {
+				t.Helper()
 				return itf.NewSuiteBuilder(t).
 					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
 					WithUser(createSuperAdminUserForTenants()).
@@ -210,6 +211,7 @@ func TestTenantsController_Permissions(t *testing.T) {
 		{
 			name: "Regular_User_Blocked",
 			setupSuite: func(t *testing.T) *itf.Suite {
+				t.Helper()
 				return itf.NewSuiteBuilder(t).
 					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
 					WithUser(createRegularUserForTenants()).
@@ -221,6 +223,7 @@ func TestTenantsController_Permissions(t *testing.T) {
 		{
 			name: "Anonymous_User_Redirect",
 			setupSuite: func(t *testing.T) *itf.Suite {
+				t.Helper()
 				return itf.NewSuiteBuilder(t).
 					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
 					AsAnonymous().

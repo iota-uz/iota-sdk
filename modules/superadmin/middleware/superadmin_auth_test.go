@@ -25,7 +25,7 @@ func TestRequireSuperAdmin(t *testing.T) {
 	// Create a test handler that should only be reached if middleware passes
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("success"))
+		_, _ = w.Write([]byte("success"))
 	})
 
 	tests := []struct {
@@ -106,7 +106,6 @@ func TestRequireSuperAdmin(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc // Capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -223,7 +222,7 @@ func TestRequireSuperAdmin_ThreadSafety(t *testing.T) {
 			router.ServeHTTP(rr, req)
 
 			// Verify response
-			require.Equal(t, expectedStatus, rr.Code, "Concurrent request %d should return correct status", idx)
+			assert.Equal(t, expectedStatus, rr.Code, "Concurrent request %d should return correct status", idx)
 			done <- true
 		}(i)
 	}
@@ -283,7 +282,6 @@ func TestRequireSuperAdmin_ErrorLogging(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

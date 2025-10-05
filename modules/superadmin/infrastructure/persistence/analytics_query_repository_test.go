@@ -1035,7 +1035,7 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 			// tenants can be nil (empty slice) if no matches
 			assert.GreaterOrEqual(t, total, 0)
 			// Verify result is consistent (length matches what we got)
-			assert.Equal(t, total, len(tenants))
+			assert.Len(t, tenants, total)
 		}
 	})
 
