@@ -13,15 +13,12 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 | **Medium Feature**   | 6-15 files  | 3-4 agents parallel          | New form, API endpoint, page updates                |
 | **Large Feature**    | 16-30 files | 5-7 agents parallel          | New module, major refactoring                       |
 | **Cross-Module**     | 30+ files   | 7-10+ agents parallel        | Architecture changes, bulk renaming                 |
-| **Pattern Scanning** | Variable    | `speed-editor` + specialists | Code analysis, hardcoded values, duplicate patterns |
 
 **Agent Selection Matrix:**
 - **Errors/Failures**: Always start with `debugger`
 - **Go Code Changes**: Always end with `refactoring-expert`
 - **Database Changes**: Always include `database-expert`
 - **Template/Translation**: Always include `ui-editor`
-- **Bulk Operations**: Use `speed-editor` for preprocessing
-- **Pattern Discovery**: Use `speed-editor` for code scanning/analysis
 - **Production Changes**: `refactoring-expert` ALWAYS
 
 **File-Type Mandates:**
@@ -98,15 +95,16 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 - Generate documentation: `make docs`
 
 ## E2E Testing Commands
-Cypress E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/cypress.config.js`
+Playwright E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/playwright.config.ts`
 
 ### Commands:
 - Setup/reset: `make e2e test|reset|seed|migrate|clean`
-- Run tests: `make e2e test|run` - Execute Cypress tests against running e2e server
-- Run individual e2e test: `cd e2e && npm run cy:run --spec "cypress/e2e/module/specific-test.cy.js"` (for debugging/focused testing)
+- Run tests: `make e2e test|run` - Execute Playwright tests against running e2e server
+- Run individual e2e test: `cd e2e && npx playwright test tests/module/specific-test.spec.ts` (for debugging/focused testing)
+- Run with UI mode: `cd e2e && npx playwright test --ui` (interactive debugging)
 
 ### Structure:
-Tests in `/e2e/cypress/e2e/{module}/`, commands in `/e2e/cypress/support/commands.js`, fixtures in `/e2e/cypress/fixtures/`
+Tests in `/e2e/tests/{module}/`, fixtures in `/e2e/fixtures/`, page objects in `/e2e/pages/`
 
 ### Environment Branches
 - **Production**: `main` branch
@@ -227,8 +225,6 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 | **UI/Template Changes** | `ui-editor`                                            | `go-editor` (controller changes and test coverage)                              | UI updates, forms, frontend functionality       |
 | **Database Changes**    | `database-expert` + `go-editor` + `refactoring-expert` | None (go-editor handles test coverage)                                          | Schema changes, migrations, query optimization  |
 | **Cross-Module Work**   | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`                                                  | Architecture changes, large refactoring         |
-| **Bulk Operations**     | `speed-editor` → specialist agents                     | `refactoring-expert` (review)                                                   | Mass renaming, pattern standardization          |
-| **Pattern Discovery**   | `speed-editor` → analysis agents                       | `go-editor`, `refactoring-expert`                                               | Code scanning, hardcoded values, anti-patterns  |
 | **Config Management**   | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs  |
 
 **Agent Launch Rules:**
@@ -288,23 +284,6 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
    → go-editor (3): Repositories (5 files) - implement missing tests
 ```
 
-**Example: Bulk Renaming with Speed-Editor**
-```
-1. Run: grep -r "oldFunctionName" --include="*.go" (discovers 89 occurrences)
-2. Analysis: 45 in logistics, 30 in finance, 14 in safety modules
-3. Launch speed-editor for mechanical renaming:
-   → speed-editor: Rename oldFunctionName → newFunctionName across all 89 files
-4. Follow up with go-editor for any logic adjustments needed
-```
-
-**Example: Pattern Discovery with Speed-Editor**
-```
-1. Request: "Find all hardcoded string values that could be enum constants"
-2. Launch speed-editor for pattern scanning:
-   → speed-editor: Scan for hardcoded strings, identify enum candidates
-3. Analysis: Found 34 hardcoded status strings, 12 repeated error messages
-4. Follow up with go-editor to create enums and refactor usage
-```
 
 ##### 4. Assessment Tools for Orchestrators
 
@@ -315,8 +294,6 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | **Translation Missing** | `make check-tr`, `grep -r "missing"` | Split by language files |
 | **Test Coverage** | `go test -cover ./...`, find tests | Split by layer/domain |
 | **Performance Issues** | `go test -bench ./...`, profiling | Split by service/component |
-| **Bulk Operations** | `grep -r "pattern"`, `find . -name "*"` | Use speed-editor for mechanical work |
-| **Pattern Discovery** | Complex grep patterns, code analysis | Use speed-editor for scanning, then specialist agents |
 
 #### Parallel Agent Launch (After Analysis)
 - **Always analyze scope FIRST** using assessment tools
@@ -346,10 +323,9 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | Primary Agent          | Provides Input To                 | Receives Input From           | Parallel Partners                              |
 |------------------------|-----------------------------------|-------------------------------|------------------------------------------------|
 | **debugger**           | `go-editor`, `database-expert`    | Error logs, user reports      | None (investigation first)                     |
-| **go-editor**          | `refactoring-expert`              | `debugger`, `database-expert` | `ui-editor`, `database-expert`, `speed-editor` |
+| **go-editor**          | `refactoring-expert`              | `debugger`, `database-expert` | `ui-editor`, `database-expert`                 |
 | **database-expert**    | `go-editor`, `refactoring-expert` | Business requirements         | `go-editor`, `ui-editor`                       |
-| **ui-editor**          | `go-editor`                       | Controller changes            | `go-editor`, `speed-editor`                    |
-| **speed-editor**       | Other agents (bulk work)          | Task specifications           | `go-editor`, `ui-editor`                       |
+| **ui-editor**          | `go-editor`                       | Controller changes            | `go-editor`                                     |
 | **config-manager**     | Agent coordination, documentation | Project requirements          | None (configuration coordination)              |
 | **refactoring-expert** | Final output                      | All other agents              | None (final review)                            |
 
@@ -373,7 +349,6 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 **❌ Agent Misuse:**
 - Using `ui-editor` for Go logic changes
 - Using `go-editor` for database schema modifications
-- Using `speed-editor` for complex business logic
 - Splitting Go code and test creation across multiple agents (go-editor handles both)
 
 **❌ Workflow Mistakes:**
@@ -382,17 +357,7 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 - Skipping `debugger` for unknown issues
 - Missing `refactoring-expert` after Go changes
 
-### Speed-Editor Agent
-
-**Purpose**: High-speed bulk mechanical operations and pattern discovery (renaming, find-replace, code scanning, cleanup tasks)
-
-**Use for**: Bulk renaming, simple find-replace, adding/removing trivial elements, mechanical pattern changes, large-scale refactoring prep, pattern scanning, hardcoded value discovery, code smell identification
-
-**Don't use for**: Complex logic, architecture decisions, new features, debugging, database work, template logic
-
-**Characteristics**: Maximum speed, parallel partner for bulk operations, preprocessing role before intelligent agents, high-speed pattern scanner for code analysis
-
-#### Business Context Translation
+### Business Context Translation
 **Business Request → Multi-Agent Orchestration**
 
 | Business Context                            | Standard Multi-Agent Launch                                                        |
@@ -401,10 +366,6 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 | "Add new driver form"                       | (`go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`            |
 | "Optimize accounting performance"           | `debugger` && (`database-expert` & `go-editor`) && `refactoring-expert`            |
 | "Update finance module"                     | (Multiple `go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`   |
-| "Rename functions across codebase"          | `speed-editor` && `go-editor` && `refactoring-expert`                              |
-| "Standardize import patterns"               | `speed-editor` && `refactoring-expert`                                             |
-| "Find hardcoded strings for enum constants" | `speed-editor` && `go-editor` && `refactoring-expert`                              |
-| "Scan for duplicate code patterns"          | `speed-editor` && `go-editor` && `refactoring-expert`                              |
 | "Update CLAUDE.md with new agent"           | `config-manager`                                                                   |
 | "Fix environment configuration issues"      | `config-manager`                                                                   |
 | "Add new documentation section"             | `config-manager`                                                                   |

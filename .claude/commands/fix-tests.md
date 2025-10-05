@@ -4,7 +4,7 @@ allowed-tools: |
   Bash(make lint:*), Bash(golangci-lint:*),
   Read, Edit, MultiEdit, Grep, Glob,
   Bash(go build:*), Bash(make check-tr:*),
-  Task(subagent_type:go-editor), Task(subagent_type:speed-editor)
+  Task
 description: Systematically identify and fix broken tests and linting errors using iterative approach
 ---
 
@@ -47,8 +47,7 @@ For each failing test:
 ### 4. Systematic Fix Phase (Iterative Approach)
 
 #### Linting Issues:
-- **Use speed-editor agent** for bulk removal of unused code
-- Remove unused functions, variables, constants, and imports
+- Remove unused functions, variables, constants, and imports in bulk
 - Run `make lint` after each batch of fixes to verify
 - Clean code improves maintainability and reduces confusion
 
@@ -76,7 +75,6 @@ For each failing test:
 - **Start small**: Fix minimal compilation errors first, then expand
 - **Clean as you go**: Remove unused code to improve maintainability
 - **Use iterative approach**: Don't try to fix everything at once
-- **Leverage agents**: Use speed-editor for bulk cleanup, go-editor for test fixes
 - **Leverage ITF**: Use framework features for database isolation and cleanup
 - **NEVER delete tests unless specifically asked** - Tests are valuable
 - **Fix root cause, not symptoms** - Don't just change assertions to pass

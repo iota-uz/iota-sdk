@@ -192,48 +192,48 @@ Reference other entities using `@category.referenceKey` syntax:
 }
 ```
 
-## Cypress Integration
+## E2E Testing Integration
 
-The module includes Cypress commands for easy integration:
+The module provides test data fixtures and utilities for E2E testing:
 
-```javascript
+```typescript
 // Reset database
-cy.resetTestDatabase({ reseedMinimal: true });
+await resetTestDatabase({ reseedMinimal: true });
 
 // Populate custom data
-cy.populateTestData(dataSpecification);
+await populateTestData(dataSpecification);
 
 // Seed predefined scenario
-cy.seedScenario("finance");
+await seedScenario("finance");
 
 // Get available scenarios
-cy.getAvailableScenarios();
+const scenarios = await getAvailableScenarios();
 
 // Health check
-cy.checkTestEndpointsHealth();
+await checkTestEndpointsHealth();
 ```
 
-### Test Data Builders
+### Test Data Fixtures
 
-Convenient builders for common test data:
+Convenient fixtures for common test data:
 
-```javascript
-import { TestDataBuilders } from '../../support/test-data-commands.js';
+```typescript
+import { createUser, createFinanceScenario } from '../fixtures/test-data';
 
 // Create user specification
-const user = TestDataBuilders.createUser({
+const user = createUser({
   email: "custom@test.com",
   firstName: "Custom"
 });
 
 // Create complete finance scenario
-const financeData = TestDataBuilders.createFinanceScenario({
+const financeData = createFinanceScenario({
   data: {
     users: [user]
   }
 });
 
-cy.populateTestData(financeData);
+await populateTestData(financeData);
 ```
 
 ## Environment Setup
@@ -277,7 +277,7 @@ The environment variable is automatically set in `.github/workflows/test.yml` fo
 1. Add entity specification to `domain/schemas/populate_schema.go`
 2. Implement creation logic in `services/populate_service.go`
 3. Add preset scenarios in `services/test_data_service.go`
-4. Create Cypress builders in `support/test-data-commands.js`
+4. Create TypeScript fixtures in `e2e/fixtures/test-data.ts`
 
 ### Error Handling
 

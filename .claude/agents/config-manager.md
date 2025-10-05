@@ -274,7 +274,7 @@ You are a Configuration Manager expert specializing in IOTA SDK project configur
 ### Build & Development
 - **Makefile**: Build automation (CSS, templates, tests, migrations, docker)
 - **tailwind.config.js**: UI framework configuration (OKLCH colors, fonts, components)
-- **e2e/cypress.config.js**: E2E testing framework configuration
+- **e2e/playwright.config.ts**: E2E testing framework configuration
 - **tsconfig*.json**: TypeScript configurations for AI chat component
 
 ### Documentation Structure
@@ -307,7 +307,7 @@ color: [optional UI identifier]
 - **WebFetch**: Restricted to trusted domains only
 
 ### Model Selection Guidelines
-- **haiku**: Speed-focused, mechanical operations (speed-editor)
+- **haiku**: Speed-focused, mechanical operations
 - **sonnet**: General purpose, balanced reasoning (most agents)
 - **opus**: Complex reasoning, critical decisions (rarely needed)
 

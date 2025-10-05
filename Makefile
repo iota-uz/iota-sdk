@@ -105,7 +105,7 @@ e2e:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "migrate" ]; then \
 		go run cmd/command/main.go e2e migrate; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "run" ]; then \
-		cd e2e && npm run cy:open; \
+		cd e2e && npx playwright test --ui; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
 		go run cmd/command/main.go e2e drop; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
@@ -116,7 +116,7 @@ e2e:
 		echo "  reset        - Drop and recreate e2e database with fresh data"; \
 		echo "  seed         - Seed e2e database with test data"; \
 		echo "  migrate      - Run migrations on e2e database"; \
-		echo "  run          - Open Cypress interactive mode"; \
+		echo "  run          - Open Playwright interactive mode (UI mode)"; \
 		echo "  dev          - Start e2e development server with hot reload on port 3201"; \
 		echo "  clean        - Drop e2e database"; \
 	fi
