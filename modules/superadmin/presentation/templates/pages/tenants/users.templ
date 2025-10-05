@@ -2,6 +2,7 @@ package tenants
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/breadcrumb"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
@@ -45,10 +46,10 @@ func buildUsersTableConfig(tenant *entities.TenantInfo, users []*TenantUser, tot
 	for i, user := range users {
 		// Determine status based on last login (e.g., active if logged in within 30 days)
 		status := pageCtx.T("SuperAdmin.Tenants.Status.Inactive")
-		statusClass := "bg-red-100 text-red-800"
+		statusVariant := badge.VariantGray
 		if !user.LastLogin.IsZero() && time.Since(user.LastLogin).Hours() < 30*24 {
 			status = pageCtx.T("SuperAdmin.Tenants.Status.Active")
-			statusClass = "bg-green-100 text-green-800"
+			statusVariant = badge.VariantGreen
 		}
 
 		phone := user.Phone
@@ -72,7 +73,7 @@ func buildUsersTableConfig(tenant *entities.TenantInfo, users []*TenantUser, tot
 			table.Cell(SafeText(user.RoleName), user.RoleName),
 			table.Cell(table.DateTime(user.CreatedAt), user.CreatedAt),
 			lastLoginCell,
-			table.Cell(StatusBadge(status, statusClass), status),
+			table.Cell(StatusBadge(status, statusVariant), status),
 		)
 	}
 
@@ -153,16 +154,7 @@ templ UsersTableRows(users []*TenantUser) {
 		</tr>
 	} else {
 		for _, user := range users {
-			{{
-				status := pageCtx.T("SuperAdmin.Tenants.Status.Inactive")
-				statusClass := "bg-red-100 text-red-800"
-			}}
-			if !user.LastLogin.IsZero() && time.Since(user.LastLogin).Hours() < 30*24 {
-				{{
-					status = pageCtx.T("SuperAdmin.Tenants.Status.Active")
-					statusClass = "bg-green-100 text-green-800"
-				}}
-			}
+			{{ status := pageCtx.T("SuperAdmin.Tenants.Status.Inactive") }}
 			{{ phone := user.Phone }}
 			if phone == "" {
 				{{ phone = "-" }}
@@ -184,9 +176,14 @@ templ UsersTableRows(users []*TenantUser) {
 					}
 				</td>
 				<td class="px-4 py-4">
-					<span class={ fmt.Sprintf("inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium %s", statusClass) }>
-						{ status }
-					</span>
+					{{
+						statusVariant := badge.VariantGray
+						if !user.LastLogin.IsZero() && time.Since(user.LastLogin).Hours() < 30*24 {
+							status = pageCtx.T("SuperAdmin.Tenants.Status.Active")
+							statusVariant = badge.VariantGreen
+						}
+					}}
+					@StatusBadge(status, statusVariant)
 				</td>
 			</tr>
 		}

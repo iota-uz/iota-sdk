@@ -3,6 +3,7 @@ package tenants
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/export"
@@ -22,7 +23,7 @@ type IndexPageProps struct {
 }
 
 templ DateRangeFilter() {
-	<div class="flex flex-wrap gap-3 items-end mb-4 p-3 bg-surface-500 rounded-xl shadow-sm">
+	<form id="date-filter-form" class="flex flex-wrap gap-3 items-end mb-4 p-3 bg-surface-500 rounded-xl shadow-sm">
 		<div class="flex-1 min-w-[200px]">
 			@input.DatePicker(input.DatePickerProps{
 				Mode:       input.DatePickerModeRange,
@@ -30,16 +31,12 @@ templ DateRangeFilter() {
 				EndName:    "end_date",
 				DateFormat: "yyyy-MM-dd",
 				Attrs: templ.Attributes{
-					"@change": `
-						const startDate = $el.querySelector('input[name="start_date"]').value;
-						const endDate = $el.querySelector('input[name="end_date"]').value;
-						if (startDate && endDate) {
-							htmx.ajax('GET', '/superadmin/tenants?start_date=' + startDate + '&end_date=' + endDate, {
-								target: '#tenants-table-body',
-								swap: 'innerHTML'
-							});
-						}
-					`,
+					"hx-get":      "/superadmin/tenants",
+					"hx-trigger":  "change",
+					"hx-include":  "[name='start_date'], [name='end_date']",
+					"hx-target":   "#table-body",
+					"hx-swap":     "innerHTML",
+					"hx-push-url": "true",
 				},
 			})
 		</div>
@@ -49,21 +46,30 @@ templ DateRangeFilter() {
 				Icon: icons.X(icons.Props{Size: "16"}),
 				Attrs: templ.Attributes{
 					"@click": `
-						const datePickerInput = $el.closest('.flex').querySelector('input[x-ref="input"]');
+						const datePickerInput = $el.closest('form').querySelector('input[x-ref="input"]');
 						if (datePickerInput) {
 							datePickerInput.value = '';
 							datePickerInput.dispatchEvent(new Event('input', { bubbles: true }));
 						}
-						htmx.ajax('GET', '/superadmin/tenants', {
-							target: '#tenants-table-body',
+
+						// Get current URL without date params
+						const url = new URL(window.location);
+						url.searchParams.delete('start_date');
+						url.searchParams.delete('end_date');
+
+						// Update browser URL
+						window.history.replaceState({}, '', url.toString());
+
+						// Trigger HTMX request without date params
+						htmx.ajax('GET', url.pathname + url.search, {
+							target: '#table-body',
 							swap: 'innerHTML'
 						});
-						window.history.replaceState({}, '', '/superadmin/tenants');
 					`,
 				},
 			})
 		</div>
-	</div>
+	</form>
 }
 
 templ ExportButton() {
@@ -100,7 +106,7 @@ func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.
 			table.Cell(SafeText(tenant.Name), tenant.Name),
 			table.Cell(SafeText(tenant.Domain), tenant.Domain),
 			table.Cell(SafeText(fmt.Sprintf("%d", tenant.UserCount)), tenant.UserCount),
-			table.Cell(SafeText(status), status),
+			table.Cell(StatusBadge(status, badge.VariantGreen), status),
 			table.Cell(table.DateTime(tenant.CreatedAt), tenant.CreatedAt),
 			table.Cell(ViewButton(usersURL), nil),
 		)
@@ -111,6 +117,7 @@ func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.
 		DataURL: "/superadmin/tenants",
 		Columns: columns,
 		Rows:    rows,
+		Filters: []templ.Component{DateRangeFilter()},
 		Actions: []templ.Component{ExportButton()},
 		Infinite: &table.InfiniteScrollConfig{
 			HasMore: false,
@@ -144,9 +151,9 @@ templ TableRows(tenants []*entities.TenantInfo) {
 				<td class="px-4 py-4 text-200">{ tenant.Domain }</td>
 				<td class="px-4 py-4 text-200">{ fmt.Sprintf("%d", tenant.UserCount) }</td>
 				<td class="px-4 py-4">
-					<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+					@badge.New(badge.Props{Variant: badge.VariantGreen}) {
 						{ status }
-					</span>
+					}
 				</td>
 				<td class="px-4 py-4 text-200">
 					@table.DateTime(tenant.CreatedAt)
@@ -177,7 +184,6 @@ templ Index(props *IndexPageProps) {
 	@layouts.SuperAdminAuthenticated(layouts.SuperAdminAuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("SuperAdmin.Tenants.Meta.Title")},
 	}) {
-		@DateRangeFilter()
 		@table.Content(config)
 	}
 }
