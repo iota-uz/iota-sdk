@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
@@ -81,20 +82,58 @@ func (s *PopulateService) Execute(ctx context.Context, req *schemas.PopulateRequ
 	}, nil
 }
 
-func (s *PopulateService) setupTenant(ctx context.Context, tenant *schemas.TenantSpec) (context.Context, error) {
+func (s *PopulateService) setupTenant(ctx context.Context, tenantSpec *schemas.TenantSpec) (context.Context, error) {
 	logger := composables.UseLogger(ctx)
-	logger.WithField("tenantName", tenant.Name).Debug("Setting up tenant")
+	logger.WithField("tenantName", tenantSpec.Name).Debug("Setting up tenant")
 
 	// Parse tenant ID from spec
-	tenantID, err := uuid.Parse(tenant.ID)
+	tenantID, err := uuid.Parse(tenantSpec.ID)
 	if err != nil {
-		return ctx, fmt.Errorf("invalid tenant ID %s: %w", tenant.ID, err)
+		return ctx, fmt.Errorf("invalid tenant ID %s: %w", tenantSpec.ID, err)
+	}
+
+	// Initialize tenant repository
+	tenantRepo := persistence.NewTenantRepository()
+
+	// Check if tenant exists
+	existingTenants, err := tenantRepo.List(ctx)
+	if err != nil {
+		return ctx, fmt.Errorf("failed to list tenants: %w", err)
+	}
+
+	// Check if tenant with this ID already exists
+	tenantExists := false
+	for _, t := range existingTenants {
+		if t.ID() == tenantID {
+			tenantExists = true
+			logger.WithField("tenantID", tenantID).Debug("Tenant already exists in database")
+			break
+		}
+	}
+
+	// Create tenant if it doesn't exist
+	if !tenantExists {
+		logger.WithField("tenantID", tenantID).Debug("Creating tenant in database")
+
+		// Create tenant entity with specified ID
+		newTenant := tenant.New(
+			tenantSpec.Name,
+			tenant.WithID(tenantID),
+			tenant.WithDomain("localhost"), // Default domain for test tenants
+		)
+
+		// Save to database
+		_, err = tenantRepo.Create(ctx, newTenant)
+		if err != nil {
+			return ctx, fmt.Errorf("failed to create tenant: %w", err)
+		}
+
+		logger.WithField("tenantID", tenantID).Info("Tenant created successfully in database")
 	}
 
 	// Add tenant ID to context
 	ctxWithTenant := composables.WithTenantID(ctx, tenantID)
 
-	logger.WithField("tenantID", tenantID).Debug("Tenant context set successfully")
 	return ctxWithTenant, nil
 }
 
