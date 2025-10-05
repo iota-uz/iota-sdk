@@ -18,4 +18,5 @@ go.work*
 **/.claude/settings.local.json
 
 # E2E test artifacts
-e2e/cypress/screenshots/
+e2e/playwright-report/
+e2e/test-results/
