@@ -173,8 +173,10 @@ func (c *TenantsController) Export(
 	// Build SQL query for export
 	query := `
 		SELECT
-			t.id,
+			t.id::text,
 			t.name,
+			t.email,
+			t.phone,
 			t.domain,
 			COALESCE(u.user_count, 0) as user_count,
 			t.created_at,
