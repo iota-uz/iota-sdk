@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TenantService provides business logic for tenant management operations
+// TenantService provides business logic for tenant management and querying operations
 type TenantService struct {
 	repo domain.AnalyticsQueryRepository
 }
@@ -24,14 +24,42 @@ func NewTenantService(repo domain.AnalyticsQueryRepository) *TenantService {
 	}
 }
 
+// FindTenants returns paginated list of tenants with user counts
+// Supports optional search filtering by name or domain
+func (s *TenantService) FindTenants(ctx context.Context, limit, offset int, search string, sortBy domain.TenantSortBy) ([]*entities.TenantInfo, int, error) {
+	if limit <= 0 {
+		limit = DefaultPageSize
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	// Use search if provided
+	if search != "" {
+		tenants, total, err := s.repo.SearchTenants(ctx, search, limit, offset, sortBy)
+		if err != nil {
+			return nil, 0, errors.Wrap(err, "failed to search tenants")
+		}
+		return tenants, total, nil
+	}
+
+	// Fall back to listing all tenants
+	tenants, total, err := s.repo.ListTenants(ctx, limit, offset, sortBy)
+	if err != nil {
+		return nil, 0, errors.Wrap(err, "failed to find tenants")
+	}
+
+	return tenants, total, nil
+}
+
 // ListTenants returns a paginated list of tenants with user counts
-// If limit is 0 or negative, defaults to 50
+// If limit is 0 or negative, defaults to DefaultPageSize
 func (s *TenantService) ListTenants(ctx context.Context, limit, offset int) ([]*entities.TenantInfo, int, error) {
 	// Validate and set default limit
 	if limit <= 0 {
-		limit = 50
+		limit = DefaultPageSize
 	}
-	if limit > 1000 {
+	if limit > MaxPageSize {
 		return nil, 0, errors.New("limit cannot exceed 1000")
 	}
 
@@ -69,9 +97,9 @@ func (s *TenantService) FilterByDateRange(ctx context.Context, startDate, endDat
 
 	// Validate and set default limit
 	if limit <= 0 {
-		limit = 50
+		limit = DefaultPageSize
 	}
-	if limit > 1000 {
+	if limit > MaxPageSize {
 		return nil, 0, errors.New("limit cannot exceed 1000")
 	}
 
@@ -88,18 +116,36 @@ func (s *TenantService) FilterByDateRange(ctx context.Context, startDate, endDat
 	return tenants, total, nil
 }
 
-// GetTenantDetails returns detailed information about a specific tenant
-func (s *TenantService) GetTenantDetails(ctx context.Context, tenantID uuid.UUID) (*entities.TenantInfo, error) {
-	if tenantID == uuid.Nil {
+// GetByID retrieves a single tenant by ID with user count
+func (s *TenantService) GetByID(ctx context.Context, id uuid.UUID) (*entities.TenantInfo, error) {
+	if id == uuid.Nil {
 		return nil, errors.New("tenant ID cannot be nil")
 	}
 
-	tenant, err := s.repo.GetTenantDetails(ctx, tenantID)
+	tenant, err := s.repo.GetTenantDetails(ctx, id)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant details")
+		return nil, errors.Wrap(err, "failed to get tenant by ID")
 	}
 
 	return tenant, nil
+}
+
+// GetTenantDetails returns detailed information about a specific tenant
+// Deprecated: Use GetByID instead
+func (s *TenantService) GetTenantDetails(ctx context.Context, tenantID uuid.UUID) (*entities.TenantInfo, error) {
+	return s.GetByID(ctx, tenantID)
+}
+
+// GetAll retrieves all tenants (useful for exports)
+func (s *TenantService) GetAll(ctx context.Context) ([]*entities.TenantInfo, error) {
+	// Use a large limit to get all tenants, default DESC sort
+	sortBy := domain.TenantSortBy{Fields: []repo.SortByField[string]{{Field: "created_at", Ascending: false}}}
+	tenants, _, err := s.repo.ListTenants(ctx, DefaultLargeLimit, 0, sortBy)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get all tenants")
+	}
+
+	return tenants, nil
 }
 
 // ExcelExportData represents data ready for Excel export
@@ -141,7 +187,7 @@ func (s *TenantService) PrepareExcelExport(ctx context.Context, tenants []*entit
 func (s *TenantService) GetTenantsSummary(ctx context.Context) (string, error) {
 	// Default DESC sort
 	sortBy := domain.TenantSortBy{Fields: []repo.SortByField[string]{{Field: "created_at", Ascending: false}}}
-	tenants, total, err := s.repo.ListTenants(ctx, 1000, 0, sortBy)
+	tenants, total, err := s.repo.ListTenants(ctx, MaxPageSize, 0, sortBy)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get tenants for summary")
 	}

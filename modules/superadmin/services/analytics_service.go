@@ -22,12 +22,12 @@ func NewAnalyticsService(repo domain.AnalyticsQueryRepository) *AnalyticsService
 }
 
 // GetDashboardMetrics returns all dashboard metrics for the specified date range
-// If startDate is zero, defaults to 30 days ago
+// If startDate is zero, defaults to DefaultDateRangeDays ago
 // If endDate is zero, defaults to now
 func (s *AnalyticsService) GetDashboardMetrics(ctx context.Context, startDate, endDate time.Time) (*entities.Analytics, error) {
 	// Set default date range if not provided
 	if startDate.IsZero() {
-		startDate = time.Now().AddDate(0, 0, -30)
+		startDate = time.Now().AddDate(0, 0, DefaultDateRangeDays)
 	}
 	if endDate.IsZero() {
 		endDate = time.Now()

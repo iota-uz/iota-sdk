@@ -171,6 +171,12 @@ modules/{module}/
 **Website Module** (Path: `modules/website/`)
 - Public Pages: `/` → `presentation/controllers/website_controller.go` | `services/website_service.go` | `infrastructure/persistence/website_repository.go` | `presentation/templates/pages/website/index.templ`
 
+**Superadmin Module** (Path: `modules/superadmin/`)
+- Dashboard: `/` → `presentation/controllers/dashboard_controller.go` | `services/analytics_service.go` | `infrastructure/persistence/analytics_query_repository.go` | `presentation/templates/pages/dashboard/index.templ`
+- Tenants: `/superadmin/tenants` → `presentation/controllers/tenants_controller.go` | `services/tenant_service.go` | `infrastructure/persistence/analytics_query_repository.go` | `presentation/templates/pages/tenants/index.templ`
+
+**Security**: All superadmin routes MUST use `RequireSuperAdmin()` middleware to restrict access to superadmin users only.
+
 ### Core Rules
 - **Use `// TODO` comments** for unimplemented parts or future enhancements
 

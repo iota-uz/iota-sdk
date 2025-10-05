@@ -4,19 +4,50 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
+// createSuperAdminUser creates a test user with TypeSuperAdmin
+func createSuperAdminUser() user.User {
+	email, _ := internet.NewEmail("superadmin@test.com")
+	return user.New(
+		"Super",
+		"Admin",
+		email,
+		user.UILanguageEN,
+		user.WithID(1),
+		user.WithType(user.TypeSuperAdmin),
+		user.WithTenantID(uuid.New()),
+	)
+}
+
+// createRegularUser creates a test user with TypeUser (non-superadmin)
+func createRegularUser() user.User {
+	email, _ := internet.NewEmail("user@test.com")
+	return user.New(
+		"Regular",
+		"User",
+		email,
+		user.UILanguageEN,
+		user.WithID(2),
+		user.WithType(user.TypeUser),
+		user.WithTenantID(uuid.New()),
+	)
+}
+
 func TestDashboardController_Index(t *testing.T) {
 	t.Parallel()
 
-	// Create test suite with superadmin module
+	// Create test suite with superadmin module and superadmin user
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUser()).
 		Build()
 
 	// Register dashboard controller
@@ -35,7 +66,7 @@ func TestDashboardController_GetMetrics(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUser()).
 		Build()
 
 	controller := controllers.NewDashboardController(suite.Env().App)
@@ -52,7 +83,7 @@ func TestDashboardController_GetMetrics_WithDateFilter(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUser()).
 		Build()
 
 	controller := controllers.NewDashboardController(suite.Env().App)
@@ -76,7 +107,7 @@ func TestDashboardController_GetMetrics_InvalidDateFormat(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUser()).
 		Build()
 
 	controller := controllers.NewDashboardController(suite.Env().App)
@@ -106,7 +137,7 @@ func TestDashboardController_GetMetrics_EdgeCases(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUser()).
 		Build()
 
 	controller := controllers.NewDashboardController(suite.Env().App)
@@ -142,23 +173,34 @@ func TestDashboardController_GetMetrics_EdgeCases(t *testing.T) {
 func TestDashboardController_Permissions(t *testing.T) {
 	t.Parallel()
 
-	// Test with different permission levels
+	// Test with different user types and permission levels
 	testCases := []struct {
-		name        string
-		setupSuite  func(*testing.T) *itf.Suite
-		expectation func(*itf.Request) *itf.ResponseAssertion
+		name           string
+		setupSuite     func(*testing.T) *itf.Suite
+		expectedStatus int
+		description    string
 	}{
 		{
-			name: "Admin_Access",
+			name: "SuperAdmin_Access_Allowed",
 			setupSuite: func(t *testing.T) *itf.Suite {
 				return itf.NewSuiteBuilder(t).
 					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-					AsAdmin().
+					WithUser(createSuperAdminUser()).
 					Build()
 			},
-			expectation: func(req *itf.Request) *itf.ResponseAssertion {
-				return req.Assert(t).ExpectOK()
+			expectedStatus: 200,
+			description:    "Superadmin users should have full access to dashboard",
+		},
+		{
+			name: "Regular_User_Blocked",
+			setupSuite: func(t *testing.T) *itf.Suite {
+				return itf.NewSuiteBuilder(t).
+					WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+					WithUser(createRegularUser()).
+					Build()
 			},
+			expectedStatus: 403,
+			description:    "Regular users should be blocked with 403 Forbidden",
 		},
 		{
 			name: "Anonymous_User_Redirect",
@@ -168,10 +210,8 @@ func TestDashboardController_Permissions(t *testing.T) {
 					AsAnonymous().
 					Build()
 			},
-			expectation: func(req *itf.Request) *itf.ResponseAssertion {
-				// Anonymous users should be redirected to login
-				return req.Assert(t).ExpectStatus(302)
-			},
+			expectedStatus: 302,
+			description:    "Anonymous users should be redirected to login",
 		},
 	}
 
@@ -181,7 +221,61 @@ func TestDashboardController_Permissions(t *testing.T) {
 			controller := controllers.NewDashboardController(suite.Env().App)
 			suite.Register(controller)
 
-			tc.expectation(suite.GET("/"))
+			suite.GET("/").
+				Assert(t).
+				ExpectStatus(tc.expectedStatus)
+		})
+	}
+}
+
+// TestDashboardController_SuperAdminOnly verifies only superadmin users can access all endpoints
+func TestDashboardController_SuperAdminOnly(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		endpoint string
+		method   string
+	}{
+		{
+			name:     "Dashboard_Index",
+			endpoint: "/",
+			method:   "GET",
+		},
+		{
+			name:     "Dashboard_Metrics",
+			endpoint: "/metrics",
+			method:   "GET",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name+"_SuperAdmin_OK", func(t *testing.T) {
+			suite := itf.NewSuiteBuilder(t).
+				WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+				WithUser(createSuperAdminUser()).
+				Build()
+
+			controller := controllers.NewDashboardController(suite.Env().App)
+			suite.Register(controller)
+
+			suite.GET(tc.endpoint).
+				Assert(t).
+				ExpectOK()
+		})
+
+		t.Run(tc.name+"_RegularUser_Forbidden", func(t *testing.T) {
+			suite := itf.NewSuiteBuilder(t).
+				WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+				WithUser(createRegularUser()).
+				Build()
+
+			controller := controllers.NewDashboardController(suite.Env().App)
+			suite.Register(controller)
+
+			suite.GET(tc.endpoint).
+				Assert(t).
+				ExpectForbidden()
 		})
 	}
 }
@@ -191,7 +285,7 @@ func TestDashboardController_Routes(t *testing.T) {
 
 	suite := itf.NewSuiteBuilder(t).
 		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
-		AsAdmin().
+		WithUser(createSuperAdminUser()).
 		Build()
 
 	controller := controllers.NewDashboardController(suite.Env().App)

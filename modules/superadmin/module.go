@@ -44,7 +44,6 @@ func (m *Module) Register(app application.Application) error {
 	// Register services
 	app.RegisterServices(
 		services.NewAnalyticsService(analyticsRepo),
-		services.NewTenantQueryService(analyticsRepo),
 		services.NewTenantService(analyticsRepo),
 		services.NewTenantUsersService(userRepo),
 	)

@@ -23,6 +23,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
+
+	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
 )
 
 type TenantsController struct {
@@ -47,6 +49,7 @@ func (c *TenantsController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
+		superadminMiddleware.RequireSuperAdmin(),
 		middleware.ProvideDynamicLogo(c.app),
 		middleware.ProvideLocalizer(c.app.Bundle()),
 		middleware.NavItems(),
@@ -62,7 +65,6 @@ func (c *TenantsController) Index(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
-	tenantQueryService *services.TenantQueryService,
 	tenantService *services.TenantService,
 ) {
 	ctx := r.Context()
@@ -127,7 +129,7 @@ func (c *TenantsController) Index(
 		}
 	} else {
 		// Fetch tenants without date filter (existing behavior)
-		tenantsList, total, err = tenantQueryService.FindTenants(ctx, params.Limit, params.Offset, search, sortBy)
+		tenantsList, total, err = tenantService.FindTenants(ctx, params.Limit, params.Offset, search, sortBy)
 		if err != nil {
 			logger.Errorf("Error retrieving tenants: %v", err)
 			http.Error(w, "Error retrieving tenants", http.StatusInternalServerError)
@@ -163,7 +165,7 @@ func (c *TenantsController) Export(
 	r *http.Request,
 	w http.ResponseWriter,
 	logger *logrus.Entry,
-	tenantService *services.TenantQueryService,
+	tenantService *services.TenantService,
 	excelService *coreservices.ExcelExportService,
 ) {
 	ctx := r.Context()
@@ -211,7 +213,7 @@ func (c *TenantsController) TenantUsers(
 	w http.ResponseWriter,
 	logger *logrus.Entry,
 	tenantUsersService *services.TenantUsersService,
-	tenantQueryService *services.TenantQueryService,
+	tenantService *services.TenantService,
 ) {
 	ctx := r.Context()
 
@@ -226,7 +228,7 @@ func (c *TenantsController) TenantUsers(
 	}
 
 	// Get tenant info
-	tenant, err := tenantQueryService.GetByID(ctx, tenantID)
+	tenant, err := tenantService.GetByID(ctx, tenantID)
 	if err != nil {
 		logger.Errorf("Error retrieving tenant %s: %v", tenantID, err)
 		http.Error(w, "Tenant not found", http.StatusNotFound)
