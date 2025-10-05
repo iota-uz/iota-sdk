@@ -68,8 +68,8 @@ test.describe('user auth and registration flow', () => {
 		await page.goto('/users');
 		await expect(page).toHaveURL(/\/users/);
 
-		// Find and click the edit link for "Test User"
-		const userRow = page.locator('tbody tr').filter({ hasText: 'Test User' });
+		// Find and click the edit link for "Test User" (use first() to avoid strict mode violation)
+		const userRow = page.locator('tbody tr').filter({ hasText: 'Test User' }).first();
 		await userRow.locator('td a').click();
 
 		await expect(page).toHaveURL(/\/users\/.+/);
@@ -103,7 +103,8 @@ test.describe('user auth and registration flow', () => {
 	});
 
 	test('newly created user should see tabs in the sidebar', async ({ page }) => {
-		await login(page, 'test1@gmail.com', 'TestPass123!');
+		// Login with the updated email from test 2 (test1@gmail.com was changed to test1new@gmail.com)
+		await login(page, 'test1new@gmail.com', 'TestPass123!');
 		await page.goto('/');
 		await expect(page).not.toHaveURL(/\/login/);
 

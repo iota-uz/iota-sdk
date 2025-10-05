@@ -27,7 +27,7 @@ test.describe('user realtime behavior', () => {
 		const initialRowCount = await initialRows.count();
 
 		// This simulates adding a user through a different session
-		await request.post('/users', {
+		const createResponse = await request.post('/users', {
 			form: {
 				FirstName: 'Realtime',
 				LastName: 'Test',
@@ -39,6 +39,10 @@ test.describe('user realtime behavior', () => {
 				RoleIDs: '1',
 			}
 		});
+
+		// Verify the API request succeeded
+		expect(createResponse.ok()).toBeTruthy();
+		expect(createResponse.status()).toBe(200);
 
 		// Verify user was added in realtime (wait for SSE update)
 		await expect(page.locator('tbody tr').filter({ hasText: 'Realtime Test' })).toBeVisible({ timeout: 10000 });
