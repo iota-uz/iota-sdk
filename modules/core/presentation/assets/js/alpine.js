@@ -474,15 +474,22 @@ let datePicker = ({
       defaultDate: selected,
       plugins,
       onChange(selected = []) {
-        let isoDates = selected.map((s) => s.toISOString());
-        if (!isoDates.length) return;
+        let formattedDates = selected.map((s) => flatpickr.formatDate(s, dateFormat));
+        if (!formattedDates.length) return;
         if (mode === 'single') {
-          self.selected = [isoDates[0]];
+          self.selected = [formattedDates[0]];
         } else if (mode === 'range') {
-          if (isoDates.length === 2) self.selected = isoDates;
+          if (formattedDates.length === 2) self.selected = formattedDates;
         } else {
-          self.selected = isoDates;
+          self.selected = formattedDates;
         }
+        // Dispatch custom event for HTMX integration
+        self.$nextTick(() => {
+          self.$el.dispatchEvent(new CustomEvent('date-selected', {
+            bubbles: true,
+            detail: {selected: self.selected}
+          }));
+        });
       },
     });
   }
