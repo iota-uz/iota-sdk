@@ -62,7 +62,7 @@ func (s *ResetService) TruncateAllTables(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Disable foreign key checks temporarily
 	if _, err := tx.Exec(ctx, "SET session_replication_role = replica;"); err != nil {

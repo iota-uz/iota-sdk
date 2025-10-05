@@ -43,7 +43,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 		// Start transaction for populate service
 		tx, err := f.Pool.Begin(f.Ctx)
 		require.NoError(t, err)
-		defer tx.Rollback(f.Ctx)
+		defer func() { _ = tx.Rollback(f.Ctx) }()
 
 		// Add logger and transaction to context
 		logger := logrus.New()
@@ -94,7 +94,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 		// First creation
 		tx1, err := f.Pool.Begin(f.Ctx)
 		require.NoError(t, err)
-		defer tx1.Rollback(f.Ctx)
+		defer func() { _ = tx1.Rollback(f.Ctx) }()
 
 		logger := logrus.New()
 		ctxWithTx1 := context.WithValue(composables.WithTx(f.Ctx, tx1), constants.LoggerKey, logrus.NewEntry(logger))
@@ -109,7 +109,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 		// Second creation - should be idempotent
 		tx2, err := f.Pool.Begin(f.Ctx)
 		require.NoError(t, err)
-		defer tx2.Rollback(f.Ctx)
+		defer func() { _ = tx2.Rollback(f.Ctx) }()
 
 		ctxWithTx2 := context.WithValue(composables.WithTx(f.Ctx, tx2), constants.LoggerKey, logrus.NewEntry(logger))
 		_, err = populateService.Execute(ctxWithTx2, req)
@@ -141,7 +141,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 
 		tx, err := f.Pool.Begin(f.Ctx)
 		require.NoError(t, err)
-		defer tx.Rollback(f.Ctx)
+		defer func() { _ = tx.Rollback(f.Ctx) }()
 
 		logger := logrus.New()
 		ctxWithTx := context.WithValue(composables.WithTx(f.Ctx, tx), constants.LoggerKey, logrus.NewEntry(logger))
@@ -193,7 +193,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 
 		tx, err := f.Pool.Begin(f.Ctx)
 		require.NoError(t, err)
-		defer tx.Rollback(f.Ctx)
+		defer func() { _ = tx.Rollback(f.Ctx) }()
 
 		logger := logrus.New()
 		ctxWithTx := context.WithValue(composables.WithTx(f.Ctx, tx), constants.LoggerKey, logrus.NewEntry(logger))
@@ -242,7 +242,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 
 		tx, err := f.Pool.Begin(context.Background())
 		require.NoError(t, err)
-		defer tx.Rollback(context.Background())
+		defer func() { _ = tx.Rollback(context.Background()) }()
 
 		logger := logrus.New()
 		// Create context WITHOUT tenant ID
