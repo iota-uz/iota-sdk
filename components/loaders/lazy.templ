@@ -25,6 +25,7 @@ templ LazyLoad(props LazyLoadProps) {
 		hx-get={ buildEndpoint(props.Endpoint, props.Params) }
 		hx-trigger="load"
 		hx-swap={ mapping.Or(props.Swap, "outerHTML") }
+		hx-target="this"
 		class={ twmerge.Merge("lazy-load", props.Class.String()) }
 	>
 		{ children... }
