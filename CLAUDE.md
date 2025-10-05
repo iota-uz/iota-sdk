@@ -65,7 +65,6 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 - Run tests with coverage: `make test coverage`
 - Run tests in watch mode: `make test watch`
 - Run tests with verbose output: `make test verbose`
-- Run specific package tests: `make test package ./path/to/package`
 - Run individual test by name: `go test -v ./path/to/package -run TestSpecificName` (for debugging/focused testing)
 - Run tests in Docker: `make test docker`
 - Generate coverage report: `make test report`
@@ -172,6 +171,12 @@ modules/{module}/
 **Website Module** (Path: `modules/website/`)
 - Public Pages: `/` → `presentation/controllers/website_controller.go` | `services/website_service.go` | `infrastructure/persistence/website_repository.go` | `presentation/templates/pages/website/index.templ`
 
+**Superadmin Module** (Path: `modules/superadmin/`)
+- Dashboard: `/` → `presentation/controllers/dashboard_controller.go` | `services/analytics_service.go` | `infrastructure/persistence/analytics_query_repository.go` | `presentation/templates/pages/dashboard/index.templ`
+- Tenants: `/superadmin/tenants` → `presentation/controllers/tenants_controller.go` | `services/tenant_service.go` | `infrastructure/persistence/analytics_query_repository.go` | `presentation/templates/pages/tenants/index.templ`
+
+**Security**: All superadmin routes MUST use `RequireSuperAdmin()` middleware to restrict access to superadmin users only.
+
 ### Core Rules
 - **Use `// TODO` comments** for unimplemented parts or future enhancements
 
@@ -184,7 +189,6 @@ make test failures                    # Show only failing tests (JSON format, us
 make test coverage                    # Run tests with simple coverage report (Go default, use 10-minute timeout)
 make test detailed-coverage           # Run tests with detailed coverage analysis & insights (use 10-minute timeout)
 make test verbose                     # Run tests with verbose output (use 10-minute timeout)
-make test package ./path/to/package   # Test specific package
 go test -v ./path/to/package -run TestSpecificName  # Run individual test by name (for debugging/focused testing)
 make check-tr                         # Validate translations
 

@@ -193,7 +193,14 @@ func TestSortBy(t *testing.T) {
 	const (
 		UserName      UserFields = "name"
 		UserCreatedAt UserFields = "created_at"
+		InvalidField  UserFields = "invalid_field"
 	)
+
+	fieldMapping := map[UserFields]string{
+		UserName:      "users.name",
+		UserCreatedAt: "users.created_at",
+		// InvalidField intentionally not mapped
+	}
 
 	t.Run("ascending sort", func(t *testing.T) {
 		sort := SortBy[UserFields]{
@@ -207,6 +214,9 @@ func TestSortBy(t *testing.T) {
 		assert.Equal(t, UserCreatedAt, sort.Fields[1].Field)
 		assert.True(t, sort.Fields[0].Ascending)
 		assert.True(t, sort.Fields[1].Ascending)
+
+		sql := sort.ToSQL(fieldMapping)
+		assert.Equal(t, "ORDER BY users.name ASC, users.created_at ASC", sql)
 	})
 
 	t.Run("descending sort", func(t *testing.T) {
@@ -218,5 +228,85 @@ func TestSortBy(t *testing.T) {
 
 		assert.Equal(t, UserCreatedAt, sort.Fields[0].Field)
 		assert.False(t, sort.Fields[0].Ascending)
+
+		sql := sort.ToSQL(fieldMapping)
+		assert.Equal(t, "ORDER BY users.created_at DESC", sql)
+	})
+
+	t.Run("empty sort fields", func(t *testing.T) {
+		sort := SortBy[UserFields]{
+			Fields: []SortByField[UserFields]{},
+		}
+
+		sql := sort.ToSQL(fieldMapping)
+		assert.Equal(t, "", sql)
+	})
+
+	t.Run("invalid field returns empty string", func(t *testing.T) {
+		sort := SortBy[UserFields]{
+			Fields: []SortByField[UserFields]{
+				{Field: InvalidField, Ascending: true},
+			},
+		}
+
+		sql := sort.ToSQL(fieldMapping)
+		assert.Equal(t, "", sql, "Invalid field should return empty string")
+	})
+
+	t.Run("mixed valid and invalid fields", func(t *testing.T) {
+		sort := SortBy[UserFields]{
+			Fields: []SortByField[UserFields]{
+				{Field: InvalidField, Ascending: true},
+				{Field: UserName, Ascending: false},
+				{Field: InvalidField, Ascending: false},
+				{Field: UserCreatedAt, Ascending: true},
+			},
+		}
+
+		sql := sort.ToSQL(fieldMapping)
+		assert.Equal(t, "ORDER BY users.name DESC, users.created_at ASC", sql, "Should skip invalid fields and only include valid ones")
+	})
+
+	t.Run("sort with nulls last", func(t *testing.T) {
+		sort := SortBy[UserFields]{
+			Fields: []SortByField[UserFields]{
+				{Field: UserName, Ascending: true, NullsLast: true},
+			},
+		}
+
+		sql := sort.ToSQL(fieldMapping)
+		assert.Equal(t, "ORDER BY users.name ASC NULLS LAST", sql)
+	})
+
+	t.Run("multiple fields with nulls last", func(t *testing.T) {
+		sort := SortBy[UserFields]{
+			Fields: []SortByField[UserFields]{
+				{Field: UserName, Ascending: true, NullsLast: true},
+				{Field: UserCreatedAt, Ascending: false, NullsLast: false},
+			},
+		}
+
+		sql := sort.ToSQL(fieldMapping)
+		assert.Equal(t, "ORDER BY users.name ASC NULLS LAST, users.created_at DESC", sql)
+	})
+
+	t.Run("sql injection protection - invalid field names ignored", func(t *testing.T) {
+		type MaliciousFields string
+		const (
+			SQLInjection MaliciousFields = "name; DROP TABLE users;"
+		)
+
+		maliciousMapping := map[MaliciousFields]string{
+			// Intentionally not mapping the malicious field
+		}
+
+		sort := SortBy[MaliciousFields]{
+			Fields: []SortByField[MaliciousFields]{
+				{Field: SQLInjection, Ascending: true},
+			},
+		}
+
+		sql := sort.ToSQL(maliciousMapping)
+		assert.Equal(t, "", sql, "Unmapped malicious field should return empty string")
 	})
 }
