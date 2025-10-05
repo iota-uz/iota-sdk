@@ -10,6 +10,8 @@ import (
 type TenantInfo struct {
 	ID        uuid.UUID
 	Name      string
+	Email     *string
+	Phone     *string
 	Domain    string
 	UserCount int
 	CreatedAt time.Time

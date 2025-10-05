@@ -1,7 +1,7 @@
 ---
 allowed-tools: |
   Bash(git status:*), Bash(git diff:*), Bash(go vet:*), Bash(make *),
-  Read, Glob, Task(subagent_type:speed-editor), Task(subagent_type:go-editor)
+  Read, Glob, Task
 argument-hint: "[optional] files/dirs/globs (defaults to uncommitted changes)"
 description: "Holistic refactor with permission to break compatibility; replace layered hacks with simpler architectures"
 ---
@@ -45,7 +45,7 @@ Read targets + neighbors; output a concise **System Map**:
 
 ### 2) **Apply Changes (clarity > minimality)**
 
-**Task(subagent_type:speed-editor) → prompt:**
+**Task(subagent_type:go-editor) → prompt:**
 
 Goal: Deliver code that is easy to read and reason about by replacing brittle,
 layered patches with simpler, cohesive architectures. You MAY break compatibility

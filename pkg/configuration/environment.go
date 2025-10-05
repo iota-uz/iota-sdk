@@ -178,6 +178,9 @@ type Configuration struct {
 
 	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
 
+	// Test endpoints - only enable in test environment
+	EnableTestEndpoints bool `env:"ENABLE_TEST_ENDPOINTS" envDefault:"false"`
+
 	logFile *os.File
 	logger  *logrus.Logger
 }

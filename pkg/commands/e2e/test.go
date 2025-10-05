@@ -60,11 +60,11 @@ func Test() error {
 		projectRoot = parent
 	}
 
-	// Run cypress tests
+	// Run Playwright tests
 	e2eDir := filepath.Join(projectRoot, "e2e")
 	testCmd := exec.Command("npm", "run", "test")
 	testCmd.Dir = e2eDir
-	testCmd.Env = append(os.Environ(), "CYPRESS_BASE_URL="+baseURL)
+	testCmd.Env = append(os.Environ(), "BASE_URL="+baseURL)
 	testCmd.Stdout = os.Stdout
 	testCmd.Stderr = os.Stderr
 

@@ -3,22 +3,27 @@
 	"version": "1.0.0",
 	"description": "End-to-end tests for IOTA SDK",
 	"scripts": {
-		"cy:open": "cypress open",
-		"cy:run": "cypress run",
-		"test": "cypress run",
-		"test:spec": "cypress run --spec",
-		"test:headed": "cypress run --headed",
-		"test:payments": "cypress run --spec 'cypress/e2e/payments/**/*.cy.js'"
+		"test": "playwright test",
+		"test:ui": "playwright test --ui",
+		"test:headed": "playwright test --headed",
+		"test:debug": "playwright test --debug",
+		"test:users": "playwright test tests/users",
+		"test:employees": "playwright test tests/employees"
 	},
 	"dependencies": {
-		"cypress": "^13.15.0",
 		"dotenv": "^16.6.1",
 		"pg": "^8.13.3"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.48.0",
+		"@types/node": "^22.10.2",
+		"@types/pg": "^8.11.10",
+		"typescript": "^5.7.2"
 	},
 	"keywords": [
 		"e2e",
 		"testing",
-		"cypress",
+		"playwright",
 		"iota",
 		"erp"
 	],

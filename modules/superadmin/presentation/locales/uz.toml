@@ -1,0 +1,65 @@
+[SuperAdmin.NavigationLinks]
+Dashboard = "Boshqaruv paneli"
+Tenants = "Ijarachilar"
+
+[SuperAdmin.Dashboard]
+Title = "Super Admin boshqaruv paneli"
+DateRange = "Sana oralig'i"
+
+[SuperAdmin.Dashboard.Meta]
+Title = "Boshqaruv paneli - Super Admin"
+
+[SuperAdmin.Dashboard.Metrics]
+TotalTenants = "Jami ijarachilar"
+TotalUsers = "Jami foydalanuvchilar"
+ActiveUsers = "Faol foydalanuvchilar"
+DAU = "Kunlik faol foydalanuvchilar"
+WAU = "Haftalik faol foydalanuvchilar"
+MAU = "Oylik faol foydalanuvchilar"
+TotalSessions = "Jami seanslar"
+
+[SuperAdmin.Dashboard.Charts]
+UserSignups = "Foydalanuvchi ro'yxatdan o'tishi"
+TenantSignups = "Ijarachi ro'yxatdan o'tishi"
+
+[SuperAdmin.Tenants]
+Title = "Ijarachilar"
+Name = "Ijarachi nomi"
+Domain = "Domen"
+Email = "Email"
+Phone = "Telefon"
+UserCount = "Foydalanuvchilar soni"
+StatusColumn = "Holat"
+CreatedAt = "Yaratilgan sana"
+Actions = "Harakatlar"
+ViewUsers = "Foydalanuvchilarni ko'rish"
+Export = "Excel ga eksport"
+FilterByDate = "Sana oralig'i bo'yicha filter"
+StartDate = "Boshlanish sanasi"
+EndDate = "Tugash sanasi"
+ClearFilter = "Filterni tozalash"
+
+[SuperAdmin.Tenants.Meta]
+Title = "Ijarachilar - Super Admin"
+
+[SuperAdmin.Tenants.Status]
+Active = "Faol"
+Inactive = "Nofaol"
+
+[SuperAdmin.Tenants.Users]
+Title = "Ijarachi foydalanuvchilari"
+ViewUsers = "Foydalanuvchilarni ko'rish"
+BackToTenants = "Ijarachilarga qaytish"
+TenantInfo = "Ijarachi haqida ma'lumot"
+FullName = "To'liq ism"
+FirstName = "Ism"
+LastName = "Familiya"
+Email = "Email"
+Phone = "Telefon"
+Role = "Rol"
+CreatedAt = "Yaratilgan sana"
+LastLogin = "Oxirgi kirish"
+Status = "Holat"
+
+[SuperAdmin.Tenants.Users.Meta]
+Title = "Ijarachi foydalanuvchilari - Super Admin"

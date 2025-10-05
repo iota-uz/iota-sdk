@@ -44,9 +44,9 @@ db:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "stop" ]; then \
 		docker compose -f compose.dev.yml down db; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
-		docker volume rm sdk-data || true; \
+		docker volume rm iota-sdk-data || true; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "reset" ]; then \
-		docker compose -f compose.dev.yml down db && docker volume rm sdk-data || true && docker compose -f compose.dev.yml up db; \
+		docker compose -f compose.dev.yml down db && docker volume rm iota-sdk-data || true && docker compose -f compose.dev.yml up db; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "seed" ]; then \
 		go run cmd/command/main.go seed; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "migrate" ]; then \
@@ -75,7 +75,7 @@ test:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "docker" ]; then \
 		docker compose -f compose.testing.yml up --build erp_local; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "score" ]; then \
-		go tool cover -func ./coverage/coverage.out | grep "total:" | awk '{print ((int($$3) > 80) != 1) }'; \
+		go tool cover -func coverage.out | grep "total:" | awk '{print ((int($$3) > 80) != 1) }'; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "report" ]; then \
 		go tool cover -html=coverage.out -o ./coverage/cover.html; \
 	else \
@@ -105,18 +105,21 @@ e2e:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "migrate" ]; then \
 		go run cmd/command/main.go e2e migrate; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "run" ]; then \
-		cd e2e && npm run cy:open; \
+		cd e2e && npx playwright test --ui; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "ci" ]; then \
+		cd e2e && npx playwright test --workers=1 --reporter=list; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
 		go run cmd/command/main.go e2e drop; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
-		PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e air; \
+		PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e ENABLE_TEST_ENDPOINTS=true air; \
 	else \
-		echo "Usage: make e2e [test|reset|seed|migrate|run|dev|clean]"; \
+		echo "Usage: make e2e [test|reset|seed|migrate|run|ci|dev|clean]"; \
 		echo "  test         - Set up database and run all e2e tests"; \
 		echo "  reset        - Drop and recreate e2e database with fresh data"; \
 		echo "  seed         - Seed e2e database with test data"; \
 		echo "  migrate      - Run migrations on e2e database"; \
-		echo "  run          - Open Cypress interactive mode"; \
+		echo "  run          - Open Playwright interactive mode (UI mode)"; \
+		echo "  ci           - Run Playwright tests in CI mode (headless, no UI, serial execution)"; \
 		echo "  dev          - Start e2e development server with hot reload on port 3201"; \
 		echo "  clean        - Drop e2e database"; \
 	fi
@@ -180,10 +183,11 @@ clean:
 
 # Full setup
 setup: deps css
+	make check fmt
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose docker score report linux docker-base docker-prod run server up down restart logs local stop reset seed migrate dev:
+watch coverage verbose docker score report linux docker-base docker-prod up down restart logs local stop reset seed migrate dev:
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check superadmin \

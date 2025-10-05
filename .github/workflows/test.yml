@@ -297,8 +297,15 @@ jobs:
         with:
           version: 9
 
-      - name: Cypress E2E Tests
-        uses: cypress-io/github-action@v6
+      - name: Install Node dependencies
+        run: pnpm install
+        working-directory: e2e
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+
+      - name: Start Go Server
         env:
           SESSION_DURATION: 720h
           DOMAIN: localhost
@@ -310,14 +317,37 @@ jobs:
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
           GO_APP_ENV: production
-          CYPRESS_BASE_URL: http://localhost:3201
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
-          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          ENABLE_TEST_ENDPOINTS: true
+        run: |
+          go run cmd/server/main.go &
+          SERVER_PID=$!
+          echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
+
+          # Wait for server to be ready (timeout: 60 seconds)
+          timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
+
+      - name: Run Playwright Tests
+        env:
+          BASE_URL: http://localhost:3201
+        run: npx playwright test
+        working-directory: e2e
+
+      - name: Stop Go Server
+        if: always()
+        run: kill ${{ env.SERVER_PID }} || true
+
+      - name: Upload Playwright Report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          record: true
-          working-directory: e2e
-          install-command: pnpm install
-          start: go run ../cmd/server/main.go
-          wait-on: 'http://localhost:3201'
-          browser: chrome
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 30
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: e2e/test-results/
+          retention-days: 30

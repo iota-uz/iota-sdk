@@ -33,7 +33,7 @@ This command handles the complete workflow from uncommitted changes to pull requ
 Based on the current git status:
 - Analyze changed files to understand the nature of changes
 - If `.go` files were changed, format them using `make fmt`
-- If `.toml` files were changed, test them using `make check-tr`. If failed, ask the user how to proceed.
+- If `.toml` files were changed, test them using `make check tr`. If failed, ask the user how to proceed.
 - If `.templ` files were changed, regenerate them using `templ generate` (always run templ generate after make fmt)
 - Delete build artifacts or temporary files (ask user if unsure)
 - Group related changes into logical commits
