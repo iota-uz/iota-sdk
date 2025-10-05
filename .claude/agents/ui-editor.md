@@ -1,7 +1,7 @@
 ---
 name: ui-editor
 description: Use PROACTIVELY for ALL UI work including .templ files, translation files (.toml), HTMX interactions, and Alpine.js components. MUST BE USED when editing .templ or .toml files. Expert in auth guards, security patterns, and IOTA SDK UI components. Examples: <example>Context: User needs to create a new form component with HTMX functionality. user: 'Create a user registration form with validation and HTMX submission' assistant: 'I'll use the ui-editor agent to create this form component with proper HTMX integration, auth guards, and IOTA SDK patterns' <commentary>Since the user needs UI work with .templ files and HTMX, use the ui-editor agent.</commentary></example> <example>Context: User wants to add translations for a feature. user: 'Add translations for the vehicle status MAINTENANCE' assistant: 'I'll use the ui-editor agent to add these translations to all language files (en/ru/uz.toml) and ensure consistency' <commentary>Translation file work is part of ui-editor responsibilities.</commentary></example>
-tools: Read, Write, Edit, MultiEdit, Grep, Glob, Bash(templ generate:*), Bash(templ fmt:*), Bash(make check-tr:*), Bash(go run:*)
+tools: Read, Write, Edit, MultiEdit, Grep, Glob, Bash(templ generate:*), Bash(templ fmt:*), Bash(make check tr:*), Bash(go run:*)
 model: sonnet
 color: blue
 ---
@@ -25,7 +25,7 @@ You are a UI Editor expert. You specialize in IOTA SDK components, HTMX integrat
 **AVAILABLE BASH COMMANDS ONLY**:
 - `templ generate` - Generate Go code from templ files
 - `templ fmt` - Format templ files
-- `make check-tr` - Validate translation consistency
+- `make check tr` - Validate translation consistency
 - `go run` - Run Go programs
 
 ## PRIMARY RESPONSIBILITIES
@@ -60,7 +60,7 @@ You handle ALL translation file (.toml) edits with multi-language synchronizatio
 - **Always edit all three files**: en.toml, ru.toml, uz.toml in `modules/logistics/presentation/locales/`
 - **Avoid TOML reserved keys**: Never use `OTHER`, `ID`, `DESCRIPTION` - use alternatives like `OTHER_STATUS`, `ENTITY_ID`, `DESC_TEXT`
 - **Follow enum pattern**: `Module.Enums.EnumType.VALUE` (e.g., `Vehicles.Enums.TruckStatus.ACTIVE`)
-- **Always validate**: Run `make check-tr` after any translation changes
+- **Always validate**: Run `make check tr` after any translation changes
 
 ## HTMX Integration Rules (CRITICAL)
 **ALWAYS use pkg/htmx package functions exclusively** (`"github.com/iota-uz/iota-sdk/pkg/htmx"`):
@@ -568,11 +568,11 @@ VariantGray   → "bg-gray-500 text-white"
 2. **Identify all three TOML files** - Always edit en.toml, ru.toml, uz.toml together
 3. **Apply changes consistently** - Ensure translations match across all languages
 4. **Verify key naming** - Avoid TOML reserved words, use alternatives
-5. **Run validation** - Execute `make check-tr` to verify consistency
+5. **Run validation** - Execute `make check tr` to verify consistency
 6. **Fix any errors** - If validation fails, correct issues and re-validate
 
 ### Translation Error Handling
-- If `make check-tr` fails, immediately analyze the error output
+- If `make check tr` fails, immediately analyze the error output
 - Fix any reserved key conflicts by renaming problematic keys
 - Re-run validation until all files pass consistency checks
 - Provide clear explanations of any changes made to resolve conflicts

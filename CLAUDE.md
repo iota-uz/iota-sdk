@@ -104,9 +104,9 @@ Playwright E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev
 
 ### Commands:
 - Setup/reset: `make e2e test|reset|seed|migrate|clean`
-- Run tests: `make e2e test|run` - Execute Playwright tests against running e2e server
+- Run tests interactively: `make e2e run` - Open Playwright UI mode for interactive test running
+- Run tests in CI mode: `make e2e ci` - Run all tests headless (no UI, serial execution) - ideal for terminal/CI
 - Run individual e2e test: `cd e2e && npx playwright test tests/module/specific-test.spec.ts` (for debugging/focused testing)
-- Run with UI mode: `cd e2e && npx playwright test --ui` (interactive debugging)
 - Debug mode: `cd e2e && npx playwright test --debug` (Playwright Inspector)
 - Generate traces: `cd e2e && npx playwright test --trace on` (for debugging)
 - View traces: `cd e2e && npx playwright show-trace trace.zip`
@@ -206,7 +206,7 @@ make test coverage                    # Run tests with simple coverage report (G
 make test detailed-coverage           # Run tests with detailed coverage analysis & insights (use 10-minute timeout)
 make test verbose                     # Run tests with verbose output (use 10-minute timeout)
 go test -v ./path/to/package -run TestSpecificName  # Run individual test by name (for debugging/focused testing)
-make check-tr                         # Validate translations
+make check tr                         # Validate translations
 
 # Linting & Code Quality
 make lint                             # Run golangci-lint (checks for unused variables/functions)
@@ -311,7 +311,7 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 |-----------|------------------|----------------------|
 | **Type Errors** | `go vet ./...`, `go build ./...` | Split by module/package |
 | **Template Work** | `find . -name "*.templ"` | Split by functional area |
-| **Translation Missing** | `make check-tr`, `grep -r "missing"` | Split by language files |
+| **Translation Missing** | `make check tr`, `grep -r "missing"` | Split by language files |
 | **Test Coverage** | `go test -cover ./...`, find tests | Split by layer/domain |
 | **Performance Issues** | `go test -bench ./...`, profiling | Split by service/component |
 
