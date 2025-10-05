@@ -62,7 +62,7 @@ func TestTenantService_ListTenants(t *testing.T) {
 		tenants, total, err := service.ListTenants(f.Ctx, 10, 10000)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, total, 0)
-		assert.Equal(t, 0, len(tenants))
+		assert.Empty(t, tenants)
 	})
 
 	t.Run("Small_Limit_Returns_Correct_Count", func(t *testing.T) {
@@ -235,7 +235,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 		tenants, total, err := service.FilterByDateRange(f.Ctx, startDate, endDate, 10, 0, domain.TenantSortBy{})
 		require.NoError(t, err)
 		assert.Equal(t, 0, total)
-		assert.Equal(t, 0, len(tenants))
+		assert.Empty(t, tenants)
 	})
 
 	t.Run("Context_Cancellation", func(t *testing.T) {
@@ -314,8 +314,8 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, data)
 
-		assert.Equal(t, 6, len(data.Headers))
-		assert.Equal(t, 0, len(data.Rows))
+		assert.Len(t, data.Headers, 6)
+		assert.Empty(t, data.Rows)
 		assert.Contains(t, data.Headers, "ID")
 		assert.Contains(t, data.Headers, "Name")
 		assert.Contains(t, data.Headers, "Domain")
@@ -338,11 +338,11 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, data)
 
-		assert.Equal(t, 6, len(data.Headers))
-		assert.Equal(t, 1, len(data.Rows))
+		assert.Len(t, data.Headers, 6)
+		assert.Len(t, data.Rows, 1)
 
 		row := data.Rows[0]
-		assert.Equal(t, 6, len(row))
+		assert.Len(t, row, 6)
 		assert.Equal(t, tenant.ID.String(), row[0])
 		assert.Equal(t, tenant.Name, row[1])
 		assert.Equal(t, tenant.Domain, row[2])
@@ -381,12 +381,12 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, data)
 
-		assert.Equal(t, 6, len(data.Headers))
-		assert.Equal(t, 3, len(data.Rows))
+		assert.Len(t, data.Headers, 6)
+		assert.Len(t, data.Rows, 3)
 
 		// Verify each row has correct number of columns
 		for i, row := range data.Rows {
-			assert.Equal(t, 6, len(row), "Row %d should have 6 columns", i)
+			assert.Len(t, row, 6, "Row %d should have 6 columns", i)
 		}
 	})
 
@@ -399,7 +399,7 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, data)
 
-			assert.Equal(t, 6, len(data.Headers))
+			assert.Len(t, data.Headers, 6)
 			assert.Equal(t, len(tenants), len(data.Rows))
 
 			// Verify first row matches first tenant
@@ -428,7 +428,7 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, data)
 
-		assert.Equal(t, 1, len(data.Rows))
+		assert.Len(t, data.Rows, 1)
 		assert.Equal(t, 0, data.Rows[0][3])
 	})
 
@@ -442,7 +442,7 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 			UpdatedAt: time.Now(),
 		}
 
-		data, err := service.PrepareExcelExport(nil, []*entities.TenantInfo{tenant})
+		data, err := service.PrepareExcelExport(context.TODO(), []*entities.TenantInfo{tenant})
 		require.NoError(t, err)
 		require.NotNil(t, data)
 	})

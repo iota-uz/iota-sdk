@@ -141,7 +141,7 @@ func TestTenantUsersService_GetUsersByTenantID(t *testing.T) {
 			users, total, err := service.GetUsersByTenantID(f.Ctx, tenant.ID, 10, 0, searchTerm, user.SortBy{})
 			require.NoError(t, err, "Search should not error with special character: %s", searchTerm)
 			assert.GreaterOrEqual(t, total, 0)
-			assert.Equal(t, total, len(users))
+			assert.Len(t, users, total)
 		}
 	})
 
@@ -274,7 +274,7 @@ func TestTenantUsersService_Integration(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, users)
 		assert.GreaterOrEqual(t, total, 0)
-		assert.Equal(t, total, len(users))
+		assert.Len(t, users, total)
 	})
 
 	t.Run("Pagination_And_Count_Consistency", func(t *testing.T) {

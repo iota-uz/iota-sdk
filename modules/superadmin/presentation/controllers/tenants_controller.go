@@ -147,7 +147,7 @@ func (c *TenantsController) Index(
 
 	// Check if HTMX request
 	if htmx.IsHxRequest(r) {
-		hxTarget := r.Header.Get("HX-Target")
+		hxTarget := r.Header.Get("Hx-Target")
 		if hxTarget == "sortable-table-container" {
 			// Sorting request - return full table to update headers with new sort direction
 			templ.Handler(tenants.Table(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -321,7 +321,7 @@ func (c *TenantsController) TenantUsers(
 
 	// Render template
 	if htmx.IsHxRequest(r) {
-		hxTarget := r.Header.Get("HX-Target")
+		hxTarget := r.Header.Get("Hx-Target")
 		if hxTarget == "sortable-table-container" {
 			// Sorting request - return full table to update headers with new sort direction
 			templ.Handler(tenants.UsersTable(props), templ.WithStreaming()).ServeHTTP(w, r)
