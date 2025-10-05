@@ -19,6 +19,8 @@ type Field = string
 const (
 	FieldID        Field = "id"
 	FieldName      Field = "name"
+	FieldEmail     Field = "email"
+	FieldPhone     Field = "phone"
 	FieldDomain    Field = "domain"
 	FieldUserCount Field = "user_count"
 	FieldCreatedAt Field = "created_at"
@@ -59,6 +61,8 @@ const (
 		SELECT
 			t.id,
 			t.name,
+			t.email,
+			t.phone,
 			t.domain,
 			COALESCE(u.user_count, 0) as user_count,
 			t.created_at,
@@ -77,6 +81,8 @@ const (
 		SELECT
 			t.id,
 			t.name,
+			t.email,
+			t.phone,
 			t.domain,
 			COALESCE(u.user_count, 0) as user_count,
 			t.created_at,
@@ -100,6 +106,8 @@ const (
 		SELECT
 			t.id,
 			t.name,
+			t.email,
+			t.phone,
 			t.domain,
 			COALESCE(u.user_count, 0) as user_count,
 			t.created_at,
@@ -123,6 +131,8 @@ const (
 		SELECT
 			t.id,
 			t.name,
+			t.email,
+			t.phone,
 			t.domain,
 			COALESCE(u.user_count, 0) as user_count,
 			t.created_at,
@@ -162,6 +172,8 @@ func (r *pgAnalyticsQueryRepository) fieldMapping() map[Field]string {
 	return map[Field]string{
 		FieldID:        "t.id",
 		FieldName:      "t.name",
+		FieldEmail:     "t.email",
+		FieldPhone:     "t.phone",
 		FieldDomain:    "t.domain",
 		FieldUserCount: "COALESCE(u.user_count, 0)",
 		FieldCreatedAt: "t.created_at",
@@ -420,6 +432,8 @@ func (r *pgAnalyticsQueryRepository) GetTenantDetails(ctx context.Context, tenan
 	err = tx.QueryRow(ctx, getTenantDetailsSQL, tenantID).Scan(
 		&tenant.ID,
 		&tenant.Name,
+		&tenant.Email,
+		&tenant.Phone,
 		&tenant.Domain,
 		&tenant.UserCount,
 		&tenant.CreatedAt,
@@ -501,6 +515,8 @@ func (r *pgAnalyticsQueryRepository) scanTenants(rows pgx.Rows) ([]*entities.Ten
 		err := rows.Scan(
 			&tenant.ID,
 			&tenant.Name,
+			&tenant.Email,
+			&tenant.Phone,
 			&tenant.Domain,
 			&tenant.UserCount,
 			&tenant.CreatedAt,
