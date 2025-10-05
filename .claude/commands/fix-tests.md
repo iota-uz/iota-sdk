@@ -4,7 +4,7 @@ allowed-tools: |
   Bash(make lint:*), Bash(golangci-lint:*),
   Read, Edit, MultiEdit, Grep, Glob,
   Bash(go build:*), Bash(make check-tr:*),
-  Task(subagent_type:test-editor), Task(subagent_type:speed-editor)
+  Task(subagent_type:go-editor), Task(subagent_type:speed-editor)
 description: Systematically identify and fix broken tests and linting errors using iterative approach
 ---
 
@@ -62,7 +62,7 @@ For each failing test:
 - For implementation bugs: Fix the actual code
 - For outdated tests: Update test expectations incrementally
 - For setup issues: Fix test initialization step by step
-- **Use the test-editor agent** for complex test fixes or when adding new test cases
+- **Use the go-editor agent** for complex test fixes or when adding new test cases
 
 ### 5. Validation Phase
 - Run `go vet ./...` to catch static analysis issues
@@ -76,10 +76,10 @@ For each failing test:
 - **Start small**: Fix minimal compilation errors first, then expand
 - **Clean as you go**: Remove unused code to improve maintainability
 - **Use iterative approach**: Don't try to fix everything at once
-- **Leverage agents**: Use speed-editor for bulk cleanup, test-editor for complex tests
+- **Leverage agents**: Use speed-editor for bulk cleanup, go-editor for test fixes
 - **Leverage ITF**: Use framework features for database isolation and cleanup
 - **NEVER delete tests unless specifically asked** - Tests are valuable
 - **Fix root cause, not symptoms** - Don't just change assertions to pass
-- **Use test-editor agent** for complex fixes or when adding coverage
+- **Use go-editor agent** for complex fixes or when adding coverage
 - **Verify incrementally**: Run `go vet` and `make lint` after each change
-- **Test patterns**: Follow repository/service/controller patterns from test-editor agent
+- **Test patterns**: Follow repository/service/controller patterns from go-editor agent

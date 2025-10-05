@@ -114,7 +114,7 @@ func (s *Suite) DELETE(path string) *Request {
 	return s.newRequest(http.MethodDelete, path)
 }
 
-// Upload handles the common two-step file upload pattern used in SHY ELD tests:
+// Upload handles the common two-step file upload pattern used in IOTA SDK tests:
 // 1. Upload file to /uploads endpoint with multipart form data
 // 2. Extract FileID from the response HTML
 // 3. Submit FileID to the target path via POST with form data

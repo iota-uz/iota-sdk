@@ -20,8 +20,9 @@ type Type string
 type Option func(u *user)
 
 const (
-	TypeSystem Type = "system"
-	TypeUser   Type = "user"
+	TypeSystem     Type = "system"
+	TypeUser       Type = "user"
+	TypeSuperAdmin Type = "superadmin"
 )
 
 // --- Option setters ---

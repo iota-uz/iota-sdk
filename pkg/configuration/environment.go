@@ -250,6 +250,16 @@ func (c *Configuration) load(envFiles []string) error {
 	} else {
 		c.SocketAddress = fmt.Sprintf("localhost:%d", c.ServerPort)
 	}
+
+	// Update Domain and Origin dynamically if they weren't explicitly set via environment variables
+	// This ensures logs show the correct port when PORT is set via environment
+	if os.Getenv("DOMAIN") == "" {
+		c.Domain = fmt.Sprintf("localhost:%d", c.ServerPort)
+	}
+	if os.Getenv("ORIGIN") == "" {
+		c.Origin = fmt.Sprintf("%s://%s", c.Scheme(), c.Domain)
+	}
+
 	return nil
 }
 

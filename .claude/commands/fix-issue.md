@@ -27,7 +27,7 @@ I'll run `gh issue view $ARGUMENTS --comments` to see the issue details.
 
 ## Mark Issue as In Progress
 
-I'll move the issue to "In Progress" status in the SHY ELD GitHub Project:
+I'll move the issue to "In Progress" status in the GitHub Project:
 1. Find the issue in the project items: `gh project item-list 11 --owner iota-uz --format json`
 2. Extract the item ID for issue #$ARGUMENTS from the JSON output
 3. Update the issue status to "In Progress": `gh project item-edit --id <item-id> --field-id PVTSSF_lADOCGNubc4BAYI8zgzMyio --project-id PVT_kwDOCGNubc4BAYI8 --single-select-option-id 47fc9ee4`

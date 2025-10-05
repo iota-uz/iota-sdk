@@ -6,6 +6,7 @@ on:
 jobs:
   lint-and-format:
     runs-on: blacksmith-8vcpu-ubuntu-2204
+    timeout-minutes: 15
     name: Code Quality & Formatting
 
     steps:
@@ -17,24 +18,26 @@ jobs:
         with:
           go-version: "1.23.2"
 
-      - name: Install tools
+      - name: Install golangci-lint
         run: |
-          # Install golangci-lint
           curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.64.8
           golangci-lint version
 
-          # Install templ
+      - name: Install templ
+        run: |
           go install github.com/a-h/templ/cmd/templ@v0.3.857
           templ --help
 
-          # Install TailwindCSS
+      - name: Install TailwindCSS
+        run: |
           echo "Installing TailwindCSS for x64 architecture..."
           mkdir -p downloaded
           curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
           chmod +x downloaded/tailwindcss
           echo "$PWD/downloaded" >> $GITHUB_PATH
 
-          # Install pg_formatter for SQL formatting
+      - name: Install pg_formatter for SQL formatting
+        run: |
           sudo apt-get update
           sudo apt-get install -y pgformatter
 
@@ -50,16 +53,6 @@ jobs:
       - name: Check translation files
         run: make check tr
 
-      - name: Check Go files formatting
-        run: |
-          go fmt ./...
-          if [ -n "$(git diff --name-only)" ]; then
-            echo "Error: Some Go files are not properly formatted"
-            git diff
-            exit 1
-          fi
-          echo "All Go files are properly formatted"
-
       - name: Check templ files formatting
         run: |
           templ fmt .
@@ -69,6 +62,16 @@ jobs:
             exit 1
           fi
           echo "All templ files are properly formatted"
+
+      - name: Check Go files formatting
+        run: |
+          go fmt ./...
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "Error: Some Go files are not properly formatted"
+            git diff
+            exit 1
+          fi
+          echo "All Go files are properly formatted"
 
       - name: Check SQL files formatting
         run: |
@@ -83,10 +86,14 @@ jobs:
           done
           echo "All SQL files are properly formatted"
 
-      - name: Run lint and vet
-        run: |
-          go vet ./...
-          make check lint
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Generate CSS files
+        run: make css
+
+      - name: Run golangci-lint (unused variables/functions)
+        run: make check lint
 
   test-unit-integration:
     runs-on: blacksmith-8vcpu-ubuntu-2204
@@ -155,8 +162,12 @@ jobs:
       - name: Download Go dependencies
         run: go mod download
 
-      - name: Generate CSS files
-        run: make css
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          until pg_isready -h localhost -p 5432 -U postgres -d iota_erp; do
+            echo "Waiting for postgres..."
+            sleep 1
+          done
 
       - name: Test Makefile targets
         env:
@@ -183,24 +194,29 @@ jobs:
       - name: Generate coverage report
         env:
           COVERAGE_THRESHOLD: 10
+          COVERAGE_MAX_FILES_DISPLAY: 100
+          COVERAGE_IGNORE_PATTERNS: "cmd/,*_templ.go,viewmodels/"
         run: node ./.github/scripts/coverage-report.js --file coverage.out --output github
+
+      - name: Generate HTML coverage report
+        run: go tool cover -html=coverage.out -o coverage.html
 
       - name: Upload coverage to artifacts
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage
-          path: coverage.out
+          path: |
+            coverage.out
+            coverage.html
 
-      - name: Drop test databases
-        if: always()
-        run: |
-          # Connect to postgres and drop all test databases
-          PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres -c "
-            SELECT 'DROP DATABASE IF EXISTS \"' || datname || '\";'
-            FROM pg_database 
-            WHERE datname NOT IN ('postgres', 'template0', 'template1', 'iota_erp_e2e')
-            AND datname ~ '^test'
-          " -t | PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d postgres
+      - name: Test database migrate down
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: iota_erp
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+        run: make db migrate down
 
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2204
@@ -306,7 +322,3 @@ jobs:
           start: go run ../cmd/server/main.go
           wait-on: 'http://localhost:3201'
           browser: chrome
-
-      - name: Test database migrate down
-        run: make db migrate down
-

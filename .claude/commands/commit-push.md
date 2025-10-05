@@ -2,7 +2,7 @@
 allowed-tools: |
   Bash(git status:*), Bash(git diff:*), Bash(git log:*),
   Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*),
-  Bash(make fmt:*), Bash(templ generate:*), Bash(make check-tr:*)
+  Bash(make check fmt:*), Bash(templ generate:*), Bash(make check tr:*)
 description: "Commit changes and push to current branch - simplified workflow without PR creation"
 ---
 
@@ -19,9 +19,9 @@ description: "Commit changes and push to current branch - simplified workflow wi
 
 Based on the current git status:
 - Analyze changed files to understand the nature of changes
+- If `.templ` files were changed, regenerate them using `templ generate`
 - If `.go` files were changed, format them using `make check fmt`
-- If `.toml` files were changed, test them using `make check-tr`. If failed, ask the user how to proceed.
-- If `.templ` files were changed, regenerate them using `templ generate` (always run templ generate after make fmt)
+- If `.toml` files were changed, test them using `make check tr`. If failed, ask the user how to proceed.
 - Delete build artifacts or temporary files (ask user if unsure)
 - Group related changes into logical commits
 - Create multiple commits if changes span different features or fixes
@@ -49,7 +49,7 @@ Based on the current git status:
 
 Use conventional commit prefixes:
 - `fix:` - Bug fixes
-- `feat:` - New features  
+- `feat:` - New features
 - `docs:` - Documentation updates
 - `ci:` - CI/CD configuration changes
 - `wip:` - Work in progress
@@ -62,6 +62,6 @@ Use conventional commit prefixes:
 ### Error Handling
 
 - Git conflicts during pull → stop and ask the user to resolve
-- Push fails due to remote changes → suggest pulling first  
+- Push fails due to remote changes → suggest pulling first
 - Formatting/generation fails → report specific errors
 - Always validate commits succeeded before pushing
