@@ -118,7 +118,7 @@ Navigate with arrow keys, toggle services with Space/Enter, and quit with 'q'.
 
 ### E2E Testing
 
-The project includes Cypress end-to-end tests that run against a separate database to isolate test data from development data.
+The project includes Playwright end-to-end tests that run against a separate database to isolate test data from development data.
 
 #### Setup:
 1. **Create and prepare e2e database**:
@@ -142,7 +142,7 @@ The project includes Cypress end-to-end tests that run against a separate databa
 
    # Or directly with npm
    cd e2e/
-   pnpm cypress run --headed
+   pnpm run test:headed
    ```
 
 #### Available E2E Commands:
@@ -150,14 +150,14 @@ The project includes Cypress end-to-end tests that run against a separate databa
 - `make e2e reset` - Drop and recreate e2e database with fresh data
 - `make e2e server` - Start server on port 3201 (connected to e2e database)
 - `make e2e test` - Run all e2e tests
-- `make e2e run` - Open Cypress interactive mode
+- `make e2e run` - Open Playwright UI mode
 - `make e2e clean` - Drop e2e database
 
 #### Important Notes:
 - E2E tests use a separate database (`iota_erp_e2e`) from development (`iota_erp`)
 - E2E server runs on port 3201, development server runs on port 3200
 - Always run `make e2e server` before running tests to ensure server connects to correct database
-- Configuration files: `/e2e/.env.e2e`, `/e2e/cypress.config.js`
+- Configuration files: `/e2e/.env.e2e`, `/e2e/playwright.config.ts`
 
 ## 📚 Documentation
 

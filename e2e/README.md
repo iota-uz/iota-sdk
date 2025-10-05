@@ -635,14 +635,3 @@ For issues or questions:
 3. Use debug mode: `pnpm run test:debug`
 4. Check Playwright documentation
 5. Contact the development team
-
-## Migration Notes
-
-This E2E suite was migrated from Cypress to Playwright for:
-- Better TypeScript support
-- Faster execution
-- More reliable testing
-- Modern API and features
-- Better debugging tools
-
-All Cypress custom commands have been converted to TypeScript fixtures with improved type safety and error handling.
