@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/testkit/domain/schemas"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
@@ -500,8 +501,17 @@ func (s *PopulateService) ensureAdminRole(
 	// Admin role doesn't exist, create it
 	logger.Info("Creating default Admin role with all permissions")
 
-	// Get all available permissions
-	allPermissions, err := permissionRepo.GetAll(ctx)
+	// Ensure permissions are seeded first
+	allPermissions := defaults.AllPermissions()
+	for _, perm := range allPermissions {
+		if err := permissionRepo.Save(ctx, perm); err != nil {
+			// Ignore duplicate errors as permissions might already exist
+			logger.WithField("permission", perm.Name).Debug("Permission already exists or failed to save")
+		}
+	}
+
+	// Get all available permissions from database
+	allPermissions, err = permissionRepo.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all permissions: %w", err)
 	}

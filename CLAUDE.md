@@ -235,17 +235,17 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 
 ### Multi-Agent Workflow Matrix
 
-| Workflow Type           | Required Agents                                        | Optional Agents                                                                 | When to Use                                     |
-|-------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------|-------------------------------------------------|
-| **Feature Development** | `go-editor` + `ui-editor`                              | `database-expert` (data changes), `refactoring-expert` (always after go-editor) | New features, enhancements, major functionality |
-| **Bug Resolution**      | `debugger` → `go-editor` + `refactoring-expert`        | `ui-editor` (UI bugs)                                                           | Bug fixes, error resolution, system failures    |
-| **Performance Issues**  | `debugger` + `go-editor` + `refactoring-expert`        | `database-expert` (query optimization)                                          | Slow queries, high latency, resource usage      |
-| **UI/Template Changes** | `ui-editor`                                            | `go-editor` (controller changes and test coverage)                              | UI updates, forms, frontend functionality       |
-| **Database Changes**    | `database-expert` + `go-editor` + `refactoring-expert` | None (go-editor handles test coverage)                                          | Schema changes, migrations, query optimization  |
-| **Cross-Module Work**   | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`                                                  | Architecture changes, large refactoring         |
-| **Config Management**   | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs  |
-| **E2E Test Work**       | `e2e-tester`                                           | `debugger` (for debugging failing tests)                                        | Playwright tests, fixtures, page objects        |
-| **Research & Discovery** | `general-purpose`                                     | None (feeds findings to implementation agents)                                   | Codebase exploration, pattern analysis, architecture understanding, complex searches |
+| Workflow Type            | Required Agents                                        | Optional Agents                                                                 | When to Use                                                                          |
+|--------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| **Feature Development**  | `go-editor` + `ui-editor`                              | `database-expert` (data changes), `refactoring-expert` (always after go-editor) | New features, enhancements, major functionality                                      |
+| **Bug Resolution**       | `debugger` → `go-editor` + `refactoring-expert`        | `ui-editor` (UI bugs)                                                           | Bug fixes, error resolution, system failures                                         |
+| **Performance Issues**   | `debugger` + `go-editor` + `refactoring-expert`        | `database-expert` (query optimization)                                          | Slow queries, high latency, resource usage                                           |
+| **UI/Template Changes**  | `ui-editor`                                            | `go-editor` (controller changes and test coverage)                              | UI updates, forms, frontend functionality                                            |
+| **Database Changes**     | `database-expert` + `go-editor` + `refactoring-expert` | None (go-editor handles test coverage)                                          | Schema changes, migrations, query optimization                                       |
+| **Cross-Module Work**    | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`                                                  | Architecture changes, large refactoring                                              |
+| **Config Management**    | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs                                       |
+| **E2E Test Work**        | `e2e-tester`                                           | `debugger` (for debugging failing tests)                                        | Playwright tests, fixtures, page objects                                             |
+| **Research & Discovery** | `general-purpose`                                      | None (feeds findings to implementation agents)                                  | Codebase exploration, pattern analysis, architecture understanding, complex searches |
 
 **Agent Launch Rules:**
 - **Always parallel**: Launch required agents simultaneously in single message
@@ -340,16 +340,16 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 
 ### Agent Collaboration Matrix
 
-| Primary Agent          | Provides Input To                 | Receives Input From           | Parallel Partners                              |
-|------------------------|-----------------------------------|-------------------------------|------------------------------------------------|
-| **debugger**           | `go-editor`, `database-expert`    | Error logs, user reports      | None (investigation first)                     |
-| **go-editor**          | `refactoring-expert`              | `debugger`, `database-expert` | `ui-editor`, `database-expert`                 |
-| **database-expert**    | `go-editor`, `refactoring-expert` | Business requirements         | `go-editor`, `ui-editor`                       |
-| **ui-editor**          | `go-editor`                       | Controller changes            | `go-editor`                                     |
-| **config-manager**     | Agent coordination, documentation | Project requirements          | None (configuration coordination)              |
-| **refactoring-expert** | Final output                      | All other agents              | None (final review)                            |
-| **e2e-tester**         | None (test-only)                  | `debugger`, `ui-editor`       | None (independent testing)                     |
-| **general-purpose**    | All implementation agents         | Business requirements, initial questions | None (research first, then delegate)   |
+| Primary Agent          | Provides Input To                 | Receives Input From                      | Parallel Partners                    |
+|------------------------|-----------------------------------|------------------------------------------|--------------------------------------|
+| **debugger**           | `go-editor`, `database-expert`    | Error logs, user reports                 | None (investigation first)           |
+| **go-editor**          | `refactoring-expert`              | `debugger`, `database-expert`            | `ui-editor`, `database-expert`       |
+| **database-expert**    | `go-editor`, `refactoring-expert` | Business requirements                    | `go-editor`, `ui-editor`             |
+| **ui-editor**          | `go-editor`                       | Controller changes                       | `go-editor`                          |
+| **config-manager**     | Agent coordination, documentation | Project requirements                     | None (configuration coordination)    |
+| **refactoring-expert** | Final output                      | All other agents                         | None (final review)                  |
+| **e2e-tester**         | None (test-only)                  | `debugger`, `ui-editor`                  | None (independent testing)           |
+| **general-purpose**    | All implementation agents         | Business requirements, initial questions | None (research first, then delegate) |
 
 ### Single Agent Exceptions
 
@@ -382,23 +382,23 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 ### Business Context Translation
 **Business Request → Multi-Agent Orchestration**
 
-| Business Context                            | Standard Multi-Agent Launch                                                        |
-|---------------------------------------------|------------------------------------------------------------------------------------|
-| "Fix dashboard bug"                         | `debugger` && (`go-editor` & `ui-editor` & `refactoring-expert`)                   |
-| "Add new driver form"                       | (`go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`            |
-| "Optimize accounting performance"           | `debugger` && (`database-expert` & `go-editor`) && `refactoring-expert`            |
-| "Update finance module"                     | (Multiple `go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`   |
-| "Update CLAUDE.md with new agent"           | `config-manager`                                                                   |
-| "Fix environment configuration issues"      | `config-manager`                                                                   |
-| "Add new documentation section"             | `config-manager`                                                                   |
-| "Deploy to staging"                         | `railway-ops`                                                                      |
-| "Write E2E tests for user registration"     | `e2e-tester`                                                                       |
-| "Debug failing Playwright test"             | `debugger` && `e2e-tester`                                                         |
-| "Add page objects for vehicles module"      | `e2e-tester`                                                                       |
-| "How is authentication implemented?"        | `general-purpose` (research) → findings inform implementation agents               |
-| "Find all places where payment is processed" | `general-purpose` (multi-step search) → guide `go-editor` to relevant files      |
-| "Understand the multi-tenant architecture"  | `general-purpose` (architecture exploration) → inform feature design               |
-| "Where should I add new RBAC check?"        | `general-purpose` (pattern analysis) → guide `go-editor` to correct location      |
+| Business Context                              | Standard Multi-Agent Launch                                                      |
+|-----------------------------------------------|----------------------------------------------------------------------------------|
+| "Fix dashboard bug"                           | `debugger` && (`go-editor` & `ui-editor` & `refactoring-expert`)                 |
+| "Add new driver form"                         | (`go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`          |
+| "Optimize accounting performance"             | `debugger` && (`database-expert` & `go-editor`) && `refactoring-expert`          |
+| "Update finance module"                       | (Multiple `go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert` |
+| "Update CLAUDE.md with new agent"             | `config-manager`                                                                 |
+| "Fix environment configuration issues"        | `config-manager`                                                                 |
+| "Add new documentation section"               | `config-manager`                                                                 |
+| "Deploy to staging"                           | `railway-ops`                                                                    |
+| "Write E2E tests for user registration"       | `e2e-tester`                                                                     |
+| "Debug failing Playwright test"               | `debugger` && `e2e-tester`                                                       |
+| "Add page objects for vehicles module"        | `e2e-tester`                                                                     |
+| "How is authentication implemented?"          | `general-purpose` (research) → findings inform implementation agents             |
+| "Find all places where payment is processed"  | `general-purpose` (multi-step search) → guide `go-editor` to relevant files      |
+| "Understand the multi-tenant architecture"    | `general-purpose` (architecture exploration) → inform feature design             |
+| "Where should I add new RBAC check?"          | `general-purpose` (pattern analysis) → guide `go-editor` to correct location     |
 | "What's the standard error handling pattern?" | `general-purpose` (codebase patterns) → inform implementation approach           |
 
 **Agent Execution Syntax:**
