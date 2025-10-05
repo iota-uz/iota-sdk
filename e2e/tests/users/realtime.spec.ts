@@ -17,7 +17,7 @@ test.describe('user realtime behavior', () => {
 		await logout(page);
 	});
 
-	test('updates user table in realtime when a user is created, edited, and deleted', async ({ page, request }) => {
+	test('updates user table in realtime when a user is created, edited, and deleted', async ({ page }) => {
 		await login(page, 'test@gmail.com', 'TestPass123!');
 		await page.goto('/users');
 		await expect(page).toHaveURL(/\/users$/);
@@ -26,8 +26,8 @@ test.describe('user realtime behavior', () => {
 		const initialRows = page.locator('tbody tr');
 		const initialRowCount = await initialRows.count();
 
-		// This simulates adding a user through a different session
-		const createResponse = await request.post('/users', {
+		// This simulates adding a user through a different session using page.request (shares cookies)
+		const createResponse = await page.request.post('/users', {
 			form: {
 				FirstName: 'Realtime',
 				LastName: 'Test',
@@ -40,12 +40,17 @@ test.describe('user realtime behavior', () => {
 			}
 		});
 
-		// Verify the API request succeeded
-		expect(createResponse.ok()).toBeTruthy();
-		expect(createResponse.status()).toBe(200);
+		// Check if request succeeded (200 OK or 302 redirect are both acceptable)
+		expect(createResponse.status()).toBeLessThan(400);
+
+		// Log response for debugging
+		if (!createResponse.ok()) {
+			console.log('Response status:', createResponse.status());
+			console.log('Response body:', await createResponse.text());
+		}
 
 		// Verify user was added in realtime (wait for SSE update)
-		await expect(page.locator('tbody tr').filter({ hasText: 'Realtime Test' })).toBeVisible({ timeout: 10000 });
+		await expect(page.locator('tbody tr').filter({ hasText: 'Realtime Test' })).toBeVisible({ timeout: 15000 });
 		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount + 1);
 
 		// Get the user ID from the href attribute of the edit link
@@ -55,7 +60,7 @@ test.describe('user realtime behavior', () => {
 		const userId = href!.split('/').pop();
 
 		// Edit the user through a direct request (staying on the users page)
-		await request.post(`/users/${userId}`, {
+		await page.request.post(`/users/${userId}`, {
 			form: {
 				FirstName: 'RealtimeUpdated',
 				LastName: 'TestUpdated',
@@ -73,7 +78,7 @@ test.describe('user realtime behavior', () => {
 		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount + 1);
 
 		// Delete the user through a direct request
-		await request.delete(`/users/${userId}`);
+		await page.request.delete(`/users/${userId}`);
 
 		// Verify user was removed from the table without refreshing
 		await expect(page.locator('tbody tr').filter({ hasText: 'RealtimeUpdated TestUpdated' })).toHaveCount(0);

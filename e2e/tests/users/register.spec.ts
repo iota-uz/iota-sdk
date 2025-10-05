@@ -63,12 +63,13 @@ test.describe('user auth and registration flow', () => {
 	});
 
 	test('edits a user and displays changes in users table', async ({ page }) => {
-		await login(page, 'test1@gmail.com', 'TestPass123!');
+		// Login as admin user (not the newly created user from test 1)
+		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		await page.goto('/users');
 		await expect(page).toHaveURL(/\/users/);
 
-		// Find and click the edit link for "Test User" (use first() to avoid strict mode violation)
+		// Find and click the edit link for the user created in test 1 ("Test User" from test1@gmail.com)
 		const userRow = page.locator('tbody tr').filter({ hasText: 'Test User' }).first();
 		await userRow.locator('td a').click();
 
@@ -83,10 +84,12 @@ test.describe('user auth and registration flow', () => {
 		await page.locator('[name=Language]').selectOption({ index: 1 });
 		await page.locator('[id=save-btn]').click();
 
+		// Wait for redirect after save
+		await page.waitForURL(/\/users$/);
+
 		// Verify changes in the users list
-		await page.goto('/users');
 		await expect(page.locator('tbody tr')).toHaveCount(4); // including the spinner row
-		await expect(page.locator('tbody tr')).toContainText('TestNew UserNew');
+		await expect(page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' })).toBeVisible();
 
 		// Verify phone number persists by checking the edit page
 		const updatedUserRow = page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' });
@@ -110,7 +113,6 @@ test.describe('user auth and registration flow', () => {
 
 		// Check that the sidebar contains at least one tab/link
 		const sidebarItems = page.locator('#sidebar-navigation li');
-		await expect(sidebarItems).toHaveCount(expect.any(Number));
 		const count = await sidebarItems.count();
 		expect(count).toBeGreaterThanOrEqual(1);
 	});
