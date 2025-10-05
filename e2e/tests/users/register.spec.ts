@@ -3,6 +3,7 @@ import { login, logout } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 test.describe('user auth and registration flow', () => {
+	// Reset database once for entire suite - tests are dependent
 	test.beforeAll(async ({ request }) => {
 		// Reset database and seed with comprehensive data including users and roles
 		await resetTestDatabase(request, { reseedMinimal: false });
