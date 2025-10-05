@@ -582,7 +582,7 @@ DROP INDEX action_log_user_id_idx;
 DROP INDEX idx_customers_phone_number;
 
 -- Undo CREATE_INDEX: idx_messages_sender_client_id
-DROP INDEX idx_messages_sender_client_id;
+DROP INDEX IF EXISTS idx_messages_sender_client_id;
 
 -- Undo CREATE_INDEX: role_permissions_role_id_idx
 DROP INDEX role_permissions_role_id_idx;
