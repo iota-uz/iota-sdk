@@ -1,0 +1,220 @@
+package tenants
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/breadcrumb"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
+	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"net/http"
+	"time"
+)
+
+type TenantUser struct {
+	ID        uint
+	FirstName string
+	LastName  string
+	Email     string
+	Phone     string
+	RoleName  string
+	LastLogin time.Time
+	CreatedAt time.Time
+}
+
+type UsersPageProps struct {
+	Tenant *entities.TenantInfo
+	Users  []*TenantUser
+	Total  int
+}
+
+func buildUsersTableConfig(tenant *entities.TenantInfo, users []*TenantUser, total int, pageCtx *types.PageContext, r *http.Request) *table.TableConfig {
+	columns := []table.TableColumn{
+		table.Column("first_name", pageCtx.T("SuperAdmin.Tenants.Users.FirstName"), table.WithSortable()),
+		table.Column("last_name", pageCtx.T("SuperAdmin.Tenants.Users.LastName"), table.WithSortable()),
+		table.Column("email", pageCtx.T("SuperAdmin.Tenants.Users.Email")),
+		table.Column("phone", pageCtx.T("SuperAdmin.Tenants.Users.Phone")),
+		table.Column("role", pageCtx.T("SuperAdmin.Tenants.Users.Role")),
+		table.Column("created_at", pageCtx.T("SuperAdmin.Tenants.Users.CreatedAt"), table.WithSortable()),
+		table.Column("last_login", pageCtx.T("SuperAdmin.Tenants.Users.LastLogin"), table.WithSortable()),
+		table.Column("status", pageCtx.T("SuperAdmin.Tenants.Users.Status")),
+	}
+
+	rows := make([]table.TableRow, len(users))
+	for i, user := range users {
+		// Determine status based on last login (e.g., active if logged in within 30 days)
+		status := pageCtx.T("SuperAdmin.Tenants.Status.Inactive")
+		statusClass := "bg-red-100 text-red-800"
+		if !user.LastLogin.IsZero() && time.Since(user.LastLogin).Hours() < 30*24 {
+			status = pageCtx.T("SuperAdmin.Tenants.Status.Active")
+			statusClass = "bg-green-100 text-green-800"
+		}
+
+		phone := user.Phone
+		if phone == "" {
+			phone = "-"
+		}
+
+		// Handle empty last login
+		var lastLoginCell table.TableCell
+		if user.LastLogin.IsZero() {
+			lastLoginCell = table.Cell(SafeText("-"), "-")
+		} else {
+			lastLoginCell = table.Cell(table.DateTime(user.LastLogin), user.LastLogin)
+		}
+
+		rows[i] = table.Row(
+			table.Cell(SafeText(user.FirstName), user.FirstName),
+			table.Cell(SafeText(user.LastName), user.LastName),
+			table.Cell(SafeText(user.Email), user.Email),
+			table.Cell(SafeText(phone), phone),
+			table.Cell(SafeText(user.RoleName), user.RoleName),
+			table.Cell(table.DateTime(user.CreatedAt), user.CreatedAt),
+			lastLoginCell,
+			table.Cell(StatusBadge(status, statusClass), status),
+		)
+	}
+
+	config := &table.TableConfig{
+		Title:   fmt.Sprintf("%s - %s", tenant.Name, pageCtx.T("SuperAdmin.Tenants.Users.Title")),
+		DataURL: fmt.Sprintf("/superadmin/tenants/%s/users", tenant.ID.String()),
+		Columns: columns,
+		Rows:    rows,
+		Infinite: &table.InfiniteScrollConfig{
+			HasMore: false,
+			Page:    1,
+			PerPage: 20,
+		},
+	}
+
+	config.UpdateColumnsWithSorting(r)
+
+	return config
+}
+
+templ TenantInfoCard(tenant *entities.TenantInfo) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="mx-6 mb-6 p-5 bg-surface-500 rounded-xl shadow-sm">
+		<h2 class="text-lg font-semibold text-100 mb-4">{ pageCtx.T("SuperAdmin.Tenants.Users.TenantInfo") }</h2>
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+			<div>
+				<p class="text-xs text-300 mb-1">{ pageCtx.T("SuperAdmin.Tenants.Name") }</p>
+				<p class="text-sm font-medium text-100">{ tenant.Name }</p>
+			</div>
+			<div>
+				<p class="text-xs text-300 mb-1">{ pageCtx.T("SuperAdmin.Tenants.Domain") }</p>
+				<p class="text-sm font-medium text-100">{ tenant.Domain }</p>
+			</div>
+			<div>
+				<p class="text-xs text-300 mb-1">{ pageCtx.T("SuperAdmin.Tenants.UserCount") }</p>
+				<p class="text-sm font-medium text-100">{ fmt.Sprintf("%d", tenant.UserCount) }</p>
+			</div>
+		</div>
+	</div>
+}
+
+templ BreadcrumbLink(href string, label string) {
+	<a
+		class="text-300"
+		href={ templ.SafeURL(href) }
+	>
+		{ label }
+	</a>
+}
+
+templ Breadcrumbs(tenant *entities.TenantInfo) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="px-6 mb-6">
+		@breadcrumb.List() {
+			@breadcrumb.Item() {
+				@BreadcrumbLink("/superadmin", pageCtx.T("SuperAdmin.NavigationLinks.Dashboard"))
+			}
+			@breadcrumb.SlashSeparator()
+			@breadcrumb.Item() {
+				@BreadcrumbLink("/superadmin/tenants", pageCtx.T("SuperAdmin.NavigationLinks.Tenants"))
+			}
+			@breadcrumb.SlashSeparator()
+			@breadcrumb.Item() {
+				{ tenant.Name }
+			}
+		}
+	</div>
+}
+
+templ UsersTableRows(users []*TenantUser) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if len(users) == 0 {
+		<tr>
+			<td colspan="8" class="text-center py-12">
+				<p class="text-sm text-gray-800 font-medium">{ pageCtx.T("Scaffold.Table.NothingFound") }</p>
+				<p class="text-xs text-300 mt-2">No users found for this tenant</p>
+			</td>
+		</tr>
+	} else {
+		for _, user := range users {
+			{{
+				status := pageCtx.T("SuperAdmin.Tenants.Status.Inactive")
+				statusClass := "bg-red-100 text-red-800"
+			}}
+			if !user.LastLogin.IsZero() && time.Since(user.LastLogin).Hours() < 30*24 {
+				{{
+					status = pageCtx.T("SuperAdmin.Tenants.Status.Active")
+					statusClass = "bg-green-100 text-green-800"
+				}}
+			}
+			{{ phone := user.Phone }}
+			if phone == "" {
+				{{ phone = "-" }}
+			}
+			<tr class="border-b border-secondary hover:bg-surface-500 transition-all duration-200 ease-in-out">
+				<td class="px-4 py-4 font-medium text-gray-800">{ user.FirstName }</td>
+				<td class="px-4 py-4 font-medium text-gray-800">{ user.LastName }</td>
+				<td class="px-4 py-4 text-200">{ user.Email }</td>
+				<td class="px-4 py-4 text-200">{ phone }</td>
+				<td class="px-4 py-4 text-200">{ user.RoleName }</td>
+				<td class="px-4 py-4 text-200">
+					@table.DateTime(user.CreatedAt)
+				</td>
+				<td class="px-4 py-4 text-200">
+					if user.LastLogin.IsZero() {
+						-
+					} else {
+						@table.DateTime(user.LastLogin)
+					}
+				</td>
+				<td class="px-4 py-4">
+					<span class={ fmt.Sprintf("inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium %s", statusClass) }>
+						{ status }
+					</span>
+				</td>
+			</tr>
+		}
+	}
+}
+
+templ UsersList(props *UsersPageProps) {
+	@UsersTableRows(props.Users)
+}
+
+templ UsersTable(props *UsersPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ params, _ := composables.UseParams(ctx) }}
+	{{ config := buildUsersTableConfig(props.Tenant, props.Users, props.Total, pageCtx, params.Request) }}
+	@table.Table(config)
+}
+
+templ Users(props *UsersPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ params, _ := composables.UseParams(ctx) }}
+	{{ config := buildUsersTableConfig(props.Tenant, props.Users, props.Total, pageCtx, params.Request) }}
+	@layouts.SuperAdminAuthenticated(layouts.SuperAdminAuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("SuperAdmin.Tenants.Users.Meta.Title")},
+	}) {
+		<div class="pt-6">
+			@Breadcrumbs(props.Tenant)
+			@TenantInfoCard(props.Tenant)
+			@table.Content(config)
+		</div>
+	}
+}

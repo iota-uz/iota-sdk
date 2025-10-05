@@ -25,7 +25,7 @@ type SuperAdminAuthenticatedProps struct {
 func getSuperAdminSidebarItems(pageCtx *types.PageContext) []sidebar.Item {
 	return []sidebar.Item{
 		sidebar.NewLink(
-			"/superadmin/dashboard",
+			"/",
 			pageCtx.T("SuperAdmin.NavigationLinks.Dashboard"),
 			icons.ChartBar(icons.Props{Size: "20"}),
 		),
@@ -58,7 +58,7 @@ func SuperAdminSidebarHeader() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col items-center justify-center space-y-4\"><a href=\"/superadmin/dashboard\" class=\"flex items-center gap-2 transition-transform duration-200 hover:scale-105\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex flex-col items-center justify-center space-y-4\"><a href=\"/\" class=\"flex items-center gap-2 transition-transform duration-200 hover:scale-105\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -66,7 +66,7 @@ func SuperAdminSidebarHeader() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</a><!-- Collapsed view: badge only --><div x-show=\"isCollapsed\" class=\"bg-primary-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-xs font-semibold shadow-md\">SA</div><!-- Expanded view: full indicator --><div x-show=\"!isCollapsed\" class=\"bg-primary-500 text-white px-4 py-1.5 rounded-full text-xs font-semibold shadow-md hover:shadow-lg transition-shadow duration-200\">Super Admin</div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</a></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

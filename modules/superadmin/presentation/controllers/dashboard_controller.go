@@ -22,7 +22,7 @@ type DashboardController struct {
 func NewDashboardController(app application.Application) application.Controller {
 	return &DashboardController{
 		app:      app,
-		basePath: "/superadmin/dashboard",
+		basePath: "/",
 	}
 }
 
@@ -41,7 +41,7 @@ func (c *DashboardController) Register(r *mux.Router) {
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
-	router.HandleFunc("", c.Index).Methods(http.MethodGet)
+	router.HandleFunc("/", c.Index).Methods(http.MethodGet)
 	router.HandleFunc("/metrics", di.H(c.GetMetrics)).Methods(http.MethodGet)
 }
 

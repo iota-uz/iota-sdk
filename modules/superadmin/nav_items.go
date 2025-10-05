@@ -8,7 +8,7 @@ import (
 var DashboardLink = types.NavigationItem{
 	Name: "SuperAdmin.NavigationLinks.Dashboard",
 	Icon: icons.ChartLineUp(icons.Props{Size: "20"}),
-	Href: "/superadmin/dashboard",
+	Href: "/",
 }
 
 var TenantsLink = types.NavigationItem{

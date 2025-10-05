@@ -169,7 +169,7 @@ templ DashboardContent(props *IndexPageProps) {
 						"@change": `
 							const startDate = $el.querySelector('input[name="startDate"]').value;
 							const endDate = $el.querySelector('input[name="endDate"]').value;
-							htmx.ajax('GET', '/superadmin/dashboard/metrics?startDate=' + startDate + '&endDate=' + endDate, {
+							htmx.ajax('GET', '/metrics?startDate=' + startDate + '&endDate=' + endDate, {
 								target: '#metrics-container',
 								swap: 'innerHTML'
 							});
@@ -180,9 +180,10 @@ templ DashboardContent(props *IndexPageProps) {
 		</div>
 		<div
 			id="metrics-container"
-			hx-get="/superadmin/dashboard/metrics"
+			hx-get="/metrics"
 			hx-trigger="load"
 			hx-swap="innerHTML"
+			hx-on::after-swap="document.dispatchEvent(new Event('sdk:rerenderCharts'))"
 		>
 			if props.Metrics != nil {
 				@MetricsContent(props.Metrics)

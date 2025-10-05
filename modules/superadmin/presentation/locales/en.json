@@ -31,6 +31,8 @@
       "UserCount": "User Count",
       "StatusColumn": "Status",
       "CreatedAt": "Created Date",
+      "Actions": "Actions",
+      "ViewUsers": "View Users",
       "Export": "Export to Excel",
       "FilterByDate": "Filter by Date Range",
       "StartDate": "Start Date",
@@ -42,6 +44,23 @@
       "Status": {
         "Active": "Active",
         "Inactive": "Inactive"
+      },
+      "Users": {
+        "Title": "Tenant Users",
+        "ViewUsers": "View Users",
+        "BackToTenants": "Back to Tenants",
+        "TenantInfo": "Tenant Information",
+        "FirstName": "First Name",
+        "LastName": "Last Name",
+        "Email": "Email",
+        "Phone": "Phone",
+        "Role": "Role",
+        "CreatedAt": "Created Date",
+        "LastLogin": "Last Login",
+        "Status": "Status",
+        "Meta": {
+          "Title": "Tenant Users - Super Admin"
+        }
       }
     }
   }

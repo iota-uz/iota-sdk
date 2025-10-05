@@ -23,11 +23,11 @@ func TestDashboardController_Index(t *testing.T) {
 	controller := controllers.NewDashboardController(suite.Env().App)
 	suite.Register(controller)
 
-	// Test GET /superadmin/dashboard
-	suite.GET("/superadmin/dashboard").
+	// Test GET /
+	suite.GET("/").
 		Assert(t).
 		ExpectOK().
-		ExpectBodyContains("SuperAdmin Dashboard")
+		ExpectBodyContains("Super Admin Dashboard")
 }
 
 func TestDashboardController_GetMetrics(t *testing.T) {
@@ -41,8 +41,8 @@ func TestDashboardController_GetMetrics(t *testing.T) {
 	controller := controllers.NewDashboardController(suite.Env().App)
 	suite.Register(controller)
 
-	// Test GET /superadmin/dashboard/metrics without date filters
-	suite.GET("/superadmin/dashboard/metrics").
+	// Test GET /metrics without date filters
+	suite.GET("/metrics").
 		Assert(t).
 		ExpectOK()
 }
@@ -59,10 +59,10 @@ func TestDashboardController_GetMetrics_WithDateFilter(t *testing.T) {
 	suite.Register(controller)
 
 	// Test with valid date range
-	startDate := time.Now().AddDate(0, 0, -30).Format(time.RFC3339)
-	endDate := time.Now().Format(time.RFC3339)
+	startDate := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
+	endDate := time.Now().Format("2006-01-02")
 
-	suite.GET("/superadmin/dashboard/metrics").
+	suite.GET("/metrics").
 		WithQuery(map[string]string{
 			"startDate": startDate,
 			"endDate":   endDate,
@@ -83,7 +83,7 @@ func TestDashboardController_GetMetrics_InvalidDateFormat(t *testing.T) {
 	suite.Register(controller)
 
 	// Test invalid startDate format
-	suite.GET("/superadmin/dashboard/metrics").
+	suite.GET("/metrics").
 		WithQuery(map[string]string{
 			"startDate": "invalid-date",
 		}).
@@ -92,7 +92,7 @@ func TestDashboardController_GetMetrics_InvalidDateFormat(t *testing.T) {
 		ExpectBodyContains("Invalid startDate format")
 
 	// Test invalid endDate format
-	suite.GET("/superadmin/dashboard/metrics").
+	suite.GET("/metrics").
 		WithQuery(map[string]string{
 			"endDate": "not-a-date",
 		}).
@@ -113,25 +113,25 @@ func TestDashboardController_GetMetrics_EdgeCases(t *testing.T) {
 	suite.Register(controller)
 
 	cases := itf.Cases(
-		itf.GET("/superadmin/dashboard/metrics").
+		itf.GET("/metrics").
 			Named("Only_StartDate").
 			WithQuery(map[string]string{
-				"startDate": time.Now().AddDate(0, 0, -7).Format(time.RFC3339),
+				"startDate": time.Now().AddDate(0, 0, -7).Format("2006-01-02"),
 			}).
 			ExpectOK(),
 
-		itf.GET("/superadmin/dashboard/metrics").
+		itf.GET("/metrics").
 			Named("Only_EndDate").
 			WithQuery(map[string]string{
-				"endDate": time.Now().Format(time.RFC3339),
+				"endDate": time.Now().Format("2006-01-02"),
 			}).
 			ExpectOK(),
 
-		itf.GET("/superadmin/dashboard/metrics").
+		itf.GET("/metrics").
 			Named("Future_Date").
 			WithQuery(map[string]string{
-				"startDate": time.Now().AddDate(0, 0, 1).Format(time.RFC3339),
-				"endDate":   time.Now().AddDate(0, 0, 7).Format(time.RFC3339),
+				"startDate": time.Now().AddDate(0, 0, 1).Format("2006-01-02"),
+				"endDate":   time.Now().AddDate(0, 0, 7).Format("2006-01-02"),
 			}).
 			ExpectOK(),
 	)
@@ -181,7 +181,7 @@ func TestDashboardController_Permissions(t *testing.T) {
 			controller := controllers.NewDashboardController(suite.Env().App)
 			suite.Register(controller)
 
-			tc.expectation(suite.GET("/superadmin/dashboard"))
+			tc.expectation(suite.GET("/"))
 		})
 	}
 }
@@ -198,19 +198,19 @@ func TestDashboardController_Routes(t *testing.T) {
 	suite.Register(controller)
 
 	cases := itf.Cases(
-		itf.GET("/superadmin/dashboard").
+		itf.GET("/").
 			Named("Dashboard_Index").
 			ExpectOK(),
 
-		itf.GET("/superadmin/dashboard/metrics").
+		itf.GET("/metrics").
 			Named("Dashboard_Metrics").
 			ExpectOK(),
 
-		itf.POST("/superadmin/dashboard").
+		itf.POST("/").
 			Named("POST_Not_Allowed").
 			ExpectStatus(404), // Router returns 404 for unsupported methods
 
-		itf.DELETE("/superadmin/dashboard").
+		itf.DELETE("/").
 			Named("DELETE_Not_Allowed").
 			ExpectStatus(404), // Router returns 404 for unsupported methods
 	)

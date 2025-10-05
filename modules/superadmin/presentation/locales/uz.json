@@ -18,6 +18,10 @@
         "WAU": "Haftalik faol foydalanuvchilar",
         "MAU": "Oylik faol foydalanuvchilar",
         "TotalSessions": "Jami seanslar"
+      },
+      "Charts": {
+        "UserSignups": "Foydalanuvchi ro'yxatdan o'tishi",
+        "TenantSignups": "Ijarachi ro'yxatdan o'tishi"
       }
     },
     "Tenants": {
@@ -27,6 +31,8 @@
       "UserCount": "Foydalanuvchilar soni",
       "StatusColumn": "Holat",
       "CreatedAt": "Yaratilgan sana",
+      "Actions": "Harakatlar",
+      "ViewUsers": "Foydalanuvchilarni ko'rish",
       "Export": "Excel ga eksport",
       "FilterByDate": "Sana oralig'i bo'yicha filter",
       "StartDate": "Boshlanish sanasi",
@@ -38,6 +44,23 @@
       "Status": {
         "Active": "Faol",
         "Inactive": "Nofaol"
+      },
+      "Users": {
+        "Title": "Ijarachi foydalanuvchilari",
+        "ViewUsers": "Foydalanuvchilarni ko'rish",
+        "BackToTenants": "Ijarachilarga qaytish",
+        "TenantInfo": "Ijarachi haqida ma'lumot",
+        "FirstName": "Ism",
+        "LastName": "Familiya",
+        "Email": "Email",
+        "Phone": "Telefon",
+        "Role": "Rol",
+        "CreatedAt": "Yaratilgan sana",
+        "LastLogin": "Oxirgi kirish",
+        "Status": "Holat",
+        "Meta": {
+          "Title": "Ijarachi foydalanuvchilari - Super Admin"
+        }
       }
     }
   }

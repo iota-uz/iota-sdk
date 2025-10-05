@@ -1,0 +1,13 @@
+package tenants
+
+// SafeText renders text safely with automatic XSS escaping
+templ SafeText(text string) {
+	{ text }
+}
+
+// StatusBadge renders a status badge with proper styling
+templ StatusBadge(status, statusClass string) {
+	<span class={ "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium " + statusClass }>
+		{ status }
+	</span>
+}
