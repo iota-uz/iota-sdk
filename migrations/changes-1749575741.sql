@@ -317,9 +317,16 @@ ALTER TABLE payments
 ALTER SEQUENCE payments_id_seq OWNED BY payments.id;
 
 -- Convert foreign key columns (these will break referential integrity - data loss expected)
+-- Drop DEFAULT before type conversion to avoid uuid->int cast errors
+ALTER TABLE payments
+    ALTER COLUMN transaction_id DROP DEFAULT;
+
 ALTER TABLE payments
     ALTER COLUMN transaction_id TYPE int
     USING 0;
+
+ALTER TABLE payments
+    ALTER COLUMN counterparty_id DROP DEFAULT;
 
 ALTER TABLE payments
     ALTER COLUMN counterparty_id TYPE int
@@ -388,9 +395,16 @@ ALTER TABLE expenses
 ALTER SEQUENCE expenses_id_seq OWNED BY expenses.id;
 
 -- Convert foreign key columns (these will break referential integrity - data loss expected)
+-- Drop DEFAULT before type conversion to avoid uuid->int cast errors
+ALTER TABLE expenses
+    ALTER COLUMN transaction_id DROP DEFAULT;
+
 ALTER TABLE expenses
     ALTER COLUMN transaction_id TYPE int
     USING 0;
+
+ALTER TABLE expenses
+    ALTER COLUMN category_id DROP DEFAULT;
 
 ALTER TABLE expenses
     ALTER COLUMN category_id TYPE int
@@ -466,9 +480,16 @@ ALTER TABLE transactions
 ALTER SEQUENCE transactions_id_seq OWNED BY transactions.id;
 
 -- Convert foreign key columns (these will break referential integrity - data loss expected)
+-- Drop DEFAULT before type conversion to avoid uuid->int cast errors
+ALTER TABLE transactions
+    ALTER COLUMN origin_account_id DROP DEFAULT;
+
 ALTER TABLE transactions
     ALTER COLUMN origin_account_id TYPE int
     USING 0;
+
+ALTER TABLE transactions
+    ALTER COLUMN destination_account_id DROP DEFAULT;
 
 ALTER TABLE transactions
     ALTER COLUMN destination_account_id TYPE int
@@ -646,6 +667,10 @@ ALTER TABLE counterparty_contacts
 ALTER SEQUENCE counterparty_contacts_id_seq OWNED BY counterparty_contacts.id;
 
 -- Convert foreign key column (this will break referential integrity - data loss expected)
+-- Drop DEFAULT before type conversion to avoid uuid->int cast errors
+ALTER TABLE counterparty_contacts
+    ALTER COLUMN counterparty_id DROP DEFAULT;
+
 ALTER TABLE counterparty_contacts
     ALTER COLUMN counterparty_id TYPE int
     USING 0;
