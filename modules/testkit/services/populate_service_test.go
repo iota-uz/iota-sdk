@@ -211,7 +211,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		allPermsAfter, err := permissionRepo.GetAll(f.Ctx)
 		require.NoError(t, err)
 		assert.Greater(t, len(allPermsAfter), initialPermCount, "Permissions should be seeded")
-		assert.Greater(t, len(allPermsAfter), 0, "Should have permissions after seeding")
+		assert.NotEmpty(t, allPermsAfter, "Should have permissions after seeding")
 
 		// Verify Admin role was created with permissions
 		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
@@ -273,7 +273,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		permsAfterFirst, err := permissionRepo.GetAll(f.Ctx)
 		require.NoError(t, err)
 		firstRunPermCount := len(permsAfterFirst)
-		assert.Greater(t, firstRunPermCount, 0, "Should have permissions after first run")
+		assert.Positive(t, firstRunPermCount, "Should have permissions after first run")
 
 		// Second run - permissions already exist (different tenant, same database)
 		tx2, err := f.Pool.Begin(f.Ctx)
@@ -308,7 +308,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// Verify permissions count stays same (idempotent - no duplicates)
 		permsAfterSecond, err := permissionRepo.GetAll(f.Ctx)
 		require.NoError(t, err)
-		assert.Equal(t, firstRunPermCount, len(permsAfterSecond), "Permission count should remain same (idempotent)")
+		assert.Len(t, permsAfterSecond, firstRunPermCount, "Permission count should remain same (idempotent)")
 
 		// Verify second tenant's Admin role was created (or reused existing one)
 		// Note: Each tenant should have their own Admin role
@@ -369,7 +369,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		allPerms, err := permissionRepo.GetAll(f.Ctx)
 		require.NoError(t, err)
 		totalPermCount := len(allPerms)
-		assert.Greater(t, totalPermCount, 0, "Should have permissions")
+		assert.Positive(t, totalPermCount, "Should have permissions")
 
 		// Get Admin role and verify it has all permissions
 		roles, err := roleRepo.GetPaginated(f.Ctx, &role.FindParams{})
