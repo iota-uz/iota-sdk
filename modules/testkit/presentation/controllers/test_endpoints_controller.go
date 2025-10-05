@@ -102,7 +102,9 @@ func (c *TestEndpointsController) handleReset(w http.ResponseWriter, r *http.Req
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.WithError(err).Error("Failed to encode response")
+	}
 }
 
 func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +135,9 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(response)
+		if encodeErr := json.NewEncoder(w).Encode(response); encodeErr != nil {
+			logger.WithError(encodeErr).Error("Failed to encode error response")
+		}
 		return
 	}
 
@@ -144,7 +148,9 @@ func (c *TestEndpointsController) handlePopulate(w http.ResponseWriter, r *http.
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.WithError(err).Error("Failed to encode response")
+	}
 }
 
 func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Request) {
@@ -186,10 +192,14 @@ func (c *TestEndpointsController) handleSeed(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.WithError(err).Error("Failed to encode response")
+	}
 }
 
 func (c *TestEndpointsController) handleListSeedScenarios(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := composables.UseLogger(ctx)
 	scenarios := c.testService.GetAvailableScenarios()
 
 	response := map[string]interface{}{
@@ -198,10 +208,14 @@ func (c *TestEndpointsController) handleListSeedScenarios(w http.ResponseWriter,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.WithError(err).Error("Failed to encode response")
+	}
 }
 
 func (c *TestEndpointsController) handleHealth(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	logger := composables.UseLogger(ctx)
 	conf := configuration.Use()
 
 	response := map[string]interface{}{
@@ -214,5 +228,7 @@ func (c *TestEndpointsController) handleHealth(w http.ResponseWriter, r *http.Re
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		logger.WithError(err).Error("Failed to encode response")
+	}
 }

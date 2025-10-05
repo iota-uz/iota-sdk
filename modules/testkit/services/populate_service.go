@@ -44,7 +44,7 @@ func (s *PopulateService) Execute(ctx context.Context, req *schemas.PopulateRequ
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Add transaction to context
 	ctxWithTx := composables.WithTx(ctx, tx)
@@ -450,34 +450,15 @@ func (s *PopulateService) createDebts(ctx context.Context, debts []schemas.DebtS
 }
 
 func (s *PopulateService) createCRMData(ctx context.Context, crm *schemas.CRMSpec) error {
-	if len(crm.Clients) > 0 {
-		// TODO: Implement client creation
-	}
+	// TODO: Implement client creation when CRM module is integrated
+	_ = crm
 	return nil
 }
 
 func (s *PopulateService) createWarehouseData(ctx context.Context, warehouse *schemas.WarehouseSpec) error {
-	if len(warehouse.Units) > 0 {
-		// TODO: Implement unit creation
-	}
-	if len(warehouse.Products) > 0 {
-		// TODO: Implement product creation
-	}
+	// TODO: Implement warehouse data creation (units, products) when warehouse module is integrated
+	_ = warehouse
 	return nil
-}
-
-func (s *PopulateService) resolveReference(ref string) (interface{}, error) {
-	// Handle @category.name syntax
-	if len(ref) > 0 && ref[0] == '@' {
-		ref = ref[1:]
-	}
-
-	entity, exists := s.referenceMap[ref]
-	if !exists {
-		return nil, fmt.Errorf("reference '%s' not found", ref)
-	}
-
-	return entity, nil
 }
 
 func (s *PopulateService) getSliceFromMap(key string) []interface{} {
