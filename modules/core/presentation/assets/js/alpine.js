@@ -1,6 +1,7 @@
 import "./lib/alpine.lib.min.js";
 import "./lib/alpine-focus.min.js";
 import "./lib/alpine-anchor.min.js";
+import "./lib/alpine-mask.min.js";
 import Sortable from "./lib/alpine-sort.js";
 
 let relativeFormat = () => ({
