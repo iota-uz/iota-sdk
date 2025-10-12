@@ -44,9 +44,18 @@ templ (p *Props) render() {
 		if len(p.Label) > 0 {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
-		<div class="flex items-center w-full relative form-control" { p.WrapperProps... }>
+		{{
+			wrapperPropsClass := ""
+			if p.WrapperProps != nil {
+				switch v := p.WrapperProps["class"].(type) {
+				case string:
+					wrapperPropsClass = v
+				}
+			}
+		}}
+		<div class={ twmerge.Merge("flex items-center w-full relative form-control", wrapperPropsClass) } { p.WrapperProps... }>
 			if p.AddonLeft != nil {
-				<div class={ "flex pl-2.5", p.AddonLeft.Class } { p.AddonLeft.Attrs... }>
+				<div class={ twmerge.Merge("flex pl-2.5", p.AddonLeft.Class) } { p.AddonLeft.Attrs... }>
 					if p.AddonLeft.Render != nil {
 						@p.AddonLeft.Render(p)
 					} else if p.AddonLeft.Component != nil {
@@ -56,13 +65,13 @@ templ (p *Props) render() {
 			}
 			<input
 				id={ p.id }
-				class={ "form-control-input outline-none w-full", p.Class }
+				class={ twmerge.Merge("form-control-input outline-none w-full", p.Class) }
 				type={ p.typ }
 				placeholder={ p.Placeholder }
 				{ p.Attrs... }
 			/>
 			if p.AddonRight != nil {
-				<div class={ "flex pr-2.5", p.AddonRight.Class } { p.AddonRight.Attrs... }>
+				<div class={ twmerge.Merge("flex pr-2.5", p.AddonRight.Class) } { p.AddonRight.Attrs... }>
 					if p.AddonRight.Render != nil {
 						@p.AddonRight.Render(p)
 					} else if p.AddonRight.Component != nil {
