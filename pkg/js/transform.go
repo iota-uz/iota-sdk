@@ -65,7 +65,11 @@ func toJSInternal(v reflect.Value, indent int) (string, error) {
 		// with a real function reference later
 		return fmt.Sprintf("/* function reference: %s */", v.Type()), nil
 
-	case reflect.Chan, reflect.Interface, reflect.Ptr, reflect.UnsafePointer, reflect.Uintptr:
+	case reflect.Interface:
+		// Unwrap interface and recursively process the contained value
+		return toJSInternal(v.Elem(), indent)
+
+	case reflect.Chan, reflect.Ptr, reflect.UnsafePointer, reflect.Uintptr:
 		// For these types, try to marshal to JSON if possible
 		js, err := json.Marshal(v.Interface())
 		if err != nil {
