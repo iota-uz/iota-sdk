@@ -57,10 +57,10 @@ templ DropdownIndicator() {
 }
 
 templ SelectedValues() {
-	<ul class="flex items-center gap-2">
+	<ul class="flex items-center gap-2 flex-wrap">
 		<template x-for="item in Array.from(selectedValues.values())">
 			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100">
-				<span x-text="item.label"></span>
+				<span class="whitespace-nowrap" x-text="item.label"></span>
 				<button
 					class="text-brand-500 cursor-pointer"
 					type="button"
@@ -86,9 +86,6 @@ templ Combobox(props ComboboxProps) {
 		class={ "w-full flex flex-col", props.Class }
 		x-on:keydown.esc.window="open = false, openedWithKeyboard = false"
 		x-id="['combobox']"
-		if !props.Searchable {
-			x-on:keydown="highlightMatchingOption($event.key)"
-		}
 	>
 		if len(props.Label) > 0 {
 			<label class="form-control-label mb-2">{ props.Label }</label>
@@ -104,6 +101,7 @@ templ Combobox(props ComboboxProps) {
 			if props.Form != "" {
 				form={ props.Form }
 			}
+			{ props.Attrs... }
 		>
 			{ children... }
 		</select>
@@ -168,42 +166,39 @@ templ Combobox(props ComboboxProps) {
 					},
 				})
 			} else {
-				<button
-					class="form-control flex items-center justify-between gap-6 w-full h-full px-2.5"
-					x-on:click="open = !open"
-					x-on:keydown.down.prevent="openedWithKeyboard = true"
-					x-on:keydown.enter.prevent="openedWithKeyboard = true"
-					x-on:keydown.space.prevent="openedWithKeyboard = true"
-					x-ref="trigger"
-					type="button"
-					disabled?={ isDisabled(props) }
-				>
-					if props.Multiple {
-						<div x-show="selectedValues.size">
-							@SelectedValues()
-						</div>
-						<span
-							class="font-normal"
-							x-show="!selectedValues.size"
-						>
-							{ props.Placeholder }
-						</span>
-					} else {
-						<span
-							class="font-normal"
-							x-show="!selectedValues.size"
-						>
-							{ props.Placeholder }
-						</span>
-					}
-					@icons.CaretDown(icons.Props{
-						Size:  "16",
-						Class: "text-200 duration-300",
-						Attributes: templ.Attributes{
-							":class": "{'rotate-180': open || openedWithKeyboard}",
+				@input.Text(&input.Props{
+					WrapperProps: templ.Attributes{
+						"x-ref":    "trigger",
+						"class":    "flex-wrap",
+						"tabindex": "0",
+						"@focus":   "$refs.input.focus()",
+					},
+					AddonLeft: &input.Addon{
+						Component: SelectedValues(),
+						Attrs: templ.Attributes{
+							"x-show": "selectedValues.size > 0",
 						},
-					})
-				</button>
+					},
+					Attrs: templ.Attributes{
+						"x-ref":                      "input",
+						"autocomplete":               "off",
+						"x-on:keydown.enter.prevent": "setValue(activeValue)",
+						"@input.debounce":            "onSearch",
+						"size":                       "this.searchQuery.length",
+					},
+					Class: "w-auto min-w-0",
+					AddonRight: &input.Addon{
+						Class: "ml-auto",
+						Component: icons.CaretDown(icons.Props{
+							Size:  "16",
+							Class: "text-200 duration-300 cursor-pointer",
+							Attributes: templ.Attributes{
+								":class": "{'rotate-180': open || openedWithKeyboard}",
+								"@click": "open = !open",
+							},
+						}),
+					},
+				})
 			}
 			<ul
 				x-ref="list"
