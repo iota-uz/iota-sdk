@@ -1,0 +1,51 @@
+package components
+
+templ Toast() {
+	<div class="flex flex-col gap-4 p-6 bg-white dark:bg-neutral-900 rounded-lg">
+		<div class="space-y-2">
+			<h3 class="text-lg font-semibold text-neutral-900 dark:text-white">Toast Notifications</h3>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400">
+				Click the buttons below to trigger different types of toast notifications.
+			</p>
+		</div>
+		<div class="flex flex-wrap gap-3">
+			<button
+				@click="$dispatch('notify', {variant: 'success', title: 'Success!', message: 'Your changes have been saved successfully.'})"
+				class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+			>
+				Show Success
+			</button>
+			<button
+				@click="$dispatch('notify', {variant: 'error', title: 'Error!', message: 'Something went wrong. Please try again.'})"
+				class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white !bg-red-600 rounded-lg hover:!bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+			>
+				Show Error
+			</button>
+			<button
+				@click="$dispatch('notify', {variant: 'warning', title: 'Warning!', message: 'This action cannot be undone.'})"
+				class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-lg hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors"
+			>
+				Show Warning
+			</button>
+			<button
+				@click="$dispatch('notify', {variant: 'info', title: 'Information', message: 'Here is some useful information for you.'})"
+				class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+			>
+				Show Info
+			</button>
+		</div>
+		<div class="mt-4 space-y-2">
+			<h4 class="text-sm font-semibold text-neutral-900 dark:text-white">HTMX Usage Example</h4>
+			<p class="text-sm text-neutral-600 dark:text-neutral-400">
+				Use the following button to trigger a toast from an HTMX request:
+			</p>
+			<button
+				hx-post="/_dev/api/showcase/toast-example"
+				hx-swap="none"
+				class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-neutral-900 dark:text-white bg-neutral-200 dark:bg-neutral-800 rounded-lg hover:bg-neutral-300 dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500 transition-colors"
+			>
+				Trigger from Server
+			</button>
+		</div>
+	</div>
+}

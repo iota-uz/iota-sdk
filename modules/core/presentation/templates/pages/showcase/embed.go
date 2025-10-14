@@ -123,3 +123,6 @@ var Error403ComponentSource string
 
 //go:embed components/error_404.templ
 var Error404ComponentSource string
+
+//go:embed components/toast.templ
+var ToastComponentSource string

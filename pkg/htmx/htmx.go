@@ -133,3 +133,57 @@ func SSEEvent(html string, event ...string) string {
 	res += fmt.Sprintf("data: %s\n", html)
 	return res
 }
+
+// ================= Toast Notifications =================
+
+// ToastVariant represents the type of toast notification
+type ToastVariant string
+
+const (
+	ToastVariantSuccess ToastVariant = "success"
+	ToastVariantError   ToastVariant = "error"
+	ToastVariantDanger  ToastVariant = "danger"
+	ToastVariantWarning ToastVariant = "warning"
+	ToastVariantInfo    ToastVariant = "info"
+)
+
+// TriggerToast triggers a toast notification with the specified variant, title, and message.
+// This uses the HX-Trigger header to dispatch a 'notify' event that the toast container listens for.
+func TriggerToast(w http.ResponseWriter, variant ToastVariant, title, message string) {
+	detail := fmt.Sprintf(`{"variant": "%s", "title": "%s", "message": "%s"}`, variant, title, message)
+	SetTrigger(w, "notify", detail)
+}
+
+// TriggerToastAfterSwap triggers a toast notification after the swap step.
+func TriggerToastAfterSwap(w http.ResponseWriter, variant ToastVariant, title, message string) {
+	detail := fmt.Sprintf(`{"variant": "%s", "title": "%s", "message": "%s"}`, variant, title, message)
+	TriggerAfterSwap(w, "notify", detail)
+}
+
+// TriggerToastAfterSettle triggers a toast notification after the settle step.
+func TriggerToastAfterSettle(w http.ResponseWriter, variant ToastVariant, title, message string) {
+	detail := fmt.Sprintf(`{"variant": "%s", "title": "%s", "message": "%s"}`, variant, title, message)
+	TriggerAfterSettle(w, "notify", detail)
+}
+
+// Convenience functions for common toast types
+
+// ToastSuccess triggers a success toast notification.
+func ToastSuccess(w http.ResponseWriter, title, message string) {
+	TriggerToast(w, ToastVariantSuccess, title, message)
+}
+
+// ToastError triggers an error toast notification.
+func ToastError(w http.ResponseWriter, title, message string) {
+	TriggerToast(w, ToastVariantError, title, message)
+}
+
+// ToastWarning triggers a warning toast notification.
+func ToastWarning(w http.ResponseWriter, title, message string) {
+	TriggerToast(w, ToastVariantWarning, title, message)
+}
+
+// ToastInfo triggers an info toast notification.
+func ToastInfo(w http.ResponseWriter, title, message string) {
+	TriggerToast(w, ToastVariantInfo, title, message)
+}
