@@ -48,13 +48,13 @@ VERIFY: [Test command]
 
 ## Commands
 ```bash
-# Test: 
+# Test:
 go test -v ./path -run TestName [-race]
-# Build: 
+# Build:
 go vet ./... (prefer over go build)
-# DB: 
-make migrate up
-# Git: 
+# DB:
+make db migrate up
+# Git:
 git diff HEAD~1 | git log -p -- [file] | git blame -L
 ```
 </knowledge>
