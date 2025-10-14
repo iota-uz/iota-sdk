@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/toast"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -223,9 +224,10 @@ templ Authenticated(props AuthenticatedProps) {
 		{{ props.WebsocketURL = "/ws" }}
 	}
 	@Base(&props.BaseProps) {
+		@toast.Container()
 		@MobileSidebar(sidebarProps)
 		<div
-			x-data="{ 
+			x-data="{
 				sidebarCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
 				init() {
 					this.$nextTick(() => {
