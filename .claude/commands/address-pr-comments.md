@@ -51,7 +51,7 @@ For each unresolved comment:
 ## 5. Fix CI Failures
 If CI checks were failing:
 - **Test failures**: Fix the failing tests or update test expectations
-- **Linting errors**: Run `make fmt` or appropriate formatters
+- **Linting errors**: Run `make check lint` for linting or `make check fmt` for formatting
 - **Build errors**: Fix compilation issues
 - **Type errors**: Resolve any type checking issues
 - Re-run local checks to ensure fixes work

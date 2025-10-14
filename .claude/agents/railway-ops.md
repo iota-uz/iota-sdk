@@ -125,7 +125,7 @@ PGPASSWORD=A6E4g1d2ae43Bebg2F65CEc3e56aa25g \
   psql -h shuttle.proxy.rlwy.net -U postgres -p 31150 -d railway
 
 # Run migrations via Railway
-railway run -s api -e staging make migrate up
+railway run -s api -e staging make db migrate up
 
 # Database backup
 railway run -s database -e staging \
@@ -328,8 +328,8 @@ railway variables -s api -e production --set-file staging.env
 ### Database Migration Flow
 ```bash
 # Safe migration deployment
-railway run -s api -e staging make migrate status
-railway run -s api -e staging make migrate up
+railway run -s api -e staging make db migrate status
+railway run -s api -e staging make db migrate up
 railway up -s api -e staging --detach
 ```
 
@@ -356,7 +356,7 @@ railway redeploy -s api -y
 - **Main Server**: Port 3200 for API service
 - **Database**: PostgreSQL on Railway (shuttle.proxy.rlwy.net)
 - **Redis**: Caching service
-- **Migrations**: Via `make migrate` commands
+- **Migrations**: Via `make db migrate` commands
 - **Health Check**: GET /health endpoint
 - **Metrics**: Available at /metrics
 

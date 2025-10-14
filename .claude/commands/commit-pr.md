@@ -2,7 +2,7 @@
 allowed-tools: |
   Bash(git status:*), Bash(git diff:*), Bash(git log:*),
   Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*),
-  Bash(git checkout:*), Bash(git branch:*), Bash(make fmt:*), Bash(templ generate:*),
+  Bash(git checkout:*), Bash(git branch:*), Bash(make check fmt:*),
   mcp__github__create_pull_request, mcp__github__update_pull_request,
   mcp__github__get_pull_request, mcp__github__list_pull_requests
 argument-hint: [optional: --base <branch> for PR base branch]
@@ -32,9 +32,8 @@ This command handles the complete workflow from uncommitted changes to pull requ
 ### 1. Pre-Commit Preparation (CRITICAL)
 Based on the current git status:
 - Analyze changed files to understand the nature of changes
-- If `.go` files were changed, format them using `make fmt`
+- If `.go` or `.templ` files were changed, format them using `make check fmt` (formats Go, Templ, and tidies modules)
 - If `.toml` files were changed, test them using `make check tr`. If failed, ask the user how to proceed.
-- If `.templ` files were changed, regenerate them using `templ generate` (always run templ generate after make fmt)
 - Delete build artifacts or temporary files (ask user if unsure)
 - Group related changes into logical commits
 - Create multiple commits if changes span different features or fixes

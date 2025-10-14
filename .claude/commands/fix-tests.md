@@ -1,7 +1,7 @@
 ---
 allowed-tools: |
   Bash(go test:*), Bash(make test:*), Bash(go vet:*),
-  Bash(make lint:*), Bash(golangci-lint:*),
+  Bash(make check lint:*),
   Read, Edit, MultiEdit, Grep, Glob,
   Bash(go build:*), Bash(make check tr:*),
   Task
@@ -16,7 +16,7 @@ This command systematically identifies and fixes broken tests and linting errors
 
 ### 1. Pre-Test Phase
 - **ALWAYS start with `go vet ./...`** to catch static analysis issues
-- **Run `make lint`** to identify unused variables/functions
+- **Run `make check lint`** to identify unused variables/functions
 - Fix all type errors, undefined variables, and compilation issues first
 - Remove unused code that could cause confusion or maintenance issues
 - Ensure code compiles cleanly before attempting to run tests
@@ -24,8 +24,8 @@ This command systematically identifies and fixes broken tests and linting errors
 
 ### 2. Discovery Phase
 - Run `go vet ./...` to catch compilation and static analysis errors
-- Run `make lint` to identify unused code
-- Use `make test failures` to identify failing tests
+- Run `make check lint` to identify unused code
+- Use `make test` to identify failing tests
 - Categorize issues by type:
   - Compilation errors (highest priority)
   - Unused variables/functions (clean up for maintainability)
@@ -48,7 +48,7 @@ For each failing test:
 
 #### Linting Issues:
 - Remove unused functions, variables, constants, and imports in bulk
-- Run `make lint` after each batch of fixes to verify
+- Run `make check lint` after each batch of fixes to verify
 - Clean code improves maintainability and reduces confusion
 
 #### Test Failures:
@@ -65,9 +65,8 @@ For each failing test:
 
 ### 5. Validation Phase
 - Run `go vet ./...` to catch static analysis issues
-- Run `make lint` to ensure no unused code remains
+- Run `make check lint` to ensure no unused code remains
 - Run full test suite with `make test` to ensure no regressions (use 10-minute timeout for full suite)
-- Use `make test failures` to quickly identify any remaining failed tests (use 10-minute timeout)
 - Run `make check tr` if translation files were modified
 
 ## Best Practices
@@ -79,5 +78,5 @@ For each failing test:
 - **NEVER delete tests unless specifically asked** - Tests are valuable
 - **Fix root cause, not symptoms** - Don't just change assertions to pass
 - **Use go-editor agent** for complex fixes or when adding coverage
-- **Verify incrementally**: Run `go vet` and `make lint` after each change
+- **Verify incrementally**: Run `go vet` and `make check lint` after each change
 - **Test patterns**: Follow repository/service/controller patterns from go-editor agent
