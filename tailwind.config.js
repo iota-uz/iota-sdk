@@ -77,6 +77,8 @@ module.exports = {
           100: "oklch(var(--red-100))",
           200: "oklch(var(--red-200))",
           500: "oklch(var(--red-500) / <alpha-value>)",
+          600: "oklch(var(--red-600) / <alpha-value>)",
+          700: "oklch(var(--red-700) / <alpha-value>)",
         },
         badge: {
           pink: "oklch(var(--clr-badge-pink))",

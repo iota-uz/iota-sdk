@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/lens/builder"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource/postgres"
 	"github.com/iota-uz/iota-sdk/pkg/lens/executor"
@@ -97,6 +98,8 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	// Preview routes for actual error pages without sidebar
 	router.HandleFunc("/error-preview/403", di.H(c.Error403Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/error-preview/404", di.H(c.Error404Preview)).Methods(http.MethodGet)
+	// Toast example endpoint
+	router.HandleFunc("/api/showcase/toast-example", di.H(c.ToastExample)).Methods(http.MethodPost)
 
 	log.Printf(
 		"See %s%s for docs\n",
@@ -381,4 +384,14 @@ func (c *ShowcaseController) Error404Preview(
 ) {
 	w.WriteHeader(http.StatusNotFound)
 	templ.Handler(error_pages.NotFoundContent()).ServeHTTP(w, r)
+}
+
+func (c *ShowcaseController) ToastExample(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	// Example of triggering a toast notification from a server endpoint
+	htmx.ToastSuccess(w, "Server Response", "This toast was triggered by an HTMX request!")
+	w.WriteHeader(http.StatusOK)
 }

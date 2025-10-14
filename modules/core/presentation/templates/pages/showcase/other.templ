@@ -5,6 +5,12 @@ import "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/sh
 templ OtherContent() {
 	<div class="flex flex-col gap-5 p-5">
 		@ComponentShowcase(ShowcaseProps{
+			Title: "Toast Notifications",
+			Code:  ToastComponentSource,
+		}) {
+			@components.Toast()
+		}
+		@ComponentShowcase(ShowcaseProps{
 			Title: "Buttons",
 			Code:  ButtonsComponentSource,
 		}) {
