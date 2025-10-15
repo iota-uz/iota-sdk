@@ -741,6 +741,12 @@ func WithInfiniteScroll(hasMore bool, page, perPage int) TableConfigOpt {
 	}
 }
 
+func WithSearchPlaceholder(placeholder string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.SearchPlaceholder = placeholder
+	}
+}
+
 type InfiniteScrollConfig struct {
 	HasMore bool
 	Page    int
@@ -757,16 +763,17 @@ type TableEditableConfig struct {
 }
 
 type TableConfig struct {
-	Title         string
-	DataURL       string
-	Filters       []templ.Component
-	Actions       []templ.Component // Actions like Create button
-	Columns       []TableColumn
-	Rows          []TableRow
-	Infinite      *InfiniteScrollConfig
-	SideFilter    templ.Component
-	Editable      TableEditableConfig
-	WithoutSearch bool
+	Title             string
+	DataURL           string
+	Filters           []templ.Component
+	Actions           []templ.Component // Actions like Create button
+	Columns           []TableColumn
+	Rows              []TableRow
+	Infinite          *InfiniteScrollConfig
+	SideFilter        templ.Component
+	Editable          TableEditableConfig
+	WithoutSearch     bool
+	SearchPlaceholder string // Custom placeholder for search input
 
 	// Sorting configuration
 	CurrentSort      string // Current sort field
