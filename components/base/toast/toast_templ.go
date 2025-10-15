@@ -8,9 +8,7 @@ package toast
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import (
-	icons "github.com/iota-uz/icons/phosphor"
-)
+import icons "github.com/iota-uz/icons/phosphor"
 
 // Container renders the toast notification container that should be placed once in the layout
 func Container() templ.Component {
