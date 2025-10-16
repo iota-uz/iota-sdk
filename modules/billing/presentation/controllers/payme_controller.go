@@ -474,6 +474,8 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
 		log.Printf("Callback error in CheckPerformTransaction: %v", err)
 		paymeDetails = paymeDetails.
+			SetReason(paymeapi.CancelReasonExecutionError).
+			SetState(paymeapi.TransactionStateCancelledBeforeCompletion).
 			SetErrorCode(paymeapi.PerformTransactionErrorOperationNotAllowed)
 		entity = entity.SetStatus(billing.Failed).SetDetails(paymeDetails)
 		if _, saveErr := c.billingService.Save(ctx, entity); saveErr != nil {
