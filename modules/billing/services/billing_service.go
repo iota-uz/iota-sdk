@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
@@ -31,6 +32,8 @@ type BillingService struct {
 	repo      billing.Repository
 	providers map[billing.Gateway]billing.Provider
 	publisher eventbus.EventBus
+	callback  billing.TransactionCallback
+	mu        sync.RWMutex
 }
 
 func NewBillingService(
@@ -247,4 +250,25 @@ func (s *BillingService) Delete(ctx context.Context, id uuid.UUID) (billing.Tran
 	s.publisher.Publish(deletedEvent)
 
 	return deletedTransaction, nil
+}
+
+// RegisterCallback registers a callback function to be invoked during transaction processing.
+// This method is thread-safe and can be called concurrently.
+func (s *BillingService) RegisterCallback(callback billing.TransactionCallback) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.callback = callback
+}
+
+// InvokeCallback safely invokes the registered callback if it exists.
+// This method is thread-safe and can be called concurrently.
+func (s *BillingService) InvokeCallback(ctx context.Context, transaction billing.Transaction) error {
+	s.mu.RLock()
+	callback := s.callback
+	s.mu.RUnlock()
+
+	if callback == nil {
+		return nil
+	}
+	return callback(ctx, transaction)
 }

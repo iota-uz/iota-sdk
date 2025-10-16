@@ -1,6 +1,7 @@
 package billing
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +28,12 @@ const (
 	EUR Currency = "EUR"
 	RUB Currency = "RUB"
 )
+
+// TransactionCallback is a function that gets invoked during transaction processing.
+// It receives the transaction and returns an error.
+// - If error is nil, the transaction processing continues normally
+// - If error is not nil, the transaction processing is aborted and the error is handled according to gateway specifications
+type TransactionCallback func(ctx context.Context, transaction Transaction) error
 
 // ---- Interfaces ----
 
