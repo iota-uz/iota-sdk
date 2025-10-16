@@ -671,6 +671,12 @@ func WithDrawer(fetchURL string) RowOpt {
 	}
 }
 
+func WithRowAttrs(attrs templ.Attributes) RowOpt {
+	return func(r *tableRowImpl) {
+		maps.Copy(r.attrs, attrs)
+	}
+}
+
 // --- Column Options ---
 
 func WithClass(classes string) ColumnOpt {
