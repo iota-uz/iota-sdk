@@ -39,7 +39,7 @@ func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 
 	// Extract or generate request-id
-	requestID := ""
+	var requestID string
 	if req.Header.Get(l.Conf.RequestIDHeader) != "" {
 		requestID = req.Header.Get(l.Conf.RequestIDHeader)
 	} else {
