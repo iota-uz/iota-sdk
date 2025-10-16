@@ -280,6 +280,5 @@ func TestBillingService_Callback_ThreadSafety(t *testing.T) {
 		<-done
 	}
 
-	// Should not panic or deadlock - test passes if we reach here
-	assert.True(t, true, "Thread safety test completed without deadlock or panic")
+	// Test passes if we reach here without deadlock or panic
 }
