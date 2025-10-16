@@ -26,6 +26,16 @@ func NewModule() application.Module {
 	return &Module{}
 }
 
+// Register initializes the billing module and registers all services and controllers.
+//
+// Example of registering a transaction callback from external project:
+//
+//	billingService := app.Service(services.BillingService{}).(*services.BillingService)
+//	billingService.RegisterCallback(func(ctx context.Context, tx billing.Transaction) error {
+//		// Custom business logic (update subscription, send email, etc.)
+//		log.Printf("Processing transaction: %s, amount: %.2f", tx.ID(), tx.Amount().Quantity())
+//		return nil // return nil for success, error for failure
+//	})
 func (m *Module) Register(app application.Application) error {
 	conf := configuration.Use()
 
