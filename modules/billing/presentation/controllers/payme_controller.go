@@ -449,8 +449,9 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 			errRPC := paymeapi.InternalSystemError()
 			return nil, &errRPC
 		}
-		// Save error and return allow: false (reason 5 = unable to perform operation)
-		paymeDetails = paymeDetails.SetReason(5)
+		paymeDetails = paymeDetails.
+			SetReason(3).
+			SetErrorCode(paymeapi.ErrorInternalSystem)
 		entity = entity.SetStatus(billing.Failed).SetDetails(paymeDetails)
 		if _, saveErr := c.billingService.Save(ctx, entity); saveErr != nil {
 			log.Printf("Failed to save callback error: %v", saveErr)
