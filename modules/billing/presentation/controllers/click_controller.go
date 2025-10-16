@@ -130,6 +130,32 @@ func (c *ClickController) Prepare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Invoke callback to allow external processing
+	if err := c.billingService.InvokeCallback(r.Context(), entity); err != nil {
+		log.Printf("Callback error in Prepare: %v", err)
+
+		// Update entity with error details
+		// https://docs.click.uz/click-api-error/
+		entity = entity.SetDetails(
+			clickDetails.
+				SetErrorCode(-9).
+				SetErrorNote(err.Error()),
+		)
+		entity := entity.SetStatus(billing.Failed)
+
+		entity, saveErr := c.billingService.Save(r.Context(), entity)
+		if saveErr != nil {
+			log.Printf("Failed to save callback error: %v", saveErr)
+		}
+
+		clickDetails, ok = entity.Details().(details.ClickDetails)
+		if !ok {
+			log.Printf("Details is not of type ClickDetails after callback error")
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	}
+
 	response := clickapi.PrepareResponse{
 		ClickTransId:      clickDetails.PaymentID(),
 		MerchantTransId:   clickDetails.MerchantTransID(),

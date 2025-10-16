@@ -432,9 +432,30 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 				SetAccount(r.Account),
 		)
 
-	_, err = c.billingService.Save(ctx, entity)
+	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
+		errRPC := paymeapi.InternalSystemError()
+		return nil, &errRPC
+	}
+
+	// Invoke callback to validate transaction
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		log.Printf("Callback error in CheckPerformTransaction: %v", err)
+		// Extract fresh details from saved entity
+		paymeDetails, ok = entity.Details().(details.PaymeDetails)
+		if !ok {
+			log.Printf("Details is not of type PaymeDetails after callback")
+			errRPC := paymeapi.InternalSystemError()
+			return nil, &errRPC
+		}
+		paymeDetails = paymeDetails.
+			SetReason(3).
+			SetErrorCode(paymeapi.ErrorInternalSystem)
+		entity = entity.SetStatus(billing.Failed).SetDetails(paymeDetails)
+		if _, saveErr := c.billingService.Save(ctx, entity); saveErr != nil {
+			log.Printf("Failed to save callback error: %v", saveErr)
+		}
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
