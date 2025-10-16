@@ -134,11 +134,32 @@ func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Invoke callback for WaitingForCapture status
+	if notification.Status == octoapi.WaitingForCaptureStatus {
+		if err := c.billingService.InvokeCallback(r.Context(), entity); err != nil {
+			log.Printf("Callback error in Octo Handle: %v", err)
+			// Cancel the transaction on callback failure
+			entity = entity.SetStatus(billing.Failed)
+			var saveErr error
+			entity, saveErr = c.billingService.Save(r.Context(), entity)
+			if saveErr != nil {
+				log.Printf("Failed to save callback error: %v", saveErr)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
 	octoDetails, ok = entity.Details().(details.OctoDetails)
 	if !ok {
 		log.Printf("Details is not of type OctoDetails")
 		http.Error(w, "Invalid details type", http.StatusInternalServerError)
 		return
+	}
+
+	acceptStatus := octoapi.CaptureStatus
+	if entity.Status() == billing.Failed {
+		acceptStatus = "cancel"
 	}
 
 	if !octoDetails.AutoCapture() {
@@ -152,7 +173,7 @@ func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
 			OctoShopId:      octoDetails.OctoShopId(),
 			OctoSecret:      c.octo.OctoSecret,
 			OctoPaymentUUID: octoDetails.OctoPaymentUUID(),
-			AcceptStatus:    octoapi.CaptureStatus,
+			AcceptStatus:    acceptStatus,
 			FinalAmount:     entity.Amount().Quantity(),
 		}
 
@@ -198,8 +219,9 @@ func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	acceptStatus := octoDetails.Status()
-	if !octoDetails.AutoCapture() {
+	if !octoDetails.AutoCapture() &&
+		entity.Status() != billing.Failed &&
+		entity.Status() != billing.Canceled {
 		acceptStatus = octoapi.CaptureStatus
 	}
 
