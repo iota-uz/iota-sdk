@@ -31,6 +31,7 @@ func (m *Module) Register(app application.Application) error {
 
 	logTransport := middleware.NewLogTransport(
 		conf.Logger(),
+		conf,
 		true,
 		true,
 	)
