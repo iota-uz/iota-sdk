@@ -1,6 +1,7 @@
 import "./lib/alpine.lib.min.js";
 import "./lib/alpine-focus.min.js";
 import "./lib/alpine-anchor.min.js";
+import "./lib/alpine-mask.min.js";
 import Sortable from "./lib/alpine-sort.js";
 
 let relativeFormat = () => ({
@@ -179,26 +180,28 @@ let combobox = (searchable = false) => ({
   open: false,
   openedWithKeyboard: false,
   options: [],
+  allOptions: [],
   activeIndex: null,
   selectedIndices: new Set(),
   selectedValues: new Map(),
   activeValue: null,
   multiple: false,
   observer: null,
+  searchQuery: '',
   searchable,
   setValue(value) {
     if (value == null || !(this.open || this.openedWithKeyboard)) return;
     let index, option
-    for (let i = 0, len = this.options.length; i < len; i++) {
-      let o = this.options[i];
+    for (let i = 0, len = this.allOptions.length; i < len; i++) {
+      let o = this.allOptions[i];
       if (o.value === value) {
         index = i;
         option = o;
       }
     }
-    if (index == null || index > this.options.length - 1) return;
+    if (index == null || index > this.allOptions.length - 1) return;
     if (this.multiple) {
-      this.options[index].toggleAttribute("selected");
+      this.allOptions[index].toggleAttribute("selected");
       if (this.selectedValues.has(value)) {
         this.selectedValues.delete(value);
       } else {
@@ -208,10 +211,10 @@ let combobox = (searchable = false) => ({
         });
       }
     } else {
-      for (let i = 0, len = this.options.length; i < len; i++) {
-        let option = this.options[i];
-        if (option.value === value) this.options[i].toggleAttribute("selected");
-        else this.options[i].removeAttribute("selected");
+      for (let i = 0, len = this.allOptions.length; i < len; i++) {
+        let option = this.allOptions[i];
+        if (option.value === value) this.allOptions[i].toggleAttribute("selected");
+        else this.allOptions[i].removeAttribute("selected");
       }
       if (
         this.selectedValues.size > 0 &&
@@ -261,6 +264,20 @@ let combobox = (searchable = false) => ({
   onInput() {
     if (!this.open) this.open = true;
   },
+  onSearch(e) {
+    if (!this.open) this.open = true
+    this.searchQuery = e.target.value.toLowerCase();
+    this.options = Array.from(this.allOptions).filter((o) => {
+      return o.textContent.toLowerCase().includes(this.searchQuery);
+    });
+    if (this.options.length > 0) {
+      let option = this.options[0];
+      this.activeValue = option.value;
+    }
+    if (!this.searchQuery) {
+      this.options = this.$el.querySelectorAll("option");
+    }
+  },
   highlightMatchingOption(pressedKey) {
     this.setActiveIndex(pressedKey);
     this.setActiveValue(pressedKey);
@@ -277,7 +294,8 @@ let combobox = (searchable = false) => ({
     if (select) {
       for (const option of select.options) {
         if (option.value === value) {
-          select.removeChild(option);
+          option.removeAttribute("selected");
+          // select.removeChild(option); // TODO: Why removed???
           break;
         }
       }
@@ -287,6 +305,7 @@ let combobox = (searchable = false) => ({
   select: {
     ["x-init"]() {
       this.options = this.$el.querySelectorAll("option");
+      this.allOptions = this.options;
       this.multiple = this.$el.multiple;
       for (let i = 0, len = this.options.length; i < len; i++) {
         let option = this.options[i];
