@@ -432,7 +432,7 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 				SetAccount(r.Account),
 		)
 
-	entity, err = c.billingService.Save(ctx, entity)
+	_, err = c.billingService.Save(ctx, entity)
 	if err != nil {
 		log.Printf("Failed to update transaction: %v", err)
 		errRPC := paymeapi.InternalSystemError()

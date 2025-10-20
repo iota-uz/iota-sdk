@@ -282,3 +282,65 @@ func TestBillingService_Callback_ThreadSafety(t *testing.T) {
 
 	// Test passes if we reach here without deadlock or panic
 }
+
+func TestBillingService_InvokeCallback_WithPanic(t *testing.T) {
+	t.Helper()
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		callback    billing.TransactionCallback
+		wantErrText string
+	}{
+		{
+			name: "PanicWithString",
+			callback: func(ctx context.Context, tx billing.Transaction) error {
+				panic("something went wrong")
+			},
+			wantErrText: "callback panic: something went wrong",
+		},
+		{
+			name: "PanicWithError",
+			callback: func(ctx context.Context, tx billing.Transaction) error {
+				panic(errors.New("custom error occurred"))
+			},
+			wantErrText: "callback panic: custom error occurred",
+		},
+		{
+			name: "PanicWithInt",
+			callback: func(ctx context.Context, tx billing.Transaction) error {
+				panic(42)
+			},
+			wantErrText: "callback panic: 42",
+		},
+		{
+			name: "PanicWithNil",
+			callback: func(ctx context.Context, tx billing.Transaction) error {
+				panic(nil)
+			},
+			wantErrText: "callback panic: panic called with nil argument",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := setupTest(t)
+			billingService := getBillingService(f)
+
+			billingService.RegisterCallback(tt.callback)
+
+			transaction := billing.New(
+				100.0,
+				billing.UZS,
+				billing.Click,
+				details.NewClickDetails("test-123"),
+			)
+
+			err := billingService.InvokeCallback(f.Ctx, transaction)
+			require.Error(t, err, "Expected error from panicking callback")
+			assert.Contains(t, err.Error(), "callback panic:", "Error should contain 'callback panic:' prefix")
+			assert.Equal(t, tt.wantErrText, err.Error(), "Error message should match expected format")
+		})
+	}
+}
