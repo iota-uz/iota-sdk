@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -262,7 +263,14 @@ func (s *BillingService) RegisterCallback(callback billing.TransactionCallback) 
 
 // InvokeCallback safely invokes the registered callback if it exists.
 // This method is thread-safe and can be called concurrently.
-func (s *BillingService) InvokeCallback(ctx context.Context, transaction billing.Transaction) error {
+// If the callback panics, the panic is recovered and returned as an error.
+func (s *BillingService) InvokeCallback(ctx context.Context, transaction billing.Transaction) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("callback panic: %v", r)
+		}
+	}()
+
 	s.mu.RLock()
 	callback := s.callback
 	s.mu.RUnlock()
