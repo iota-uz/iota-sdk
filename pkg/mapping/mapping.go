@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // MapViewModels maps entities to view models
@@ -182,4 +183,115 @@ func SQLNullInt32ToPointer(v sql.NullInt32) *int {
 		return &val
 	}
 	return nil
+}
+
+// ToInterfaceSlice converts a slice of any type to a slice of interface{}.
+// This is useful for libraries that expect []interface{} (e.g., chart libraries).
+//
+// Example:
+//
+//	floatData := []float64{1.5, 2.3, 3.7}
+//	seriesData := mapping.ToInterfaceSlice(floatData)
+//	// seriesData is []interface{}{1.5, 2.3, 3.7}
+func ToInterfaceSlice[T any](values []T) []interface{} {
+	result := make([]interface{}, len(values))
+	for i, v := range values {
+		result[i] = v
+	}
+	return result
+}
+
+// UUIDToNullUUID converts a UUID to uuid.NullUUID.
+// Zero UUID (uuid.Nil) becomes NULL (Valid=false).
+func UUIDToNullUUID(id uuid.UUID) uuid.NullUUID {
+	return uuid.NullUUID{
+		UUID:  id,
+		Valid: id != uuid.Nil,
+	}
+}
+
+// NullUUIDToUUID converts uuid.NullUUID to UUID.
+// NULL (Valid=false) becomes uuid.Nil.
+func NullUUIDToUUID(nid uuid.NullUUID) uuid.UUID {
+	if nid.Valid {
+		return nid.UUID
+	}
+	return uuid.Nil
+}
+
+// PointerToNullUUID converts a UUID pointer to uuid.NullUUID.
+// nil pointer becomes NULL (Valid=false).
+func PointerToNullUUID(id *uuid.UUID) uuid.NullUUID {
+	if id != nil {
+		return uuid.NullUUID{
+			UUID:  *id,
+			Valid: true,
+		}
+	}
+	return uuid.NullUUID{
+		Valid: false,
+	}
+}
+
+// NullUUIDToPointer converts uuid.NullUUID to UUID pointer.
+// NULL (Valid=false) becomes nil pointer.
+func NullUUIDToPointer(nid uuid.NullUUID) *uuid.UUID {
+	if nid.Valid {
+		return &nid.UUID
+	}
+	return nil
+}
+
+// PointerToSQLNullInt64 converts an int pointer to sql.NullInt64.
+// nil pointer becomes NULL (Valid=false).
+func PointerToSQLNullInt64(i *int) sql.NullInt64 {
+	if i != nil {
+		return sql.NullInt64{
+			Int64: int64(*i),
+			Valid: true,
+		}
+	}
+	return sql.NullInt64{
+		Int64: 0,
+		Valid: false,
+	}
+}
+
+// SQLNullInt64ToPointer converts sql.NullInt64 to int pointer.
+// NULL (Valid=false) becomes nil pointer.
+func SQLNullInt64ToPointer(v sql.NullInt64) *int {
+	if v.Valid {
+		val := int(v.Int64)
+		return &val
+	}
+	return nil
+}
+
+// SQLNullStringToString converts sql.NullString to string.
+// NULL (Valid=false) becomes empty string.
+func SQLNullStringToString(ns sql.NullString) string {
+	if ns.Valid {
+		return ns.String
+	}
+	return ""
+}
+
+// DecimalFromStringOrZero parses a decimal string with fallback to zero.
+// Invalid strings return decimal.Zero instead of an error.
+// Useful for database string-to-decimal conversions where zero is a safe default.
+func DecimalFromStringOrZero(s string) decimal.Decimal {
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		return decimal.Zero
+	}
+	return d
+}
+
+// UintToSQLNullInt64 converts a uint to sql.NullInt64.
+// Zero uint becomes NULL (Valid=false), appropriate for optional foreign key references.
+func UintToSQLNullInt64(val uint) sql.NullInt64 {
+	if val == 0 {
+		return sql.NullInt64{Valid: false}
+	}
+	return sql.NullInt64{Int64: int64(val), Valid: true}
 }
