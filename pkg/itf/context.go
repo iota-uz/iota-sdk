@@ -112,6 +112,7 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 func (tc *TestContext) buildContext() context.Context {
 	ctx := tc.ctx
 	ctx = composables.WithPool(ctx, tc.pool)
+	ctx = composables.WithTx(ctx, tc.tx)
 	ctx = composables.WithTenantID(ctx, tc.tenant.ID)
 	ctx = composables.WithParams(ctx, DefaultParams())
 

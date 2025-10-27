@@ -667,6 +667,96 @@ let kanban = () => ({
   }
 })
 
+let moneyInput = (config = {}) => ({
+  displayValue: '',
+  amountInCents: config.value || 0,
+  min: config.min ?? null,
+  max: config.max ?? null,
+  decimal: config.decimal || '.',
+  thousand: config.thousand || ',',
+  precision: config.precision || 2,
+  conversionRate: config.conversionRate || 0,
+  convertTo: config.convertTo || '',
+  convertedAmount: 0,
+  validationError: '',
+
+  // Helper to calculate divisor (reduces code duplication)
+  getDivisor() {
+    return Math.pow(10, this.precision);
+  },
+
+  // Convert cents to formatted display value
+  centsToDisplay(cents) {
+    return (cents / this.getDivisor()).toFixed(this.precision);
+  },
+
+  // Parse display value to cents
+  displayToCents(value) {
+    // Remove all non-numeric characters except decimal point and minus sign
+    const cleaned = value.replace(/[^0-9.-]/g, '');
+
+    // Handle edge cases: multiple decimals, multiple minus signs
+    const parts = cleaned.split(this.decimal);
+    let normalized = parts[0] || '0';
+    if (parts.length > 1) {
+      // Take only the first decimal part
+      normalized += '.' + parts[1];
+    }
+
+    // Handle negative sign (should only be at start)
+    const isNegative = normalized.startsWith('-');
+    const absoluteValue = normalized.replace(/-/g, '');
+    const finalValue = (isNegative ? '-' : '') + absoluteValue;
+
+    const floatValue = parseFloat(finalValue) || 0;
+    return Math.round(floatValue * this.getDivisor());
+  },
+
+  init() {
+    this.displayValue = this.centsToDisplay(this.amountInCents);
+    this.updateConversion();
+  },
+
+  onInput(event) {
+    // Parse formatted input back to cents (integer)
+    this.amountInCents = this.displayToCents(event.target.value);
+    this.validateMinMax();
+    this.updateConversion();
+  },
+
+  validateMinMax() {
+    this.validationError = '';
+
+    if (this.min !== null && this.amountInCents < this.min) {
+      const minDisplay = this.centsToDisplay(this.min);
+      this.validationError = `Minimum amount is ${minDisplay}`;
+    }
+
+    if (this.max !== null && this.amountInCents > this.max) {
+      const maxDisplay = this.centsToDisplay(this.max);
+      this.validationError = `Maximum amount is ${maxDisplay}`;
+    }
+  },
+
+  updateConversion() {
+    if (this.conversionRate > 0) {
+      const floatValue = this.amountInCents / this.getDivisor();
+      this.convertedAmount = floatValue * this.conversionRate;
+    } else {
+      this.convertedAmount = 0;
+    }
+  },
+
+  // Format conversion amount for display (handles negative values)
+  formatConversion() {
+    if (this.convertedAmount === 0) return '0';
+
+    const absValue = Math.abs(this.convertedAmount);
+    const sign = this.convertedAmount < 0 ? '-' : '';
+    return sign + absValue.toFixed(this.precision);
+  }
+});
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -682,5 +772,6 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
   Alpine.data("editableTableRows", editableTableRows);
   Alpine.data("kanban", kanban);
+  Alpine.data("moneyInput", moneyInput);
   Sortable(Alpine);
 });
