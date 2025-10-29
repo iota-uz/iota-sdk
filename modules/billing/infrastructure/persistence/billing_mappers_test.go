@@ -161,6 +161,25 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Equal(t, "", octo.ErrMessage())
 			},
 		},
+		{
+			name:    "CashDetails",
+			gateway: billing.Cash,
+			details: details.NewCashDetails(
+				details.CashWithData(map[string]any{
+					"receipt_number": "RCP-12345",
+					"cashier":        "John Doe",
+					"location":       "Main Office",
+				}),
+			),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+				cash := d.(details.CashDetails)
+				assert.Equal(t, "RCP-12345", cash.Get("receipt_number"))
+				assert.Equal(t, "John Doe", cash.Get("cashier"))
+				assert.Equal(t, "Main Office", cash.Get("location"))
+				assert.Len(t, cash.Data(), 3)
+			},
+		},
 		//{
 		//	name:    "StripeDetails",
 		//	gateway: billing.Stripe,
