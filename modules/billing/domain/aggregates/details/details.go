@@ -228,3 +228,26 @@ type StripeDetails interface {
 	SetCancelURL(cancelURL string) StripeDetails
 	SetURL(url string) StripeDetails
 }
+
+type CashDetails interface {
+	Details
+
+	Data() map[string]any
+	SetData(data map[string]any) CashDetails
+	Get(key string) any
+	Set(key string, value any) CashDetails
+}
+
+type IntegratorDetails interface {
+	Details
+
+	Data() map[string]any
+	SetData(data map[string]any) IntegratorDetails
+	Get(key string) any
+	Set(key string, value any) IntegratorDetails
+
+	ErrorCode() int32
+	SetErrorCode(errorCode int32) IntegratorDetails
+	ErrorNote() string
+	SetErrorNote(errorNote string) IntegratorDetails
+}

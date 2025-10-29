@@ -195,6 +195,49 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			d.ClientReferenceID,
 			opts...,
 		), nil
+
+	case billing.Cash:
+		var d models.CashDetails
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		cashDetails := details.NewCashDetails(details.CashWithData(d.Data))
+		return cashDetails, nil
+
+	case billing.Integrator:
+		var d models.IntegratorDetails
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		// Merge legacy fields and data into single data map
+		data := make(map[string]any)
+		if d.Data != nil {
+			for k, v := range d.Data {
+				data[k] = v
+			}
+		}
+		// Store legacy fields in data map for backward compatibility
+		if d.APIKey != "" {
+			data["api_key"] = d.APIKey
+		}
+		if d.Metadata != nil {
+			data["metadata"] = d.Metadata
+		}
+		if d.MerchantTransID != "" {
+			data["merchant_trans_id"] = d.MerchantTransID
+		}
+		if d.MerchantPrepareID != 0 {
+			data["merchant_prepare_id"] = d.MerchantPrepareID
+		}
+		if d.MerchantConfirmID != 0 {
+			data["merchant_confirm_id"] = d.MerchantConfirmID
+		}
+		return details.NewIntegratorDetails(
+			details.IntegratorWithData(data),
+			details.IntegratorWithErrorCode(d.ErrorCode),
+			details.IntegratorWithErrorNote(d.ErrorNote),
+		), nil
+
 	default:
 		return nil, fmt.Errorf("unsupported gateway: %s", gateway)
 	}
@@ -296,6 +339,30 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			SuccessURL:        d.SuccessURL(),
 			CancelURL:         d.CancelURL(),
 			URL:               d.URL(),
+		})
+
+	case details.CashDetails:
+		return json.Marshal(&models.CashDetails{
+			Data: d.Data(),
+		})
+
+	case details.IntegratorDetails:
+		// Extract legacy fields from data map for backward compatibility
+		apiKey, _ := d.Get("api_key").(string)
+		metadata, _ := d.Get("metadata").(map[string]any)
+		merchantTransID, _ := d.Get("merchant_trans_id").(string)
+		merchantPrepareID, _ := d.Get("merchant_prepare_id").(int64)
+		merchantConfirmID, _ := d.Get("merchant_confirm_id").(int64)
+
+		return json.Marshal(&models.IntegratorDetails{
+			APIKey:            apiKey,
+			Metadata:          metadata,
+			Data:              d.Data(),
+			MerchantTransID:   merchantTransID,
+			MerchantPrepareID: merchantPrepareID,
+			MerchantConfirmID: merchantConfirmID,
+			ErrorCode:         d.ErrorCode(),
+			ErrorNote:         d.ErrorNote(),
 		})
 
 	default:

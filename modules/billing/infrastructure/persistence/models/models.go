@@ -116,3 +116,18 @@ type StripeDetails struct {
 	CancelURL         string                  `json:"cancel_url"`
 	URL               string                  `json:"url"`
 }
+
+type CashDetails struct {
+	Data map[string]any `json:"data"`
+}
+
+type IntegratorDetails struct {
+	APIKey            string         `json:"api_key"`
+	Metadata          map[string]any `json:"metadata"`
+	Data              map[string]any `json:"data"`
+	MerchantTransID   string         `json:"merchant_trans_id"`
+	MerchantPrepareID int64          `json:"merchant_prepare_id"`
+	MerchantConfirmID int64          `json:"merchant_confirm_id"`
+	ErrorCode         int32          `json:"error_code"`
+	ErrorNote         string         `json:"error_note"`
+}

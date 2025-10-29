@@ -7,10 +7,12 @@ import (
 type Gateway string
 
 const (
-	Click  Gateway = "click"
-	Payme  Gateway = "payme"
-	Octo   Gateway = "octo"
-	Stripe Gateway = "stripe"
+	Click      Gateway = "click"
+	Payme      Gateway = "payme"
+	Octo       Gateway = "octo"
+	Stripe     Gateway = "stripe"
+	Cash       Gateway = "cash"
+	Integrator Gateway = "integrator"
 )
 
 type Provider interface {
