@@ -116,3 +116,13 @@ type StripeDetails struct {
 	CancelURL         string                  `json:"cancel_url"`
 	URL               string                  `json:"url"`
 }
+
+type CashDetails struct {
+	Data map[string]any `json:"data"`
+}
+
+type IntegratorDetails struct {
+	Data      map[string]any `json:"data"`
+	ErrorCode int32          `json:"error_code"`
+	ErrorNote string         `json:"error_note"`
+}

@@ -92,11 +92,18 @@ func (s *BillingService) Create(ctx context.Context, cmd *CreateTransactionComma
 
 	var createdTransaction billing.Transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		providedTransaction, err := provider.Create(txCtx, entity)
-		if err != nil {
+		// If provider exists (Click, Payme, Octo, Stripe), use it
+		if provider != nil {
+			providedTransaction, err := provider.Create(txCtx, entity)
+			if err != nil {
+				return err
+			}
+			createdTransaction, err = s.repo.Save(txCtx, providedTransaction)
 			return err
 		}
-		createdTransaction, err = s.repo.Save(txCtx, providedTransaction)
+
+		// For Details-only gateways (Cash, Integrator), save directly
+		createdTransaction, err = s.repo.Save(txCtx, entity)
 		return err
 	})
 	if err != nil {
@@ -168,11 +175,19 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 
 	var updatedTransaction billing.Transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		providedTransaction, err := provider.Cancel(txCtx, entity)
-		if err != nil {
+		// If provider exists, use it
+		if provider != nil {
+			providedTransaction, err := provider.Cancel(txCtx, entity)
+			if err != nil {
+				return err
+			}
+			updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
 			return err
 		}
-		updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
+
+		// For Details-only gateways, just update status to Canceled
+		entity = entity.SetStatus(billing.Canceled)
+		updatedTransaction, err = s.repo.Save(txCtx, entity)
 		return err
 	})
 	if err != nil {
@@ -203,11 +218,23 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 
 	var updatedTransaction billing.Transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		providedTransaction, err := provider.Refund(txCtx, entity, cmd.Quantity)
-		if err != nil {
+		// If provider exists, use it
+		if provider != nil {
+			providedTransaction, err := provider.Refund(txCtx, entity, cmd.Quantity)
+			if err != nil {
+				return err
+			}
+			updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
 			return err
 		}
-		updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
+
+		// For Details-only gateways, update status based on refund amount
+		if cmd.Quantity >= entity.Amount().Quantity() {
+			entity = entity.SetStatus(billing.Refunded)
+		} else {
+			entity = entity.SetStatus(billing.PartiallyRefunded)
+		}
+		updatedTransaction, err = s.repo.Save(txCtx, entity)
 		return err
 	})
 	if err != nil {
