@@ -122,12 +122,7 @@ type CashDetails struct {
 }
 
 type IntegratorDetails struct {
-	APIKey            string         `json:"api_key"`
-	Metadata          map[string]any `json:"metadata"`
-	Data              map[string]any `json:"data"`
-	MerchantTransID   string         `json:"merchant_trans_id"`
-	MerchantPrepareID int64          `json:"merchant_prepare_id"`
-	MerchantConfirmID int64          `json:"merchant_confirm_id"`
-	ErrorCode         int32          `json:"error_code"`
-	ErrorNote         string         `json:"error_note"`
+	Data      map[string]any `json:"data"`
+	ErrorCode int32          `json:"error_code"`
+	ErrorNote string         `json:"error_note"`
 }
