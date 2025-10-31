@@ -193,6 +193,7 @@ func (s *Suite) setupMiddleware() {
 				ctx = composables.WithUser(ctx, currentUser)
 			}
 			ctx = composables.WithPool(ctx, s.env.Pool)
+			ctx = composables.WithTx(ctx, s.env.Tx)
 			ctx = composables.WithSession(ctx, &session.Session{})
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
 			ctx = context.WithValue(ctx, constants.AppKey, s.env.App)
