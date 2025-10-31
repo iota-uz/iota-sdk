@@ -715,13 +715,33 @@ let moneyInput = (config = {}) => ({
   init() {
     this.displayValue = this.centsToDisplay(this.amountInCents);
     this.updateConversion();
+
+    // Watch amountInCents for external changes (e.g., from calculator scripts)
+    // Only update displayValue if it doesn't match the current amountInCents
+    // This prevents circular updates during user input
+    this.$watch('amountInCents', (value) => {
+      const expectedDisplay = this.centsToDisplay(value);
+      // Only update if displayValue differs (accounting for formatting)
+      if (this.displayToCents(this.displayValue) !== value) {
+        this.displayValue = expectedDisplay;
+        this.updateConversion();
+      }
+    });
   },
 
   onInput(event) {
-    // Parse formatted input back to cents (integer)
     this.amountInCents = this.displayToCents(event.target.value);
     this.validateMinMax();
     this.updateConversion();
+
+    // Dispatch custom event so parent scopes can react to user input
+    const hiddenInput = event.target.closest('[x-data]').querySelector('input[type="hidden"]');
+    if (hiddenInput) {
+      hiddenInput.dispatchEvent(new CustomEvent('money-changed', {
+        bubbles: true,
+        detail: { amountInCents: this.amountInCents }
+      }));
+    }
   },
 
   validateMinMax() {

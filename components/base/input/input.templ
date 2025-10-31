@@ -496,6 +496,7 @@ templ (p *MoneyProps) render() {
 				type="hidden"
 				name={ p.Name }
 				x-model="amountInCents"
+				{ p.Attrs... }
 			/>
 			// Visible masked input
 			<div class={ twmerge.Merge("flex items-center w-full relative form-control", wrapperPropsClass) } { p.WrapperProps... }>
