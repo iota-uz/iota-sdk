@@ -777,6 +777,53 @@ let moneyInput = (config = {}) => ({
   }
 });
 
+let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
+  formatDate(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+  updateDateRange(startDate, endDate) {
+    const startStr = this.formatDate(startDate);
+    const endStr = this.formatDate(endDate);
+
+    document.getElementById(hiddenStartID).value = startStr;
+    document.getElementById(hiddenEndID).value = endStr;
+
+    const fpElements = document.querySelectorAll('.flatpickr-input');
+    fpElements.forEach(fp => {
+      if (fp._flatpickr) {
+        fp._flatpickr.setDate([startDate, endDate], true);
+      }
+    });
+
+    const form = document.getElementById(formID);
+    if (form) {
+      const event = new Event('change', { bubbles: true });
+      form.dispatchEvent(event);
+    }
+  },
+  applyDays(days) {
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1));
+    this.updateDateRange(startDate, endDate);
+  },
+  applyMonths(months) {
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startDate = new Date(today.getFullYear(), today.getMonth() - months, today.getDate());
+    this.updateDateRange(startDate, endDate);
+  },
+  applyFiscalYear() {
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startDate = new Date(today.getFullYear(), 0, 1);
+    this.updateDateRange(startDate, endDate);
+  }
+});
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -793,5 +840,6 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("editableTableRows", editableTableRows);
   Alpine.data("kanban", kanban);
   Alpine.data("moneyInput", moneyInput);
+  Alpine.data("dateRangeButtons", dateRangeButtons);
   Sortable(Alpine);
 });
