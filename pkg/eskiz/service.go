@@ -6,7 +6,10 @@ import (
 	"time"
 
 	eskizapi "github.com/iota-uz/eskiz"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eskiz/models"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,6 +22,8 @@ type Service interface {
 
 func NewService(
 	cfg Config,
+	logger *logrus.Logger,
+	sdkConfig *configuration.Configuration,
 ) Service {
 	httpClient := &http.Client{
 		Timeout: apiTimeout,
@@ -35,11 +40,20 @@ func NewService(
 		client: baseClient,
 	}
 
+	// Create log transport for request/response logging
+	logTransport := middleware.NewLogTransport(
+		logger,
+		sdkConfig,
+		true, // log request bodies
+		true, // log response bodies
+		"eskiz",
+	)
+
 	// Create authenticated client
 	authClient := &http.Client{
 		Timeout: apiTimeout,
 		Transport: &authRoundTripper{
-			Base:      http.DefaultTransport,
+			Base:      logTransport,
 			Refresher: refresher,
 		},
 	}
