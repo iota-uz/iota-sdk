@@ -159,7 +159,7 @@ func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
 
 	acceptStatus := octoapi.CaptureStatus
 	if entity.Status() == billing.Failed {
-		acceptStatus = "cancel"
+		acceptStatus = octoapi.CancelStatus
 	}
 
 	if !octoDetails.AutoCapture() {
