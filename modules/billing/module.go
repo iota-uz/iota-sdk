@@ -44,6 +44,7 @@ func (m *Module) Register(app application.Application) error {
 		conf,
 		true,
 		true,
+		"octo",
 	)
 
 	clickProvider := providers.NewClickProvider(

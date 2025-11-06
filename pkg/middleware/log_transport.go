@@ -21,16 +21,21 @@ type LogTransport struct {
 	Logger          *logrus.Logger
 	LogRequestBody  bool
 	LogResponseBody bool
+	Name            string
 }
 
 // NewLogTransport constructs a new LogTransport with given options.
-func NewLogTransport(logger *logrus.Logger, conf *configuration.Configuration, logRequestBody, logResponseBody bool) *LogTransport {
+func NewLogTransport(logger *logrus.Logger, conf *configuration.Configuration, logRequestBody, logResponseBody bool, name string) *LogTransport {
+	if name == "" {
+		name = "client"
+	}
 	return &LogTransport{
 		Base:            http.DefaultTransport,
 		Conf:            conf,
 		Logger:          logger,
 		LogRequestBody:  logRequestBody,
 		LogResponseBody: logResponseBody,
+		Name:            name,
 	}
 }
 
@@ -60,9 +65,11 @@ func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		"request-id":     requestID,
 		"method":         req.Method,
 		"url":            req.URL.String(),
+		"origin":         req.URL.Scheme + "://" + req.URL.Host,
 		"headers":        req.Header,
 		"request-body":   parseBody(reqBody, req.Header.Get("Content-Type")),
 		"request-length": len(reqBody),
+		"client":         l.Name,
 	}).Info("HTTP client request started")
 
 	// Perform request
@@ -75,8 +82,10 @@ func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			"request-id": requestID,
 			"method":     req.Method,
 			"url":        req.URL.String(),
+			"origin":     req.URL.Scheme + "://" + req.URL.Host,
 			"error":      err,
 			"duration":   duration,
+			"client":     l.Name,
 		}).Error("HTTP client request failed")
 		return nil, err
 	}
@@ -94,12 +103,14 @@ func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		"request-id":      requestID,
 		"method":          req.Method,
 		"url":             req.URL.String(),
+		"origin":          req.URL.Scheme + "://" + req.URL.Host,
 		"status":          resp.Status,
 		"status_code":     resp.StatusCode,
 		"headers":         resp.Header,
 		"response-body":   parseBody(respBody, resp.Header.Get("Content-Type")),
 		"response-length": len(respBody),
 		"duration":        duration,
+		"client":          l.Name,
 	}).Info("HTTP client response received")
 
 	return resp, nil
