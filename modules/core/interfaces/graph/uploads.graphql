@@ -1,8 +1,17 @@
 scalar File
 
-enum UploadType @goModel(model: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadType") {
-  Document @goEnum(value: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadTypeDocument")
-  Image @goEnum(value: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadTypeImage")
+enum UploadType
+  @goModel(
+    model: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadType"
+  ) {
+  Document
+    @goEnum(
+      value: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadTypeDocument"
+    )
+  Image
+    @goEnum(
+      value: "github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload.UploadTypeImage"
+    )
 }
 
 enum UploadSortField {
@@ -17,6 +26,11 @@ input UploadSort {
   ascending: Boolean!
 }
 
+type GeoPoint {
+  lat: Float!
+  lng: Float!
+}
+
 type Upload {
   id: ID!
   url: String!
@@ -26,6 +40,7 @@ type Upload {
   slug: String!
   mimetype: String!
   type: UploadType!
+  geoPoint: GeoPoint!
   size: Int!
 }
 
@@ -36,9 +51,18 @@ input UploadFilter {
   sort: UploadSort
 }
 
+input GeoPointInput {
+  lat: Float!
+  lng: Float!
+}
+
+input UploadFileOpts {
+  geoPoint: GeoPointInput
+}
+
 extend type Mutation {
-  uploadFile(file: File): Upload!
-  uploadFileWithSlug(file: File, slug: String!): Upload!
+  uploadFile(file: File, opts: UploadFileOpts): Upload!
+  uploadFileWithSlug(file: File, slug: String!, opts: UploadFileOpts): Upload!
   deleteUpload(id: ID!): Boolean!
 }
 

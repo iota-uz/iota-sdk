@@ -12,16 +12,22 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
+type GeoPoint struct {
+	Lat float64
+	Lng float64
+}
 type CreateDTO struct {
-	File io.ReadSeeker `validate:"required"`
-	Name string        `validate:"required"`
-	Size int           `validate:"required"`
-	Slug string        `validate:"omitempty,alphanum"`
+	File     io.ReadSeeker `validate:"required"`
+	Name     string        `validate:"required"`
+	Size     int           `validate:"required"`
+	Slug     string        `validate:"omitempty,alphanum"`
+	GeoPoint *GeoPoint
 }
 
 func (d *CreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -58,12 +64,16 @@ func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
 	if d.Slug == "" {
 		d.Slug = hash
 	}
-	return New(
+	upload := New(
 		hash,
 		filepath.Join(conf.UploadsPath, d.Slug+ext),
 		d.Name,
 		d.Slug,
 		d.Size,
 		mimetype.Detect(bytes),
-	), bytes, nil
+	)
+	if d.GeoPoint != nil {
+		upload.SetGeoPoint(geopoint.New(d.GeoPoint.Lat, d.GeoPoint.Lng))
+	}
+	return upload, bytes, nil
 }

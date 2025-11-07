@@ -11,6 +11,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 )
 
+type GeoPoint struct {
+	Lat float64 `json:"lat"`
+	Lng float64 `json:"lng"`
+}
+
+type GeoPointInput struct {
+	Lat float64 `json:"lat"`
+	Lng float64 `json:"lng"`
+}
+
 type Mutation struct {
 }
 
@@ -43,7 +53,12 @@ type Upload struct {
 	Slug     string            `json:"slug"`
 	Mimetype string            `json:"mimetype"`
 	Type     upload.UploadType `json:"type"`
+	GeoPoint *GeoPoint         `json:"geoPoint"`
 	Size     int               `json:"size"`
+}
+
+type UploadFileOpts struct {
+	GeoPoint *GeoPointInput `json:"geoPoint,omitempty"`
 }
 
 type UploadFilter struct {
