@@ -78,8 +78,19 @@ func (p *publisherImpl) Publish(args ...interface{}) {
 		if !MatchSignature(subscriber.Handler, args) {
 			continue
 		}
-		v.Call(in)
-		handled = true
+		// Wrap handler invocation with panic recovery
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					handlerName := v.Type().String()
+					// Log panic with error level and include event args for debugging
+					p.log.Errorf("eventbus: handler %s panicked with args %v: %v", handlerName, args, r)
+				}
+			}()
+			v.Call(in)
+			// Only mark as handled if handler completed successfully without panic
+			handled = true
+		}()
 	}
 
 	if !handled {
