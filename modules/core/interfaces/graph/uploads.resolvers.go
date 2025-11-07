@@ -21,7 +21,7 @@ import (
 )
 
 // UploadFile is the resolver for the uploadFile field.
-func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload) (*model.Upload, error) {
+func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload, opts *model.UploadFileOpts) (*model.Upload, error) {
 	dto := &upload.CreateDTO{
 		File: file.File,
 		Name: file.Filename,
@@ -29,6 +29,14 @@ func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload)
 	}
 	if _, ok := dto.Ok(ctx); !ok {
 		return nil, errors.New("invalid file")
+	}
+	if opts != nil {
+		if opts.GeoPoint != nil {
+			dto.GeoPoint = &upload.GeoPoint{
+				Lat: opts.GeoPoint.Lat,
+				Lng: opts.GeoPoint.Lng,
+			}
+		}
 	}
 
 	uploadEntity, err := r.uploadService.Create(ctx, dto)
@@ -40,7 +48,7 @@ func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload)
 }
 
 // UploadFileWithSlug is the resolver for the uploadFileWithSlug field.
-func (r *mutationResolver) UploadFileWithSlug(ctx context.Context, file *graphql.Upload, slug string) (*model.Upload, error) {
+func (r *mutationResolver) UploadFileWithSlug(ctx context.Context, file *graphql.Upload, slug string, opts *model.UploadFileOpts) (*model.Upload, error) {
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))

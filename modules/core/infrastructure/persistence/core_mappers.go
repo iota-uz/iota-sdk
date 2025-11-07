@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
@@ -198,7 +199,7 @@ func ToDomainTin(s sql.NullString, c country.Country) (tax.Tin, error) {
 }
 
 func ToDBUpload(upload upload.Upload) *models.Upload {
-	return &models.Upload{
+	model := &models.Upload{
 		ID:        upload.ID(),
 		TenantID:  upload.TenantID().String(),
 		Path:      upload.Path(),
@@ -210,7 +211,16 @@ func ToDBUpload(upload upload.Upload) *models.Upload {
 		Mimetype:  upload.Mimetype().String(),
 		CreatedAt: upload.CreatedAt(),
 		UpdatedAt: upload.UpdatedAt(),
+		GeoPoint:  &models.Point{},
 	}
+	if point := upload.GeoPoint(); point != nil {
+		model.GeoPoint = &models.Point{
+			X: point.Lat(),
+			Y: point.Lng(),
+		}
+	}
+
+	return model
 }
 
 func ToDomainUpload(dbUpload *models.Upload) (upload.Upload, error) {
@@ -224,7 +234,7 @@ func ToDomainUpload(dbUpload *models.Upload) (upload.Upload, error) {
 		return nil, err
 	}
 
-	return upload.NewWithID(
+	up := upload.NewWithID(
 		dbUpload.ID,
 		tenantID,
 		dbUpload.Hash,
@@ -236,7 +246,13 @@ func ToDomainUpload(dbUpload *models.Upload) (upload.Upload, error) {
 		upload.UploadType(dbUpload.Type),
 		dbUpload.CreatedAt,
 		dbUpload.UpdatedAt,
-	), nil
+	)
+
+	if dbUpload.GeoPoint != nil {
+		up.SetGeoPoint(geopoint.New(dbUpload.GeoPoint.X, dbUpload.GeoPoint.Y))
+	}
+
+	return up, nil
 }
 
 func ToDBCurrency(entity *currency.Currency) *models.Currency {
