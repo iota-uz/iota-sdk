@@ -5,12 +5,15 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	moneyaccount "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
+
+var ErrMoneyAccountDuplicateAccountNumber = errors.New("duplicate account_number")
 
 type MoneyAccountService struct {
 	repo            moneyaccount.Repository
@@ -66,7 +69,7 @@ func (s *MoneyAccountService) Create(ctx context.Context, entity moneyaccount.Ac
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, s.saveErrTransform(err)
 	}
 
 	createdEvent.Result = createdEntity
@@ -89,7 +92,7 @@ func (s *MoneyAccountService) Update(ctx context.Context, entity moneyaccount.Ac
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, s.saveErrTransform(err)
 	}
 
 	updatedEvent.Result = updatedEntity
@@ -124,4 +127,13 @@ func (s *MoneyAccountService) Delete(ctx context.Context, id uuid.UUID) (moneyac
 
 func (s *MoneyAccountService) Count(ctx context.Context, params *moneyaccount.FindParams) (int64, error) {
 	return s.repo.Count(ctx, params)
+}
+
+func (s *MoneyAccountService) saveErrTransform(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.ConstraintName == "money_accounts_tenant_id_account_number_key" {
+		return ErrMoneyAccountDuplicateAccountNumber
+	}
+
+	return err
 }
