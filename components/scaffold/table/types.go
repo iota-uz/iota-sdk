@@ -21,6 +21,7 @@ const (
 )
 
 type StickyPosition = base.StickyPosition
+type Addon = base.Addon
 
 const (
 	StickyPositionLeft  = base.StickyPositionLeft

@@ -35,6 +35,7 @@ type TableColumn interface {
 	EditableField() crud.Field
 	SortURL() string
 	StickyPos() StickyPosition
+	AddonBottom() *Addon
 }
 
 type TableCell interface {
@@ -627,6 +628,7 @@ type tableColumnImpl struct {
 	editable      bool
 	editableField crud.Field
 	stickyPos     StickyPosition
+	addonBottom   *Addon
 }
 
 func (c *tableColumnImpl) Key() string               { return c.key }
@@ -638,6 +640,7 @@ func (c *tableColumnImpl) SortDir() SortDirection    { return c.sortDir }
 func (c *tableColumnImpl) SortURL() string           { return c.sortURL }
 func (c *tableColumnImpl) Editable() bool            { return c.editable }
 func (c *tableColumnImpl) StickyPos() StickyPosition { return c.stickyPos }
+func (c *tableColumnImpl) AddonBottom() *Addon       { return c.addonBottom }
 func (c *tableColumnImpl) EditableField() crud.Field { return c.editableField }
 
 type tableRowImpl struct {
@@ -678,6 +681,12 @@ func WithRowAttrs(attrs templ.Attributes) RowOpt {
 }
 
 // --- Column Options ---
+
+func WithAddonBottom(addonBottom *Addon) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.addonBottom = addonBottom
+	}
+}
 
 func WithClass(classes string) ColumnOpt {
 	return func(c *tableColumnImpl) {
