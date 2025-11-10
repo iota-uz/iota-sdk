@@ -1,7 +1,10 @@
 package models
 
 import (
+	"bytes"
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"time"
 )
 
@@ -28,6 +31,7 @@ type Upload struct {
 	Size      int
 	Mimetype  string
 	Type      string
+	GeoPoint  *Point
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -177,4 +181,37 @@ type GroupRole struct {
 	GroupID   string
 	RoleID    uint
 	CreatedAt time.Time
+}
+
+type Point struct {
+	X float64
+	Y float64
+}
+
+func (p *Point) Value() (driver.Value, error) {
+	buf := new(bytes.Buffer)
+	fmt.Fprintf(buf, "(%f, %f)", p.X, p.Y)
+	return buf.Bytes(), nil
+}
+
+func (p *Point) Scan(val any) error {
+	var s string
+	switch v := val.(type) {
+	case []byte:
+		s = string(v)
+	case string:
+		s = v
+	default:
+		return fmt.Errorf("unsupported type: %s", fmt.Sprintf("%T", v))
+	}
+
+	_, err := fmt.Sscanf(s, "(%f,%f)", &p.X, &p.Y)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Point) String() string {
+	return fmt.Sprintf("(%v, %v)", p.X, p.Y)
 }
