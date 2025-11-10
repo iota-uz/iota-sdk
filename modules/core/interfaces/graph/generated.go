@@ -51,14 +51,19 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
+	GeoPoint struct {
+		Lat func(childComplexity int) int
+		Lng func(childComplexity int) int
+	}
+
 	Mutation struct {
 		Add                func(childComplexity int, a int, b int) int
 		Authenticate       func(childComplexity int, email string, password string) int
 		DeleteSession      func(childComplexity int, token string) int
 		DeleteUpload       func(childComplexity int, id int64) int
 		GoogleAuthenticate func(childComplexity int) int
-		UploadFile         func(childComplexity int, file *graphql.Upload) int
-		UploadFileWithSlug func(childComplexity int, file *graphql.Upload, slug string) int
+		UploadFile         func(childComplexity int, file *graphql.Upload, opts *model.UploadFileOpts) int
+		UploadFileWithSlug func(childComplexity int, file *graphql.Upload, slug string, opts *model.UploadFileOpts) int
 	}
 
 	PaginatedUsers struct {
@@ -88,6 +93,7 @@ type ComplexityRoot struct {
 	}
 
 	Upload struct {
+		GeoPoint func(childComplexity int) int
 		Hash     func(childComplexity int) int
 		ID       func(childComplexity int) int
 		Mimetype func(childComplexity int) int
@@ -115,8 +121,8 @@ type MutationResolver interface {
 	Authenticate(ctx context.Context, email string, password string) (*model.Session, error)
 	GoogleAuthenticate(ctx context.Context) (string, error)
 	DeleteSession(ctx context.Context, token string) (bool, error)
-	UploadFile(ctx context.Context, file *graphql.Upload) (*model.Upload, error)
-	UploadFileWithSlug(ctx context.Context, file *graphql.Upload, slug string) (*model.Upload, error)
+	UploadFile(ctx context.Context, file *graphql.Upload, opts *model.UploadFileOpts) (*model.Upload, error)
+	UploadFileWithSlug(ctx context.Context, file *graphql.Upload, slug string, opts *model.UploadFileOpts) (*model.Upload, error)
 	DeleteUpload(ctx context.Context, id int64) (bool, error)
 }
 type QueryResolver interface {
@@ -148,6 +154,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
+
+	case "GeoPoint.lat":
+		if e.complexity.GeoPoint.Lat == nil {
+			break
+		}
+
+		return e.complexity.GeoPoint.Lat(childComplexity), true
+
+	case "GeoPoint.lng":
+		if e.complexity.GeoPoint.Lng == nil {
+			break
+		}
+
+		return e.complexity.GeoPoint.Lng(childComplexity), true
 
 	case "Mutation.add":
 		if e.complexity.Mutation.Add == nil {
@@ -214,7 +234,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UploadFile(childComplexity, args["file"].(*graphql.Upload)), true
+		return e.complexity.Mutation.UploadFile(childComplexity, args["file"].(*graphql.Upload), args["opts"].(*model.UploadFileOpts)), true
 
 	case "Mutation.uploadFileWithSlug":
 		if e.complexity.Mutation.UploadFileWithSlug == nil {
@@ -226,7 +246,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UploadFileWithSlug(childComplexity, args["file"].(*graphql.Upload), args["slug"].(string)), true
+		return e.complexity.Mutation.UploadFileWithSlug(childComplexity, args["file"].(*graphql.Upload), args["slug"].(string), args["opts"].(*model.UploadFileOpts)), true
 
 	case "PaginatedUsers.data":
 		if e.complexity.PaginatedUsers.Data == nil {
@@ -345,6 +365,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Subscription.SessionDeleted(childComplexity), true
+
+	case "Upload.geoPoint":
+		if e.complexity.Upload.GeoPoint == nil {
+			break
+		}
+
+		return e.complexity.Upload.GeoPoint(childComplexity), true
 
 	case "Upload.hash":
 		if e.complexity.Upload.Hash == nil {
@@ -466,6 +493,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputGeoPointInput,
+		ec.unmarshalInputUploadFileOpts,
 		ec.unmarshalInputUploadFilter,
 		ec.unmarshalInputUploadSort,
 	)
@@ -799,6 +828,11 @@ func (ec *executionContext) field_Mutation_uploadFileWithSlug_args(ctx context.C
 		return nil, err
 	}
 	args["slug"] = arg1
+	arg2, err := ec.field_Mutation_uploadFileWithSlug_argsOpts(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["opts"] = arg2
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_uploadFileWithSlug_argsFile(
@@ -845,6 +879,28 @@ func (ec *executionContext) field_Mutation_uploadFileWithSlug_argsSlug(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_uploadFileWithSlug_argsOpts(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.UploadFileOpts, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["opts"]
+	if !ok {
+		var zeroVal *model.UploadFileOpts
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("opts"))
+	if tmp, ok := rawArgs["opts"]; ok {
+		return ec.unmarshalOUploadFileOpts2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadFileOpts(ctx, tmp)
+	}
+
+	var zeroVal *model.UploadFileOpts
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_uploadFile_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -853,6 +909,11 @@ func (ec *executionContext) field_Mutation_uploadFile_args(ctx context.Context, 
 		return nil, err
 	}
 	args["file"] = arg0
+	arg1, err := ec.field_Mutation_uploadFile_argsOpts(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["opts"] = arg1
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_uploadFile_argsFile(
@@ -874,6 +935,28 @@ func (ec *executionContext) field_Mutation_uploadFile_argsFile(
 	}
 
 	var zeroVal *graphql.Upload
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_uploadFile_argsOpts(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*model.UploadFileOpts, error) {
+	// We won't call the directive if the argument is null.
+	// Set call_argument_directives_with_null to true to call directives
+	// even if the argument is null.
+	_, ok := rawArgs["opts"]
+	if !ok {
+		var zeroVal *model.UploadFileOpts
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("opts"))
+	if tmp, ok := rawArgs["opts"]; ok {
+		return ec.unmarshalOUploadFileOpts2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadFileOpts(ctx, tmp)
+	}
+
+	var zeroVal *model.UploadFileOpts
 	return zeroVal, nil
 }
 
@@ -1190,6 +1273,94 @@ func (ec *executionContext) field___Type_fields_argsIncludeDeprecated(
 
 // region    **************************** field.gotpl *****************************
 
+func (ec *executionContext) _GeoPoint_lat(ctx context.Context, field graphql.CollectedField, obj *model.GeoPoint) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_GeoPoint_lat(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Lat, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_GeoPoint_lat(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GeoPoint",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _GeoPoint_lng(ctx context.Context, field graphql.CollectedField, obj *model.GeoPoint) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_GeoPoint_lng(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Lng, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_GeoPoint_lng(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GeoPoint",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_add(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_add(ctx, field)
 	if err != nil {
@@ -1427,7 +1598,7 @@ func (ec *executionContext) _Mutation_uploadFile(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UploadFile(rctx, fc.Args["file"].(*graphql.Upload))
+		return ec.resolvers.Mutation().UploadFile(rctx, fc.Args["file"].(*graphql.Upload), fc.Args["opts"].(*model.UploadFileOpts))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1468,6 +1639,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "type":
 				return ec.fieldContext_Upload_type(ctx, field)
+			case "geoPoint":
+				return ec.fieldContext_Upload_geoPoint(ctx, field)
 			case "size":
 				return ec.fieldContext_Upload_size(ctx, field)
 			}
@@ -1502,7 +1675,7 @@ func (ec *executionContext) _Mutation_uploadFileWithSlug(ctx context.Context, fi
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UploadFileWithSlug(rctx, fc.Args["file"].(*graphql.Upload), fc.Args["slug"].(string))
+		return ec.resolvers.Mutation().UploadFileWithSlug(rctx, fc.Args["file"].(*graphql.Upload), fc.Args["slug"].(string), fc.Args["opts"].(*model.UploadFileOpts))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1543,6 +1716,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFileWithSlug(ctx context
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "type":
 				return ec.fieldContext_Upload_type(ctx, field)
+			case "geoPoint":
+				return ec.fieldContext_Upload_geoPoint(ctx, field)
 			case "size":
 				return ec.fieldContext_Upload_size(ctx, field)
 			}
@@ -1829,6 +2004,8 @@ func (ec *executionContext) fieldContext_Query_uploads(ctx context.Context, fiel
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "type":
 				return ec.fieldContext_Upload_type(ctx, field)
+			case "geoPoint":
+				return ec.fieldContext_Upload_geoPoint(ctx, field)
 			case "size":
 				return ec.fieldContext_Upload_size(ctx, field)
 			}
@@ -2834,6 +3011,56 @@ func (ec *executionContext) fieldContext_Upload_type(_ context.Context, field gr
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type UploadType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Upload_geoPoint(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_geoPoint(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.GeoPoint, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*model.GeoPoint)
+	fc.Result = res
+	return ec.marshalNGeoPoint2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐGeoPoint(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Upload_geoPoint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Upload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "lat":
+				return ec.fieldContext_GeoPoint_lat(ctx, field)
+			case "lng":
+				return ec.fieldContext_GeoPoint_lng(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type GeoPoint", field.Name)
 		},
 	}
 	return fc, nil
@@ -4964,6 +5191,67 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputGeoPointInput(ctx context.Context, obj interface{}) (model.GeoPointInput, error) {
+	var it model.GeoPointInput
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"lat", "lng"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "lat":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lat"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Lat = data
+		case "lng":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lng"))
+			data, err := ec.unmarshalNFloat2float64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Lng = data
+		}
+	}
+
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputUploadFileOpts(ctx context.Context, obj interface{}) (model.UploadFileOpts, error) {
+	var it model.UploadFileOpts
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"geoPoint"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "geoPoint":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("geoPoint"))
+			data, err := ec.unmarshalOGeoPointInput2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐGeoPointInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GeoPoint = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUploadFilter(ctx context.Context, obj interface{}) (model.UploadFilter, error) {
 	var it model.UploadFilter
 	asMap := map[string]interface{}{}
@@ -5053,6 +5341,50 @@ func (ec *executionContext) unmarshalInputUploadSort(ctx context.Context, obj in
 // endregion ************************** interface.gotpl ***************************
 
 // region    **************************** object.gotpl ****************************
+
+var geoPointImplementors = []string{"GeoPoint"}
+
+func (ec *executionContext) _GeoPoint(ctx context.Context, sel ast.SelectionSet, obj *model.GeoPoint) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, geoPointImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GeoPoint")
+		case "lat":
+			out.Values[i] = ec._GeoPoint_lat(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lng":
+			out.Values[i] = ec._GeoPoint_lng(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
 
 var mutationImplementors = []string{"Mutation"}
 
@@ -5455,6 +5787,11 @@ func (ec *executionContext) _Upload(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "type":
 			out.Values[i] = ec._Upload_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "geoPoint":
+			out.Values[i] = ec._Upload_geoPoint(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -5894,6 +6231,31 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v interface{}) (float64, error) {
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.SelectionSet, v float64) graphql.Marshaler {
+	res := graphql.MarshalFloatContext(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return graphql.WrapContextMarshaler(ctx, res)
+}
+
+func (ec *executionContext) marshalNGeoPoint2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐGeoPoint(ctx context.Context, sel ast.SelectionSet, v *model.GeoPoint) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._GeoPoint(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNID2int64(ctx context.Context, v interface{}) (int64, error) {
@@ -6448,6 +6810,14 @@ func (ec *executionContext) marshalOFile2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋ
 	return res
 }
 
+func (ec *executionContext) unmarshalOGeoPointInput2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐGeoPointInput(ctx context.Context, v interface{}) (*model.GeoPointInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputGeoPointInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalOInt2ᚕintᚄ(ctx context.Context, v interface{}) ([]int, error) {
 	if v == nil {
 		return nil, nil
@@ -6538,6 +6908,14 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOUploadFileOpts2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadFileOpts(ctx context.Context, v interface{}) (*model.UploadFileOpts, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputUploadFileOpts(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalOUploadSort2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadSort(ctx context.Context, v interface{}) (*model.UploadSort, error) {

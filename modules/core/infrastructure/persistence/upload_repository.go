@@ -16,24 +16,25 @@ var (
 )
 
 const (
-	selectUploadQuery = `SELECT id, hash, slug, path, name, size, type, mimetype, created_at, updated_at, tenant_id FROM uploads`
+	selectUploadQuery = `SELECT id, hash, slug, path, name, size, type, mimetype, geopoint, created_at, updated_at, tenant_id FROM uploads`
 
 	countUploadsQuery = `SELECT COUNT(*) FROM uploads`
 
-	insertUploadQuery = `INSERT INTO uploads (hash, slug, path, name, size, type, mimetype, created_at, updated_at, tenant_id)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	insertUploadQuery = `INSERT INTO uploads (hash, slug, path, name, size, type, mimetype, geopoint, created_at, updated_at, tenant_id)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                          RETURNING id`
 
 	updatedUploadQuery = `UPDATE uploads
                           SET hash = $1,
-			      slug = $2,
+															slug = $2,
                               path = $3,
                               name = $4,
                               size = $5,
                               type = $6,
                               mimetype = $7,
-                              updated_at = $8
-                          WHERE id = $9 AND tenant_id = $10`
+                              mimetype = $8,
+                              updated_at = $9
+                          WHERE id = $10 AND tenant_id = $11`
 
 	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1 AND tenant_id = $2`
 
@@ -81,6 +82,7 @@ func (g *GormUploadRepository) queryUploads(
 			&dbUpload.Size,
 			&dbUpload.Type,
 			&dbUpload.Mimetype,
+			&dbUpload.GeoPoint,
 			&dbUpload.CreatedAt,
 			&dbUpload.UpdatedAt,
 			&dbUpload.TenantID,
@@ -235,6 +237,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 		dbUpload.Size,
 		dbUpload.Type,
 		dbUpload.Mimetype,
+		dbUpload.GeoPoint,
 		dbUpload.CreatedAt,
 		dbUpload.UpdatedAt,
 		dbUpload.TenantID,
@@ -268,6 +271,7 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 		dbUpload.Size,
 		dbUpload.Type,
 		dbUpload.Mimetype,
+		dbUpload.GeoPoint,
 		dbUpload.UpdatedAt,
 		dbUpload.ID,
 		dbUpload.TenantID,

@@ -194,27 +194,31 @@ func setupAlpineData(ctx context.Context, config *TableConfig) templ.Attributes 
 // Table renders a dynamic table based on configuration and data
 templ Table(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	if len(config.Rows) == 0 {
-		@base.TableEmptyState(base.TableEmptyStateProps{
-			Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
-			Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
-		})
-	} else {
-		<div
-			id="sortable-table-container"
-			hx-disinherit="*"
-			if config.Editable.Enabled {
-				{ setupAlpineData(ctx, config)... }
-			}
-		>
-			@base.Table(base.TableProps{
-				Columns: toBaseTableColumns(config, pageCtx),
-				TBodyAttrs: templ.Attributes{
-					"id":          "table-body",
-					"hx-push-url": "false",
-				},
-				NoTBody: config.Editable.Enabled,
-			}) {
+	<div
+		id="sortable-table-container"
+		hx-disinherit="*"
+		if config.Editable.Enabled {
+			{ setupAlpineData(ctx, config)... }
+		}
+	>
+		@base.Table(base.TableProps{
+			Columns: toBaseTableColumns(config, pageCtx),
+			TBodyAttrs: templ.Attributes{
+				"id":          "table-body",
+				"hx-push-url": "false",
+			},
+			NoTBody: config.Editable.Enabled,
+		}) {
+			if len(config.Rows) == 0 {
+				<tr>
+					<td colspan="100%">
+						@base.TableEmptyState(base.TableEmptyStateProps{
+							Title:       pageCtx.T("Scaffold.Table.NoDataTitle"),
+							Description: pageCtx.T("Scaffold.Table.NoDataDescription"),
+						})
+					</td>
+				</tr>
+			} else {
 				@Rows(config)
 				if config.Infinite.HasMore {
 					@InfiniteScrollSpinner(config)
@@ -231,8 +235,8 @@ templ Table(config *TableConfig) {
 					}
 				</div>
 			}
-		</div>
-	}
+		}
+	</div>
 }
 
 // TableSection combines filters and table into one form to enable unified HTMX update
@@ -362,13 +366,14 @@ func toBaseTableColumns(config *TableConfig, pageCtx *types.PageContext) []*base
 	result := make([]*base.TableColumn, len(config.Columns))
 	for i, col := range config.Columns {
 		result[i] = &base.TableColumn{
-			Key:       col.Key(),
-			Label:     col.Label(),
-			Class:     col.Class(),
-			Sortable:  col.Sortable(),
-			SortDir:   col.SortDir(),
-			SortURL:   col.SortURL(),
-			StickyPos: col.StickyPos(),
+			Key:         col.Key(),
+			Label:       col.Label(),
+			Class:       col.Class(),
+			Sortable:    col.Sortable(),
+			SortDir:     col.SortDir(),
+			SortURL:     col.SortURL(),
+			StickyPos:   col.StickyPos(),
+			AddonBottom: col.AddonBottom(),
 		}
 	}
 

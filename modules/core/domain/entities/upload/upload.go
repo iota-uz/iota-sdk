@@ -11,6 +11,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
@@ -51,6 +52,7 @@ type Upload interface {
 	PreviewURL() string
 	URL() *url.URL
 	Mimetype() *mimetype.MIME
+	GeoPoint() geopoint.GeoPoint
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
@@ -58,6 +60,7 @@ type Upload interface {
 	SetSlug(slug string)
 	SetName(name string)
 	SetSize(size Size)
+	SetGeoPoint(point geopoint.GeoPoint)
 	SetID(id uint)
 }
 
@@ -127,6 +130,7 @@ type upload struct {
 	slug      string
 	name      string
 	size      Size
+	geoPoint  geopoint.GeoPoint
 	_type     UploadType
 	mimetype  *mimetype.MIME
 	createdAt time.Time
@@ -165,6 +169,10 @@ func (u *upload) Size() Size {
 	return u.size
 }
 
+func (u *upload) GeoPoint() geopoint.GeoPoint {
+	return u.geoPoint
+}
+
 func (u *upload) SetHash(hash string) {
 	u.hash = hash
 }
@@ -182,6 +190,10 @@ func (u *upload) SetSlug(slug string) {
 
 func (u *upload) SetSize(size Size) {
 	u.size = size
+}
+
+func (u *upload) SetGeoPoint(geoPoint geopoint.GeoPoint) {
+	u.geoPoint = geoPoint
 }
 
 func (u *upload) SetID(id uint) {
