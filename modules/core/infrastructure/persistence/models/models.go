@@ -194,7 +194,7 @@ func (p *Point) Value() (driver.Value, error) {
 	return buf.Bytes(), nil
 }
 
-func (p *Point) Scan(val any) (err error) {
+func (p *Point) Scan(val any) error {
 	var s string
 	switch v := val.(type) {
 	case []byte:
@@ -205,7 +205,7 @@ func (p *Point) Scan(val any) (err error) {
 		return fmt.Errorf("unsupported type: %s", fmt.Sprintf("%T", v))
 	}
 
-	_, err = fmt.Sscanf(s, "(%f,%f)", &p.X, &p.Y)
+	_, err := fmt.Sscanf(s, "(%f,%f)", &p.X, &p.Y)
 	if err != nil {
 		return err
 	}
