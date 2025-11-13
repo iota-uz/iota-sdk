@@ -8,6 +8,7 @@ const (
 	UILanguageEN UILanguage = "en"
 	UILanguageRU UILanguage = "ru"
 	UILanguageUZ UILanguage = "uz"
+	UILanguageZH UILanguage = "zh"
 )
 
 func NewUILanguage(l string) (UILanguage, error) {
@@ -20,7 +21,7 @@ func NewUILanguage(l string) (UILanguage, error) {
 
 func (l UILanguage) IsValid() bool {
 	switch l {
-	case UILanguageEN, UILanguageRU, UILanguageUZ:
+	case UILanguageEN, UILanguageRU, UILanguageUZ, UILanguageZH:
 		return true
 	}
 	return false
