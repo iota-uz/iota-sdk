@@ -1,4 +1,4 @@
-FROM golang:1.23.2-alpine AS base
+FROM golang:1.24.2-alpine AS base
 
 RUN apk update && apk upgrade
 RUN apk add --no-cache make git curl bash
