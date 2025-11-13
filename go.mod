@@ -2,8 +2,6 @@ module github.com/iota-uz/iota-sdk
 
 go 1.24.10
 
-toolchain go1.24.10
-
 require (
 	github.com/99designs/gqlgen v0.17.57
 	github.com/BurntSushi/toml v1.5.0
