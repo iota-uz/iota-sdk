@@ -1,0 +1,88 @@
+[NavigationLinks]
+  HRM = "人力资源管理"
+  Employees = "员工"
+
+[Resources]
+  employee = "员工"
+
+[Permissions.Employee]
+  Create = "创建员工"
+  Read = "查看员工"
+  Update = "更新员工"
+  Delete = "删除员工"
+
+
+[Employees]
+  [Employees.Meta]
+    [Employees.Meta.List]
+      Title = "员工"
+    [Employees.Meta.Edit]
+      Title = "编辑员工"
+    [Employees.Meta.New]
+      Title = "添加员工"
+
+  [Employees.List]
+    New = "添加员工"
+    FullName = "全名"
+    Position = "职位"
+    Email = "电子邮件"
+    NoEmployees = { Title = "未找到员工", _Description = "还没有员工。点击'添加员工'创建一个。" }
+
+  [Employees.Tabs]
+    Public = "公开"
+    Private = "敏感"
+
+  [Employees.Cards]
+    PersonalInfo = "个人信息"
+    JobInfo = "工作信息"
+
+  [Employees.Single]
+    Edit = "编辑员工"
+    Delete = "删除员工"
+    DeleteConfirmation = "您确定要删除此员工吗？"
+
+  [Employees.Public]
+    [Employees.Public.FirstName]
+      Label = "名"
+      Placeholder = "输入名字"
+    [Employees.Public.LastName]
+      Label = "姓"
+      Placeholder = "输入姓氏"
+    [Employees.Public.MiddleName]
+      Label = "中间名"
+      Placeholder = "输入中间名"
+    [Employees.Public.Phone]
+      Label = "电话"
+      Placeholder = "+998 (__) ___ __ __"
+    [Employees.Public.Email]
+      Label = "电子邮件"
+      Placeholder = "jodoe@gmail.com"
+    [Employees.Public.BirthDate]
+      Label = "出生日期"
+    [Employees.Public.Position]
+      Label = "职位"
+      Placeholder = "选择职位"
+    [Employees.Public.HireDate]
+      Label = "入职日期"
+    [Employees.Public.ResignationDate]
+      Label = "离职日期"
+    [Employees.Public.EmploymentStatus]
+      Label = "雇佣状态"
+      Placeholder = "选择雇佣状态"
+    [Employees.Public.Level]
+      Label = "级别"
+      Placeholder = "选择级别"
+
+  [Employees.Private]
+    [Employees.Private.Salary]
+      Label = "薪资"
+    [Employees.Private.PassportSN]
+      Label = "护照系列和号码"
+      Placeholder = "AA 123 45 67"
+    [Employees.Private.TIN]
+      Label = "税号"
+      Placeholder = "1234567"
+    [Employees.Private.Pin]
+      Label = "个人识别号码"
+      Placeholder = "123456789192121"
+

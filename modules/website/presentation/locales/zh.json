@@ -1,0 +1,56 @@
+{
+  "NavigationLinks": {
+    "Website": "网站",
+    "AIChatbot": "AI 聊天机器人"
+  },
+  "AIChatBot": {
+    "Meta": {
+      "Title": "AI 聊天机器人"
+    },
+    "ModelName": {
+      "Label": "模型名称",
+      "Placeholder": "输入模型名称（例如：gpt-4）",
+      "NoModelsAvailable": "无可用模型"
+    },
+    "ModelType": {
+      "Label": "模型类型",
+      "Placeholder": "选择模型类型"
+    },
+    "SystemPrompt": {
+      "Label": "系统提示",
+      "Placeholder": "输入 AI 的系统提示"
+    },
+    "Temperature": {
+      "Label": "温度",
+      "Placeholder": "输入 0.0 到 2.0 之间的值"
+    },
+    "MaxTokens": {
+      "Label": "最大令牌数",
+      "Placeholder": "输入最大令牌数"
+    },
+    "BaseURL": {
+      "Label": "API 基础 URL",
+      "Placeholder": "输入 API 基础 URL（例如：https://api.openai.com/v1）"
+    },
+    "AccessToken": {
+      "Label": "API 访问令牌",
+      "Placeholder": "输入您的 API 访问令牌"
+    },
+    "Errors": {
+      "ConfigNotFound": "未找到 AI 聊天配置",
+      "FailedToGetConfig": "获取 AI 聊天配置失败",
+      "InvalidFormData": "提供的表单数据无效",
+      "FailedToSaveConfig": "保存 AI 聊天配置失败",
+      "InvalidRequestBody": "无效的请求体",
+      "InvalidThreadIDFormat": "无效的线程 ID 格式",
+      "ThreadNotFound": "未找到线程",
+      "FailedToCreateThread": "创建聊天线程失败",
+      "InvalidPhoneFormat": "无效的电话号码格式。预期格式：+998XXXXXXXXX（带国家代码）",
+      "UnknownCountryCode": "电话号码中的未知国家代码。请提供有效的国家代码",
+      "FailedToSendMessage": "向聊天线程发送消息失败",
+      "FailedToGetAIResponse": "获取 AI 响应失败",
+      "FailedToEncodeResponse": "编码响应失败",
+      "FailedToGetModels": "获取模型列表失败"
+    }
+  }
+}

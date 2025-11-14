@@ -7,9 +7,11 @@ import (
 
 	"github.com/go-playground/locales/en"
 	"github.com/go-playground/locales/ru"
+	"github.com/go-playground/locales/zh_Hans_CN"
 	"github.com/go-playground/validator/v10"
 	en_translations "github.com/go-playground/validator/v10/translations/en"
 	ru_translations "github.com/go-playground/validator/v10/translations/ru"
+	zh_translations "github.com/go-playground/validator/v10/translations/zh"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"golang.org/x/text/language"
 
@@ -28,6 +30,7 @@ var (
 	registerTranslations = map[string]func(v *validator.Validate, trans ut.Translator) error{
 		"en": en_translations.RegisterDefaultTranslations,
 		"ru": ru_translations.RegisterDefaultTranslations,
+		"zh": zh_translations.RegisterDefaultTranslations,
 	}
 	translationLock = sync.Mutex{}
 	ErrNoLocalizer  = errors.New("localizer not found")
@@ -66,7 +69,8 @@ func MustT(ctx context.Context, msgID string) string {
 func loadUniTranslator() *ut.UniversalTranslator {
 	enLocale := en.New()
 	ruLocale := ru.New()
-	return ut.New(enLocale, enLocale, ruLocale)
+	zhLocale := zh_Hans_CN.New()
+	return ut.New(enLocale, enLocale, ruLocale, zhLocale)
 }
 
 func UseUniLocalizer(ctx context.Context) (ut.Translator, error) {

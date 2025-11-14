@@ -1,0 +1,95 @@
+{
+  "Resources": {
+    "project": "项目",
+    "project_stage": "项目阶段"
+  },
+  "Permissions": {
+    "Project": {
+      "Create": "创建项目",
+      "Read": "查看项目",
+      "Update": "更新项目",
+      "Delete": "删除项目"
+    },
+    "ProjectStage": {
+      "Create": "创建项目阶段",
+      "Read": "查看项目阶段",
+      "Update": "更新项目阶段",
+      "Delete": "删除项目阶段"
+    }
+  },
+  "NavigationLinks": {
+    "Projects": "项目",
+    "ProjectStages": "项目阶段"
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "项目"
+      },
+      "Edit": {
+        "Title": "编辑项目"
+      },
+      "New": {
+        "Title": "新项目"
+      }
+    },
+    "List": {
+      "New": "新项目",
+      "Name": "名称",
+      "Counterparty": "交易对手",
+      "_Description": "描述",
+      "NoProjects": {
+        "Title": "未找到项目",
+        "_Description": "还没有项目。点击\"新项目\"创建一个。"
+      }
+    },
+    "Single": {
+      "Name": "名称",
+      "Counterparty": "交易对手",
+      "SelectCounterparty": "选择交易对手",
+      "NoCounterpartiesFound": "未找到交易对手",
+      "_Description": "描述",
+      "DeleteConfirmation": "您确定要删除此项目吗？"
+    }
+  },
+  "ProjectStages": {
+    "Meta": {
+      "List": {
+        "Title": "项目阶段"
+      },
+      "Edit": {
+        "Title": "编辑项目阶段"
+      },
+      "New": {
+        "Title": "新项目阶段"
+      }
+    },
+    "List": {
+      "New": "新项目阶段",
+      "StageNumber": "阶段编号",
+      "_Description": "描述",
+      "TotalAmount": "总金额",
+      "PaidAmount": "已付金额",
+      "StartDate": "开始日期",
+      "PlannedEndDate": "计划结束日期",
+      "FactualEndDate": "实际结束日期",
+      "NoProjectStages": {
+        "Title": "未找到项目阶段",
+        "_Description": "还没有项目阶段。点击\"新项目阶段\"创建一个。"
+      }
+    },
+    "Single": {
+      "ProjectID": "项目",
+      "SelectProject": "选择项目",
+      "StageNumber": "阶段编号",
+      "_Description": "描述",
+      "Desc": "描述",
+      "TotalAmount": "总金额",
+      "PaidAmount": "已付金额",
+      "StartDate": "开始日期",
+      "PlannedEndDate": "计划结束日期",
+      "FactualEndDate": "实际结束日期",
+      "DeleteConfirmation": "您确定要删除此项目阶段吗？"
+    }
+  }
+}

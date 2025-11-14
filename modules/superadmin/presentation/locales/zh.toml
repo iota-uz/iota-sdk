@@ -1,0 +1,66 @@
+[SuperAdmin.NavigationLinks]
+Dashboard = "仪表板"
+Tenants = "租户"
+
+[SuperAdmin.Dashboard]
+Title = "超级管理员仪表板"
+DateRange = "日期范围"
+
+[SuperAdmin.Dashboard.Meta]
+Title = "仪表板 - 超级管理员"
+
+[SuperAdmin.Dashboard.Metrics]
+TotalTenants = "总租户数"
+TotalUsers = "总用户数"
+ActiveUsers = "活跃用户"
+DAU = "日活跃用户"
+WAU = "周活跃用户"
+MAU = "月活跃用户"
+TotalSessions = "总会话数"
+
+[SuperAdmin.Dashboard.Charts]
+UserSignups = "用户注册"
+TenantSignups = "租户注册"
+
+[SuperAdmin.Tenants]
+Title = "租户"
+Name = "租户名称"
+Domain = "域名"
+Email = "电子邮件"
+Phone = "电话"
+UserCount = "用户数量"
+StatusColumn = "状态"
+CreatedAt = "创建日期"
+Actions = "操作"
+ViewUsers = "查看用户"
+Export = "导出到 Excel"
+FilterByDate = "按日期范围筛选"
+StartDate = "开始日期"
+EndDate = "结束日期"
+ClearFilter = "清除筛选"
+
+[SuperAdmin.Tenants.Meta]
+Title = "租户 - 超级管理员"
+
+[SuperAdmin.Tenants.Status]
+Active = "活跃"
+Inactive = "非活跃"
+
+[SuperAdmin.Tenants.Users]
+Title = "租户用户"
+ViewUsers = "查看用户"
+BackToTenants = "返回租户"
+TenantInfo = "租户信息"
+FullName = "全名"
+FirstName = "名"
+LastName = "姓"
+Email = "电子邮件"
+Phone = "电话"
+Role = "角色"
+CreatedAt = "创建日期"
+LastLogin = "最后登录"
+Status = "状态"
+
+[SuperAdmin.Tenants.Users.Meta]
+Title = "租户用户 - 超级管理员"
+
