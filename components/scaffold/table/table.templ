@@ -209,7 +209,7 @@ templ Table(config *TableConfig) {
 			},
 			NoTBody: config.Editable.Enabled,
 		}) {
-			if len(config.Rows) == 0 {
+			if len(config.Rows) == 0 && !config.Editable.Enabled {
 				<tr>
 					<td colspan="100%">
 						@base.TableEmptyState(base.TableEmptyStateProps{
@@ -225,15 +225,19 @@ templ Table(config *TableConfig) {
 				}
 			}
 			if config.Editable.Enabled && !config.Editable.WithoutCreate {
-				<div class="pt-4 px-4 border-t border-primary" @click="addRow">
-					@button.Secondary(button.Props{Size: button.SizeMD, Icon: icons.Plus(icons.Props{Size: "20"}), Class: "w-full justify-center", Attrs: templ.Attributes{"type": "button"}}) {
-						if len(config.Editable.CreateLabel) > 0 {
-							{ config.Editable.CreateLabel }
-						} else {
-							{ pageCtx.TSafe("Add") }
-						}
-					}
-				</div>
+				<tbody>
+					<tr @click="addRow">
+						<td colspan="100%" class="pt-4 px-4 border-t border-primary">
+							@button.Secondary(button.Props{Size: button.SizeMD, Icon: icons.Plus(icons.Props{Size: "20"}), Class: "w-full justify-center", Attrs: templ.Attributes{"type": "button"}}) {
+								if len(config.Editable.CreateLabel) > 0 {
+									{ config.Editable.CreateLabel }
+								} else {
+									{ pageCtx.TSafe("Add") }
+								}
+							}
+						</td>
+					</tr>
+				</tbody>
 			}
 		}
 	</div>
