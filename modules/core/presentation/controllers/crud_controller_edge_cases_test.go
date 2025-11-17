@@ -616,11 +616,11 @@ func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 		Status(303)
 
 	assert.Equal(t, 1, validationCalls)
-	assert.Len(t, service.testService.entities, 1)
+	assert.Len(t, service.entities, 1)
 
 	// Test 2: Update existing entity (should validate readonly fields)
 	var createdID uuid.UUID
-	for id := range service.testService.entities {
+	for id := range service.entities {
 		createdID = id
 		break
 	}
@@ -640,7 +640,7 @@ func TestCrudController_ReadonlyFieldValidationFix(t *testing.T) {
 	assert.Equal(t, 2, validationCalls)
 
 	// Verify update succeeded
-	updated := service.testService.entities[createdID]
+	updated := service.entities[createdID]
 	assert.Equal(t, "Updated Entity", updated.Name)
 }
 
@@ -680,7 +680,7 @@ func TestCrudController_ZeroValueHandling(t *testing.T) {
 	}
 
 	assert.Equal(t, "Zero Value Test", created.Name)
-	assert.Equal(t, "", created.Description)
+	assert.Empty(t, created.Description)
 	assert.InDelta(t, float64(0), created.Amount, 0.01)
 	assert.False(t, created.IsActive)
 }

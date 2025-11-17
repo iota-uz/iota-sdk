@@ -21,7 +21,7 @@ func (r *queryResolver) WarehousePosition(ctx context.Context, id int64) (*model
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	domainPosition, err := r.positionService.GetByID(ctx, uint(id))
 	if err != nil {
@@ -35,7 +35,7 @@ func (r *queryResolver) WarehousePositions(ctx context.Context, offset int, limi
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	domainPositions, err := r.positionService.GetPaginated(ctx, &position.FindParams{
 		Offset: offset,

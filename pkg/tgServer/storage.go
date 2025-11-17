@@ -46,10 +46,11 @@ func (s *DBSession) LoadSession(context.Context) ([]byte, error) {
 }
 
 // StoreSession stores session to memory.
-func (s *DBSession) StoreSession(_ context.Context, data []byte) error {
+func (s *DBSession) StoreSession(ctx context.Context, data []byte) error {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	_, err := s.db.Exec(
+	_, err := s.db.ExecContext(
+		ctx,
 		"INSERT INTO telegram_sessions (user_id, session) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET session = $2",
 		s.userID,
 		data,

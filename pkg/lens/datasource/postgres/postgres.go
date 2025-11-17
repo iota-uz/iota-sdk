@@ -264,7 +264,7 @@ func (ds *PostgreSQLDataSource) executeTimeSeriesQuery(ctx context.Context, quer
 		}
 
 		// Second column should be the main value
-		var value interface{} = values[1]
+		value := values[1]
 
 		// Additional columns become fields
 		fields := make(map[string]interface{})

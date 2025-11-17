@@ -20,7 +20,7 @@ func (r *queryResolver) Product(ctx context.Context, id int64) (*model.Product, 
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	domainProduct, err := r.productService.GetByID(ctx, uint(id))
 	if err != nil {
@@ -34,7 +34,7 @@ func (r *queryResolver) Products(ctx context.Context, offset int, limit int, sor
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	domainProducts, err := r.productService.GetPaginated(ctx, &product.FindParams{
 		Offset: offset,
@@ -59,7 +59,7 @@ func (r *queryResolver) CreateProductsFromTags(ctx context.Context, input model.
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	domainProducts, err := r.productService.CreateProductsFromTags(ctx, &product.CreateProductsFromTagsDTO{
 		Tags:       input.Tags,
@@ -76,7 +76,7 @@ func (r *queryResolver) ValidateProducts(ctx context.Context, tags []string) (*m
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	validProducts, invalidProducts, err := r.productService.ValidateProducts(ctx, tags)
 	if err != nil {

@@ -849,7 +849,7 @@ func TestUpdate_ValidTINWithOtherValidationErrors_PreservesUserInput(t *testing.
 	// Name should show empty value (what user submitted), not original value
 	nameInput := html.Element("//input[@name='Name']")
 	nameInput.Exists()
-	require.Equal(t, "", nameInput.Attr("value"),
+	require.Empty(t, nameInput.Attr("value"),
 		"Name field should show submitted empty value, not stored value")
 
 	// Address should show submitted value
@@ -903,7 +903,7 @@ func TestCreate_EmptyTIN_ShouldBeAllowed(t *testing.T) {
 	require.Equal(t, "Company Without TIN", savedCounterparty.Name())
 	// Empty TIN is allowed and creates a TIN object with empty value (not nil)
 	if savedCounterparty.Tin() != nil {
-		require.Equal(t, "", savedCounterparty.Tin().Value(), "Empty TIN should have empty value")
+		require.Empty(t, savedCounterparty.Tin().Value(), "Empty TIN should have empty value")
 	}
 }
 

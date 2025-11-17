@@ -63,7 +63,8 @@ DevHub is a development environment orchestrator that manages all development se
 ## Build/Lint/Test Commands
 
 ### Code Quality Commands:
-- Format code and remove unused imports: `make check fmt`
+- Format Go code and templates: `make fix fmt`
+- Organize and format Go imports: `make fix imports`
 - Lint code (check unused variables/functions): `make check lint`
 - Check translation files: `make check tr`
 

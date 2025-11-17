@@ -146,7 +146,7 @@ func processDirectory(dir string, outputFile *os.File) {
 						methodSig := getMethodSignature(fset, m, t.Name)
 						_, _ = fmt.Fprintf(outputFile, "- `func %s`\n", methodSig)
 						if m.Doc != "" {
-							_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(m.Doc, "\n", "\n  ", -1))
+							_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.ReplaceAll(m.Doc, "\n", "\n  "))
 						} else {
 							_, _ = fmt.Fprintf(outputFile, "\n")
 						}
@@ -180,7 +180,7 @@ func processDirectory(dir string, outputFile *os.File) {
 
 				_, _ = fmt.Fprintf(outputFile, "- Var: `%s`\n", v.Names)
 				if v.Doc != "" {
-					_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(v.Doc, "\n", "\n  ", -1))
+					_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.ReplaceAll(v.Doc, "\n", "\n  "))
 				} else {
 					_, _ = fmt.Fprintf(outputFile, "\n")
 				}
@@ -193,7 +193,7 @@ func processDirectory(dir string, outputFile *os.File) {
 
 				_, _ = fmt.Fprintf(outputFile, "- Const: `%s`\n", c.Names)
 				if c.Doc != "" {
-					_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.Replace(c.Doc, "\n", "\n  ", -1))
+					_, _ = fmt.Fprintf(outputFile, "  %s\n\n", strings.ReplaceAll(c.Doc, "\n", "\n  "))
 				} else {
 					_, _ = fmt.Fprintf(outputFile, "\n")
 				}

@@ -78,10 +78,13 @@ func (c *HealthController) Get(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	status := http.StatusOK
-	if response.Status == HealthStatusDegraded {
+	var status int
+	switch response.Status {
+	case HealthStatusHealthy:
 		status = http.StatusOK
-	} else if response.Status == HealthStatusDown {
+	case HealthStatusDegraded:
+		status = http.StatusOK
+	case HealthStatusDown:
 		status = http.StatusServiceUnavailable
 	}
 

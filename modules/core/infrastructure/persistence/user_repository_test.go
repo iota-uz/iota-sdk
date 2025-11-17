@@ -110,7 +110,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 		assert.Equal(t, user.UILanguageEN, createdUser.UILanguage())
 		assert.Nil(t, createdUser.Avatar())
 		assert.True(t, createdUser.LastLogin().IsZero())
-		assert.Equal(t, "", createdUser.LastIP())
+		assert.Empty(t, createdUser.LastIP())
 		assert.NotNil(t, createdUser.CreatedAt())
 		assert.NotNil(t, createdUser.UpdatedAt())
 		assert.Empty(t, createdUser.Roles())

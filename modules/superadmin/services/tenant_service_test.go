@@ -400,7 +400,7 @@ func TestTenantService_PrepareExcelExport(t *testing.T) {
 			require.NotNil(t, data)
 
 			assert.Len(t, data.Headers, 6)
-			assert.Equal(t, len(tenants), len(data.Rows))
+			assert.Len(t, data.Rows, len(tenants))
 
 			// Verify first row matches first tenant
 			if len(data.Rows) > 0 {
@@ -517,7 +517,7 @@ func TestTenantService_Integration(t *testing.T) {
 		data, err := service.PrepareExcelExport(f.Ctx, tenants)
 		require.NoError(t, err)
 		require.NotNil(t, data)
-		assert.Equal(t, len(tenants), len(data.Rows))
+		assert.Len(t, data.Rows, len(tenants))
 	})
 
 	t.Run("Created_Test_Tenant_Is_In_List", func(t *testing.T) {

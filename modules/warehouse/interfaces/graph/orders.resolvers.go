@@ -21,7 +21,7 @@ func (r *queryResolver) Order(ctx context.Context, id int64) (*model.Order, erro
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	domainOrder, err := r.orderService.GetByID(ctx, uint(id))
 	if err != nil {
@@ -35,7 +35,7 @@ func (r *queryResolver) Orders(ctx context.Context, query model.OrderQuery) (*mo
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	params := &order.FindParams{
 		Offset: query.Offset,
