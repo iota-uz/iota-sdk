@@ -17,7 +17,7 @@ Wait for the user's response with the task context.
 
 Based on the user's context, determine what research is needed:
 
-- If the task requires understanding existing code patterns, file locations, or codebase structure → Launch `Explor`e
+- If the task requires understanding existing code patterns, file locations, or codebase structure → Launch Explore
   agent (thoroughness: medium)
 - If the task requires planning implementation steps or architectural decisions → Launch `Plan` agent
 - If both are needed → Launch both agents in sequence. `Explore` to understand existing code patterns, `Plan` to
