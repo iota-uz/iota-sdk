@@ -27,5 +27,10 @@ var (
 			VerboseName: "O'zbekcha",
 			Tag:         language.Uzbek,
 		},
+		{
+			Code:        "zh",
+			VerboseName: "中文",
+			Tag:         language.Chinese,
+		},
 	}
 )

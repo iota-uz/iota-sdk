@@ -1,0 +1,171 @@
+{
+  "NavigationLinks": {
+    "CRM": "CRM",
+    "Clients": "客户",
+    "Chats": "聊天"
+  },
+  "Resources": {
+    "client": "客户"
+  },
+  "Permissions": {
+    "Client": {
+      "Create": "创建客户",
+      "Read": "查看客户",
+      "Update": "编辑客户",
+      "Delete": "删除客户"
+    }
+  },
+  "Clients": {
+    "List": {
+      "Meta": {
+        "Title": "客户"
+      },
+      "New": "新客户",
+      "FullName": "全名",
+      "Phone": "电话",
+      "NoData": {
+        "Title": "未找到客户",
+        "_Description": "创建新客户以开始"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "新客户"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "编辑客户"
+      }
+    },
+    "Tabs": {
+      "Profile": "常规",
+      "Notes": "备注",
+      "Chat": "消息",
+      "Personal": "个人信息",
+      "Documents": "文档",
+      "Actions": "操作"
+    },
+    "Notes": {
+      "NoNotes": "无可用备注"
+    },
+    "Single": {
+      "ViewDrawer": {
+        "Title": "客户详情"
+      },
+      "SendMessage": "发送消息",
+      "PersonalInfo": "个人信息",
+      "PassportInfo": "护照信息",
+      "TaxInfo": "税务信息",
+      "NotesInfo": "备注",
+      "FirstName": {
+        "Label": "名",
+        "Placeholder": "输入名"
+      },
+      "LastName": {
+        "Label": "姓",
+        "Placeholder": "输入姓"
+      },
+      "MiddleName": {
+        "Label": "中间名",
+        "Placeholder": "输入中间名"
+      },
+      "Phone": {
+        "Label": "电话",
+        "Placeholder": "输入电话号码"
+      },
+      "Email": {
+        "Label": "电子邮件",
+        "Placeholder": "输入电子邮件地址"
+      },
+      "Address": {
+        "Label": "地址",
+        "Placeholder": "输入地址"
+      },
+      "Gender": {
+        "Label": "性别",
+        "Placeholder": "输入性别"
+      },
+      "DateOfBirth": {
+        "Label": "出生日期",
+        "Placeholder": "输入出生日期"
+      },
+      "PassportSeries": {
+        "Label": "护照系列",
+        "Placeholder": "输入护照系列"
+      },
+      "PassportNumber": {
+        "Label": "护照号码",
+        "Placeholder": "输入护照号码"
+      },
+      "PassportSeriesAndNumber": {
+        "Label": "护照系列和号码",
+        "Placeholder": "输入护照系列和号码"
+      },
+      "Pin": {
+        "Label": "个人识别号码",
+        "Placeholder": "输入个人识别号码"
+      },
+      "CountryCode": {
+        "Label": "国家",
+        "Placeholder": "输入国家代码"
+      },
+      "Comments": {
+        "Label": "备注",
+        "Placeholder": "输入您的备注"
+      },
+      "Delete": "删除客户",
+      "DeleteConfirmation": "您确定要删除此客户吗？"
+    }
+  },
+  "MessageTemplates": {
+    "List": {
+      "Meta": {
+        "Title": "即时消息"
+      },
+      "New": "新即时消息",
+      "Content": "内容",
+      "NoData": {
+        "Title": "未找到消息模板",
+        "_Description": "创建新消息模板以开始"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "新即时消息"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "编辑即时消息"
+      }
+    },
+    "Single": {
+      "Template": {
+        "Label": "模板",
+        "Placeholder": "输入模板"
+      },
+      "Delete": "删除即时消息",
+      "DeleteConfirmation": "您确定要删除此即时消息吗？"
+    },
+    "Dialog": {
+      "Heading": "选择模板",
+      "Empty": "未找到模板...",
+      "NewTemplate": "新模板"
+    }
+  },
+  "Chats": {
+    "Meta": {
+      "Title": "聊天"
+    },
+    "New": {
+      "Title": "新聊天",
+      "Add": "添加",
+      "Cancel": "取消"
+    },
+    "Back": "返回",
+    "InstantMessages": "即时消息",
+    "NoSelectedChat": "选择一个聊天...",
+    "ChatNotFound": "未找到聊天..."
+  }
+}

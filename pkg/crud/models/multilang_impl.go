@@ -70,7 +70,7 @@ func (m *multiLangImpl) Default() string {
 	}
 
 	// Priority order: en -> ru -> uz -> first available
-	priorities := []string{"en", "ru", "uz"}
+	priorities := []string{"en", "ru", "uz", "zh"}
 
 	for _, locale := range priorities {
 		if value, exists := m.data[locale]; exists && value != "" {

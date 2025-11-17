@@ -1,0 +1,19 @@
+{
+  "NavigationLinks": {
+    "BiChat": "BI-聊天"
+  },
+  "BiChat": {
+    "Meta": {
+      "Index": {
+        "Title": "BI-聊天"
+      }
+    },
+    "Title": "BI-聊天",
+    "NewDialog": "新对话",
+    "MessagePlaceholder": "输入消息...",
+    "History": {
+      "Empty": "空历史记录",
+      "HelpText": "按 \"新对话\" 开始新对话"
+    }
+  }
+}
