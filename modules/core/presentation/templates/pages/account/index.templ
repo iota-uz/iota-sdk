@@ -9,12 +9,14 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type ProfilePageProps struct {
-	User     *viewmodels.User
-	Errors   map[string]string
-	PostPath string
+	User      *viewmodels.User
+	Errors    map[string]string
+	PostPath  string
+	Languages []intl.SupportedLanguage
 }
 
 templ ProfileForm(props *ProfilePageProps) {
@@ -85,6 +87,7 @@ templ ProfileForm(props *ProfilePageProps) {
 					Value:       string(props.User.Language),
 					Attrs:       templ.Attributes{"name": "Language"},
 					Error:       props.Errors["Language"],
+					Languages:   props.Languages,
 				})
 			}
 		</div>
