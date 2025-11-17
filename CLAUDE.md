@@ -4,15 +4,22 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 
 ## QUICK DECISION TREE
 
-**Task Classification → Agent Selection (Use this first)**
+**Task Classification → Agent Selection:**
 
-| Task Scope           | File Count  | Agent Combination            | Example Triggers                                    |
-|----------------------|-------------|------------------------------|-----------------------------------------------------|
-| **Single Read**      | 1-3 files   | **No agents needed**         | Documentation lookup, code reading                  |
-| **Small Fix**        | 1-5 files   | `debugger` + 1 specialist    | Single controller bug, small template fix           |
-| **Medium Feature**   | 6-15 files  | 3-4 agents parallel          | New form, API endpoint, page updates                |
-| **Large Feature**    | 16-30 files | 5-7 agents parallel          | New module, major refactoring                       |
-| **Cross-Module**     | 30+ files   | 7-10+ agents parallel        | Architecture changes, bulk renaming                 |
+**Single Read (1-3 files):** No agents needed
+- Documentation lookup, code reading
+
+**Small Fix (1-5 files):** `debugger` + 1 specialist
+- Single controller bug, small template fix
+
+**Medium Feature (6-15 files):** 3-4 agents parallel
+- New form, API endpoint, page updates
+
+**Large Feature (16-30 files):** 5-7 agents parallel
+- New module, major refactoring
+
+**Cross-Module (30+ files):** 7-10+ agents parallel
+- Architecture changes, bulk renaming
 
 **Agent Selection Matrix:**
 - **Errors/Failures**: Always start with `debugger`
@@ -227,17 +234,38 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 
 ### Multi-Agent Workflow Matrix
 
-| Workflow Type            | Required Agents                           | Optional Agents                            | When to Use                                                                          |
-|--------------------------|-------------------------------------------|--------------------------------------------|--------------------------------------------------------------------------------------|
-| **Feature Development**  | `editor`                                  | `refactoring-expert` (always after editor) | New features, enhancements, major functionality                                      |
-| **Bug Resolution**       | `debugger` → `editor` + `refactoring-expert` | None                                    | Bug fixes, error resolution, system failures                                         |
-| **Performance Issues**   | `debugger` + `editor` + `refactoring-expert` | None                                    | Slow queries, high latency, resource usage                                           |
-| **UI/Template Changes**  | `editor`                                  | None                                       | UI updates, forms, frontend functionality                                            |
-| **Database Changes**     | `editor` + `refactoring-expert`           | None (editor handles all layers)           | Schema changes, migrations, query optimization                                       |
-| **Cross-Module Work**    | Multiple `editor` + `refactoring-expert`  | None                                       | Architecture changes, large refactoring                                              |
-| **Config Management**    | `editor`                                  | None (handles all config concerns)         | CLAUDE.md updates, env files, docs, agent defs                                       |
-| **E2E Test Work**        | `e2e-tester`                              | `debugger` (for debugging failing tests)   | Playwright tests, fixtures, page objects                                             |
-| **Research & Discovery** | `general-purpose`                         | None (feeds findings to implementation agents) | Codebase exploration, pattern analysis, architecture understanding, complex searches |
+**Workflow Types:**
+
+**Feature Development:** Use `editor` agent
+- Optional: `refactoring-expert` (always after editor)
+- When: New features, enhancements, major functionality
+
+**Bug Resolution:** `debugger` → `editor` + `refactoring-expert`
+- When: Bug fixes, error resolution, system failures
+
+**Performance Issues:** `debugger` + `editor` + `refactoring-expert`
+- When: Slow queries, high latency, resource usage
+
+**UI/Template Changes:** Use `editor` agent
+- When: UI updates, forms, frontend functionality
+
+**Database Changes:** `editor` + `refactoring-expert`
+- Note: editor handles all layers
+- When: Schema changes, migrations, query optimization
+
+**Cross-Module Work:** Multiple `editor` + `refactoring-expert`
+- When: Architecture changes, large refactoring
+
+**Config Management:** Use `editor` agent
+- Handles: CLAUDE.md updates, env files, docs, agent defs
+
+**E2E Test Work:** Use `e2e-tester` agent
+- Optional: `debugger` (for debugging failing tests)
+- When: Playwright tests, fixtures, page objects
+
+**Research & Discovery:** Use `general-purpose` agent
+- Feeds findings to implementation agents
+- When: Codebase exploration, pattern analysis, architecture understanding, complex searches
 
 **Agent Launch Rules:**
 - **Always parallel**: Launch required agents simultaneously in single message
@@ -299,13 +327,25 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 
 ##### 4. Assessment Tools for Orchestrators
 
-| Task Type | Analysis Commands | Distribution Strategy |
-|-----------|------------------|----------------------|
-| **Type Errors** | `go vet ./...`, `go build ./...` | Split by module/package |
-| **Template Work** | `find . -name "*.templ"` | Split by functional area |
-| **Translation Missing** | `make check tr`, `grep -r "missing"` | Split by language files |
-| **Test Coverage** | `go test -cover ./...`, find tests | Split by layer/domain |
-| **Performance Issues** | `go test -bench ./...`, profiling | Split by service/component |
+**Type Errors:**
+- Analysis: `go vet ./...`, `go build ./...`
+- Distribution: Split by module/package
+
+**Template Work:**
+- Analysis: `find . -name "*.templ"`
+- Distribution: Split by functional area
+
+**Translation Missing:**
+- Analysis: `make check tr`, `grep -r "missing"`
+- Distribution: Split by language files
+
+**Test Coverage:**
+- Analysis: `go test -cover ./...`, find tests
+- Distribution: Split by layer/domain
+
+**Performance Issues:**
+- Analysis: `go test -bench ./...`, profiling
+- Distribution: Split by service/component
 
 #### Parallel Agent Launch (After Analysis)
 - **Always analyze scope FIRST** using assessment tools
@@ -332,13 +372,30 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 
 ### Agent Collaboration Matrix
 
-| Primary Agent          | Provides Input To        | Receives Input From                      | Parallel Partners          |
-|------------------------|--------------------------|------------------------------------------|----------------------------|
-| **debugger**           | `editor`                 | Error logs, user reports                 | None (investigation first) |
-| **editor**             | `refactoring-expert`     | `debugger`, business requirements        | None (unified agent)       |
-| **refactoring-expert** | Final output             | All other agents                         | None (final review)        |
-| **e2e-tester**         | None (test-only)         | `debugger`, `editor`                     | None (independent testing) |
-| **general-purpose**    | All implementation agents| Business requirements, initial questions | None (research first, then delegate) |
+**debugger:**
+- Provides input to: `editor`
+- Receives input from: Error logs, user reports
+- Parallel partners: None (investigation first)
+
+**editor:**
+- Provides input to: `refactoring-expert`
+- Receives input from: `debugger`, business requirements
+- Parallel partners: None (unified agent)
+
+**refactoring-expert:**
+- Provides input to: Final output
+- Receives input from: All other agents
+- Parallel partners: None (final review)
+
+**e2e-tester:**
+- Provides input to: None (test-only)
+- Receives input from: `debugger`, `editor`
+- Parallel partners: None (independent testing)
+
+**general-purpose:**
+- Provides input to: All implementation agents
+- Receives input from: Business requirements, initial questions
+- Parallel partners: None (research first, then delegate)
 
 ### Single Agent Exceptions
 
@@ -369,25 +426,53 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 - Using direct tools instead of `editor` for complex multi-file changes
 
 ### Business Context Translation
-**Business Request → Multi-Agent Orchestration**
 
-| Business Context                              | Standard Multi-Agent Launch                                              |
-|-----------------------------------------------|--------------------------------------------------------------------------|
-| "Fix dashboard bug"                           | `debugger` && (`editor` & `refactoring-expert`)                          |
-| "Add new payment form"                        | `editor` && `refactoring-expert`                                         |
-| "Optimize accounting performance"             | `debugger` && `editor` && `refactoring-expert`                           |
-| "Update finance module"                       | (Multiple `editor`) && `refactoring-expert`                              |
-| "Update CLAUDE.md with new agent"             | `editor`                                                                 |
-| "Fix environment configuration issues"        | `editor`                                                                 |
-| "Add new documentation section"               | `editor`                                                                 |
-| "Write E2E tests for user registration"       | `e2e-tester`                                                             |
-| "Debug failing Playwright test"               | `debugger` && `e2e-tester`                                               |
-| "Add page objects for vehicles module"        | `e2e-tester`                                                             |
-| "How is authentication implemented?"          | `general-purpose` (research) → findings inform implementation agents     |
-| "Find all places where payment is processed"  | `general-purpose` (multi-step search) → guide `editor` to relevant files |
-| "Understand the multi-tenant architecture"    | `general-purpose` (architecture exploration) → inform feature design     |
-| "Where should I add new RBAC check?"          | `general-purpose` (pattern analysis) → guide `editor` to correct location|
-| "What's the standard error handling pattern?" | `general-purpose` (codebase patterns) → inform implementation approach   |
+**Business Request → Multi-Agent Orchestration Examples:**
+
+**"Fix dashboard bug"**
+→ `debugger` && (`editor` & `refactoring-expert`)
+
+**"Add new payment form"**
+→ `editor` && `refactoring-expert`
+
+**"Optimize accounting performance"**
+→ `debugger` && `editor` && `refactoring-expert`
+
+**"Update finance module"**
+→ (Multiple `editor`) && `refactoring-expert`
+
+**"Update CLAUDE.md with new agent"**
+→ `editor`
+
+**"Fix environment configuration issues"**
+→ `editor`
+
+**"Add new documentation section"**
+→ `editor`
+
+**"Write E2E tests for user registration"**
+→ `e2e-tester`
+
+**"Debug failing Playwright test"**
+→ `debugger` && `e2e-tester`
+
+**"Add page objects for vehicles module"**
+→ `e2e-tester`
+
+**"How is authentication implemented?"**
+→ `general-purpose` (research) → findings inform implementation agents
+
+**"Find all places where payment is processed"**
+→ `general-purpose` (multi-step search) → guide `editor` to relevant files
+
+**"Understand the multi-tenant architecture"**
+→ `general-purpose` (architecture exploration) → inform feature design
+
+**"Where should I add new RBAC check?"**
+→ `general-purpose` (pattern analysis) → guide `editor` to correct location
+
+**"What's the standard error handling pattern?"**
+→ `general-purpose` (codebase patterns) → inform implementation approach
 
 **Agent Execution Syntax:**
 - `&` = Parallel execution (agents run simultaneously)
