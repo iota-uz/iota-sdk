@@ -239,7 +239,7 @@ func TestSortBy(t *testing.T) {
 		}
 
 		sql := sort.ToSQL(fieldMapping)
-		assert.Equal(t, "", sql)
+		assert.Empty(t, sql)
 	})
 
 	t.Run("invalid field returns empty string", func(t *testing.T) {
@@ -250,7 +250,7 @@ func TestSortBy(t *testing.T) {
 		}
 
 		sql := sort.ToSQL(fieldMapping)
-		assert.Equal(t, "", sql, "Invalid field should return empty string")
+		assert.Empty(t, sql, "Invalid field should return empty string")
 	})
 
 	t.Run("mixed valid and invalid fields", func(t *testing.T) {
@@ -307,6 +307,6 @@ func TestSortBy(t *testing.T) {
 		}
 
 		sql := sort.ToSQL(maliciousMapping)
-		assert.Equal(t, "", sql, "Unmapped malicious field should return empty string")
+		assert.Empty(t, sql, "Unmapped malicious field should return empty string")
 	})
 }

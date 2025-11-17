@@ -121,19 +121,20 @@ func buildChartOptionsFromResult(config lens.PanelConfig, result *executor.Execu
 	addEventHandlers(&options, config)
 
 	// Handle pie and gauge charts differently
-	if config.Type == lens.ChartTypePie {
+	switch config.Type {
+	case lens.ChartTypePie:
 		options.Series = buildPieSeriesFromResult(result)
 		options.Labels = buildCategoriesFromResult(result)
-	} else if config.Type == lens.ChartTypeGauge {
+	case lens.ChartTypeGauge:
 		// Gauge charts (radial bars) use pie-like series format
 		options.Series = buildPieSeriesFromResult(result)
 		options.Labels = buildCategoriesFromResult(result)
-	} else if config.Type == lens.ChartTypeStackedBar {
+	case lens.ChartTypeStackedBar:
 		options.Series = buildStackedSeriesFromResult(result)
 		options.XAxis = charts.XAxisConfig{
 			Categories: buildCategoriesFromResult(result),
 		}
-	} else {
+	case lens.ChartTypeLine, lens.ChartTypeBar, lens.ChartTypeArea, lens.ChartTypeColumn, lens.ChartTypeTable, lens.ChartTypeMetric:
 		options.Series = buildSeriesFromResult(result)
 		options.XAxis = charts.XAxisConfig{
 			Categories: buildCategoriesFromResult(result),

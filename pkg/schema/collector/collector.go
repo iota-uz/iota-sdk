@@ -119,7 +119,7 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 	for i, change := range upChanges.Changes {
 		switch node := change.(type) {
 		case *tree.CreateTable:
-			buffer.WriteString(fmt.Sprintf("-- Change CREATE_TABLE: %s\n", node.Table.TableName))
+			fmt.Fprintf(buffer, "-- Change CREATE_TABLE: %s\n", node.Table.TableName)
 			buffer.WriteString(pPrinter.Pretty(node))
 			buffer.WriteString(";\n\n")
 
@@ -128,11 +128,11 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 			for _, cmd := range node.Cmds {
 				switch altCmd := cmd.(type) {
 				case *tree.AlterTableAddColumn:
-					buffer.WriteString(fmt.Sprintf("-- Change ADD_COLUMN: %s\n", altCmd.ColumnDef.Name))
+					fmt.Fprintf(buffer, "-- Change ADD_COLUMN: %s\n", altCmd.ColumnDef.Name)
 					buffer.WriteString(pPrinter.Pretty(node))
 					buffer.WriteString(";\n\n")
 				case *tree.AlterTableAlterColumnType:
-					buffer.WriteString(fmt.Sprintf("-- Change ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
+					fmt.Fprintf(buffer, "-- Change ALTER_COLUMN_TYPE: %s\n", altCmd.Column)
 					buffer.WriteString(pPrinter.Pretty(node))
 					buffer.WriteString(";\n\n")
 				default:
@@ -141,12 +141,12 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 				}
 			}
 		case *tree.CreateIndex:
-			buffer.WriteString(fmt.Sprintf("-- Change CREATE_INDEX: %s\n", node.Name))
+			fmt.Fprintf(buffer, "-- Change CREATE_INDEX: %s\n", node.Name)
 			buffer.WriteString(pPrinter.Pretty(node))
 			buffer.WriteString(";\n\n")
 		default:
 			c.logger.Warnf("Unknown up change type at index %d: %T", i, change)
-			buffer.WriteString(fmt.Sprintf("-- Unknown change type: %T\n", change))
+			fmt.Fprintf(buffer, "-- Unknown change type: %T\n", change)
 			// Try to use String() method if available via reflection
 			if stringer, ok := change.(fmt.Stringer); ok {
 				buffer.WriteString(stringer.String())
@@ -163,7 +163,7 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 		for i, change := range downChanges.Changes {
 			switch node := change.(type) {
 			case *tree.DropTable:
-				buffer.WriteString(fmt.Sprintf("-- Undo CREATE_TABLE: %s\n", node.Names[0].TableName))
+				fmt.Fprintf(buffer, "-- Undo CREATE_TABLE: %s\n", node.Names[0].TableName)
 				buffer.WriteString(node.String())
 				buffer.WriteString(";\n\n")
 
@@ -172,11 +172,11 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 				for _, cmd := range node.Cmds {
 					switch altCmd := cmd.(type) {
 					case *tree.AlterTableDropColumn:
-						buffer.WriteString(fmt.Sprintf("-- Undo ADD_COLUMN: %s\n", altCmd.Column))
+						fmt.Fprintf(buffer, "-- Undo ADD_COLUMN: %s\n", altCmd.Column)
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					case *tree.AlterTableAlterColumnType:
-						buffer.WriteString(fmt.Sprintf("-- Undo ALTER_COLUMN_TYPE: %s\n", altCmd.Column))
+						fmt.Fprintf(buffer, "-- Undo ALTER_COLUMN_TYPE: %s\n", altCmd.Column)
 						buffer.WriteString(pPrinter.Pretty(node))
 						buffer.WriteString(";\n\n")
 					default:
@@ -186,13 +186,13 @@ func (c *Collector) StoreMigrations(upChanges, downChanges *common.ChangeSet) er
 				}
 
 			case *tree.DropIndex:
-				buffer.WriteString(fmt.Sprintf("-- Undo CREATE_INDEX: %s\n", node.IndexList[0]))
+				fmt.Fprintf(buffer, "-- Undo CREATE_INDEX: %s\n", node.IndexList[0])
 				buffer.WriteString(node.String())
 				buffer.WriteString(";\n\n")
 
 			default:
 				c.logger.Warnf("Unknown down change type at index %d: %T", i, change)
-				buffer.WriteString(fmt.Sprintf("-- Unknown down change type: %T\n", change))
+				fmt.Fprintf(buffer, "-- Unknown down change type: %T\n", change)
 				// Try to use String() method if available via reflection
 				if stringer, ok := change.(fmt.Stringer); ok {
 					buffer.WriteString(stringer.String())

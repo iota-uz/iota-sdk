@@ -106,59 +106,18 @@ func CacheKey(keys ...interface{}) string {
 				h.Write([]byte(x.String()))
 			}
 		default:
-			h.Write([]byte(fmt.Sprint(x)))
+			_, _ = fmt.Fprint(h, x)
 		}
 	}
 
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func WithCache(ctx context.Context, cache Cache) context.Context {
+func NewContextWithCache(ctx context.Context, cache Cache) context.Context {
 	return context.WithValue(ctx, cacheKey{}, cache)
 }
 
-func UseCache(ctx context.Context) (Cache, bool) {
-	cache := ctx.Value(cacheKey{})
-	if cache == nil {
-		return nil, false
-	}
-
-	c, ok := cache.(Cache)
-	if !ok {
-		return nil, false
-	}
-	return c, true
-}
-
-type InMemoryCache struct {
-	// cache is a map of string to any type
-	cache map[string]any
-}
-
-func NewInMemoryCache() Cache {
-	return &InMemoryCache{
-		cache: make(map[string]any),
-	}
-}
-
-func (c *InMemoryCache) Get(key string) (any, bool) {
-	if value, ok := c.cache[key]; ok {
-		return value, true
-	}
-	return nil, false
-}
-
-func (c *InMemoryCache) Set(key string, value any) error {
-	c.cache[key] = value
-	return nil
-}
-
-func (c *InMemoryCache) Delete(key string) {
-	delete(c.cache, key)
-}
-
-func (c *InMemoryCache) Clear() {
-	for k := range c.cache {
-		delete(c.cache, k)
-	}
+func GetCacheFromContext(ctx context.Context) (Cache, bool) {
+	cache, ok := ctx.Value(cacheKey{}).(Cache)
+	return cache, ok
 }
