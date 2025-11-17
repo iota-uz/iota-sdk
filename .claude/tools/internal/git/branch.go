@@ -24,9 +24,9 @@ func GetCurrentBranch(ctx context.Context) (string, error) {
 	return branch, nil
 }
 
-// IsProtectedBranch checks if the given branch name is a protected branch (main only)
+// IsProtectedBranch checks if the given branch name is a protected branch (main or staging)
 func IsProtectedBranch(branch string) bool {
-	return branch == "main"
+	return branch == "main" || branch == "staging"
 }
 
 // GetMergeBase returns the merge base between the current HEAD and a target branch
