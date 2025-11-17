@@ -14,7 +14,6 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/errcode"
 	"github.com/99designs/gqlgen/graphql/executor"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
@@ -30,7 +29,7 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	app application.Application
+	// Removed unused field: app application.Application
 }
 
 func NewBaseServer(schema graphql.ExecutableSchema) *Handler {
@@ -126,17 +125,6 @@ func (h MyPOST) Supports(r *http.Request) bool {
 	return r.Method == http.MethodPost && mediaType == "application/json"
 }
 
-func getRequestBody(r *http.Request) (string, error) {
-	if r == nil || r.Body == nil {
-		return "", nil
-	}
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		return "", fmt.Errorf("unable to get Request Body %w", err)
-	}
-	return string(body), nil
-}
-
 var pool = sync.Pool{
 	New: func() any {
 		return &graphql.RawParams{}
@@ -162,19 +150,7 @@ func writeJson(w io.Writer, response *graphql.Response) {
 	if err != nil {
 		panic(fmt.Errorf("unable to marshal %s: %w", string(response.Data), err))
 	}
-	w.Write(b)
-}
-
-func writeJsonError(w io.Writer, msg string) {
-	writeJson(w, &graphql.Response{Errors: gqlerror.List{{Message: msg}}})
-}
-
-func writeJsonErrorf(w io.Writer, format string, args ...any) {
-	writeJson(w, &graphql.Response{Errors: gqlerror.List{{Message: fmt.Sprintf(format, args...)}}})
-}
-
-func writeJsonGraphqlError(w io.Writer, err ...*gqlerror.Error) {
-	writeJson(w, &graphql.Response{Errors: err})
+	_, _ = w.Write(b)
 }
 
 func jsonDecode(r io.Reader, val any) error {
@@ -186,12 +162,16 @@ func statusFor(errs gqlerror.List) int {
 	switch errcode.GetErrorKind(errs) {
 	case errcode.KindProtocol:
 		return http.StatusUnprocessableEntity
+	case errcode.KindUser:
+		return http.StatusOK
 	default:
 		return http.StatusOK
 	}
 }
 
-const execsContextKey = "execs"
+type contextKey string
+
+const execsContextKey contextKey = "execs"
 
 type Handler struct {
 	execs      []*executor.Executor
@@ -316,7 +296,12 @@ func (s *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			err := s.execs[0].PresentRecoveredError(r.Context(), err)
 			gqlErr, _ := err.(*gqlerror.Error)
 			resp := &graphql.Response{Errors: []*gqlerror.Error{gqlErr}}
-			b, _ := json.Marshal(resp)
+			b, marshalErr := json.Marshal(resp)
+			if marshalErr != nil {
+				// If we can't marshal the response, write a simple error
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			_, _ = w.Write(b)
 		}

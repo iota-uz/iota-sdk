@@ -165,8 +165,8 @@ func TestFromJSONUnsafe(t *testing.T) {
 	config, err := FromJSONUnsafe(jsonStr)
 	require.NoError(t, err)
 	assert.NotNil(t, config)
-	assert.Equal(t, "", config.ID)
-	assert.Equal(t, "", config.Name)
+	assert.Empty(t, config.ID)
+	assert.Empty(t, config.Name)
 	assert.Equal(t, "Test without required fields", config.Description)
 }
 
@@ -194,8 +194,8 @@ func TestFromJSONBytesUnsafe(t *testing.T) {
 	config, err := FromJSONBytesUnsafe(invalidJSON)
 	require.NoError(t, err)
 	assert.NotNil(t, config)
-	assert.Equal(t, "", config.ID)
-	assert.Equal(t, "", config.Name)
+	assert.Empty(t, config.ID)
+	assert.Empty(t, config.Name)
 }
 
 func TestRoundTripSerialization(t *testing.T) {
@@ -258,7 +258,7 @@ func TestRoundTripSerialization(t *testing.T) {
 	assert.Equal(t, original.Version, restored.Version)
 	assert.Equal(t, original.Grid.Columns, restored.Grid.Columns)
 	assert.Equal(t, original.Grid.RowHeight, restored.Grid.RowHeight)
-	assert.Equal(t, len(original.Panels), len(restored.Panels))
+	assert.Len(t, restored.Panels, len(original.Panels))
 	assert.Equal(t, original.Panels[0].ID, restored.Panels[0].ID)
 	assert.Equal(t, original.Panels[0].Title, restored.Panels[0].Title)
 	assert.Equal(t, original.Panels[0].Type, restored.Panels[0].Type)

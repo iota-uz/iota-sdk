@@ -243,7 +243,7 @@ func TestSortTableDefs(t *testing.T) {
 			require.NoError(t, err)
 
 			// We need to verify the order is correct for dependency resolution
-			assert.Equal(t, len(expected), len(result), "Result should have the same number of tables")
+			assert.Len(t, result, len(expected), "Result should have the same number of tables")
 
 			// Verify the order matches our expectations
 			for i, table := range result {
