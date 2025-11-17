@@ -2,8 +2,11 @@ package tenants
 
 import (
 	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/breadcrumb"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/layouts"
@@ -12,6 +15,11 @@ import (
 	"net/http"
 	"time"
 )
+
+func isUserActive(lastLogin time.Time) bool {
+	const activeThresholdHours = 30 * 24 // 30 days
+	return !lastLogin.IsZero() && time.Since(lastLogin).Hours() < activeThresholdHours
+}
 
 type TenantUser struct {
 	ID        uint
@@ -39,14 +47,16 @@ func buildUsersTableConfig(tenant *entities.TenantInfo, users []*TenantUser, tot
 		table.Column("created_at", pageCtx.T("SuperAdmin.Tenants.Users.CreatedAt"), table.WithSortable()),
 		table.Column("last_login", pageCtx.T("SuperAdmin.Tenants.Users.LastLogin"), table.WithSortable()),
 		table.Column("status", pageCtx.T("SuperAdmin.Tenants.Users.Status")),
+		table.Column("actions", pageCtx.T("SuperAdmin.Tenants.Users.Actions")),
 	}
 
 	rows := make([]table.TableRow, len(users))
 	for i, user := range users {
-		// Determine status based on last login (e.g., active if logged in within 30 days)
+		// Determine status based on last login using helper function
+		isActive := isUserActive(user.LastLogin)
 		status := pageCtx.T("SuperAdmin.Tenants.Status.Inactive")
 		statusVariant := badge.VariantGray
-		if !user.LastLogin.IsZero() && time.Since(user.LastLogin).Hours() < 30*24 {
+		if isActive {
 			status = pageCtx.T("SuperAdmin.Tenants.Status.Active")
 			statusVariant = badge.VariantGreen
 		}
@@ -74,6 +84,7 @@ func buildUsersTableConfig(tenant *entities.TenantInfo, users []*TenantUser, tot
 			table.Cell(table.DateTime(user.CreatedAt), user.CreatedAt),
 			lastLoginCell,
 			table.Cell(StatusBadge(status, statusVariant), status),
+			table.Cell(ActionMenu(user.ID, fullName), user.ID),
 		)
 	}
 
@@ -151,7 +162,7 @@ templ UsersTableRows(users []*TenantUser) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	if len(users) == 0 {
 		<tr>
-			<td colspan="7" class="text-center py-12">
+			<td colspan="8" class="text-center py-12">
 				<p class="text-sm text-gray-800 font-medium">{ pageCtx.T("Scaffold.Table.NothingFound") }</p>
 				<p class="text-xs text-300 mt-2">No users found for this tenant</p>
 			</td>
@@ -180,13 +191,18 @@ templ UsersTableRows(users []*TenantUser) {
 				</td>
 				<td class="px-4 py-4">
 					{{
+						isActive := isUserActive(user.LastLogin)
 						statusVariant := badge.VariantGray
-						if !user.LastLogin.IsZero() && time.Since(user.LastLogin).Hours() < 30*24 {
+						if isActive {
 							status = pageCtx.T("SuperAdmin.Tenants.Status.Active")
 							statusVariant = badge.VariantGreen
 						}
 					}}
 					@StatusBadge(status, statusVariant)
+				</td>
+				<td class="px-4 py-4">
+					{{ fullName := fmt.Sprintf("%s %s", user.FirstName, user.LastName) }}
+					@ActionMenu(user.ID, fullName)
 				</td>
 			</tr>
 		}
@@ -204,6 +220,253 @@ templ UsersTable(props *UsersPageProps) {
 	@table.Table(config)
 }
 
+templ ActionMenu(userID uint, userName string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div
+		class="relative"
+		x-data="{ open: false }"
+		@click.away="open = false"
+	>
+		<button
+			@click="open = !open"
+			class="p-2 rounded-lg hover:bg-surface-400 transition-colors"
+			type="button"
+		>
+			@icons.DotsThreeVertical(icons.Props{Size: "20", Class: "text-200"})
+		</button>
+		<div
+			x-show="open"
+			x-transition
+			class="absolute right-0 mt-2 w-48 bg-surface-500 rounded-lg shadow-lg border border-secondary z-50"
+		>
+			<button
+				data-user-id={ fmt.Sprintf("%d", userID) }
+				data-user-name={ userName }
+				@click="open = false; $dispatch('open-reset-password-modal', { userId: parseInt($el.dataset.userId), userName: $el.dataset.userName })"
+				class="w-full px-4 py-2 text-left text-sm text-200 hover:bg-surface-400 rounded-lg transition-colors flex items-center gap-2"
+				type="button"
+			>
+				@icons.LockKey(icons.Props{Size: "16"})
+				{ pageCtx.T("SuperAdmin.Tenants.Users.ResetPassword") }
+			</button>
+		</div>
+	</div>
+}
+
+templ PasswordResetModal(tenantID string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		successMsg := pageCtx.T("SuperAdmin.Tenants.Users.PasswordResetSuccess")
+		passwordCopiedMsg := pageCtx.T("SuperAdmin.Tenants.Users.PasswordCopied")
+		resetPasswordFor := pageCtx.T("SuperAdmin.Tenants.Users.ResetPasswordFor")
+	}}
+	<div
+		x-data={ fmt.Sprintf(`{
+			showModal: false,
+			mode: 'manual',
+			password: '',
+			generatedPassword: '',
+			userId: null,
+			userName: '',
+			isLoading: false,
+			errorMessage: '',
+			successMsg: '%s',
+			passwordCopiedMsg: '%s',
+			resetPasswordFor: '%s',
+
+			generateSecurePassword() {
+				const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%%^&*';
+				const array = new Uint8Array(16);
+				crypto.getRandomValues(array);
+				this.generatedPassword = Array.from(array, byte => chars[byte %% chars.length]).join('');
+				this.password = this.generatedPassword;
+			},
+
+			copyPassword() {
+				navigator.clipboard.writeText(this.generatedPassword).then(() => {
+					this.$dispatch('show-toast', { message: this.passwordCopiedMsg, type: 'success' });
+				});
+			},
+
+			resetForm() {
+				this.mode = 'manual';
+				this.password = '';
+				this.generatedPassword = '';
+				this.errorMessage = '';
+				this.isLoading = false;
+			},
+
+			closeModal() {
+				this.showModal = false;
+				this.resetForm();
+			}
+		}`, successMsg, passwordCopiedMsg, resetPasswordFor) }
+		@open-reset-password-modal.window="
+			userId = $event.detail.userId;
+			userName = $event.detail.userName;
+			showModal = true;
+			resetForm();
+		"
+		@keydown.escape.window="if (showModal) closeModal()"
+	>
+		<div
+			x-show="showModal"
+			x-transition:enter="transition ease-out duration-200"
+			x-transition:enter-start="opacity-0"
+			x-transition:enter-end="opacity-100"
+			x-transition:leave="transition ease-in duration-150"
+			x-transition:leave-start="opacity-100"
+			x-transition:leave-end="opacity-0"
+			class="fixed inset-0 bg-black/50 z-40"
+			@click="closeModal()"
+		></div>
+		<div
+			x-show="showModal"
+			x-transition:enter="transition ease-out duration-200"
+			x-transition:enter-start="opacity-0 translate-y-4"
+			x-transition:enter-end="opacity-100 translate-y-0"
+			x-transition:leave="transition ease-in duration-150"
+			x-transition:leave-start="opacity-100 translate-y-0"
+			x-transition:leave-end="opacity-0 translate-y-4"
+			class="fixed inset-0 flex items-center justify-center z-50 p-4"
+			@click.self="closeModal()"
+		>
+			<div class="bg-surface-500 rounded-xl shadow-xl w-full max-w-md">
+				<div class="flex items-center justify-between p-4 border-b border-secondary">
+					<h3 class="text-lg font-semibold text-100" x-text="resetPasswordFor.replace('%s', userName)"></h3>
+					<button
+						@click="closeModal()"
+						class="p-2 rounded-lg hover:bg-surface-400 transition-colors"
+						type="button"
+					>
+						@icons.X(icons.Props{Size: "20", Class: "text-200"})
+					</button>
+				</div>
+				<div class="p-4">
+					<div class="flex gap-2 mb-4">
+						<button
+							@click="mode = 'manual'; generatedPassword = ''; password = ''"
+							:class="mode === 'manual' ? 'bg-primary-500 text-white' : 'bg-surface-400 text-200'"
+							class="flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+							type="button"
+						>
+							{ pageCtx.T("SuperAdmin.Tenants.Users.ManualEntry") }
+						</button>
+						<button
+							@click="mode = 'generate'; password = ''; errorMessage = ''"
+							:class="mode === 'generate' ? 'bg-primary-500 text-white' : 'bg-surface-400 text-200'"
+							class="flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+							type="button"
+						>
+							{ pageCtx.T("SuperAdmin.Tenants.Users.AutoGenerate") }
+						</button>
+					</div>
+					<form
+						@submit.prevent="isLoading = true; errorMessage = ''"
+						hx-post={ fmt.Sprintf("/superadmin/tenants/%s/users/", tenantID) + "' + userId + '/reset-password" }
+						hx-vals="js:{password: mode === 'manual' ? password : generatedPassword}"
+						hx-swap="none"
+						@htmx:after-request={ fmt.Sprintf(`
+							isLoading = false;
+							if ($event.detail.successful) {
+								$dispatch('show-toast', { message: successMsg, type: 'success' });
+								closeModal();
+							} else {
+								const response = $event.detail.xhr.response;
+								try {
+									const errorData = JSON.parse(response);
+									errorMessage = errorData.error || '%s';
+								} catch (e) {
+									if ($event.detail.xhr.status === 400) {
+										errorMessage = response || '%s';
+									} else if ($event.detail.xhr.status >= 500) {
+										errorMessage = '%s';
+									} else {
+										errorMessage = '%s';
+									}
+								}
+							}
+						`, pageCtx.T("SuperAdmin.Tenants.Users.PasswordResetError"), pageCtx.T("SuperAdmin.Tenants.Users.PasswordResetError"), pageCtx.T("SuperAdmin.Tenants.Users.Errors.ServerError"), pageCtx.T("SuperAdmin.Tenants.Users.Errors.NetworkError")) }
+					>
+						<div x-show="mode === 'manual'">
+							@input.Password(&input.Props{
+								Label:       pageCtx.T("SuperAdmin.Tenants.Users.NewPassword"),
+								Placeholder: pageCtx.T("SuperAdmin.Tenants.Users.EnterNewPassword"),
+								Attrs: templ.Attributes{
+									"x-model":   "password",
+									"required":  true,
+									"minlength": "8",
+								},
+							})
+						</div>
+						<div x-show="mode === 'generate'" class="space-y-4">
+							<div x-show="!generatedPassword" class="text-center py-8">
+								@button.Primary(button.Props{
+									Attrs: templ.Attributes{
+										"@click.prevent": "generateSecurePassword()",
+										"type":           "button",
+									},
+								}) {
+									@icons.Password(icons.Props{Size: "20"})
+									{ pageCtx.T("SuperAdmin.Tenants.Users.GeneratePassword") }
+								}
+							</div>
+							<div x-show="generatedPassword" class="space-y-2">
+								<label class="block text-sm font-medium text-200">
+									{ pageCtx.T("SuperAdmin.Tenants.Users.GeneratedPassword") }
+								</label>
+								<div class="flex gap-2">
+									<input
+										type="text"
+										x-model="generatedPassword"
+										readonly
+										class="flex-1 px-3 py-2 bg-surface-400 border border-secondary rounded-lg text-100 font-mono text-sm"
+									/>
+									@button.Secondary(button.Props{
+										Size: button.SizeSM,
+										Attrs: templ.Attributes{
+											"@click.prevent": "copyPassword()",
+											"type":           "button",
+											"x-tooltip.raw":  pageCtx.T("SuperAdmin.Tenants.Users.CopyPassword"),
+										},
+									}) {
+										@icons.Copy(icons.Props{Size: "16"})
+									}
+								</div>
+							</div>
+						</div>
+						<div x-show="errorMessage" class="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+							<p class="text-sm text-red-500" x-text="errorMessage"></p>
+						</div>
+						<div class="flex gap-3 mt-6">
+							@button.Secondary(button.Props{
+								Class: "flex-1 justify-center",
+								Attrs: templ.Attributes{
+									"@click": "closeModal()",
+									"type":   "button",
+								},
+							}) {
+								{ pageCtx.T("SuperAdmin.Tenants.Users.Cancel") }
+							}
+							@button.Primary(button.Props{
+								Class: "flex-1 justify-center",
+								Attrs: templ.Attributes{
+									"type":            "submit",
+									"x-bind:disabled": "(mode === 'manual' && !password) || (mode === 'generate' && !generatedPassword) || isLoading",
+								},
+								Loading: false,
+							}) {
+								<span x-show="!isLoading">{ pageCtx.T("SuperAdmin.Tenants.Users.SetPassword") }</span>
+								<span x-show="isLoading">...</span>
+							}
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
 templ Users(props *UsersPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ params, _ := composables.UseParams(ctx) }}
@@ -215,6 +478,7 @@ templ Users(props *UsersPageProps) {
 			@Breadcrumbs(props.Tenant)
 			@TenantInfoCard(props.Tenant)
 			@table.Content(config)
+			@PasswordResetModal(props.Tenant.ID.String())
 		</div>
 	}
 }

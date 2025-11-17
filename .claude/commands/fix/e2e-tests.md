@@ -104,16 +104,23 @@ For each failing E2E test:
 - Complex timing/race condition analysis
 - Network/API endpoint debugging
 
-### Use `ui-editor` agent for:
+### Use `e2e-tester` agent for:
+- E2E test file creation and modification (.spec.ts)
+- Test fixtures development in `/e2e/fixtures/`
+- Page object pattern implementation
+- Playwright-specific debugging and optimization
+
+### Use `editor` agent for:
 - Template/component changes breaking E2E selectors
 - HTMX/Alpine.js integration issues affecting E2E tests
 - Form submission logic fixes (attachment handling, hidden inputs)
 - UI component state management problems
+- Database schema changes required for E2E tests
 
 ### Multi-agent workflows:
-- **Complex form bugs**: `debugger` + `ui-editor` (parallel investigation and fix)
-- **Database-related failures**: `debugger` + `database-expert` (if schema changes needed)
-- **Performance issues**: `debugger` + `go-editor` (server-side optimization)
+- **Complex form bugs**: `debugger` + `editor` (parallel investigation and fix)
+- **Database-related failures**: `debugger` + `editor` (if schema changes needed)
+- **Performance issues**: `debugger` + `editor` (server-side optimization)
 
 ## Common E2E Failure Patterns
 

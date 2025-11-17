@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
@@ -23,8 +24,9 @@ func TestModule_Register(t *testing.T) {
 	t.Run("ModuleInitialization", func(t *testing.T) {
 		t.Parallel()
 
-		// Setup test environment with superadmin module
-		env := itf.Setup(t, itf.WithModules(superadmin.NewModule(nil)))
+		// Setup test environment with built-in modules and superadmin module
+		// Built-in modules are required because superadmin module depends on UserService from core module
+		env := itf.Setup(t, itf.WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...))
 
 		// Verify module is registered
 		require.NotNil(t, env, "test environment should be initialized")
