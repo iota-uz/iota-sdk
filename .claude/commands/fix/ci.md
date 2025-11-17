@@ -9,7 +9,7 @@ Systematically identify and fix failing CI workflows for the current branch.
 
 ## CI Status Overview
 
-!`shy-tools ci failures`
+!`sdk-tools ci failures`
 
 ## Workflow
 
