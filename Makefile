@@ -156,21 +156,49 @@ superadmin:
 graph:
 	goda graph ./modules/... | dot -Tpng -o dependencies.png
 
-# Code quality checks with subcommands (fmt, lint, tr)
-check:
+# Auto-fix code formatting and imports
+fix:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "fmt" ]; then \
-		goimports -w . && templ fmt . && go mod tidy && templ generate; \
-	elif [ "$(word 2,$(MAKECMDGOALS))" = "lint" ]; then \
+		go fmt ./... && templ fmt .; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "imports" ]; then \
+		find . -name '*.go' -not -name '*_templ.go' -exec goimports -w {} +; \
+	else \
+		echo "Usage: make fix [fmt|imports]"; \
+		echo "  fmt     - Format Go code and templates"; \
+		echo "  imports - Organize and format Go imports"; \
+	fi
+
+# Code quality checks with subcommands (lint, tr)
+check:
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "lint" ]; then \
 		golangci-lint run ./...; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "tr" ]; then \
 		go run cmd/command/main.go check_tr_keys; \
 	else \
-		echo "Usage: make check [fmt|lint|tr]"; \
-		echo "  fmt  - Format Go code, templates, and tidy modules"; \
+		echo "Usage: make check [lint|tr]"; \
 		echo "  lint - Run golangci-lint (checks for unused variables/functions)"; \
 		echo "  tr   - Check translations for completeness"; \
 	fi
 
+# sdk-tools CLI management
+.PHONY: sdk-tools
+sdk-tools:
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "install" ]; then \
+		echo "Installing sdk-tools..."; \
+		cd .claude/tools && GOWORK=off go install .; \
+		echo "✓ Installed sdk-tools to $$(go env GOPATH)/bin/sdk-tools"; \
+		echo "Make sure $$(go env GOPATH)/bin is in your PATH"; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "test" ]; then \
+		echo "Running sdk-tools tests..."; \
+		cd .claude/tools && GOWORK=off go test ./... -v; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "help" ]; then \
+		sdk-tools --help; \
+	else \
+		echo "Usage: make sdk-tools [install|test|help]"; \
+		echo "  install - Install sdk-tools globally to \$$GOPATH/bin"; \
+		echo "  test    - Run tests"; \
+		echo "  help    - Show sdk-tools help"; \
+	fi
 
 # Cloudflared tunnel
 tunnel:
@@ -180,16 +208,29 @@ tunnel:
 clean:
 	rm -rf $(TAILWIND_OUTPUT)
 
+# Development watch mode - run templ and tailwind in watch mode concurrently
+dev:
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "watch" ]; then \
+		echo "Starting development watch mode (templ + tailwind)..."; \
+		trap 'kill %1 %2 2>/dev/null; exit' INT TERM; \
+		templ generate --watch & \
+		tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --watch & \
+		wait; \
+	else \
+		echo "Usage: make dev [watch]"; \
+		echo "  watch - Run templ and tailwind in watch mode concurrently"; \
+	fi
 
 # Full setup
 setup: deps css
-	make check fmt
+	make fix fmt
+	make fix imports
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose docker score report linux docker-base docker-prod up down restart logs local stop reset seed migrate dev:
+watch coverage verbose docker score report linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports:
 	@:
 
-.PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check superadmin \
+.PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check fix superadmin \
         down restart logs local stop reset watch coverage verbose docker score report \
-        dev fmt lint tr linux docker-base docker-prod run server
+        dev fmt lint tr linux docker-base docker-prod run server sdk-tools install help
