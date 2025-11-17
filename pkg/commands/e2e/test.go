@@ -1,11 +1,14 @@
 package e2e
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
@@ -25,21 +28,30 @@ func Test() error {
 	}
 
 	// Check if server is already running
-	baseURL := fmt.Sprintf("http://%s:%s", E2E_SERVER_HOST, E2E_SERVER_PORT)
+	baseURL := "http://" + net.JoinHostPort(E2E_SERVER_HOST, E2E_SERVER_PORT)
 	logger.Info("Checking if e2e server is running...", "url", baseURL)
 
-	// Try to connect to the server
-	resp, err := http.Get(baseURL)
+	// Try to connect to the server with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("e2e server is not running on %s. Please start the e2e development server first using: make e2e dev", baseURL)
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode >= 500 {
-		resp.Body.Close()
 		return fmt.Errorf("e2e server is not healthy (status %d). Please check the server logs or restart using: make e2e dev", resp.StatusCode)
 	}
 
-	resp.Body.Close()
 	logger.Info("Server is running and healthy, proceeding with tests...")
 
 	// Get project root directory
@@ -62,7 +74,10 @@ func Test() error {
 
 	// Run Playwright tests
 	e2eDir := filepath.Join(projectRoot, "e2e")
-	testCmd := exec.Command("npm", "run", "test")
+	testCtx, testCancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer testCancel()
+
+	testCmd := exec.CommandContext(testCtx, "npm", "run", "test")
 	testCmd.Dir = e2eDir
 	testCmd.Env = append(os.Environ(), "BASE_URL="+baseURL)
 	testCmd.Stdout = os.Stdout

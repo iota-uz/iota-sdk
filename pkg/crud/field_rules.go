@@ -439,7 +439,7 @@ func AlphaRule() FieldRule {
 			return nil
 		}
 		for _, r := range val {
-			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')) {
+			if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') {
 				return fmt.Errorf("field %q must contain only alphabetic characters", fv.Field().Name())
 			}
 		}
@@ -457,7 +457,7 @@ func AlphanumericRule() FieldRule {
 			return nil
 		}
 		for _, r := range val {
-			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
 				return fmt.Errorf("field %q must contain only alphanumeric characters", fv.Field().Name())
 			}
 		}

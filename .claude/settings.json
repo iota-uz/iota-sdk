@@ -1,0 +1,135 @@
+{
+  "env": {
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": 50000,
+    "BASH_DEFAULT_TIMEOUT_MS": 60000
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bash ./.claude/scripts/analyze-ci-failures.sh)",
+      "Bash(bash ./.claude/scripts/analyze-changelog-requirement.sh)",
+      "Bash(bash ./.claude/scripts/check-precommit-status.sh)",
+      "Bash(bash ./.claude/scripts/categorize-changes.sh)",
+      "Bash(bash ./.claude/scripts/check-protected-branch.sh)",
+      "Bash(bash ./.claude/scripts/analyze-pr-context.sh)",
+      "Bash(cd:*)",
+      "Bash(go version:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go build:*)",
+      "Bash(go fmt:*)",
+      "Bash(go mod:*)",
+      "Bash(go get:*)",
+      "Bash(go list:*)",
+      "Bash(go doc:*)",
+      "Bash(go clean:*)",
+      "Bash(go tool cover:*)",
+      "Bash(gofmt:*)",
+      "Bash(grep:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(mv:*)",
+      "Bash(chmod:*)",
+      "Bash(make:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git branch:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git log:*)",
+      "Bash(gh:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh api:*)",
+      "Bash(gh project item-list:*)",
+      "Bash(gh project list:*)",
+      "Bash(gh label list:*)",
+      "Bash(templ generate:*)",
+      "Bash(templ fmt:*)",
+      "Bash(railway:*)",
+      "Bash(railway service:*)",
+      "Bash(railway logs:*)",
+      "Bash(railway environment:*)",
+      "Bash(railway whoami:*)",
+      "Bash(railway variables:*)",
+      "Bash(golangci-lint run:*)",
+      "Bash(cc-token:*)",
+      "Bash(sdk-tools:*)",
+      "Bash(sed:*)",
+      "Bash(echo:*)",
+      "Bash(command:*)",
+      "Bash(export:*)",
+      "Bash(mkdir -p .claude/dumps)",
+      "Bash(curl -s:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git bisect:*)",
+      "Bash(docker images:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker pull:*)",
+      "Bash(docker stats:*)",
+      "Bash(docker system df:*)",
+      "Bash(docker version:*)",
+      "Bash(rm /tmp/*:*)",
+      "Bash(rm //tmp/*:*)",
+      "Bash(rm -f /tmp/*:*)",
+      "Bash(rm -f //tmp/*:*)",
+      "Read(/tmp/**)",
+      "Read(//tmp/**)",
+      "Write(/tmp/**)",
+      "Write(//tmp/**)",
+      "Edit(/tmp/**)",
+      "Edit(//tmp/**)",
+      "Write(.claude/dumps/**)",
+      "Edit(.claude/dumps/**)",
+      "Skill(database-connector)",
+      "WebSearch",
+      "WebFetch(domain:pkg.go.dev)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:github.com)",
+      "mcp__sequential-thinking__sequentialthinking"
+    ],
+    "deny": [
+      "Read(**/*.key)",
+      "Read(**/*.pem)",
+      "Read(**/credentials*)",
+      "Bash(sudo:*)"
+    ],
+    "ask": [
+      "Bash(rm:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "make fix fmt && make fix imports && go vet ./..."
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "make fix fmt && make fix imports && go vet ./..."
+          }
+        ]
+      }
+    ]
+  }
+}

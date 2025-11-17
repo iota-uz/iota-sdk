@@ -91,11 +91,7 @@ func SortTableDefs(tables []*tree.CreateTable) ([]*tree.CreateTable, error) {
 		}
 	}
 
-	for {
-		if len(processed) == len(tables) {
-			break
-		}
-
+	for len(processed) != len(tables) {
 		progress := false
 
 		for _, refTable := range tables {

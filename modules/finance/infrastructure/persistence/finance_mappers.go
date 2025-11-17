@@ -373,7 +373,7 @@ func ToDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 	if err != nil {
 		return nil, err
 	}
-	var t tax.Tin = tax.NilTin
+	t := tax.NilTin
 	if dbRow.Tin.Valid && dbRow.Tin.String != "" {
 		t, err = tax.NewTin(dbRow.Tin.String, country.Uzbekistan)
 		if err != nil {

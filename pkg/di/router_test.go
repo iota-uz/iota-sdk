@@ -72,12 +72,12 @@ func diTestHandler(
 	})
 
 	// Write response
-	_, _ = w.Write([]byte(fmt.Sprintf("NavigationLinks.Dashboard: %s", message)))
-	_, _ = w.Write([]byte("\n"))
-	_, _ = w.Write([]byte(fmt.Sprintf("Fullname: %s %s", u.FirstName(), u.LastName())))
-	_, _ = w.Write([]byte("\n"))
-	_, _ = w.Write([]byte(fmt.Sprintf("ID: %d", id)))
-	_, _ = w.Write([]byte("\n"))
+	_, _ = fmt.Fprintf(w, "NavigationLinks.Dashboard: %s", message)
+	_, _ = fmt.Fprint(w, "\n")
+	_, _ = fmt.Fprintf(w, "Fullname: %s %s", u.FirstName(), u.LastName())
+	_, _ = fmt.Fprint(w, "\n")
+	_, _ = fmt.Fprintf(w, "ID: %d", id)
+	_, _ = fmt.Fprint(w, "\n")
 }
 
 // Handler without DI approach - manually fetches dependencies
@@ -106,18 +106,17 @@ func NonDIHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	// Write response
-	_, _ = w.Write([]byte(fmt.Sprintf("NavigationLinks.Dashboard: %s", message)))
-	_, _ = w.Write([]byte("\n"))
-	_, _ = w.Write([]byte(fmt.Sprintf("Fullname: %s %s", u.FirstName(), u.LastName())))
-	_, _ = w.Write([]byte("\n"))
-	_, _ = w.Write([]byte(fmt.Sprintf("ID: %d", id)))
-	_, _ = w.Write([]byte("\n"))
+	_, _ = fmt.Fprintf(w, "NavigationLinks.Dashboard: %s", message)
+	_, _ = fmt.Fprint(w, "\n")
+	_, _ = fmt.Fprintf(w, "Fullname: %s %s", u.FirstName(), u.LastName())
+	_, _ = fmt.Fprint(w, "\n")
+	_, _ = fmt.Fprintf(w, "ID: %d", id)
+	_, _ = fmt.Fprint(w, "\n")
 }
 
 func BenchmarkDIRouter(b *testing.B) {
 	ctx := setupTestContext()
-	req, _ := http.NewRequest(http.MethodGet, "/123", nil)
-	req = req.WithContext(ctx)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/123", nil)
 
 	// Get the handler function directly
 	handlerFunc := H(diTestHandler)
@@ -131,8 +130,7 @@ func BenchmarkDIRouter(b *testing.B) {
 
 func BenchmarkNonDIRouter(b *testing.B) {
 	ctx := setupTestContext()
-	req, _ := http.NewRequest(http.MethodGet, "/123", nil)
-	req = req.WithContext(ctx)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "/123", nil)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

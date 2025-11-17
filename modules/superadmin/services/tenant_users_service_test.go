@@ -112,7 +112,7 @@ func TestTenantUsersService_GetUsersByTenantID(t *testing.T) {
 
 		// Should return same results regardless of case
 		assert.Equal(t, lowerTotal, upperTotal)
-		assert.Equal(t, len(lowerUsers), len(upperUsers))
+		assert.Len(t, upperUsers, len(lowerUsers))
 	})
 
 	t.Run("Search_No_Results", func(t *testing.T) {

@@ -4,34 +4,31 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 
 ## QUICK DECISION TREE
 
-**Task Classification → Agent Selection (Use this first)**
+**Task Classification → Agent Selection:**
 
-| Task Scope           | File Count  | Agent Combination            | Example Triggers                                    |
-|----------------------|-------------|------------------------------|-----------------------------------------------------|
-| **Single Read**      | 1-3 files   | **No agents needed**         | Documentation lookup, code reading                  |
-| **Small Fix**        | 1-5 files   | `debugger` + 1 specialist    | Single controller bug, small template fix           |
-| **Medium Feature**   | 6-15 files  | 3-4 agents parallel          | New form, API endpoint, page updates                |
-| **Large Feature**    | 16-30 files | 5-7 agents parallel          | New module, major refactoring                       |
-| **Cross-Module**     | 30+ files   | 7-10+ agents parallel        | Architecture changes, bulk renaming                 |
+**Single Read (1-3 files):** No agents needed
+- Documentation lookup, code reading
+
+**Small Fix (1-5 files):** `debugger` + 1 specialist
+- Single controller bug, small template fix
+
+**Medium Feature (6-15 files):** 3-4 agents parallel
+- New form, API endpoint, page updates
+
+**Large Feature (16-30 files):** 5-7 agents parallel
+- New module, major refactoring
+
+**Cross-Module (30+ files):** 7-10+ agents parallel
+- Architecture changes, bulk renaming
 
 **Agent Selection Matrix:**
 - **Errors/Failures**: Always start with `debugger`
 - **Go Code Changes**: Always end with `refactoring-expert`
-- **Database Changes**: Always include `database-expert`
-- **Template/Translation**: Always include `ui-editor`
+- **Database Changes**: Always include `editor`
+- **Template/Translation**: Always include `editor`
 - **Production Changes**: `refactoring-expert` ALWAYS
 - **Complex Research/Discovery**: Use `general-purpose` when uncertain about code location or architecture
 - **Multi-Step Search Operations**: Use `general-purpose` when simple grep/glob won't suffice
-
-**File-Type Mandates:**
-- **.templ or .json files**: `ui-editor` ONLY
-- **Database work**: `database-expert` ONLY
-- **Deployments**: `railway-ops` ONLY
-- **migrations/*.sql**: `database-expert` ONLY
-- **Configuration files**: `config-manager` ONLY
-- **CLAUDE.md updates**: `config-manager` ONLY
-- **Documentation maintenance**: `config-manager` ONLY
-- **E2E tests (e2e/**/*.spec.ts)**: `e2e-tester` ONLY
 
 ## PROJECT OVERVIEW
 
@@ -54,7 +51,8 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 - **Payments**: Stripe subscriptions
 
 ## Build/Lint/Test Commands
-- Format code and remove unused imports: `make check fmt`
+- Format Go code and templates: `make fix fmt`
+- Organize and format Go imports: `make fix imports`
 - Template generation: `make generate` (or `make generate watch` for watch mode)
 - Apply migrations: `make db migrate up` / `make db migrate down`
 - After changes to Go code: `go vet ./...`
@@ -89,7 +87,8 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 - Build Docker production image: `make build docker-prod`
 
 ### Code Quality Commands:
-- Format code and remove unused imports: `make check fmt`
+- Format Go code and templates: `make fix fmt`
+- Organize and format Go imports: `make fix imports`
 - Lint code (check unused variables/functions): `make check lint`
 - Check translation files: `make check tr`
 
@@ -235,17 +234,38 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 
 ### Multi-Agent Workflow Matrix
 
-| Workflow Type            | Required Agents                                        | Optional Agents                                                                 | When to Use                                                                          |
-|--------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
-| **Feature Development**  | `go-editor` + `ui-editor`                              | `database-expert` (data changes), `refactoring-expert` (always after go-editor) | New features, enhancements, major functionality                                      |
-| **Bug Resolution**       | `debugger` → `go-editor` + `refactoring-expert`        | `ui-editor` (UI bugs)                                                           | Bug fixes, error resolution, system failures                                         |
-| **Performance Issues**   | `debugger` + `go-editor` + `refactoring-expert`        | `database-expert` (query optimization)                                          | Slow queries, high latency, resource usage                                           |
-| **UI/Template Changes**  | `ui-editor`                                            | `go-editor` (controller changes and test coverage)                              | UI updates, forms, frontend functionality                                            |
-| **Database Changes**     | `database-expert` + `go-editor` + `refactoring-expert` | None (go-editor handles test coverage)                                          | Schema changes, migrations, query optimization                                       |
-| **Cross-Module Work**    | Multiple `go-editor` + `refactoring-expert`            | `database-expert`, `ui-editor`                                                  | Architecture changes, large refactoring                                              |
-| **Config Management**    | `config-manager`                                       | None (handles all config concerns)                                              | CLAUDE.md updates, env files, docs, agent defs                                       |
-| **E2E Test Work**        | `e2e-tester`                                           | `debugger` (for debugging failing tests)                                        | Playwright tests, fixtures, page objects                                             |
-| **Research & Discovery** | `general-purpose`                                      | None (feeds findings to implementation agents)                                  | Codebase exploration, pattern analysis, architecture understanding, complex searches |
+**Workflow Types:**
+
+**Feature Development:** Use `editor` agent
+- Optional: `refactoring-expert` (always after editor)
+- When: New features, enhancements, major functionality
+
+**Bug Resolution:** `debugger` → `editor` + `refactoring-expert`
+- When: Bug fixes, error resolution, system failures
+
+**Performance Issues:** `debugger` + `editor` + `refactoring-expert`
+- When: Slow queries, high latency, resource usage
+
+**UI/Template Changes:** Use `editor` agent
+- When: UI updates, forms, frontend functionality
+
+**Database Changes:** `editor` + `refactoring-expert`
+- Note: editor handles all layers
+- When: Schema changes, migrations, query optimization
+
+**Cross-Module Work:** Multiple `editor` + `refactoring-expert`
+- When: Architecture changes, large refactoring
+
+**Config Management:** Use `editor` agent
+- Handles: CLAUDE.md updates, env files, docs, agent defs
+
+**E2E Test Work:** Use `e2e-tester` agent
+- Optional: `debugger` (for debugging failing tests)
+- When: Playwright tests, fixtures, page objects
+
+**Research & Discovery:** Use `general-purpose` agent
+- Feeds findings to implementation agents
+- When: Codebase exploration, pattern analysis, architecture understanding, complex searches
 
 **Agent Launch Rules:**
 - **Always parallel**: Launch required agents simultaneously in single message
@@ -277,43 +297,55 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 **Example: Type Errors Across Codebase**
 ```
 1. Run: go vet ./... (discovers 45 type errors across 3 modules)
-2. Analysis: 15 errors in logistics, 20 in finance, 10 in safety
-3. Launch 3 go-editor agents with specific scope:
-   → go-editor (1): Fix 15 logistics module type errors  
-   → go-editor (2): Fix 20 finance module type errors
-   → go-editor (3): Fix 10 safety module type errors
+2. Analysis: 15 errors in core, 20 in finance, 10 in warehouse
+3. Launch 3 editor agents with specific scope:
+   → editor (1): Fix 15 core module type errors
+   → editor (2): Fix 20 finance module type errors
+   → editor (3): Fix 10 warehouse module type errors
 ```
 
 **Example: Template Updates Across Pages**
 ```
 1. Run: find . -name "*.templ" (discovers 28 template files)
-2. Analysis: 12 in logistics, 10 in finance, 6 in safety
-3. Launch balanced ui-editor agents:
-   → ui-editor (1): Update 12 logistics templates
-   → ui-editor (2): Update 10 finance templates  
-   → ui-editor (3): Update 6 safety templates
+2. Analysis: 12 in core, 10 in finance, 6 in warehouse
+3. Launch balanced editor agents:
+   → editor (1): Update 12 core templates
+   → editor (2): Update 10 finance templates
+   → editor (3): Update 6 warehouse templates
 ```
 
 **Example: Test Coverage Gaps**
 ```
 1. Run: find . -name "*_test.go" + coverage analysis
 2. Analysis: Missing tests in 8 services, 12 controllers, 5 repositories
-3. Launch go-editor agents with balanced scope:
-   → go-editor (1): Services (8 files) - implement missing tests
-   → go-editor (2): Controllers (12 files) - implement missing tests
-   → go-editor (3): Repositories (5 files) - implement missing tests
+3. Launch editor agents with balanced scope:
+   → editor (1): Services (8 files) - implement missing tests
+   → editor (2): Controllers (12 files) - implement missing tests
+   → editor (3): Repositories (5 files) - implement missing tests
 ```
 
 
 ##### 4. Assessment Tools for Orchestrators
 
-| Task Type | Analysis Commands | Distribution Strategy |
-|-----------|------------------|----------------------|
-| **Type Errors** | `go vet ./...`, `go build ./...` | Split by module/package |
-| **Template Work** | `find . -name "*.templ"` | Split by functional area |
-| **Translation Missing** | `make check tr`, `grep -r "missing"` | Split by language files |
-| **Test Coverage** | `go test -cover ./...`, find tests | Split by layer/domain |
-| **Performance Issues** | `go test -bench ./...`, profiling | Split by service/component |
+**Type Errors:**
+- Analysis: `go vet ./...`, `go build ./...`
+- Distribution: Split by module/package
+
+**Template Work:**
+- Analysis: `find . -name "*.templ"`
+- Distribution: Split by functional area
+
+**Translation Missing:**
+- Analysis: `make check tr`, `grep -r "missing"`
+- Distribution: Split by language files
+
+**Test Coverage:**
+- Analysis: `go test -cover ./...`, find tests
+- Distribution: Split by layer/domain
+
+**Performance Issues:**
+- Analysis: `go test -bench ./...`, profiling
+- Distribution: Split by service/component
 
 #### Parallel Agent Launch (After Analysis)
 - **Always analyze scope FIRST** using assessment tools
@@ -338,18 +370,83 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 - **Multiple modules**: Launch multiple instances with module-specific scope
 - **Complex integrations**: Include coordination agents with clear responsibilities
 
-### Agent Collaboration Matrix
+### Practical Workflow Examples
 
-| Primary Agent          | Provides Input To                 | Receives Input From                      | Parallel Partners                    |
-|------------------------|-----------------------------------|------------------------------------------|--------------------------------------|
-| **debugger**           | `go-editor`, `database-expert`    | Error logs, user reports                 | None (investigation first)           |
-| **go-editor**          | `refactoring-expert`              | `debugger`, `database-expert`            | `ui-editor`, `database-expert`       |
-| **database-expert**    | `go-editor`, `refactoring-expert` | Business requirements                    | `go-editor`, `ui-editor`             |
-| **ui-editor**          | `go-editor`                       | Controller changes                       | `go-editor`                          |
-| **config-manager**     | Agent coordination, documentation | Project requirements                     | None (configuration coordination)    |
-| **refactoring-expert** | Final output                      | All other agents                         | None (final review)                  |
-| **e2e-tester**         | None (test-only)                  | `debugger`, `ui-editor`                  | None (independent testing)           |
-| **general-purpose**    | All implementation agents         | Business requirements, initial questions | None (research first, then delegate) |
+**Example 1: Bug Investigation & Fix**
+```
+1. Investigation: debugger (investigate error, identify root cause)
+2. Implementation: editor (fix the bug across affected files)
+3. Quality review: refactoring-expert (review changes, ensure code quality)
+
+Syntax: debugger && editor && refactoring-expert
+```
+
+**Example 2: New Feature Development**
+```
+1. Planning (optional): general-purpose for architecture research if needed
+2. Implementation: editor (implement domain, service, repository, controller, templates)
+3. Quality review: refactoring-expert (ensure production-ready code)
+
+Syntax: editor && refactoring-expert
+Or with research: general-purpose && editor && refactoring-expert
+```
+
+**Example 3: Database Schema Changes**
+```
+1. Migration: editor (create migration, update domain entities)
+2. Data layer: editor (update repositories for new schema)
+3. Quality review: refactoring-expert (verify migration safety, code quality)
+
+Syntax: editor (migrations + domain) && editor (repositories) && refactoring-expert
+Or single editor: editor && refactoring-expert
+```
+
+**Example 4: UI/Template Updates**
+```
+1. Templates: editor (update .templ files, controllers, ViewModels)
+2. Translations: editor (update en.toml, ru.toml, uz.toml)
+3. Quality review: refactoring-expert (verify HTMX patterns, security)
+
+Syntax: editor && refactoring-expert
+```
+
+**Example 5: Performance Optimization**
+```
+1. Investigation: debugger (identify bottlenecks, analyze queries)
+2. Optimization: editor (optimize queries, add indexes, improve algorithms)
+3. Quality review: refactoring-expert (ensure no regressions)
+
+Syntax: debugger && editor && refactoring-expert
+```
+
+**Example 6: E2E Test Development**
+```
+1. Test creation: e2e-tester (write Playwright tests, fixtures, page objects)
+2. Debug failures (if needed): debugger && e2e-tester
+
+Syntax: e2e-tester
+Or with debugging: debugger && e2e-tester
+```
+
+**Example 7: Multi-Module Changes (Parallel Execution)**
+```
+1. Parallel implementation:
+   - editor (finance module changes)
+   - editor (warehouse module changes)
+   - editor (CRM module changes)
+2. Sequential review: refactoring-expert (review all changes)
+
+Syntax: (editor & editor & editor) && refactoring-expert
+```
+
+**Example 8: Complex Research & Implementation**
+```
+1. Research: general-purpose (explore codebase, find patterns, analyze architecture)
+2. Implementation: editor (apply findings, implement solution)
+3. Quality review: refactoring-expert (ensure consistency with codebase)
+
+Syntax: general-purpose && editor && refactoring-expert
+```
 
 ### Single Agent Exceptions
 
@@ -369,37 +466,64 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 ### Anti-Patterns to Avoid
 
 **❌ Agent Misuse:**
-- Using `ui-editor` for Go logic changes
-- Using `go-editor` for database schema modifications
-- Splitting Go code and test creation across multiple agents (go-editor handles both)
+- Using `editor` for E2E test work (use `e2e-tester` instead)
+- Using `e2e-tester` for Go code changes (use `editor` instead)
+- Splitting related changes across multiple uncoordinated `editor` agents
 
 **❌ Workflow Mistakes:**
 - Launching agents sequentially when parallel is possible
-- Single agent for multi-layer changes
 - Skipping `debugger` for unknown issues
-- Missing `refactoring-expert` after Go changes
+- Missing `refactoring-expert` after Go code changes
+- Using direct tools instead of `editor` for complex multi-file changes
 
 ### Business Context Translation
-**Business Request → Multi-Agent Orchestration**
 
-| Business Context                              | Standard Multi-Agent Launch                                                      |
-|-----------------------------------------------|----------------------------------------------------------------------------------|
-| "Fix dashboard bug"                           | `debugger` && (`go-editor` & `ui-editor` & `refactoring-expert`)                 |
-| "Add new driver form"                         | (`go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert`          |
-| "Optimize accounting performance"             | `debugger` && (`database-expert` & `go-editor`) && `refactoring-expert`          |
-| "Update finance module"                       | (Multiple `go-editor` & `database-expert` & `ui-editor`) && `refactoring-expert` |
-| "Update CLAUDE.md with new agent"             | `config-manager`                                                                 |
-| "Fix environment configuration issues"        | `config-manager`                                                                 |
-| "Add new documentation section"               | `config-manager`                                                                 |
-| "Deploy to staging"                           | `railway-ops`                                                                    |
-| "Write E2E tests for user registration"       | `e2e-tester`                                                                     |
-| "Debug failing Playwright test"               | `debugger` && `e2e-tester`                                                       |
-| "Add page objects for vehicles module"        | `e2e-tester`                                                                     |
-| "How is authentication implemented?"          | `general-purpose` (research) → findings inform implementation agents             |
-| "Find all places where payment is processed"  | `general-purpose` (multi-step search) → guide `go-editor` to relevant files      |
-| "Understand the multi-tenant architecture"    | `general-purpose` (architecture exploration) → inform feature design             |
-| "Where should I add new RBAC check?"          | `general-purpose` (pattern analysis) → guide `go-editor` to correct location     |
-| "What's the standard error handling pattern?" | `general-purpose` (codebase patterns) → inform implementation approach           |
+**Business Request → Multi-Agent Orchestration Examples:**
+
+**"Fix dashboard bug"**
+→ `debugger` && (`editor` & `refactoring-expert`)
+
+**"Add new payment form"**
+→ `editor` && `refactoring-expert`
+
+**"Optimize accounting performance"**
+→ `debugger` && `editor` && `refactoring-expert`
+
+**"Update finance module"**
+→ (Multiple `editor`) && `refactoring-expert`
+
+**"Update CLAUDE.md with new agent"**
+→ `editor`
+
+**"Fix environment configuration issues"**
+→ `editor`
+
+**"Add new documentation section"**
+→ `editor`
+
+**"Write E2E tests for user registration"**
+→ `e2e-tester`
+
+**"Debug failing Playwright test"**
+→ `debugger` && `e2e-tester`
+
+**"Add page objects for vehicles module"**
+→ `e2e-tester`
+
+**"How is authentication implemented?"**
+→ `general-purpose` (research) → findings inform implementation agents
+
+**"Find all places where payment is processed"**
+→ `general-purpose` (multi-step search) → guide `editor` to relevant files
+
+**"Understand the multi-tenant architecture"**
+→ `general-purpose` (architecture exploration) → inform feature design
+
+**"Where should I add new RBAC check?"**
+→ `general-purpose` (pattern analysis) → guide `editor` to correct location
+
+**"What's the standard error handling pattern?"**
+→ `general-purpose` (codebase patterns) → inform implementation approach
 
 **Agent Execution Syntax:**
 - `&` = Parallel execution (agents run simultaneously)

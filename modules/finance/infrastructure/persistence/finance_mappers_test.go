@@ -348,7 +348,7 @@ func TestToDomainExpenseCategory(t *testing.T) {
 
 				assert.Equal(t, "Utilities", cat.Name(), "Name should match")
 				assert.Equal(t, testTenantID, cat.TenantID(), "TenantID should match")
-				assert.Equal(t, "", cat.Description(), "Description should be empty")
+				assert.Empty(t, cat.Description(), "Description should be empty")
 			},
 		},
 		{

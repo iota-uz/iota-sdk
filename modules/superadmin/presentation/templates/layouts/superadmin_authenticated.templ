@@ -1,32 +1,15 @@
 package layouts
 
 import (
-	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	corelayouts "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 type BaseProps = corelayouts.BaseProps
 
 type SuperAdminAuthenticatedProps struct {
 	BaseProps
-}
-
-func getSuperAdminSidebarItems(pageCtx *types.PageContext) []sidebar.Item {
-	return []sidebar.Item{
-		sidebar.NewLink(
-			"/",
-			pageCtx.T("SuperAdmin.NavigationLinks.Dashboard"),
-			icons.ChartBar(icons.Props{Size: "20"}),
-		),
-		sidebar.NewLink(
-			"/superadmin/tenants",
-			pageCtx.T("SuperAdmin.NavigationLinks.Tenants"),
-			icons.Buildings(icons.Props{Size: "20"}),
-		),
-	}
 }
 
 templ SuperAdminSidebarHeader() {
@@ -40,20 +23,11 @@ templ SuperAdminSidebarHeader() {
 templ SuperAdminAuthenticated(props SuperAdminAuthenticatedProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
-		sidebarProps := sidebar.Props{
-			TabGroups: sidebar.TabGroupCollection{
-				Groups: []sidebar.TabGroup{
-					{
-						Label: "SuperAdmin",
-						Value: "superadmin",
-						Items: getSuperAdminSidebarItems(pageCtx),
-					},
-				},
-				DefaultValue: "superadmin",
-			},
-			Header: SuperAdminSidebarHeader(),
-			Footer: corelayouts.DefaultSidebarFooter(),
-		}
+		// Read sidebar items from middleware (registered via app.RegisterNavItems)
+		sidebarProps := corelayouts.MustUseSidebarProps(ctx)
+		// Override header and footer with SuperAdmin-specific styling
+		sidebarProps.Header = SuperAdminSidebarHeader()
+		sidebarProps.Footer = corelayouts.DefaultSidebarFooter()
 	}}
 	if props.WebsocketURL == "" {
 		{{ props.WebsocketURL = "/ws" }}

@@ -268,11 +268,11 @@ func CreateDB(name string) {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
-	_, err = db.Exec(fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.Exec(fmt.Sprintf("CREATE DATABASE %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("CREATE DATABASE %s", sanitizedName))
 	if err != nil {
 		panic(err)
 	}

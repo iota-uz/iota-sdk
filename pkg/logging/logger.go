@@ -86,7 +86,7 @@ type LokiPush struct {
 // NewLokiHook creates a new Loki hook
 func NewLokiHook(url, appName string, cfg *LokiConfig) (*LokiHook, error) {
 	if url == "" {
-		return nil, fmt.Errorf("Loki URL is required")
+		return nil, fmt.Errorf("loki URL is required")
 	}
 
 	var client *http.Client

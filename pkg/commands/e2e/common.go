@@ -32,7 +32,8 @@ func GetE2EPool() (*pgxpool.Pool, error) {
 		// Create the e2e database
 		_, createErr := postgresPool.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", E2E_DB_NAME))
 		if createErr != nil {
-			// Database might already exist, try to connect again
+			// Database might already exist, try to connect again (ignore error)
+			_ = createErr
 		}
 
 		// Try connecting to e2e database again

@@ -221,7 +221,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 		ctx := context.TODO()
 		var currentValue any
 		if withValue {
-			if c.value != nil && !(c.value == nil || reflect.ValueOf(c.value).IsZero()) {
+			if c.value != nil && !reflect.ValueOf(c.value).IsZero() {
 				currentValue = c.value
 			} else if field.InitialValue(ctx) != nil {
 				currentValue = field.InitialValue(ctx)
