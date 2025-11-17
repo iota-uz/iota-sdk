@@ -63,7 +63,7 @@
       "Bash(railway variables:*)",
       "Bash(golangci-lint run:*)",
       "Bash(cc-token:*)",
-      "Bash(shy-tools:*)",
+      "Bash(sdk-tools:*)",
       "Bash(sed:*)",
       "Bash(echo:*)",
       "Bash(command:*)",
@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/diyorkhaydarov/Projects/sdk/shd-llc && templ generate && make -f Makefile fix imports && go vet ./... && make -f Makefile fix fmt"
+            "command": "make fix fmt && make fix imports && go vet ./..."
           }
         ]
       }
@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/diyorkhaydarov/Projects/sdk/shd-llc && templ generate && make -f Makefile fix imports && go vet ./... && make -f Makefile fix fmt"
+            "command": "make fix fmt && make fix imports && go vet ./..."
           }
         ]
       }

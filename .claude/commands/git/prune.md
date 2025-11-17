@@ -43,7 +43,7 @@ This updates your local view of remote branches without affecting local branches
 Find local branches that meet ALL criteria:
 
 - Not the current branch
-- Not a protected branch (ADV-deployment, staging)
+- Not a protected branch (main, staging)
 - Remote tracking branch no longer exists OR branch is fully merged into main/master
 
 **Command to find gone branches:**

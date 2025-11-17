@@ -45,18 +45,18 @@ AskUserQuestion:
   - Question: "Which base branch should the PR target?"
   - Header: "PR Base Branch"
   - Options:
-    - "staging - Standard feature workflow (staging → ADV-deployment)"
-    - "ADV-deployment - Hotfix/urgent production fix"
+    - "staging - Standard feature workflow (staging → main)"
+    - "main - Hotfix/urgent production fix"
   - multiSelect: false
   ```
-- Store the selected base branch (staging or ADV-deployment) for use in PR creation
+- Store the selected base branch (staging or main) for use in PR creation
 - Proceed to CHANGELOG Check, then Pre-Commit Preparation, then push with `-u` and create PR
 
 ## CHANGELOG Check (After Branch Created)
 
 Evaluate if CHANGELOG.md should be updated. This happens AFTER branch creation but BEFORE pre-commit preparation:
 
-!`shy-tools changelog check`
+!`sdk-tools changelog check`
 
 **If MUST recommendation:**
 
@@ -99,7 +99,7 @@ Evaluate if CHANGELOG.md should be updated. This happens AFTER branch creation b
 
 ## Pre-Commit Preparation (CRITICAL)
 
-!`shy-tools git precommit`
+!`sdk-tools git precommit`
 
 Based on the status above, perform necessary preparation:
 
@@ -122,7 +122,7 @@ Use conventional commit format matching repository patterns. Common prefixes:
 
 ## Changed Files Analysis
 
-!`shy-tools git changes`
+!`sdk-tools git changes`
 
 **Important commit rules:**
 
@@ -140,7 +140,7 @@ Use the categorized files above to group related changes into logical commits wi
 ### If "Push to Current Branch"
 
 Branch status:
-!`shy-tools git check-branch`
+!`sdk-tools git check-branch`
 
 1. **Safety Check for Protected Branches**: If WARNING shown above, ask for explicit confirmation:
    ```
@@ -169,8 +169,8 @@ Branch status:
 Analyze PR context with the selected base branch:
 
 ```bash
-# Run analysis with selected base (staging or ADV-deployment from earlier question)
-shy-tools pr context --base <selected-base>
+# Run analysis with selected base (staging or main from earlier question)
+sdk-tools pr context --base <selected-base>
 ```
 
 1. New branch already created before the pre-commit phase
