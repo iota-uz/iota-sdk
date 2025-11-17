@@ -11,7 +11,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-func CheckTrKeys(mods ...application.Module) error {
+func CheckTrKeys(allowedLanguages []string, mods ...application.Module) error {
 	conf := configuration.Use()
 	app, pool, err := common.NewApplicationWithDefaults(mods...)
 	if err != nil {
@@ -21,14 +21,49 @@ func CheckTrKeys(mods ...application.Module) error {
 
 	messages := app.Bundle().Messages()
 
+	// If allowedLanguages is provided, create a whitelist map for validation
+	var allowedLocales map[string]language.Tag
+	if len(allowedLanguages) > 0 {
+		allowedLocales = make(map[string]language.Tag)
+		for _, code := range allowedLanguages {
+			// Parse language code to tag
+			tag, err := language.Parse(code)
+			if err != nil {
+				return fmt.Errorf("invalid language code in whitelist: %s: %w", code, err)
+			}
+			allowedLocales[code] = tag
+		}
+
+		// Validate that all allowed languages exist in the bundle
+		for code, tag := range allowedLocales {
+			if messages[tag] == nil {
+				return fmt.Errorf("language %s (%s) is in whitelist but not found in bundle", code, tag)
+			}
+		}
+	}
+
 	// Store all keys for each locale
 	allKeys := make(map[string]map[language.Tag]bool)
 	locales := make([]language.Tag, 0)
 
-	// First pass: collect all keys from all locales
+	// First pass: collect all keys from locales (filtered by allowedLanguages if provided)
 	for locale, message := range messages {
 		if message == nil {
 			continue
+		}
+
+		// If allowedLanguages is specified, only process those locales
+		if len(allowedLocales) > 0 {
+			isAllowed := false
+			for _, allowedTag := range allowedLocales {
+				if locale == allowedTag {
+					isAllowed = true
+					break
+				}
+			}
+			if !isAllowed {
+				continue
+			}
 		}
 
 		locales = append(locales, locale)
