@@ -1,0 +1,333 @@
+{
+  "Resources": {
+    "product": "产品",
+    "unit": "单位",
+    "position": "仓位",
+    "order": "订单",
+    "inventory": "库存"
+  },
+  "Permissions": {
+    "Product": {
+      "Create": "创建产品",
+      "Read": "查看产品",
+      "Update": "更新产品",
+      "Delete": "删除产品"
+    },
+    "Unit": {
+      "Create": "创建单位",
+      "Read": "查看单位",
+      "Update": "更新单位",
+      "Delete": "删除单位"
+    },
+    "Position": {
+      "Create": "创建仓位",
+      "Read": "查看仓位",
+      "Update": "更新仓位",
+      "Delete": "删除仓位"
+    },
+    "Order": {
+      "Create": "创建订单",
+      "Read": "查看订单",
+      "Update": "更新订单",
+      "Delete": "删除订单"
+    },
+    "Inventory": {
+      "Create": "创建库存",
+      "Read": "查看库存",
+      "Update": "更新库存",
+      "Delete": "删除库存"
+    }
+  },
+  "Errors": {
+    "ERR_DUPLICATE_RFID": "RFID {{.Rfid}} 已存在",
+    "ERR_DUPLICATE_BARCODE": "条形码 {{.Barcode}} 已存在",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_STOCK": "库存产品不足",
+    "ERR_NOT_ENOUGH_PRODUCTS_IN_DEVELOPMENT": "开发中的产品不足",
+    "ERR_ORDER_IS_ALREADY_COMPLETE": "订单已完成",
+    "ERR_PRODUCT_IS_SHIPPED": "产品已发货"
+  },
+  "NavigationLinks": {
+    "Warehouse": "仓库",
+    "Products": "产品",
+    "WarehousePositions": "仓位",
+    "WarehouseOrders": "订单",
+    "WarehouseUnits": "单位",
+    "WarehouseInventory": "库存"
+  },
+  "Products": {
+    "List": {
+      "Meta": {
+        "Title": "产品"
+      },
+      "New": "新产品",
+      "Position": "仓位",
+      "Status": "状态",
+      "NoProducts": {
+        "Title": "未找到产品",
+        "_Description": "还没有产品。点击\"新产品\"创建一个。"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "新产品"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "编辑产品"
+      }
+    },
+    "Statuses": {
+      "in_stock": "库存中",
+      "approved": "已批准",
+      "in_development": "开发中"
+    },
+    "Single": {
+      "Rfid": "RFID",
+      "Position": "仓位",
+      "SearchPosition": "搜索仓位",
+      "NoPositionsFound": "未找到仓位",
+      "Status": "状态",
+      "SelectStatus": "选择状态",
+      "Delete": "删除",
+      "DeleteConfirmation": "您确定要删除此产品吗？"
+    }
+  },
+  "WarehousePositions": {
+    "List": {
+      "Meta": {
+        "Title": "仓库仓位"
+      },
+      "New": "新仓位",
+      "NewIn": "新入库",
+      "NewOut": "新出库",
+      "Import": "导入 .xlsx",
+      "Position": "仓位",
+      "Barcode": "条形码",
+      "Unit": "单位",
+      "NoPositions": {
+        "Title": "未找到仓位",
+        "_Description": "还没有仓位。点击\"新仓位\"创建一个。"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "新仓库仓位"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "编辑仓库仓位"
+      }
+    },
+    "Single": {
+      "Images": "图片",
+      "Title": {
+        "Label": "标题",
+        "Placeholder": "例如：电钻"
+      },
+      "Barcode": {
+        "Label": "条形码",
+        "Placeholder": "例如：1234567890"
+      },
+      "Unit": "单位",
+      "SelectUnit": "选择单位",
+      "Delete": "删除",
+      "DeleteConfirmation": "您确定要删除此仓库仓位吗？",
+      "NothingFound": "未找到任何内容"
+    },
+    "Import": {
+      "Meta": {
+        "Title": "导入 .xlsx"
+      },
+      "Title": "导入仓位",
+      "_Description": "从 Excel 文件导入仓库仓位",
+      "Example": {
+        "Title": "Excel 导入",
+        "_Description": "Excel 中单元格的顺序应如下：",
+        "ItemName": "项目名称",
+        "ItemNameDesc": "项目的全名",
+        "ItemCode": "项目代码",
+        "ItemCodeDesc": "唯一的条形码或项目代码",
+        "Unit": "单位",
+        "UnitDesc": "计量单位（例如：件、公斤、米）",
+        "Quantity": "数量",
+        "QuantityDesc": "要导入的项目数量",
+        "Below": "以下是数据输入方式的示例："
+      },
+      "UploadLabel": "选择文件",
+      "UploadPlaceholder": "选择文件",
+      "Submit": "导入",
+      "DownloadTemplate": "下载模板",
+      "Error": {
+        "ValidationError": "发现验证错误",
+        "Issues": "个问题",
+        "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - 此字段为必填项，不能为空",
+        "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}}（找到的值：'{{.Value}}'）"
+      }
+    }
+  },
+  "WarehouseUnits": {
+    "List": {
+      "Meta": {
+        "Title": "仓库单位"
+      },
+      "New": "新单位",
+      "Title": "标题",
+      "ShortTitle": "短标题",
+      "NoUnits": {
+        "Title": "未找到单位",
+        "_Description": "还没有单位。点击\"新单位\"创建一个。"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "新仓库单位"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "编辑仓库单位"
+      }
+    },
+    "Single": {
+      "Title": {
+        "Label": "标题",
+        "Placeholder": "例如：公斤"
+      },
+      "ShortTitle": {
+        "Label": "短标题",
+        "Placeholder": "例如：kg"
+      },
+      "Delete": "删除",
+      "DeleteConfirmation": "您确定要删除此仓库单位吗？"
+    }
+  },
+  "WarehouseOrders": {
+    "List": {
+      "Meta": {
+        "Title": "仓库订单"
+      },
+      "New": "新订单",
+      "NewIn": "入库",
+      "NewOut": "出库",
+      "Type": "类型",
+      "Status": "状态",
+      "Products": "件",
+      "Positions": "仓位",
+      "NoOrders": {
+        "Title": "未找到订单",
+        "_Description": "还没有订单。点击\"新订单\"创建一个。"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "新仓库订单"
+      }
+    },
+    "Out": {
+      "Meta": {
+        "Title": "新出库"
+      }
+    },
+    "In": {
+      "Meta": {
+        "Title": "新入库"
+      }
+    },
+    "View": {
+      "Meta": {
+        "Title": "查看仓库订单"
+      },
+      "Title": "订单 #{{.ID}}",
+      "Status": "状态",
+      "CreatedAt": "创建于",
+      "Position": "仓位",
+      "Barcode": "条形码",
+      "Quantity": "数量",
+      "Unit": "单位",
+      "NoItems": "无项目"
+    },
+    "Types": {
+      "in": "入库",
+      "out": "出库"
+    },
+    "Statuses": {
+      "pending": "待处理",
+      "complete": "已完成"
+    },
+    "Single": {
+      "Type": "类型",
+      "TypePlaceholder": "选择类型",
+      "Status": "状态",
+      "Quantity": "数量",
+      "PositionIDs": "仓位",
+      "NoItems": "无项目",
+      "Position": "仓位",
+      "SearchPosition": "搜索仓位",
+      "NoPositionsFound": "未找到仓位",
+      "Barcode": "条形码",
+      "InStock": "库存数量",
+      "OrderedQuantity": "发货数量",
+      "Unit": "单位",
+      "Delete": "删除",
+      "DeleteConfirmation": "您确定要删除此订单吗？"
+    }
+  },
+  "WarehouseInventory": {
+    "List": {
+      "Meta": {
+        "Title": "仓库库存"
+      },
+      "New": "新库存",
+      "Name": "名称",
+      "Type": "类型",
+      "Status": "状态",
+      "CreatedBy": "创建者",
+      "FinishedBy": "完成者",
+      "SelectStatus": "选择状态",
+      "SelectType": "选择类型",
+      "NoInventory": {
+        "Title": "未找到库存检查",
+        "_Description": "还没有库存检查。点击\"新库存\"创建一个。"
+      }
+    },
+    "New": {
+      "Meta": {
+        "Title": "新仓库库存"
+      }
+    },
+    "Edit": {
+      "Meta": {
+        "Title": "编辑仓库库存"
+      }
+    },
+    "Single": {
+      "Name": {
+        "Label": "名称",
+        "Placeholder": "例如：2024年12月16日的库存检查"
+      },
+      "Type": "类型",
+      "Inventory": "库存",
+      "FactualQuantity": "实际数量 / 1C 中的数量",
+      "Difference": "差异",
+      "Types": {
+        "full": "全部",
+        "partial": "部分"
+      },
+      "Statuses": {
+        "success": "成功",
+        "incomplete": "未完成",
+        "failed": "失败"
+      },
+      "Positions": {
+        "Label": "仓位",
+        "Placeholder": "仓位标题或条形码..."
+      },
+      "Added": "已添加",
+      "AllPositions": "所有仓位",
+      "Delete": "删除",
+      "DeleteConfirmation": "您确定要删除此库存检查吗？"
+    }
+  }
+}

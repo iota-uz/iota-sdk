@@ -1,0 +1,10 @@
+{
+  "Resources": {
+    "logs": "日志"
+  },
+  "Permissions": {
+    "Logs": {
+      "View": "查看日志"
+    }
+  }
+}
