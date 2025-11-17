@@ -370,32 +370,83 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 - **Multiple modules**: Launch multiple instances with module-specific scope
 - **Complex integrations**: Include coordination agents with clear responsibilities
 
-### Agent Collaboration Matrix
+### Practical Workflow Examples
 
-**debugger:**
-- Provides input to: `editor`
-- Receives input from: Error logs, user reports
-- Parallel partners: None (investigation first)
+**Example 1: Bug Investigation & Fix**
+```
+1. Investigation: debugger (investigate error, identify root cause)
+2. Implementation: editor (fix the bug across affected files)
+3. Quality review: refactoring-expert (review changes, ensure code quality)
 
-**editor:**
-- Provides input to: `refactoring-expert`
-- Receives input from: `debugger`, business requirements
-- Parallel partners: None (unified agent)
+Syntax: debugger && editor && refactoring-expert
+```
 
-**refactoring-expert:**
-- Provides input to: Final output
-- Receives input from: All other agents
-- Parallel partners: None (final review)
+**Example 2: New Feature Development**
+```
+1. Planning (optional): general-purpose for architecture research if needed
+2. Implementation: editor (implement domain, service, repository, controller, templates)
+3. Quality review: refactoring-expert (ensure production-ready code)
 
-**e2e-tester:**
-- Provides input to: None (test-only)
-- Receives input from: `debugger`, `editor`
-- Parallel partners: None (independent testing)
+Syntax: editor && refactoring-expert
+Or with research: general-purpose && editor && refactoring-expert
+```
 
-**general-purpose:**
-- Provides input to: All implementation agents
-- Receives input from: Business requirements, initial questions
-- Parallel partners: None (research first, then delegate)
+**Example 3: Database Schema Changes**
+```
+1. Migration: editor (create migration, update domain entities)
+2. Data layer: editor (update repositories for new schema)
+3. Quality review: refactoring-expert (verify migration safety, code quality)
+
+Syntax: editor (migrations + domain) && editor (repositories) && refactoring-expert
+Or single editor: editor && refactoring-expert
+```
+
+**Example 4: UI/Template Updates**
+```
+1. Templates: editor (update .templ files, controllers, ViewModels)
+2. Translations: editor (update en.toml, ru.toml, uz.toml)
+3. Quality review: refactoring-expert (verify HTMX patterns, security)
+
+Syntax: editor && refactoring-expert
+```
+
+**Example 5: Performance Optimization**
+```
+1. Investigation: debugger (identify bottlenecks, analyze queries)
+2. Optimization: editor (optimize queries, add indexes, improve algorithms)
+3. Quality review: refactoring-expert (ensure no regressions)
+
+Syntax: debugger && editor && refactoring-expert
+```
+
+**Example 6: E2E Test Development**
+```
+1. Test creation: e2e-tester (write Playwright tests, fixtures, page objects)
+2. Debug failures (if needed): debugger && e2e-tester
+
+Syntax: e2e-tester
+Or with debugging: debugger && e2e-tester
+```
+
+**Example 7: Multi-Module Changes (Parallel Execution)**
+```
+1. Parallel implementation:
+   - editor (finance module changes)
+   - editor (warehouse module changes)
+   - editor (CRM module changes)
+2. Sequential review: refactoring-expert (review all changes)
+
+Syntax: (editor & editor & editor) && refactoring-expert
+```
+
+**Example 8: Complex Research & Implementation**
+```
+1. Research: general-purpose (explore codebase, find patterns, analyze architecture)
+2. Implementation: editor (apply findings, implement solution)
+3. Quality review: refactoring-expert (ensure consistency with codebase)
+
+Syntax: general-purpose && editor && refactoring-expert
+```
 
 ### Single Agent Exceptions
 
