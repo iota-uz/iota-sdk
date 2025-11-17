@@ -38,7 +38,7 @@ func GetMergeBase(ctx context.Context, target string) (string, error) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return target, fmt.Errorf("git merge-base failed: %w (stderr: %s)", err, stderr.String())
+		return "", fmt.Errorf("git merge-base failed: %w (stderr: %s)", err, stderr.String())
 	}
 
 	base := strings.TrimSpace(stdout.String())

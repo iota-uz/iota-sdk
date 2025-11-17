@@ -14,7 +14,7 @@ Available context dumps: !`ls -t .claude/dumps/DUMP_*.md 2>/dev/null || echo "No
     - Extract key information from each dump:
         - User Intent section (what task was being worked on)
         - Key Findings & Decisions section (main insights)
-        - Current Phase/Status (what was completed, what's pending)
+        - Current Phase/Status - look for either "Remaining Work" or "Current Phase/Status" section (what was completed, what's pending)
     - Create a concise 1-2 sentence summary for each dump file highlighting the main task/issue
 3. **Present options using AskUserQuestion:**
     - Create options for each DUMP file found
