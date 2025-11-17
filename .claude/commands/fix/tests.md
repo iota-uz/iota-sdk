@@ -36,10 +36,10 @@ Per failure:
 - Parse error messages and stack traces
 - Read test code and implementation
 - Identify root cause:
-    - Implementation bug: Fix actual code
-    - Outdated test: Update expectations
-    - Setup issue: Fix initialization
-    - Dependency issue: Database/external service
+  - Implementation bug: Fix actual code
+  - Outdated test: Update expectations
+  - Setup issue: Fix initialization
+  - Dependency issue: Database/external service
 
 ### 3. Fix
 
