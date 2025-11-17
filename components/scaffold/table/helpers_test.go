@@ -185,7 +185,7 @@ func TestColumnDefaultBehavior(t *testing.T) {
 	assert.Equal(t, "Actions", col.Label())
 	assert.False(t, col.Sortable()) // Should be false by default
 	assert.Equal(t, SortDirectionNone, col.SortDir())
-	assert.Equal(t, "", col.SortURL())
+	assert.Empty(t, col.SortURL())
 }
 
 func TestColumnWithSortable(t *testing.T) {
@@ -195,7 +195,7 @@ func TestColumnWithSortable(t *testing.T) {
 	assert.Equal(t, "Name", col.Label())
 	assert.True(t, col.Sortable()) // Should be true with WithSortable
 	assert.Equal(t, SortDirectionNone, col.SortDir())
-	assert.Equal(t, "", col.SortURL())
+	assert.Empty(t, col.SortURL())
 }
 
 func TestSortURLCycling(t *testing.T) {
