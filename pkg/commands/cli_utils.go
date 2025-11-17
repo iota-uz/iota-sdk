@@ -21,7 +21,7 @@ func newCheckTrKeysCmd() *cobra.Command {
 		Short: "Check translation key consistency across all locales",
 		Long:  `Validates that all translation keys are present across all configured locales and reports any missing translations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return CheckTrKeys(modules.BuiltInModules...)
+			return CheckTrKeys(nil, modules.BuiltInModules...)
 		},
 	}
 }

@@ -48,6 +48,7 @@ type Application interface {
 	Service(service interface{}) interface{}
 	Services() map[reflect.Type]interface{}
 	Bundle() *i18n.Bundle
+	GetSupportedLanguages() []string
 }
 
 type Seeder interface {
