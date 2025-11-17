@@ -23,16 +23,6 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 - **Complex Research/Discovery**: Use `general-purpose` when uncertain about code location or architecture
 - **Multi-Step Search Operations**: Use `general-purpose` when simple grep/glob won't suffice
 
-**File-Type Mandates:**
-- **.templ or .toml files**: `editor` ONLY
-- **Database work**: `editor` ONLY
-- **migrations/*.sql**: `editor` ONLY
-- **Go code (*.go)**: `editor` ONLY
-- **Configuration files**: `editor` ONLY
-- **CLAUDE.md updates**: `editor` ONLY
-- **Documentation maintenance**: `editor` ONLY
-- **E2E tests (e2e/**/*.spec.ts)**: `e2e-tester` ONLY
-
 ## PROJECT OVERVIEW
 
 ### Business Overview
