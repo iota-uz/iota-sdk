@@ -2,14 +2,19 @@ package controllers_test
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
@@ -17,6 +22,14 @@ import (
 // createSuperAdminUserForTenants creates a test user with TypeSuperAdmin for tenant tests
 func createSuperAdminUserForTenants() user.User {
 	email, _ := internet.NewEmail("superadmin@tenants-test.com")
+
+	// Create a role with all permissions needed for superadmin operations
+	adminRole := role.New(
+		"superadmin",
+		role.WithID(1),
+		role.WithPermissions(defaults.AllPermissions()),
+	)
+
 	return user.New(
 		"Super",
 		"Admin",
@@ -25,6 +38,7 @@ func createSuperAdminUserForTenants() user.User {
 		user.WithID(1),
 		user.WithType(user.TypeSuperAdmin),
 		user.WithTenantID(uuid.New()),
+		user.WithRoles([]role.Role{adminRole}),
 	)
 }
 
@@ -50,7 +64,8 @@ func TestTenantsController_Index(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	// Test GET /superadmin/tenants - should render template properly
@@ -67,7 +82,8 @@ func TestTenantsController_Index_HTMX(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	// Test GET /superadmin/tenants with HTMX - should render table rows
@@ -85,7 +101,8 @@ func TestTenantsController_Index_WithPagination(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -135,7 +152,8 @@ func TestTenantsController_Index_WithSearch(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -175,7 +193,8 @@ func TestTenantsController_Export(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	// Test POST /superadmin/tenants/export
@@ -237,7 +256,8 @@ func TestTenantsController_Permissions(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			suite := tc.setupSuite(t)
-			controller := controllers.NewTenantsController(suite.Env().App)
+			userService := itf.GetService[coreservices.UserService](suite.Env())
+			controller := controllers.NewTenantsController(suite.Env().App, userService)
 			suite.Register(controller)
 
 			suite.GET("/superadmin/tenants").
@@ -257,7 +277,8 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
 
-		controller := controllers.NewTenantsController(suite.Env().App)
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
 		suite.Register(controller)
 
 		suite.GET("/superadmin/tenants").
@@ -271,7 +292,8 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			WithUser(createRegularUserForTenants()).
 			Build()
 
-		controller := controllers.NewTenantsController(suite.Env().App)
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
 		suite.Register(controller)
 
 		suite.GET("/superadmin/tenants").
@@ -285,7 +307,8 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
 
-		controller := controllers.NewTenantsController(suite.Env().App)
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
 		suite.Register(controller)
 
 		// Export endpoint redirects (303)
@@ -300,7 +323,8 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			WithUser(createRegularUserForTenants()).
 			Build()
 
-		controller := controllers.NewTenantsController(suite.Env().App)
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
 		suite.Register(controller)
 
 		suite.POST("/superadmin/tenants/export").
@@ -314,7 +338,8 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			WithUser(createSuperAdminUserForTenants()).
 			Build()
 
-		controller := controllers.NewTenantsController(suite.Env().App)
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
 		suite.Register(controller)
 
 		// Create test tenant within this test's suite/database
@@ -332,7 +357,8 @@ func TestTenantsController_SuperAdminOnly(t *testing.T) {
 			WithUser(createRegularUserForTenants()).
 			Build()
 
-		controller := controllers.NewTenantsController(suite.Env().App)
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
 		suite.Register(controller)
 
 		// Create test tenant within this test's suite/database
@@ -353,7 +379,8 @@ func TestTenantsController_Routes(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -386,7 +413,8 @@ func TestTenantsController_EdgeCases(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -435,7 +463,8 @@ func TestTenantsController_HTMX(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	// Test HTMX request
@@ -453,7 +482,8 @@ func TestTenantsController_Index_WithDateRange(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -519,7 +549,8 @@ func TestTenantsController_Index_SortAscending(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -571,7 +602,8 @@ func TestTenantsController_Index_SortDescending(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -623,7 +655,8 @@ func TestTenantsController_Index_DefaultSort(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -671,7 +704,8 @@ func TestTenantsController_Index_InvalidSortField(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -723,7 +757,8 @@ func TestTenantsController_Index_SortWithDateFilter(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -782,7 +817,8 @@ func TestTenantsController_Index_SortWithSearch(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -838,7 +874,8 @@ func TestTenantsController_Index_SortWithPagination(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -886,7 +923,8 @@ func TestTenantsController_Index_DateRangeWithPagination(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -934,7 +972,8 @@ func TestTenantsController_TenantUsers(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	t.Run("Happy_Path_Valid_Tenant", func(t *testing.T) {
@@ -970,7 +1009,8 @@ func TestTenantsController_TenantUsers_HTMX(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -991,7 +1031,8 @@ func TestTenantsController_TenantUsers_Pagination(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1036,7 +1077,8 @@ func TestTenantsController_TenantUsers_Search(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1079,7 +1121,8 @@ func TestTenantsController_TenantUsers_Sorting(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1125,7 +1168,8 @@ func TestTenantsController_Index_HTMXTargetHandling(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	t.Run("Sorting_Returns_Full_Table", func(t *testing.T) {
@@ -1178,7 +1222,8 @@ func TestTenantsController_TenantUsers_HTMXTargetHandling(t *testing.T) {
 		WithUser(createSuperAdminUserForTenants()).
 		Build()
 
-	controller := controllers.NewTenantsController(suite.Env().App)
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
 	suite.Register(controller)
 
 	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
@@ -1229,4 +1274,335 @@ func TestTenantsController_TenantUsers_HTMXTargetHandling(t *testing.T) {
 		// Should have the page structure, not just table rows
 		htmlAssert.ExpectNoElement("/html/body/tbody")
 	})
+}
+
+// TestTenantsController_ResetUserPassword_Success verifies successful password reset
+func TestTenantsController_ResetUserPassword_Success(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	ctx := suite.Env().Ctx
+
+	// Create test tenant
+	tenant, err := itf.CreateTestTenant(ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	// Create test user in that tenant
+	email, _ := internet.NewEmail("testuser@reset.com")
+	testUser := user.New(
+		"Test",
+		"User",
+		email,
+		user.UILanguageEN,
+		user.WithTenantID(tenant.ID),
+	)
+	testUser, _ = testUser.SetPassword("oldpassword123")
+
+	createdUser, err := userService.Create(ctx, testUser)
+	require.NoError(t, err)
+
+	// Reset password
+	newPassword := "newpassword123"
+	resp := suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenant.ID.String(), createdUser.ID())).
+		JSON(map[string]string{"password": newPassword}).
+		Assert(t)
+
+	resp.ExpectOK()
+
+	// Verify response
+	jsonAssert := resp.ExpectJSON()
+	jsonAssert.ExpectField("$.success", true)
+	jsonAssert.ExpectField("$.message", "Password reset successfully")
+
+	// Verify password was actually changed
+	updatedUser, err := userService.GetByID(ctx, createdUser.ID())
+	require.NoError(t, err)
+	require.True(t, updatedUser.CheckPassword(newPassword), "New password should work")
+	require.False(t, updatedUser.CheckPassword("oldpassword123"), "Old password should not work")
+}
+
+// TestTenantsController_ResetUserPassword_InvalidTenantID tests malformed tenant UUID
+func TestTenantsController_ResetUserPassword_InvalidTenantID(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	suite.POST("/superadmin/tenants/invalid-uuid/users/1/reset-password").
+		JSON(map[string]string{"password": "newpassword123"}).
+		Assert(t).
+		ExpectBadRequest()
+}
+
+// TestTenantsController_ResetUserPassword_InvalidUserID tests non-numeric user ID
+func TestTenantsController_ResetUserPassword_InvalidUserID(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/invalid/reset-password", tenant.ID.String())).
+		JSON(map[string]string{"password": "newpassword123"}).
+		Assert(t).
+		ExpectBadRequest()
+}
+
+// TestTenantsController_ResetUserPassword_UserNotFound tests non-existent user
+func TestTenantsController_ResetUserPassword_UserNotFound(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	// Use non-existent user ID (999999)
+	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/999999/reset-password", tenant.ID.String())).
+		JSON(map[string]string{"password": "newpassword123"}).
+		Assert(t).
+		ExpectNotFound()
+}
+
+// TestTenantsController_ResetUserPassword_WrongTenant tests cross-tenant protection
+func TestTenantsController_ResetUserPassword_WrongTenant(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	ctx := suite.Env().Ctx
+
+	// Create tenant A
+	tenantA, err := itf.CreateTestTenant(ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	// Create tenant B
+	tenantB, err := itf.CreateTestTenant(ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	// Create user in tenant A
+	email, _ := internet.NewEmail("user@tenanta.com")
+	testUser := user.New("Test", "User", email, user.UILanguageEN, user.WithTenantID(tenantA.ID))
+	testUser, _ = testUser.SetPassword("password123")
+
+	createdUser, err := userService.Create(ctx, testUser)
+	require.NoError(t, err)
+
+	// Try to reset password using tenant B's ID (should fail - cross-tenant protection)
+	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenantB.ID.String(), createdUser.ID())).
+		JSON(map[string]string{"password": "newpassword123"}).
+		Assert(t).
+		ExpectNotFound() // Should return 404 for security (don't reveal user exists)
+}
+
+// TestTenantsController_ResetUserPassword_EmptyPassword tests empty password validation
+func TestTenantsController_ResetUserPassword_EmptyPassword(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/1/reset-password", tenant.ID.String())).
+		JSON(map[string]string{"password": ""}).
+		Assert(t).
+		ExpectBadRequest()
+}
+
+// TestTenantsController_ResetUserPassword_PasswordTooShort tests minimum length validation
+func TestTenantsController_ResetUserPassword_PasswordTooShort(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	t.Run("1_char", func(t *testing.T) {
+		suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/1/reset-password", tenant.ID.String())).
+			JSON(map[string]string{"password": "a"}).
+			Assert(t).
+			ExpectBadRequest()
+	})
+
+	t.Run("7_chars", func(t *testing.T) {
+		suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/1/reset-password", tenant.ID.String())).
+			JSON(map[string]string{"password": "1234567"}).
+			Assert(t).
+			ExpectBadRequest()
+	})
+}
+
+// TestTenantsController_ResetUserPassword_Permissions tests that only superadmins can access
+func TestTenantsController_ResetUserPassword_Permissions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SuperAdmin_Allowed", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createSuperAdminUserForTenants()).
+			Build()
+
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		suite.Register(controller)
+
+		ctx := suite.Env().Ctx
+		tenant, err := itf.CreateTestTenant(ctx, suite.Env().Pool)
+		require.NoError(t, err)
+
+		email, _ := internet.NewEmail("test@example.com")
+		testUser := user.New("Test", "User", email, user.UILanguageEN, user.WithTenantID(tenant.ID))
+		testUser, _ = testUser.SetPassword("oldpass123")
+
+		createdUser, err := userService.Create(ctx, testUser)
+		require.NoError(t, err)
+
+		// Superadmin should be able to reset password
+		suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenant.ID.String(), createdUser.ID())).
+			JSON(map[string]string{"password": "newpass123"}).
+			Assert(t).
+			ExpectOK()
+	})
+
+	t.Run("RegularUser_Forbidden", func(t *testing.T) {
+		suite := itf.NewSuiteBuilder(t).
+			WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+			WithUser(createRegularUserForTenants()).
+			Build()
+
+		userService := itf.GetService[coreservices.UserService](suite.Env())
+		controller := controllers.NewTenantsController(suite.Env().App, userService)
+		suite.Register(controller)
+
+		tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+		require.NoError(t, err)
+
+		// Regular user should be blocked
+		suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/1/reset-password", tenant.ID.String())).
+			JSON(map[string]string{"password": "newpass123"}).
+			Assert(t).
+			ExpectForbidden()
+	})
+}
+
+func TestTenantsController_ResetUserPassword_PasswordTooLong(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	// Create user for tenant
+	var userID int
+	err = suite.Env().Pool.QueryRow(
+		suite.Env().Ctx,
+		`INSERT INTO users (tenant_id, first_name, last_name, email, password, type, ui_language, created_at, updated_at)
+		 VALUES ($1, 'Test', 'User', 'testuser@example.com', 'hashedpass', 'user', 'en', NOW(), NOW())
+		 RETURNING id`,
+		tenant.ID,
+	).Scan(&userID)
+	require.NoError(t, err)
+
+	// Create 200-character password (exceeds 128 limit)
+	longPassword := strings.Repeat("a", 200)
+
+	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenant.ID.String(), userID)).
+		JSON(map[string]string{"password": longPassword}).
+		Assert(t).
+		ExpectBadRequest().
+		ExpectBodyContains("cannot exceed")
+}
+
+func TestTenantsController_ResetUserPassword_InvalidContentType(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithModules(append(modules.BuiltInModules, superadmin.NewModule(nil))...).
+		WithUser(createSuperAdminUserForTenants()).
+		Build()
+
+	userService := itf.GetService[coreservices.UserService](suite.Env())
+	controller := controllers.NewTenantsController(suite.Env().App, userService)
+	suite.Register(controller)
+
+	tenant, err := itf.CreateTestTenant(suite.Env().Ctx, suite.Env().Pool)
+	require.NoError(t, err)
+
+	// Create user for tenant
+	var userID int
+	err = suite.Env().Pool.QueryRow(
+		suite.Env().Ctx,
+		`INSERT INTO users (tenant_id, first_name, last_name, email, password, type, ui_language, created_at, updated_at)
+		 VALUES ($1, 'Test', 'User', 'testuser2@example.com', 'hashedpass', 'user', 'en', NOW(), NOW())
+		 RETURNING id`,
+		tenant.ID,
+	).Scan(&userID)
+	require.NoError(t, err)
+
+	// Send request with wrong content-type
+	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenant.ID.String(), userID)).
+		Header("Content-Type", "text/plain").
+		JSON(map[string]string{"password": "validpassword123"}).
+		Assert(t).
+		ExpectStatus(http.StatusUnsupportedMediaType)
 }

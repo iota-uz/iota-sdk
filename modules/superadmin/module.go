@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/services"
@@ -14,7 +15,7 @@ import (
 var LocaleFiles embed.FS
 
 type ModuleOptions struct {
-	// TODO: Add module options as needed
+	// Module currently has no configuration options
 }
 
 func NewModule(opts *ModuleOptions) application.Module {
@@ -48,10 +49,13 @@ func (m *Module) Register(app application.Application) error {
 		services.NewTenantUsersService(userRepo),
 	)
 
+	// Get UserService from application
+	userService := app.Service(coreservices.UserService{}).(*coreservices.UserService)
+
 	// Register controllers
 	app.RegisterControllers(
 		controllers.NewDashboardController(app),
-		controllers.NewTenantsController(app),
+		controllers.NewTenantsController(app, userService),
 	)
 
 	return nil

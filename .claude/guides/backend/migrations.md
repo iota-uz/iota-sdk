@@ -1,13 +1,19 @@
----
-name: database-expert
-description: PostgreSQL expert for migrations, schema design, and multi-tenant operations. Use PROACTIVELY for ANY database work. MUST BE USED for migrations, schema changes, and database structure.
-tools: Read, Write, Edit, Bash(psql:*), Bash(pg_dump:*), Bash(pg_restore:*), Bash(make db migrate:*), Bash(date:*), Bash(ls:*), Bash(cat:*), Bash(echo:*), Grep, Glob
-model: sonnet
----
+# Database Migrations Guide
 
-You are a PostgreSQL database expert for the IOTA SDK platform specializing in migrations, schema design, and multi-tenant architectures.
+**PostgreSQL schema migrations using sql-migrate for the IOTA SDK platform.**
 
-## CRITICAL RULES
+## Overview
+
+### Purpose
+
+Use migrations for:
+- Schema changes (CREATE/ALTER/DROP tables, columns, indexes, constraints)
+- PL/pgSQL functions and procedures
+- Data backfills after schema changes
+- Index creation for performance
+
+### Critical Rules
+
 1. **NEVER edit existing migration files** - immutable once created
 2. **ALWAYS include tenant_id** for multi-tenant isolation (except system tables)
 3. **ALWAYS provide Down migrations** that fully reverse Up changes
@@ -16,46 +22,10 @@ You are a PostgreSQL database expert for the IOTA SDK platform specializing in m
 6. **NEVER use anonymous code blocks (DO $$ ... $$)** in migrations - not supported
 7. **NEVER use BEGIN/COMMIT/ROLLBACK** in migrations - transactions handled by migration tool
 
-## IMMEDIATE ACTION PROTOCOLS
+## Migration File Format
 
-### Migration Tasks
-1. Generate timestamp: `date +%s`
-2. Review recent: `ls -la migrations/*.sql | tail -5`
-3. Analyze existing schema if modifying
-4. Create migration with proper Up/Down sections
-5. Validate reversibility and tenant isolation
+### Basic Structure
 
-### Schema Design
-1. Review business requirements
-2. Design normalized structure
-3. Plan index strategy
-4. Consider denormalization needs
-5. Document design decisions
-
-## CONNECTION MANAGEMENT
-
-### Strategy
-1. Try default local credentials first
-2. Check .env file if connection fails
-3. Build connection from environment variables
-4. Retry with updated credentials
-
-### Connection Examples
-```bash
-# Default local
-PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d iota_erp
-
-# Environment-based
-if [ -f .env ]; then
-  export $(cat .env | grep -E '^DB_' | xargs)
-  PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME
-fi
-
-# Staging Database (Railway)
-PGPASSWORD=A6E4g1d2ae43Bebg2F65CEc3e56aa25g psql -h shuttle.proxy.rlwy.net -U postgres -p 31150 -d railway
-```
-
-## MIGRATION TEMPLATE
 ```sql
 -- Migration: [Brief description]
 -- Date: YYYY-MM-DD
@@ -68,9 +38,84 @@ PGPASSWORD=A6E4g1d2ae43Bebg2F65CEc3e56aa25g psql -h shuttle.proxy.rlwy.net -U po
 [REVERSE SQL STATEMENTS];
 ```
 
-## MULTI-TENANT PATTERNS
+### Directives
+
+| Directive                    | Purpose                 | Usage                              |
+|------------------------------|-------------------------|------------------------------------|
+| `-- +migrate Up`             | Forward migration       | Schema changes                     |
+| `-- +migrate Down`           | Rollback migration      | MUST exactly reverse Up            |
+| `-- +migrate StatementBegin` | Start complex statement | PL/pgSQL functions with semicolons |
+| `-- +migrate StatementEnd`   | End complex statement   | Close the block                    |
+| `-- +migrate notransaction`  | Disable transaction     | Concurrent indexes only            |
+
+### PL/pgSQL Functions
+
+Use `StatementBegin/End` for functions containing semicolons:
+
+```sql
+-- +migrate Up
+
+-- +migrate StatementBegin
+CREATE OR REPLACE FUNCTION money_display(amount bigint, currency_code text)
+    RETURNS text
+    LANGUAGE plpgsql
+    IMMUTABLE
+AS
+$$
+BEGIN
+    IF amount IS NULL OR amount = 0 THEN
+        RETURN '0,00 ' || COALESCE(currency_code, 'UZS');
+    END IF;
+
+    RETURN CONCAT(
+            REPLACE(REPLACE(TO_CHAR(amount / 100.0, 'FM999,999,999,999.00'), ',', ' '), '.', ','),
+            ' ',
+            COALESCE(currency_code, 'UZS')
+           );
+END;
+$$;
+-- +migrate StatementEnd
+
+COMMENT ON FUNCTION money_display(bigint, text) IS
+    'Formats monetary amount to localized display string';
+
+-- +migrate Down
+DROP FUNCTION IF EXISTS money_display(bigint, text);
+```
+
+## Naming & Git Workflow
+
+### Naming Convention
+
+Format: `changes-{unix_timestamp}.sql`
+
+```bash
+# Generate timestamp
+date +%s
+# Output: 1762857604
+
+# Create migration
+touch migrations/changes-1762857604.sql
+```
+
+### Git-Based Safety
+
+```bash
+# Check if migration is committed
+git log --oneline -- migrations/changes-1762857604.sql
+
+# If output is empty → Uncommitted → Safe to edit
+# If output shows commits → Committed → Create new migration
+```
+
+**Rules**:
+- Uncommitted migrations: Safe to edit
+- Committed migrations: Create new migration instead
+
+## Multi-Tenant Patterns
 
 ### Tenant Isolation (CRITICAL)
+
 ```sql
 -- All tables use tenant_id for multi-tenant isolation
 SELECT * FROM users WHERE tenant_id = $1;
@@ -79,6 +124,7 @@ SELECT * FROM clients WHERE tenant_id = $1;
 ```
 
 ### Standard Table Structure
+
 ```sql
 CREATE TABLE module_entities (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -105,10 +151,11 @@ CREATE INDEX idx_module_entities_deleted_at ON module_entities(deleted_at);
 CREATE INDEX idx_module_entities_status ON module_entities(status) WHERE deleted_at IS NULL;
 ```
 
-
-## DOMAIN-SPECIFIC PATTERNS
+## Domain-Specific Patterns
 
 ### Business Entities
+
+**Modules**:
 - **Warehouse**: products, inventory, orders, positions, units
 - **Finance**: payments, expenses, debts, transactions, counterparties, money_accounts
 - **CRM**: clients, chats, message_templates
@@ -116,6 +163,7 @@ CREATE INDEX idx_module_entities_status ON module_entities(status) WHERE deleted
 - **HRM**: employees
 
 ### Financial Fields
+
 ```sql
 amount DECIMAL(10,2) NOT NULL DEFAULT 0.00
 rate DECIMAL(10,4) -- per-unit rates
@@ -123,15 +171,17 @@ percentage DECIMAL(5,2) CHECK (percentage >= 0 AND percentage <= 100)
 ```
 
 ### Status Enums
+
 ```sql
 CREATE TYPE order_status AS ENUM ('pending', 'processing', 'completed', 'cancelled');
 CREATE TYPE payment_status AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded');
 CREATE TYPE user_status AS ENUM ('active', 'inactive', 'suspended');
 ```
 
-## MIGRATION EXAMPLES
+## Migration Examples
 
 ### Adding Tables with Relationships
+
 ```sql
 -- +migrate Up
 CREATE TABLE product_attachments (
@@ -154,6 +204,7 @@ DROP TABLE product_attachments;
 ```
 
 ### Adding Columns Safely
+
 ```sql
 -- +migrate Up
 ALTER TABLE employees
@@ -172,6 +223,7 @@ ALTER TABLE employees
 ```
 
 ### Data Migrations with Safety
+
 ```sql
 -- +migrate Up
 ALTER TABLE orders ADD COLUMN is_urgent BOOLEAN DEFAULT FALSE;
@@ -185,20 +237,20 @@ AND tenant_id = orders.tenant_id;
 ALTER TABLE orders DROP COLUMN is_urgent;
 ```
 
-
-## VALIDATION CHECKLISTS
+## Validation Checklists
 
 ### Before Creating Migrations
-☐ Timestamp: `date +%s` for filename
-☐ Structure: Both Up and Down sections
-☐ Reversibility: Down exactly reverses Up
-☐ Multi-tenant: tenant_id present and cascading
-☐ Indexes: Created for FKs and common queries
-☐ Constraints: CHECK, UNIQUE, NOT NULL appropriate
-☐ Testing: Verified Up→Down→Up cycle works
 
+- [ ] Timestamp: `date +%s` for filename
+- [ ] Structure: Both Up and Down sections
+- [ ] Reversibility: Down exactly reverses Up
+- [ ] Multi-tenant: tenant_id present and cascading
+- [ ] Indexes: Created for FKs and common queries
+- [ ] Constraints: CHECK, UNIQUE, NOT NULL appropriate
+- [ ] Testing: Verified Up→Down→Up cycle works
 
-## ERROR PREVENTION
+## Error Prevention
+
 - Verify foreign key targets exist before adding references
 - Check naming conflicts with existing tables/columns
 - Consider cascade effects (CASCADE, SET NULL, RESTRICT)
@@ -206,9 +258,47 @@ ALTER TABLE orders DROP COLUMN is_urgent;
 - Never DROP columns with data without confirmation
 - Ensure application code handles new enum values
 
-## ITF DATABASE TESTING
+## Connection Management
 
-### Basic ITF Usage for Database Tests
+### Strategy
+
+1. Try default local credentials first
+2. Check .env file if connection fails
+3. Build connection from environment variables
+4. Retry with updated credentials
+
+### Connection Examples
+
+```bash
+# Default local
+PGPASSWORD=postgres psql -h localhost -p 5432 -U postgres -d iota_erp
+
+# Environment-based
+if [ -f .env ]; then
+  export $(cat .env | grep -E '^DB_' | xargs)
+  PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME
+fi
+
+# Staging Database (use database-connection skill)
+```
+
+## Migration Commands
+
+```bash
+# Apply migrations
+make db migrate up
+
+# Rollback migrations
+make db migrate down
+
+# Check status
+make db migrate status
+```
+
+## Testing Migrations
+
+Use ITF framework for testing schema changes:
+
 ```go
 func TestRepository(t *testing.T) {
     env := itf.Setup(t)  // Isolated test database
@@ -217,61 +307,50 @@ func TestRepository(t *testing.T) {
 }
 ```
 
-### ITF Test Environment
+**ITF Test Environment**:
 - `itf.Setup(t)` provides isolated test database
 - Each test gets clean database state
 - Use `env.Repository()` to get repository instances
 - Automatic cleanup after test completion
 
-## TASK EXECUTION
+## Best Practices
 
-### Analyze Schema
-1. Connect to appropriate database
-2. Run \d+ tablename for structure
-3. Check indexes with \di
-4. Review foreign keys and constraints
-5. Document schema structure
+### Always
 
-### Write Queries
-1. Confirm tenant isolation field (tenant_id)
-2. Write parameterized queries ($1, $2, never concatenate)
-3. Include proper JOINs to prevent N+1
-4. Add WHERE deleted_at IS NULL
-5. Test queries for correctness
+1. Use parameterized queries ($1, $2, never concatenate)
+2. Include proper JOINs to prevent N+1
+3. Add WHERE deleted_at IS NULL for soft deletes
+4. Test reversibility (Up→Down→Up cycle)
+5. Document complex migrations with clear comments
 
-### Create Migrations
-1. Generate timestamp: `date +%s`
-2. Create both Up and Down sections
-3. Use transactions when appropriate
-4. Test reversibility
-5. Never modify existing migrations
+### Never
 
+1. Edit committed migrations
+2. Use raw SQL concatenation
+3. Skip tenant isolation checks
+4. Forget Down migration
+5. Use anonymous code blocks (DO $$ ... $$)
 
-### Debug Issues
-1. Check database logs
-2. Review connection settings
-3. Analyze lock conditions
-4. Verify tenant isolation
-5. Test in isolated environment
+## Integration Points
 
-## INTEGRATION POINTS
-- **Migrations**: /migrations/ (read-only after creation)
-- **Repository interfaces**: modules/{module}/domain/*/repository.go
-- **Repository implementations**: modules/{module}/infrastructure/persistence/
-- **Query builders**: pkg/repo for SQL construction
-- **Error handling**: pkg/serrors for database errors
+- **Migrations**: `migrations/` (read-only after creation)
+- **Repository interfaces**: `modules/{module}/domain/*/repository.go`
+- **Repository implementations**: `modules/{module}/infrastructure/persistence/`
+- **Query builders**: `pkg/repo` for SQL construction
+- **Error handling**: `pkg/serrors` for database errors
 - **Testing**: ITF provides test database isolation via `itf.Setup(t)`
-- **Commands**: `make db migrate up`, `make db migrate down`, `make db migrate status`
 
-## SECURITY CHECKLIST
-☐ No raw SQL concatenation
-☐ All queries parameterized
-☐ Tenant isolation verified
-☐ Connection strings secure
-☐ No credentials in code
-☐ SQL injection prevention verified
+## Security Checklist
 
-## REMEMBER
+- [ ] No raw SQL concatenation
+- [ ] All queries parameterized
+- [ ] Tenant isolation verified
+- [ ] Connection strings secure
+- [ ] No credentials in code
+- [ ] SQL injection prevention verified
+
+## Remember
+
 - Production multi-tenant system
 - Data isolation is CRITICAL
 - Performance impacts real business operations

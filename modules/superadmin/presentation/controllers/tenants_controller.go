@@ -1,7 +1,11 @@
 package controllers
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -27,15 +31,23 @@ import (
 	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
 )
 
+const (
+	minPasswordLength = 8
+	maxPasswordLength = 128
+	userNotFoundMsg   = "User not found"
+)
+
 type TenantsController struct {
-	app      application.Application
-	basePath string
+	app         application.Application
+	userService *coreservices.UserService
+	basePath    string
 }
 
-func NewTenantsController(app application.Application) application.Controller {
+func NewTenantsController(app application.Application, userService *coreservices.UserService) application.Controller {
 	return &TenantsController{
-		app:      app,
-		basePath: "/superadmin/tenants",
+		app:         app,
+		userService: userService,
+		basePath:    "/superadmin/tenants",
 	}
 }
 
@@ -58,6 +70,7 @@ func (c *TenantsController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Index)).Methods(http.MethodGet)
 	router.HandleFunc("/export", di.H(c.Export)).Methods(http.MethodPost)
 	router.HandleFunc("/{id}/users", di.H(c.TenantUsers)).Methods(http.MethodGet)
+	router.HandleFunc("/{id}/users/{userId}/reset-password", di.H(c.ResetUserPassword)).Methods(http.MethodPost)
 }
 
 // Index renders the tenants table page and handles HTMX filtering requests
@@ -334,4 +347,130 @@ func (c *TenantsController) TenantUsers(
 	} else {
 		templ.Handler(tenants.Users(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
+}
+
+// ResetUserPassword resets a user's password for a specific tenant
+// POST /superadmin/tenants/{id}/users/{userId}/reset-password
+func (c *TenantsController) ResetUserPassword(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	ctx := r.Context()
+
+	// Get current admin user for audit logging
+	currentAdmin, err := composables.UseUser(ctx)
+	if err != nil {
+		logger.Errorf("Failed to get current user: %v", err)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(r)
+
+	// Parse tenant ID from URL
+	tenantIDStr := vars["id"]
+	tenantID, err := uuid.Parse(tenantIDStr)
+	if err != nil {
+		logger.Errorf("Invalid tenant ID: %v", err)
+		http.Error(w, "Invalid tenant ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse user ID from URL
+	userIDStr := vars["userId"]
+	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	if err != nil {
+		logger.Errorf("Invalid user ID: %v", err)
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	// Validate Content-Type header
+	if r.Header.Get("Content-Type") != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	// Parse JSON request body
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Errorf("Error parsing request body: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Trim whitespace from password
+	password := strings.TrimSpace(req.Password)
+
+	// Validate password is not empty
+	if password == "" {
+		http.Error(w, "Password cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Validate minimum length
+	if len(password) < minPasswordLength {
+		http.Error(w, fmt.Sprintf("Password must be at least %d characters", minPasswordLength), http.StatusBadRequest)
+		return
+	}
+
+	// Validate maximum length (prevent DoS)
+	if len(password) > maxPasswordLength {
+		http.Error(w, fmt.Sprintf("Password cannot exceed %d characters", maxPasswordLength), http.StatusBadRequest)
+		return
+	}
+
+	// Fetch user (bypassing normal permission checks for cross-tenant access)
+	existingUser, err := c.userService.GetByID(ctx, uint(userID))
+	if err != nil {
+		logger.Errorf("Error fetching user %d: %v", userID, err)
+		http.Error(w, userNotFoundMsg, http.StatusNotFound)
+		return
+	}
+
+	// Validate user belongs to the specified tenant (cross-tenant protection)
+	if existingUser.TenantID() != tenantID {
+		logger.Warnf("Cross-tenant access attempt: user %d requested for tenant %s, actual tenant %s",
+			userID, tenantID, existingUser.TenantID())
+		http.Error(w, userNotFoundMsg, http.StatusNotFound)
+		return
+	}
+
+	// Set new password (uses bcrypt internally)
+	updatedUser, err := existingUser.SetPassword(password)
+	if err != nil {
+		logger.Errorf("Error hashing password: %v", err)
+		http.Error(w, "Error updating password", http.StatusInternalServerError)
+		return
+	}
+
+	// Update user in database
+	_, err = c.userService.Update(ctx, updatedUser)
+	if err != nil {
+		logger.Errorf("Error updating user %d: %v", userID, err)
+		http.Error(w, "Error updating password", http.StatusInternalServerError)
+		return
+	}
+
+	// Audit log
+	logger.WithFields(logrus.Fields{
+		"admin_id":    currentAdmin.ID(),
+		"admin_email": currentAdmin.Email().Value(),
+		"tenant_id":   tenantID.String(),
+		"user_id":     userID,
+		"user_email":  existingUser.Email().Value(),
+		"action":      "password_reset",
+		"ip_address":  r.RemoteAddr,
+	}).Info("SuperAdmin password reset successful")
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Password reset successfully",
+	})
 }
