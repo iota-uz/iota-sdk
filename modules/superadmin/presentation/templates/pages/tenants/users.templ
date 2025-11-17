@@ -266,6 +266,7 @@ templ PasswordResetModal(tenantID string) {
 			mode: 'manual',
 			password: '',
 			generatedPassword: '',
+			tenantId: '%s',
 			userId: null,
 			userName: '',
 			isLoading: false,
@@ -300,7 +301,7 @@ templ PasswordResetModal(tenantID string) {
 				this.showModal = false;
 				this.resetForm();
 			}
-		}`, successMsg, passwordCopiedMsg, resetPasswordFor) }
+		}`, tenantID, successMsg, passwordCopiedMsg, resetPasswordFor) }
 		@open-reset-password-modal.window="
 			userId = $event.detail.userId;
 			userName = $event.detail.userName;
@@ -363,7 +364,8 @@ templ PasswordResetModal(tenantID string) {
 					</div>
 					<form
 						@submit.prevent="isLoading = true; errorMessage = ''"
-						hx-post={ fmt.Sprintf("/superadmin/tenants/%s/users/", tenantID) + "' + userId + '/reset-password" }
+						x-bind:hx-post="'/superadmin/tenants/' + tenantId + '/users/' + userId + '/reset-password'"
+						hx-headers='{"Content-Type": "application/json"}'
 						hx-vals="js:{password: mode === 'manual' ? password : generatedPassword}"
 						hx-swap="none"
 						@htmx:after-request={ fmt.Sprintf(`

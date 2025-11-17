@@ -19,7 +19,7 @@ func (r *mutationResolver) CompleteInventoryCheck(ctx context.Context, items []*
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return false, nil
+		return false, err
 	}
 	dto := &inventory.CreateCheckDTO{
 		Name:      "Inventory check",
@@ -42,7 +42,7 @@ func (r *queryResolver) Inventory(ctx context.Context) ([]*model.InventoryPositi
 	_, err := composables.UseUser(ctx)
 	if err != nil {
 		graphql.AddError(ctx, serrors.UnauthorizedGQLError(graphql.GetPath(ctx)))
-		return nil, nil
+		return nil, err
 	}
 	positions, err := r.inventoryService.Positions(ctx)
 	if err != nil {

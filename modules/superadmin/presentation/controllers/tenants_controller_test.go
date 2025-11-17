@@ -1601,8 +1601,8 @@ func TestTenantsController_ResetUserPassword_InvalidContentType(t *testing.T) {
 
 	// Send request with wrong content-type
 	suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenant.ID.String(), userID)).
-		Header("Content-Type", "text/plain").
 		JSON(map[string]string{"password": "validpassword123"}).
+		Header("Content-Type", "text/plain").
 		Assert(t).
 		ExpectStatus(http.StatusUnsupportedMediaType)
 }

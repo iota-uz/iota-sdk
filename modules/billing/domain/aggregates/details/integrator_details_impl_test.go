@@ -13,8 +13,8 @@ func TestNewIntegratorDetails(t *testing.T) {
 		require.NotNil(t, d)
 		assert.NotNil(t, d.Data())
 		assert.Empty(t, d.Data())
-		assert.Equal(t, int32(0), d.ErrorCode())
-		assert.Equal(t, "", d.ErrorNote())
+		assert.Empty(t, d.ErrorCode())
+		assert.Empty(t, d.ErrorNote())
 	})
 
 	t.Run("with data option", func(t *testing.T) {
@@ -26,7 +26,7 @@ func TestNewIntegratorDetails(t *testing.T) {
 		require.NotNil(t, d)
 		assert.Equal(t, data, d.Data())
 		assert.Equal(t, int32(0), d.ErrorCode())
-		assert.Equal(t, "", d.ErrorNote())
+		assert.Empty(t, d.ErrorNote())
 	})
 
 	t.Run("with error code option", func(t *testing.T) {
@@ -145,11 +145,11 @@ func TestIntegratorDetails_Set(t *testing.T) {
 		modified := original.Set("key2", "value2")
 
 		// Verify immutability
-		assert.Equal(t, 1, len(original.Data()))
+		assert.Len(t, original.Data(), 1)
 		assert.Equal(t, "value1", original.Get("key1"))
 		assert.Nil(t, original.Get("key2"))
 
-		assert.Equal(t, 2, len(modified.Data()))
+		assert.Len(t, modified.Data(), 2)
 		assert.Equal(t, "value1", modified.Get("key1"))
 		assert.Equal(t, "value2", modified.Get("key2"))
 	})
@@ -175,7 +175,7 @@ func TestIntegratorDetails_Set(t *testing.T) {
 		assert.Equal(t, "text", d.Get("string"))
 		assert.Equal(t, 42, d.Get("int"))
 		assert.Equal(t, true, d.Get("bool"))
-		assert.Equal(t, 3.14, d.Get("float"))
+		assert.InEpsilon(t, 3.14, d.Get("float"), 0.001)
 		assert.Equal(t, map[string]any{"nested": "value"}, d.Get("map"))
 		assert.Equal(t, []string{"a", "b", "c"}, d.Get("slice"))
 	})
@@ -193,7 +193,7 @@ func TestIntegratorDetails_Set(t *testing.T) {
 		modified := original.Set("key", "value")
 
 		assert.Empty(t, original.Data())
-		assert.Equal(t, 1, len(modified.Data()))
+		assert.Len(t, modified.Data(), 1)
 		assert.Equal(t, "value", modified.Get("key"))
 	})
 }
@@ -238,7 +238,7 @@ func TestIntegratorDetails_ErrorNote(t *testing.T) {
 
 	t.Run("returns default empty string", func(t *testing.T) {
 		d := NewIntegratorDetails()
-		assert.Equal(t, "", d.ErrorNote())
+		assert.Empty(t, d.ErrorNote())
 	})
 }
 
@@ -256,7 +256,7 @@ func TestIntegratorDetails_SetErrorNote(t *testing.T) {
 		modified := original.SetErrorNote("")
 
 		assert.Equal(t, "Some error", original.ErrorNote())
-		assert.Equal(t, "", modified.ErrorNote())
+		assert.Empty(t, modified.ErrorNote())
 	})
 }
 
@@ -267,7 +267,7 @@ func TestIntegratorDetails_ChainedSetters(t *testing.T) {
 			Set("key2", "value2").
 			Set("key3", "value3")
 
-		assert.Equal(t, 3, len(d.Data()))
+		assert.Len(t, d.Data(), 3)
 		assert.Equal(t, "value1", d.Get("key1"))
 		assert.Equal(t, "value2", d.Get("key2"))
 		assert.Equal(t, "value3", d.Get("key3"))
@@ -279,7 +279,7 @@ func TestIntegratorDetails_ChainedSetters(t *testing.T) {
 			SetData(map[string]any{"replaced": "data"}).
 			Set("key2", "value2")
 
-		assert.Equal(t, 2, len(d.Data()))
+		assert.Len(t, d.Data(), 2)
 		assert.Equal(t, "data", d.Get("replaced"))
 		assert.Equal(t, "value2", d.Get("key2"))
 		assert.Nil(t, d.Get("initial"))
@@ -293,7 +293,7 @@ func TestIntegratorDetails_ChainedSetters(t *testing.T) {
 			SetErrorNote("Not found").
 			SetData(map[string]any{"new": "data"})
 
-		assert.Equal(t, 1, len(d.Data()))
+		assert.Len(t, d.Data(), 1)
 		assert.Equal(t, "data", d.Get("new"))
 		assert.Nil(t, d.Get("key"))
 		assert.Equal(t, int32(404), d.ErrorCode())
@@ -314,13 +314,13 @@ func TestIntegratorDetails_Immutability(t *testing.T) {
 		modified3 := original.SetErrorNote("Error")
 
 		// Original remains unchanged
-		assert.Equal(t, 1, len(original.Data()))
+		assert.Len(t, original.Data(), 1)
 		assert.Equal(t, "original", original.Get("key"))
 		assert.Equal(t, int32(200), original.ErrorCode())
 		assert.Equal(t, "OK", original.ErrorNote())
 
 		// Each modification is independent
-		assert.Equal(t, 2, len(modified1.Data()))
+		assert.Len(t, modified1.Data(), 2)
 		assert.Equal(t, "value2", modified1.Get("key2"))
 		assert.Equal(t, int32(200), modified1.ErrorCode())
 
@@ -339,7 +339,7 @@ func TestIntegratorDetails_Immutability(t *testing.T) {
 		originalData := original.Data()
 		originalData["key3"] = "value3"
 
-		assert.Equal(t, 2, len(modified.Data()))
+		assert.Len(t, modified.Data(), 2)
 		assert.Nil(t, modified.Get("key3"))
 	})
 }
