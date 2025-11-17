@@ -949,8 +949,8 @@ func TestPgAnalyticsQueryRepository_SearchTenants(t *testing.T) {
 		// All should return same results
 		assert.Equal(t, lowerTotal, upperTotal, "Case should not affect search")
 		assert.Equal(t, lowerTotal, mixedTotal, "Case should not affect search")
-		assert.Equal(t, len(lowerResults), len(upperResults))
-		assert.Equal(t, len(lowerResults), len(mixedResults))
+		assert.Len(t, upperResults, len(lowerResults))
+		assert.Len(t, mixedResults, len(lowerResults))
 	})
 
 	t.Run("Search_By_Domain", func(t *testing.T) {

@@ -109,11 +109,11 @@ func TestCashDetails_Set(t *testing.T) {
 		modified := original.Set("key2", "value2")
 
 		// Verify immutability
-		assert.Equal(t, 1, len(original.Data()))
+		assert.Len(t, original.Data(), 1)
 		assert.Equal(t, "value1", original.Get("key1"))
 		assert.Nil(t, original.Get("key2"))
 
-		assert.Equal(t, 2, len(modified.Data()))
+		assert.Len(t, modified.Data(), 2)
 		assert.Equal(t, "value1", modified.Get("key1"))
 		assert.Equal(t, "value2", modified.Get("key2"))
 	})
@@ -139,7 +139,7 @@ func TestCashDetails_Set(t *testing.T) {
 		assert.Equal(t, "text", d.Get("string"))
 		assert.Equal(t, 42, d.Get("int"))
 		assert.Equal(t, true, d.Get("bool"))
-		assert.Equal(t, 3.14, d.Get("float"))
+		assert.InEpsilon(t, 3.14, d.Get("float"), 0.001)
 		assert.Equal(t, map[string]any{"nested": "value"}, d.Get("map"))
 		assert.Equal(t, []string{"a", "b", "c"}, d.Get("slice"))
 	})
@@ -157,7 +157,7 @@ func TestCashDetails_Set(t *testing.T) {
 		modified := original.Set("key", "value")
 
 		assert.Empty(t, original.Data())
-		assert.Equal(t, 1, len(modified.Data()))
+		assert.Len(t, modified.Data(), 1)
 		assert.Equal(t, "value", modified.Get("key"))
 	})
 }
@@ -169,7 +169,7 @@ func TestCashDetails_ChainedSetters(t *testing.T) {
 			Set("key2", "value2").
 			Set("key3", "value3")
 
-		assert.Equal(t, 3, len(d.Data()))
+		assert.Len(t, d.Data(), 3)
 		assert.Equal(t, "value1", d.Get("key1"))
 		assert.Equal(t, "value2", d.Get("key2"))
 		assert.Equal(t, "value3", d.Get("key3"))
@@ -181,7 +181,7 @@ func TestCashDetails_ChainedSetters(t *testing.T) {
 			SetData(map[string]any{"replaced": "data"}).
 			Set("key2", "value2")
 
-		assert.Equal(t, 2, len(d.Data()))
+		assert.Len(t, d.Data(), 2)
 		assert.Equal(t, "data", d.Get("replaced"))
 		assert.Equal(t, "value2", d.Get("key2"))
 		assert.Nil(t, d.Get("initial"))

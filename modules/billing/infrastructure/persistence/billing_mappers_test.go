@@ -158,7 +158,7 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Equal(t, "2135b7e1-15bc-4a3c-930d-85b5493053b4", octo.HashKey())
 				assert.Equal(t, "2025-06-02T10:01:00Z", octo.PayedTime())
 				assert.Equal(t, int32(0), octo.Error())
-				assert.Equal(t, "", octo.ErrMessage())
+				assert.Empty(t, octo.ErrMessage())
 			},
 		},
 		{

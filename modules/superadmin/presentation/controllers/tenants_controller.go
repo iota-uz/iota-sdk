@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -387,8 +388,17 @@ func (c *TenantsController) ResetUserPassword(
 	}
 
 	// Validate Content-Type header
-	if r.Header.Get("Content-Type") != "application/json" {
-		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+	contentType := r.Header.Get("Content-Type")
+	mediaType, _, parseErr := mime.ParseMediaType(contentType)
+	if parseErr != nil || mediaType != "application/json" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		if encodeErr := json.NewEncoder(w).Encode(map[string]interface{}{
+			"code":    "invalid_content_type",
+			"message": "Content-Type must be application/json",
+		}); encodeErr != nil {
+			logrus.Errorf("Error encoding JSON response: %v", encodeErr)
+		}
 		return
 	}
 
@@ -469,8 +479,10 @@ func (c *TenantsController) ResetUserPassword(
 	// Return success response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Password reset successfully",
-	})
+	}); err != nil {
+		logrus.Errorf("Error encoding JSON response: %v", err)
+	}
 }

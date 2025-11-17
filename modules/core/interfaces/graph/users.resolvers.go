@@ -25,11 +25,11 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []int, ascending bool) (*model.PaginatedUsers, error) {
-	var fields []repo.SortByField[user.Field]
+	fields := make([]repo.SortByField[user.Field], 0, len(sortBy))
 
 	for _, field := range sortBy {
 		fields = append(fields, repo.SortByField[user.Field]{
-			Field:     user.Field(field),
+			Field:     field,
 			Ascending: ascending,
 		})
 	}
