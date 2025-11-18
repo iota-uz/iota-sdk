@@ -161,7 +161,7 @@ type Configuration struct {
 	SocketAddress    string        `env:"-"`
 	OpenAIKey        string        `env:"OPENAI_KEY"`
 	UploadsPath      string        `env:"UPLOADS_PATH" envDefault:"static"`
-	Domain           string        `env:"DOMAIN" envDefault:"localhost:3200"`
+	Domain           string        `env:"DOMAIN" envDefault:"localhost"`
 	Origin           string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
