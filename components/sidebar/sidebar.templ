@@ -100,7 +100,11 @@ templ SidebarContent(props Props) {
 templ AccordionGroup(group Group) {
 	<div>
 		<!-- Collapsed view: only icon -->
-		<div x-show="isCollapsed" class="accordion-group-collapsed w-full">
+		<div
+			x-show="isCollapsed"
+			@click="toggle(); $dispatch('sidebar-toggle')"
+			class="accordion-group-collapsed w-full cursor-pointer"
+		>
 			if group.Icon() != nil {
 				@group.Icon()
 			}
