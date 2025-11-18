@@ -22,6 +22,7 @@ type Role struct {
 	Type        string
 	Name        string
 	Description string
+	UsersCount  int
 	CreatedAt   string
 	UpdatedAt   string
 	CanUpdate   bool
