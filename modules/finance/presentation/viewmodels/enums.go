@@ -90,7 +90,7 @@ func (t CounterpartyType) String() string {
 	return string(t)
 }
 
-func (t CounterpartyType) LocalizedString(pageCtx *types.PageContext) string {
+func (t CounterpartyType) LocalizedString(pageCtx types.PageContextProvider) string {
 	key := "Counterparties.Types." + string(t)
 	return pageCtx.T(key)
 }
@@ -111,7 +111,7 @@ func (l CounterpartyLegalType) String() string {
 	return string(l)
 }
 
-func (l CounterpartyLegalType) LocalizedString(pageCtx *types.PageContext) string {
+func (l CounterpartyLegalType) LocalizedString(pageCtx types.PageContextProvider) string {
 	key := "Counterparties.LegalTypes." + string(l)
 	return pageCtx.T(key)
 }

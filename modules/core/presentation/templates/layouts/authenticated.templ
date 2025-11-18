@@ -131,7 +131,7 @@ templ SidebarTrigger(class string) {
 	</button>
 }
 
-templ Navbar(pageCtx *types.PageContext) {
+templ Navbar(pageCtx types.PageContextProvider) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-8 bg-surface-300 border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
 			<div class="hidden lg:block">
@@ -161,7 +161,7 @@ templ DefaultSidebarFooter() {
 	@SidebarFooter(pageCtx)
 }
 
-templ SidebarFooter(pageCtx *types.PageContext) {
+templ SidebarFooter(pageCtx types.PageContextProvider) {
 	<!-- Collapsed view: icon only -->
 	<div x-show="isCollapsed">
 		@button.Sidebar(button.Props{

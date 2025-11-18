@@ -993,7 +993,7 @@ func Page(config *TableConfig) templ.Component {
 }
 
 // Helper to convert scaffold columns to base table columns
-func toBaseTableColumns(config *TableConfig, pageCtx *types.PageContext) []*base.TableColumn {
+func toBaseTableColumns(config *TableConfig, pageCtx types.PageContextProvider) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(config.Columns))
 	for i, col := range config.Columns {
 		result[i] = &base.TableColumn{

@@ -211,11 +211,12 @@ func (r *pgUserQueryRepository) FindUsers(ctx context.Context, params *FindParam
 	var roleFilter *Filter
 
 	for _, f := range params.Filters {
-		if f.Column == FieldGroupID {
+		switch f.Column {
+		case FieldGroupID:
 			groupFilter = &f
-		} else if f.Column == FieldRoleID {
+		case FieldRoleID:
 			roleFilter = &f
-		} else {
+		default:
 			regularFilters = append(regularFilters, f)
 		}
 	}

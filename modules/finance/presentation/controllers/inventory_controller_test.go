@@ -32,7 +32,7 @@ func TestInventoryController_List_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -79,7 +79,7 @@ func TestInventoryController_List_HTMX_Request(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -113,7 +113,7 @@ func TestInventoryController_GetNew_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -144,7 +144,7 @@ func TestInventoryController_Create_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -186,7 +186,7 @@ func TestInventoryController_Create_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -223,7 +223,7 @@ func TestInventoryController_GetEdit_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -267,7 +267,7 @@ func TestInventoryController_GetEdit_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -288,7 +288,7 @@ func TestInventoryController_Update_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, &currency.USD, &currency.EUR)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -338,7 +338,7 @@ func TestInventoryController_Update_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -385,7 +385,7 @@ func TestInventoryController_Delete_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -425,7 +425,7 @@ func TestInventoryController_Delete_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)
@@ -446,7 +446,7 @@ func TestInventoryController_InvalidUUID(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewInventoryController(env.App)
 	suite.Register(controller)

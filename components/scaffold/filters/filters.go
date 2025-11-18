@@ -70,7 +70,7 @@ func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
 
 func isOptionChecked(ctx context.Context, name string, opt OptionItem) bool {
 	pgCtx := composables.UsePageCtx(ctx)
-	query := pgCtx.URL.Query()
+	query := pgCtx.GetURL().Query()
 	if v := query.Get(name); v == "" {
 		return false
 	}

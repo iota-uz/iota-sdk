@@ -46,6 +46,7 @@ func TestMiddleware(env *TestEnvironment, u user.User) mux.MiddlewareFunc {
 			// Add localization
 			localizer := i18n.NewLocalizer(env.App.Bundle(), "en")
 			parsedURL, _ := url.Parse(r.URL.Path)
+			//nolint:staticcheck // SA1019: Using PageContext for test fixtures is acceptable
 			ctx = composables.WithPageCtx(ctx, &types.PageContext{
 				Locale:    language.English,
 				URL:       parsedURL,
