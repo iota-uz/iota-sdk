@@ -19,8 +19,9 @@ Prepare to track the completion status for each backlog item. You will review ea
 For each backlog file in numeric order:
 
 1. Read the file contents using the Read tool
-2. Extract the task prompt (all lines after the first line)
-3. Launch the `refactoring-expert` agent using the Task tool with this prompt:
+2. Extract the agent type from `[agent:TYPE]` (first line)
+3. Extract the task prompt (all lines after the first line)
+4. Launch the `refactoring-expert` agent using the Task tool with this prompt:
 
 ```
 Review the implementation for the following task and determine:
@@ -41,9 +42,9 @@ Provide your assessment focusing on:
 If you cannot find relevant implementation or the task appears not to have been started, mark as INCOMPLETE.
 ```
 
-4. Wait for the agent to complete before proceeding to the next item
-5. Track the filename and completion status based on agent feedback
-6. **DO NOT delete files during this step** - only collect completion status
+5. Wait for the agent to complete before proceeding to the next item
+6. Track the filename and completion status based on agent feedback
+7. **DO NOT delete files during this step** - only collect completion status
 
 ## Step 3: Present Complete Items
 
