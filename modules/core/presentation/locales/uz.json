@@ -173,7 +173,11 @@
       "FullName": "To'liq ism",
       "Roles": "Rollar",
       "Email": "Email",
-      "AllGroups": "Barcha guruhlar"
+      "AllGroups": "Barcha guruhlar",
+      "AllRoles": "Barcha rollar",
+      "Filters": "Filterlar",
+      "ExpandFilters": "Filtrlarni kengaytirish",
+      "CollapseFilters": "Filtrlarni yig'ish"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",

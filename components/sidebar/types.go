@@ -143,7 +143,7 @@ func (l *link) Icon() templ.Component {
 }
 
 func (l *link) IsActive(ctx context.Context) bool {
-	u := composables.UsePageCtx(ctx).URL
+	u := composables.UsePageCtx(ctx).GetURL()
 	return u.Path == l.href || strings.HasPrefix(u.Path, l.href+"/")
 }
 

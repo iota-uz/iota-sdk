@@ -94,7 +94,7 @@ func safeString(s *string) string {
 	return *s
 }
 
-func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx *types.PageContext, r *http.Request) *table.TableConfig {
+func buildTableConfig(tenants []*entities.TenantInfo, total int, pageCtx types.PageContextProvider, r *http.Request) *table.TableConfig {
 	columns := []table.TableColumn{
 		table.Column("name", pageCtx.T("SuperAdmin.Tenants.Name"), table.WithSortable()),
 		table.Column("email", pageCtx.T("SuperAdmin.Tenants.Email")),

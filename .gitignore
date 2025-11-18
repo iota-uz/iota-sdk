@@ -16,6 +16,7 @@ logs/
 go.work*
 
 **/.claude/settings.local.json
+.claude/backlog
 
 # E2E test artifacts
 e2e/playwright-report/

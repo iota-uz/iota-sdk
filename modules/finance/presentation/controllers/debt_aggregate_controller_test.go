@@ -36,7 +36,7 @@ func TestDebtAggregateController_List_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -102,7 +102,7 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -154,7 +154,7 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -181,7 +181,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -246,7 +246,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -270,7 +270,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_InvalidUUID(t *testing.T)
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -290,7 +290,7 @@ func TestDebtAggregateController_Permission_Forbidden(t *testing.T) {
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -314,7 +314,7 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)

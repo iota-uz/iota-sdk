@@ -51,6 +51,7 @@ func BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return pool.Begin(ctx)
 }
 
+// InTx runs the given function in a transaction. ALWAYS creates a new transaction.
 func InTx(ctx context.Context, fn func(context.Context) error) error {
 	pool, err := UsePool(ctx)
 	if err != nil {

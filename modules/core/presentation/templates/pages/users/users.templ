@@ -19,6 +19,7 @@ import (
 type IndexPageProps struct {
 	Users   []*viewmodels.User
 	Groups  []*viewmodels.Group
+	Roles   []*viewmodels.Role
 	Page    int
 	PerPage int
 	HasMore bool
@@ -128,6 +129,55 @@ templ UsersTable(props *IndexPageProps) {
 	}) {
 		@UserRows(props)
 	}
+}
+
+templ RoleFilter(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+		<form
+			hx-get="/users"
+			hx-target="#users-table-wrapper"
+			hx-swap="innerHTML"
+			hx-push-url="true"
+			hx-indicator="#users-table-body"
+			hx-trigger="change"
+			x-data="checkboxes"
+			x-init="init"
+			x-on:DOMNodeRemoved="destroy"
+		>
+			<div class="space-y-3">
+				<div>
+					@input.Checkbox(&input.CheckboxProps{
+						Label: pageCtx.T("Users.List.AllRoles"),
+						ID:    "all-roles-checkbox",
+						Attrs: templ.Attributes{
+							"class":   "parent",
+							"x-ref":   "parent",
+							"@change": "onParentChange",
+						},
+					})
+				</div>
+				<hr class="my-3 border-t border-surface-400"/>
+				<div class="space-y-3">
+					for _, role := range props.Roles {
+						@input.Checkbox(&input.CheckboxProps{
+							Label: role.Name,
+							ID:    fmt.Sprintf("role-%s", role.ID),
+							Attrs: templ.Attributes{
+								"name":    "roleID",
+								"value":   role.ID,
+								"@change": "onChange",
+							},
+						}) {
+							<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-2">
+								{ fmt.Sprintf("%d", role.UsersCount) }
+							</span>
+						}
+					}
+				</div>
+			</div>
+		</form>
+	</div>
 }
 
 templ GroupFilter(props *IndexPageProps) {
@@ -251,9 +301,35 @@ templ Index(props *IndexPageProps) {
 				</div>
 			</div>
 			<div class="mt-5 flex space-x-5">
-				<!-- Left sidebar with group filters -->
-				<div class="hidden md:block w-64 flex-shrink-0">
-					@GroupFilter(props)
+				<!-- Left sidebar with role and group filters (collapsible) -->
+				<div
+					x-data={ fmt.Sprintf("{ filtersCollapsed: false, expandText: '%s', collapseText: '%s' }",
+						pageCtx.T("Users.List.ExpandFilters"),
+						pageCtx.T("Users.List.CollapseFilters")) }
+					class="hidden md:block flex-shrink-0 transition-all"
+					:class="filtersCollapsed ? 'w-16' : 'w-64'"
+				>
+					<!-- Toggle button -->
+					<button
+						@click="filtersCollapsed = !filtersCollapsed"
+						class="w-full p-2 mb-4 flex items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer"
+						x-tooltip="filtersCollapsed ? expandText : collapseText"
+					>
+						@icons.CaretLeft(icons.Props{
+							Size:  "20",
+							Class: "transition-transform duration-300",
+							Attributes: templ.Attributes{
+								":class": "filtersCollapsed ? 'rotate-180' : ''",
+							},
+						})
+					</button>
+					<!-- Filters content (only show when not collapsed) -->
+					<template x-if="!filtersCollapsed">
+						<div>
+							@RoleFilter(props)
+							@GroupFilter(props)
+						</div>
+					</template>
 				</div>
 				<!-- Main content area with user list -->
 				<div class="flex-1" id="users-table-wrapper">

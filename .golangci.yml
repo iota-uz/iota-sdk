@@ -18,12 +18,7 @@ issues:
     - migrations
 
 output:
-  formats:
-    text:
-      path: stderr
-      colors: true
-      print-issued-lines: false
-      print-linter-name: true
+  format: colored-line-number
   sort-results: true
   sort-order:
     - linter

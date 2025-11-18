@@ -147,7 +147,7 @@ func ViewDrawer(props *DrawerViewProps) templ.Component {
 }
 
 // Header component with badge and amount
-func drawerHeader(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.Component {
+func drawerHeader(t *viewmodels.Transaction, pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -219,7 +219,7 @@ func drawerHeader(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.C
 }
 
 // Footer with metadata
-func drawerFooter(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.Component {
+func drawerFooter(t *viewmodels.Transaction, pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -352,7 +352,7 @@ func drawerFooter(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.C
 }
 
 // Deposit layout - focus on destination and source
-func depositLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.Component {
+func depositLayout(t *viewmodels.Transaction, pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -580,7 +580,7 @@ func depositLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.
 }
 
 // Withdrawal layout - focus on source and expense
-func withdrawalLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.Component {
+func withdrawalLayout(t *viewmodels.Transaction, pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -749,7 +749,7 @@ func withdrawalLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) tem
 }
 
 // Transfer layout - show flow between accounts
-func transferLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.Component {
+func transferLayout(t *viewmodels.Transaction, pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -957,7 +957,7 @@ func transferLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ
 }
 
 // Exchange layout - show currency conversion
-func exchangeLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.Component {
+func exchangeLayout(t *viewmodels.Transaction, pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1152,7 +1152,7 @@ func exchangeLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ
 }
 
 // Default layout for unknown types
-func defaultLayout(t *viewmodels.Transaction, pageCtx *types.PageContext) templ.Component {
+func defaultLayout(t *viewmodels.Transaction, pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

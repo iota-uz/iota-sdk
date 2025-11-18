@@ -26,13 +26,13 @@ const (
 
 	updatedUploadQuery = `UPDATE uploads
                           SET hash = $1,
-															slug = $2,
+														slug = $2,
                               path = $3,
                               name = $4,
                               size = $5,
                               type = $6,
                               mimetype = $7,
-                              mimetype = $8,
+                              geopoint = $8,
                               updated_at = $9
                           WHERE id = $10 AND tenant_id = $11`
 
@@ -167,6 +167,33 @@ func (g *GormUploadRepository) GetByID(ctx context.Context, id uint) (upload.Upl
 		return nil, ErrUploadNotFound
 	}
 	return uploads[0], nil
+}
+
+func (g *GormUploadRepository) GetByIDs(ctx context.Context, ids []uint) ([]upload.Upload, error) {
+	if len(ids) == 0 {
+		return []upload.Upload{}, nil
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deduplicate IDs for efficiency
+	idMap := make(map[uint]struct{})
+	uniqueIDs := make([]uint, 0, len(ids))
+	for _, id := range ids {
+		if _, exists := idMap[id]; !exists {
+			idMap[id] = struct{}{}
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+
+	uploads, err := g.queryUploads(ctx, repo.Join(selectUploadQuery, "WHERE id = ANY($1) AND tenant_id = $2"), uniqueIDs, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	return uploads, nil
 }
 
 func (g *GormUploadRepository) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {

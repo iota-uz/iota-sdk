@@ -74,7 +74,7 @@ func DatePicker(props DatePickerProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		args, _ := props.json(pageCtx.Locale.String())
+		args, _ := props.json(pageCtx.GetLocale().String())
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

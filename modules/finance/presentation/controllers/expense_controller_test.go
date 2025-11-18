@@ -42,7 +42,7 @@ func TestExpenseController_List_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -116,7 +116,7 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -174,7 +174,7 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -227,7 +227,7 @@ func TestExpenseController_Create_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -286,7 +286,7 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -348,7 +348,7 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -416,7 +416,7 @@ func TestExpenseController_GetEdit_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -441,7 +441,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -511,7 +511,7 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -585,7 +585,7 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -648,7 +648,7 @@ func TestExpenseController_Delete_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -671,7 +671,7 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -694,7 +694,7 @@ func TestExpenseController_Export_Excel_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -769,7 +769,7 @@ func TestExpenseController_Export_InvalidFormat(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -792,7 +792,7 @@ func TestExpenseController_Export_MissingFormat(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)
@@ -813,7 +813,7 @@ func TestExpenseController_Export_Forbidden(t *testing.T) {
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, &currency.USD)
 
 	controller := controllers.NewExpensesController(env.App)
 	suite.Register(controller)

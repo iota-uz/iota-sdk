@@ -173,7 +173,11 @@
       "FullName": "Full name",
       "Roles": "Roles",
       "Email": "Email",
-      "AllGroups": "All Groups"
+      "AllGroups": "All Groups",
+      "AllRoles": "All Roles",
+      "Filters": "Filters",
+      "ExpandFilters": "Expand filters",
+      "CollapseFilters": "Collapse filters"
     },
     "Cards": {
       "PersonalInfo": "Personal information",
