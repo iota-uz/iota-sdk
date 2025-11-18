@@ -41,12 +41,14 @@ type TableColumn interface {
 type TableCell interface {
 	Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component
 	Classes() templ.CSSClasses
+	Attrs() templ.Attributes
 }
 
 type tableCellImpl struct {
 	component templ.Component
 	value     any
 	classes   templ.CSSClasses
+	attrs     templ.Attributes
 }
 
 func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType) string {
@@ -206,6 +208,10 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 
 func (c *tableCellImpl) Classes() templ.CSSClasses {
 	return c.classes
+}
+
+func (c *tableCellImpl) Attrs() templ.Attributes {
+	return c.attrs
 }
 
 func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component {
@@ -840,6 +846,13 @@ func WithCellClasses(classes templ.CSSClasses) CellOpt {
 		c.classes = classes
 	}
 }
+
+func WithCellAttrs(attrs templ.Attributes) CellOpt {
+	return func(c *tableCellImpl) {
+		c.attrs = attrs
+	}
+}
+
 func Cell(component templ.Component, value any, opts ...CellOpt) TableCell {
 	cell := &tableCellImpl{
 		component: component,
