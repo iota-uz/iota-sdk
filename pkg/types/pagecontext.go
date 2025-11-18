@@ -7,6 +7,70 @@ import (
 	"golang.org/x/text/language"
 )
 
+// PageContextProvider is an interface for managing page-level localization and metadata.
+// This interface enables child projects to extend PageContext behavior with custom fields
+// (tenant branding, feature flags, analytics) and override methods (custom translations, logging)
+// without modifying SDK code.
+//
+// # Usage Pattern for Child Projects
+//
+// Child projects can implement custom PageContext types by embedding the interface:
+//
+//	type CustomPageContext struct {
+//	    base types.PageContextProvider
+//	    TenantBranding BrandData
+//	    FeatureFlags   map[string]bool
+//	    Analytics      AnalyticsConfig
+//	}
+//
+//	// Override T() to provide tenant-specific translations
+//	func (c *CustomPageContext) T(key string, args ...map[string]interface{}) string {
+//	    // Check for tenant-specific translation override
+//	    if override := c.lookupTenantTranslation(key); override != "" {
+//	        return override
+//	    }
+//	    // Fall back to base implementation
+//	    return c.base.T(key, args...)
+//	}
+//
+//	// Override TSafe() similarly if needed
+//	func (c *CustomPageContext) TSafe(key string, args ...map[string]interface{}) string {
+//	    // Custom logic here
+//	    return c.base.TSafe(key, args...)
+//	}
+//
+// The interface allows:
+// - Composition-based extension (embedding rather than inheritance)
+// - Custom fields and business logic
+// - Method overriding for enhanced functionality
+// - Backward compatibility with existing SDK code
+type PageContextProvider interface {
+	// T translates a message ID to the current locale with optional template data.
+	// If a prefix was set via Namespace(), it will be prepended to the message ID.
+	T(key string, args ...map[string]interface{}) string
+
+	// TSafe is like T but returns an empty string on error instead of panicking.
+	TSafe(key string, args ...map[string]interface{}) string
+
+	// Namespace returns a new PageContextProvider with the specified prefix.
+	// All translation calls on the returned context will be prefixed with the given namespace.
+	Namespace(prefix string) PageContextProvider
+
+	// ToJSLocale converts the page locale to JavaScript-compatible locale string.
+	// This is useful for JavaScript APIs like toLocaleString() and Intl.NumberFormat().
+	// Unknown locales default to "en-US".
+	ToJSLocale() string
+
+	// GetLocale returns the language.Tag for the current page context.
+	GetLocale() language.Tag
+
+	// GetURL returns the *url.URL for the current request.
+	GetURL() *url.URL
+
+	// GetLocalizer returns the *i18n.Localizer for the current page context.
+	GetLocalizer() *i18n.Localizer
+}
+
 type PageData struct {
 	Title       string
 	Description string
@@ -19,12 +83,23 @@ func NewPageData(title string, description string) *PageData {
 	}
 }
 
+// PageContext provides localization and page metadata for template rendering.
+//
+// Deprecated: Use PageContextProvider interface instead. PageContext is maintained
+// for backward compatibility but child projects should prefer implementing custom
+// types against the PageContextProvider interface for extensibility. The concrete
+// struct will remain supported indefinitely.
+//
+// See PageContextProvider documentation for extension examples.
 type PageContext struct {
 	Locale    language.Tag
 	URL       *url.URL
 	Localizer *i18n.Localizer
 	prefix    string
 }
+
+// Verify PageContext implements PageContextProvider interface at compile time.
+var _ PageContextProvider = (*PageContext)(nil)
 
 func (p *PageContext) T(k string, args ...map[string]interface{}) string {
 	if len(args) > 1 {
@@ -65,9 +140,9 @@ func (p *PageContext) TSafe(k string, args ...map[string]interface{}) string {
 	return result
 }
 
-// Namespace returns a new PageContext with the specified prefix.
+// Namespace returns a new PageContextProvider with the specified prefix.
 // All translation calls on the returned context will be prefixed with the given namespace.
-func (p *PageContext) Namespace(prefix string) *PageContext {
+func (p *PageContext) Namespace(prefix string) PageContextProvider {
 	return &PageContext{
 		Locale:    p.Locale,
 		URL:       p.URL,
@@ -208,4 +283,19 @@ func (p *PageContext) ToJSLocale() string {
 		// Default to English for unknown locales
 		return "en-US"
 	}
+}
+
+// GetLocale returns the language.Tag for the current page context.
+func (p *PageContext) GetLocale() language.Tag {
+	return p.Locale
+}
+
+// GetURL returns the *url.URL for the current request.
+func (p *PageContext) GetURL() *url.URL {
+	return p.URL
+}
+
+// GetLocalizer returns the *i18n.Localizer for the current page context.
+func (p *PageContext) GetLocalizer() *i18n.Localizer {
+	return p.Localizer
 }

@@ -36,6 +36,14 @@ func (m *MockUploadRepository) GetByID(ctx context.Context, id uint) (upload.Upl
 	return args.Get(0).(upload.Upload), args.Error(1)
 }
 
+func (m *MockUploadRepository) GetByIDs(ctx context.Context, ids []uint) ([]upload.Upload, error) {
+	args := m.Called(ctx, ids)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]upload.Upload), args.Error(1)
+}
+
 func (m *MockUploadRepository) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {
 	args := m.Called(ctx, hash)
 	if args.Get(0) == nil {

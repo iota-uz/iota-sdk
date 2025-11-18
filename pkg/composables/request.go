@@ -105,7 +105,8 @@ func UsePageCtx(ctx context.Context) *types.PageContext {
 }
 
 // WithPageCtx returns a new context with the page context.
-func WithPageCtx(ctx context.Context, pageCtx *types.PageContext) context.Context {
+// Accepts any type implementing PageContextProvider interface for extensibility.
+func WithPageCtx(ctx context.Context, pageCtx types.PageContextProvider) context.Context {
 	return context.WithValue(ctx, constants.PageContext, pageCtx)
 }
 
