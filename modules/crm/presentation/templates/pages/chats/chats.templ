@@ -240,7 +240,7 @@ templ ChatNotFound() {
 templ ChatCard(chat *viewmodels.Chat) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
-		active := pageCtx.URL.Query().Get("chat_id") == chat.ID
+		active := pageCtx.GetURL().Query().Get("chat_id") == chat.ID
 	}}
 	<button
 		class={
@@ -392,7 +392,7 @@ templ Index(props *IndexPageProps) {
 templ ChatLayout(props *IndexPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
-		isSelectedChat := pageCtx.URL.Query().Get("chat_id") != ""
+		isSelectedChat := pageCtx.GetURL().Query().Get("chat_id") != ""
 	}}
 	<div
 		data-chat-list

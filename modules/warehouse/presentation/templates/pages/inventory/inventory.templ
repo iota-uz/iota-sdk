@@ -52,7 +52,7 @@ templ InventoryTable(props *IndexPageProps) {
 								templ.KV("bg-yellow-100 text-yellow-700", check.Status == string(inventory.Incomplete)),
 								templ.KV("bg-red-100 text-red-500", check.Status == string(inventory.Failed)) }
 							>
-								{ check.LocalizedStatus(pageCtx.Localizer) }
+								{ check.LocalizedStatus(pageCtx.GetLocalizer()) }
 							</div>
 						}
 						@base.TableCell(base.TableCellProps{}) {

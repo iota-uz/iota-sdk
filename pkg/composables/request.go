@@ -92,20 +92,21 @@ func UseUserAgent(ctx context.Context) (string, bool) {
 
 // UsePageCtx returns the page context from the context.
 // If the page context is not found, function will panic.
-func UsePageCtx(ctx context.Context) *types.PageContext {
+func UsePageCtx(ctx context.Context) types.PageContextProvider {
 	pageCtx := ctx.Value(constants.PageContext)
 	if pageCtx == nil {
 		panic("page context not found")
 	}
-	v, ok := pageCtx.(*types.PageContext)
+	v, ok := pageCtx.(types.PageContextProvider)
 	if !ok {
-		panic(fmt.Sprintf("page context is not of type *types.PageContext: %T", pageCtx))
+		panic(fmt.Sprintf("page context is not of type PageContextProvider: %T", pageCtx))
 	}
 	return v
 }
 
 // WithPageCtx returns a new context with the page context.
-func WithPageCtx(ctx context.Context, pageCtx *types.PageContext) context.Context {
+// Accepts any type implementing PageContextProvider interface for extensibility.
+func WithPageCtx(ctx context.Context, pageCtx types.PageContextProvider) context.Context {
 	return context.WithValue(ctx, constants.PageContext, pageCtx)
 }
 

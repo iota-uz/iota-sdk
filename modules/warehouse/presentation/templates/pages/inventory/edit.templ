@@ -47,13 +47,13 @@ templ EditForm(props *EditPageProps) {
 				@tab.List(tab.ListProps{}) {
 					@tab.Link(fmt.Sprintf(
 						"/warehouse/inventory/%s", props.Check.ID),
-						pageCtx.URL.Path == fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID),
+						pageCtx.GetURL().Path == fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID),
 					) {
 						{ pageCtx.T("All") }
 					}
 					@tab.Link(
 						fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID),
-						pageCtx.URL.Path == fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID),
+						pageCtx.GetURL().Path == fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID),
 					) {
 						{ pageCtx.T("WarehouseInventory.Single.Difference") }
 					}

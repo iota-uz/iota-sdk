@@ -21,7 +21,7 @@ import (
 )
 
 // preparePieChartData formats analytics categories for pie chart display
-func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageContext) charts.ChartOptions {
+func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx types.PageContextProvider) charts.ChartOptions {
 	if categories == nil || len(categories) == 0 {
 		return charts.ChartOptions{}
 	}

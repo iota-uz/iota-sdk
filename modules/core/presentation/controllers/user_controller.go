@@ -201,9 +201,11 @@ func (c *UsersController) Users(
 	userService *services.UserService,
 	userQueryService *services.UserQueryService,
 	groupQueryService *services.GroupQueryService,
+	roleQueryService *services.RoleQueryService,
 ) {
 	params := composables.UsePaginated(r)
 	groupIDs := r.URL.Query()["groupID"]
+	roleIDs := r.URL.Query()["roleID"]
 
 	// Create find params using the query service types
 	findParams := &query.FindParams{
@@ -226,6 +228,14 @@ func (c *UsersController) Users(
 		findParams.Filters = append(findParams.Filters, query.Filter{
 			Column: query.FieldGroupID,
 			Filter: repo.In(groupIDs),
+		})
+	}
+
+	// Add role filter if specified
+	if len(roleIDs) > 0 {
+		findParams.Filters = append(findParams.Filters, query.Filter{
+			Column: query.FieldRoleID,
+			Filter: repo.In(roleIDs),
 		})
 	}
 
@@ -281,9 +291,18 @@ func (c *UsersController) Users(
 		return
 	}
 
+	// Get all roles with user counts for the sidebar
+	roleViewModels, err := roleQueryService.GetRolesWithCounts(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving roles: %v", err)
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		return
+	}
+
 	props := &users.IndexPageProps{
-		Users:   us,     // Already viewmodels from query service
-		Groups:  groups, // Already viewmodels from query service
+		Users:   us,             // Already viewmodels from query service
+		Groups:  groups,         // Already viewmodels from query service
+		Roles:   roleViewModels, // Mapped from domain roles
 		Page:    params.Page,
 		PerPage: params.Limit,
 		HasMore: total > params.Page*params.Limit,

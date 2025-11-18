@@ -40,7 +40,7 @@ templ ProductsTable(props *IndexPageProps) {
 							{ product.Position.Title }
 						}
 						@base.TableCell(base.TableCellProps{}) {
-							{ product.LocalizedStatus(pageCtx.Localizer) }
+							{ product.LocalizedStatus(pageCtx.GetLocalizer()) }
 						}
 						@base.TableCell(base.TableCellProps{}) {
 							<div x-data="relativeformat">

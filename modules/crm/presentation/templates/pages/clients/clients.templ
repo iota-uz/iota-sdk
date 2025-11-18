@@ -194,7 +194,7 @@ templ Index(props *IndexPageProps) {
 			x-if="showDialog"
 		>
 			<div
-				hx-get={ pageCtx.URL.RawPath }
+				hx-get={ pageCtx.GetURL().RawPath }
 				hx-trigger="load"
 				hx-target="body"
 				hx-swap="beforeend"

@@ -152,7 +152,7 @@ func EditForm(props *EditPageProps) templ.Component {
 					})
 					templ_7745c5c3_Err = tab.Link(fmt.Sprintf(
 						"/warehouse/inventory/%s", props.Check.ID),
-						pageCtx.URL.Path == fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID),
+						pageCtx.GetURL().Path == fmt.Sprintf("/warehouse/inventory/%s", props.Check.ID),
 					).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -186,7 +186,7 @@ func EditForm(props *EditPageProps) templ.Component {
 					})
 					templ_7745c5c3_Err = tab.Link(
 						fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID),
-						pageCtx.URL.Path == fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID),
+						pageCtx.GetURL().Path == fmt.Sprintf("/warehouse/inventory/%s/difference", props.Check.ID),
 					).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err

@@ -61,6 +61,7 @@ func (m *Module) Register(app application.Application) error {
 	// Create query repositories
 	userQueryRepo := query.NewPgUserQueryRepository()
 	groupQueryRepo := query.NewPgGroupQueryRepository()
+	roleQueryRepo := query.NewPgRoleQueryRepository()
 
 	// custom validations
 	userValidator := validators.NewUserValidator(userRepo)
@@ -74,6 +75,7 @@ func (m *Module) Register(app application.Application) error {
 		services.NewUserService(userRepo, userValidator, app.EventPublisher()),
 		services.NewUserQueryService(userQueryRepo),
 		services.NewGroupQueryService(groupQueryRepo),
+		services.NewRoleQueryService(roleQueryRepo),
 		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
