@@ -66,6 +66,7 @@ const (
 	FieldUpdatedAt Field = "updated_at"
 	FieldTenantID  Field = "tenant_id"
 	FieldGroupID   Field = "group_id"
+	FieldRoleID    Field = "role_id"
 )
 
 type SortBy = repo.SortBy[Field]
@@ -104,6 +105,7 @@ func (r *pgUserQueryRepository) fieldMapping() map[Field]string {
 		FieldUpdatedAt: "u.updated_at",
 		FieldTenantID:  "u.tenant_id",
 		FieldGroupID:   "gu.group_id",
+		FieldRoleID:    "ur.role_id",
 	}
 }
 
@@ -161,6 +163,37 @@ func (r *pgUserQueryRepository) buildGroupFilterCondition(filter *Filter, startI
 	return fmt.Sprintf("gu.group_id IN (%s)", strings.Join(placeholders[:len(args)], ", ")), args
 }
 
+// buildRoleFilterCondition builds the SQL condition for role filters
+func (r *pgUserQueryRepository) buildRoleFilterCondition(filter *Filter, startIndex int) (string, []interface{}) {
+	roleValues := filter.Filter.Value()
+	if len(roleValues) == 0 {
+		return "", nil
+	}
+
+	placeholders := make([]string, len(roleValues))
+	args := make([]interface{}, 0, len(roleValues))
+
+	for i, val := range roleValues {
+		placeholders[i] = fmt.Sprintf("$%d", startIndex+i)
+		// Convert string role ID to uint
+		roleIDStr, ok := val.(string)
+		if !ok {
+			continue // Skip invalid values
+		}
+		roleID, err := strconv.ParseUint(roleIDStr, 10, 32)
+		if err != nil {
+			continue // Skip invalid numbers
+		}
+		args = append(args, uint(roleID))
+	}
+
+	if len(args) == 0 {
+		return "", nil
+	}
+
+	return fmt.Sprintf("ur.role_id IN (%s)", strings.Join(placeholders[:len(args)], ", ")), args
+}
+
 func (r *pgUserQueryRepository) FindUsers(ctx context.Context, params *FindParams) ([]*viewmodels.User, int, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -172,13 +205,16 @@ func (r *pgUserQueryRepository) FindUsers(ctx context.Context, params *FindParam
 		return nil, 0, errors.Wrap(err, "failed to get tenant ID")
 	}
 
-	// Separate group filters from regular filters
+	// Separate group and role filters from regular filters
 	var regularFilters []Filter
 	var groupFilter *Filter
+	var roleFilter *Filter
 
 	for _, f := range params.Filters {
 		if f.Column == FieldGroupID {
 			groupFilter = &f
+		} else if f.Column == FieldRoleID {
+			roleFilter = &f
 		} else {
 			regularFilters = append(regularFilters, f)
 		}
@@ -188,6 +224,13 @@ func (r *pgUserQueryRepository) FindUsers(ctx context.Context, params *FindParam
 	conditions := []string{"u.tenant_id = $1"}
 	args := []interface{}{tenantID}
 
+	// Add search condition if provided
+	if params.Search != "" {
+		searchFilter := r.buildSearchFilter(params.Search, len(args)+1)
+		conditions = append(conditions, searchFilter.condition)
+		args = append(args, searchFilter.args...)
+	}
+
 	// Add regular filter conditions
 	if len(regularFilters) > 0 {
 		filterConditions, filterArgs := r.buildFilterConditionsWithStartIndex(regularFilters, len(args)+1)
@@ -195,14 +238,23 @@ func (r *pgUserQueryRepository) FindUsers(ctx context.Context, params *FindParam
 		args = append(args, filterArgs...)
 	}
 
-	// Handle group filter specially
+	// Handle group and role filters specially with JOIN clauses
 	joinClause := ""
 	if groupFilter != nil {
-		joinClause = " JOIN group_users gu ON u.id = gu.user_id"
+		joinClause += " JOIN group_users gu ON u.id = gu.user_id"
 		groupCondition, groupArgs := r.buildGroupFilterCondition(groupFilter, len(args)+1)
 		if groupCondition != "" {
 			conditions = append(conditions, groupCondition)
 			args = append(args, groupArgs...)
+		}
+	}
+
+	if roleFilter != nil {
+		joinClause += " JOIN user_roles ur ON u.id = ur.user_id"
+		roleCondition, roleArgs := r.buildRoleFilterCondition(roleFilter, len(args)+1)
+		if roleCondition != "" {
+			conditions = append(conditions, roleCondition)
+			args = append(args, roleArgs...)
 		}
 	}
 
