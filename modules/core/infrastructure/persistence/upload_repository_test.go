@@ -286,4 +286,171 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorIs(t, err, persistence.ErrUploadNotFound)
 	})
+
+	t.Run("GetByIDs - Empty slice", func(t *testing.T) {
+		// Get by empty slice should return empty slice
+		uploads, err := uploadRepository.GetByIDs(f.Ctx, []uint{})
+		require.NoError(t, err)
+		assert.Empty(t, uploads)
+		assert.Equal(t, 0, len(uploads))
+	})
+
+	t.Run("GetByIDs - Single upload", func(t *testing.T) {
+		// Create test data
+		mime := mimetype.Lookup("image/jpeg")
+		uploadData := upload.New(
+			"batch-hash-1",
+			"uploads/batch1.jpg",
+			"batch1.jpg",
+			"",
+			1024,
+			mime,
+		)
+
+		// Create upload
+		createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
+		require.NoError(t, err)
+
+		// Get by IDs with single ID
+		uploads, err := uploadRepository.GetByIDs(f.Ctx, []uint{createdUpload.ID()})
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(uploads))
+		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
+		assert.Equal(t, "batch-hash-1", uploads[0].Hash())
+	})
+
+	t.Run("GetByIDs - Multiple uploads", func(t *testing.T) {
+		// Create multiple test uploads
+		var createdIDs []uint
+		for i := 0; i < 5; i++ {
+			mime := mimetype.Lookup("image/jpeg")
+			uploadData := upload.New(
+				"multi-hash-"+time.Now().Format("20060102150405")+"-"+string(rune(i+48)),
+				"uploads/multi"+string(rune(i+48))+".jpg",
+				"multi"+string(rune(i+48))+".jpg",
+				"",
+				1024*(i+1),
+				mime,
+			)
+			createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
+			require.NoError(t, err)
+			createdIDs = append(createdIDs, createdUpload.ID())
+		}
+
+		// Get all by IDs
+		uploads, err := uploadRepository.GetByIDs(f.Ctx, createdIDs)
+		require.NoError(t, err)
+		assert.Equal(t, len(createdIDs), len(uploads))
+
+		// Verify all IDs are present
+		returnedIDMap := make(map[uint]bool)
+		for _, upload := range uploads {
+			returnedIDMap[upload.ID()] = true
+		}
+		for _, id := range createdIDs {
+			assert.True(t, returnedIDMap[id], "ID %d should be in results", id)
+		}
+	})
+
+	t.Run("GetByIDs - Deduplication", func(t *testing.T) {
+		// Create test upload
+		mime := mimetype.Lookup("image/jpeg")
+		uploadData := upload.New(
+			"dedup-hash",
+			"uploads/dedup.jpg",
+			"dedup.jpg",
+			"",
+			1024,
+			mime,
+		)
+		createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
+		require.NoError(t, err)
+
+		// Request with duplicate IDs
+		duplicateIDs := []uint{createdUpload.ID(), createdUpload.ID(), createdUpload.ID()}
+		uploads, err := uploadRepository.GetByIDs(f.Ctx, duplicateIDs)
+		require.NoError(t, err)
+
+		// Should still return only one upload
+		assert.Equal(t, 1, len(uploads))
+		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
+	})
+
+	t.Run("GetByIDs - Non-existent IDs", func(t *testing.T) {
+		// Create test upload
+		mime := mimetype.Lookup("image/jpeg")
+		uploadData := upload.New(
+			"exists-hash",
+			"uploads/exists.jpg",
+			"exists.jpg",
+			"",
+			1024,
+			mime,
+		)
+		createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
+		require.NoError(t, err)
+
+		// Request with mix of existing and non-existent IDs
+		ids := []uint{createdUpload.ID(), 99998, 99999}
+		uploads, err := uploadRepository.GetByIDs(f.Ctx, ids)
+		require.NoError(t, err)
+
+		// Should return only existing upload (gracefully skip non-existent IDs)
+		assert.Equal(t, 1, len(uploads))
+		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
+	})
+
+	t.Run("GetByIDs - Tenant isolation", func(t *testing.T) {
+		// Create test upload in current tenant
+		mime := mimetype.Lookup("image/jpeg")
+		uploadData := upload.New(
+			"tenant-hash",
+			"uploads/tenant.jpg",
+			"tenant.jpg",
+			"",
+			1024,
+			mime,
+		)
+		createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
+		require.NoError(t, err)
+
+		// Get the upload (should work in current tenant context)
+		uploads, err := uploadRepository.GetByIDs(f.Ctx, []uint{createdUpload.ID()})
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(uploads))
+		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
+	})
+
+	t.Run("GetByIDs - Large batch", func(t *testing.T) {
+		// Create 100 test uploads
+		var createdIDs []uint
+		for i := 0; i < 100; i++ {
+			mime := mimetype.Lookup("image/jpeg")
+			uploadData := upload.New(
+				"batch-large-"+time.Now().Format("20060102150405")+"-"+string(rune(i%10+48))+string(rune((i/10)%10+48)),
+				"uploads/batch_large_"+string(rune(i%10+48))+string(rune((i/10)%10+48))+".jpg",
+				"batch_large_"+string(rune(i%10+48))+string(rune((i/10)%10+48))+".jpg",
+				"",
+				1024*(i%10+1),
+				mime,
+			)
+			createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
+			require.NoError(t, err)
+			createdIDs = append(createdIDs, createdUpload.ID())
+		}
+
+		// Get all by IDs in a single query
+		uploads, err := uploadRepository.GetByIDs(f.Ctx, createdIDs)
+		require.NoError(t, err)
+		assert.Equal(t, len(createdIDs), len(uploads))
+
+		// Verify all IDs are present
+		returnedIDMap := make(map[uint]bool)
+		for _, upload := range uploads {
+			returnedIDMap[upload.ID()] = true
+		}
+		for _, id := range createdIDs {
+			assert.True(t, returnedIDMap[id], "ID %d should be in results", id)
+		}
+	})
 }

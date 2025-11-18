@@ -36,6 +36,7 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]Upload, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Upload, error)
 	GetByID(ctx context.Context, id uint) (Upload, error)
+	GetByIDs(ctx context.Context, ids []uint) ([]Upload, error)
 	GetByHash(ctx context.Context, hash string) (Upload, error)
 	GetBySlug(ctx context.Context, slug string) (Upload, error)
 	Exists(ctx context.Context, id uint) (bool, error)
