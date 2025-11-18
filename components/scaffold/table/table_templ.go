@@ -278,6 +278,7 @@ func Rows(cfg *TableConfig) templ.Component {
 									templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 									cell.Classes(),
 								),
+								Attrs: cell.Attrs(),
 							}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -326,7 +327,7 @@ func InfiniteScrollSpinner(cfg *TableConfig) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(cfg.Columns)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 128, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 129, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -594,7 +595,7 @@ func Table(config *TableConfig) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(config.Editable.CreateLabel)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 233, Col: 38}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 234, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -604,7 +605,7 @@ func Table(config *TableConfig) templ.Component {
 						var templ_7745c5c3_Var21 string
 						templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.TSafe("Add"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 235, Col: 31}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 236, Col: 31}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 						if templ_7745c5c3_Err != nil {
@@ -673,7 +674,7 @@ func TableSection(config *TableConfig) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(config.DataURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 250, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 251, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -874,7 +875,7 @@ func Content(config *TableConfig) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(config.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 334, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 335, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -899,7 +900,7 @@ func Content(config *TableConfig) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Scaffold.Filters.Title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 346, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 347, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
