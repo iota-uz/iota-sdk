@@ -1,106 +1,106 @@
 ---
-description: "Execute backlog tasks sequentially using specified agents (all or selected)"
+description: "Execute backlog tasks sequentially using specified agents"
 model: sonnet
 disable-model-invocation: true
 ---
 
-You are tasked with executing items from the backlog. All available backlog items:
+Execute backlog items autonomously without stopping until all selected tasks are processed.
+
+Available backlog items:
 
 !`ls -1 .claude/backlog/*.md 2>&1 | sort -n`
 
 If no files are found, stop and inform the user.
 
-## Step 1: Mode Selection
+## Step 1: Upfront Configuration
 
-Use `AskUserQuestion` to ask the user whether to run all items or select specific ones:
+Ask all questions before starting execution.
 
-**Question:** "How would you like to execute backlog tasks?"
-**Header:** "Execution mode"
-**Options:**
+### 1.1 Mode Selection
 
-- "Run all items" → Execute all backlog tasks sequentially
-- "Select items" → Choose specific tasks to execute
+Use `AskUserQuestion`:
 
-If the user selects "Run all items", proceed to Step 2 with all backlog files.
+- **Question:** "How would you like to execute backlog tasks?"
+- **Header:** "Execution mode"
+- **Options:**
+    - "Run all items" → Execute all backlog tasks sequentially
+    - "Select items" → Choose specific tasks to execute
 
-If the user selects "Select items":
+### 1.2 Item Selection (if applicable)
 
-1. Read each backlog file to extract the first 50-100 characters as a preview
-2. Use AskUserQuestion with multiSelect: true to let user choose items:
+If the user selected "Select items":
+
+1. Read each backlog file to extract the first 50-100 characters as preview
+2. Use `AskUserQuestion` with `multiSelect: true`:
     - **Question:** "Which backlog items would you like to execute?"
     - **Header:** "Task selection"
     - **multiSelect:** true
-    - **Options:** One option per backlog file, with:
+    - **Options:** One per backlog file:
         - **label:** Filename (e.g., "001-fix-auth.md")
-        - **description:** First 50-100 chars of task content (excluding `[agent:TYPE]` line)
-3. Proceed to Step 3 with only the selected files
+        - **description:** First 50-100 chars (exclude `[agent:TYPE]` and `[model:MODEL]` lines)
 
-## Step 2: Execution Instructions
+After questions are answered, proceed to autonomous execution.
 
-Parse the backlog content and execute each task sequentially:
+## Step 2: Autonomous Execution
 
-### 1. Parse Tasks
+Execute all selected tasks sequentially. Do NOT stop on errors.
 
-Read each task file from the sorted list of backlog files:
+### 2.1 Parse Tasks
 
-For each task file (in numeric order):
+For each task file (numeric order):
 
-1. Read the file contents using the Read tool
-2. First line contains `[agent:TYPE]` where TYPE is the agent to use
-3. The remaining lines (starting from line 2) are the task prompt
-4. Extract both the agent type and the full task prompt
+1. Read file contents using Read tool
+2. Parse first line: `[agent:TYPE]` extracts the agent type
+3. Parse second line: `[model:MODEL]` extracts the model (haiku/sonnet/inherit)
+4. Parse remaining lines: task prompt (line 3 onwards)
 
-### 2. Execute Tasks Sequentially
+### 2.2 Execute Sequentially
 
-For each task in order:
+For each task:
 
-1. Extract the agent type from `[agent:TYPE]` & the task prompt (everything after the first line)
-2. Use the Task tool to launch the specified agent with the task prompt
-3. Wait for the agent to complete before proceeding to the next task
+1. Extract agent type from `[agent:TYPE]`, model from `[model:MODEL]`, and task prompt
+2. Launch agent using Task tool with extracted prompt and model
+3. Track execution result (success/failure)
+4. If an error occurs: collect error details, continue to the next task
+5. Wait for completion before proceeding to the next task
 
-### 3. Execution Pattern
-
-**IMPORTANT:** Execute tasks sequentially (one after another), NOT in parallel.
-
-Use this pattern:
+**Execution pattern:**
 
 ```
-Task 1 (editor) → Wait for completion → Task 2 (editor) → Wait for completion → Task 3 (debugger) → etc.
+Task 1 (editor) → Wait → Task 2 (editor) → Wait → Task 3 (debugger) → Wait → etc.
 ```
 
-**DO NOT** execute tasks in parallel:
+**Do NOT execute in parallel.**
 
-```
-// INCORRECT
-Task 1 & Task 2 & Task 3
-```
+### 2.3 Error Collection
 
-### 4. Backlog Files Management
+When a task fails:
 
-**IMPORTANT:** Do NOT modify or delete backlog files during execution. Leave them unchanged.
+1. Record task filename
+2. Record agent type used
+3. Record error message/details
+4. Continue to the next task without stopping
 
-After successful execution, users can manually:
+### 2.4 Backlog Files
 
-- Delete individual task files from `.claude/backlog/` directory
-- Archive completed tasks to `.claude/backlog/archive/` subdirectory
-- Use `/backlog:delete` command to clear completed tasks
+Do NOT modify or delete backlog files during execution.
 
-## Step 3: Error Handling
+## Step 3: Final Report
 
-If a task fails or an agent encounters an error:
+After all tasks are processed, present summary:
 
-1. Report the error clearly
-2. Ask the user if they want to:
-    - Continue with the remaining tasks
-    - Stop execution
-    - Skip the failed task and continue
+### Success Summary
 
-## Step 4: Completion
+- Total tasks executed: X
+- Successful: Y
+- Failed: Z
 
-After all tasks are executed, provide a summary:
+### Error Details (if any)
 
-- Total tasks executed
-- Success count
-- Failure count (if any)
-- List of completed task files
-- Reminder that users can manually delete or archive completed task files from `.claude/backlog/` if needed
+For each failed task:
+
+- **File:** filename.md
+- **Agent:** agent type
+- **Error:** error message/details
+
+If all tasks succeed, confirm completion without errors.
