@@ -71,18 +71,6 @@ type PageContextProvider interface {
 	GetLocalizer() *i18n.Localizer
 }
 
-type PageData struct {
-	Title       string
-	Description string
-}
-
-func NewPageData(title string, description string) *PageData {
-	return &PageData{
-		Title:       title,
-		Description: description,
-	}
-}
-
 // PageContext provides localization and page metadata for template rendering.
 //
 // Deprecated: Use PageContextProvider interface instead. PageContext is maintained
