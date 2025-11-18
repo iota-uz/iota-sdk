@@ -254,10 +254,16 @@ func (c *Configuration) load(envFiles []string) error {
 	// Update Domain and Origin dynamically if they weren't explicitly set via environment variables
 	// This ensures logs show the correct port when PORT is set via environment
 	if os.Getenv("DOMAIN") == "" {
-		c.Domain = fmt.Sprintf("localhost:%d", c.ServerPort)
+		c.Domain = "localhost"
 	}
 	if os.Getenv("ORIGIN") == "" {
-		c.Origin = fmt.Sprintf("%s://%s", c.Scheme(), c.Domain)
+		// Only include port in Origin for development environment
+		// Production and staging should use standard ports (80/443)
+		if c.GoAppEnvironment == "development" {
+			c.Origin = fmt.Sprintf("%s://%s:%d", c.Scheme(), c.Domain, c.ServerPort)
+		} else {
+			c.Origin = fmt.Sprintf("%s://%s", c.Scheme(), c.Domain)
+		}
 	}
 
 	return nil
