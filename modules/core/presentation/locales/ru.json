@@ -245,7 +245,11 @@
       "FullName": "Полное имя",
       "Roles": "Роли",
       "Email": "Эл. почта",
-      "AllGroups": "Все группы"
+      "AllGroups": "Все группы",
+      "AllRoles": "Все роли",
+      "Filters": "Фильтры",
+      "ExpandFilters": "Развернуть фильтры",
+      "CollapseFilters": "Свернуть фильтры"
     },
     "Cards": {
       "PersonalInfo": "Персональные данные",
