@@ -53,7 +53,7 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 ## Build/Lint/Test Commands
 - Format Go code and templates: `make fix fmt`
 - Organize and format Go imports: `make fix imports`
-- Template generation: `make generate` (or `make generate watch` for watch mode)
+- Template generation: `templ generate` (or `make generate watch` for watch mode)
 - Apply migrations: `make db migrate up` / `make db migrate down`
 - After changes to Go code: `go vet ./...`
 - DO NOT run `go build`, as it does the same thing as `go vet`
@@ -347,7 +347,7 @@ make css dev                          # Compile without minification (debugging)
 make css clean                        # Clean CSS build artifacts
 
 # Template Generation
-make generate                         # Generate templ templates (default)
+templ generate                          # Generate templ templates (default)
 make generate watch                   # Watch and regenerate templ templates on changes
 
 # Migrations & Setup
