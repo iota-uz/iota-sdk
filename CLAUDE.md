@@ -195,6 +195,135 @@ modules/{module}/
 ### Core Rules
 - **Use `// TODO` comments** for unimplemented parts or future enhancements
 
+### Extensibility Patterns for Child Projects
+
+#### PageContextProvider Interface
+
+The `PageContextProvider` interface (`pkg/types/pagecontext.go`) enables child projects to extend page context behavior without modifying SDK code. Child projects can implement custom PageContext types with additional fields and override methods.
+
+**Why Use PageContextProvider:**
+- Add custom fields (tenant branding, feature flags, analytics)
+- Override translation logic (custom locales, tenant-specific strings)
+- Extend logging/metrics capabilities
+- Maintain full backward compatibility with existing SDK code
+
+**Implementation Pattern:**
+
+```go
+// In your child project's types package
+import "github.com/iota-uz/iota-sdk/pkg/types"
+
+// Step 1: Define your custom context struct
+type TenantBrandingData struct {
+    PrimaryColor   string
+    CompanyLogo    string
+    CompanyName    string
+}
+
+type CustomPageContext struct {
+    // Embed the SDK's PageContextProvider interface
+    base types.PageContextProvider
+
+    // Add custom fields
+    TenantBranding TenantBrandingData
+    FeatureFlags   map[string]bool
+    Analytics      AnalyticsConfig
+}
+
+// Step 2: Create a constructor
+func NewCustomPageContext(
+    sdkCtx types.PageContextProvider,
+    branding TenantBrandingData,
+) *CustomPageContext {
+    return &CustomPageContext{
+        base:           sdkCtx,
+        TenantBranding: branding,
+        FeatureFlags:   make(map[string]bool),
+    }
+}
+
+// Step 3: Override methods as needed
+// Override T() to provide tenant-specific translations
+func (c *CustomPageContext) T(key string, args ...map[string]interface{}) string {
+    // Check for tenant-specific override
+    if override := c.lookupTenantTranslation(key); override != "" {
+        return override
+    }
+    // Fall back to SDK default
+    return c.base.T(key, args...)
+}
+
+// Override TSafe() similarly
+func (c *CustomPageContext) TSafe(key string, args ...map[string]interface{}) string {
+    if override := c.lookupTenantTranslation(key); override != "" {
+        return override
+    }
+    return c.base.TSafe(key, args...)
+}
+
+// Pass through other methods to the base implementation
+func (c *CustomPageContext) Namespace(prefix string) types.PageContextProvider {
+    newBase := c.base.Namespace(prefix)
+    return &CustomPageContext{
+        base:           newBase,
+        TenantBranding: c.TenantBranding,
+        FeatureFlags:   c.FeatureFlags,
+    }
+}
+
+func (c *CustomPageContext) ToJSLocale() string {
+    return c.base.ToJSLocale()
+}
+
+func (c *CustomPageContext) GetLocale() language.Tag {
+    return c.base.GetLocale()
+}
+
+func (c *CustomPageContext) GetURL() *url.URL {
+    return c.base.GetURL()
+}
+
+func (c *CustomPageContext) GetLocalizer() *i18n.Localizer {
+    return c.base.GetLocalizer()
+}
+
+// Add custom methods
+func (c *CustomPageContext) TenantColor() string {
+    return c.TenantBranding.PrimaryColor
+}
+
+func (c *CustomPageContext) HasFeature(flag string) bool {
+    enabled, exists := c.FeatureFlags[flag]
+    return exists && enabled
+}
+
+// Step 4: In your middleware, replace SDK context with custom context
+func WithCustomPageContext(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Get the SDK-provided base context
+        baseCtx := composables.UsePageCtx(r.Context())
+
+        // Fetch tenant branding (from DB or cache)
+        branding := fetchTenantBranding(r.Context())
+
+        // Create custom context wrapping the base
+        customCtx := NewCustomPageContext(baseCtx, branding)
+
+        // Store custom context in request context
+        newCtx := composables.WithPageCtx(r.Context(), customCtx)
+        next.ServeHTTP(w, r.WithContext(newCtx))
+    })
+}
+```
+
+**Key Points:**
+- Child projects embed `PageContextProvider` interface, not `PageContext` struct
+- SDK code continues using `PageContextProvider` interface (not `*PageContext`)
+- `WithPageCtx()` accepts `PageContextProvider` for full extensibility
+- Override only the methods you need; delegate others to base implementation
+- Add `Namespace()` support if you override translation methods
+- No changes to SDK code required - fully backward compatible
+
 ### Build/Test Commands
 ```bash
 # Code Quality & Testing
