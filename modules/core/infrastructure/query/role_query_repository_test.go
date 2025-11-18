@@ -19,7 +19,6 @@ func TestPgRoleQueryRepository_FindRolesWithCounts(t *testing.T) {
 		roles, err := roleQueryRepo.FindRolesWithCounts(fixtures.Ctx)
 		require.NoError(t, err)
 		require.NotNil(t, roles)
-		require.GreaterOrEqual(t, len(roles), 0)
 
 		// Verify each role has required fields
 		for _, role := range roles {

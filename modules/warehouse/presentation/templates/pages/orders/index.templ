@@ -40,10 +40,10 @@ templ OrdersTable(props *IndexPageProps) {
 				for _, order := range props.Orders {
 					@base.TableRow(base.TableRowProps{}) {
 						@base.TableCell(base.TableCellProps{}) {
-							{ order.LocalizedType(pageCtx.Localizer) }
+							{ order.LocalizedType(pageCtx.GetLocalizer()) }
 						}
 						@base.TableCell(base.TableCellProps{}) {
-							{ order.LocalizedStatus(pageCtx.Localizer) }
+							{ order.LocalizedStatus(pageCtx.GetLocalizer()) }
 						}
 						@base.TableCell(base.TableCellProps{}) {
 							{ order.DistinctPositions() }

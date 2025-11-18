@@ -18,7 +18,7 @@ All linting errors: !`make check lint || true`
 2. Verification:
     - Run `go vet ./...` to verify no remaining type errors
     - Run `make check lint` to verify linting passes
-    - Check for any new issues introduced
+    - Check for any new issues `introduced`
 
 ## Important Notes
 

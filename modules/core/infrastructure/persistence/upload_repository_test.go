@@ -292,7 +292,6 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		uploads, err := uploadRepository.GetByIDs(f.Ctx, []uint{})
 		require.NoError(t, err)
 		assert.Empty(t, uploads)
-		assert.Equal(t, 0, len(uploads))
 	})
 
 	t.Run("GetByIDs - Single upload", func(t *testing.T) {
@@ -314,7 +313,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		// Get by IDs with single ID
 		uploads, err := uploadRepository.GetByIDs(f.Ctx, []uint{createdUpload.ID()})
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(uploads))
+		assert.Len(t, uploads, 1)
 		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
 		assert.Equal(t, "batch-hash-1", uploads[0].Hash())
 	})
@@ -340,7 +339,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		// Get all by IDs
 		uploads, err := uploadRepository.GetByIDs(f.Ctx, createdIDs)
 		require.NoError(t, err)
-		assert.Equal(t, len(createdIDs), len(uploads))
+		assert.Len(t, uploads, len(createdIDs))
 
 		// Verify all IDs are present
 		returnedIDMap := make(map[uint]bool)
@@ -372,7 +371,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should still return only one upload
-		assert.Equal(t, 1, len(uploads))
+		assert.Len(t, uploads, 1)
 		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
 	})
 
@@ -396,7 +395,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should return only existing upload (gracefully skip non-existent IDs)
-		assert.Equal(t, 1, len(uploads))
+		assert.Len(t, uploads, 1)
 		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
 	})
 
@@ -417,7 +416,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		// Get the upload (should work in current tenant context)
 		uploads, err := uploadRepository.GetByIDs(f.Ctx, []uint{createdUpload.ID()})
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(uploads))
+		assert.Len(t, uploads, 1)
 		assert.Equal(t, createdUpload.ID(), uploads[0].ID())
 	})
 
@@ -442,7 +441,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		// Get all by IDs in a single query
 		uploads, err := uploadRepository.GetByIDs(f.Ctx, createdIDs)
 		require.NoError(t, err)
-		assert.Equal(t, len(createdIDs), len(uploads))
+		assert.Len(t, uploads, len(createdIDs))
 
 		// Verify all IDs are present
 		returnedIDMap := make(map[uint]bool)

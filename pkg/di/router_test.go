@@ -45,6 +45,7 @@ func setupTestContext() context.Context {
 	ctx = intl.WithLocalizer(ctx, localizer)
 
 	// Add page context
+	//nolint:staticcheck // SA1019: Using PageContext for test fixtures is acceptable
 	pageCtx := &types.PageContext{}
 	ctx = composables.WithPageCtx(ctx, pageCtx)
 

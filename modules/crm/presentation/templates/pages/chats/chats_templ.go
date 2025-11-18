@@ -653,7 +653,7 @@ func ChatCard(chat *viewmodels.Chat) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 
 		pageCtx := composables.UsePageCtx(ctx)
-		active := pageCtx.URL.Query().Get("chat_id") == chat.ID
+		active := pageCtx.GetURL().Query().Get("chat_id") == chat.ID
 		var templ_7745c5c3_Var28 = []any{
 			"flex items-center justify-start gap-2",
 			"cursor-pointer rounded-lg py-2 px-3 text-left w-full",
@@ -1091,7 +1091,7 @@ func ChatLayout(props *IndexPageProps) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 
 		pageCtx := composables.UsePageCtx(ctx)
-		isSelectedChat := pageCtx.URL.Query().Get("chat_id") != ""
+		isSelectedChat := pageCtx.GetURL().Query().Get("chat_id") != ""
 		var templ_7745c5c3_Var49 = []any{
 			"flex flex-col overflow-hidden",
 			templ.KV("hidden md:flex", isSelectedChat),

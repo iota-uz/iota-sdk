@@ -38,7 +38,7 @@ type UsersPageProps struct {
 	Total  int
 }
 
-func buildUsersTableConfig(tenant *entities.TenantInfo, users []*TenantUser, total int, pageCtx *types.PageContext, r *http.Request) *table.TableConfig {
+func buildUsersTableConfig(tenant *entities.TenantInfo, users []*TenantUser, total int, pageCtx types.PageContextProvider, r *http.Request) *table.TableConfig {
 	columns := []table.TableColumn{
 		table.Column("full_name", pageCtx.T("SuperAdmin.Tenants.Users.FullName"), table.WithSortable()),
 		table.Column("email", pageCtx.T("SuperAdmin.Tenants.Users.Email")),

@@ -58,7 +58,7 @@ type BaseProps struct {
 templ Base(props *BaseProps) {
 	<!DOCTYPE html>
 	<html
-		lang={ composables.UsePageCtx(ctx).Locale.String() }
+		lang={ composables.UsePageCtx(ctx).GetLocale().String() }
 		class="system bg-surface-100 text-100"
 	>
 		<head>
