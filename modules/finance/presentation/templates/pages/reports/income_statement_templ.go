@@ -167,7 +167,7 @@ func IncomeStatementPage(formData map[string]interface{}) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span></div></div></div><!-- Report Container --><div id=\"report-container\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center\"><div class=\"text-gray-500\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span></div></div></div><!-- Report Container --><div id=\"report-container\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center\"><div class=\"text-gray-300\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1077,7 +1077,7 @@ func IncomeStatementSection(section viewmodels.IncomeStatementSection) templ.Com
 			return templ_7745c5c3_Err
 		}
 		if len(section.LineItems) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<div class=\"text-gray-500 text-center py-4\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "<div class=\"text-gray-300 text-center py-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

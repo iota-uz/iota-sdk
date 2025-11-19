@@ -189,7 +189,7 @@ func drawerHeader(t *viewmodels.Transaction, pageCtx types.PageContextProvider) 
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</h2></div><button class=\"cursor-pointer text-gray-500 hover:text-gray-700\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</h2></div><button class=\"cursor-pointer text-gray-300 hover:text-gray-700\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

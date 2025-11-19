@@ -120,7 +120,7 @@ templ CashflowStatementPage(formData map[string]interface{}) {
 				<!-- Report Container -->
 				<div id="cashflow-report-content" class="min-h-[200px]">
 					<div class="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
-						<div class="text-gray-500">
+						<div class="text-gray-300">
 							@icons.CurrencyCircleDollar(icons.Props{Size: "48", Class: "mx-auto mb-4 text-gray-400"})
 							<h3 class="text-lg font-medium text-gray-900 mb-2">
 								{ pageCtx.T("Reports.CashflowStatement.NoReportGenerated") }
@@ -345,7 +345,7 @@ templ CashflowStatementTable(report *viewmodels.CashflowStatement) {
 					}
 				} else if len(report.Months) > 0 {
 					for range report.Months {
-						<td class="px-4 py-4 text-sm text-right text-gray-500 dark:text-gray-400">-</td>
+						<td class="px-4 py-4 text-sm text-right text-gray-300 dark:text-gray-400">-</td>
 					}
 				}
 				<td class={ "px-6 py-4 text-sm text-right whitespace-nowrap", templ.KV("text-green-600 dark:text-green-400", report.IsPositive), templ.KV("text-red-600 dark:text-red-400", !report.IsPositive) }>
@@ -402,7 +402,7 @@ templ cashflowSection(section viewmodels.CashflowSection, months []string, secti
 			}
 		} else if len(months) > 0 {
 			for range months {
-				<td class="px-4 py-3 text-sm text-right text-gray-500 dark:text-gray-400">-</td>
+				<td class="px-4 py-3 text-sm text-right text-gray-300 dark:text-gray-400">-</td>
 			}
 		}
 		<td class="px-6 py-3 text-sm text-right text-gray-900 dark:text-white whitespace-nowrap">
@@ -425,7 +425,7 @@ templ cashflowLineItem(item viewmodels.CashflowLineItem, months []string, flowTy
 			}
 		} else if len(months) > 0 {
 			for range months {
-				<td class="px-4 py-3 text-sm text-right text-gray-500 dark:text-gray-400">-</td>
+				<td class="px-4 py-3 text-sm text-right text-gray-300 dark:text-gray-400">-</td>
 			}
 		}
 		<td class={ "px-6 py-3 text-sm text-right whitespace-nowrap", templ.KV("text-green-600 dark:text-green-400", flowType == "inflow"), templ.KV("text-red-600 dark:text-red-400", flowType == "outflow") }>
