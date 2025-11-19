@@ -34,7 +34,7 @@ templ DetailsViewCompact(ctx context.Context, ml models.MultiLang) {
 		<div class="multilang-compact">
 			<div class="font-medium">{ ml.Default() }</div>
 			if hasMultipleTranslations(ml) {
-				<div class="text-xs text-gray-500 mt-1">
+				<div class="text-xs text-gray-300 mt-1">
 					{ getCompactText(ml) }
 				</div>
 			}

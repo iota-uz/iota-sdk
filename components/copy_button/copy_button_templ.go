@@ -55,7 +55,7 @@ func CopyButton(props Props) templ.Component {
 			variant = VariantDefault
 		}
 		var templ_7745c5c3_Var2 = []any{
-			"inline-flex items-center gap-1 transition-all duration-200 text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded cursor-pointer",
+			"inline-flex items-center gap-1 transition-all duration-200 text-gray-300 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded cursor-pointer",
 			templ.KV("bg-gray-100 hover:bg-gray-200 px-2 py-1", variant == VariantDefault),
 			templ.KV("hover:bg-gray-100 p-1", variant == VariantMinimal),
 			props.Class,
