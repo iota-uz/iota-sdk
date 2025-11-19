@@ -239,7 +239,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"></div></button></div><button type=\"button\" class=\"text-gray-500 hover:text-gray-700 p-1\" @click=\"expanded = !expanded\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\"></div></button></div><button type=\"button\" class=\"text-gray-300 hover:text-gray-700 p-1\" @click=\"expanded = !expanded\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

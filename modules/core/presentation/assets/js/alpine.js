@@ -571,8 +571,31 @@ let navTabs = (defaultValue = '') => ({
   }
 })
 
+// Helper function to determine sidebar initial state with 3-state priority
+// Make globally available for use in templates
+window.initSidebarCollapsed = function() {
+  // Priority 1: Check server hint (overrides localStorage)
+  const el = document.querySelector('[data-sidebar-state]');
+  const serverState = el?.dataset.sidebarState;
+
+  if (serverState === 'collapsed') {
+    return true;
+  } else if (serverState === 'expanded') {
+    return false;
+  }
+
+  // Priority 2: Fall back to localStorage (only when serverState is 'auto' or missing)
+  const stored = localStorage.getItem('sidebar-collapsed');
+  if (stored !== null) {
+    return stored === 'true';
+  }
+
+  // Priority 3: Default to expanded
+  return false;
+}
+
 let sidebar = () => ({
-  isCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+  isCollapsed: initSidebarCollapsed(),
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
 
   toggle() {
