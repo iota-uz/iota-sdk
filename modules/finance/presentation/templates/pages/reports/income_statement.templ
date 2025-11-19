@@ -85,7 +85,7 @@ templ IncomeStatementPage(formData map[string]interface{}) {
 				<!-- Report Container -->
 				<div id="report-container" class="min-h-[200px]">
 					<div class="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
-						<div class="text-gray-500">
+						<div class="text-gray-300">
 							@icons.ChartLine(icons.Props{Size: "48", Class: "mx-auto mb-4 text-gray-400"})
 							<h3 class="text-lg font-medium text-gray-900 mb-2">
 								{ pageCtx.T("Reports.IncomeStatement.NoReportGenerated") }
@@ -396,7 +396,7 @@ templ IncomeStatementSection(section viewmodels.IncomeStatementSection) {
 	<div class="mb-6">
 		<h3 class="text-lg font-semibold text-gray-900 mb-3">{ section.Title }</h3>
 		if len(section.LineItems) == 0 {
-			<div class="text-gray-500 text-center py-4">
+			<div class="text-gray-300 text-center py-4">
 				{ pageCtx.T("Reports.IncomeStatement.NoItemsInSection") }
 			</div>
 		} else {
