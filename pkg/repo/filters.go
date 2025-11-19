@@ -281,15 +281,7 @@ type existsFilter struct {
 }
 
 func (f *existsFilter) String(column string, argIdx int) string {
-	// Replace placeholders in subquery with actual argument indices
-	subquery := f.subquery
-	for i := 0; i < len(f.values); i++ {
-		// Replace $1, $2, etc. with actual indices
-		placeholder := fmt.Sprintf("$%d", i+1)
-		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
-		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
-	}
-	return subquery
+	return replaceArgs(f.subquery, f.values, argIdx)
 }
 
 func (f *existsFilter) Value() []any {
@@ -303,13 +295,7 @@ type subqueryFilter struct {
 }
 
 func (f *subqueryFilter) String(column string, argIdx int) string {
-	// Replace placeholders in subquery with actual argument indices
-	subquery := f.subquery
-	for i := 0; i < len(f.values); i++ {
-		placeholder := fmt.Sprintf("$%d", i+1)
-		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
-		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
-	}
+	subquery := replaceArgs(f.subquery, f.values, argIdx)
 	return fmt.Sprintf("%s IN (%s)", column, subquery)
 }
 
@@ -325,14 +311,7 @@ type rawFilter struct {
 }
 
 func (f *rawFilter) String(column string, argIdx int) string {
-	// Replace placeholders in SQL with actual argument indices
-	sql := f.sql
-	for i := 0; i < len(f.values); i++ {
-		placeholder := fmt.Sprintf("$%d", i+1)
-		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
-		sql = strings.ReplaceAll(sql, placeholder, actualPlaceholder)
-	}
-	return sql
+	return replaceArgs(f.sql, f.values, argIdx)
 }
 
 func (f *rawFilter) Value() []any {
@@ -356,6 +335,7 @@ func In(value any) Filter {
 	}
 	return &inFilter{v}
 }
+
 func NotIn(value any) Filter {
 	v := reflect.ValueOf(value)
 	if v.Kind() != reflect.Slice {
@@ -397,4 +377,18 @@ func SubqueryFilter(subquery string, values ...any) Filter {
 // Example: RawFilter("column = $1 OR column = $2", value1, value2)
 func RawFilter(sql string, values ...any) Filter {
 	return &rawFilter{sql, values}
+}
+
+func replaceArgs(queryString string, values []any, argIdx int) string {
+	replaces := make([]string, 0, len(values)*2)
+	for i := range values {
+		replaces = append(
+			replaces,
+			fmt.Sprintf("$%d,", i+1), fmt.Sprintf("$%d,", i+argIdx),
+			fmt.Sprintf("$%d)", i+1), fmt.Sprintf("$%d)", i+argIdx),
+		)
+	}
+
+	replacer := strings.NewReplacer(replaces...)
+	return replacer.Replace(queryString)
 }
