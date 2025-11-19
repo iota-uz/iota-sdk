@@ -246,7 +246,7 @@ templ (p *CheckboxProps) render() {
 		/>
 		<!-- Visual checkbox box -->
 		<div
-			class="w-5 h-5 rounded-[5px] border border-gray-500 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
+			class="w-5 h-5 rounded-[5px] border border-gray-300 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
 		>
 			@icons.Check(icons.Props{
 				Size:  "16",
@@ -572,7 +572,7 @@ templ (p *MoneyProps) render() {
 					x-show="convertedAmount !== 0"
 					x-text="`≈ ${formatConversion()} ${convertTo}`"
 					x-cloak
-					class="text-xs text-gray-500 mt-1"
+					class="text-xs text-gray-300 mt-1"
 				></small>
 			}
 		</div>

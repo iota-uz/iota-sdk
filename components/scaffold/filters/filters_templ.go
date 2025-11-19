@@ -68,7 +68,7 @@ func Dropdown(props DropdownProps) templ.Component {
 		}
 		var templ_7745c5c3_Var4 = []any{
 			"flex items-center justify-center cursor-pointer",
-			"border border-gray-500 rounded-md rounded-r-none px-2",
+			"border border-gray-300 rounded-md rounded-r-none px-2",
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var4...)
 		if templ_7745c5c3_Err != nil {
@@ -105,7 +105,7 @@ func Dropdown(props DropdownProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 = []any{
-			"w-full border border-gray-500 rounded-md shadow-sm cursor-pointer",
+			"w-full border border-gray-300 rounded-md shadow-sm cursor-pointer",
 			"flex items-center justify-between px-4 py-2",
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)

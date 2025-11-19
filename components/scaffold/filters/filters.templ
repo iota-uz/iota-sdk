@@ -27,7 +27,7 @@ templ Dropdown(props DropdownProps) {
 				x-show="selected.length"
 				class={
 					"flex items-center justify-center cursor-pointer",
-					"border border-gray-500 rounded-md rounded-r-none px-2",
+					"border border-gray-300 rounded-md rounded-r-none px-2",
 				}
 			>
 				@icons.X(icons.Props{
@@ -42,7 +42,7 @@ templ Dropdown(props DropdownProps) {
 				@click="open = !open"
 				type="button"
 				class={
-					"w-full border border-gray-500 rounded-md shadow-sm cursor-pointer",
+					"w-full border border-gray-300 rounded-md shadow-sm cursor-pointer",
 					"flex items-center justify-between px-4 py-2",
 				}
 				:class="selected.length ? 'rounded-l-none border-l-0' : ''"

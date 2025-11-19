@@ -137,7 +137,7 @@ templ DetailsDrawer(props DetailsDrawerProps) {
 
 templ renderDetailFieldValue(field DetailFieldValue) {
 	if field.Value == "" {
-		<span class="text-gray-400 dark:text-gray-500">-</span>
+		<span class="text-gray-400 dark:text-gray-300">-</span>
 	} else {
 		switch field.Type {
 			case DetailFieldTypeHTML:

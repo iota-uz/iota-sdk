@@ -418,7 +418,7 @@ func renderDetailFieldValue(field DetailFieldValue) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if field.Value == "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<span class=\"text-gray-400 dark:text-gray-500\">-</span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<span class=\"text-gray-400 dark:text-gray-300\">-</span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
