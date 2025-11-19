@@ -273,7 +273,7 @@ func LogoForm(props *LogoPageProps) templ.Component {
 				AddonRight: &input.Addon{
 					Component: icons.Phone(icons.Props{
 						Size:  "18",
-						Class: "text-gray-500",
+						Class: "text-gray-300",
 					}),
 				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -295,7 +295,7 @@ func LogoForm(props *LogoPageProps) templ.Component {
 				AddonRight: &input.Addon{
 					Component: icons.EnvelopeSimple(icons.Props{
 						Size:  "18",
-						Class: "text-gray-500",
+						Class: "text-gray-300",
 					}),
 				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
