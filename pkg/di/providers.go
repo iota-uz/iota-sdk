@@ -38,7 +38,7 @@ type localeProvider struct{}
 func (p *pageContextProvider) Ok(t reflect.Type) bool {
 	//nolint:staticcheck // SA1019: DI provider needs to check PageContext type for backward compatibility
 	pageCtxType := reflect.TypeOf((*types.PageContext)(nil))
-	return t == pageCtxType
+	return t == pageCtxType || (t.Kind() == reflect.Interface && pageCtxType.Implements(t))
 }
 
 func (p *pageContextProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
