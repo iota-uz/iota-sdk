@@ -3,7 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -12,9 +12,19 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	octoapi "github.com/iota-uz/octo"
 	octoauth "github.com/iota-uz/octo/auth"
+	"github.com/sirupsen/logrus"
+)
+
+const (
+	// HTTP error messages
+	errMsgInvalidJSON         = "invalid JSON"
+	errMsgInternalServerError = "Internal Server Error"
+	errMsgInvalidDetailsType  = "Invalid details type"
+	errMsgTransactionNotFound = "Transaction not found or ambiguous"
 )
 
 type OctoController struct {
@@ -22,54 +32,142 @@ type OctoController struct {
 	billingService *services.BillingService
 	octo           configuration.OctoOptions
 	basePath       string
-	logger         *middleware.LogTransport
+	logTransport   *middleware.LogTransport
 }
 
 func NewOctoController(
 	app application.Application,
 	octo configuration.OctoOptions,
 	basePath string,
-	logger *middleware.LogTransport,
+	logTransport *middleware.LogTransport,
 ) application.Controller {
 	return &OctoController{
 		app:            app,
 		billingService: app.Service(services.BillingService{}).(*services.BillingService),
 		octo:           octo,
 		basePath:       basePath,
-		logger:         logger,
+		logTransport:   logTransport,
 	}
 }
 
 func (c *OctoController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.HandleFunc("", c.Handle).Methods(http.MethodPost)
+	router.HandleFunc("", di.H(c.Handle)).Methods(http.MethodPost)
 }
 
 func (c *OctoController) Key() string {
 	return c.basePath
 }
 
-func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
-	var notification octoapi.NotificationRequest
+func (c *OctoController) Handle(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
+	logger.Info("Octo notification received")
 
-	if err := json.NewDecoder(r.Body).Decode(&notification); err != nil {
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
+	// Parse and validate notification
+	notification, err := c.parseNotification(r, logger)
+	if err != nil {
+		http.Error(w, errMsgInvalidJSON, http.StatusBadRequest)
 		return
 	}
 
+	if err := c.validateSignature(&notification, logger); err != nil {
+		http.Error(w, errMsgInternalServerError, http.StatusInternalServerError)
+		return
+	}
+
+	// Find transaction
+	entity, err := c.findTransaction(r.Context(), &notification, logger)
+	if err != nil {
+		statusCode := http.StatusInternalServerError
+		errMsg := errMsgInternalServerError
+		if err.Error() == errMsgTransactionNotFound {
+			statusCode = http.StatusBadRequest
+			errMsg = errMsgTransactionNotFound
+		}
+		http.Error(w, errMsg, statusCode)
+		return
+	}
+
+	// Update transaction from notification
+	entity, err = c.updateTransactionFromNotification(r.Context(), entity, &notification, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to update transaction from notification")
+
+		// Mark transaction as failed
+		entity = entity.SetStatus(billing.Failed)
+		if _, saveErr := c.billingService.Save(r.Context(), entity); saveErr != nil {
+			logger.WithError(saveErr).Error("Failed to save failed transaction status")
+		}
+
+		// Send cancel response to Octo
+		if respErr := c.sendCallbackResponse(w, entity, logger); respErr != nil {
+			logger.WithError(respErr).Error("Failed to send cancel response to Octo")
+		}
+		return
+	}
+
+	// Handle callback for pending transactions
+	entity, err = c.handleCallback(r.Context(), entity, &notification, logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to handle callback")
+
+		// Mark transaction as failed
+		entity = entity.SetStatus(billing.Failed)
+		if _, saveErr := c.billingService.Save(r.Context(), entity); saveErr != nil {
+			logger.WithError(saveErr).Error("Failed to save failed transaction status")
+		}
+
+		// Send cancel response to Octo
+		if respErr := c.sendCallbackResponse(w, entity, logger); respErr != nil {
+			logger.WithError(respErr).Error("Failed to send cancel response to Octo")
+		}
+		return
+	}
+
+	// Send response to Octo
+	if err := c.sendCallbackResponse(w, entity, logger); err != nil {
+		logger.WithError(err).Error("Failed to write Octo callback response")
+	}
+}
+
+// parseNotification decodes and validates the incoming JSON notification
+func (c *OctoController) parseNotification(r *http.Request, logger *logrus.Entry) (octoapi.NotificationRequest, error) {
+	var notification octoapi.NotificationRequest
+	if err := json.NewDecoder(r.Body).Decode(&notification); err != nil {
+		logger.WithError(err).Error("Failed to decode Octo notification JSON")
+		return notification, err
+	}
+	return notification, nil
+}
+
+// validateSignature verifies the webhook signature
+func (c *OctoController) validateSignature(notification *octoapi.NotificationRequest, logger *logrus.Entry) error {
 	if !octoauth.ValidateSignature(
 		notification.Signature,
 		c.octo.OctoSecretHash,
 		notification.OctoPaymentUUID,
 		notification.Status,
 	) {
-		log.Printf("Failed to validate signature: %v", notification)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+		logger.WithFields(logrus.Fields{
+			"octo_payment_uuid": notification.OctoPaymentUUID,
+			"status":            notification.Status,
+		}).Error("Failed to validate Octo signature")
+		return fmt.Errorf("invalid signature")
 	}
+	return nil
+}
 
+// findTransaction locates the transaction by notification details
+func (c *OctoController) findTransaction(
+	ctx context.Context,
+	notification *octoapi.NotificationRequest,
+	logger *logrus.Entry,
+) (billing.Transaction, error) {
 	entities, err := c.billingService.GetByDetailsFields(
-		r.Context(),
+		ctx,
 		billing.Octo,
 		[]billing.DetailsFieldFilter{
 			{
@@ -85,25 +183,69 @@ func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
-		log.Printf("Failed to get transaction: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	if len(entities) != 1 {
-		log.Printf("Unexpected number of transactions found: %v", len(entities))
-		http.Error(w, "Transaction not found or ambiguous", http.StatusBadRequest)
-		return
+		logger.WithError(err).WithFields(logrus.Fields{
+			"shop_transaction_id": notification.ShopTransactionId,
+			"octo_payment_uuid":   notification.OctoPaymentUUID,
+		}).Error("Failed to get transaction")
+		return nil, err
 	}
 
-	entity := entities[0]
+	if len(entities) != 1 {
+		logger.WithFields(logrus.Fields{
+			"shop_transaction_id": notification.ShopTransactionId,
+			"octo_payment_uuid":   notification.OctoPaymentUUID,
+			"count":               len(entities),
+		}).Error("Unexpected number of transactions found")
+		return nil, fmt.Errorf(errMsgTransactionNotFound)
+	}
+
+	return entities[0], nil
+}
+
+// updateTransactionFromNotification updates transaction details and status based on notification
+func (c *OctoController) updateTransactionFromNotification(
+	ctx context.Context,
+	entity billing.Transaction,
+	notification *octoapi.NotificationRequest,
+	logger *logrus.Entry,
+) (billing.Transaction, error) {
 	octoDetails, ok := entity.Details().(details.OctoDetails)
 	if !ok {
-		log.Printf("Details is not of type OctoDetails")
-		http.Error(w, "Invalid details type", http.StatusInternalServerError)
-		return
+		logger.Error("Details is not of type OctoDetails")
+		return nil, fmt.Errorf(errMsgInvalidDetailsType)
 	}
 
-	octoDetails = octoDetails.
+	// Update details with notification data
+	octoDetails = c.updateOctoDetailsFromNotification(octoDetails, notification)
+
+	// Map Octo status to billing status
+	oldStatus := entity.Status()
+	entity = c.mapNotificationStatusToEntity(entity, notification.Status)
+
+	entity = entity.SetDetails(octoDetails)
+	updatedEntity, err := c.billingService.Save(ctx, entity)
+	if err != nil {
+		logger.WithError(err).WithField("octo_payment_uuid", notification.OctoPaymentUUID).
+			Error("Failed to update transaction")
+		return nil, err
+	}
+
+	logger.WithFields(logrus.Fields{
+		"octo_payment_uuid":   notification.OctoPaymentUUID,
+		"old_status":          oldStatus,
+		"new_status":          updatedEntity.Status(),
+		"notification_status": notification.Status,
+	}).Info("Transaction status updated from Octo notification")
+
+	return updatedEntity, nil
+}
+
+// updateOctoDetailsFromNotification updates OctoDetails with notification data
+func (c *OctoController) updateOctoDetailsFromNotification(
+	octoDetails details.OctoDetails,
+	notification *octoapi.NotificationRequest,
+) details.OctoDetails {
+	return octoDetails.
 		SetStatus(notification.Status).
 		SetSignature(notification.Signature).
 		SetHashKey(notification.HashKey).
@@ -116,122 +258,95 @@ func (c *OctoController) Handle(w http.ResponseWriter, r *http.Request) {
 		SetPayedTime(notification.GetPayedTime()).
 		SetCardType(notification.GetCardType()).
 		SetCardIsPhysical(notification.GetIsPhysicalCard())
+}
 
-	switch notification.Status {
+// mapNotificationStatusToEntity maps Octo notification status to billing status
+func (c *OctoController) mapNotificationStatusToEntity(
+	entity billing.Transaction,
+	octoStatus string,
+) billing.Transaction {
+	switch octoStatus {
 	case octoapi.WaitingForCaptureStatus:
-		entity = entity.SetStatus(billing.Pending)
+		return entity.SetStatus(billing.Pending)
 	case octoapi.CancelledStatus:
-		entity = entity.SetStatus(billing.Canceled)
+		return entity.SetStatus(billing.Canceled)
 	case octoapi.SucceededStatus:
-		entity = entity.SetStatus(billing.Completed)
+		return entity.SetStatus(billing.Completed)
+	default:
+		return entity
+	}
+}
+
+// handleCallback invokes the registered callback for pending transactions
+func (c *OctoController) handleCallback(
+	ctx context.Context,
+	entity billing.Transaction,
+	notification *octoapi.NotificationRequest,
+	logger *logrus.Entry,
+) (billing.Transaction, error) {
+	// Only invoke callback for WaitingForCapture status
+	if notification.Status != octoapi.WaitingForCaptureStatus {
+		return entity, nil
 	}
 
-	entity = entity.SetDetails(octoDetails)
-	entity, err = c.billingService.Save(r.Context(), entity)
-	if err != nil {
-		log.Printf("Failed to update transaction: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		logger.WithError(err).WithField("octo_payment_uuid", notification.OctoPaymentUUID).
+			Error("Callback error in Octo Handle")
 
-	// Invoke callback for WaitingForCapture status
-	if notification.Status == octoapi.WaitingForCaptureStatus {
-		if err := c.billingService.InvokeCallback(r.Context(), entity); err != nil {
-			log.Printf("Callback error in Octo Handle: %v", err)
-			// Cancel the transaction on callback failure
-			entity = entity.SetStatus(billing.Failed)
-			var saveErr error
-			entity, saveErr = c.billingService.Save(r.Context(), entity)
-			if saveErr != nil {
-				log.Printf("Failed to save callback error: %v", saveErr)
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
+		// Mark transaction as failed on callback error
+		entity = entity.SetStatus(billing.Failed)
+		updatedEntity, saveErr := c.billingService.Save(ctx, entity)
+		if saveErr != nil {
+			logger.WithError(saveErr).Error("Failed to save transaction after callback failure")
+			return nil, saveErr
 		}
+		return updatedEntity, nil
 	}
 
-	octoDetails, ok = entity.Details().(details.OctoDetails)
+	return entity, nil
+}
+
+// sendCallbackResponse sends the final callback response to Octo
+func (c *OctoController) sendCallbackResponse(
+	w http.ResponseWriter,
+	entity billing.Transaction,
+	logger *logrus.Entry,
+) error {
+	octoDetails, ok := entity.Details().(details.OctoDetails)
 	if !ok {
-		log.Printf("Details is not of type OctoDetails")
-		http.Error(w, "Invalid details type", http.StatusInternalServerError)
-		return
+		logger.Error("Details is not of type OctoDetails in final response")
+		http.Error(w, errMsgInvalidDetailsType, http.StatusInternalServerError)
+		return fmt.Errorf(errMsgInvalidDetailsType)
 	}
 
-	acceptStatus := octoapi.CaptureStatus
-	if entity.Status() == billing.Failed {
-		acceptStatus = octoapi.CancelStatus
-	}
-
-	if !octoDetails.AutoCapture() {
-		cfg := octoapi.NewConfiguration()
-		cfg.HTTPClient = &http.Client{
-			Transport: c.logger,
-		}
-		apiClient := octoapi.NewAPIClient(cfg)
-
-		req := octoapi.SetAcceptRequest{
-			OctoShopId:      octoDetails.OctoShopId(),
-			OctoSecret:      c.octo.OctoSecret,
-			OctoPaymentUUID: octoDetails.OctoPaymentUUID(),
-			AcceptStatus:    acceptStatus,
-			FinalAmount:     entity.Amount().Quantity(),
-		}
-
-		ctx := context.Background()
-		resp, httpResp, err := apiClient.TransactionManagementAPI.
-			SetAcceptPost(ctx).
-			SetAcceptRequest(req).
-			Execute()
-
-		if httpResp != nil {
-			if hErr := httpResp.Body.Close(); hErr != nil {
-				log.Printf("failed to close http response body: %v", hErr)
-			}
-		}
-		if err != nil {
-			return
-		}
-		if resp.GetError() != 0 {
-			octoDetails = octoDetails.
-				SetError(resp.GetError()).
-				SetErrMessage(resp.GetErrMessage())
-		} else {
-			octoDetails = octoDetails.
-				SetStatus(resp.Data.GetStatus()).
-				SetTransferSum(resp.Data.GetTransferSum()).
-				SetRefundedSum(resp.Data.GetRefundedSum()).
-				SetPayedTime(resp.Data.GetPayedTime())
-
-			switch resp.Data.GetStatus() {
-			case octoapi.CancelledStatus:
-				entity = entity.SetStatus(billing.Canceled)
-			case octoapi.SucceededStatus:
-				entity = entity.SetStatus(billing.Completed)
-			}
-		}
-
-		entity = entity.SetDetails(octoDetails)
-		entity, err = c.billingService.Save(r.Context(), entity)
-		if err != nil {
-			log.Printf("Failed to update transaction: %v", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-	}
-
-	if !octoDetails.AutoCapture() &&
-		entity.Status() != billing.Failed &&
-		entity.Status() != billing.Canceled {
-		acceptStatus = octoapi.CaptureStatus
-	}
+	// Determine final accept status for response
+	acceptStatus := c.determineFinalAcceptStatus(octoDetails, entity.Status())
 
 	callbackResponse := octoapi.CallbackResponse{
 		AcceptStatus: &acceptStatus,
 		FinalAmount:  octoapi.PtrFloat64(entity.Amount().Quantity()),
 	}
 
+	logger.WithFields(logrus.Fields{
+		"octo_payment_uuid": octoDetails.OctoPaymentUUID(),
+		"accept_status":     acceptStatus,
+		"final_status":      entity.Status(),
+	}).Info("Octo notification processed successfully")
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(callbackResponse); err != nil {
-		log.Printf("failed to write response: %v", err)
+	return json.NewEncoder(w).Encode(callbackResponse)
+}
+
+// determineFinalAcceptStatus determines the final accept status for the callback response
+func (c *OctoController) determineFinalAcceptStatus(
+	_ details.OctoDetails,
+	status billing.Status,
+) string {
+	// For failed or canceled transactions, return cancel status
+	if status == billing.Failed || status == billing.Canceled {
+		return octoapi.CancelStatus
 	}
+
+	// Default to capture status
+	return octoapi.CaptureStatus
 }
