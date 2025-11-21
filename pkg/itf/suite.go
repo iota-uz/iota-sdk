@@ -18,7 +18,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
@@ -194,7 +193,7 @@ func (s *Suite) setupMiddleware() {
 			}
 			ctx = composables.WithPool(ctx, s.env.Pool)
 			ctx = composables.WithTx(ctx, s.env.Tx)
-			ctx = composables.WithSession(ctx, &session.Session{})
+			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithTenantID(ctx, s.env.Tenant.ID)
 			ctx = context.WithValue(ctx, constants.AppKey, s.env.App)
 			ctx = context.WithValue(ctx, constants.HeadKey, templ.NopComponent)

@@ -11,9 +11,9 @@ type PermissionSchema struct {
 
 // PermissionSet defines a group of permissions that are managed together
 type PermissionSet struct {
-	Key         string                   // Unique identifier (e.g., "view", "manage")
-	Label       string                   // Display name
-	Description string                   // Optional description
-	Module      string                   // Module name (e.g., "Core", "Finance", "CRM")
-	Permissions []*permission.Permission // The actual permissions in this set
+	Key         string                  // Unique identifier (e.g., "view", "manage")
+	Label       string                  // Display name
+	Description string                  // Optional description
+	Module      string                  // Module name (e.g., "Core", "Finance", "CRM")
+	Permissions []permission.Permission // The actual permissions in this set
 }

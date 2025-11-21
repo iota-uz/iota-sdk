@@ -19,7 +19,7 @@ func NewCreatedEvent(ctx context.Context, result Project) (*CreatedEvent, error)
 	}
 	return &CreatedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Result:  result,
 	}, nil
 }
@@ -35,7 +35,7 @@ func NewUpdatedEvent(ctx context.Context, result Project) (*UpdatedEvent, error)
 	}
 	return &UpdatedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Result:  result,
 	}, nil
 }
@@ -51,7 +51,7 @@ func NewDeletedEvent(ctx context.Context, result Project) (*DeletedEvent, error)
 	}
 	return &DeletedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Result:  result,
 	}, nil
 }

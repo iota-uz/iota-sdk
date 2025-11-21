@@ -53,7 +53,7 @@ func Authorize() mux.MiddlewareFunc {
 				}
 
 				if _, err := composables.UseTenantID(ctx); err != nil {
-					ctx = composables.WithTenantID(ctx, sess.TenantID)
+					ctx = composables.WithTenantID(ctx, sess.TenantID())
 				}
 
 				params, ok := composables.UseParams(ctx)
@@ -82,7 +82,7 @@ func ProvideUser() mux.MiddlewareFunc {
 					panic(err)
 				}
 				userService := app.Service(services.UserService{}).(*services.UserService)
-				u, err := userService.GetByID(ctx, sess.UserID)
+				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return

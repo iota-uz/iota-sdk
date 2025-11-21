@@ -106,25 +106,25 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		permissions    []*permission.Permission
+		permissions    []permission.Permission
 		expectedStatus int
 		expectedBody   string
 	}{
 		{
 			name:           "No_Permission",
-			permissions:    []*permission.Permission{}, // No permissions
+			permissions:    []permission.Permission{}, // No permissions
 			expectedStatus: 500,
 			expectedBody:   "forbidden",
 		},
 		{
 			name:           "Read_Only",
-			permissions:    []*permission.Permission{permissions.UserRead}, // Only read permission
+			permissions:    []permission.Permission{permissions.UserRead}, // Only read permission
 			expectedStatus: 500,
 			expectedBody:   "forbidden",
 		},
 		{
 			name:           "With_Delete_Permission",
-			permissions:    []*permission.Permission{permissions.UserDelete, permissions.UserRead},
+			permissions:    []permission.Permission{permissions.UserDelete, permissions.UserRead},
 			expectedStatus: 500,              // Still 500 because user doesn't exist, but authorization passes
 			expectedBody:   "user not found", // Different error message indicates authorization passed
 		},

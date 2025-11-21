@@ -31,7 +31,7 @@ func Excel() *TestExcelBuilder {
 }
 
 // User creates a test user with the given permissions
-func User(permissions ...*permission.Permission) user.User {
+func User(permissions ...permission.Permission) user.User {
 	r := role.New(
 		"admin",
 		role.WithID(1),

@@ -11,15 +11,15 @@ const (
 )
 
 var (
-	ViewLogs = &permission.Permission{
-		ID:       uuid.MustParse("6513b6fa-b8fb-42df-9cbd-f468b2220762"),
-		Name:     "Logs.View",
-		Resource: ResourceLogs,
-		Action:   permission.ActionRead,
-		Modifier: permission.ModifierAll,
-	}
+	ViewLogs = permission.MustCreate(
+		uuid.MustParse("6513b6fa-b8fb-42df-9cbd-f468b2220762"),
+		"Logs.View",
+		ResourceLogs,
+		permission.ActionRead,
+		permission.ModifierAll,
+	)
 )
 
-var Permissions = []*permission.Permission{
+var Permissions = []permission.Permission{
 	ViewLogs,
 }

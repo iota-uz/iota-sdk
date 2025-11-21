@@ -45,7 +45,7 @@ func (sb *SuiteBuilder) WithTenant(name string) *SuiteBuilder {
 }
 
 // AsUser creates a test user with specific permissions
-func (sb *SuiteBuilder) AsUser(permissions ...*permission.Permission) *SuiteBuilder {
+func (sb *SuiteBuilder) AsUser(permissions ...permission.Permission) *SuiteBuilder {
 	sb.user = User(permissions...)
 	return sb
 }
@@ -55,7 +55,7 @@ func (sb *SuiteBuilder) AsAdmin() *SuiteBuilder {
 	// Get all available permissions for admin user
 	// This is a simple implementation - in real usage, you might want to load
 	// all permissions from the database or define a comprehensive admin permission set
-	adminPermissions := []*permission.Permission{
+	adminPermissions := []permission.Permission{
 		// Add commonly used admin permissions here
 		// This would typically be loaded from your permission system
 	}
@@ -65,7 +65,7 @@ func (sb *SuiteBuilder) AsAdmin() *SuiteBuilder {
 // AsReadOnly creates a test user with read-only permissions
 func (sb *SuiteBuilder) AsReadOnly() *SuiteBuilder {
 	// Define read-only permissions
-	readOnlyPermissions := []*permission.Permission{
+	readOnlyPermissions := []permission.Permission{
 		// Add read-only permissions here
 		// This would typically be loaded from your permission system
 	}
@@ -74,7 +74,7 @@ func (sb *SuiteBuilder) AsReadOnly() *SuiteBuilder {
 
 // AsGuest creates a test user with minimal/guest permissions
 func (sb *SuiteBuilder) AsGuest() *SuiteBuilder {
-	guestPermissions := []*permission.Permission{
+	guestPermissions := []permission.Permission{
 		// Add minimal guest permissions here
 	}
 	return sb.AsUser(guestPermissions...)

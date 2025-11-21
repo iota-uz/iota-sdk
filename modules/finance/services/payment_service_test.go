@@ -28,7 +28,7 @@ func setupTestData(ctx context.Context, t *testing.T, f *itf.TestEnvironment) (m
 
 	// Create currency
 	currencyRepo := corepersistence.NewCurrencyRepository()
-	if err := currencyRepo.Create(ctx, &currency.USD); err != nil {
+	if err := currencyRepo.Create(ctx, currency.USD); err != nil {
 		t.Fatal(err)
 	}
 

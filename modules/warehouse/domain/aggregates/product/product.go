@@ -64,6 +64,7 @@ type Product interface {
 
 	Events() []interface{}
 
+	SetRfid(rfid string) Product
 	SetStatus(status Status) Product
 	SetPosition(position position.Position) Product
 }
@@ -134,6 +135,13 @@ func (p *product) UpdatedAt() time.Time {
 
 func (p *product) Events() []interface{} {
 	return p.events
+}
+
+func (p *product) SetRfid(rfid string) Product {
+	result := *p
+	result.rfid = rfid
+	result.updatedAt = time.Now()
+	return &result
 }
 
 func (p *product) SetStatus(status Status) Product {

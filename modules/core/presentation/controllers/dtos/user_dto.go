@@ -151,7 +151,7 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 	return u, nil
 }
 
-func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []*permission.Permission) (user.User, error) {
+func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []permission.Permission) (user.User, error) {
 	if u.ID() == 0 {
 		return nil, errors.New("id cannot be 0")
 	}

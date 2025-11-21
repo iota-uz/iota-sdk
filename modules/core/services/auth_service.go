@@ -44,7 +44,7 @@ func NewAuthService(app application.Application) *AuthService {
 	}
 }
 
-func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, *session.Session, error) {
+func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, session.Session, error) {
 	// Use code to get token and get user info from Google.
 	token, err := s.oAuthConfig.Exchange(ctx, code)
 	if err != nil {
@@ -78,8 +78,8 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 	conf := configuration.Use()
 	cookie := &http.Cookie{
 		Name:     conf.SidCookieKey,
-		Value:    sess.Token,
-		Expires:  sess.ExpiresAt,
+		Value:    sess.Token(),
+		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == configuration.Production,
@@ -89,20 +89,8 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 	return cookie, nil
 }
 
-func (s *AuthService) Authorize(ctx context.Context, token string) (*session.Session, error) {
-	sess, err := s.sessionService.GetByToken(ctx, token)
-	if err != nil {
-		return nil, err
-	}
-	//u, err := s.usersService.GetByID(ctx, sess.UserID)
-	//if err != nil {
-	//	return nil, nil, err
-	//}
-	// TODO: update last action
-	// if err := s.usersService.UpdateLastAction(ctx, u.ID); err != nil {
-	//	  return nil, nil, err
-	//}
-	return sess, nil
+func (s *AuthService) Authorize(ctx context.Context, token string) (session.Session, error) {
+	return s.sessionService.GetByToken(ctx, token)
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
@@ -119,7 +107,7 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
-func (s *AuthService) authenticate(ctx context.Context, u user.User) (*session.Session, error) {
+func (s *AuthService) authenticate(ctx context.Context, u user.User) (session.Session, error) {
 	logger := configuration.Use().Logger()
 	logger.Infof("Creating session for user ID: %d, tenant ID: %d", u.ID(), u.TenantID())
 
@@ -175,7 +163,7 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User) (*session.S
 	return sess.ToEntity(), nil
 }
 
-func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, password string) (user.User, *session.Session, error) {
+func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, password string) (user.User, session.Session, error) {
 	u, err := s.usersService.GetByID(ctx, id)
 	if err != nil {
 		return nil, nil, err
@@ -198,8 +186,8 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 	conf := configuration.Use()
 	cookie := &http.Cookie{
 		Name:     conf.SidCookieKey,
-		Value:    sess.Token,
-		Expires:  sess.ExpiresAt,
+		Value:    sess.Token(),
+		Expires:  sess.ExpiresAt(),
 		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == configuration.Production,
@@ -208,7 +196,7 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 	return cookie, nil
 }
 
-func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, *session.Session, error) {
+func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, session.Session, error) {
 	logger := configuration.Use().Logger()
 	logger.Infof("Authentication attempt for email: %s", email)
 
@@ -230,7 +218,7 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 		return nil, nil, err
 	}
 
-	logger.Infof("Session created successfully with token: %s (partial)", sess.Token[:5])
+	logger.Infof("Session created successfully with token: %s (partial)", sess.Token()[:5])
 	return u, sess, nil
 }
 
@@ -242,8 +230,8 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 	conf := configuration.Use()
 	cookie := &http.Cookie{
 		Name:     conf.SidCookieKey,
-		Value:    sess.Token,
-		Expires:  sess.ExpiresAt,
+		Value:    sess.Token(),
+		Expires:  sess.ExpiresAt(),
 		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == configuration.Production,

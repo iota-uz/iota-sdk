@@ -41,6 +41,16 @@ func (m *mockFinancialReportsQueryRepository) GetExpensesByCategory(ctx context.
 	return args.Get(0).([]query.ReportLineItem), args.Get(1).(*money.Money), args.Error(2)
 }
 
+func (m *mockFinancialReportsQueryRepository) GetCOGSByCategory(ctx context.Context, startDate, endDate time.Time) ([]query.ReportLineItem, *money.Money, error) {
+	args := m.Called(ctx, startDate, endDate)
+	return args.Get(0).([]query.ReportLineItem), args.Get(1).(*money.Money), args.Error(2)
+}
+
+func (m *mockFinancialReportsQueryRepository) GetOperatingExpensesByCategory(ctx context.Context, startDate, endDate time.Time) ([]query.ReportLineItem, *money.Money, error) {
+	args := m.Called(ctx, startDate, endDate)
+	return args.Get(0).([]query.ReportLineItem), args.Get(1).(*money.Money), args.Error(2)
+}
+
 func (m *mockFinancialReportsQueryRepository) GetMonthlyIncomeByCategory(ctx context.Context, startDate, endDate time.Time) ([]query.MonthlyReportLineItem, error) {
 	args := m.Called(ctx, startDate, endDate)
 	return args.Get(0).([]query.MonthlyReportLineItem), args.Error(1)

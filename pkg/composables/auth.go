@@ -39,12 +39,12 @@ func MustUseUser(ctx context.Context) user.User {
 	return u
 }
 
-func CanUser(ctx context.Context, permission *permission.Permission) error {
+func CanUser(ctx context.Context, perm permission.Permission) error {
 	u, _ := UseUser(ctx)
 	if u == nil {
 		return nil
 	}
-	if !u.Can(permission) {
+	if !u.Can(perm) {
 		return ErrForbidden
 	}
 	return nil
@@ -74,8 +74,8 @@ func CanUserAny(ctx context.Context, perms ...rbac.Permission) error {
 }
 
 // UseSession returns the session from the context.
-func UseSession(ctx context.Context) (*session.Session, error) {
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+func UseSession(ctx context.Context) (session.Session, error) {
+	sess, ok := ctx.Value(constants.SessionKey).(session.Session)
 	if !ok {
 		return nil, ErrNoSessionFound
 	}
@@ -83,6 +83,6 @@ func UseSession(ctx context.Context) (*session.Session, error) {
 }
 
 // WithSession returns a new context with the session.
-func WithSession(ctx context.Context, sess *session.Session) context.Context {
+func WithSession(ctx context.Context, sess session.Session) context.Context {
 	return context.WithValue(ctx, constants.SessionKey, sess)
 }

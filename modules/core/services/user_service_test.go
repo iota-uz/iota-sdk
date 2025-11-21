@@ -20,7 +20,7 @@ import (
 )
 
 // setupTestWithPermissions creates test environment with specified permissions
-func setupTestWithPermissions(t *testing.T, permissions ...*permission.Permission) *itf.TestEnvironment {
+func setupTestWithPermissions(t *testing.T, permissions ...permission.Permission) *itf.TestEnvironment {
 	t.Helper()
 
 	user := itf.User(permissions...)

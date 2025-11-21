@@ -35,13 +35,12 @@ func RegisterSessionEventHandlers(
 
 func (h *SessionEventsHandler) onSessionCreated(event session.CreatedEvent) {
 	sess := event.Result
-	logEntity := &authlog.AuthenticationLog{
-		ID:        0,
-		UserID:    sess.UserID,
-		IP:        sess.IP,
-		UserAgent: sess.UserAgent,
-		CreatedAt: time.Now(),
-	}
+	logEntity := authlog.New(
+		sess.IP(),
+		sess.UserAgent(),
+		authlog.WithUserID(sess.UserID()),
+		authlog.WithCreatedAt(time.Now()),
+	)
 	tx, err := h.pool.Begin(context.Background())
 	if err != nil {
 		log.Fatalf("failed to begin transaction: %v", err)

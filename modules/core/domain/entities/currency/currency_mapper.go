@@ -2,6 +2,7 @@ package currency
 
 import (
 	"context"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 )
@@ -20,42 +21,47 @@ func (m *currencyMapper) ToEntities(_ context.Context, values ...[]crud.FieldVal
 	result := make([]Currency, len(values))
 
 	for i, fvs := range values {
-		entity := Currency{}
+		var code Code
+		var name string
+		var symbol Symbol
+		var createdAt, updatedAt time.Time
+
 		for _, v := range fvs {
 			switch v.Field().Name() {
 			case "code":
-				code, err := v.AsString()
+				codeStr, err := v.AsString()
 				if err != nil {
 					return result, err
 				}
-				entity.Code = Code(code)
+				code = Code(codeStr)
 			case "name":
-				name, err := v.AsString()
+				n, err := v.AsString()
 				if err != nil {
 					return result, err
 				}
-				entity.Name = name
+				name = n
 			case "symbol":
-				symbol, err := v.AsString()
+				symbolStr, err := v.AsString()
 				if err != nil {
 					return result, err
 				}
-				entity.Symbol = Symbol(symbol)
+				symbol = Symbol(symbolStr)
 			case "created_at":
-				createdAt, err := v.AsTime()
+				ct, err := v.AsTime()
 				if err != nil {
 					return result, err
 				}
-				entity.CreatedAt = createdAt
+				createdAt = ct
 			case "updated_at":
-				updatedAt, err := v.AsTime()
+				ut, err := v.AsTime()
 				if err != nil {
 					return result, err
 				}
-				entity.UpdatedAt = updatedAt
+				updatedAt = ut
 			}
 		}
-		result[i] = entity
+
+		result[i] = New(code, name, symbol, WithCreatedAt(createdAt), WithUpdatedAt(updatedAt))
 	}
 
 	return result, nil
@@ -67,11 +73,11 @@ func (m *currencyMapper) ToFieldValuesList(_ context.Context, entities ...Curren
 	for i, entity := range entities {
 		fvs, err := m.fields.FieldValues(
 			map[string]any{
-				"code":       string(entity.Code),
-				"name":       entity.Name,
-				"symbol":     string(entity.Symbol),
-				"created_at": entity.CreatedAt,
-				"updated_at": entity.UpdatedAt,
+				"code":       string(entity.Code()),
+				"name":       entity.Name(),
+				"symbol":     string(entity.Symbol()),
+				"created_at": entity.CreatedAt(),
+				"updated_at": entity.UpdatedAt(),
 			},
 		)
 		if err != nil {

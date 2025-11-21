@@ -10,6 +10,7 @@ type ExpenseCategory struct {
 	TenantID    string
 	Name        string
 	Description sql.NullString
+	IsCOGS      bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

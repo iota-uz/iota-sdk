@@ -40,7 +40,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	roleData := role.New(
 		"test-role",
 		role.WithDescription("test role description"),
-		role.WithPermissions([]*permission.Permission{
+		role.WithPermissions([]permission.Permission{
 			permissions.UserRead,
 		}),
 		role.WithTenantID(tenant),
@@ -54,7 +54,7 @@ func TestPgUserRepository_CRUD(t *testing.T) {
 	secondRoleData := role.New(
 		"admin-role",
 		role.WithDescription("admin role description"),
-		role.WithPermissions([]*permission.Permission{
+		role.WithPermissions([]permission.Permission{
 			permissions.UserRead,
 		}),
 		role.WithTenantID(tenant),

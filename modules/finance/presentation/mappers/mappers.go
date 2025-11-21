@@ -31,6 +31,7 @@ func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.Exp
 		ID:          entity.ID().String(),
 		Name:        entity.Name(),
 		Description: entity.Description(),
+		IsCOGS:      entity.IsCOGS(),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 	}

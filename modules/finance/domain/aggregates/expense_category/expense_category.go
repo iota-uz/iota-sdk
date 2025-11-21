@@ -45,12 +45,19 @@ func WithTenantID(tenantID uuid.UUID) Option {
 	}
 }
 
+func WithIsCOGS(isCOGS bool) Option {
+	return func(e *expenseCategory) {
+		e.is_cogs = isCOGS
+	}
+}
+
 // Interface
 type ExpenseCategory interface {
 	ID() uuid.UUID
 	TenantID() uuid.UUID
 	Name() string
 	Description() string
+	IsCOGS() bool
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 	UpdateName(name string) ExpenseCategory
@@ -81,6 +88,7 @@ type expenseCategory struct {
 	tenantID    uuid.UUID
 	name        string
 	description string
+	is_cogs     bool
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -99,6 +107,10 @@ func (e *expenseCategory) Name() string {
 
 func (e *expenseCategory) Description() string {
 	return e.description
+}
+
+func (e *expenseCategory) IsCOGS() bool {
+	return e.is_cogs
 }
 
 func (e *expenseCategory) CreatedAt() time.Time {

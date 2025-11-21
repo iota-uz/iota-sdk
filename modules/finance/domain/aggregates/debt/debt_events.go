@@ -21,7 +21,7 @@ func NewDebtCreatedEvent(ctx context.Context, data Debt, result Debt) (*Created,
 		Data:    data,
 		Result:  result,
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 	}
 	return ev, nil
 }
@@ -38,7 +38,7 @@ func NewDebtUpdatedEvent(ctx context.Context, data Debt, result Debt) (*Updated,
 	return &Updated{
 		Data:    data,
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Result:  result,
 	}, nil
 }
@@ -53,7 +53,7 @@ func NewDebtDeletedEvent(ctx context.Context, result Debt) (*Deleted, error) {
 		return nil, err
 	}
 	return &Deleted{
-		Session: *sess,
+		Session: sess,
 		Sender:  sender,
 		Result:  result,
 	}, nil
@@ -69,7 +69,7 @@ func NewDebtSettledEvent(ctx context.Context, result Debt) (*Settled, error) {
 		return nil, err
 	}
 	return &Settled{
-		Session: *sess,
+		Session: sess,
 		Sender:  sender,
 		Result:  result,
 	}, nil
@@ -85,7 +85,7 @@ func NewDebtWrittenOffEvent(ctx context.Context, result Debt) (*WrittenOff, erro
 		return nil, err
 	}
 	return &WrittenOff{
-		Session: *sess,
+		Session: sess,
 		Sender:  sender,
 		Result:  result,
 	}, nil

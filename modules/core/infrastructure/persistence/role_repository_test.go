@@ -21,7 +21,7 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 	data := role.New(
 		"test",
 		role.WithDescription("test"),
-		role.WithPermissions([]*permission.Permission{permissions.PositionCreate}),
+		role.WithPermissions([]permission.Permission{permissions.PositionCreate}),
 	)
 	roleEntity, err := roleRepository.Create(f.Ctx, data)
 	if err != nil {

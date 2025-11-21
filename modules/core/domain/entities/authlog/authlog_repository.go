@@ -14,10 +14,10 @@ type FindParams struct {
 
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
-	GetAll(ctx context.Context) ([]*AuthenticationLog, error)
-	GetPaginated(ctx context.Context, params *FindParams) ([]*AuthenticationLog, error)
-	GetByID(ctx context.Context, id uint) (*AuthenticationLog, error)
-	Create(ctx context.Context, upload *AuthenticationLog) error
-	Update(ctx context.Context, upload *AuthenticationLog) error
+	GetAll(ctx context.Context) ([]AuthLog, error)
+	GetPaginated(ctx context.Context, params *FindParams) ([]AuthLog, error)
+	GetByID(ctx context.Context, id uint) (AuthLog, error)
+	Create(ctx context.Context, upload AuthLog) error
+	Update(ctx context.Context, upload AuthLog) error
 	Delete(ctx context.Context, id uint) error
 }

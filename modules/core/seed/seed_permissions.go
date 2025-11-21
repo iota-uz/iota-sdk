@@ -9,16 +9,16 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-func CreatePermissions(ctx context.Context, app application.Application, permissions []*permission.Permission) error {
+func CreatePermissions(ctx context.Context, app application.Application, permissions []permission.Permission) error {
 	conf := configuration.Use()
 	permissionRepository := persistence.NewPermissionRepository()
 
 	conf.Logger().Infof("Seeding %d permissions", len(permissions))
 
 	for _, p := range permissions {
-		conf.Logger().Infof("Creating permission: %s", p.Name)
+		conf.Logger().Infof("Creating permission: %s", p.Name())
 		if err := permissionRepository.Save(ctx, p); err != nil {
-			conf.Logger().Errorf("Failed to create permission %s: %v", p.Name, err)
+			conf.Logger().Errorf("Failed to create permission %s: %v", p.Name(), err)
 			return err
 		}
 	}

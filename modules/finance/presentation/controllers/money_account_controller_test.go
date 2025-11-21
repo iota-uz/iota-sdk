@@ -24,7 +24,7 @@ var (
 	MoneyAccountBasePath = "/finance/accounts"
 )
 
-func createCurrencies(t *testing.T, env *itf.TestEnvironment, currencies ...*currency.Currency) {
+func createCurrencies(t *testing.T, env *itf.TestEnvironment, currencies ...currency.Currency) {
 	t.Helper()
 	currencyRepo := persistence.NewCurrencyRepository()
 	for _, curr := range currencies {
@@ -43,7 +43,7 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, currency.USD, currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -93,7 +93,7 @@ func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -127,7 +127,7 @@ func TestMoneyAccountController_GetNew_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, currency.USD, currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -159,7 +159,7 @@ func TestMoneyAccountController_Create_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -201,7 +201,7 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -240,7 +240,7 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -286,7 +286,7 @@ func TestMoneyAccountController_GetEdit_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -308,7 +308,7 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, currency.USD, currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -360,7 +360,7 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -409,7 +409,7 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -449,7 +449,7 @@ func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -470,7 +470,7 @@ func TestMoneyAccountController_InvalidUUID(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -490,7 +490,7 @@ func TestMoneyAccountController_GetTransferDrawer_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -566,7 +566,7 @@ func TestMoneyAccountController_GetTransferDrawer_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -587,7 +587,7 @@ func TestMoneyAccountController_CreateTransfer_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -660,7 +660,7 @@ func TestMoneyAccountController_CreateTransfer_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -775,7 +775,7 @@ func TestMoneyAccountController_CreateTransfer_SameAccount(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -828,7 +828,7 @@ func TestMoneyAccountController_CreateTransfer_LargeAmount(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -891,7 +891,7 @@ func TestMoneyAccountController_CreateTransfer_WithComment(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -956,7 +956,7 @@ func TestMoneyAccountController_CreateTransfer_DifferentCurrencies(t *testing.T)
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, currency.USD, currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -1055,7 +1055,7 @@ func TestMoneyAccountController_GetTransferDrawer_DifferentCurrencies(t *testing
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD, &currency.EUR, &currency.GBP)
+	createCurrencies(t, env, currency.USD, currency.EUR, currency.GBP)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -1124,7 +1124,7 @@ func TestMoneyAccountController_CreateTransfer_SameCurrencyDifferentAmounts(t *t
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.EUR)
+	createCurrencies(t, env, currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -1189,7 +1189,7 @@ func TestMoneyAccountController_CreateTransfer_DifferentCurrencies_ValidationErr
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD, &currency.EUR)
+	createCurrencies(t, env, currency.USD, currency.EUR)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
@@ -1248,7 +1248,7 @@ func TestMoneyAccountController_CreateTransfer_ExchangeWithSameCurrency(t *testi
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewMoneyAccountController(env.App)
 	suite.Register(controller)
