@@ -102,7 +102,7 @@ type TabDefinition struct {
 	NameKey     string
 	Component   func(r *http.Request, clientID uint) (templ.Component, error)
 	SortOrder   int
-	Permissions []*permission.Permission
+	Permissions []permission.Permission
 }
 
 type ClientControllerConfig struct {
@@ -172,7 +172,7 @@ var (
 			ID:        "profile",
 			NameKey:   "Clients.Tabs.Profile",
 			SortOrder: 10,
-			Permissions: []*permission.Permission{
+			Permissions: []permission.Permission{
 				crmPermissions.ClientRead,
 			},
 			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
@@ -199,7 +199,7 @@ var (
 			ID:        "chat",
 			NameKey:   "Clients.Tabs.Chat",
 			SortOrder: 20,
-			Permissions: []*permission.Permission{
+			Permissions: []permission.Permission{
 				crmPermissions.ClientRead,
 			},
 			Component: func(r *http.Request, clientID uint) (templ.Component, error) {
@@ -230,7 +230,7 @@ var (
 			ID:        "actions",
 			NameKey:   "Clients.Tabs.Actions",
 			SortOrder: 100,
-			Permissions: []*permission.Permission{
+			Permissions: []permission.Permission{
 				crmPermissions.ClientUpdate,
 				crmPermissions.ClientDelete,
 			},

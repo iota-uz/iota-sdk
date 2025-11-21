@@ -47,7 +47,7 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 	counterparty2 := counterparty.New(
 		"Test Vendor",
 		counterparty.Supplier,
-		counterparty.LegalEntity,
+		counterparty.LLC,
 		counterparty.WithTenantID(suite.Env().Tenant.ID),
 		counterparty.WithLegalAddress("456 Business Ave"),
 	)
@@ -216,7 +216,7 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 	counterparty1 := counterparty.New(
 		"Edit Test Counterparty",
 		counterparty.Supplier,
-		counterparty.LegalEntity,
+		counterparty.LLC,
 		counterparty.WithTenantID(suite.Env().Tenant.ID),
 		counterparty.WithLegalAddress("Edit Street 123"),
 	)
@@ -285,7 +285,7 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 	formData := url.Values{}
 	formData.Set("Name", "Updated Counterparty Name")
 	formData.Set("Type", string(counterparty.Supplier))
-	formData.Set("LegalType", string(counterparty.LegalEntity))
+	formData.Set("LegalType", string(counterparty.LLC))
 	formData.Set("LegalAddress", "Updated Address")
 
 	suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
@@ -299,7 +299,7 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 
 	require.Equal(t, "Updated Counterparty Name", updatedCounterparty.Name())
 	require.Equal(t, counterparty.Supplier, updatedCounterparty.Type())
-	require.Equal(t, counterparty.LegalEntity, updatedCounterparty.LegalType())
+	require.Equal(t, counterparty.LLC, updatedCounterparty.LegalType())
 	require.Equal(t, "Updated Address", updatedCounterparty.LegalAddress())
 }
 
@@ -425,7 +425,7 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 	counterparty2 := counterparty.New(
 		"Another Vendor",
 		counterparty.Supplier,
-		counterparty.LegalEntity,
+		counterparty.LLC,
 		counterparty.WithTenantID(suite.Env().Tenant.ID),
 	)
 
@@ -752,7 +752,7 @@ func TestUpdate_ValidationError_PreservesFormData(t *testing.T) {
 			formData.Set("Name", "Updated Company Name")
 			formData.Set("TIN", tc.invalidTIN)
 			formData.Set("Type", string(counterparty.Supplier))
-			formData.Set("LegalType", string(counterparty.LegalEntity))
+			formData.Set("LegalType", string(counterparty.LLC))
 			formData.Set("LegalAddress", "Updated Address 456")
 
 			response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).
@@ -981,7 +981,7 @@ func TestUpdate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 	formData.Set("Name", "HTMX Updated Company")
 	formData.Set("TIN", invalidTIN)
 	formData.Set("Type", string(counterparty.Supplier))
-	formData.Set("LegalType", string(counterparty.LegalEntity))
+	formData.Set("LegalType", string(counterparty.LLC))
 	formData.Set("LegalAddress", "HTMX Updated Address")
 
 	response := suite.POST(fmt.Sprintf("%s/%s", CounterpartyBasePath, createdCounterparty.ID().String())).

@@ -90,8 +90,8 @@ func TestSettingsController_GetLogo(t *testing.T) {
 	// Update tenant with logo IDs
 	logoID := int(logoUpload.ID())
 	logoCompactID := int(logoCompactUpload.ID())
-	testTenant.SetLogoID(&logoID)
-	testTenant.SetLogoCompactID(&logoCompactID)
+	testTenant = testTenant.SetLogoID(&logoID)
+	testTenant = testTenant.SetLogoCompactID(&logoCompactID)
 	_, err = tenantService.Update(suite.Environment().Ctx, testTenant)
 	require.NoError(t, err)
 
@@ -316,8 +316,8 @@ func TestSettingsController_PostLogo_WithExistingLogos(t *testing.T) {
 	// Set tenant with existing logos
 	existingLogoID := int(existingLogo.ID())
 	existingCompactLogoID := int(existingCompactLogo.ID())
-	testTenant.SetLogoID(&existingLogoID)
-	testTenant.SetLogoCompactID(&existingCompactLogoID)
+	testTenant = testTenant.SetLogoID(&existingLogoID)
+	testTenant = testTenant.SetLogoCompactID(&existingCompactLogoID)
 	_, err = tenantService.Update(suite.Environment().Ctx, testTenant)
 	require.NoError(t, err)
 
@@ -453,7 +453,7 @@ func TestSettingsController_GetLogo_WithNonExistentUploads(t *testing.T) {
 
 	// Set tenant with the upload ID
 	logoID := int(tempUpload.ID())
-	testTenant.SetLogoID(&logoID)
+	testTenant = testTenant.SetLogoID(&logoID)
 	_, err = tenantService.Update(suite.Environment().Ctx, testTenant)
 	require.NoError(t, err)
 
@@ -665,7 +665,7 @@ func TestSettingsController_PostLogo_PhoneOnlyUpdate(t *testing.T) {
 
 	// Set existing email
 	existingEmail, _ := internet.NewEmail("existing@company.com")
-	testTenant.SetEmail(existingEmail)
+	testTenant = testTenant.SetEmail(existingEmail)
 	_, err = tenantService.Update(suite.Environment().Ctx, testTenant)
 	require.NoError(t, err)
 
@@ -701,7 +701,7 @@ func TestSettingsController_PostLogo_EmailOnlyUpdate(t *testing.T) {
 
 	// Set existing phone
 	existingPhone, _ := phone.NewFromE164("+998901234567")
-	testTenant.SetPhone(existingPhone)
+	testTenant = testTenant.SetPhone(existingPhone)
 	_, err = tenantService.Update(suite.Environment().Ctx, testTenant)
 	require.NoError(t, err)
 
@@ -738,8 +738,8 @@ func TestSettingsController_PostLogo_ClearPhoneAndEmail(t *testing.T) {
 	// Set existing phone and email
 	existingPhone, _ := phone.NewFromE164("+998901234567")
 	existingEmail, _ := internet.NewEmail("existing@company.com")
-	testTenant.SetPhone(existingPhone)
-	testTenant.SetEmail(existingEmail)
+	testTenant = testTenant.SetPhone(existingPhone)
+	testTenant = testTenant.SetEmail(existingEmail)
 	_, err = tenantService.Update(suite.Environment().Ctx, testTenant)
 	require.NoError(t, err)
 
@@ -806,13 +806,13 @@ func TestSettingsController_GetLogo_WithPhoneAndEmail(t *testing.T) {
 	// Set tenant with logos, phone and email
 	logoID := int(logoUpload.ID())
 	logoCompactID := int(logoCompactUpload.ID())
-	testTenant.SetLogoID(&logoID)
-	testTenant.SetLogoCompactID(&logoCompactID)
+	testTenant = testTenant.SetLogoID(&logoID)
+	testTenant = testTenant.SetLogoCompactID(&logoCompactID)
 
 	testPhone, _ := phone.NewFromE164("+998901234567")
 	testEmail, _ := internet.NewEmail("company@example.com")
-	testTenant.SetPhone(testPhone)
-	testTenant.SetEmail(testEmail)
+	testTenant = testTenant.SetPhone(testPhone)
+	testTenant = testTenant.SetEmail(testEmail)
 
 	_, err = tenantService.Update(suite.Environment().Ctx, testTenant)
 	require.NoError(t, err)

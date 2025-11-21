@@ -23,10 +23,10 @@ const (
 
 type userSeeder struct {
 	user        user.User
-	permissions []*permission.Permission
+	permissions []permission.Permission
 }
 
-func UserSeedFunc(usr user.User, permissions []*permission.Permission) application.SeedFunc {
+func UserSeedFunc(usr user.User, permissions []permission.Permission) application.SeedFunc {
 	s := &userSeeder{
 		user:        usr,
 		permissions: permissions,

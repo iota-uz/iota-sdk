@@ -77,14 +77,14 @@ func (dto *UpdateRoleDTO) Ok(ctx context.Context) (map[string]string, bool) {
 }
 
 // getPermissionByID looks up a permission by ID from the schema
-func getPermissionByID(schema *rbac.PermissionSchema, permID uuid.UUID) (*permission.Permission, error) {
+func getPermissionByID(schema *rbac.PermissionSchema, permID uuid.UUID) (permission.Permission, error) {
 	if schema == nil {
 		return nil, fmt.Errorf("permission schema not available")
 	}
 
 	for _, set := range schema.Sets {
 		for _, perm := range set.Permissions {
-			if perm.ID == permID {
+			if perm.ID() == permID {
 				return perm, nil
 			}
 		}
@@ -93,7 +93,7 @@ func getPermissionByID(schema *rbac.PermissionSchema, permID uuid.UUID) (*permis
 }
 
 func (dto *CreateRoleDTO) ToEntity(schema *rbac.PermissionSchema) (role.Role, error) {
-	perms := make([]*permission.Permission, 0, len(dto.Permissions))
+	perms := make([]permission.Permission, 0, len(dto.Permissions))
 	for permID := range dto.Permissions {
 		permUUID, err := uuid.Parse(permID)
 		if err != nil {
@@ -115,7 +115,7 @@ func (dto *CreateRoleDTO) ToEntity(schema *rbac.PermissionSchema) (role.Role, er
 }
 
 func (dto *UpdateRoleDTO) Apply(roleEntity role.Role, schema *rbac.PermissionSchema) (role.Role, error) {
-	perms := make([]*permission.Permission, 0, len(dto.Permissions))
+	perms := make([]permission.Permission, 0, len(dto.Permissions))
 	for permID := range dto.Permissions {
 		permUUID, err := uuid.Parse(permID)
 		if err != nil {

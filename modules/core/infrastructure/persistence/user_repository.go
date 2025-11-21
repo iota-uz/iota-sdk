@@ -766,7 +766,7 @@ func (g *PgUserRepository) userGroupIDs(ctx context.Context, userID uint) ([]uui
 	return groupIDs, nil
 }
 
-func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]*permission.Permission, error) {
+func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]permission.Permission, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -797,7 +797,7 @@ func (g *PgUserRepository) userPermissions(ctx context.Context, userID uint) ([]
 		return nil, errors.Wrap(err, "row iteration error")
 	}
 
-	domainPermissions := make([]*permission.Permission, 0, len(permissions))
+	domainPermissions := make([]permission.Permission, 0, len(permissions))
 	for _, p := range permissions {
 		domainPerm, err := toDomainPermission(p)
 		if err != nil {
@@ -860,7 +860,7 @@ func (g *PgUserRepository) updateUserGroups(ctx context.Context, userID uint, gr
 	return nil
 }
 
-func (g *PgUserRepository) updateUserPermissions(ctx context.Context, userID uint, permissions []*permission.Permission) error {
+func (g *PgUserRepository) updateUserPermissions(ctx context.Context, userID uint, permissions []permission.Permission) error {
 	if err := g.execQuery(ctx, userPermissionDeleteQuery, userID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete existing permissions for user ID: %d", userID))
 	}
@@ -869,7 +869,7 @@ func (g *PgUserRepository) updateUserPermissions(ctx context.Context, userID uin
 	}
 	values := make([][]interface{}, 0, len(permissions))
 	for _, perm := range permissions {
-		values = append(values, []interface{}{userID, perm.ID})
+		values = append(values, []interface{}{userID, perm.ID()})
 	}
 	q, args := repo.BatchInsertQueryN(userPermissionInsertQuery, values)
 	if err := g.execQuery(ctx, q, args...); err != nil {

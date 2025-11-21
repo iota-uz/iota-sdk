@@ -1,318 +1,4 @@
 {
-  "Errors": {
-    "Internal": "Ichki server xatosi yuz berdi: {{.Error}}",
-    "BadRequest": "Noto'g'ri so'rov: {{.Error}}",
-    "NotFound": "Resurs topilmadi: {{.Error}}",
-    "Unauthorized": "Ruxsatsiz: {{.Error}}",
-    "Forbidden": "Taqiqlangan: {{.Error}}",
-    "InvalidFormData": "Noto'g'ri forma ma'lumotlari",
-    "InvalidQueryParams": "Noto'g'ri so'rov parametrlari",
-    "FailedToRetrieve": "Ma'lumotlarni olishda xatolik",
-    "FailedToSave": "Ma'lumotlarni saqlashda xatolik",
-    "FailedToUpdate": "Ma'lumotlarni yangilashda xatolik",
-    "FailedToDelete": "Ma'lumotlarni o'chirishda xatolik",
-    "EntityNotFound": "Element topilmadi",
-    "InternalServer": "Ichki server xatosi",
-    "FailedToRender": "Sahifani ko'rsatishda xatolik"
-  },
-  "ValidationErrors": {
-    "required": "Bu maydon to'ldirilishi shart",
-    "emptySelect": "Qiymatni tanlang",
-    "email": "Email formati noto'g'ri",
-    "min": "{{.Field}} minimal qiymatdan kam bo'lmasligi kerak",
-    "max": "{{.Field}} maksimal qiymatdan oshmasligi kerak",
-    "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
-    "custom": "{{.Field}}: {{.Error}}",
-    "uuid": "Haqiqiy UUID bo'lishi kerak",
-    "gte": "{0} dan katta yoki teng bo'lishi kerak",
-    "len": "Uzunligi {0} ga teng bo'lishi kerak",
-    "gt": "{0} dan katta bo'lishi kerak",
-    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak.",
-    "oneof": "{{.Field}} ruxsat etilgan qiymatlardan biri bo'lishi kerak",
-    "datetime": "{{.Field}} to'g'ri sana bo'lishi kerak",
-    "gtfield": "{{.Field}} {{.Param}}dan katta bo'lishi kerak",
-    "invalidTIN": "Noto'g'ri STIR formati: {{.Details}}",
-    "invalidPIN": "Noto'g'ri JSHSHR formati: {{.Details}}"
-  },
-  "Import": {
-    "Error": {
-      "ValidationError": "Tekshirish xatosi"
-    }
-  },
-  "Filters": {
-    "CreatedAt": {
-      "AllTime": "Barcha vaqt",
-      "Today": "Bugun",
-      "Yesterday": "Kecha",
-      "Ereyesterday": "Ikki kun oldin",
-      "ThisWeek": "Shu hafta",
-      "LastWeek": "O'tgan hafta",
-      "ThisMonth": "Shu oy",
-      "LastMonth": "O'tgan oy"
-    }
-  },
-  "Scaffold": {
-    "Table": {
-      "NoDataTitle": "Ma'lumotlar yo'q",
-      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
-      "NothingFound": "Hech narsa topilmadi"
-    },
-    "Filters": {
-      "Title": "Filtrlar",
-      "SelectAll": "Barchasini tanlash"
-    }
-  },
-  "Spotlight": {
-    "Placeholder": "Qidirish...",
-    "NothingFound": "Hech narsa topilmadi",
-    "Actions": {
-      "AddUser": "Foydalanuvchi qo'shish",
-      "AddAccount": "Hisob qo'shish"
-    }
-  },
-  "ErrorPages": {
-    "NotFound": {
-      "Title": "404",
-      "Message": "Sahifa topilmadi",
-      "Home": "Bosh sahifa"
-    },
-    "Forbidden": {
-      "Title": "403",
-      "Message": "Kirish taqiqlangan",
-      "_Description": "Sizda ushbu resursga kirish uchun ruxsat yo'q.",
-      "Home": "Bosh sahifa"
-    }
-  },
-  "Resources": {
-    "user": "Foydalanuvchilar",
-    "role": "Rollar",
-    "group": "Guruhlar",
-    "upload": "Yuklashlar"
-  },
-  "Permissions": {
-    "User": {
-      "Create": "Foydalanuvchi yaratish",
-      "Read": "Foydalanuvchilarni ko'rish",
-      "Update": "Foydalanuvchini tahrirlash",
-      "Delete": "Foydalanuvchini o'chirish"
-    },
-    "Role": {
-      "Create": "Rol yaratish",
-      "Read": "Rollarni ko'rish",
-      "Update": "Rolni tahrirlash",
-      "Delete": "Rolni o'chirish"
-    },
-    "Group": {
-      "Create": "Guruh yaratish",
-      "Read": "Guruhlarni ko'rish",
-      "Update": "Guruhni tahrirlash",
-      "Delete": "Guruhni o'chirish"
-    },
-    "Account": {
-      "Create": "Hisob yaratish",
-      "Read": "Hisoblarni ko'rish",
-      "Update": "Hisobni tahrirlash",
-      "Delete": "Hisobni o'chirish"
-    },
-    "Settings": {
-      "Update": "Sozlamalarni tahrirlash",
-      "Read": "Sozlamalarni ko'rish"
-    },
-    "Upload": {
-      "Create": "Yuklash yaratish",
-      "Read": "Yuklashlarni ko'rish",
-      "Update": "Yuklashni tahrirlash",
-      "Delete": "Yuklashni o'chirish"
-    }
-  },
-  "NavigationLinks": {
-    "Dashboard": "Boshqaruv paneli",
-    "Administration": "Ma'muriyat",
-    "Users": "Foydalanuvchilar",
-    "Roles": "Rollar",
-    "Groups": "Guruhlar",
-    "Settings": "Sozlamalar",
-    "KnowledgeBase": "Bilimlar bazasi",
-    "Operations": "Operatsiyalar",
-    "Settings": "Sozlamalar",
-    "Calendar": "Taqvim",
-    "Enums": "Ro'yxatlar",
-    "TaskTypes": "Vazifa turlari",
-    "Positions": "Lavozimlar",
-    "Finances": "Moliya",
-    "Projects": "Loyihalar",
-    "Reports": "Hisobotlar",
-    "Navbar": {
-      "Profile": "Profil",
-      "Logout": "Chiqish"
-    }
-  },
-  "Dashboard": {
-    "Meta": {
-      "Title": "Boshqaruv paneli"
-    },
-    "Welcome": "Boshqaruv paneliga xush kelibsiz"
-  },
-  "Users": {
-    "Meta": {
-      "List": {
-        "Title": "Foydalanuvchilar"
-      },
-      "Edit": {
-        "Title": "Foydalanuvchini tahrirlash"
-      },
-      "New": {
-        "Title": "Yangi foydalanuvchi"
-      },
-      "Permissions": {
-        "Title": "Foydalanuvchi ruxsatlari"
-      }
-    },
-    "List": {
-      "New": "Yangi foydalanuvchi",
-      "FullName": "To'liq ism",
-      "Roles": "Rollar",
-      "Email": "Email",
-      "AllGroups": "Barcha guruhlar",
-      "AllRoles": "Barcha rollar",
-      "Filters": "Filterlar",
-      "ExpandFilters": "Filtrlarni kengaytirish",
-      "CollapseFilters": "Filtrlarni yig'ish"
-    },
-    "Cards": {
-      "PersonalInfo": "Shaxsiy ma'lumotlar",
-      "UserInfo": "Foydalanuvchi ma'lumotlari"
-    },
-    "Tabs": {
-      "UserInfo": "Ma'lumotlar",
-      "Permissions": "Ruxsatlar"
-    },
-    "Single": {
-      "EditUser": "Foydalanuvchini tahrirlash",
-      "FirstName": "Ism",
-      "LastName": "Familiya",
-      "MiddleName": "Otasining ismi",
-      "Email": "Email",
-      "Phone": "Telefon",
-      "Password": "Parol",
-      "Language": "Til",
-      "UILanguage": "uz",
-      "SelectLanguage": "Tilni tanlang",
-      "ChooseAvatar": "Avatar tanlang",
-      "RoleIDs": "Rol",
-      "GroupIDs": "Guruh",
-      "SelectRole": "Rolni tanlang",
-      "SelectGroup": "Guruhni tanlang",
-      "EnterPassword": "Parolni kiriting",
-      "Delete": "Foydalanuvchini o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
-      "Permissions": "Foydalanuvchi ruxsatlari"
-    },
-    "Errors": {
-      "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",
-      "EmailUnique": "Email allaqachon ishlatilgan."
-    },
-    "Delete": {
-      "NotAllowed": "O'chirib bo'lmaydi: Siz ushbu tenantdagi yagona foydalanuvchisiz"
-    }
-  },
-  "Roles": {
-    "Meta": {
-      "List": {
-        "Title": "Rollar"
-      },
-      "Edit": {
-        "Title": "Rolni tahrirlash"
-      },
-      "New": {
-        "Title": "Yangi rol"
-      }
-    },
-    "List": {
-      "New": "Yangi rol",
-      "Name": "Nomi"
-    },
-    "Single": {
-      "Edit": "Rolni tahrirlash",
-      "Name": {
-        "Label": "Rol nomi",
-        "Placeholder": "Rol nomini kiriting"
-      },
-      "_Description": {
-        "Label": "Tavsif",
-        "Placeholder": "Rol uchun tavsif kiriting"
-      },
-      "Delete": "Rolni o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
-    }
-  },
-  "Groups": {
-    "Meta": {
-      "List": {
-        "Title": "Guruhlar"
-      },
-      "Edit": {
-        "Title": "Guruhni tahrirlash"
-      },
-      "New": {
-        "Title": "Yangi guruh"
-      }
-    },
-    "Cards": {
-      "GroupInfo": "Guruh ma'lumotlari",
-      "MembershipInfo": "A'zolik ma'lumotlari"
-    },
-    "List": {
-      "New": "Yangi guruh",
-      "Name": "Nomi",
-      "_Description": "Tavsif",
-      "Roles": "Rollar",
-      "Users": "Foydalanuvchilar",
-      "NoGroups": {
-        "Title": "Guruhlar topilmadi",
-        "_Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
-      }
-    },
-    "Single": {
-      "Name": "Nomi",
-      "_Description": "Tavsif",
-      "RoleIDs": "Rollar",
-      "UserIDs": "Foydalanuvchilar",
-      "SelectRole": "Rollarni tanlang",
-      "SelectUser": "Foydalanuvchilarni tanlang",
-      "SearchRoles": "Rollarni qidirish",
-      "EnterGroupName": "Guruh nomini kiriting",
-      "EnterDescription": "Tavsif kiriting",
-      "NoRoleDescription": "Tavsif mavjud emas",
-      "Delete": "Guruhni o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
-    }
-  },
-  "Projects": {
-    "Meta": {
-      "List": {
-        "Title": "Loyihalar"
-      },
-      "Edit": {
-        "Title": "Loyihani tahrirlash"
-      },
-      "New": {
-        "Title": "Yangi loyiha"
-      }
-    },
-    "List": {
-      "New": "Yangi loyiha",
-      "_Description": "Tavsif",
-      "Name": "Nomi"
-    },
-    "Single": {
-      "Edit": "Loyihani tahrirlash",
-      "Name": "Nomi",
-      "_Description": "Tavsif",
-      "Delete": "Loyihani o'chirish",
-      "DeleteConfirmation": "Haqiqatan ham bu loyihani o'chirmoqchimisiz?"
-    }
-  },
   "Account": {
     "Meta": {
       "Index": {
@@ -365,214 +51,24 @@
       "EmailPlaceholder": "Elektron pochta manzilini kiriting"
     }
   },
-  "Login": {
-    "Meta": {
-      "Title": "Tizimga kirish"
-    },
-    "Email": "Email",
-    "Password": "Parol",
-    "Login": "Kirish",
-    "WelcomeBack": "Xush kelibsiz",
-    "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
-    "LoginWithGoogle": "Google orqali kirish",
-    "OrSignInWith": "Yoki quyidagi orqali kiring",
-    "Errors": {
-      "PasswordInvalid": "Email yoki parol noto'g'ri",
-      "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
-      "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
-      "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
-      "UserNotFound": "Foydalanuvchi topilmadi"
-    }
-  },
-  "Home": {
-    "Meta": {
-      "Title": "Bosh sahifa"
-    }
-  },
-  "UpdatedAt": "Yangilangan sana",
-  "CreatedAt": "Yaratilgan sana",
-  "SignOut": "Chiqish",
-  "Unknown": "Noma'lum",
   "Actions": "Harakatlar",
-  "Delete": "O'chirish",
-  "Save": "Saqlash",
-  "Search": "Qidirish",
-  "PerPage": "Sahifada",
-  "PermissionSets": "Ruxsatlar",
-  "Cancel": "Bekor qilish",
-  "Back": "Orqaga",
   "Add": "Qo'shish",
-  "Remove": "O'chirish",
   "All": "Hammasi",
-  "Edit": "Tahrirlash",
-  "Yes": "Ha",
-  "No": "Yo'q",
+  "Analytics": {
+    "PreviousDay": "Oldingi kun",
+    "NextDay": "Keyingi kun",
+    "Revenue": "Daromad",
+    "Count": "Soni",
+    "RevenueByCategory": "Toifalar bo'yicha daromad",
+    "CountByCategory": "Toifalar bo'yicha soni",
+    "CategoryBreakdown": "Toifalar bo'yicha taqsimlash",
+    "NoDataTitle": "Ma'lumot mavjud emas",
+    "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
+    "Categories": "Toifalar"
+  },
+  "Back": "Orqaga",
+  "Cancel": "Bekor qilish",
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
-  "Export": {
-    "Title": "Eksport",
-    "ToExcel": "Excel ga eksport",
-    "ToCSV": "CSV ga eksport",
-    "ToJSON": "JSON ga eksport",
-    "ToTXT": "TXT ga eksport"
-  },
-  "PermissionSets": {
-    "Core": {
-      "UserView": {
-        "Label": "Foydalanuvchilarni ko'rish",
-        "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
-      },
-      "UserManage": {
-        "Label": "Foydalanuvchilarni boshqarish",
-        "_Description": "Foydalanuvchilarni to'liq boshqarish"
-      },
-      "RoleView": {
-        "Label": "Rollarni ko'rish",
-        "_Description": "Rollar ma'lumotlarini faqat ko'rish"
-      },
-      "RoleManage": {
-        "Label": "Rollarni boshqarish",
-        "_Description": "Rollar va ruxsatlarni to'liq boshqarish"
-      },
-      "GroupView": {
-        "Label": "Guruhlarni ko'rish",
-        "_Description": "Guruhlar ma'lumotlarini faqat ko'rish"
-      },
-      "GroupManage": {
-        "Label": "Guruhlarni boshqarish",
-        "_Description": "Guruhlarni to'liq boshqarish"
-      },
-      "UploadView": {
-        "Label": "Fayllarni ko'rish",
-        "_Description": "Yuklangan fayllarni faqat ko'rish"
-      },
-      "UploadManage": {
-        "Label": "Fayllarni boshqarish",
-        "_Description": "Fayl yuklashni to'liq boshqarish"
-      }
-    },
-    "Finance": {
-      "PaymentView": {
-        "Label": "To'lovlarni ko'rish",
-        "_Description": "To'lovlar ma'lumotlarini faqat ko'rish"
-      },
-      "PaymentManage": {
-        "Label": "To'lovlarni boshqarish",
-        "_Description": "To'lovlarni to'liq boshqarish"
-      },
-      "ExpenseView": {
-        "Label": "Xarajatlarni ko'rish",
-        "_Description": "Xarajatlar ma'lumotlarini faqat ko'rish"
-      },
-      "ExpenseManage": {
-        "Label": "Xarajatlarni boshqarish",
-        "_Description": "Xarajatlarni to'liq boshqarish"
-      },
-      "ExpenseCategoryView": {
-        "Label": "Xarajat toifalarini ko'rish",
-        "_Description": "Xarajat toifalari ma'lumotlarini faqat ko'rish"
-      },
-      "ExpenseCategoryManage": {
-        "Label": "Xarajat toifalarini boshqarish",
-        "_Description": "Xarajat toifalarini to'liq boshqarish"
-      },
-      "DebtView": {
-        "Label": "Qarzlarni ko'rish",
-        "_Description": "Qarzlar ma'lumotlarini faqat ko'rish"
-      },
-      "DebtManage": {
-        "Label": "Qarzlarni boshqarish",
-        "_Description": "Qarzlarni to'liq boshqarish"
-      }
-    },
-    "Projects": {
-      "ProjectView": {
-        "Label": "Loyihalarni ko'rish",
-        "_Description": "Loyihalar ma'lumotlarini faqat ko'rish"
-      },
-      "ProjectManage": {
-        "Label": "Loyihalarni boshqarish",
-        "_Description": "Loyihalarni to'liq boshqarish"
-      },
-      "ProjectStageView": {
-        "Label": "Loyiha bosqichlarini ko'rish",
-        "_Description": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish"
-      },
-      "ProjectStageManage": {
-        "Label": "Loyiha bosqichlarini boshqarish",
-        "_Description": "Loyiha bosqichlarini to'liq boshqarish"
-      }
-    },
-    "Warehouse": {
-      "ProductView": {
-        "Label": "Mahsulotlarni ko'rish",
-        "_Description": "Mahsulotlar ma'lumotlarini faqat ko'rish"
-      },
-      "ProductManage": {
-        "Label": "Mahsulotlarni boshqarish",
-        "_Description": "Mahsulotlarni to'liq boshqarish"
-      },
-      "PositionView": {
-        "Label": "Pozitsiyalarni ko'rish",
-        "_Description": "Pozitsiyalar ma'lumotlarini faqat ko'rish"
-      },
-      "PositionManage": {
-        "Label": "Pozitsiyalarni boshqarish",
-        "_Description": "Pozitsiyalarni to'liq boshqarish"
-      },
-      "OrderView": {
-        "Label": "Buyurtmalarni ko'rish",
-        "_Description": "Buyurtmalar ma'lumotlarini faqat ko'rish"
-      },
-      "OrderManage": {
-        "Label": "Buyurtmalarni boshqarish",
-        "_Description": "Buyurtmalarni to'liq boshqarish"
-      },
-      "UnitView": {
-        "Label": "Birliklarni ko'rish",
-        "_Description": "Birliklar ma'lumotlarini faqat ko'rish"
-      },
-      "UnitManage": {
-        "Label": "Birliklarni boshqarish",
-        "_Description": "Birliklarni to'liq boshqarish"
-      },
-      "InventoryView": {
-        "Label": "Inventarni ko'rish",
-        "_Description": "Inventar ma'lumotlarini faqat ko'rish"
-      },
-      "InventoryManage": {
-        "Label": "Inventarni boshqarish",
-        "_Description": "Inventarni to'liq boshqarish"
-      }
-    },
-    "CRM": {
-      "ClientView": {
-        "Label": "Mijozlarni ko'rish",
-        "_Description": "Mijozlar ma'lumotlarini faqat ko'rish"
-      },
-      "ClientManage": {
-        "Label": "Mijozlarni boshqarish",
-        "_Description": "Mijozlarni to'liq boshqarish"
-      }
-    },
-    "HRM": {
-      "EmployeeView": {
-        "Label": "Xodimlarni ko'rish",
-        "_Description": "Xodimlar ma'lumotlarini faqat ko'rish"
-      },
-      "EmployeeManage": {
-        "Label": "Xodimlarni boshqarish",
-        "_Description": "Xodimlarni to'liq boshqarish"
-      }
-    }
-  },
-  "Modules": {
-    "Core": "Boshqaruv",
-    "Finance": "Moliya",
-    "Projects": "Loyihalar",
-    "Warehouse": "Ombor",
-    "CRM": "CRM",
-    "HRM": "Kadrlar boshqaruvi"
-  },
   "Countries": {
     "AF": "Afg'oniston",
     "AL": "Albaniya",
@@ -770,18 +266,521 @@
     "ZM": "Zambiya",
     "ZW": "Zimbabve"
   },
-  "Analytics": {
-    "PreviousDay": "Oldingi kun",
-    "NextDay": "Keyingi kun",
-    "Revenue": "Daromad",
-    "Count": "Soni",
-    "RevenueByCategory": "Toifalar bo'yicha daromad",
-    "CountByCategory": "Toifalar bo'yicha soni",
-    "CategoryBreakdown": "Toifalar bo'yicha taqsimlash",
-    "NoDataTitle": "Ma'lumot mavjud emas",
-    "NoDataDescription": "Tanlangan sana uchun ma'lumot mavjud emas",
-    "Categories": "Toifalar"
+  "CreatedAt": "Yaratilgan sana",
+  "Dashboard": {
+    "Meta": {
+      "Title": "Boshqaruv paneli"
+    },
+    "Welcome": "Boshqaruv paneliga xush kelibsiz"
   },
+  "Delete": "O'chirish",
+  "Edit": "Tahrirlash",
+  "ErrorPages": {
+    "NotFound": {
+      "Title": "404",
+      "Message": "Sahifa topilmadi",
+      "Home": "Bosh sahifa"
+    },
+    "Forbidden": {
+      "Title": "403",
+      "Message": "Kirish taqiqlangan",
+      "_Description": "Sizda ushbu resursga kirish uchun ruxsat yo'q.",
+      "Home": "Bosh sahifa"
+    }
+  },
+  "Errors": {
+    "Internal": "Ichki server xatosi yuz berdi: {{.Error}}",
+    "BadRequest": "Noto'g'ri so'rov: {{.Error}}",
+    "NotFound": "Resurs topilmadi: {{.Error}}",
+    "Unauthorized": "Ruxsatsiz: {{.Error}}",
+    "Forbidden": "Taqiqlangan: {{.Error}}",
+    "InvalidFormData": "Noto'g'ri forma ma'lumotlari",
+    "InvalidQueryParams": "Noto'g'ri so'rov parametrlari",
+    "FailedToRetrieve": "Ma'lumotlarni olishda xatolik",
+    "FailedToSave": "Ma'lumotlarni saqlashda xatolik",
+    "FailedToUpdate": "Ma'lumotlarni yangilashda xatolik",
+    "FailedToDelete": "Ma'lumotlarni o'chirishda xatolik",
+    "EntityNotFound": "Element topilmadi",
+    "InternalServer": "Ichki server xatosi",
+    "FailedToRender": "Sahifani ko'rsatishda xatolik"
+  },
+  "Export": {
+    "Title": "Eksport",
+    "ToExcel": "Excel ga eksport",
+    "ToCSV": "CSV ga eksport",
+    "ToJSON": "JSON ga eksport",
+    "ToTXT": "TXT ga eksport"
+  },
+  "Filters": {
+    "CreatedAt": {
+      "AllTime": "Barcha vaqt",
+      "Today": "Bugun",
+      "Yesterday": "Kecha",
+      "Ereyesterday": "Ikki kun oldin",
+      "ThisWeek": "Shu hafta",
+      "LastWeek": "O'tgan hafta",
+      "ThisMonth": "Shu oy",
+      "LastMonth": "O'tgan oy"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Guruhlar"
+      },
+      "Edit": {
+        "Title": "Guruhni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi guruh"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Guruh ma'lumotlari",
+      "MembershipInfo": "A'zolik ma'lumotlari"
+    },
+    "List": {
+      "New": "Yangi guruh",
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "Roles": "Rollar",
+      "Users": "Foydalanuvchilar",
+      "NoGroups": {
+        "Title": "Guruhlar topilmadi",
+        "_Description": "'Yangi guruh' tugmasini bosib birinchi guruhingizni yarating"
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "RoleIDs": "Rollar",
+      "UserIDs": "Foydalanuvchilar",
+      "SelectRole": "Rollarni tanlang",
+      "SelectUser": "Foydalanuvchilarni tanlang",
+      "SearchRoles": "Rollarni qidirish",
+      "EnterGroupName": "Guruh nomini kiriting",
+      "EnterDescription": "Tavsif kiriting",
+      "NoRoleDescription": "Tavsif mavjud emas",
+      "Delete": "Guruhni o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu guruhni o'chirmoqchimisiz?"
+    }
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Bosh sahifa"
+    }
+  },
+  "Import": {
+    "Error": {
+      "ValidationError": "Tekshirish xatosi"
+    }
+  },
+  "Login": {
+    "Meta": {
+      "Title": "Tizimga kirish"
+    },
+    "Email": "Email",
+    "Password": "Parol",
+    "Login": "Kirish",
+    "WelcomeBack": "Xush kelibsiz",
+    "LoginToUse": "IOTA ERP dan foydalanish uchun tizimga kiring",
+    "LoginWithGoogle": "Google orqali kirish",
+    "OrSignInWith": "Yoki quyidagi orqali kiring",
+    "Errors": {
+      "PasswordInvalid": "Email yoki parol noto'g'ri",
+      "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
+      "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
+      "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
+      "UserNotFound": "Foydalanuvchi topilmadi"
+    }
+  },
+  "Modules": {
+    "Core": "Boshqaruv",
+    "Finance": "Moliya",
+    "Projects": "Loyihalar",
+    "Warehouse": "Ombor",
+    "CRM": "CRM",
+    "HRM": "Kadrlar boshqaruvi"
+  },
+  "NavigationLinks": {
+    "Dashboard": "Boshqaruv paneli",
+    "Administration": "Ma'muriyat",
+    "Users": "Foydalanuvchilar",
+    "Roles": "Rollar",
+    "Groups": "Guruhlar",
+    "Settings": "Sozlamalar",
+    "KnowledgeBase": "Bilimlar bazasi",
+    "Operations": "Operatsiyalar",
+    "Calendar": "Taqvim",
+    "Enums": "Ro'yxatlar",
+    "TaskTypes": "Vazifa turlari",
+    "Positions": "Lavozimlar",
+    "Finances": "Moliya",
+    "Projects": "Loyihalar",
+    "Reports": "Hisobotlar",
+    "Navbar": {
+      "Profile": "Profil",
+      "Logout": "Chiqish"
+    }
+  },
+  "No": "Yo'q",
+  "PerPage": "Sahifada",
+  "PermissionSets": {
+    "Core": {
+      "UserView": {
+        "Label": "Foydalanuvchilarni ko'rish",
+        "_Description": "Foydalanuvchi ma'lumotlarini faqat ko'rish"
+      },
+      "UserManage": {
+        "Label": "Foydalanuvchilarni boshqarish",
+        "_Description": "Foydalanuvchilarni to'liq boshqarish"
+      },
+      "RoleView": {
+        "Label": "Rollarni ko'rish",
+        "_Description": "Rollar ma'lumotlarini faqat ko'rish"
+      },
+      "RoleManage": {
+        "Label": "Rollarni boshqarish",
+        "_Description": "Rollar va ruxsatlarni to'liq boshqarish"
+      },
+      "GroupView": {
+        "Label": "Guruhlarni ko'rish",
+        "_Description": "Guruhlar ma'lumotlarini faqat ko'rish"
+      },
+      "GroupManage": {
+        "Label": "Guruhlarni boshqarish",
+        "_Description": "Guruhlarni to'liq boshqarish"
+      },
+      "UploadView": {
+        "Label": "Fayllarni ko'rish",
+        "_Description": "Yuklangan fayllarni faqat ko'rish"
+      },
+      "UploadManage": {
+        "Label": "Fayllarni boshqarish",
+        "_Description": "Fayl yuklashni to'liq boshqarish"
+      }
+    },
+    "Finance": {
+      "PaymentView": {
+        "Label": "To'lovlarni ko'rish",
+        "_Description": "To'lovlar ma'lumotlarini faqat ko'rish"
+      },
+      "PaymentManage": {
+        "Label": "To'lovlarni boshqarish",
+        "_Description": "To'lovlarni to'liq boshqarish"
+      },
+      "ExpenseView": {
+        "Label": "Xarajatlarni ko'rish",
+        "_Description": "Xarajatlar ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseManage": {
+        "Label": "Xarajatlarni boshqarish",
+        "_Description": "Xarajatlarni to'liq boshqarish"
+      },
+      "ExpenseCategoryView": {
+        "Label": "Xarajat toifalarini ko'rish",
+        "_Description": "Xarajat toifalari ma'lumotlarini faqat ko'rish"
+      },
+      "ExpenseCategoryManage": {
+        "Label": "Xarajat toifalarini boshqarish",
+        "_Description": "Xarajat toifalarini to'liq boshqarish"
+      },
+      "DebtView": {
+        "Label": "Qarzlarni ko'rish",
+        "_Description": "Qarzlar ma'lumotlarini faqat ko'rish"
+      },
+      "DebtManage": {
+        "Label": "Qarzlarni boshqarish",
+        "_Description": "Qarzlarni to'liq boshqarish"
+      }
+    },
+    "Projects": {
+      "ProjectView": {
+        "Label": "Loyihalarni ko'rish",
+        "_Description": "Loyihalar ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectManage": {
+        "Label": "Loyihalarni boshqarish",
+        "_Description": "Loyihalarni to'liq boshqarish"
+      },
+      "ProjectStageView": {
+        "Label": "Loyiha bosqichlarini ko'rish",
+        "_Description": "Loyiha bosqichlari ma'lumotlarini faqat ko'rish"
+      },
+      "ProjectStageManage": {
+        "Label": "Loyiha bosqichlarini boshqarish",
+        "_Description": "Loyiha bosqichlarini to'liq boshqarish"
+      }
+    },
+    "Warehouse": {
+      "ProductView": {
+        "Label": "Mahsulotlarni ko'rish",
+        "_Description": "Mahsulotlar ma'lumotlarini faqat ko'rish"
+      },
+      "ProductManage": {
+        "Label": "Mahsulotlarni boshqarish",
+        "_Description": "Mahsulotlarni to'liq boshqarish"
+      },
+      "PositionView": {
+        "Label": "Pozitsiyalarni ko'rish",
+        "_Description": "Pozitsiyalar ma'lumotlarini faqat ko'rish"
+      },
+      "PositionManage": {
+        "Label": "Pozitsiyalarni boshqarish",
+        "_Description": "Pozitsiyalarni to'liq boshqarish"
+      },
+      "OrderView": {
+        "Label": "Buyurtmalarni ko'rish",
+        "_Description": "Buyurtmalar ma'lumotlarini faqat ko'rish"
+      },
+      "OrderManage": {
+        "Label": "Buyurtmalarni boshqarish",
+        "_Description": "Buyurtmalarni to'liq boshqarish"
+      },
+      "UnitView": {
+        "Label": "Birliklarni ko'rish",
+        "_Description": "Birliklar ma'lumotlarini faqat ko'rish"
+      },
+      "UnitManage": {
+        "Label": "Birliklarni boshqarish",
+        "_Description": "Birliklarni to'liq boshqarish"
+      },
+      "InventoryView": {
+        "Label": "Inventarni ko'rish",
+        "_Description": "Inventar ma'lumotlarini faqat ko'rish"
+      },
+      "InventoryManage": {
+        "Label": "Inventarni boshqarish",
+        "_Description": "Inventarni to'liq boshqarish"
+      }
+    },
+    "CRM": {
+      "ClientView": {
+        "Label": "Mijozlarni ko'rish",
+        "_Description": "Mijozlar ma'lumotlarini faqat ko'rish"
+      },
+      "ClientManage": {
+        "Label": "Mijozlarni boshqarish",
+        "_Description": "Mijozlarni to'liq boshqarish"
+      }
+    },
+    "HRM": {
+      "EmployeeView": {
+        "Label": "Xodimlarni ko'rish",
+        "_Description": "Xodimlar ma'lumotlarini faqat ko'rish"
+      },
+      "EmployeeManage": {
+        "Label": "Xodimlarni boshqarish",
+        "_Description": "Xodimlarni to'liq boshqarish"
+      }
+    }
+  },
+  "Permissions": {
+    "User": {
+      "Create": "Foydalanuvchi yaratish",
+      "Read": "Foydalanuvchilarni ko'rish",
+      "Update": "Foydalanuvchini tahrirlash",
+      "Delete": "Foydalanuvchini o'chirish"
+    },
+    "Role": {
+      "Create": "Rol yaratish",
+      "Read": "Rollarni ko'rish",
+      "Update": "Rolni tahrirlash",
+      "Delete": "Rolni o'chirish"
+    },
+    "Group": {
+      "Create": "Guruh yaratish",
+      "Read": "Guruhlarni ko'rish",
+      "Update": "Guruhni tahrirlash",
+      "Delete": "Guruhni o'chirish"
+    },
+    "Account": {
+      "Create": "Hisob yaratish",
+      "Read": "Hisoblarni ko'rish",
+      "Update": "Hisobni tahrirlash",
+      "Delete": "Hisobni o'chirish"
+    },
+    "Settings": {
+      "Update": "Sozlamalarni tahrirlash",
+      "Read": "Sozlamalarni ko'rish"
+    },
+    "Upload": {
+      "Create": "Yuklash yaratish",
+      "Read": "Yuklashlarni ko'rish",
+      "Update": "Yuklashni tahrirlash",
+      "Delete": "Yuklashni o'chirish"
+    }
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Loyihalar"
+      },
+      "Edit": {
+        "Title": "Loyihani tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi loyiha"
+      }
+    },
+    "List": {
+      "New": "Yangi loyiha",
+      "_Description": "Tavsif",
+      "Name": "Nomi"
+    },
+    "Single": {
+      "Edit": "Loyihani tahrirlash",
+      "Name": "Nomi",
+      "_Description": "Tavsif",
+      "Delete": "Loyihani o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu loyihani o'chirmoqchimisiz?"
+    }
+  },
+  "Remove": "O'chirish",
+  "Resources": {
+    "user": "Foydalanuvchilar",
+    "role": "Rollar",
+    "group": "Guruhlar",
+    "upload": "Yuklashlar"
+  },
+  "Roles": {
+    "Meta": {
+      "List": {
+        "Title": "Rollar"
+      },
+      "Edit": {
+        "Title": "Rolni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi rol"
+      }
+    },
+    "List": {
+      "New": "Yangi rol",
+      "Name": "Nomi"
+    },
+    "Single": {
+      "Edit": "Rolni tahrirlash",
+      "Name": {
+        "Label": "Rol nomi",
+        "Placeholder": "Rol nomini kiriting"
+      },
+      "_Description": {
+        "Label": "Tavsif",
+        "Placeholder": "Rol uchun tavsif kiriting"
+      },
+      "Delete": "Rolni o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu rolni o'chirmoqchimisiz?"
+    }
+  },
+  "Save": "Saqlash",
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Ma'lumotlar yo'q",
+      "NoDataDescription": "Bu jadvaldagi ma'lumotlar mavjud emas.",
+      "NothingFound": "Hech narsa topilmadi"
+    },
+    "Filters": {
+      "Title": "Filtrlar",
+      "SelectAll": "Barchasini tanlash"
+    }
+  },
+  "Search": "Qidirish",
+  "SignOut": "Chiqish",
+  "Spotlight": {
+    "Placeholder": "Qidirish...",
+    "NothingFound": "Hech narsa topilmadi",
+    "Actions": {
+      "AddUser": "Foydalanuvchi qo'shish",
+      "AddAccount": "Hisob qo'shish"
+    }
+  },
+  "Unknown": "Noma'lum",
+  "System": "Tizim",
+  "UpdatedAt": "Yangilangan sana",
+  "Users": {
+    "Meta": {
+      "List": {
+        "Title": "Foydalanuvchilar"
+      },
+      "Edit": {
+        "Title": "Foydalanuvchini tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi foydalanuvchi"
+      },
+      "Permissions": {
+        "Title": "Foydalanuvchi ruxsatlari"
+      }
+    },
+    "List": {
+      "New": "Yangi foydalanuvchi",
+      "FullName": "To'liq ism",
+      "Roles": "Rollar",
+      "Email": "Email",
+      "AllGroups": "Barcha guruhlar",
+      "AllRoles": "Barcha rollar",
+      "Filters": "Filterlar",
+      "ExpandFilters": "Filtrlarni kengaytirish",
+      "CollapseFilters": "Filtrlarni yig'ish"
+    },
+    "Cards": {
+      "PersonalInfo": "Shaxsiy ma'lumotlar",
+      "UserInfo": "Foydalanuvchi ma'lumotlari"
+    },
+    "Tabs": {
+      "UserInfo": "Ma'lumotlar",
+      "Permissions": "Ruxsatlar"
+    },
+    "Single": {
+      "EditUser": "Foydalanuvchini tahrirlash",
+      "FirstName": "Ism",
+      "LastName": "Familiya",
+      "MiddleName": "Otasining ismi",
+      "Email": "Email",
+      "Phone": "Telefon",
+      "Password": "Parol",
+      "Language": "Til",
+      "UILanguage": "uz",
+      "SelectLanguage": "Tilni tanlang",
+      "ChooseAvatar": "Avatar tanlang",
+      "RoleIDs": "Rol",
+      "GroupIDs": "Guruh",
+      "SelectRole": "Rolni tanlang",
+      "SelectGroup": "Guruhni tanlang",
+      "EnterPassword": "Parolni kiriting",
+      "Delete": "Foydalanuvchini o'chirish",
+      "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
+      "Permissions": "Foydalanuvchi ruxsatlari"
+    },
+    "Errors": {
+      "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",
+      "EmailUnique": "Email allaqachon ishlatilgan."
+    },
+    "Delete": {
+      "NotAllowed": "O'chirib bo'lmaydi: Siz ushbu tenantdagi yagona foydalanuvchisiz"
+    }
+  },
+  "ValidationErrors": {
+    "required": "Bu maydon to'ldirilishi shart",
+    "emptySelect": "Qiymatni tanlang",
+    "email": "Email formati noto'g'ri",
+    "min": "{{.Field}} minimal qiymatdan kam bo'lmasligi kerak",
+    "max": "{{.Field}} maksimal qiymatdan oshmasligi kerak",
+    "lte": "{{.Field}} belgilangan qiymatdan kichik yoki teng bo'lishi kerak",
+    "custom": "{{.Field}}: {{.Error}}",
+    "uuid": "Haqiqiy UUID bo'lishi kerak",
+    "gte": "{0} dan katta yoki teng bo'lishi kerak",
+    "len": "Uzunligi {0} ga teng bo'lishi kerak",
+    "gt": "{0} dan katta bo'lishi kerak",
+    "alphanum": "{{.Field}} faqat harf va raqamlardan iborat bo'lishi kerak.",
+    "oneof": "{{.Field}} ruxsat etilgan qiymatlardan biri bo'lishi kerak",
+    "datetime": "{{.Field}} to'g'ri sana bo'lishi kerak",
+    "gtfield": "{{.Field}} {{.Param}}dan katta bo'lishi kerak",
+    "invalidTIN": "Noto'g'ri STIR formati: {{.Details}}",
+    "invalidPIN": "Noto'g'ri JSHSHR formati: {{.Details}}"
+  },
+  "Yes": "Ha",
   "multilang": {
     "empty": "—",
     "no_translations": "Tarjimalar mavjud emas",

@@ -37,7 +37,7 @@ func (g *GormCurrencyRepository) queryChats(
 	ctx context.Context,
 	query string,
 	args ...interface{},
-) ([]*currency.Currency, error) {
+) ([]currency.Currency, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (g *GormCurrencyRepository) queryChats(
 		return nil, err
 	}
 	defer rows.Close()
-	currencies := make([]*currency.Currency, 0)
+	currencies := make([]currency.Currency, 0)
 	for rows.Next() {
 		var currency models.Currency
 		if err := rows.Scan(
@@ -73,7 +73,7 @@ func (g *GormCurrencyRepository) queryChats(
 
 func (g *GormCurrencyRepository) GetPaginated(
 	ctx context.Context, params *currency.FindParams,
-) ([]*currency.Currency, error) {
+) ([]currency.Currency, error) {
 	where, args := []string{"1 = 1"}, []interface{}{}
 	if params.Code != "" {
 		where = append(where, "c.code ILIKE $1")
@@ -106,13 +106,13 @@ func (g *GormCurrencyRepository) Count(ctx context.Context) (uint, error) {
 	return count, nil
 }
 
-func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]*currency.Currency, error) {
+func (g *GormCurrencyRepository) GetAll(ctx context.Context) ([]currency.Currency, error) {
 	return g.GetPaginated(ctx, &currency.FindParams{
 		Limit: 100000,
 	})
 }
 
-func (g *GormCurrencyRepository) GetByCode(ctx context.Context, code string) (*currency.Currency, error) {
+func (g *GormCurrencyRepository) GetByCode(ctx context.Context, code string) (currency.Currency, error) {
 	currencies, err := g.GetPaginated(ctx, &currency.FindParams{
 		Code: code,
 	})
@@ -125,7 +125,7 @@ func (g *GormCurrencyRepository) GetByCode(ctx context.Context, code string) (*c
 	return currencies[0], nil
 }
 
-func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Currency) error {
+func (g *GormCurrencyRepository) Create(ctx context.Context, entity currency.Currency) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -139,7 +139,7 @@ func (g *GormCurrencyRepository) Create(ctx context.Context, entity *currency.Cu
 	return nil
 }
 
-func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Currency) error {
+func (g *GormCurrencyRepository) Update(ctx context.Context, entity currency.Currency) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -155,17 +155,17 @@ func (g *GormCurrencyRepository) Update(ctx context.Context, entity *currency.Cu
 	return nil
 }
 
-func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, currency *currency.Currency) error {
-	u, err := g.GetByCode(ctx, string(currency.Code))
+func (g *GormCurrencyRepository) CreateOrUpdate(ctx context.Context, curr currency.Currency) error {
+	u, err := g.GetByCode(ctx, string(curr.Code()))
 	if err != nil && !errors.Is(err, ErrCurrencyNotFound) {
 		return err
 	}
 	if u != nil {
-		if err := g.Update(ctx, currency); err != nil {
+		if err := g.Update(ctx, curr); err != nil {
 			return err
 		}
 	} else {
-		if err := g.Create(ctx, currency); err != nil {
+		if err := g.Create(ctx, curr); err != nil {
 			return err
 		}
 	}

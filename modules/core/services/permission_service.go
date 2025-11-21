@@ -23,19 +23,19 @@ func (s *PermissionService) Count(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
-func (s *PermissionService) GetAll(ctx context.Context) ([]*permission.Permission, error) {
+func (s *PermissionService) GetAll(ctx context.Context) ([]permission.Permission, error) {
 	return s.repo.GetAll(ctx)
 }
 
-func (s *PermissionService) GetByID(ctx context.Context, id string) (*permission.Permission, error) {
+func (s *PermissionService) GetByID(ctx context.Context, id string) (permission.Permission, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *PermissionService) GetPaginated(ctx context.Context, params *permission.FindParams) ([]*permission.Permission, error) {
+func (s *PermissionService) GetPaginated(ctx context.Context, params *permission.FindParams) ([]permission.Permission, error) {
 	return s.repo.GetPaginated(ctx, params)
 }
 
-func (s *PermissionService) Save(ctx context.Context, data *permission.Permission) error {
+func (s *PermissionService) Save(ctx context.Context, data permission.Permission) error {
 	if err := s.repo.Save(ctx, data); err != nil {
 		return err
 	}

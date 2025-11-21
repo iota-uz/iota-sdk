@@ -24,7 +24,7 @@ func setupDebtTestData(ctx context.Context, t *testing.T) counterparty.Counterpa
 
 	// Create currency
 	currencyRepo := corepersistence.NewCurrencyRepository()
-	if err := currencyRepo.Create(ctx, &currency.USD); err != nil {
+	if err := currencyRepo.Create(ctx, currency.USD); err != nil {
 		t.Fatal(err)
 	}
 
