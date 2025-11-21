@@ -48,9 +48,9 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
 		currencyDTO := &currency.CreateDTO{
-			Code:   string(currency.USD.Code),
-			Name:   currency.USD.Name,
-			Symbol: string(currency.USD.Symbol),
+			Code:   string(currency.USD.Code()),
+			Name:   currency.USD.Name(),
+			Symbol: string(currency.USD.Symbol()),
 		}
 		err := currencyService.Create(ctx, currencyDTO)
 		require.NoError(t, err)
@@ -218,9 +218,9 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
 		currencyDTO := &currency.CreateDTO{
-			Code:   string(currency.USD.Code),
-			Name:   currency.USD.Name,
-			Symbol: string(currency.USD.Symbol),
+			Code:   string(currency.USD.Code()),
+			Name:   currency.USD.Name(),
+			Symbol: string(currency.USD.Symbol()),
 		}
 		err := currencyService.Create(ctx, currencyDTO)
 		require.NoError(t, err)
@@ -331,9 +331,9 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
 		currencyDTO := &currency.CreateDTO{
-			Code:   string(currency.USD.Code),
-			Name:   currency.USD.Name,
-			Symbol: string(currency.USD.Symbol),
+			Code:   string(currency.USD.Code()),
+			Name:   currency.USD.Name(),
+			Symbol: string(currency.USD.Symbol()),
 		}
 		err := currencyService.Create(ctx, currencyDTO)
 		require.NoError(t, err)
@@ -426,9 +426,9 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
 		currencyDTO := &currency.CreateDTO{
-			Code:   string(currency.USD.Code),
-			Name:   currency.USD.Name,
-			Symbol: string(currency.USD.Symbol),
+			Code:   string(currency.USD.Code()),
+			Name:   currency.USD.Name(),
+			Symbol: string(currency.USD.Symbol()),
 		}
 		err := currencyService.Create(ctx, currencyDTO)
 		require.NoError(t, err)
@@ -537,4 +537,648 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 		assert.Equal(t, int64(50000), stmt.NetCashFlow.Amount(), "Net cashflow should be $500")
 		assert.Equal(t, int64(150000), stmt.EndingBalance.Amount(), "Ending balance should be $1,500")
 	})
+}
+
+// TestFinancialReportService_IncomeStatement_COGS_Separation tests that COGS and operating expenses are separated correctly
+func TestFinancialReportService_IncomeStatement_COGS_Separation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	t.Parallel()
+
+	env := setupTest(t,
+		permissions.PaymentCreate, permissions.PaymentRead,
+		permissions.ExpenseCreate, permissions.ExpenseRead,
+		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
+	)
+	ctx := env.Ctx
+
+	// Create USD currency
+	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyDTO := &currency.CreateDTO{
+		Code:   string(currency.USD.Code()),
+		Name:   currency.USD.Name(),
+		Symbol: string(currency.USD.Symbol()),
+	}
+	err := currencyService.Create(ctx, currencyDTO)
+	require.NoError(t, err)
+
+	// Get services
+	paymentService := getPaymentService(env)
+	expenseService := getExpenseService(env)
+	expenseCategoryService := getExpenseCategoryService(env)
+	counterpartyService := getCounterpartyService(env)
+	reportService := getFinancialReportService(env)
+	accountService := getAccountService(env)
+
+	// Get tenant ID
+	tenantID, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
+
+	// Create counterparty
+	testCounterparty := counterparty.New(
+		"COGS Test Customer",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(tenantID),
+	)
+	testCounterparty, err = counterpartyService.Create(ctx, testCounterparty)
+	require.NoError(t, err)
+
+	// Create account
+	account := moneyaccount.New(
+		"COGS Test Account",
+		money.New(0, "USD"),
+	)
+	account, err = accountService.Create(ctx, account)
+	require.NoError(t, err)
+
+	// Create COGS category (Raw Materials)
+	cogsCategory := expensecategory.New(
+		"Raw Materials",
+		expensecategory.WithTenantID(tenantID),
+		expensecategory.WithIsCOGS(true),
+	)
+	cogsCategory, err = expenseCategoryService.Create(ctx, cogsCategory)
+	require.NoError(t, err)
+
+	// Create operating expense category (Office Rent)
+	operatingCategory := expensecategory.New(
+		"Office Rent",
+		expensecategory.WithTenantID(tenantID),
+		expensecategory.WithIsCOGS(false),
+	)
+	operatingCategory, err = expenseCategoryService.Create(ctx, operatingCategory)
+	require.NoError(t, err)
+
+	// Create payment category for revenue
+	paymentCat := paymentcategory.New("Sales Revenue", paymentcategory.WithTenantID(tenantID))
+	paymentCat, err = getPaymentCategoryService(env).Create(ctx, paymentCat)
+	require.NoError(t, err)
+
+	// Create revenue transaction
+	period := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+	revenuePayment := payment.New(
+		money.New(10000000, "USD"), // $100,000
+		paymentCat,
+		payment.WithTenantID(tenantID),
+		payment.WithAccount(account),
+		payment.WithCounterpartyID(testCounterparty.ID()),
+		payment.WithTransactionDate(period),
+		payment.WithAccountingPeriod(period),
+	)
+	_, err = paymentService.Create(ctx, revenuePayment)
+	require.NoError(t, err)
+
+	// Create COGS expense
+	cogsExpense := expense.New(
+		money.New(4000000, "USD"), // $40,000
+		account,
+		cogsCategory,
+		period,
+		expense.WithTenantID(tenantID),
+		expense.WithAccountingPeriod(period),
+		expense.WithComment("Raw materials purchased"),
+	)
+	_, err = expenseService.Create(ctx, cogsExpense)
+	require.NoError(t, err)
+
+	// Create operating expense
+	operatingExpense := expense.New(
+		money.New(2000000, "USD"), // $20,000
+		account,
+		operatingCategory,
+		period,
+		expense.WithTenantID(tenantID),
+		expense.WithAccountingPeriod(period),
+		expense.WithComment("Monthly office rent"),
+	)
+	_, err = expenseService.Create(ctx, operatingExpense)
+	require.NoError(t, err)
+
+	// Generate income statement
+	startDate := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2024, 1, 31, 23, 59, 59, 0, time.UTC)
+
+	stmt, err := reportService.GenerateIncomeStatement(ctx, startDate, endDate)
+	require.NoError(t, err)
+	require.NotNil(t, stmt)
+
+	// Assert COGS section contains Raw Materials
+	assert.NotEmpty(t, stmt.COGSSection.LineItems, "COGS section should have items")
+	assert.Len(t, stmt.COGSSection.LineItems, 1, "COGS section should have exactly 1 item")
+	if len(stmt.COGSSection.LineItems) > 0 {
+		assert.Equal(t, "Raw Materials", stmt.COGSSection.LineItems[0].Name)
+		assert.Equal(t, int64(4000000), stmt.COGSSection.LineItems[0].Amount.Amount())
+	}
+
+	// Assert operating expense section contains Office Rent
+	assert.NotEmpty(t, stmt.OperatingExpenseSection.LineItems, "Operating expense section should have items")
+	assert.Len(t, stmt.OperatingExpenseSection.LineItems, 1, "Operating expense section should have exactly 1 item")
+	if len(stmt.OperatingExpenseSection.LineItems) > 0 {
+		assert.Equal(t, "Office Rent", stmt.OperatingExpenseSection.LineItems[0].Name)
+		assert.Equal(t, int64(2000000), stmt.OperatingExpenseSection.LineItems[0].Amount.Amount())
+	}
+
+	// Assert COGS totals
+	assert.Equal(t, int64(4000000), stmt.COGSSection.Subtotal.Amount(), "COGS subtotal should be $40,000")
+
+	// Assert operating expense totals
+	assert.Equal(t, int64(2000000), stmt.OperatingExpenseSection.Subtotal.Amount(), "Operating expense subtotal should be $20,000")
+}
+
+// TestFinancialReportService_IncomeStatement_GrossProfit tests gross profit calculation
+func TestFinancialReportService_IncomeStatement_GrossProfit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	t.Parallel()
+
+	env := setupTest(t,
+		permissions.PaymentCreate, permissions.PaymentRead,
+		permissions.ExpenseCreate, permissions.ExpenseRead,
+		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
+	)
+	ctx := env.Ctx
+
+	// Create USD currency
+	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyDTO := &currency.CreateDTO{
+		Code:   string(currency.USD.Code()),
+		Name:   currency.USD.Name(),
+		Symbol: string(currency.USD.Symbol()),
+	}
+	err := currencyService.Create(ctx, currencyDTO)
+	require.NoError(t, err)
+
+	// Get services
+	paymentService := getPaymentService(env)
+	expenseService := getExpenseService(env)
+	expenseCategoryService := getExpenseCategoryService(env)
+	counterpartyService := getCounterpartyService(env)
+	reportService := getFinancialReportService(env)
+	accountService := getAccountService(env)
+
+	// Get tenant ID
+	tenantID, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
+
+	// Create counterparty
+	testCounterparty := counterparty.New(
+		"Gross Profit Test Customer",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(tenantID),
+	)
+	testCounterparty, err = counterpartyService.Create(ctx, testCounterparty)
+	require.NoError(t, err)
+
+	// Create account
+	account := moneyaccount.New(
+		"Gross Profit Test Account",
+		money.New(0, "USD"),
+	)
+	account, err = accountService.Create(ctx, account)
+	require.NoError(t, err)
+
+	// Create COGS category
+	cogsCategory := expensecategory.New(
+		"Cost of Materials",
+		expensecategory.WithTenantID(tenantID),
+		expensecategory.WithIsCOGS(true),
+	)
+	cogsCategory, err = expenseCategoryService.Create(ctx, cogsCategory)
+	require.NoError(t, err)
+
+	// Create payment category for revenue
+	paymentCat := paymentcategory.New("Sales Revenue", paymentcategory.WithTenantID(tenantID))
+	paymentCat, err = getPaymentCategoryService(env).Create(ctx, paymentCat)
+	require.NoError(t, err)
+
+	// Setup: Revenue $100,000, COGS $40,000
+	period := time.Date(2024, 2, 15, 10, 0, 0, 0, time.UTC)
+
+	// Create revenue
+	revenuePayment := payment.New(
+		money.New(10000000, "USD"), // $100,000
+		paymentCat,
+		payment.WithTenantID(tenantID),
+		payment.WithAccount(account),
+		payment.WithCounterpartyID(testCounterparty.ID()),
+		payment.WithTransactionDate(period),
+		payment.WithAccountingPeriod(period),
+	)
+	_, err = paymentService.Create(ctx, revenuePayment)
+	require.NoError(t, err)
+
+	// Create COGS expense
+	cogsExpense := expense.New(
+		money.New(4000000, "USD"), // $40,000
+		account,
+		cogsCategory,
+		period,
+		expense.WithTenantID(tenantID),
+		expense.WithAccountingPeriod(period),
+	)
+	_, err = expenseService.Create(ctx, cogsExpense)
+	require.NoError(t, err)
+
+	// Generate income statement
+	startDate := time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2024, 2, 29, 23, 59, 59, 0, time.UTC)
+
+	stmt, err := reportService.GenerateIncomeStatement(ctx, startDate, endDate)
+	require.NoError(t, err)
+
+	// Assert: Gross Profit = Revenue - COGS = $100,000 - $40,000 = $60,000
+	expectedGrossProfit := int64(6000000)
+	assert.Equal(t, expectedGrossProfit, stmt.GrossProfit.Amount(), "Gross Profit should be $60,000")
+
+	// Assert: Gross Profit Ratio = 60%
+	expectedRatio := 60.0
+	assert.InDelta(t, expectedRatio, stmt.GrossProfitRatio, 0.01, "Gross Profit Ratio should be 60%")
+}
+
+// TestFinancialReportService_IncomeStatement_OperatingProfit tests operating profit calculation with three-tier structure
+func TestFinancialReportService_IncomeStatement_OperatingProfit(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	t.Parallel()
+
+	env := setupTest(t,
+		permissions.PaymentCreate, permissions.PaymentRead,
+		permissions.ExpenseCreate, permissions.ExpenseRead,
+		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
+	)
+	ctx := env.Ctx
+
+	// Create USD currency
+	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyDTO := &currency.CreateDTO{
+		Code:   string(currency.USD.Code()),
+		Name:   currency.USD.Name(),
+		Symbol: string(currency.USD.Symbol()),
+	}
+	err := currencyService.Create(ctx, currencyDTO)
+	require.NoError(t, err)
+
+	// Get services
+	paymentService := getPaymentService(env)
+	expenseService := getExpenseService(env)
+	expenseCategoryService := getExpenseCategoryService(env)
+	counterpartyService := getCounterpartyService(env)
+	reportService := getFinancialReportService(env)
+	accountService := getAccountService(env)
+
+	// Get tenant ID
+	tenantID, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
+
+	// Create counterparty
+	testCounterparty := counterparty.New(
+		"Operating Profit Test Customer",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(tenantID),
+	)
+	testCounterparty, err = counterpartyService.Create(ctx, testCounterparty)
+	require.NoError(t, err)
+
+	// Create account
+	account := moneyaccount.New(
+		"Operating Profit Test Account",
+		money.New(0, "USD"),
+	)
+	account, err = accountService.Create(ctx, account)
+	require.NoError(t, err)
+
+	// Create COGS category
+	cogsCategory := expensecategory.New(
+		"Cost of Materials",
+		expensecategory.WithTenantID(tenantID),
+		expensecategory.WithIsCOGS(true),
+	)
+	cogsCategory, err = expenseCategoryService.Create(ctx, cogsCategory)
+	require.NoError(t, err)
+
+	// Create operating expense category
+	operatingCategory := expensecategory.New(
+		"Salaries",
+		expensecategory.WithTenantID(tenantID),
+		expensecategory.WithIsCOGS(false),
+	)
+	operatingCategory, err = expenseCategoryService.Create(ctx, operatingCategory)
+	require.NoError(t, err)
+
+	// Create payment category for revenue
+	paymentCat := paymentcategory.New("Sales Revenue", paymentcategory.WithTenantID(tenantID))
+	paymentCat, err = getPaymentCategoryService(env).Create(ctx, paymentCat)
+	require.NoError(t, err)
+
+	// Setup: Revenue $100,000, COGS $40,000, Operating Expenses $30,000
+	period := time.Date(2024, 3, 15, 10, 0, 0, 0, time.UTC)
+
+	// Create revenue
+	revenuePayment := payment.New(
+		money.New(10000000, "USD"), // $100,000
+		paymentCat,
+		payment.WithTenantID(tenantID),
+		payment.WithAccount(account),
+		payment.WithCounterpartyID(testCounterparty.ID()),
+		payment.WithTransactionDate(period),
+		payment.WithAccountingPeriod(period),
+	)
+	_, err = paymentService.Create(ctx, revenuePayment)
+	require.NoError(t, err)
+
+	// Create COGS expense
+	cogsExpense := expense.New(
+		money.New(4000000, "USD"), // $40,000
+		account,
+		cogsCategory,
+		period,
+		expense.WithTenantID(tenantID),
+		expense.WithAccountingPeriod(period),
+	)
+	_, err = expenseService.Create(ctx, cogsExpense)
+	require.NoError(t, err)
+
+	// Create operating expense
+	operatingExpense := expense.New(
+		money.New(3000000, "USD"), // $30,000
+		account,
+		operatingCategory,
+		period,
+		expense.WithTenantID(tenantID),
+		expense.WithAccountingPeriod(period),
+	)
+	_, err = expenseService.Create(ctx, operatingExpense)
+	require.NoError(t, err)
+
+	// Generate income statement
+	startDate := time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2024, 3, 31, 23, 59, 59, 0, time.UTC)
+
+	stmt, err := reportService.GenerateIncomeStatement(ctx, startDate, endDate)
+	require.NoError(t, err)
+
+	// Assert three-tier profit calculation
+	// Gross Profit = Revenue - COGS = $100,000 - $40,000 = $60,000
+	expectedGrossProfit := int64(6000000)
+	assert.Equal(t, expectedGrossProfit, stmt.GrossProfit.Amount(), "Gross Profit should be $60,000")
+
+	// Operating Profit = Gross Profit - Operating Expenses = $60,000 - $30,000 = $30,000
+	expectedOperatingProfit := int64(3000000)
+	assert.Equal(t, expectedOperatingProfit, stmt.OperatingProfit.Amount(), "Operating Profit should be $30,000")
+
+	// Verify gross profit ratio
+	expectedGrossRatio := 60.0 // 60,000 / 100,000 = 60%
+	assert.InDelta(t, expectedGrossRatio, stmt.GrossProfitRatio, 0.01, "Gross Profit Ratio should be 60%")
+
+	// Verify operating profit ratio
+	expectedOperatingRatio := 30.0 // 30,000 / 100,000 = 30%
+	assert.InDelta(t, expectedOperatingRatio, stmt.OperatingProfitRatio, 0.01, "Operating Profit Ratio should be 30%")
+}
+
+// TestFinancialReportService_IncomeStatement_NoCOGS tests income statement with only operating expenses
+func TestFinancialReportService_IncomeStatement_NoCOGS(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	t.Parallel()
+
+	env := setupTest(t,
+		permissions.PaymentCreate, permissions.PaymentRead,
+		permissions.ExpenseCreate, permissions.ExpenseRead,
+		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
+	)
+	ctx := env.Ctx
+
+	// Create USD currency
+	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyDTO := &currency.CreateDTO{
+		Code:   string(currency.USD.Code()),
+		Name:   currency.USD.Name(),
+		Symbol: string(currency.USD.Symbol()),
+	}
+	err := currencyService.Create(ctx, currencyDTO)
+	require.NoError(t, err)
+
+	// Get services
+	paymentService := getPaymentService(env)
+	expenseService := getExpenseService(env)
+	expenseCategoryService := getExpenseCategoryService(env)
+	counterpartyService := getCounterpartyService(env)
+	reportService := getFinancialReportService(env)
+	accountService := getAccountService(env)
+
+	// Get tenant ID
+	tenantID, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
+
+	// Create counterparty
+	testCounterparty := counterparty.New(
+		"No COGS Test Customer",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(tenantID),
+	)
+	testCounterparty, err = counterpartyService.Create(ctx, testCounterparty)
+	require.NoError(t, err)
+
+	// Create account
+	account := moneyaccount.New(
+		"No COGS Test Account",
+		money.New(0, "USD"),
+	)
+	account, err = accountService.Create(ctx, account)
+	require.NoError(t, err)
+
+	// Create operating expense category (no COGS category)
+	operatingCategory := expensecategory.New(
+		"Consulting Fees",
+		expensecategory.WithTenantID(tenantID),
+		expensecategory.WithIsCOGS(false),
+	)
+	operatingCategory, err = expenseCategoryService.Create(ctx, operatingCategory)
+	require.NoError(t, err)
+
+	// Create payment category for revenue
+	paymentCat := paymentcategory.New("Service Revenue", paymentcategory.WithTenantID(tenantID))
+	paymentCat, err = getPaymentCategoryService(env).Create(ctx, paymentCat)
+	require.NoError(t, err)
+
+	// Setup: Revenue $80,000, Operating Expenses $25,000, No COGS
+	period := time.Date(2024, 4, 15, 10, 0, 0, 0, time.UTC)
+
+	// Create revenue
+	revenuePayment := payment.New(
+		money.New(8000000, "USD"), // $80,000
+		paymentCat,
+		payment.WithTenantID(tenantID),
+		payment.WithAccount(account),
+		payment.WithCounterpartyID(testCounterparty.ID()),
+		payment.WithTransactionDate(period),
+		payment.WithAccountingPeriod(period),
+	)
+	_, err = paymentService.Create(ctx, revenuePayment)
+	require.NoError(t, err)
+
+	// Create only operating expense
+	operatingExpense := expense.New(
+		money.New(2500000, "USD"), // $25,000
+		account,
+		operatingCategory,
+		period,
+		expense.WithTenantID(tenantID),
+		expense.WithAccountingPeriod(period),
+	)
+	_, err = expenseService.Create(ctx, operatingExpense)
+	require.NoError(t, err)
+
+	// Generate income statement
+	startDate := time.Date(2024, 4, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2024, 4, 30, 23, 59, 59, 0, time.UTC)
+
+	stmt, err := reportService.GenerateIncomeStatement(ctx, startDate, endDate)
+	require.NoError(t, err)
+
+	// Assert COGS section is empty or zero
+	assert.Empty(t, stmt.COGSSection.LineItems, "COGS section should be empty when no COGS categories exist")
+	assert.Equal(t, int64(0), stmt.COGSSection.Subtotal.Amount(), "COGS subtotal should be $0")
+
+	// Assert: Gross Profit = Revenue (no COGS deduction)
+	expectedGrossProfit := int64(8000000)
+	assert.Equal(t, expectedGrossProfit, stmt.GrossProfit.Amount(), "Gross Profit should equal Revenue when no COGS")
+
+	// Assert: Operating Profit = Revenue - Operating Expenses = $80,000 - $25,000 = $55,000
+	expectedOperatingProfit := int64(5500000)
+	assert.Equal(t, expectedOperatingProfit, stmt.OperatingProfit.Amount(), "Operating Profit should be $55,000")
+
+	// Verify gross profit ratio should be 100% (no COGS)
+	expectedGrossRatio := 100.0
+	assert.InDelta(t, expectedGrossRatio, stmt.GrossProfitRatio, 0.01, "Gross Profit Ratio should be 100% with no COGS")
+}
+
+// TestFinancialReportService_IncomeStatement_COGS_Percentage tests COGS percentage calculation
+func TestFinancialReportService_IncomeStatement_COGS_Percentage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test")
+	}
+
+	t.Parallel()
+
+	env := setupTest(t,
+		permissions.PaymentCreate, permissions.PaymentRead,
+		permissions.ExpenseCreate, permissions.ExpenseRead,
+		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
+	)
+	ctx := env.Ctx
+
+	// Create USD currency
+	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
+	currencyDTO := &currency.CreateDTO{
+		Code:   string(currency.USD.Code()),
+		Name:   currency.USD.Name(),
+		Symbol: string(currency.USD.Symbol()),
+	}
+	err := currencyService.Create(ctx, currencyDTO)
+	require.NoError(t, err)
+
+	// Get services
+	paymentService := getPaymentService(env)
+	expenseService := getExpenseService(env)
+	expenseCategoryService := getExpenseCategoryService(env)
+	counterpartyService := getCounterpartyService(env)
+	reportService := getFinancialReportService(env)
+	accountService := getAccountService(env)
+
+	// Get tenant ID
+	tenantID, err := composables.UseTenantID(ctx)
+	require.NoError(t, err)
+
+	// Create counterparty
+	testCounterparty := counterparty.New(
+		"COGS Percentage Test Customer",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(tenantID),
+	)
+	testCounterparty, err = counterpartyService.Create(ctx, testCounterparty)
+	require.NoError(t, err)
+
+	// Create account
+	account := moneyaccount.New(
+		"COGS Percentage Test Account",
+		money.New(0, "USD"),
+	)
+	account, err = accountService.Create(ctx, account)
+	require.NoError(t, err)
+
+	// Create COGS category
+	cogsCategory := expensecategory.New(
+		"Raw Materials",
+		expensecategory.WithTenantID(tenantID),
+		expensecategory.WithIsCOGS(true),
+	)
+	cogsCategory, err = expenseCategoryService.Create(ctx, cogsCategory)
+	require.NoError(t, err)
+
+	// Create payment category for revenue
+	paymentCat := paymentcategory.New("Product Sales", paymentcategory.WithTenantID(tenantID))
+	paymentCat, err = getPaymentCategoryService(env).Create(ctx, paymentCat)
+	require.NoError(t, err)
+
+	// Setup: Revenue $100,000, COGS $25,000 (25% of revenue)
+	period := time.Date(2024, 5, 15, 10, 0, 0, 0, time.UTC)
+
+	// Create revenue
+	revenuePayment := payment.New(
+		money.New(10000000, "USD"), // $100,000
+		paymentCat,
+		payment.WithTenantID(tenantID),
+		payment.WithAccount(account),
+		payment.WithCounterpartyID(testCounterparty.ID()),
+		payment.WithTransactionDate(period),
+		payment.WithAccountingPeriod(period),
+	)
+	_, err = paymentService.Create(ctx, revenuePayment)
+	require.NoError(t, err)
+
+	// Create COGS expense (25% of revenue)
+	cogsExpense := expense.New(
+		money.New(2500000, "USD"), // $25,000
+		account,
+		cogsCategory,
+		period,
+		expense.WithTenantID(tenantID),
+		expense.WithAccountingPeriod(period),
+	)
+	_, err = expenseService.Create(ctx, cogsExpense)
+	require.NoError(t, err)
+
+	// Generate income statement
+	startDate := time.Date(2024, 5, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2024, 5, 31, 23, 59, 59, 0, time.UTC)
+
+	stmt, err := reportService.GenerateIncomeStatement(ctx, startDate, endDate)
+	require.NoError(t, err)
+
+	// Assert COGS percentage = 25% of revenue
+	expectedCOGSPercentage := 25.0 // $25,000 / $100,000 = 25%
+	assert.InDelta(t, expectedCOGSPercentage, stmt.COGSSection.Percentage, 0.01, "COGS percentage should be 25% of revenue")
+
+	// Assert Gross Profit Ratio = 75% (100% - 25%)
+	expectedGrossProfitRatio := 75.0
+	assert.InDelta(t, expectedGrossProfitRatio, stmt.GrossProfitRatio, 0.01, "Gross Profit Ratio should be 75%")
+
+	// Log for debugging
+	t.Logf("Revenue: %s", stmt.RevenueSection.Subtotal.Display())
+	t.Logf("COGS: %s (%.2f%% of revenue)", stmt.COGSSection.Subtotal.Display(), stmt.COGSSection.Percentage)
+	t.Logf("Gross Profit: %s (%.2f%% of revenue)", stmt.GrossProfit.Display(), stmt.GrossProfitRatio)
 }

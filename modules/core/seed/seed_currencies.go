@@ -15,9 +15,9 @@ func CreateCurrencies(ctx context.Context, app application.Application) error {
 
 	conf.Logger().Info("Seeding currencies")
 	for _, c := range currency.Currencies {
-		conf.Logger().Infof("Creating or updating currency: %s (%s)", c.Name, c.Code)
-		if err := currencyRepository.CreateOrUpdate(ctx, &c); err != nil {
-			conf.Logger().Errorf("Failed to create currency %s: %v", c.Code, err)
+		conf.Logger().Infof("Creating or updating currency: %s (%s)", c.Name(), c.Code())
+		if err := currencyRepository.CreateOrUpdate(ctx, c); err != nil {
+			conf.Logger().Errorf("Failed to create currency %s: %v", c.Code(), err)
 			return err
 		}
 	}

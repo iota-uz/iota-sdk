@@ -18,7 +18,7 @@ var UsersLink = types.NavigationItem{
 	Name:        "NavigationLinks.Users",
 	Icon:        nil,
 	Href:        "/users",
-	Permissions: []*permission.Permission{permissions.UserRead},
+	Permissions: []permission.Permission{permissions.UserRead},
 	Children:    nil,
 }
 
@@ -26,7 +26,7 @@ var RolesLink = types.NavigationItem{
 	Name:        "NavigationLinks.Roles",
 	Icon:        nil,
 	Href:        "/roles",
-	Permissions: []*permission.Permission{permissions.RoleRead},
+	Permissions: []permission.Permission{permissions.RoleRead},
 	Children:    nil,
 }
 
@@ -34,7 +34,7 @@ var GroupsLink = types.NavigationItem{
 	Name:        "NavigationLinks.Groups",
 	Icon:        nil,
 	Href:        "/groups",
-	Permissions: []*permission.Permission{permissions.GroupRead},
+	Permissions: []permission.Permission{permissions.GroupRead},
 	Children:    nil,
 }
 

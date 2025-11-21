@@ -39,6 +39,7 @@ templ GroupCreatedEvent(group *viewmodels.Group, rowProps *base.TableRowProps) {
 
 templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 	{{
+		pageCtx := composables.UsePageCtx(ctx)
 		rowProps.Attrs["id"] = fmt.Sprintf("group-%s", group.ID)
 		rowProps.Attrs["hx-get"] = fmt.Sprintf("/groups/%s", group.ID)
 		rowProps.Attrs["hx-target"] = "body"
@@ -52,7 +53,23 @@ templ GroupRow(group *viewmodels.Group, rowProps *base.TableRowProps) {
 					Initials: group.GetInitials(),
 					Variant:  avatar.Round,
 				})
-				<span>{ group.Name }</span>
+				<div class="flex flex-col gap-1">
+					<div class="flex items-center gap-2">
+						<span>{ group.Name }</span>
+						if group.Type == "system" {
+							@badge.New(badge.Props{
+								Class:   templ.Classes("px-2"),
+								Variant: badge.VariantBlue,
+								Size:    badge.SizeNormal,
+							}) {
+								{ pageCtx.T("System") }
+							}
+						}
+					</div>
+					if group.Description != "" {
+						<p class="text-xs text-gray-600">{ group.Description }</p>
+					}
+				</div>
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {

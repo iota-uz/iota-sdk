@@ -36,7 +36,7 @@ const (
 
 	// Query to get expenses by expense category for a period
 	selectExpensesByCategory = `
-		SELECT 
+		SELECT
 			ec.id as category_id,
 			ec.name as category_name,
 			COALESCE(SUM(t.amount), 0) as total_amount,
@@ -50,6 +50,46 @@ const (
 			AND t.transaction_type = 'WITHDRAWAL'
 			AND t.accounting_period >= $2
 			AND t.accounting_period <= $3
+		GROUP BY ec.id, ec.name, t.destination_account_id, ma.balance_currency_id
+		ORDER BY ec.name`
+
+	// Query to get COGS (Cost of Goods Sold) by category for a period
+	selectCOGSByCategory = `
+		SELECT
+			ec.id as category_id,
+			ec.name as category_name,
+			COALESCE(SUM(t.amount), 0) as total_amount,
+			t.destination_account_id,
+			ma.balance_currency_id as currency
+		FROM transactions t
+		INNER JOIN expenses e ON t.id = e.transaction_id
+		INNER JOIN expense_categories ec ON e.category_id = ec.id
+		LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
+		WHERE t.tenant_id = $1
+			AND t.transaction_type = 'WITHDRAWAL'
+			AND t.accounting_period >= $2
+			AND t.accounting_period <= $3
+			AND ec.is_cogs = TRUE
+		GROUP BY ec.id, ec.name, t.destination_account_id, ma.balance_currency_id
+		ORDER BY ec.name`
+
+	// Query to get operating expenses by category for a period
+	selectOperatingExpensesByCategory = `
+		SELECT
+			ec.id as category_id,
+			ec.name as category_name,
+			COALESCE(SUM(t.amount), 0) as total_amount,
+			t.destination_account_id,
+			ma.balance_currency_id as currency
+		FROM transactions t
+		INNER JOIN expenses e ON t.id = e.transaction_id
+		INNER JOIN expense_categories ec ON e.category_id = ec.id
+		LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
+		WHERE t.tenant_id = $1
+			AND t.transaction_type = 'WITHDRAWAL'
+			AND t.accounting_period >= $2
+			AND t.accounting_period <= $3
+			AND ec.is_cogs = FALSE
 		GROUP BY ec.id, ec.name, t.destination_account_id, ma.balance_currency_id
 		ORDER BY ec.name`
 
@@ -107,7 +147,7 @@ const (
 
 	// Query to get monthly expenses by category
 	selectMonthlyExpensesByCategory = `
-		SELECT 
+		SELECT
 			ec.id as category_id,
 			ec.name as category_name,
 			EXTRACT(YEAR FROM t.accounting_period) as year,
@@ -122,7 +162,55 @@ const (
 			AND t.transaction_type = 'WITHDRAWAL'
 			AND t.accounting_period >= $2
 			AND t.accounting_period <= $3
-		GROUP BY ec.id, ec.name, 
+		GROUP BY ec.id, ec.name,
+		         EXTRACT(YEAR FROM t.accounting_period),
+		         EXTRACT(MONTH FROM t.accounting_period),
+		         ma.balance_currency_id
+		ORDER BY ec.name, year, month`
+
+	// Query to get monthly COGS by category
+	selectMonthlyCOGSByCategory = `
+		SELECT
+			ec.id as category_id,
+			ec.name as category_name,
+			EXTRACT(YEAR FROM t.accounting_period) as year,
+			EXTRACT(MONTH FROM t.accounting_period) as month,
+			COALESCE(SUM(t.amount), 0) as total_amount,
+			ma.balance_currency_id as currency
+		FROM transactions t
+		INNER JOIN expenses e ON t.id = e.transaction_id
+		INNER JOIN expense_categories ec ON e.category_id = ec.id
+		LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
+		WHERE t.tenant_id = $1
+			AND t.transaction_type = 'WITHDRAWAL'
+			AND t.accounting_period >= $2
+			AND t.accounting_period <= $3
+			AND ec.is_cogs = TRUE
+		GROUP BY ec.id, ec.name,
+		         EXTRACT(YEAR FROM t.accounting_period),
+		         EXTRACT(MONTH FROM t.accounting_period),
+		         ma.balance_currency_id
+		ORDER BY ec.name, year, month`
+
+	// Query to get monthly operating expenses by category
+	selectMonthlyOperatingExpensesByCategory = `
+		SELECT
+			ec.id as category_id,
+			ec.name as category_name,
+			EXTRACT(YEAR FROM t.accounting_period) as year,
+			EXTRACT(MONTH FROM t.accounting_period) as month,
+			COALESCE(SUM(t.amount), 0) as total_amount,
+			ma.balance_currency_id as currency
+		FROM transactions t
+		INNER JOIN expenses e ON t.id = e.transaction_id
+		INNER JOIN expense_categories ec ON e.category_id = ec.id
+		LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
+		WHERE t.tenant_id = $1
+			AND t.transaction_type = 'WITHDRAWAL'
+			AND t.accounting_period >= $2
+			AND t.accounting_period <= $3
+			AND ec.is_cogs = FALSE
+		GROUP BY ec.id, ec.name,
 		         EXTRACT(YEAR FROM t.accounting_period),
 		         EXTRACT(MONTH FROM t.accounting_period),
 		         ma.balance_currency_id
@@ -291,12 +379,16 @@ type MonthlyReportLineItem struct {
 
 // IncomeStatementData contains raw data for income statement generation
 type IncomeStatementData struct {
-	StartDate     time.Time
-	EndDate       time.Time
-	IncomeItems   []ReportLineItem
-	ExpenseItems  []ReportLineItem
-	TotalIncome   *money.Money
-	TotalExpenses *money.Money
+	StartDate              time.Time
+	EndDate                time.Time
+	IncomeItems            []ReportLineItem
+	ExpenseItems           []ReportLineItem // Keep for backward compatibility
+	COGSItems              []ReportLineItem
+	OperatingExpenseItems  []ReportLineItem
+	TotalIncome            *money.Money
+	TotalExpenses          *money.Money // Keep for backward compatibility
+	TotalCOGS              *money.Money
+	TotalOperatingExpenses *money.Money
 }
 
 // CashflowLineItem represents a single cashflow line item
@@ -337,6 +429,8 @@ type FinancialReportsQueryRepository interface {
 	GetIncomeStatementData(ctx context.Context, startDate, endDate time.Time) (*IncomeStatementData, error)
 	GetIncomeByCategory(ctx context.Context, startDate, endDate time.Time) ([]ReportLineItem, *money.Money, error)
 	GetExpensesByCategory(ctx context.Context, startDate, endDate time.Time) ([]ReportLineItem, *money.Money, error)
+	GetCOGSByCategory(ctx context.Context, startDate, endDate time.Time) ([]ReportLineItem, *money.Money, error)
+	GetOperatingExpensesByCategory(ctx context.Context, startDate, endDate time.Time) ([]ReportLineItem, *money.Money, error)
 	GetMonthlyIncomeByCategory(ctx context.Context, startDate, endDate time.Time) ([]MonthlyReportLineItem, error)
 	GetMonthlyExpensesByCategory(ctx context.Context, startDate, endDate time.Time) ([]MonthlyReportLineItem, error)
 
@@ -367,13 +461,27 @@ func (r *pgFinancialReportsQueryRepository) GetIncomeStatementData(ctx context.C
 		return nil, errors.Wrap(err, "failed to get expense data")
 	}
 
+	cogsItems, totalCOGS, err := r.GetCOGSByCategory(ctx, startDate, endDate)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get COGS data")
+	}
+
+	operatingExpenseItems, totalOperatingExpenses, err := r.GetOperatingExpensesByCategory(ctx, startDate, endDate)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get operating expense data")
+	}
+
 	return &IncomeStatementData{
-		StartDate:     startDate,
-		EndDate:       endDate,
-		IncomeItems:   incomeItems,
-		ExpenseItems:  expenseItems,
-		TotalIncome:   totalIncome,
-		TotalExpenses: totalExpenses,
+		StartDate:              startDate,
+		EndDate:                endDate,
+		IncomeItems:            incomeItems,
+		ExpenseItems:           expenseItems, // Keep for backward compatibility
+		COGSItems:              cogsItems,
+		OperatingExpenseItems:  operatingExpenseItems,
+		TotalIncome:            totalIncome,
+		TotalExpenses:          totalExpenses, // Keep for backward compatibility
+		TotalCOGS:              totalCOGS,
+		TotalOperatingExpenses: totalOperatingExpenses,
 	}, nil
 }
 
@@ -529,6 +637,139 @@ func (r *pgFinancialReportsQueryRepository) GetExpensesByCategory(ctx context.Co
 	}
 
 	return items, totalExpenses, nil
+}
+
+// GetCOGSByCategory retrieves Cost of Goods Sold grouped by expense category for a period
+func (r *pgFinancialReportsQueryRepository) GetCOGSByCategory(ctx context.Context, startDate, endDate time.Time) ([]ReportLineItem, *money.Money, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get tenant ID")
+	}
+
+	rows, err := tx.Query(ctx, selectCOGSByCategory, tenantID, startDate, endDate)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to query COGS by category")
+	}
+	defer rows.Close()
+
+	var items []ReportLineItem
+	var totalAmount int64
+	defaultCurrency := "USD" // Default currency, should be configurable
+
+	for rows.Next() {
+		var categoryID uuid.UUID
+		var categoryName string
+		var amount int64
+		var accountID *string
+		var currency *string
+
+		err := rows.Scan(&categoryID, &categoryName, &amount, &accountID, &currency)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to scan COGS row")
+		}
+
+		// Use account currency or default
+		itemCurrency := defaultCurrency
+		if currency != nil {
+			itemCurrency = *currency
+		}
+
+		items = append(items, ReportLineItem{
+			CategoryID:   categoryID,
+			CategoryName: categoryName,
+			Amount:       money.New(amount, itemCurrency),
+		})
+
+		totalAmount += amount
+	}
+
+	// Get total COGS for percentage calculations
+	// We'll sum the amounts we've collected since there's no separate total query
+	totalCOGSCurrency := defaultCurrency
+	if len(items) > 0 {
+		totalCOGSCurrency = items[0].Amount.Currency().Code
+	}
+	totalCOGS := money.New(totalAmount, totalCOGSCurrency)
+
+	// Calculate percentages
+	for i := range items {
+		if totalAmount > 0 {
+			items[i].Percentage = float64(items[i].Amount.Amount()) / float64(totalAmount) * 100
+		}
+	}
+
+	return items, totalCOGS, nil
+}
+
+// GetOperatingExpensesByCategory retrieves operating expenses (non-COGS) grouped by expense category for a period
+func (r *pgFinancialReportsQueryRepository) GetOperatingExpensesByCategory(ctx context.Context, startDate, endDate time.Time) ([]ReportLineItem, *money.Money, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get transaction")
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to get tenant ID")
+	}
+
+	rows, err := tx.Query(ctx, selectOperatingExpensesByCategory, tenantID, startDate, endDate)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to query operating expenses by category")
+	}
+	defer rows.Close()
+
+	var items []ReportLineItem
+	var totalAmount int64
+	defaultCurrency := "USD" // Default currency, should be configurable
+
+	for rows.Next() {
+		var categoryID uuid.UUID
+		var categoryName string
+		var amount int64
+		var accountID *string
+		var currency *string
+
+		err := rows.Scan(&categoryID, &categoryName, &amount, &accountID, &currency)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "failed to scan operating expense row")
+		}
+
+		// Use account currency or default
+		itemCurrency := defaultCurrency
+		if currency != nil {
+			itemCurrency = *currency
+		}
+
+		items = append(items, ReportLineItem{
+			CategoryID:   categoryID,
+			CategoryName: categoryName,
+			Amount:       money.New(amount, itemCurrency),
+		})
+
+		totalAmount += amount
+	}
+
+	// Get total operating expenses for percentage calculations
+	totalOpExCurrency := defaultCurrency
+	if len(items) > 0 {
+		totalOpExCurrency = items[0].Amount.Currency().Code
+	}
+	totalOpEx := money.New(totalAmount, totalOpExCurrency)
+
+	// Calculate percentages
+	for i := range items {
+		if totalAmount > 0 {
+			items[i].Percentage = float64(items[i].Amount.Amount()) / float64(totalAmount) * 100
+		}
+	}
+
+	return items, totalOpEx, nil
 }
 
 // GetMonthlyIncomeByCategory retrieves income with monthly breakdown by payment category

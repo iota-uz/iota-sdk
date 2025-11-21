@@ -183,6 +183,7 @@ func ToDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategor
 		TenantID:    entity.TenantID().String(),
 		Name:        entity.Name(),
 		Description: mapping.ValueToSQLNullString(entity.Description()),
+		IsCOGS:      entity.IsCOGS(),
 		CreatedAt:   entity.CreatedAt(),
 		UpdatedAt:   entity.UpdatedAt(),
 	}
@@ -197,6 +198,7 @@ func ToDomainExpenseCategory(dbCategory *models.ExpenseCategory) (category.Expen
 	opts := []category.Option{
 		category.WithID(uuid.MustParse(dbCategory.ID)),
 		category.WithTenantID(tenantID),
+		category.WithIsCOGS(dbCategory.IsCOGS),
 		category.WithCreatedAt(dbCategory.CreatedAt),
 		category.WithUpdatedAt(dbCategory.UpdatedAt),
 	}

@@ -54,7 +54,7 @@ func NewSessionRepository() session.Repository {
 	}
 }
 
-func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]*session.Session, error) {
+func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.FindParams) ([]session.Session, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *SessionRepository) GetAll(ctx context.Context) ([]*session.Session, error) {
+func (g *SessionRepository) GetAll(ctx context.Context) ([]session.Session, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func (g *SessionRepository) GetAll(ctx context.Context) ([]*session.Session, err
 	return g.querySessions(ctx, selectSessionQuery+" WHERE tenant_id = $1", tenantID)
 }
 
-func (g *SessionRepository) GetByToken(ctx context.Context, token string) (*session.Session, error) {
+func (g *SessionRepository) GetByToken(ctx context.Context, token string) (session.Session, error) {
 	// First try with tenant from context
 	tenantID, err := composables.UseTenantID(ctx)
 
@@ -139,7 +139,7 @@ func (g *SessionRepository) GetByToken(ctx context.Context, token string) (*sess
 	return sessions[0], nil
 }
 
-func (g *SessionRepository) Create(ctx context.Context, data *session.Session) error {
+func (g *SessionRepository) Create(ctx context.Context, data session.Session) error {
 	dbSession := ToDBSession(data)
 
 	// First try to get tenant from context
@@ -161,7 +161,7 @@ func (g *SessionRepository) Create(ctx context.Context, data *session.Session) e
 	)
 }
 
-func (g *SessionRepository) Update(ctx context.Context, data *session.Session) error {
+func (g *SessionRepository) Update(ctx context.Context, data session.Session) error {
 	dbSession := ToDBSession(data)
 
 	// First try to get tenant from context
@@ -174,7 +174,7 @@ func (g *SessionRepository) Update(ctx context.Context, data *session.Session) e
 		if err != nil {
 			return err
 		}
-		dbSession.TenantID = existingSession.TenantID.String()
+		dbSession.TenantID = existingSession.TenantID().String()
 	}
 	return g.execQuery(
 		ctx,
@@ -188,14 +188,14 @@ func (g *SessionRepository) Update(ctx context.Context, data *session.Session) e
 }
 
 func (g *SessionRepository) Delete(ctx context.Context, token string) error {
-	session, err := g.GetByToken(ctx, token)
+	sess, err := g.GetByToken(ctx, token)
 	if err != nil {
 		return err
 	}
-	return g.execQuery(ctx, deleteSessionQuery, token, session.TenantID)
+	return g.execQuery(ctx, deleteSessionQuery, token, sess.TenantID())
 }
 
-func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]*session.Session, error) {
+func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]session.Session, error) {
 	sql := repo.Join(
 		selectSessionQuery,
 		repo.JoinWhere("sessions.user_id = $1"),
@@ -218,7 +218,7 @@ func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]
 	return sessions, nil
 }
 
-func (g *SessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]*session.Session, error) {
+func (g *SessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]session.Session, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (g *SessionRepository) querySessions(ctx context.Context, query string, arg
 	}
 	defer rows.Close()
 
-	var sessions []*session.Session
+	var sessions []session.Session
 	for rows.Next() {
 		var sessionRow models.Session
 		if err := rows.Scan(
