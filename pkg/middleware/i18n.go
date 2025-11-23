@@ -12,6 +12,22 @@ import (
 	"golang.org/x/text/language"
 )
 
+// Application interface for accessing app config needed by localizer
+type Application interface {
+	Bundle() *i18n.Bundle
+	GetSupportedLanguages() []string
+}
+
+// languageTagsFromCodes converts language codes to language.Tag slice
+func languageTagsFromCodes(codes []string) []language.Tag {
+	supported := intl.GetSupportedLanguages(codes)
+	tags := make([]language.Tag, len(supported))
+	for i, lang := range supported {
+		tags[i] = lang.Tag
+	}
+	return tags
+}
+
 func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	user, err := composables.UseUser(ctx)
 	if err != nil {
@@ -24,26 +40,27 @@ func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	return tag, nil
 }
 
-func useLocale(r *http.Request, defaultLocale language.Tag) language.Tag {
+func useLocale(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
 	tag, err := useLocaleFromUser(r.Context())
 	if err == nil {
 		return tag
 	}
 	tags, _, err := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
-	if err != nil {
+	if err != nil || len(tags) == 0 {
 		return defaultLocale
 	}
-	if len(tags) == 0 {
-		return defaultLocale
-	}
-	return tags[0]
+	matcher := language.NewMatcher(supported)
+	_, idx, _ := matcher.Match(tags...)
+	return supported[idx]
 }
 
-func ProvideLocalizer(bundle *i18n.Bundle) mux.MiddlewareFunc {
+func ProvideLocalizer(app Application) mux.MiddlewareFunc {
+	bundle := app.Bundle()
+	supportedLanguages := languageTagsFromCodes(app.GetSupportedLanguages())
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				locale := useLocale(r, language.English)
+				locale := useLocale(r, language.English, supportedLanguages)
 				ctx := intl.WithLocalizer(
 					r.Context(),
 					i18n.NewLocalizer(bundle, locale.String()),

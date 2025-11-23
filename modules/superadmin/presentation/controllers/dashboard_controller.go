@@ -40,7 +40,7 @@ func (c *DashboardController) Register(r *mux.Router) {
 		middleware.ProvideUser(),
 		superadminMiddleware.RequireSuperAdmin(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

@@ -173,7 +173,7 @@ func (s *Suite) newRequest(method, path string) *Request {
 
 func (s *Suite) setupMiddleware() {
 	// Use the standard middleware for i18n/localizer setup
-	s.router.Use(middleware.ProvideLocalizer(s.env.App.Bundle()))
+	s.router.Use(middleware.ProvideLocalizer(s.env.App))
 
 	s.router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
