@@ -39,7 +39,7 @@ func (c *SpotlightController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.ProvideUser(),
 		middleware.RedirectNotAuthenticated(),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 	)
 	router.HandleFunc("/search", c.Get).Methods(http.MethodGet)
 }

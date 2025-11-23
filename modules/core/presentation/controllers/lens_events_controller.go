@@ -37,7 +37,7 @@ func (c *LensEventsController) Register(r *mux.Router) {
 	router.Use(
 		middleware.Authorize(),
 		middleware.ProvideUser(),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 	)
 
 	// Handle chart events
