@@ -43,7 +43,7 @@ func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
-	router.Use(middleware.ProvideLocalizer(c.app.Bundle()))
+	router.Use(middleware.ProvideLocalizer(c.app))
 	router.Use(middleware.WithTransaction())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
