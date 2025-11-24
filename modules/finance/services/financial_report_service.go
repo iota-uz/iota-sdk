@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -67,7 +68,9 @@ func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, st
 	incomeStatement.OperatingExpenseSection = operatingExpenseSection
 
 	// Recalculate profit sections with COGS separation
-	grossProfit, _ := revenueSection.Subtotal.Subtract(cogsSection.Subtotal)
+	// Note: COGS and operating expenses are stored as negative values (accounting convention)
+	// so we Add them instead of Subtract to get the correct profit calculation
+	grossProfit, _ := revenueSection.Subtotal.Add(cogsSection.Subtotal)
 	incomeStatement.GrossProfit = grossProfit
 
 	// Calculate gross profit ratio
@@ -76,7 +79,7 @@ func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, st
 	}
 
 	// Calculate operating profit
-	operatingProfit, _ := grossProfit.Subtract(operatingExpenseSection.Subtotal)
+	operatingProfit, _ := grossProfit.Add(operatingExpenseSection.Subtotal)
 	incomeStatement.OperatingProfit = operatingProfit
 
 	// Calculate operating profit ratio
@@ -134,10 +137,10 @@ func (s *FinancialReportService) createCOGSSection(data *query.IncomeStatementDa
 		})
 	}
 
-	// Calculate COGS percentage of revenue
+	// Calculate COGS percentage of revenue (use absolute value since COGS is stored as negative)
 	percentage := 0.0
 	if !data.TotalIncome.IsZero() {
-		percentage = (float64(data.TotalCOGS.Amount()) / float64(data.TotalIncome.Amount())) * 100
+		percentage = math.Abs(float64(data.TotalCOGS.Amount())) / float64(data.TotalIncome.Amount()) * 100
 	}
 
 	return value_objects.IncomeStatementSection{
@@ -161,10 +164,10 @@ func (s *FinancialReportService) createOperatingExpenseSection(data *query.Incom
 		})
 	}
 
-	// Calculate operating expense percentage of revenue
+	// Calculate operating expense percentage of revenue (use absolute value since expenses are stored as negative)
 	var expensePercentage float64
 	if data.TotalIncome.Amount() > 0 {
-		expensePercentage = float64(data.TotalOperatingExpenses.Amount()) / float64(data.TotalIncome.Amount()) * 100
+		expensePercentage = math.Abs(float64(data.TotalOperatingExpenses.Amount())) / float64(data.TotalIncome.Amount()) * 100
 	}
 
 	return value_objects.IncomeStatementSection{
@@ -188,10 +191,10 @@ func (s *FinancialReportService) createExpenseSection(data *query.IncomeStatemen
 		})
 	}
 
-	// Calculate expense percentage of revenue
+	// Calculate expense percentage of revenue (use absolute value since expenses are stored as negative)
 	var expensePercentage float64
 	if data.TotalIncome.Amount() > 0 {
-		expensePercentage = float64(data.TotalExpenses.Amount()) / float64(data.TotalIncome.Amount()) * 100
+		expensePercentage = math.Abs(float64(data.TotalExpenses.Amount())) / float64(data.TotalIncome.Amount()) * 100
 	}
 
 	return value_objects.IncomeStatementSection{
