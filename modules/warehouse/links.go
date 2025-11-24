@@ -11,31 +11,31 @@ var (
 	ProductsItem = types.NavigationItem{
 		Name:        "NavigationLinks.Products",
 		Href:        "/warehouse/products",
-		Permissions: []*permission.Permission{permissions.ProductRead},
+		Permissions: []permission.Permission{permissions.ProductRead},
 		Children:    nil,
 	}
 	PositionsItem = types.NavigationItem{
 		Name:        "NavigationLinks.WarehousePositions",
 		Href:        "/warehouse/positions",
-		Permissions: []*permission.Permission{permissions.PositionRead},
+		Permissions: []permission.Permission{permissions.PositionRead},
 		Children:    nil,
 	}
 	OrdersItem = types.NavigationItem{
 		Name:        "NavigationLinks.WarehouseOrders",
 		Href:        "/warehouse/orders",
-		Permissions: []*permission.Permission{permissions.OrderRead},
+		Permissions: []permission.Permission{permissions.OrderRead},
 		Children:    nil,
 	}
 	InventoryItem = types.NavigationItem{
 		Name:        "NavigationLinks.WarehouseInventory",
 		Href:        "/warehouse/inventory",
-		Permissions: []*permission.Permission{permissions.InventoryRead},
+		Permissions: []permission.Permission{permissions.InventoryRead},
 		Children:    nil,
 	}
 	UnitsItem = types.NavigationItem{
 		Name:        "NavigationLinks.WarehouseUnits",
 		Href:        "/warehouse/units",
-		Permissions: []*permission.Permission{permissions.UnitRead},
+		Permissions: []permission.Permission{permissions.UnitRead},
 		Children:    nil,
 	}
 	Item = types.NavigationItem{

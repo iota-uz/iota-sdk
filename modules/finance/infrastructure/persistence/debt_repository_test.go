@@ -21,7 +21,7 @@ func TestGormDebtRepository_CRUD(t *testing.T) {
 
 	// Create currency
 	currencyRepo := corepersistence.NewCurrencyRepository()
-	if err := currencyRepo.Create(f.Ctx, &currency.USD); err != nil {
+	if err := currencyRepo.Create(f.Ctx, currency.USD); err != nil {
 		t.Fatal(err)
 	}
 

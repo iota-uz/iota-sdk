@@ -14,7 +14,7 @@ func TestGormExpenseCategoryRepository_CRUD(t *testing.T) {
 	currencyRepository := corepersistence.NewCurrencyRepository()
 	categoryRepository := persistence.NewExpenseCategoryRepository()
 
-	if err := currencyRepository.Create(f.Ctx, &currency.USD); err != nil {
+	if err := currencyRepository.Create(f.Ctx, currency.USD); err != nil {
 		t.Fatal(err)
 	}
 	createdCategory, err := categoryRepository.Create(

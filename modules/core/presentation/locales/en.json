@@ -1,318 +1,4 @@
 {
-  "Errors": {
-    "Internal": "An internal server error occurred: {{.Error}}",
-    "BadRequest": "Bad request: {{.Error}}",
-    "NotFound": "Resource not found: {{.Error}}",
-    "Unauthorized": "Unauthorized: {{.Error}}",
-    "Forbidden": "Forbidden: {{.Error}}",
-    "InvalidFormData": "Invalid form data",
-    "InvalidQueryParams": "Invalid query parameters",
-    "FailedToRetrieve": "Failed to retrieve data",
-    "FailedToSave": "Failed to save data",
-    "FailedToUpdate": "Failed to update data",
-    "FailedToDelete": "Failed to delete data",
-    "EntityNotFound": "Item not found",
-    "InternalServer": "Internal server error",
-    "FailedToRender": "Failed to render page"
-  },
-  "ValidationErrors": {
-    "required": "This field is required",
-    "emptySelect": "Select value",
-    "email": "Invalid email format",
-    "min": "{{.Field}} must be at least the minimum value",
-    "max": "{{.Field}} must not exceed the maximum value",
-    "gt": "{{.Field}} must be greater than 0",
-    "gte": "{{.Field}} must be greater than or equal to the specified value",
-    "lte": "{{.Field}} must be less than or equal to the specified value",
-    "len": "{{.Field}} must be exactly the required length",
-    "uuid": "{{.Field}} must be a valid UUID",
-    "custom": "{{.Field}}: {{.Error}}",
-    "alphanum": "{{.Field}} may only contain alphanumeric characters (letters and numbers).",
-    "oneof": "{{.Field}} must be one of the allowed values",
-    "datetime": "{{.Field}} must be a valid date",
-    "gtfield": "{{.Field}} must be greater than {{.Param}}",
-    "invalidTIN": "Invalid TIN format: {{.Details}}",
-    "invalidPIN": "Invalid PIN format: {{.Details}}"
-  },
-  "Import": {
-    "Error": {
-      "ValidationError": "Validation Error"
-    }
-  },
-  "Filters": {
-    "CreatedAt": {
-      "AllTime": "All the time",
-      "Today": "Today",
-      "Yesterday": "Yesterday",
-      "Ereyesterday": "Ereyesterday",
-      "ThisWeek": "This week",
-      "LastWeek": "Last week",
-      "ThisMonth": "This month",
-      "LastMonth": "Last month"
-    }
-  },
-  "Scaffold": {
-    "Table": {
-      "NoDataTitle": "No data available",
-      "NoDataDescription": "There is no data available for this table.",
-      "NothingFound": "Nothing found"
-    },
-    "Filters": {
-      "Title": "Filters",
-      "SelectAll": "Select All"
-    }
-  },
-  "Spotlight": {
-    "Placeholder": "Search...",
-    "NothingFound": "Nothing found",
-    "Actions": {
-      "AddUser": "Add user",
-      "AddAccount": "Add account"
-    }
-  },
-  "ErrorPages": {
-    "NotFound": {
-      "Title": "404",
-      "Message": "Page not found",
-      "Home": "Home"
-    },
-    "Forbidden": {
-      "Title": "403",
-      "Message": "Access Denied",
-      "_Description": "You don't have permission to access this resource.",
-      "Home": "Home"
-    }
-  },
-  "Resources": {
-    "user": "Users",
-    "role": "Roles",
-    "group": "Groups",
-    "upload": "Uploads"
-  },
-  "Permissions": {
-    "User": {
-      "Create": "Create users",
-      "Read": "View users",
-      "Update": "Update users",
-      "Delete": "Delete users"
-    },
-    "Role": {
-      "Create": "Create roles",
-      "Read": "View roles",
-      "Update": "Update roles",
-      "Delete": "Delete roles"
-    },
-    "Group": {
-      "Create": "Create groups",
-      "Read": "View groups",
-      "Update": "Update groups",
-      "Delete": "Delete groups"
-    },
-    "Account": {
-      "Create": "Create accounts",
-      "Read": "View accounts",
-      "Update": "Update accounts",
-      "Delete": "Delete accounts"
-    },
-    "Settings": {
-      "Update": "Update settings",
-      "Read": "View settings"
-    },
-    "Upload": {
-      "Create": "Create uploads",
-      "Read": "View uploads",
-      "Update": "Update uploads",
-      "Delete": "Delete uploads"
-    }
-  },
-  "NavigationLinks": {
-    "Dashboard": "Dashboard",
-    "Administration": "Administration",
-    "Users": "Users",
-    "Roles": "Roles",
-    "Groups": "Groups",
-    "Settings": "Settings",
-    "KnowledgeBase": "Knowledge Base",
-    "Operations": "Operations",
-    "Settings": "Settings",
-    "Calendar": "Calendar",
-    "Enums": "Enums",
-    "TaskTypes": "Task Types",
-    "Positions": "Positions",
-    "Finances": "Finances",
-    "Projects": "Projects",
-    "Reports": "Reports",
-    "Navbar": {
-      "Profile": "Profile",
-      "Logout": "Logout"
-    }
-  },
-  "Dashboard": {
-    "Meta": {
-      "Title": "Dashboard"
-    },
-    "Welcome": "Welcome to the dashboard"
-  },
-  "Users": {
-    "Meta": {
-      "List": {
-        "Title": "Users"
-      },
-      "Edit": {
-        "Title": "Edit user"
-      },
-      "New": {
-        "Title": "New user"
-      },
-      "Permissions": {
-        "Title": "User Permissions"
-      }
-    },
-    "List": {
-      "New": "New User",
-      "FullName": "Full name",
-      "Roles": "Roles",
-      "Email": "Email",
-      "AllGroups": "All Groups",
-      "AllRoles": "All Roles",
-      "Filters": "Filters",
-      "ExpandFilters": "Expand filters",
-      "CollapseFilters": "Collapse filters"
-    },
-    "Cards": {
-      "PersonalInfo": "Personal information",
-      "UserInfo": "User information"
-    },
-    "Tabs": {
-      "UserInfo": "User Info",
-      "Permissions": "Permissions"
-    },
-    "Single": {
-      "EditUser": "Edit user",
-      "FirstName": "First name",
-      "LastName": "Last name",
-      "MiddleName": "Middle name",
-      "Email": "Email",
-      "Phone": "Phone",
-      "Password": "Password",
-      "Language": "Language",
-      "UILanguage": "en",
-      "SelectLanguage": "Select language",
-      "ChooseAvatar": "Choose avatar",
-      "RoleIDs": "Role",
-      "GroupIDs": "Group",
-      "SelectRole": "Select role",
-      "SelectGroup": "Select group",
-      "EnterPassword": "Enter password",
-      "Delete": "Delete user",
-      "DeleteConfirmation": "Are you sure you want to delete this user?",
-      "Permissions": "User Permissions"
-    },
-    "Errors": {
-      "PhoneUnique": "Phone number is already used",
-      "EmailUnique": "Email is already used"
-    },
-    "Delete": {
-      "NotAllowed": "Cannot delete: You are the only user in this tenant"
-    }
-  },
-  "Roles": {
-    "Meta": {
-      "List": {
-        "Title": "Roles"
-      },
-      "Edit": {
-        "Title": "Edit role"
-      },
-      "New": {
-        "Title": "New role"
-      }
-    },
-    "List": {
-      "New": "New role",
-      "Name": "Name"
-    },
-    "Single": {
-      "Edit": "Edit role",
-      "Name": {
-        "Label": "Role name",
-        "Placeholder": "Enter the name of the role"
-      },
-      "_Description": {
-        "Label": "Description",
-        "Placeholder": "Enter description for the role"
-      },
-      "Delete": "Delete role",
-      "DeleteConfirmation": "Are you sure you want to delete this role?"
-    }
-  },
-  "Groups": {
-    "Meta": {
-      "List": {
-        "Title": "Groups List"
-      },
-      "Edit": {
-        "Title": "Edit group"
-      },
-      "New": {
-        "Title": "New group"
-      }
-    },
-    "Cards": {
-      "GroupInfo": "Group information",
-      "MembershipInfo": "Membership information"
-    },
-    "List": {
-      "New": "New group",
-      "Name": "Name",
-      "_Description": "Description",
-      "Roles": "Roles",
-      "Users": "Users",
-      "NoGroups": {
-        "Title": "No groups found",
-        "_Description": "Create your first group by clicking the 'New group' button"
-      }
-    },
-    "Single": {
-      "Name": "Name",
-      "_Description": "Description",
-      "RoleIDs": "Roles",
-      "UserIDs": "Users",
-      "SelectRole": "Select roles",
-      "SelectUser": "Select users",
-      "SearchRoles": "Search for roles",
-      "EnterGroupName": "Enter group name",
-      "EnterDescription": "Enter description",
-      "NoRoleDescription": "No description available",
-      "Delete": "Delete group",
-      "DeleteConfirmation": "Are you sure you want to delete this group?"
-    }
-  },
-  "Projects": {
-    "Meta": {
-      "List": {
-        "Title": "Projects"
-      },
-      "Edit": {
-        "Title": "Edit project"
-      },
-      "New": {
-        "Title": "Add project"
-      }
-    },
-    "List": {
-      "New": "Add Project",
-      "_Description": "Description",
-      "Name": "Name"
-    },
-    "Single": {
-      "Edit": "Edit project",
-      "Name": "Name",
-      "_Description": "Description",
-      "Delete": "Delete project",
-      "DeleteConfirmation": "Are you sure you want to delete this project?"
-    }
-  },
   "Account": {
     "Meta": {
       "Index": {
@@ -365,214 +51,24 @@
       "EmailPlaceholder": "Enter email address"
     }
   },
-  "Login": {
-    "Meta": {
-      "Title": "Log in"
-    },
-    "Email": "Email",
-    "Password": "Password",
-    "Login": "Log in",
-    "WelcomeBack": "Welcome back",
-    "LoginToUse": "Log in to use IOTA ERP",
-    "LoginWithGoogle": "Log in with Google",
-    "OrSignInWith": "Or sign in with...",
-    "Errors": {
-      "PasswordInvalid": "Email or password is invalid",
-      "OauthStateNotFound": "oAuth state not found. Please, try again.",
-      "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
-      "OauthCodeNotFound": "oAuth code not found. Please, try again.",
-      "UserNotFound": "User not found"
-    }
-  },
-  "Home": {
-    "Meta": {
-      "Title": "Home"
-    }
-  },
-  "UpdatedAt": "Updated at",
-  "CreatedAt": "Created at",
-  "SignOut": "Sign out",
-  "Unknown": "Unknown",
   "Actions": "Actions",
-  "Delete": "Delete",
-  "Save": "Save",
-  "Search": "Search",
-  "PerPage": "Per page",
-  "PermissionSets": "Permissions",
-  "Cancel": "Cancel",
-  "Back": "Back",
   "Add": "Add",
-  "Remove": "Remove",
   "All": "All",
-  "Edit": "Edit",
-  "Yes": "Yes",
-  "No": "No",
+  "Analytics": {
+    "PreviousDay": "Previous day",
+    "NextDay": "Next day",
+    "Revenue": "Revenue",
+    "Count": "Count",
+    "RevenueByCategory": "Revenue by Category",
+    "CountByCategory": "Count by Category",
+    "CategoryBreakdown": "Category Breakdown",
+    "NoDataTitle": "No data available",
+    "NoDataDescription": "No data available for the selected date",
+    "Categories": "Categories"
+  },
+  "Back": "Back",
+  "Cancel": "Cancel",
   "ConfirmDelete": "Are you sure you want to delete this item?",
-  "Export": {
-    "Title": "Export",
-    "ToExcel": "Export to Excel",
-    "ToCSV": "Export to CSV",
-    "ToJSON": "Export to JSON",
-    "ToTXT": "Export to TXT"
-  },
-  "PermissionSets": {
-    "Core": {
-      "UserView": {
-        "Label": "View Users",
-        "_Description": "View user information only"
-      },
-      "UserManage": {
-        "Label": "Manage Users", 
-        "_Description": "Full user management capabilities"
-      },
-      "RoleView": {
-        "Label": "View Roles",
-        "_Description": "View role information only"
-      },
-      "RoleManage": {
-        "Label": "Manage Roles",
-        "_Description": "Full role and permission management"
-      },
-      "GroupView": {
-        "Label": "View Groups",
-        "_Description": "View group information only"
-      },
-      "GroupManage": {
-        "Label": "Manage Groups",
-        "_Description": "Full group management capabilities"
-      },
-      "UploadView": {
-        "Label": "View Uploads",
-        "_Description": "View uploaded files only"
-      },
-      "UploadManage": {
-        "Label": "Manage Uploads",
-        "_Description": "Full file upload management"
-      }
-    },
-    "Finance": {
-      "PaymentView": {
-        "Label": "View Payments",
-        "_Description": "View payment information only"
-      },
-      "PaymentManage": {
-        "Label": "Manage Payments",
-        "_Description": "Full payment management capabilities"
-      },
-      "ExpenseView": {
-        "Label": "View Expenses",
-        "_Description": "View expense information only"
-      },
-      "ExpenseManage": {
-        "Label": "Manage Expenses",
-        "_Description": "Full expense management capabilities"
-      },
-      "ExpenseCategoryView": {
-        "Label": "View Expense Categories",
-        "_Description": "View expense category information only"
-      },
-      "ExpenseCategoryManage": {
-        "Label": "Manage Expense Categories",
-        "_Description": "Full expense category management capabilities"
-      },
-      "DebtView": {
-        "Label": "View Debts",
-        "_Description": "View debt information only"
-      },
-      "DebtManage": {
-        "Label": "Manage Debts",
-        "_Description": "Full debt management capabilities"
-      }
-    },
-    "Projects": {
-      "ProjectView": {
-        "Label": "View Projects",
-        "_Description": "View project information only"
-      },
-      "ProjectManage": {
-        "Label": "Manage Projects",
-        "_Description": "Full project management capabilities"
-      },
-      "ProjectStageView": {
-        "Label": "View Project Stages",
-        "_Description": "View project stage information only"
-      },
-      "ProjectStageManage": {
-        "Label": "Manage Project Stages",
-        "_Description": "Full project stage management capabilities"
-      }
-    },
-    "Warehouse": {
-      "ProductView": {
-        "Label": "View Products",
-        "_Description": "View product information only"
-      },
-      "ProductManage": {
-        "Label": "Manage Products",
-        "_Description": "Full product management capabilities"
-      },
-      "PositionView": {
-        "Label": "View Positions",
-        "_Description": "View position information only"
-      },
-      "PositionManage": {
-        "Label": "Manage Positions",
-        "_Description": "Full position management capabilities"
-      },
-      "OrderView": {
-        "Label": "View Orders",
-        "_Description": "View order information only"
-      },
-      "OrderManage": {
-        "Label": "Manage Orders",
-        "_Description": "Full order management capabilities"
-      },
-      "UnitView": {
-        "Label": "View Units",
-        "_Description": "View unit information only"
-      },
-      "UnitManage": {
-        "Label": "Manage Units",
-        "_Description": "Full unit management capabilities"
-      },
-      "InventoryView": {
-        "Label": "View Inventory",
-        "_Description": "View inventory information only"
-      },
-      "InventoryManage": {
-        "Label": "Manage Inventory",
-        "_Description": "Full inventory management capabilities"
-      }
-    },
-    "CRM": {
-      "ClientView": {
-        "Label": "View Clients",
-        "_Description": "View client information only"
-      },
-      "ClientManage": {
-        "Label": "Manage Clients",
-        "_Description": "Full client management capabilities"
-      }
-    },
-    "HRM": {
-      "EmployeeView": {
-        "Label": "View Employees",
-        "_Description": "View employee information only"
-      },
-      "EmployeeManage": {
-        "Label": "Manage Employees",
-        "_Description": "Full employee management capabilities"
-      }
-    }
-  },
-  "Modules": {
-    "Core": "Administration",
-    "Finance": "Finance",
-    "Projects": "Projects",
-    "Warehouse": "Warehouse",
-    "CRM": "CRM",
-    "HRM": "HR Management"
-  },
   "Countries": {
     "AF": "Afghanistan",
     "AL": "Albania",
@@ -764,25 +260,527 @@
     "PS": "Palest",
     "PH": "Philippines",
     "RO": "Romania",
-    "RW": "Rwanda",
     "KN": "Saint Kitts and Nevis",
     "LC": "Saint Lucia",
     "VC": "Saint Vincent and the Grenadines",
     "SR": "Suriname",
     "TR": "Turkey"
   },
-  "Analytics": {
-    "PreviousDay": "Previous day",
-    "NextDay": "Next day",
-    "Revenue": "Revenue",
-    "Count": "Count",
-    "RevenueByCategory": "Revenue by Category",
-    "CountByCategory": "Count by Category",
-    "CategoryBreakdown": "Category Breakdown",
-    "NoDataTitle": "No data available",
-    "NoDataDescription": "No data available for the selected date",
-    "Categories": "Categories"
+  "CreatedAt": "Created at",
+  "Dashboard": {
+    "Meta": {
+      "Title": "Dashboard"
+    },
+    "Welcome": "Welcome to the dashboard"
   },
+  "Delete": "Delete",
+  "Edit": "Edit",
+  "ErrorPages": {
+    "NotFound": {
+      "Title": "404",
+      "Message": "Page not found",
+      "Home": "Home"
+    },
+    "Forbidden": {
+      "Title": "403",
+      "Message": "Access Denied",
+      "_Description": "You don't have permission to access this resource.",
+      "Home": "Home"
+    }
+  },
+  "Errors": {
+    "Internal": "An internal server error occurred: {{.Error}}",
+    "BadRequest": "Bad request: {{.Error}}",
+    "NotFound": "Resource not found: {{.Error}}",
+    "Unauthorized": "Unauthorized: {{.Error}}",
+    "Forbidden": "Forbidden: {{.Error}}",
+    "InvalidFormData": "Invalid form data",
+    "InvalidQueryParams": "Invalid query parameters",
+    "FailedToRetrieve": "Failed to retrieve data",
+    "FailedToSave": "Failed to save data",
+    "FailedToUpdate": "Failed to update data",
+    "FailedToDelete": "Failed to delete data",
+    "EntityNotFound": "Item not found",
+    "InternalServer": "Internal server error",
+    "FailedToRender": "Failed to render page"
+  },
+  "Export": {
+    "Title": "Export",
+    "ToExcel": "Export to Excel",
+    "ToCSV": "Export to CSV",
+    "ToJSON": "Export to JSON",
+    "ToTXT": "Export to TXT"
+  },
+  "Filters": {
+    "CreatedAt": {
+      "AllTime": "All the time",
+      "Today": "Today",
+      "Yesterday": "Yesterday",
+      "Ereyesterday": "Ereyesterday",
+      "ThisWeek": "This week",
+      "LastWeek": "Last week",
+      "ThisMonth": "This month",
+      "LastMonth": "Last month"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Groups List"
+      },
+      "Edit": {
+        "Title": "Edit group"
+      },
+      "New": {
+        "Title": "New group"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Group information",
+      "MembershipInfo": "Membership information"
+    },
+    "List": {
+      "New": "New group",
+      "Name": "Name",
+      "_Description": "Description",
+      "Roles": "Roles",
+      "Users": "Users",
+      "NoGroups": {
+        "Title": "No groups found",
+        "_Description": "Create your first group by clicking the 'New group' button"
+      }
+    },
+    "Single": {
+      "Name": "Name",
+      "_Description": "Description",
+      "RoleIDs": "Roles",
+      "UserIDs": "Users",
+      "SelectRole": "Select roles",
+      "SelectUser": "Select users",
+      "SearchRoles": "Search for roles",
+      "EnterGroupName": "Enter group name",
+      "EnterDescription": "Enter description",
+      "NoRoleDescription": "No description available",
+      "Delete": "Delete group",
+      "DeleteConfirmation": "Are you sure you want to delete this group?"
+    }
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Home"
+    }
+  },
+  "Import": {
+    "Error": {
+      "ValidationError": "Validation Error"
+    }
+  },
+  "Login": {
+    "Meta": {
+      "Title": "Log in"
+    },
+    "Email": "Email",
+    "Password": "Password",
+    "Login": "Log in",
+    "WelcomeBack": "Welcome back",
+    "LoginToUse": "Log in to use IOTA ERP",
+    "LoginWithGoogle": "Log in with Google",
+    "OrSignInWith": "Or sign in with...",
+    "Errors": {
+      "PasswordInvalid": "Email or password is invalid",
+      "OauthStateNotFound": "oAuth state not found. Please, try again.",
+      "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
+      "OauthCodeNotFound": "oAuth code not found. Please, try again.",
+      "UserNotFound": "User not found"
+    }
+  },
+  "Modules": {
+    "Core": "Administration",
+    "Finance": "Finance",
+    "Projects": "Projects",
+    "Warehouse": "Warehouse",
+    "CRM": "CRM",
+    "HRM": "HR Management"
+  },
+  "NavigationLinks": {
+    "Dashboard": "Dashboard",
+    "Administration": "Administration",
+    "Users": "Users",
+    "Roles": "Roles",
+    "Groups": "Groups",
+    "Settings": "Settings",
+    "KnowledgeBase": "Knowledge Base",
+    "Operations": "Operations",
+    "Calendar": "Calendar",
+    "Enums": "Enums",
+    "TaskTypes": "Task Types",
+    "Positions": "Positions",
+    "Finances": "Finances",
+    "Projects": "Projects",
+    "Reports": "Reports",
+    "Navbar": {
+      "Profile": "Profile",
+      "Logout": "Logout"
+    }
+  },
+  "No": "No",
+  "PerPage": "Per page",
+  "PermissionSets": {
+    "Core": {
+      "UserView": {
+        "Label": "View Users",
+        "_Description": "View user information only"
+      },
+      "UserManage": {
+        "Label": "Manage Users",
+        "_Description": "Full user management capabilities"
+      },
+      "RoleView": {
+        "Label": "View Roles",
+        "_Description": "View role information only"
+      },
+      "RoleManage": {
+        "Label": "Manage Roles",
+        "_Description": "Full role and permission management"
+      },
+      "GroupView": {
+        "Label": "View Groups",
+        "_Description": "View group information only"
+      },
+      "GroupManage": {
+        "Label": "Manage Groups",
+        "_Description": "Full group management capabilities"
+      },
+      "UploadView": {
+        "Label": "View Uploads",
+        "_Description": "View uploaded files only"
+      },
+      "UploadManage": {
+        "Label": "Manage Uploads",
+        "_Description": "Full file upload management"
+      }
+    },
+    "Finance": {
+      "PaymentView": {
+        "Label": "View Payments",
+        "_Description": "View payment information only"
+      },
+      "PaymentManage": {
+        "Label": "Manage Payments",
+        "_Description": "Full payment management capabilities"
+      },
+      "ExpenseView": {
+        "Label": "View Expenses",
+        "_Description": "View expense information only"
+      },
+      "ExpenseManage": {
+        "Label": "Manage Expenses",
+        "_Description": "Full expense management capabilities"
+      },
+      "ExpenseCategoryView": {
+        "Label": "View Expense Categories",
+        "_Description": "View expense category information only"
+      },
+      "ExpenseCategoryManage": {
+        "Label": "Manage Expense Categories",
+        "_Description": "Full expense category management capabilities"
+      },
+      "DebtView": {
+        "Label": "View Debts",
+        "_Description": "View debt information only"
+      },
+      "DebtManage": {
+        "Label": "Manage Debts",
+        "_Description": "Full debt management capabilities"
+      }
+    },
+    "Projects": {
+      "ProjectView": {
+        "Label": "View Projects",
+        "_Description": "View project information only"
+      },
+      "ProjectManage": {
+        "Label": "Manage Projects",
+        "_Description": "Full project management capabilities"
+      },
+      "ProjectStageView": {
+        "Label": "View Project Stages",
+        "_Description": "View project stage information only"
+      },
+      "ProjectStageManage": {
+        "Label": "Manage Project Stages",
+        "_Description": "Full project stage management capabilities"
+      }
+    },
+    "Warehouse": {
+      "ProductView": {
+        "Label": "View Products",
+        "_Description": "View product information only"
+      },
+      "ProductManage": {
+        "Label": "Manage Products",
+        "_Description": "Full product management capabilities"
+      },
+      "PositionView": {
+        "Label": "View Positions",
+        "_Description": "View position information only"
+      },
+      "PositionManage": {
+        "Label": "Manage Positions",
+        "_Description": "Full position management capabilities"
+      },
+      "OrderView": {
+        "Label": "View Orders",
+        "_Description": "View order information only"
+      },
+      "OrderManage": {
+        "Label": "Manage Orders",
+        "_Description": "Full order management capabilities"
+      },
+      "UnitView": {
+        "Label": "View Units",
+        "_Description": "View unit information only"
+      },
+      "UnitManage": {
+        "Label": "Manage Units",
+        "_Description": "Full unit management capabilities"
+      },
+      "InventoryView": {
+        "Label": "View Inventory",
+        "_Description": "View inventory information only"
+      },
+      "InventoryManage": {
+        "Label": "Manage Inventory",
+        "_Description": "Full inventory management capabilities"
+      }
+    },
+    "CRM": {
+      "ClientView": {
+        "Label": "View Clients",
+        "_Description": "View client information only"
+      },
+      "ClientManage": {
+        "Label": "Manage Clients",
+        "_Description": "Full client management capabilities"
+      }
+    },
+    "HRM": {
+      "EmployeeView": {
+        "Label": "View Employees",
+        "_Description": "View employee information only"
+      },
+      "EmployeeManage": {
+        "Label": "Manage Employees",
+        "_Description": "Full employee management capabilities"
+      }
+    }
+  },
+  "Permissions": {
+    "User": {
+      "Create": "Create users",
+      "Read": "View users",
+      "Update": "Update users",
+      "Delete": "Delete users"
+    },
+    "Role": {
+      "Create": "Create roles",
+      "Read": "View roles",
+      "Update": "Update roles",
+      "Delete": "Delete roles"
+    },
+    "Group": {
+      "Create": "Create groups",
+      "Read": "View groups",
+      "Update": "Update groups",
+      "Delete": "Delete groups"
+    },
+    "Account": {
+      "Create": "Create accounts",
+      "Read": "View accounts",
+      "Update": "Update accounts",
+      "Delete": "Delete accounts"
+    },
+    "Settings": {
+      "Update": "Update settings",
+      "Read": "View settings"
+    },
+    "Upload": {
+      "Create": "Create uploads",
+      "Read": "View uploads",
+      "Update": "Update uploads",
+      "Delete": "Delete uploads"
+    }
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Projects"
+      },
+      "Edit": {
+        "Title": "Edit project"
+      },
+      "New": {
+        "Title": "Add project"
+      }
+    },
+    "List": {
+      "New": "Add Project",
+      "_Description": "Description",
+      "Name": "Name"
+    },
+    "Single": {
+      "Edit": "Edit project",
+      "Name": "Name",
+      "_Description": "Description",
+      "Delete": "Delete project",
+      "DeleteConfirmation": "Are you sure you want to delete this project?"
+    }
+  },
+  "Remove": "Remove",
+  "Resources": {
+    "user": "Users",
+    "role": "Roles",
+    "group": "Groups",
+    "upload": "Uploads"
+  },
+  "Roles": {
+    "Meta": {
+      "List": {
+        "Title": "Roles"
+      },
+      "Edit": {
+        "Title": "Edit role"
+      },
+      "New": {
+        "Title": "New role"
+      }
+    },
+    "List": {
+      "New": "New role",
+      "Name": "Name"
+    },
+    "Single": {
+      "Edit": "Edit role",
+      "Name": {
+        "Label": "Role name",
+        "Placeholder": "Enter the name of the role"
+      },
+      "_Description": {
+        "Label": "Description",
+        "Placeholder": "Enter description for the role"
+      },
+      "Delete": "Delete role",
+      "DeleteConfirmation": "Are you sure you want to delete this role?"
+    }
+  },
+  "Save": "Save",
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "No data available",
+      "NoDataDescription": "There is no data available for this table.",
+      "NothingFound": "Nothing found"
+    },
+    "Filters": {
+      "Title": "Filters",
+      "SelectAll": "Select All"
+    }
+  },
+  "Search": "Search",
+  "SignOut": "Sign out",
+  "Spotlight": {
+    "Placeholder": "Search...",
+    "NothingFound": "Nothing found",
+    "Actions": {
+      "AddUser": "Add user",
+      "AddAccount": "Add account"
+    }
+  },
+  "Unknown": "Unknown",
+  "System": "System",
+  "UpdatedAt": "Updated at",
+  "Users": {
+    "Meta": {
+      "List": {
+        "Title": "Users"
+      },
+      "Edit": {
+        "Title": "Edit user"
+      },
+      "New": {
+        "Title": "New user"
+      },
+      "Permissions": {
+        "Title": "User Permissions"
+      }
+    },
+    "List": {
+      "New": "New User",
+      "FullName": "Full name",
+      "Roles": "Roles",
+      "Email": "Email",
+      "AllGroups": "All Groups",
+      "AllRoles": "All Roles",
+      "Filters": "Filters",
+      "ExpandFilters": "Expand filters",
+      "CollapseFilters": "Collapse filters"
+    },
+    "Cards": {
+      "PersonalInfo": "Personal information",
+      "UserInfo": "User information"
+    },
+    "Tabs": {
+      "UserInfo": "User Info",
+      "Permissions": "Permissions"
+    },
+    "Single": {
+      "EditUser": "Edit user",
+      "FirstName": "First name",
+      "LastName": "Last name",
+      "MiddleName": "Middle name",
+      "Email": "Email",
+      "Phone": "Phone",
+      "Password": "Password",
+      "Language": "Language",
+      "UILanguage": "en",
+      "SelectLanguage": "Select language",
+      "ChooseAvatar": "Choose avatar",
+      "RoleIDs": "Role",
+      "GroupIDs": "Group",
+      "SelectRole": "Select role",
+      "SelectGroup": "Select group",
+      "EnterPassword": "Enter password",
+      "Delete": "Delete user",
+      "DeleteConfirmation": "Are you sure you want to delete this user?",
+      "Permissions": "User Permissions"
+    },
+    "Errors": {
+      "PhoneUnique": "Phone number is already used",
+      "EmailUnique": "Email is already used"
+    },
+    "Delete": {
+      "NotAllowed": "Cannot delete: You are the only user in this tenant"
+    }
+  },
+  "ValidationErrors": {
+    "required": "This field is required",
+    "emptySelect": "Select value",
+    "email": "Invalid email format",
+    "min": "{{.Field}} must be at least the minimum value",
+    "max": "{{.Field}} must not exceed the maximum value",
+    "gt": "{{.Field}} must be greater than 0",
+    "gte": "{{.Field}} must be greater than or equal to the specified value",
+    "lte": "{{.Field}} must be less than or equal to the specified value",
+    "len": "{{.Field}} must be exactly the required length",
+    "uuid": "{{.Field}} must be a valid UUID",
+    "custom": "{{.Field}}: {{.Error}}",
+    "alphanum": "{{.Field}} may only contain alphanumeric characters (letters and numbers).",
+    "oneof": "{{.Field}} must be one of the allowed values",
+    "datetime": "{{.Field}} must be a valid date",
+    "gtfield": "{{.Field}} must be greater than {{.Param}}",
+    "invalidTIN": "Invalid TIN format: {{.Details}}",
+    "invalidPIN": "Invalid PIN format: {{.Details}}"
+  },
+  "Yes": "Yes",
   "multilang": {
     "empty": "—",
     "no_translations": "No translations available",

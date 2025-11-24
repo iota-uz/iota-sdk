@@ -25,7 +25,7 @@ func NewCreatedEvent(ctx context.Context, data CreateDTO, result Upload) (*Creat
 	// 	return nil, err
 	// }
 	return &CreatedEvent{
-		Session: session.Session{},
+		Session: nil,
 		Data:    data,
 		Result:  result,
 	}, nil
@@ -41,7 +41,7 @@ func NewDeletedEvent(ctx context.Context, result Upload) (*DeletedEvent, error) 
 	// 	return nil, err
 	// }
 	return &DeletedEvent{
-		Session: session.Session{},
+		Session: nil,
 		Result:  result,
 	}, nil
 }

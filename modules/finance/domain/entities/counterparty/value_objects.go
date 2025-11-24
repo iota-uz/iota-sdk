@@ -13,33 +13,10 @@ const (
 )
 
 const (
-	Individual  LegalType = "INDIVIDUAL"
-	LegalEntity LegalType = "LEGAL_ENTITY"
-	LLC         LegalType = "LLC"    // Limited Liability Company
-	JSC         LegalType = "JSC"    // Joint Stock Company
-	INC         LegalType = "INC"    // Incorporated
-	LTD         LegalType = "LTD"    // Limited
-	PLC         LegalType = "PLC"    // Public Limited Company
-	LLP         LegalType = "LLP"    // Limited Liability Partnership
-	GMBH        LegalType = "GMBH"   // Gesellschaft mit beschränkter Haftung (Germany)
-	AG          LegalType = "AG"     // Aktiengesellschaft (Germany, Switzerland, Austria)
-	SA          LegalType = "SA"     // Société Anonyme (France, Belgium, Spain)
-	PTYLTD      LegalType = "PTYLTD" // Proprietary Limited (Australia, South Africa)
-	CCORP       LegalType = "CCORP"  // C Corporation (USA)
-	SCORP       LegalType = "SCORP"  // S Corporation (USA)
-	SP          LegalType = "SP"     // Sole Proprietorship
-	SC          LegalType = "SC"     // Sociedad Colectiva (Spain, Latin America)
-	OU          LegalType = "OU"     // Osaühing (Estonia)
-	AB          LegalType = "AB"     // Aktiebolag (Sweden)
-	AS          LegalType = "AS"     // Aksjeselskap (Norway)
-	SARL        LegalType = "SARL"   // Société à Responsabilité Limitée (France, Luxembourg)
-	BV          LegalType = "BV"     // Besloten Vennootschap (Netherlands)
-	KK          LegalType = "KK"     // Kabushiki Kaisha (Japan)
-	SAO         LegalType = "SAO"    // Societate pe Acțiuni (Romania)
-	LLLP        LegalType = "LLLP"   // Limited Liability Limited Partnership (USA)
-	UAB         LegalType = "UAB"    // Uždaroji Akcinė Bendrovė (Lithuania)
-	SPZOO       LegalType = "SPZOO"  // Spółka z ograniczoną odpowiedzialnością (Poland)
-	SRL         LegalType = "SRL"    // Sociedad de Responsabilidad Limitada (Latin America, Italy)
+	Individual         LegalType = "INDIVIDUAL"          // Individual
+	LLC                LegalType = "LLC"                 // Limited Liability Company
+	JSC                LegalType = "JSC"                 // Joint Stock Company
+	SoleProprietorship LegalType = "SOLE_PROPRIETORSHIP" // Sole Proprietorship
 )
 
 func NewType(t string) (Type, error) {
@@ -72,7 +49,7 @@ func NewLegalType(l string) (LegalType, error) {
 
 func (l LegalType) IsValid() bool {
 	switch l {
-	case Individual, LegalEntity, LLC, JSC, INC, LTD, PLC, LLP, GMBH, AG, SA, PTYLTD, CCORP, SCORP, SP, SC, OU, AB, AS, SARL, BV, KK, SAO, LLLP, UAB, SPZOO, SRL:
+	case Individual, LLC, JSC, SoleProprietorship:
 		return true
 	}
 	return false

@@ -28,7 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
 
-func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []*permission.Permission) (user.User, error) {
+func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []permission.Permission) (user.User, error) {
 	var avatar upload.Upload
 	if dbUpload != nil {
 		var err error
@@ -117,7 +117,7 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 }
 
 func toDomainRole(dbRole *models.Role, permissions []*models.Permission) (role.Role, error) {
-	domainPermissions := make([]*permission.Permission, len(permissions))
+	domainPermissions := make([]permission.Permission, len(permissions))
 	for i, p := range permissions {
 		dP, err := toDomainPermission(p)
 		if err != nil {
@@ -159,29 +159,29 @@ func toDBRole(entity role.Role) (*models.Role, []*models.Permission) {
 	}, permissions
 }
 
-func toDBPermission(entity *permission.Permission) *models.Permission {
+func toDBPermission(entity permission.Permission) *models.Permission {
 	return &models.Permission{
-		ID:       entity.ID.String(),
-		Name:     entity.Name,
-		Resource: string(entity.Resource),
-		Action:   string(entity.Action),
-		Modifier: string(entity.Modifier),
+		ID:       entity.ID().String(),
+		Name:     entity.Name(),
+		Resource: string(entity.Resource()),
+		Action:   string(entity.Action()),
+		Modifier: string(entity.Modifier()),
 	}
 }
 
-func toDomainPermission(dbPermission *models.Permission) (*permission.Permission, error) {
+func toDomainPermission(dbPermission *models.Permission) (permission.Permission, error) {
 	id, err := uuid.Parse(dbPermission.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &permission.Permission{
-		ID:       id,
-		Name:     dbPermission.Name,
-		Resource: permission.Resource(dbPermission.Resource),
-		Action:   permission.Action(dbPermission.Action),
-		Modifier: permission.Modifier(dbPermission.Modifier),
-	}, nil
+	return permission.New(
+		permission.WithID(id),
+		permission.WithName(dbPermission.Name),
+		permission.WithResource(permission.Resource(dbPermission.Resource)),
+		permission.WithAction(permission.Action(dbPermission.Action)),
+		permission.WithModifier(permission.Modifier(dbPermission.Modifier)),
+	), nil
 }
 
 func ToDomainPin(s sql.NullString, c country.Country) (tax.Pin, error) {
@@ -255,17 +255,17 @@ func ToDomainUpload(dbUpload *models.Upload) (upload.Upload, error) {
 	return up, nil
 }
 
-func ToDBCurrency(entity *currency.Currency) *models.Currency {
+func ToDBCurrency(entity currency.Currency) *models.Currency {
 	return &models.Currency{
-		Code:      string(entity.Code),
-		Name:      entity.Name,
-		Symbol:    string(entity.Symbol),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Code:      string(entity.Code()),
+		Name:      entity.Name(),
+		Symbol:    string(entity.Symbol()),
+		CreatedAt: entity.CreatedAt(),
+		UpdatedAt: entity.UpdatedAt(),
 	}
 }
 
-func ToDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
+func ToDomainCurrency(dbCurrency *models.Currency) (currency.Currency, error) {
 	code, err := currency.NewCode(dbCurrency.Code)
 	if err != nil {
 		return nil, err
@@ -274,67 +274,58 @@ func ToDomainCurrency(dbCurrency *models.Currency) (*currency.Currency, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &currency.Currency{
-		Code:   code,
-		Name:   dbCurrency.Name,
-		Symbol: symbol,
-	}, nil
+	return currency.New(
+		code,
+		dbCurrency.Name,
+		symbol,
+		currency.WithCreatedAt(dbCurrency.CreatedAt),
+		currency.WithUpdatedAt(dbCurrency.UpdatedAt),
+	), nil
 }
 
-func ToDBSession(session *session.Session) *models.Session {
+func ToDBSession(s session.Session) *models.Session {
 	return &models.Session{
-		UserID:    session.UserID,
-		TenantID:  session.TenantID.String(),
-		Token:     session.Token,
-		IP:        session.IP,
-		UserAgent: session.UserAgent,
-		CreatedAt: session.CreatedAt,
-		ExpiresAt: session.ExpiresAt,
+		UserID:    s.UserID(),
+		TenantID:  s.TenantID().String(),
+		Token:     s.Token(),
+		IP:        s.IP(),
+		UserAgent: s.UserAgent(),
+		CreatedAt: s.CreatedAt(),
+		ExpiresAt: s.ExpiresAt(),
 	}
 }
 
-func ToDomainSession(dbSession *models.Session) *session.Session {
+func ToDomainSession(dbSession *models.Session) session.Session {
 	tenantID, err := uuid.Parse(dbSession.TenantID)
 	if err != nil {
 		tenantID = uuid.Nil
 	}
 
-	return &session.Session{
-		UserID:    dbSession.UserID,
-		TenantID:  tenantID,
-		Token:     dbSession.Token,
-		IP:        dbSession.IP,
-		UserAgent: dbSession.UserAgent,
-		CreatedAt: dbSession.CreatedAt,
-		ExpiresAt: dbSession.ExpiresAt,
-	}
+	return session.New(
+		dbSession.Token,
+		dbSession.UserID,
+		tenantID,
+		dbSession.IP,
+		dbSession.UserAgent,
+		session.WithCreatedAt(dbSession.CreatedAt),
+		session.WithExpiresAt(dbSession.ExpiresAt),
+	)
 }
 
-func toDBAuthenticationLog(log *authlog.AuthenticationLog) *models.AuthenticationLog {
-	return &models.AuthenticationLog{
-		ID:        log.ID,
-		TenantID:  log.TenantID.String(),
-		UserID:    log.UserID,
-		IP:        log.IP,
-		UserAgent: log.UserAgent,
-		CreatedAt: log.CreatedAt,
-	}
-}
-
-func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) *authlog.AuthenticationLog {
+func toDomainAuthenticationLog(dbLog *models.AuthenticationLog) authlog.AuthLog {
 	tenantID, err := uuid.Parse(dbLog.TenantID)
 	if err != nil {
 		tenantID = uuid.Nil
 	}
 
-	return &authlog.AuthenticationLog{
-		ID:        dbLog.ID,
-		TenantID:  tenantID,
-		UserID:    dbLog.UserID,
-		IP:        dbLog.IP,
-		UserAgent: dbLog.UserAgent,
-		CreatedAt: dbLog.CreatedAt,
-	}
+	return authlog.New(
+		dbLog.IP,
+		dbLog.UserAgent,
+		authlog.WithID(dbLog.ID),
+		authlog.WithTenantID(tenantID),
+		authlog.WithUserID(dbLog.UserID),
+		authlog.WithCreatedAt(dbLog.CreatedAt),
+	)
 }
 
 // Passport mappers

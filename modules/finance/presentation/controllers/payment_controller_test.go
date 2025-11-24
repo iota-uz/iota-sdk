@@ -55,7 +55,7 @@ func TestPaymentController_List_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -145,7 +145,7 @@ func TestPaymentController_List_HTMX_Request(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -217,7 +217,7 @@ func TestPaymentController_GetNew_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -272,7 +272,7 @@ func TestPaymentController_Create_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -347,7 +347,7 @@ func TestPaymentController_Create_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -390,7 +390,7 @@ func TestPaymentController_GetEdit_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -470,7 +470,7 @@ func TestPaymentController_GetEdit_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -495,7 +495,7 @@ func TestPaymentController_Update_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -584,7 +584,7 @@ func TestPaymentController_Update_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -670,7 +670,7 @@ func TestPaymentController_Delete_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -748,7 +748,7 @@ func TestPaymentController_Delete_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -771,7 +771,7 @@ func TestPaymentController_InvalidUUID(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -794,7 +794,7 @@ func TestPaymentController_Create_TransactionDateValidation(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -891,7 +891,7 @@ func TestPaymentController_Create_VerifyIncomeStatementIntegration(t *testing.T)
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)
@@ -922,7 +922,7 @@ func TestPaymentController_Create_VerifyIncomeStatementIntegration(t *testing.T)
 	counterparty1 := counterparty.New(
 		"Client Company",
 		counterparty.Customer,
-		counterparty.LegalEntity,
+		counterparty.LLC,
 		counterparty.WithTenantID(env.Tenant.ID),
 	)
 
@@ -1002,7 +1002,7 @@ func TestPaymentController_Create_WithoutCategoryVerifyIncomeStatement(t *testin
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewPaymentsController(env.App)
 	suite.Register(controller)

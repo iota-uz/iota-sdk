@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -16,11 +17,13 @@ import (
 type ExpenseCategoryCreateDTO struct {
 	Name        string `validate:"required"`
 	Description string
+	IsCOGS      bool
 }
 
 type ExpenseCategoryUpdateDTO struct {
 	Name        string `validate:"required"`
 	Description string
+	IsCOGS      bool
 }
 
 func (e *ExpenseCategoryCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
@@ -76,6 +79,7 @@ func (e *ExpenseCategoryCreateDTO) ToEntity(tenantID uuid.UUID) (category.Expens
 		e.Name,
 		category.WithTenantID(tenantID),
 		category.WithDescription(e.Description),
+		category.WithIsCOGS(e.IsCOGS),
 	), nil
 }
 
@@ -85,6 +89,7 @@ func (e *ExpenseCategoryUpdateDTO) ToEntity(id uuid.UUID, tenantID uuid.UUID) (c
 		category.WithID(id),
 		category.WithTenantID(tenantID),
 		category.WithDescription(e.Description),
+		category.WithIsCOGS(e.IsCOGS),
 	), nil
 }
 
@@ -93,9 +98,16 @@ func (e *ExpenseCategoryUpdateDTO) Apply(existing category.ExpenseCategory) (cat
 		return nil, errors.New("id cannot be nil")
 	}
 
-	existing = existing.
-		UpdateName(e.Name).
-		UpdateDescription(e.Description)
+	// Create a new instance with updated values
+	updated := category.New(
+		e.Name,
+		category.WithID(existing.ID()),
+		category.WithTenantID(existing.TenantID()),
+		category.WithDescription(e.Description),
+		category.WithIsCOGS(e.IsCOGS),
+		category.WithCreatedAt(existing.CreatedAt()),
+		category.WithUpdatedAt(time.Now()),
+	)
 
-	return existing, nil
+	return updated, nil
 }

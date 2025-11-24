@@ -27,7 +27,7 @@ func WithType(type_ Type) Option {
 	}
 }
 
-func WithPermissions(permissions []*permission.Permission) Option {
+func WithPermissions(permissions []permission.Permission) Option {
 	return func(r *role) {
 		r.permissions = permissions
 	}
@@ -51,11 +51,11 @@ type Role interface {
 	Type() Type
 	Name() string
 	Description() string
-	Permissions() []*permission.Permission
+	Permissions() []permission.Permission
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
-	Can(perm *permission.Permission) bool
+	Can(perm permission.Permission) bool
 	CanUpdate() bool
 	CanDelete() bool
 
@@ -63,8 +63,8 @@ type Role interface {
 	SetDescription(description string) Role
 	SetTenantID(tenantID uuid.UUID) Role
 
-	AddPermission(p *permission.Permission) Role
-	SetPermissions(permissions []*permission.Permission) Role
+	AddPermission(p permission.Permission) Role
+	SetPermissions(permissions []permission.Permission) Role
 }
 
 func WithDescription(description string) Option {
@@ -89,7 +89,7 @@ func New(
 		tenantID:    uuid.Nil,
 		name:        name,
 		description: "",
-		permissions: []*permission.Permission{},
+		permissions: []permission.Permission{},
 		createdAt:   time.Now(),
 		updatedAt:   time.Now(),
 	}
@@ -105,7 +105,7 @@ type role struct {
 	tenantID    uuid.UUID
 	name        string
 	description string
-	permissions []*permission.Permission
+	permissions []permission.Permission
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -130,7 +130,7 @@ func (r *role) Description() string {
 	return r.description
 }
 
-func (r *role) Permissions() []*permission.Permission {
+func (r *role) Permissions() []permission.Permission {
 	return r.permissions
 }
 
@@ -142,9 +142,9 @@ func (r *role) UpdatedAt() time.Time {
 	return r.updatedAt
 }
 
-func (r *role) Can(perm *permission.Permission) bool {
+func (r *role) Can(perm permission.Permission) bool {
 	for _, p := range r.permissions {
-		if p.Equals(*perm) {
+		if p.Equals(perm) {
 			return true
 		}
 	}
@@ -180,14 +180,14 @@ func (r *role) SetTenantID(tenantID uuid.UUID) Role {
 	return &result
 }
 
-func (r *role) AddPermission(p *permission.Permission) Role {
+func (r *role) AddPermission(p permission.Permission) Role {
 	result := *r
 	result.permissions = append(result.permissions, p)
 	result.updatedAt = time.Now()
 	return &result
 }
 
-func (r *role) SetPermissions(permissions []*permission.Permission) Role {
+func (r *role) SetPermissions(permissions []permission.Permission) Role {
 	result := *r
 	result.permissions = permissions
 	result.updatedAt = time.Now()

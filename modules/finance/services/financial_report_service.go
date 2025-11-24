@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,6 +46,8 @@ func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, st
 
 	// Convert query data to domain objects
 	revenueSection := s.createRevenueSection(data)
+	cogsSection := s.createCOGSSection(data)
+	operatingExpenseSection := s.createOperatingExpenseSection(data)
 	expenseSection := s.createExpenseSection(data)
 
 	// Determine the primary currency (use the most common currency or USD as default)
@@ -59,6 +62,34 @@ func (s *FinancialReportService) GenerateIncomeStatement(ctx context.Context, st
 		expenseSection,
 		currency,
 	)
+
+	// Update with COGS and operating expense sections
+	incomeStatement.COGSSection = cogsSection
+	incomeStatement.OperatingExpenseSection = operatingExpenseSection
+
+	// Recalculate profit sections with COGS separation
+	// Note: COGS and operating expenses are stored as negative values (accounting convention)
+	// so we Add them instead of Subtract to get the correct profit calculation
+	grossProfit, _ := revenueSection.Subtotal.Add(cogsSection.Subtotal)
+	incomeStatement.GrossProfit = grossProfit
+
+	// Calculate gross profit ratio
+	if revenueSection.Subtotal.Amount() > 0 {
+		incomeStatement.GrossProfitRatio = float64(grossProfit.Amount()) / float64(revenueSection.Subtotal.Amount()) * 100
+	}
+
+	// Calculate operating profit
+	operatingProfit, _ := grossProfit.Add(operatingExpenseSection.Subtotal)
+	incomeStatement.OperatingProfit = operatingProfit
+
+	// Calculate operating profit ratio
+	if revenueSection.Subtotal.Amount() > 0 {
+		incomeStatement.OperatingProfitRatio = float64(operatingProfit.Amount()) / float64(revenueSection.Subtotal.Amount()) * 100
+	}
+
+	// Net profit equals operating profit for now (assuming no taxes/other items tracked separately)
+	incomeStatement.NetProfit = operatingProfit
+	incomeStatement.NetProfitRatio = incomeStatement.OperatingProfitRatio
 
 	// Publish event
 	s.eventPublisher.Publish("financial_report.income_statement.generated", map[string]interface{}{
@@ -93,6 +124,60 @@ func (s *FinancialReportService) createRevenueSection(data *query.IncomeStatemen
 	}
 }
 
+// createCOGSSection creates the COGS (Cost of Goods Sold) section from query data
+func (s *FinancialReportService) createCOGSSection(data *query.IncomeStatementData) value_objects.IncomeStatementSection {
+	lineItems := make([]value_objects.IncomeStatementLineItem, 0, len(data.COGSItems))
+
+	for _, item := range data.COGSItems {
+		lineItems = append(lineItems, value_objects.IncomeStatementLineItem{
+			ID:         item.CategoryID,
+			Name:       item.CategoryName,
+			Amount:     item.Amount,
+			Percentage: item.Percentage,
+		})
+	}
+
+	// Calculate COGS percentage of revenue (use absolute value since COGS is stored as negative)
+	percentage := 0.0
+	if !data.TotalIncome.IsZero() {
+		percentage = math.Abs(float64(data.TotalCOGS.Amount())) / float64(data.TotalIncome.Amount()) * 100
+	}
+
+	return value_objects.IncomeStatementSection{
+		Title:      "Cost of Goods Sold",
+		LineItems:  lineItems,
+		Subtotal:   data.TotalCOGS,
+		Percentage: percentage,
+	}
+}
+
+// createOperatingExpenseSection creates the operating expense section from query data
+func (s *FinancialReportService) createOperatingExpenseSection(data *query.IncomeStatementData) value_objects.IncomeStatementSection {
+	lineItems := make([]value_objects.IncomeStatementLineItem, 0, len(data.OperatingExpenseItems))
+
+	for _, item := range data.OperatingExpenseItems {
+		lineItems = append(lineItems, value_objects.IncomeStatementLineItem{
+			ID:         item.CategoryID,
+			Name:       item.CategoryName,
+			Amount:     item.Amount,
+			Percentage: item.Percentage,
+		})
+	}
+
+	// Calculate operating expense percentage of revenue (use absolute value since expenses are stored as negative)
+	var expensePercentage float64
+	if data.TotalIncome.Amount() > 0 {
+		expensePercentage = math.Abs(float64(data.TotalOperatingExpenses.Amount())) / float64(data.TotalIncome.Amount()) * 100
+	}
+
+	return value_objects.IncomeStatementSection{
+		Title:      "Operating Expenses",
+		LineItems:  lineItems,
+		Subtotal:   data.TotalOperatingExpenses,
+		Percentage: expensePercentage,
+	}
+}
+
 // createExpenseSection creates the expense section from query data
 func (s *FinancialReportService) createExpenseSection(data *query.IncomeStatementData) value_objects.IncomeStatementSection {
 	lineItems := make([]value_objects.IncomeStatementLineItem, 0, len(data.ExpenseItems))
@@ -106,10 +191,10 @@ func (s *FinancialReportService) createExpenseSection(data *query.IncomeStatemen
 		})
 	}
 
-	// Calculate expense percentage of revenue
+	// Calculate expense percentage of revenue (use absolute value since expenses are stored as negative)
 	var expensePercentage float64
 	if data.TotalIncome.Amount() > 0 {
-		expensePercentage = float64(data.TotalExpenses.Amount()) / float64(data.TotalIncome.Amount()) * 100
+		expensePercentage = math.Abs(float64(data.TotalExpenses.Amount())) / float64(data.TotalIncome.Amount()) * 100
 	}
 
 	return value_objects.IncomeStatementSection{

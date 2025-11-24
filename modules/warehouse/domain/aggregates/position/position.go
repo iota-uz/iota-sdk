@@ -63,6 +63,12 @@ func WithUpdatedAt(updatedAt time.Time) Option {
 	}
 }
 
+func WithStatus(status Status) Option {
+	return func(p *position) {
+		p.status = status
+	}
+}
+
 // --- Interface ---
 
 type Position interface {
@@ -73,6 +79,7 @@ type Position interface {
 	UnitID() uint
 	Unit() *unit.Unit
 	InStock() uint
+	Status() Status
 	Images() []upload.Upload
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
@@ -83,6 +90,7 @@ type Position interface {
 	SetBarcode(barcode string) Position
 	SetUnit(unit *unit.Unit) Position
 	SetInStock(inStock uint) Position
+	SetStatus(status Status) Position
 	SetImages(images []upload.Upload) Position
 }
 
@@ -97,6 +105,7 @@ func New(title, barcode string, opts ...Option) Position {
 		unitID:    0,
 		unit:      nil,
 		inStock:   0,
+		status:    StatusAvailable,
 		images:    make([]upload.Upload, 0),
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
@@ -116,6 +125,7 @@ type position struct {
 	unitID    uint
 	unit      *unit.Unit
 	inStock   uint
+	status    Status
 	images    []upload.Upload
 	createdAt time.Time
 	updatedAt time.Time
@@ -148,6 +158,10 @@ func (p *position) Unit() *unit.Unit {
 
 func (p *position) InStock() uint {
 	return p.inStock
+}
+
+func (p *position) Status() Status {
+	return p.status
 }
 
 func (p *position) Images() []upload.Upload {
@@ -193,6 +207,13 @@ func (p *position) SetUnit(unit *unit.Unit) Position {
 func (p *position) SetInStock(inStock uint) Position {
 	result := *p
 	result.inStock = inStock
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (p *position) SetStatus(status Status) Position {
+	result := *p
+	result.status = status
 	result.updatedAt = time.Now()
 	return &result
 }

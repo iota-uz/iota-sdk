@@ -189,7 +189,7 @@ func (c *UsersController) Register(r *mux.Router) {
 }
 
 func (c *UsersController) resourcePermissionGroups(
-	selected ...*permission.Permission,
+	selected ...permission.Permission,
 ) []*viewmodels.ResourcePermissionGroup {
 	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
 }
@@ -652,7 +652,7 @@ func (c *UsersController) Update(
 	}
 
 	permissionIDs := r.Form["PermissionIDs"]
-	permissions := make([]*permission.Permission, 0, len(permissionIDs))
+	permissions := make([]permission.Permission, 0, len(permissionIDs))
 	for _, permID := range permissionIDs {
 		if permID == "" {
 			continue

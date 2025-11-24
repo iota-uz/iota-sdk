@@ -9,7 +9,6 @@ import (
 	"github.com/gorilla/mux"
 	i18n "github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -28,7 +27,7 @@ func TestMiddleware(env *TestEnvironment, u user.User) mux.MiddlewareFunc {
 			ctx = composables.WithPool(ctx, env.Pool)
 			ctx = composables.WithTx(ctx, env.Tx)
 			ctx = composables.WithTenantID(ctx, env.Tenant.ID)
-			ctx = composables.WithSession(ctx, &session.Session{})
+			ctx = composables.WithSession(ctx, MockSession())
 			ctx = composables.WithParams(ctx, &composables.Params{
 				IP:            "127.0.0.1",
 				UserAgent:     "test-agent",

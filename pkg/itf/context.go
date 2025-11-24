@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/jackc/pgx/v5"
@@ -120,7 +119,7 @@ func (tc *TestContext) buildContext() context.Context {
 		ctx = composables.WithUser(ctx, tc.user)
 	}
 
-	ctx = composables.WithSession(ctx, &session.Session{})
+	ctx = composables.WithSession(ctx, MockSession())
 
 	return ctx
 }

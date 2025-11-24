@@ -48,7 +48,7 @@ func UserKeyFunc(r *http.Request) string {
 	}
 
 	// Use user ID for rate limiting if session is available
-	return fmt.Sprintf("user:%d", sess.UserID)
+	return fmt.Sprintf("user:%d", sess.UserID())
 }
 
 // EndpointKeyFunc returns a key based on endpoint and IP

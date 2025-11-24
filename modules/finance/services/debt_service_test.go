@@ -14,17 +14,34 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/stretchr/testify/require"
 )
 
+// committedCtx returns a context without the test transaction, so data saved
+// with this context will be committed immediately and visible to InTx operations.
+func committedCtx(fixtures *itf.TestEnvironment) context.Context {
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, fixtures.Pool)
+	ctx = composables.WithTenantID(ctx, fixtures.TenantID())
+	ctx = composables.WithParams(ctx, itf.DefaultParams())
+	ctx = composables.WithSession(ctx, itf.MockSession())
+	ctx = composables.WithUser(ctx, fixtures.User)
+	return ctx
+}
+
 // setupDebtTestData creates necessary test data for debt tests
-func setupDebtTestData(ctx context.Context, t *testing.T) counterparty.Counterparty {
+// It uses a committed context so data is visible to InTx operations.
+func setupDebtTestData(fixtures *itf.TestEnvironment, t *testing.T) counterparty.Counterparty {
 	t.Helper()
+
+	// Use committed context for setup data so it's visible to InTx operations
+	ctx := committedCtx(fixtures)
 
 	// Create currency
 	currencyRepo := corepersistence.NewCurrencyRepository()
-	if err := currencyRepo.Create(ctx, &currency.USD); err != nil {
+	if err := currencyRepo.Create(ctx, currency.USD); err != nil {
 		t.Fatal(err)
 	}
 
@@ -59,11 +76,13 @@ func TestDebtService_CRUD(t *testing.T) {
 		permissions.DebtDelete,
 	)
 
-	counterparty := setupDebtTestData(f.Ctx, t)
+	// Use committed context for setup data and operations
+	ctx := committedCtx(f)
+	counterparty := setupDebtTestData(f, t)
 	debtService := getDebtService(f)
 
 	// Get tenant ID from context
-	tenantID, err := composables.UseTenantID(f.Ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	require.NoError(t, err)
 
 	// Test Create
@@ -78,7 +97,7 @@ func TestDebtService_CRUD(t *testing.T) {
 		debt.WithDueDate(&dueDate),
 	)
 
-	createdDebt, err := debtService.Create(f.Ctx, debtEntity)
+	createdDebt, err := debtService.Create(ctx, debtEntity)
 	require.NoError(t, err)
 	require.NotNil(t, createdDebt)
 	require.Equal(t, debt.DebtTypeReceivable, createdDebt.Type())
@@ -87,40 +106,40 @@ func TestDebtService_CRUD(t *testing.T) {
 	require.Equal(t, debt.DebtStatusPending, createdDebt.Status())
 
 	// Test GetByID
-	retrievedDebt, err := debtService.GetByID(f.Ctx, createdDebt.ID())
+	retrievedDebt, err := debtService.GetByID(ctx, createdDebt.ID())
 	require.NoError(t, err)
 	require.Equal(t, createdDebt.ID(), retrievedDebt.ID())
 	require.Equal(t, createdDebt.OriginalAmount().Amount(), retrievedDebt.OriginalAmount().Amount())
 
 	// Test GetAll
-	allDebts, err := debtService.GetAll(f.Ctx)
+	allDebts, err := debtService.GetAll(ctx)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(allDebts), 1)
 
 	// Test GetByCounterpartyID
-	counterpartyDebts, err := debtService.GetByCounterpartyID(f.Ctx, counterparty.ID())
+	counterpartyDebts, err := debtService.GetByCounterpartyID(ctx, counterparty.ID())
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(counterpartyDebts), 1)
 
 	// Test Update
 	updatedDescription := "Updated debt description"
 	updatedDebt := createdDebt.UpdateDescription(updatedDescription)
-	finalUpdatedDebt, err := debtService.Update(f.Ctx, updatedDebt)
+	finalUpdatedDebt, err := debtService.Update(ctx, updatedDebt)
 	require.NoError(t, err)
 	require.Equal(t, updatedDescription, finalUpdatedDebt.Description())
 
 	// Test Count
-	count, err := debtService.Count(f.Ctx)
+	count, err := debtService.Count(ctx)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, count, int64(1))
 
 	// Test Delete
-	deletedDebt, err := debtService.Delete(f.Ctx, createdDebt.ID())
+	deletedDebt, err := debtService.Delete(ctx, createdDebt.ID())
 	require.NoError(t, err)
 	require.Equal(t, createdDebt.ID(), deletedDebt.ID())
 
 	// Verify deletion
-	_, err = debtService.GetByID(f.Ctx, createdDebt.ID())
+	_, err = debtService.GetByID(ctx, createdDebt.ID())
 	require.Error(t, err)
 }
 
@@ -132,11 +151,13 @@ func TestDebtService_Settle(t *testing.T) {
 		permissions.DebtUpdate,
 	)
 
-	counterparty := setupDebtTestData(f.Ctx, t)
+	// Use committed context for setup data and operations
+	ctx := committedCtx(f)
+	counterparty := setupDebtTestData(f, t)
 	debtService := getDebtService(f)
 
 	// Get tenant ID from context
-	tenantID, err := composables.UseTenantID(f.Ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	require.NoError(t, err)
 
 	// Create a debt
@@ -149,12 +170,12 @@ func TestDebtService_Settle(t *testing.T) {
 		debt.WithDescription("Test debt for settlement"),
 	)
 
-	createdDebt, err := debtService.Create(f.Ctx, debtEntity)
+	createdDebt, err := debtService.Create(ctx, debtEntity)
 	require.NoError(t, err)
 
 	// Test partial settlement
 	settlementAmount := 300.0 // $300.00
-	settledDebt, err := debtService.Settle(f.Ctx, createdDebt.ID(), settlementAmount, nil)
+	settledDebt, err := debtService.Settle(ctx, createdDebt.ID(), settlementAmount, nil)
 	require.NoError(t, err)
 	require.Equal(t, debt.DebtStatusPartial, settledDebt.Status())
 
@@ -163,7 +184,7 @@ func TestDebtService_Settle(t *testing.T) {
 
 	// Test full settlement
 	remainingAmount := settledDebt.OutstandingAmount().AsMajorUnits()
-	fullySettledDebt, err := debtService.Settle(f.Ctx, settledDebt.ID(), remainingAmount, nil)
+	fullySettledDebt, err := debtService.Settle(ctx, settledDebt.ID(), remainingAmount, nil)
 	require.NoError(t, err)
 	require.Equal(t, debt.DebtStatusSettled, fullySettledDebt.Status())
 	require.Equal(t, int64(0), fullySettledDebt.OutstandingAmount().Amount())
@@ -177,11 +198,13 @@ func TestDebtService_WriteOff(t *testing.T) {
 		permissions.DebtUpdate,
 	)
 
-	counterparty := setupDebtTestData(f.Ctx, t)
+	// Use committed context for setup data and operations
+	ctx := committedCtx(f)
+	counterparty := setupDebtTestData(f, t)
 	debtService := getDebtService(f)
 
 	// Get tenant ID from context
-	tenantID, err := composables.UseTenantID(f.Ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	require.NoError(t, err)
 
 	// Create a debt
@@ -194,11 +217,11 @@ func TestDebtService_WriteOff(t *testing.T) {
 		debt.WithDescription("Test debt for write-off"),
 	)
 
-	createdDebt, err := debtService.Create(f.Ctx, debtEntity)
+	createdDebt, err := debtService.Create(ctx, debtEntity)
 	require.NoError(t, err)
 
 	// Test write-off
-	writtenOffDebt, err := debtService.WriteOff(f.Ctx, createdDebt.ID())
+	writtenOffDebt, err := debtService.WriteOff(ctx, createdDebt.ID())
 	require.NoError(t, err)
 	require.Equal(t, debt.DebtStatusWrittenOff, writtenOffDebt.Status())
 	require.Equal(t, int64(0), writtenOffDebt.OutstandingAmount().Amount())

@@ -112,7 +112,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logoID := dto.LogoID
-		tenant.SetLogoID(&logoID)
+		tenant = tenant.SetLogoID(&logoID)
 	}
 	if dto.LogoCompactID > 0 {
 		// Validate that the upload exists before setting it
@@ -128,7 +128,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logoCompactID := dto.LogoCompactID
-		tenant.SetLogoCompactID(&logoCompactID)
+		tenant = tenant.SetLogoCompactID(&logoCompactID)
 	}
 
 	// Handle phone number update
@@ -145,10 +145,10 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
 			return
 		}
-		tenant.SetPhone(parsedPhone)
+		tenant = tenant.SetPhone(parsedPhone)
 	} else {
 		// Clear phone if empty
-		tenant.SetPhone(nil)
+		tenant = tenant.SetPhone(nil)
 	}
 
 	// Handle email update
@@ -165,10 +165,10 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 			templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
 			return
 		}
-		tenant.SetEmail(parsedEmail)
+		tenant = tenant.SetEmail(parsedEmail)
 	} else {
 		// Clear email if empty
-		tenant.SetEmail(nil)
+		tenant = tenant.SetEmail(nil)
 	}
 
 	if _, err := c.tenantService.Update(r.Context(), tenant); err != nil {
@@ -186,7 +186,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
 }
 
-func (c *SettingsController) logoProps(r *http.Request, errors map[string]string, tenant *tenant.Tenant) (*settings.LogoPageProps, error) {
+func (c *SettingsController) logoProps(r *http.Request, errors map[string]string, tenant tenant.Tenant) (*settings.LogoPageProps, error) {
 	nonNilErrors := make(map[string]string)
 	if errors != nil {
 		nonNilErrors = errors
