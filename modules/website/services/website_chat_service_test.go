@@ -26,6 +26,8 @@ func committedCtx(fixtures *itf.TestEnvironment) context.Context {
 	ctx := context.Background()
 	ctx = composables.WithPool(ctx, fixtures.Pool)
 	ctx = composables.WithTenantID(ctx, fixtures.TenantID())
+	ctx = composables.WithParams(ctx, itf.DefaultParams())
+	ctx = composables.WithSession(ctx, itf.MockSession())
 	return ctx
 }
 
