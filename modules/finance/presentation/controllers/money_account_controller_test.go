@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	moneyAccountEntity "github.com/iota-uz/iota-sdk/modules/finance/domain/aggregates/money_account"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
@@ -24,11 +26,25 @@ var (
 	MoneyAccountBasePath = "/finance/accounts"
 )
 
+// committedCtx returns a context without the test transaction, so data saved
+// with this context will be committed immediately and visible to InTx operations.
+func committedCtx(env *itf.TestEnvironment) context.Context {
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, env.Pool)
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithParams(ctx, itf.DefaultParams())
+	ctx = composables.WithSession(ctx, itf.MockSession())
+	ctx = composables.WithUser(ctx, env.User)
+	return ctx
+}
+
 func createCurrencies(t *testing.T, env *itf.TestEnvironment, currencies ...currency.Currency) {
 	t.Helper()
+	// Use committed context so currency is visible to InTx operations in controllers
+	ctx := committedCtx(env)
 	currencyRepo := persistence.NewCurrencyRepository()
 	for _, curr := range currencies {
-		err := currencyRepo.Create(env.Ctx, curr)
+		err := currencyRepo.Create(ctx, curr)
 		require.NoError(t, err)
 	}
 }

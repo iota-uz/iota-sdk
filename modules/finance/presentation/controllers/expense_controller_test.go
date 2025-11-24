@@ -1,6 +1,7 @@
 package controllers_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/permissions"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
@@ -28,6 +30,18 @@ import (
 var (
 	ExpenseBasePath = "/finance/expenses"
 )
+
+// expenseCommittedCtx returns a context without the test transaction, so data saved
+// with this context will be committed immediately and visible to InTx operations.
+func expenseCommittedCtx(env *itf.TestEnvironment) context.Context {
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, env.Pool)
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithParams(ctx, itf.DefaultParams())
+	ctx = composables.WithSession(ctx, itf.MockSession())
+	ctx = composables.WithUser(ctx, env.User)
+	return ctx
+}
 
 func TestExpenseController_List_Success(t *testing.T) {
 	t.Parallel()
@@ -65,7 +79,7 @@ func TestExpenseController_List_Success(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
@@ -139,7 +153,7 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
@@ -196,7 +210,7 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	_, err = categoryRepo.Create(env.Ctx, category)
+	_, err = categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	response := suite.GET(ExpenseBasePath + "/new").
@@ -250,7 +264,7 @@ func TestExpenseController_Create_Success(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -309,7 +323,7 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	now := time.Now()
@@ -371,7 +385,7 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
@@ -464,7 +478,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
@@ -534,7 +548,7 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
@@ -608,7 +622,7 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(
@@ -717,7 +731,7 @@ func TestExpenseController_Export_Excel_Success(t *testing.T) {
 		expenseCategoryEntity.WithTenantID(env.Tenant.ID),
 	)
 
-	createdCategory, err := categoryRepo.Create(env.Ctx, category)
+	createdCategory, err := categoryRepo.Create(expenseCommittedCtx(env), category)
 	require.NoError(t, err)
 
 	expense1 := expenseAggregate.New(

@@ -164,8 +164,12 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 		Status(200)
 
 	html := response.HTML()
-	// Should have table headers but no data rows
-	require.Empty(t, html.Elements("//table//tbody//tr"))
+	// Should have empty state row (no data rows)
+	// The table scaffold renders an empty state <tr> when there's no data
+	rows := html.Elements("//table//tbody//tr")
+	require.Len(t, rows, 1, "Should have exactly 1 row (the empty state row)")
+	// Verify it's the empty state, not actual data
+	response.Contains("No data available")
 }
 
 func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {

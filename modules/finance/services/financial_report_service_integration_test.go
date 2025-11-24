@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -21,6 +22,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// reportCommittedCtx returns a context without the test transaction, so data saved
+// with this context will be committed immediately and visible to InTx operations.
+func reportCommittedCtx(fixtures *itf.TestEnvironment) context.Context {
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, fixtures.Pool)
+	ctx = composables.WithTenantID(ctx, fixtures.TenantID())
+	ctx = composables.WithParams(ctx, itf.DefaultParams())
+	ctx = composables.WithSession(ctx, itf.MockSession())
+	ctx = composables.WithUser(ctx, fixtures.User)
+	return ctx
+}
 
 // Helper functions to get services
 func getExpenseService(env *itf.TestEnvironment) *services.ExpenseService {
@@ -43,7 +56,8 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 	t.Run("Basic cashflow calculation with real database", func(t *testing.T) {
 		// Setup test environment with permissions
 		env := setupTest(t, permissions.PaymentRead, permissions.ExpenseRead, permissions.PaymentCreate, permissions.ExpenseCreate)
-		ctx := env.Ctx
+		// Use committed context for all operations so data is visible to InTx operations
+		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
@@ -213,7 +227,8 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 	t.Run("Historical balance calculation", func(t *testing.T) {
 		env := setupTest(t, permissions.PaymentRead, permissions.ExpenseRead, permissions.PaymentCreate, permissions.ExpenseCreate)
-		ctx := env.Ctx
+		// Use committed context for all operations so data is visible to InTx operations
+		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
@@ -326,7 +341,8 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 	t.Run("Edge case - transactions on period boundaries", func(t *testing.T) {
 		env := setupTest(t, permissions.PaymentRead, permissions.PaymentCreate)
-		ctx := env.Ctx
+		// Use committed context for all operations so data is visible to InTx operations
+		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
@@ -421,7 +437,8 @@ func TestFinancialReportService_CashflowStatement_Integration(t *testing.T) {
 
 	t.Run("Cashflow statement with query debug", func(t *testing.T) {
 		env := setupTest(t, permissions.PaymentRead, permissions.PaymentCreate)
-		ctx := env.Ctx
+		// Use committed context for all operations so data is visible to InTx operations
+		ctx := reportCommittedCtx(env)
 
 		// Create USD currency first
 		currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
@@ -545,16 +562,16 @@ func TestFinancialReportService_IncomeStatement_COGS_Separation(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	t.Parallel()
-
+	// Note: NOT parallel - these tests share committed database state for currency
 	env := setupTest(t,
 		permissions.PaymentCreate, permissions.PaymentRead,
 		permissions.ExpenseCreate, permissions.ExpenseRead,
 		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
 	)
-	ctx := env.Ctx
+	// Use committed context for all operations so data is visible to InTx operations
+	ctx := committedCtx(env)
 
-	// Create USD currency
+	// Create USD currency with committed context
 	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
 	currencyDTO := &currency.CreateDTO{
 		Code:   string(currency.USD.Code()),
@@ -665,27 +682,27 @@ func TestFinancialReportService_IncomeStatement_COGS_Separation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stmt)
 
-	// Assert COGS section contains Raw Materials
+	// Assert COGS section contains Raw Materials (expenses are negative in accounting)
 	assert.NotEmpty(t, stmt.COGSSection.LineItems, "COGS section should have items")
 	assert.Len(t, stmt.COGSSection.LineItems, 1, "COGS section should have exactly 1 item")
 	if len(stmt.COGSSection.LineItems) > 0 {
 		assert.Equal(t, "Raw Materials", stmt.COGSSection.LineItems[0].Name)
-		assert.Equal(t, int64(4000000), stmt.COGSSection.LineItems[0].Amount.Amount())
+		assert.Equal(t, int64(-4000000), stmt.COGSSection.LineItems[0].Amount.Amount())
 	}
 
-	// Assert operating expense section contains Office Rent
+	// Assert operating expense section contains Office Rent (expenses are negative in accounting)
 	assert.NotEmpty(t, stmt.OperatingExpenseSection.LineItems, "Operating expense section should have items")
 	assert.Len(t, stmt.OperatingExpenseSection.LineItems, 1, "Operating expense section should have exactly 1 item")
 	if len(stmt.OperatingExpenseSection.LineItems) > 0 {
 		assert.Equal(t, "Office Rent", stmt.OperatingExpenseSection.LineItems[0].Name)
-		assert.Equal(t, int64(2000000), stmt.OperatingExpenseSection.LineItems[0].Amount.Amount())
+		assert.Equal(t, int64(-2000000), stmt.OperatingExpenseSection.LineItems[0].Amount.Amount())
 	}
 
-	// Assert COGS totals
-	assert.Equal(t, int64(4000000), stmt.COGSSection.Subtotal.Amount(), "COGS subtotal should be $40,000")
+	// Assert COGS totals (negative as expenses)
+	assert.Equal(t, int64(-4000000), stmt.COGSSection.Subtotal.Amount(), "COGS subtotal should be -$40,000")
 
-	// Assert operating expense totals
-	assert.Equal(t, int64(2000000), stmt.OperatingExpenseSection.Subtotal.Amount(), "Operating expense subtotal should be $20,000")
+	// Assert operating expense totals (negative as expenses)
+	assert.Equal(t, int64(-2000000), stmt.OperatingExpenseSection.Subtotal.Amount(), "Operating expense subtotal should be -$20,000")
 }
 
 // TestFinancialReportService_IncomeStatement_GrossProfit tests gross profit calculation
@@ -694,14 +711,14 @@ func TestFinancialReportService_IncomeStatement_GrossProfit(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	t.Parallel()
-
+	// Note: NOT parallel - these tests share committed database state for currency
 	env := setupTest(t,
 		permissions.PaymentCreate, permissions.PaymentRead,
 		permissions.ExpenseCreate, permissions.ExpenseRead,
 		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
 	)
-	ctx := env.Ctx
+	// Use committed context for all operations so data is visible to InTx operations
+	ctx := committedCtx(env)
 
 	// Create USD currency
 	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
@@ -807,14 +824,14 @@ func TestFinancialReportService_IncomeStatement_OperatingProfit(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	t.Parallel()
-
+	// Note: NOT parallel - these tests share committed database state for currency
 	env := setupTest(t,
 		permissions.PaymentCreate, permissions.PaymentRead,
 		permissions.ExpenseCreate, permissions.ExpenseRead,
 		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
 	)
-	ctx := env.Ctx
+	// Use committed context for all operations so data is visible to InTx operations
+	ctx := committedCtx(env)
 
 	// Create USD currency
 	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
@@ -950,14 +967,14 @@ func TestFinancialReportService_IncomeStatement_NoCOGS(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	t.Parallel()
-
+	// Note: NOT parallel - these tests share committed database state for currency
 	env := setupTest(t,
 		permissions.PaymentCreate, permissions.PaymentRead,
 		permissions.ExpenseCreate, permissions.ExpenseRead,
 		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
 	)
-	ctx := env.Ctx
+	// Use committed context for all operations so data is visible to InTx operations
+	ctx := committedCtx(env)
 
 	// Create USD currency
 	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
@@ -1071,14 +1088,14 @@ func TestFinancialReportService_IncomeStatement_COGS_Percentage(t *testing.T) {
 		t.Skip("Skipping integration test")
 	}
 
-	t.Parallel()
-
+	// Note: NOT parallel - these tests share committed database state for currency
 	env := setupTest(t,
 		permissions.PaymentCreate, permissions.PaymentRead,
 		permissions.ExpenseCreate, permissions.ExpenseRead,
 		permissions.ExpenseCategoryCreate, permissions.ExpenseCategoryRead,
 	)
-	ctx := env.Ctx
+	// Use committed context for all operations so data is visible to InTx operations
+	ctx := committedCtx(env)
 
 	// Create USD currency
 	currencyService := env.Service(coreServices.CurrencyService{}).(*coreServices.CurrencyService)
