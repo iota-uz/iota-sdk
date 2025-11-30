@@ -16,7 +16,7 @@ func TestGormMoneyAccountRepository_CRUD(t *testing.T) {
 	currencyRepository := persistence.NewCurrencyRepository()
 	accountRepository := financepersistence.NewMoneyAccountRepository()
 
-	if err := currencyRepository.Create(f.Ctx, &currency.USD); err != nil {
+	if err := currencyRepository.Create(f.Ctx, currency.USD); err != nil {
 		t.Fatal(err)
 	}
 	createdAccount, err := accountRepository.Create(

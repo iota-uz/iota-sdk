@@ -8,29 +8,29 @@ import (
 )
 
 type CurrencyService struct {
-	Repo      currency.Repository
-	Publisher eventbus.EventBus
+	repo      currency.Repository
+	publisher eventbus.EventBus
 }
 
 func NewCurrencyService(repo currency.Repository, publisher eventbus.EventBus) *CurrencyService {
 	return &CurrencyService{
-		Repo:      repo,
-		Publisher: publisher,
+		repo:      repo,
+		publisher: publisher,
 	}
 }
 
-func (s *CurrencyService) GetByCode(ctx context.Context, id string) (*currency.Currency, error) {
-	return s.Repo.GetByCode(ctx, id)
+func (s *CurrencyService) GetByCode(ctx context.Context, id string) (currency.Currency, error) {
+	return s.repo.GetByCode(ctx, id)
 }
 
-func (s *CurrencyService) GetAll(ctx context.Context) ([]*currency.Currency, error) {
-	return s.Repo.GetAll(ctx)
+func (s *CurrencyService) GetAll(ctx context.Context) ([]currency.Currency, error) {
+	return s.repo.GetAll(ctx)
 }
 
 func (s *CurrencyService) GetPaginated(
 	ctx context.Context, params *currency.FindParams,
-) ([]*currency.Currency, error) {
-	return s.Repo.GetPaginated(ctx, params)
+) ([]currency.Currency, error) {
+	return s.repo.GetPaginated(ctx, params)
 }
 
 func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) error {
@@ -42,11 +42,11 @@ func (s *CurrencyService) Create(ctx context.Context, data *currency.CreateDTO) 
 	if err != nil {
 		return err
 	}
-	if err := s.Repo.Create(ctx, entity); err != nil {
+	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent.Result = *entity
-	s.Publisher.Publish(createdEvent)
+	createdEvent.Result = entity
+	s.publisher.Publish(createdEvent)
 	return nil
 }
 
@@ -59,27 +59,27 @@ func (s *CurrencyService) Update(ctx context.Context, data *currency.UpdateDTO) 
 	if err != nil {
 		return err
 	}
-	if err := s.Repo.Update(ctx, entity); err != nil {
+	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent.Result = *entity
-	s.Publisher.Publish(updatedEvent)
+	updatedEvent.Result = entity
+	s.publisher.Publish(updatedEvent)
 	return nil
 }
 
-func (s *CurrencyService) Delete(ctx context.Context, code string) (*currency.Currency, error) {
+func (s *CurrencyService) Delete(ctx context.Context, code string) (currency.Currency, error) {
 	deletedEvent, err := currency.NewDeletedEvent(ctx)
 	if err != nil {
 		return nil, err
 	}
-	entity, err := s.Repo.GetByCode(ctx, code)
+	entity, err := s.repo.GetByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Repo.Delete(ctx, code); err != nil {
+	if err := s.repo.Delete(ctx, code); err != nil {
 		return nil, err
 	}
-	deletedEvent.Result = *entity
-	s.Publisher.Publish(deletedEvent)
+	deletedEvent.Result = entity
+	s.publisher.Publish(deletedEvent)
 	return entity, nil
 }

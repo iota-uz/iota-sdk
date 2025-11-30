@@ -25,7 +25,7 @@ func NewAuthLogRepository() authlog.Repository {
 
 func (g *GormAuthLogRepository) GetPaginated(
 	ctx context.Context, params *authlog.FindParams,
-) ([]*authlog.AuthenticationLog, error) {
+) ([]authlog.AuthLog, error) {
 	pool, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func (g *GormAuthLogRepository) GetPaginated(
 		return nil, err
 	}
 	defer rows.Close()
-	logs := make([]*authlog.AuthenticationLog, 0)
+	logs := make([]authlog.AuthLog, 0)
 	for rows.Next() {
 		var log models.AuthenticationLog
 		if err := rows.Scan(
@@ -98,13 +98,13 @@ func (g *GormAuthLogRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *GormAuthLogRepository) GetAll(ctx context.Context) ([]*authlog.AuthenticationLog, error) {
+func (g *GormAuthLogRepository) GetAll(ctx context.Context) ([]authlog.AuthLog, error) {
 	return g.GetPaginated(ctx, &authlog.FindParams{
 		Limit: 100000,
 	})
 }
 
-func (g *GormAuthLogRepository) GetByID(ctx context.Context, id uint) (*authlog.AuthenticationLog, error) {
+func (g *GormAuthLogRepository) GetByID(ctx context.Context, id uint) (authlog.AuthLog, error) {
 	logs, err := g.GetPaginated(ctx, &authlog.FindParams{
 		ID: id,
 	})
@@ -117,7 +117,7 @@ func (g *GormAuthLogRepository) GetByID(ctx context.Context, id uint) (*authlog.
 	return logs[0], nil
 }
 
-func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.AuthenticationLog) error {
+func (g *GormAuthLogRepository) Create(ctx context.Context, data authlog.AuthLog) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -128,28 +128,24 @@ func (g *GormAuthLogRepository) Create(ctx context.Context, data *authlog.Authen
 		return err
 	}
 
-	dbRow := toDBAuthenticationLog(data)
-	dbRow.TenantID = tenantID.String()
-
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO authentication_logs (user_id, ip, user_agent, tenant_id) VALUES ($1, $2, $3, $4)
-	`, dbRow.UserID, dbRow.IP, dbRow.UserAgent, dbRow.TenantID).Scan(&data.ID); err != nil {
+	`, data.UserID(), data.IP(), data.UserAgent(), tenantID.String()).Scan(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (g *GormAuthLogRepository) Update(ctx context.Context, data *authlog.AuthenticationLog) error {
+func (g *GormAuthLogRepository) Update(ctx context.Context, data authlog.AuthLog) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
 	}
-	dbRow := toDBAuthenticationLog(data)
 	if _, err := tx.Exec(ctx, `
 		UPDATE authentication_logs
 		SET ip = $1, user_agent = $2
 		WHERE id = $3
-	`, dbRow.IP, dbRow.UserAgent, dbRow.ID); err != nil {
+	`, data.IP(), data.UserAgent(), data.ID()); err != nil {
 		return err
 	}
 	return nil

@@ -29,7 +29,7 @@ func NewTenantRepository() tenant.Repository {
 	return &TenantRepository{}
 }
 
-func (r *TenantRepository) GetByID(ctx context.Context, id uuid.UUID) (*tenant.Tenant, error) {
+func (r *TenantRepository) GetByID(ctx context.Context, id uuid.UUID) (tenant.Tenant, error) {
 	query := tenantFindQuery + " WHERE id = $1"
 	tenants, err := r.queryTenants(ctx, query, id.String())
 	if err != nil {
@@ -43,7 +43,7 @@ func (r *TenantRepository) GetByID(ctx context.Context, id uuid.UUID) (*tenant.T
 	return tenants[0], nil
 }
 
-func (r *TenantRepository) GetByDomain(ctx context.Context, domain string) (*tenant.Tenant, error) {
+func (r *TenantRepository) GetByDomain(ctx context.Context, domain string) (tenant.Tenant, error) {
 	query := tenantFindQuery + " WHERE domain = $1"
 	tenants, err := r.queryTenants(ctx, query, domain)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *TenantRepository) GetByDomain(ctx context.Context, domain string) (*ten
 	return tenants[0], nil
 }
 
-func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) (*tenant.Tenant, error) {
+func (r *TenantRepository) Create(ctx context.Context, t tenant.Tenant) (tenant.Tenant, error) {
 	query := `
 		INSERT INTO tenants (id, name, domain, phone, email, is_active, logo_id, logo_compact_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -102,7 +102,7 @@ func (r *TenantRepository) Create(ctx context.Context, t *tenant.Tenant) (*tenan
 	return r.GetByID(ctx, id)
 }
 
-func (r *TenantRepository) Update(ctx context.Context, t *tenant.Tenant) (*tenant.Tenant, error) {
+func (r *TenantRepository) Update(ctx context.Context, t tenant.Tenant) (tenant.Tenant, error) {
 	query := `
 		UPDATE tenants
 		SET name = $1, domain = $2, phone = $3, email = $4, is_active = $5, logo_id = $6, logo_compact_id = $7, updated_at = $8
@@ -158,11 +158,11 @@ func (r *TenantRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-func (r *TenantRepository) List(ctx context.Context) ([]*tenant.Tenant, error) {
+func (r *TenantRepository) List(ctx context.Context) ([]tenant.Tenant, error) {
 	return r.queryTenants(ctx, tenantFindQuery)
 }
 
-func (r *TenantRepository) queryTenants(ctx context.Context, query string, args ...interface{}) ([]*tenant.Tenant, error) {
+func (r *TenantRepository) queryTenants(ctx context.Context, query string, args ...interface{}) ([]tenant.Tenant, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
@@ -174,7 +174,7 @@ func (r *TenantRepository) queryTenants(ctx context.Context, query string, args 
 	}
 	defer rows.Close()
 
-	var tenants []*tenant.Tenant
+	var tenants []tenant.Tenant
 	for rows.Next() {
 		var t models.Tenant
 		if err := rows.Scan(
@@ -201,7 +201,7 @@ func (r *TenantRepository) queryTenants(ctx context.Context, query string, args 
 	return tenants, nil
 }
 
-func toDomainTenant(t *models.Tenant) *tenant.Tenant {
+func toDomainTenant(t *models.Tenant) tenant.Tenant {
 	id, err := uuid.Parse(t.ID)
 	if err != nil {
 		// Log error or handle it appropriately

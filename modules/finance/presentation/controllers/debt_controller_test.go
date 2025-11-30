@@ -41,7 +41,7 @@ func TestDebtController_List_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -107,7 +107,7 @@ func TestDebtController_List_HTMX_Request(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -119,7 +119,7 @@ func TestDebtController_List_HTMX_Request(t *testing.T) {
 	counterparty1 := counterparty.New(
 		"HTMX Test Counterparty",
 		counterparty.Supplier,
-		counterparty.LegalEntity,
+		counterparty.LLC,
 		counterparty.WithTenantID(env.Tenant.ID),
 	)
 
@@ -160,7 +160,7 @@ func TestDebtController_GetEditDrawer_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -215,7 +215,7 @@ func TestDebtController_GetEditDrawer_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -239,7 +239,7 @@ func TestDebtController_GetNewDrawer_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -282,7 +282,7 @@ func TestDebtController_Create_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -343,7 +343,7 @@ func TestDebtController_Create_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -399,7 +399,7 @@ func TestDebtController_Update_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -469,7 +469,7 @@ func TestDebtController_Update_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -537,7 +537,7 @@ func TestDebtController_Settle_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -624,7 +624,7 @@ func TestDebtController_WriteOff_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -680,7 +680,7 @@ func TestDebtController_Delete_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -738,7 +738,7 @@ func TestDebtController_Delete_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -761,7 +761,7 @@ func TestDebtController_InvalidUUID(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -781,7 +781,7 @@ func TestDebtController_Permission_Forbidden(t *testing.T) {
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
@@ -805,7 +805,7 @@ func TestDebtController_List_WithFilters(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtsController(env.App)
 	suite.Register(controller)
