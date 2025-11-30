@@ -70,11 +70,11 @@ func UploadToViewModel(entity upload.Upload) *viewmodels.Upload {
 	return upload
 }
 
-func CurrencyToViewModel(entity *currency.Currency) *viewmodels.Currency {
+func CurrencyToViewModel(entity currency.Currency) *viewmodels.Currency {
 	return &viewmodels.Currency{
-		Code:   string(entity.Code),
-		Name:   entity.Name,
-		Symbol: string(entity.Symbol),
+		Code:   string(entity.Code()),
+		Name:   entity.Name(),
+		Symbol: string(entity.Symbol()),
 	}
 }
 
@@ -91,13 +91,13 @@ func RoleToViewModel(entity role.Role) *viewmodels.Role {
 	}
 }
 
-func PermissionToViewModel(entity *permission.Permission) *viewmodels.Permission {
+func PermissionToViewModel(entity permission.Permission) *viewmodels.Permission {
 	return &viewmodels.Permission{
-		ID:       entity.ID.String(),
-		Name:     entity.Name,
-		Resource: string(entity.Resource),
-		Action:   string(entity.Action),
-		Modifier: string(entity.Modifier),
+		ID:       entity.ID().String(),
+		Name:     entity.Name(),
+		Resource: string(entity.Resource()),
+		Action:   string(entity.Action()),
+		Modifier: string(entity.Modifier()),
 	}
 }
 

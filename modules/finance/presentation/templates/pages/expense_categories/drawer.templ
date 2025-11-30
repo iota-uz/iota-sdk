@@ -58,6 +58,14 @@ templ EditDrawer(props *DrawerEditProps) {
 						Value: props.Category.Description,
 						Error: props.Errors["Description"],
 					})
+					@input.Switch(&input.SwitchProps{
+						Label: pageCtx.T("ExpenseCategories.Single.IsCOGS"),
+						Attrs: templ.Attributes{
+							"name":  "IsCOGS",
+							"value": "true",
+						},
+						Checked: props.Category.IsCOGS,
+					})
 				</div>
 				<div class="p-6 border-t border-gray-200 flex justify-between">
 					@button.Danger(button.Props{
@@ -133,6 +141,14 @@ templ CreateDrawer(props *DrawerCreateProps) {
 						},
 						Value: props.Category.Description,
 						Error: props.Errors["Description"],
+					})
+					@input.Switch(&input.SwitchProps{
+						Label: pageCtx.T("ExpenseCategories.Single.IsCOGS"),
+						Attrs: templ.Attributes{
+							"name":  "IsCOGS",
+							"value": "true",
+						},
+						Checked: props.Category.IsCOGS,
 					})
 				</div>
 				<div class="p-6 border-t border-gray-200 flex justify-end gap-3">

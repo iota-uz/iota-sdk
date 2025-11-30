@@ -15,13 +15,13 @@ func NewCreatedEvent(ctx context.Context, data Client) (*CreatedEvent, error) {
 	if !ok {
 		return nil, errors.New("no user found in context")
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+	sess, ok := ctx.Value(constants.SessionKey).(session.Session)
 	if !ok {
 		return nil, errors.New("no session found in context")
 	}
 	return &CreatedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Data:    data,
 	}, nil
 }
@@ -32,13 +32,13 @@ func NewUpdatedEvent(ctx context.Context, data Client) (*UpdatedEvent, error) {
 	if !ok {
 		return nil, errors.New("no user found in context")
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+	sess, ok := ctx.Value(constants.SessionKey).(session.Session)
 	if !ok {
 		return nil, errors.New("no session found in context")
 	}
 	return &UpdatedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Data:    data,
 	}, nil
 }
@@ -49,13 +49,13 @@ func NewDeletedEvent(ctx context.Context, data Client) (*DeletedEvent, error) {
 	if !ok {
 		return nil, errors.New("no user found in context")
 	}
-	sess, ok := ctx.Value(constants.SessionKey).(*session.Session)
+	sess, ok := ctx.Value(constants.SessionKey).(session.Session)
 	if !ok {
 		return nil, errors.New("no session found in context")
 	}
 	return &DeletedEvent{
 		Sender:  sender,
-		Session: *sess,
+		Session: sess,
 		Data:    data,
 	}, nil
 }

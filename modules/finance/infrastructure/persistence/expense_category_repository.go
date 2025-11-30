@@ -23,6 +23,7 @@ const (
 			ec.tenant_id,
 			ec.name,
 			ec.description,
+			ec.is_cogs,
 			ec.created_at,
 			ec.updated_at
 		FROM expense_categories ec
@@ -32,10 +33,11 @@ const (
 	INSERT INTO expense_categories (
 		tenant_id,
 		name,
-		description
+		description,
+		is_cogs
 	)
-	VALUES ($1, $2, $3) RETURNING id`
-	updateExpenseCategoryQuery = `UPDATE expense_categories SET name = $1, description = $2 WHERE id = $3 AND tenant_id = $4`
+	VALUES ($1, $2, $3, $4) RETURNING id`
+	updateExpenseCategoryQuery = `UPDATE expense_categories SET name = $1, description = $2, is_cogs = $3 WHERE id = $4 AND tenant_id = $5`
 	deleteExpenseCategoryQuery = `DELETE FROM expense_categories WHERE id = $1 AND tenant_id = $2`
 )
 
@@ -109,6 +111,7 @@ func (g *PgExpenseCategoryRepository) queryCategories(ctx context.Context, query
 			&ec.TenantID,
 			&ec.Name,
 			&ec.Description,
+			&ec.IsCOGS,
 			&ec.CreatedAt,
 			&ec.UpdatedAt,
 		); err != nil {
@@ -225,6 +228,7 @@ func (g *PgExpenseCategoryRepository) Create(ctx context.Context, data category.
 		dbRow.TenantID,
 		dbRow.Name,
 		dbRow.Description,
+		dbRow.IsCOGS,
 	).Scan(&id); err != nil {
 		return nil, fmt.Errorf("failed to create expense category: %w", err)
 	}
@@ -250,6 +254,7 @@ func (g *PgExpenseCategoryRepository) Update(ctx context.Context, data category.
 		updateExpenseCategoryQuery,
 		dbRow.Name,
 		dbRow.Description,
+		dbRow.IsCOGS,
 		data.ID(),
 		dbRow.TenantID,
 	); err != nil {

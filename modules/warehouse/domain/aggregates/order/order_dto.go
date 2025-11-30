@@ -1,19 +1,18 @@
 package order
 
-import (
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
-)
-
 type CreateDTO struct {
-	Type       string
-	Status     string
+	Type   string
+	Status string
+	// NOTE: ProductIDs should be handled by service layer
+	// Service will fetch actual entities from repositories and add items
 	ProductIDs []uint
 }
 
 type UpdateDTO struct {
-	Type       string
-	Status     string
+	Type   string
+	Status string
+	// NOTE: ProductIDs should be handled by service layer
+	// Service will fetch actual entities from repositories and add items
 	ProductIDs []uint
 }
 
@@ -26,18 +25,9 @@ func (d *CreateDTO) ToEntity() (Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	entity := New(t, WithStatus(s))
-	for _, id := range d.ProductIDs {
-		// Create temporary position and product instances for the DTO
-		// Note: In a real implementation, these would be fetched from repositories
-		pos := position.New("", "", position.WithID(1))
-		prod := product.New("", product.InStock, product.WithID(id))
-		entity, err = entity.AddItem(pos, prod)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return entity, nil
+	// Return basic order without items
+	// Service layer will handle AddItem with real entities fetched from repositories
+	return New(t, WithStatus(s)), nil
 }
 
 func (d *UpdateDTO) ToEntity(id uint) (Order, error) {
@@ -49,16 +39,7 @@ func (d *UpdateDTO) ToEntity(id uint) (Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	entity := New(t, WithID(id), WithStatus(s))
-	for _, productID := range d.ProductIDs {
-		// Create temporary position and product instances for the DTO
-		// Note: In a real implementation, these would be fetched from repositories
-		pos := position.New("", "", position.WithID(1))
-		prod := product.New("", product.InStock, product.WithID(productID))
-		entity, err = entity.AddItem(pos, prod)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return entity, nil
+	// Return basic order without items
+	// Service layer will handle AddItem with real entities fetched from repositories
+	return New(t, WithID(id), WithStatus(s)), nil
 }

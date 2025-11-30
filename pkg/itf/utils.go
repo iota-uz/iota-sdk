@@ -32,15 +32,8 @@ type TestFixtures struct {
 	App     application.Application
 }
 
-func MockSession() *session.Session {
-	return &session.Session{
-		Token:     "",
-		UserID:    0,
-		IP:        "",
-		UserAgent: "",
-		ExpiresAt: time.Now(),
-		CreatedAt: time.Now(),
-	}
+func MockSession() session.Session {
+	return session.New("mock-token", 0, uuid.Nil, "127.0.0.1", "test-agent")
 }
 
 func NewPool(dbOpts string) *pgxpool.Pool {

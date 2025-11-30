@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -19,8 +20,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// userCommittedCtx returns a context without the test transaction, so data saved
+// with this context will be committed immediately and visible to InTx operations.
+func userCommittedCtx(fixtures *itf.TestEnvironment) context.Context {
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, fixtures.Pool)
+	ctx = composables.WithTenantID(ctx, fixtures.TenantID())
+	ctx = composables.WithParams(ctx, itf.DefaultParams())
+	ctx = composables.WithSession(ctx, itf.MockSession())
+	ctx = composables.WithUser(ctx, fixtures.User)
+	return ctx
+}
+
 // setupTestWithPermissions creates test environment with specified permissions
-func setupTestWithPermissions(t *testing.T, permissions ...*permission.Permission) *itf.TestEnvironment {
+func setupTestWithPermissions(t *testing.T, permissions ...permission.Permission) *itf.TestEnvironment {
 	t.Helper()
 
 	user := itf.User(permissions...)
@@ -155,6 +168,9 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 	})
 
 	t.Run("Delete_Non_Last_User_Should_Succeed", func(t *testing.T) {
+		// Use committed context so data is visible to InTx operations
+		ctx := userCommittedCtx(f)
+
 		// Create multiple users in tenant
 		email1, err := internet.NewEmail("deletable1@test.com")
 		require.NoError(t, err)
@@ -168,19 +184,19 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 			user.WithType(user.TypeUser),
 			user.WithTenantID(tenant))
 
-		createdDeletableUser, err := userRepository.Create(f.Ctx, deletableUser)
+		createdDeletableUser, err := userRepository.Create(ctx, deletableUser)
 		require.NoError(t, err)
-		_, err = userRepository.Create(f.Ctx, keeperUser)
+		_, err = userRepository.Create(ctx, keeperUser)
 		require.NoError(t, err)
 
 		// Delete one user (should succeed)
-		deletedUser, err := userService.Delete(f.Ctx, createdDeletableUser.ID())
+		deletedUser, err := userService.Delete(ctx, createdDeletableUser.ID())
 		require.NoError(t, err)
 		require.NotNil(t, deletedUser)
 		assert.Equal(t, createdDeletableUser.ID(), deletedUser.ID())
 
 		// Verify user is actually deleted
-		_, err = userRepository.GetByID(f.Ctx, createdDeletableUser.ID())
+		_, err = userRepository.GetByID(ctx, createdDeletableUser.ID())
 		require.Error(t, err)
 		assert.ErrorIs(t, err, persistence.ErrUserNotFound)
 	})

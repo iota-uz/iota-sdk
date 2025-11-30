@@ -49,7 +49,7 @@ func NewPermissionRepository() permission.Repository {
 
 func (g *PgPermissionRepository) GetPaginated(
 	ctx context.Context, params *permission.FindParams,
-) ([]*permission.Permission, error) {
+) ([]permission.Permission, error) {
 	var where []string
 	var joins []string
 	var args []interface{}
@@ -86,11 +86,11 @@ func (g *PgPermissionRepository) Count(ctx context.Context) (int64, error) {
 	return count, nil
 }
 
-func (g *PgPermissionRepository) GetAll(ctx context.Context) ([]*permission.Permission, error) {
+func (g *PgPermissionRepository) GetAll(ctx context.Context) ([]permission.Permission, error) {
 	return g.queryPermissions(ctx, permissionsSelectQuery)
 }
 
-func (g *PgPermissionRepository) GetByID(ctx context.Context, id string) (*permission.Permission, error) {
+func (g *PgPermissionRepository) GetByID(ctx context.Context, id string) (permission.Permission, error) {
 	permissions, err := g.queryPermissions(ctx, permissionsSelectQuery+" WHERE id = $1", id)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (g *PgPermissionRepository) GetByID(ctx context.Context, id string) (*permi
 	return permissions[0], nil
 }
 
-func (g *PgPermissionRepository) Save(ctx context.Context, data *permission.Permission) error {
+func (g *PgPermissionRepository) Save(ctx context.Context, data permission.Permission) error {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
@@ -109,6 +109,7 @@ func (g *PgPermissionRepository) Save(ctx context.Context, data *permission.Perm
 
 	dbPerm := toDBPermission(data)
 
+	var returnedID string
 	if err := tx.QueryRow(
 		ctx,
 		permissionsInsertQuery,
@@ -118,7 +119,7 @@ func (g *PgPermissionRepository) Save(ctx context.Context, data *permission.Perm
 		dbPerm.Action,
 		dbPerm.Modifier,
 		dbPerm.Description,
-	).Scan(&data.ID); err != nil {
+	).Scan(&returnedID); err != nil {
 		return err
 	}
 	return nil
@@ -136,7 +137,7 @@ func (g *PgPermissionRepository) queryPermissions(
 	ctx context.Context,
 	query string,
 	args ...interface{},
-) ([]*permission.Permission, error) {
+) ([]permission.Permission, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, err
@@ -148,7 +149,7 @@ func (g *PgPermissionRepository) queryPermissions(
 	}
 	defer rows.Close()
 
-	var permissions []*permission.Permission
+	var permissions []permission.Permission
 
 	for rows.Next() {
 		var p models.Permission

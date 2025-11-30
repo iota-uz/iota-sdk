@@ -5,6 +5,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
@@ -57,9 +58,20 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 					Initials: user.Initials(),
 					Class:    templ.Classes("w-8 h-8 min-w-8 !bg-avatar text-avatar"),
 				})
-				<span>
-					{ user.FullName() }
-				</span>
+				<div class="flex items-center gap-2">
+					<span>
+						{ user.FullName() }
+					</span>
+					if user.Type == "system" {
+						@badge.New(badge.Props{
+							Class:   templ.Classes("px-2"),
+							Variant: badge.VariantBlue,
+							Size:    badge.SizeNormal,
+						}) {
+							{ pageCtx.T("System") }
+						}
+					}
+				</div>
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
