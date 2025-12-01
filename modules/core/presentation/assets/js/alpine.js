@@ -337,7 +337,9 @@ let filtersDropdown = () => ({
   open: false,
   selected: [],
   init() {
-    this.selected = Array.from(this.$el.querySelectorAll('input[type=checkbox]:checked'))
+    // Use [checked] attribute selector instead of :checked pseudo-selector
+    // because Alpine's :checked binding may clear the property before init() runs
+    this.selected = Array.from(this.$el.querySelectorAll('input[type=checkbox][checked]'))
       .map(el => el.value);
   },
   toggleValue(val) {
@@ -347,6 +349,12 @@ let filtersDropdown = () => ({
     } else {
       this.selected.splice(index, 1);
     }
+    // Dispatch custom event after Alpine state is updated
+    // We use 'filter-changed' custom event instead of 'change' to avoid race condition
+    // where HTMX collects form data before Alpine updates checkbox state
+    this.$nextTick(() => {
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
   }
 });
 
