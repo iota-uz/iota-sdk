@@ -282,9 +282,9 @@ type existsFilter struct {
 
 func (f *existsFilter) String(column string, argIdx int) string {
 	// Replace placeholders in subquery with actual argument indices
+	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
 	subquery := f.subquery
-	for i := 0; i < len(f.values); i++ {
-		// Replace $1, $2, etc. with actual indices
+	for i := len(f.values) - 1; i >= 0; i-- {
 		placeholder := fmt.Sprintf("$%d", i+1)
 		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
 		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
@@ -304,8 +304,9 @@ type subqueryFilter struct {
 
 func (f *subqueryFilter) String(column string, argIdx int) string {
 	// Replace placeholders in subquery with actual argument indices
+	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
 	subquery := f.subquery
-	for i := 0; i < len(f.values); i++ {
+	for i := len(f.values) - 1; i >= 0; i-- {
 		placeholder := fmt.Sprintf("$%d", i+1)
 		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
 		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
@@ -326,8 +327,10 @@ type rawFilter struct {
 
 func (f *rawFilter) String(column string, argIdx int) string {
 	// Replace placeholders in SQL with actual argument indices
+	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
+	// (e.g., $1 -> $2, then $2 -> $3 would incorrectly change the first replacement)
 	sql := f.sql
-	for i := 0; i < len(f.values); i++ {
+	for i := len(f.values) - 1; i >= 0; i-- {
 		placeholder := fmt.Sprintf("$%d", i+1)
 		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
 		sql = strings.ReplaceAll(sql, placeholder, actualPlaceholder)
