@@ -413,6 +413,11 @@ func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransact
 		return nil, &errRPC
 	}
 
+	// Invoke callback for notification (non-blocking)
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		logger.WithError(err).WithField("transaction_id", r.Id).Warn("Callback error on status change")
+	}
+
 	paymeDetails, ok = entity.Details().(details.PaymeDetails)
 	if !ok {
 		logger.Error("Details is not of type PaymeDetails after save in CancelTransaction")
