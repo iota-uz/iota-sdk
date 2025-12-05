@@ -284,23 +284,30 @@ func (c *OctoController) handleCallback(
 	notification *octoapi.NotificationRequest,
 	logger *logrus.Entry,
 ) (billing.Transaction, error) {
-	// Only invoke callback for WaitingForCapture status
-	if notification.Status != octoapi.WaitingForCaptureStatus {
+	// For WaitingForCapture status - blocking callback
+	if notification.Status == octoapi.WaitingForCaptureStatus {
+		if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+			logger.WithError(err).WithField("octo_payment_uuid", notification.OctoPaymentUUID).
+				Error("Callback error in Octo Handle")
+
+			// Mark transaction as failed on callback error
+			entity = entity.SetStatus(billing.Failed)
+			updatedEntity, saveErr := c.billingService.Save(ctx, entity)
+			if saveErr != nil {
+				logger.WithError(saveErr).Error("Failed to save transaction after callback failure")
+				return nil, saveErr
+			}
+			return updatedEntity, nil
+		}
 		return entity, nil
 	}
 
-	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
-		logger.WithError(err).WithField("octo_payment_uuid", notification.OctoPaymentUUID).
-			Error("Callback error in Octo Handle")
-
-		// Mark transaction as failed on callback error
-		entity = entity.SetStatus(billing.Failed)
-		updatedEntity, saveErr := c.billingService.Save(ctx, entity)
-		if saveErr != nil {
-			logger.WithError(saveErr).Error("Failed to save transaction after callback failure")
-			return nil, saveErr
+	// For Succeeded and Cancelled statuses - non-blocking callback
+	if notification.Status == octoapi.SucceededStatus || notification.Status == octoapi.CancelledStatus {
+		if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+			logger.WithError(err).WithField("octo_payment_uuid", notification.OctoPaymentUUID).
+				Warn("Callback error on status change")
 		}
-		return updatedEntity, nil
 	}
 
 	return entity, nil

@@ -146,9 +146,15 @@ func (c *StripeController) handleCheckoutCompleted(ctx context.Context, event st
 		SetStatus(billing.Completed).
 		SetDetails(stripeDetails)
 
-	if _, err := c.billingService.Save(ctx, entity); err != nil {
+	entity, err = c.billingService.Save(ctx, entity)
+	if err != nil {
 		logger.WithError(err).WithField("session_id", session.ID).Error("Failed to update transaction after checkout completed")
 		return
+	}
+
+	// Invoke callback for notification (non-blocking)
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		logger.WithError(err).WithField("session_id", session.ID).Warn("Callback error on status change")
 	}
 
 	logger.WithField("session_id", session.ID).Info("Transaction updated from checkout.session.completed")
@@ -285,9 +291,15 @@ func (c *StripeController) invoicePaymentSucceeded(ctx context.Context, event st
 		SetStatus(billing.Completed).
 		SetDetails(stripeDetails)
 
-	if _, err := c.billingService.Save(ctx, entity); err != nil {
+	entity, err = c.billingService.Save(ctx, entity)
+	if err != nil {
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Failed to update transaction on invoice.payment_succeeded")
 		return
+	}
+
+	// Invoke callback for notification (non-blocking)
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		logger.WithError(err).WithField("invoice_id", invoice.ID).Warn("Callback error on status change")
 	}
 
 	logger.WithFields(logrus.Fields{
@@ -342,9 +354,15 @@ func (c *StripeController) handleInvoicePaymentFailed(ctx context.Context, event
 		SetStatus(billing.Failed).
 		SetDetails(stripeDetails)
 
-	if _, err := c.billingService.Save(ctx, entity); err != nil {
+	entity, err = c.billingService.Save(ctx, entity)
+	if err != nil {
 		logger.WithError(err).WithField("invoice_id", invoice.ID).Error("Failed to update transaction on invoice.payment_failed")
 		return
+	}
+
+	// Invoke callback for notification (non-blocking)
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		logger.WithError(err).WithField("invoice_id", invoice.ID).Warn("Callback error on status change")
 	}
 
 	logger.WithFields(logrus.Fields{

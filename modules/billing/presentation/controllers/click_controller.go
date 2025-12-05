@@ -285,6 +285,11 @@ func (c *ClickController) Complete(
 		return
 	}
 
+	// Invoke callback for notification (non-blocking)
+	if err := c.billingService.InvokeCallback(r.Context(), entity); err != nil {
+		logger.WithError(err).WithField("merchant_trans_id", dto.MerchantTransId).Warn("Callback error on status change")
+	}
+
 	clickDetails, ok = entity.Details().(details.ClickDetails)
 	if !ok {
 		logger.Error("Details is not of type ClickDetails after save")
