@@ -100,7 +100,7 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 	if currentValue != nil {
 		valueStr = c.convertValueToString(currentValue, selectField.ValueType())
 	}
-
+	maps.Copy(fieldAttrs, selectField.Attrs())
 	switch selectField.SelectType() {
 	case crud.SelectTypeStatic:
 		// Get options
@@ -233,6 +233,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				currentValue = field.InitialValue(ctx)
 			}
 		}
+		maps.Copy(fieldAttrs, field.Attrs())
 		switch field.Type() {
 		case crud.StringFieldType:
 			// Check if this is actually a select field
@@ -376,7 +377,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				builder = builder.Max(floatField.Max())
 			}
 
-			attrs := templ.Attributes{}
+			attrs := fieldAttrs
 			if floatField.Step() != 0 {
 				attrs["step"] = fmt.Sprintf("%f", floatField.Step())
 			} else {
@@ -386,8 +387,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			if field.Readonly() {
 				attrs["disabled"] = true
 			}
-
-			maps.Copy(attrs, fieldAttrs)
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
@@ -427,7 +426,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 					builder = builder.Default(timeVal)
 				}
 			}
-
 			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.TimeFieldType:
@@ -522,7 +520,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 					builder = builder.Default(v)
 				}
 			}
-
 			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.DecimalFieldType:
@@ -544,7 +541,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			attrs := templ.Attributes{}
+			attrs := fieldAttrs
 			if decimalField.Scale() > 0 {
 				step := 1.0
 				for range decimalField.Scale() {
@@ -558,8 +555,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			if field.Readonly() {
 				attrs["disabled"] = true
 			}
-
-			maps.Copy(attrs, fieldAttrs)
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
@@ -783,6 +778,10 @@ type TableEditableConfig struct {
 	ActionColumnLabel string
 }
 
+type TableHeadConfig struct {
+	Attrs templ.Attributes
+}
+
 type TableConfig struct {
 	Title             string
 	DataURL           string
@@ -790,6 +789,7 @@ type TableConfig struct {
 	Actions           []templ.Component // Actions like Create button
 	Columns           []TableColumn
 	Rows              []TableRow
+	Head              TableHeadConfig
 	Infinite          *InfiniteScrollConfig
 	SideFilter        templ.Component
 	Editable          TableEditableConfig

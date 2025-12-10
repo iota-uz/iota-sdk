@@ -94,6 +94,7 @@ type TableProps struct {
 	Attrs        templ.Attributes
 	TBodyClasses templ.CSSClasses
 	TBodyAttrs   templ.Attributes
+	THeadAttrs   templ.Attributes
 	NoTBody      bool
 }
 
@@ -108,7 +109,7 @@ templ Table(props TableProps) {
 			}
 			{ props.Attrs... }
 		>
-			<thead>
+			<thead { props.THeadAttrs... }>
 				<tr class="bg-surface-500 text-200">
 					for _, col := range props.Columns {
 						if col.Sortable {
