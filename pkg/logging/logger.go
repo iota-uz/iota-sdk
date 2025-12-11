@@ -48,6 +48,9 @@ func FileLogger(level logrus.Level, logPath string) (*os.File, *logrus.Logger, e
 	logger.SetOutput(io.MultiWriter(os.Stdout, logFile))
 	logger.SetLevel(level)
 
+	// Add source hook for automatic module/service/method tagging
+	logger.AddHook(NewSourceHook())
+
 	return logFile, logger, nil
 }
 
@@ -56,6 +59,10 @@ func ConsoleLogger(level logrus.Level) *logrus.Logger {
 	logger.SetFormatter(&logrus.JSONFormatter{})
 	logger.SetOutput(os.Stdout)
 	logger.SetLevel(level)
+
+	// Add source hook for automatic module/service/method tagging
+	logger.AddHook(NewSourceHook())
+
 	return logger
 }
 
