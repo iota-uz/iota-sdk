@@ -247,22 +247,23 @@ func TestIsInternalFrame(t *testing.T) {
 	}
 }
 
-// Helper function to test source extraction from a known location
-func helperFunctionForSourceTest() SourceInfo {
-	return extractSource(1) // Skip just this function
-}
-
 func TestExtractSourceFromKnownLocation(t *testing.T) {
-	source := helperFunctionForSourceTest()
+	// Create a logger with our hook and verify source extraction
+	logger := logrus.New()
+	var buf bytes.Buffer
+	logger.SetOutput(&buf)
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	logger.AddHook(NewSourceHook())
 
-	// The method should be helperFunctionForSourceTest
-	assert.Equal(t, "helperFunctionForSourceTest", source.Method)
+	logger.Info("test source extraction")
 
-	// The service should be source_hook_test (this file)
-	assert.Equal(t, "source_hook_test", source.Service)
+	var logEntry map[string]interface{}
+	err := json.Unmarshal(buf.Bytes(), &logEntry)
+	require.NoError(t, err)
 
-	// The module should be pkg/logging
-	assert.Equal(t, "pkg/logging", source.Module)
+	assert.Equal(t, "TestExtractSourceFromKnownLocation", logEntry["method"])
+	assert.Equal(t, "source_hook_test", logEntry["service"])
+	assert.Equal(t, "pkg/logging", logEntry["module"])
 }
 
 func BenchmarkSourceHook(b *testing.B) {
