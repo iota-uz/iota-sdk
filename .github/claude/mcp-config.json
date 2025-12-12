@@ -21,18 +21,6 @@
         "vision,testing"
       ]
     },
-    "context7": {
-      "type": "http",
-      "url": "https://mcp.context7.com/mcp",
-      "name": "context7"
-    },
-    "godoc-mcp": {
-      "command": "go",
-      "args": [
-        "run",
-        "github.com/mrjoshuak/godoc-mcp@latest"
-      ]
-    },
     "postgres": {
       "command": "npx",
       "args": [
