@@ -113,7 +113,7 @@ Update documentation where needed:
 Maintain documentation consistency:
 - Keep existing file structure
 - Preserve formatting and style
-- Maintain markdown heading hierarchy
+- Maintain Markdown heading hierarchy
 - Keep examples clear and concise
 
 ## Constraints

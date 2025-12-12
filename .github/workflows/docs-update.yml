@@ -49,6 +49,11 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30
 
+    # Prevent race conditions when updating docs-sync-latest tag
+    concurrency:
+      group: docs-sync-tag
+      cancel-in-progress: false
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,6 +63,8 @@ jobs:
 
       - name: Determine analysis context
         id: context
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           echo "=========================================="
           echo "Determining documentation scan context..."
@@ -66,7 +73,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # --- Reactive Mode ---
             echo "mode=reactive" >> $GITHUB_OUTPUT
-            echo "source=PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+            echo "source=PR #${{ github.event.pull_request.number }}: $PR_TITLE" >> $GITHUB_OUTPUT
             echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
 
             BASE="${{ github.event.pull_request.base.sha }}"
@@ -328,6 +335,8 @@ jobs:
 
       - name: Detect changes requiring Claude docs update
         id: detect
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           echo "=========================================="
           echo "Detecting changes to external APIs/tools..."
@@ -336,7 +345,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # Reactive mode: Check PR for relevant changes
             echo "mode=reactive" >> $GITHUB_OUTPUT
-            echo "source=PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+            echo "source=PR #${{ github.event.pull_request.number }}: $PR_TITLE" >> $GITHUB_OUTPUT
             echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
 
             BASE="${{ github.event.pull_request.base.sha }}"
