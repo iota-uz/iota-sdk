@@ -44,16 +44,31 @@ runs:
       if: steps.check.outputs.exists == 'true'
       shell: bash
       env:
-        AWS_ACCESS_KEY_ID: tid_godPLtvKlApLMbTPScMIANGAeXmOhGeQW_sePonswTnHDqHjto
+        AWS_ACCESS_KEY_ID: tid_TtUptpwnkRnRefWCpLHbUwX_sLEJNgzthFuiOtXTMjMyyKBeQg
         AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
         AWS_DEFAULT_REGION: auto
-        R2_BUCKET: reserved-stashbox-if6r-sy
+        R2_BUCKET: ciartifacts-ldue-svsitobc
         R2_ENDPOINT: https://storage.railway.app
         RUN_ID: ${{ github.run_id }}
         ARTIFACTS_DIR: ${{ inputs.directory }}
         S3_PREFIX: ${{ inputs.s3-prefix }}
       run: |
         set -euo pipefail
+
+        # Function to generate display name from relative path and filename
+        generate_display_name() {
+          local relative_path="$1"
+          local filename="$2"
+          local test_dir=$(dirname "$relative_path")
+
+          if [ "$test_dir" != "." ]; then
+            # Extract test name from directory (e.g., "basic-should-respond-chromium" -> "basic should respond")
+            local test_name=$(echo "$test_dir" | sed 's/-chromium$//' | sed 's/-webkit$//' | sed 's/-firefox$//' | tr '_-' ' ')
+            echo "${test_name} - $(echo "$filename" | tr '_-' ' ')"
+          else
+            echo "$(echo "$filename" | tr '_-' ' ')"
+          fi
+        }
 
         # Configure AWS CLI for virtual-hosted-style URLs (required by Railway)
         aws configure set default.s3.addressing_style virtual
@@ -79,8 +94,10 @@ runs:
           while read -r screenshot; do
             [ -z "$screenshot" ] && continue
 
-            filename=$(basename "$screenshot")
-            s3_key="${S3_PREFIX}/${RUN_ID}/${filename}"
+            # Preserve relative path from ARTIFACTS_DIR to avoid collisions
+            relative_path="${screenshot#$ARTIFACTS_DIR}"
+            relative_path="${relative_path#/}"
+            s3_key="${S3_PREFIX}/${RUN_ID}/${relative_path}"
 
             aws s3 cp "$screenshot" "s3://${R2_BUCKET}/${s3_key}" \
               --endpoint-url "$R2_ENDPOINT" --quiet
@@ -89,7 +106,9 @@ runs:
               --endpoint-url "$R2_ENDPOINT" \
               --expires-in 2592000)
 
-            display_name=$(echo "$filename" | sed 's/\.png$//' | tr '_-' ' ')
+            # Generate display name
+            filename=$(basename "$screenshot" .png)
+            display_name=$(generate_display_name "$relative_path" "$filename")
             echo "- [${display_name}](${presigned_url})" >> $GITHUB_STEP_SUMMARY
           done <<< "$screenshots"
         fi
@@ -108,8 +127,10 @@ runs:
           while read -r video; do
             [ -z "$video" ] && continue
 
-            filename=$(basename "$video")
-            s3_key="${S3_PREFIX}/${RUN_ID}/${filename}"
+            # Preserve relative path from ARTIFACTS_DIR to avoid collisions
+            relative_path="${video#$ARTIFACTS_DIR}"
+            relative_path="${relative_path#/}"
+            s3_key="${S3_PREFIX}/${RUN_ID}/${relative_path}"
 
             aws s3 cp "$video" "s3://${R2_BUCKET}/${s3_key}" \
               --endpoint-url "$R2_ENDPOINT" --quiet
@@ -118,7 +139,9 @@ runs:
               --endpoint-url "$R2_ENDPOINT" \
               --expires-in 2592000)
 
-            display_name=$(echo "$filename" | sed 's/\.webm$//' | tr '_-' ' ')
+            # Generate display name
+            filename=$(basename "$video" .webm)
+            display_name=$(generate_display_name "$relative_path" "$filename")
             echo "- 🎬 [${display_name}](${presigned_url})" >> $GITHUB_STEP_SUMMARY
           done <<< "$videos"
         fi
