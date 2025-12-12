@@ -1,0 +1,457 @@
+name: Documentation Update
+
+on:
+  # Reactive: Major implementation changes merged
+  pull_request:
+    types: [closed]
+    branches: [main, staging]
+    paths:
+      - 'modules/**/*.go'
+      - 'modules/**/*.templ'
+      - 'migrations/*.sql'
+      # Tool/dependency changes that may affect Claude docs
+      - 'Makefile'
+      - 'go.mod'
+      - 'go.sum'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tailwind.config.js'
+      - 'compose*.yml'
+      # Exclude test files and docs (prevent loops)
+      - '!modules/**/*_test.go'
+      - '!docs/**'
+      - '!.claude/**'
+
+  # Proactive: Weekly sync
+  schedule:
+    - cron: '0 4 * * 0' # Sunday 4AM UTC
+
+  # Manual trigger for forcing updates
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  docs-update:
+    # Run if:
+    # 1. PR was merged (not just closed)
+    # 2. Scheduled run
+    # 3. Manual dispatch
+    # 4. Not triggered by the docs bot itself (loop prevention)
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.actor != 'github-actions[bot]') ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || 'staging' }}
+          fetch-depth: 0 # Full history for diff analysis
+
+      - name: Determine analysis context
+        id: context
+        run: |
+          echo "=========================================="
+          echo "Determining documentation scan context..."
+          echo "=========================================="
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # --- Reactive Mode ---
+            echo "mode=reactive" >> $GITHUB_OUTPUT
+            echo "source=PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+            echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
+
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+
+            echo "Generating diff from $BASE to $HEAD..."
+
+            # Generate diff excluding docs and tests
+            git diff "$BASE" "$HEAD" -- \
+              'modules/**/*.go' \
+              'modules/**/*.templ' \
+              'migrations/*.sql' \
+              ':!modules/**/*_test.go' \
+              ':!docs/**' \
+              ':!.claude/**' > context.diff 2>/dev/null || true
+
+            # Generate list of changed files with domains
+            git diff --name-only "$BASE" "$HEAD" -- \
+              'modules/**/*.go' \
+              'modules/**/*.templ' \
+              'migrations/*.sql' \
+              ':!modules/**/*_test.go' > changed_files.txt 2>/dev/null || true
+
+          else
+            # --- Proactive Mode ---
+            echo "mode=proactive" >> $GITHUB_OUTPUT
+            echo "branch=staging" >> $GITHUB_OUTPUT
+
+            # Check for last sync tag
+            if git rev-parse "refs/tags/docs-sync-latest" >/dev/null 2>&1; then
+              echo "Found docs-sync-latest tag. Calculating diff since last sync..."
+              echo "source=Periodic sync (since last update)" >> $GITHUB_OUTPUT
+
+              git diff docs-sync-latest...HEAD -- \
+                'modules/**/*.go' \
+                'modules/**/*.templ' \
+                'migrations/*.sql' \
+                ':!modules/**/*_test.go' \
+                ':!docs/**' \
+                ':!.claude/**' > context.diff 2>/dev/null || true
+
+              git diff --name-only docs-sync-latest...HEAD -- \
+                'modules/**/*.go' \
+                'modules/**/*.templ' \
+                'migrations/*.sql' \
+                ':!modules/**/*_test.go' > changed_files.txt 2>/dev/null || true
+            else
+              echo "No sync tag found. Using last 7 days of changes..."
+              echo "source=Periodic sync (last 7 days)" >> $GITHUB_OUTPUT
+
+              # Get commits from last 7 days
+              SINCE_DATE=$(date -d "7 days ago" +%Y-%m-%d)
+
+              git log --since="$SINCE_DATE" --patch -- \
+                'modules/**/*.go' \
+                'modules/**/*.templ' \
+                'migrations/*.sql' \
+                ':!modules/**/*_test.go' \
+                ':!docs/**' \
+                ':!.claude/**' > context.diff 2>/dev/null || true
+
+              git log --since="$SINCE_DATE" --name-only --pretty=format: -- \
+                'modules/**/*.go' \
+                'modules/**/*.templ' \
+                'migrations/*.sql' \
+                ':!modules/**/*_test.go' | sort -u | grep -v '^$' > changed_files.txt 2>/dev/null || true
+            fi
+          fi
+
+          # Analyze changed files by domain
+          echo "=========================================="
+          echo "Analyzing affected domains..."
+          echo "=========================================="
+
+          DOMAINS=""
+          if grep -q "modules/core/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}core,"
+          fi
+          if grep -q "modules/finance/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}finance,"
+          fi
+          if grep -q "modules/crm/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}crm,"
+          fi
+          if grep -q "modules/warehouse/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}warehouse,"
+          fi
+          if grep -q "modules/projects/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}projects,"
+          fi
+          if grep -q "modules/hrm/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}hrm,"
+          fi
+          if grep -q "modules/billing/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}billing,"
+          fi
+          if grep -q "modules/website/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}website,"
+          fi
+          if grep -q "modules/superadmin/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}superadmin,"
+          fi
+          if grep -q "migrations/" changed_files.txt 2>/dev/null; then
+            DOMAINS="${DOMAINS}migrations,"
+          fi
+
+          # Remove trailing comma
+          DOMAINS="${DOMAINS%,}"
+          echo "affected_domains=$DOMAINS" >> $GITHUB_OUTPUT
+          echo "Affected domains: $DOMAINS"
+
+          # Check if there are actual changes
+          if [ ! -s context.diff ] && [ ! -s changed_files.txt ]; then
+            echo "No implementation changes detected."
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            DIFF_LINES=$(wc -l < context.diff 2>/dev/null || echo "0")
+            FILE_COUNT=$(wc -l < changed_files.txt 2>/dev/null || echo "0")
+            echo "Changes detected: $FILE_COUNT files, $DIFF_LINES diff lines"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "diff_lines=$DIFF_LINES" >> $GITHUB_OUTPUT
+            echo "file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
+
+            # Check both line count and byte size for truncation
+            # Claude Code has a 25k token limit per read; ~4 bytes per token → 80KB safe limit
+            DIFF_BYTES=$(wc -c < context.diff 2>/dev/null || echo "0")
+            MAX_LINES=2000
+            MAX_BYTES=80000  # ~20k tokens with safety margin
+
+            TRUNCATED="false"
+            if [ "$DIFF_LINES" -gt "$MAX_LINES" ]; then
+              echo "Diff too large ($DIFF_LINES lines). Truncating to $MAX_LINES lines..."
+              head -n "$MAX_LINES" context.diff > context_truncated.diff
+              mv context_truncated.diff context.diff
+              TRUNCATED="true"
+            elif [ "$DIFF_BYTES" -gt "$MAX_BYTES" ]; then
+              echo "Diff too large ($DIFF_BYTES bytes). Truncating to ~$MAX_BYTES bytes..."
+              # Estimate lines to keep: (MAX_BYTES / DIFF_BYTES) * DIFF_LINES
+              LINES_TO_KEEP=$(( (MAX_BYTES * DIFF_LINES) / DIFF_BYTES ))
+              # Ensure at least 500 lines and cap at MAX_LINES
+              [ "$LINES_TO_KEEP" -lt 500 ] && LINES_TO_KEEP=500
+              [ "$LINES_TO_KEEP" -gt "$MAX_LINES" ] && LINES_TO_KEEP="$MAX_LINES"
+              echo "Keeping approximately $LINES_TO_KEEP lines..."
+              head -n "$LINES_TO_KEEP" context.diff > context_truncated.diff
+              mv context_truncated.diff context.diff
+              TRUNCATED="true"
+            fi
+
+            echo "truncated=$TRUNCATED" >> $GITHUB_OUTPUT
+          fi
+
+          echo "=========================================="
+          echo "Context summary:"
+          echo "  Mode: $(cat $GITHUB_OUTPUT | grep mode= | cut -d= -f2)"
+          echo "  Has changes: $(cat $GITHUB_OUTPUT | grep has_changes= | cut -d= -f2)"
+          echo "  Domains: $DOMAINS"
+          echo "=========================================="
+
+      - name: Skip if no changes
+        if: steps.context.outputs.has_changes != 'true'
+        run: |
+          echo "No implementation changes detected. Skipping documentation update."
+          exit 0
+
+      - name: Set up Node.js
+        if: steps.context.outputs.has_changes == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Gomplate
+        if: steps.context.outputs.has_changes == 'true'
+        uses: ./.github/actions/setup-gomplate
+
+      - name: Process prompt template
+        if: steps.context.outputs.has_changes == 'true'
+        id: prompt
+        env:
+          SOURCE: ${{ steps.context.outputs.source }}
+          MODE: ${{ steps.context.outputs.mode }}
+          AFFECTED_DOMAINS: ${{ steps.context.outputs.affected_domains }}
+          BRANCH: ${{ steps.context.outputs.branch }}
+          DIFF_LINES: ${{ steps.context.outputs.diff_lines }}
+          FILE_COUNT: ${{ steps.context.outputs.file_count }}
+          TRUNCATED: ${{ steps.context.outputs.truncated }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          {
+            echo 'content<<EOF'
+            gomplate -f ".github/claude/prompts/docs-update.md"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Run documentation update agent
+        if: steps.context.outputs.has_changes == 'true'
+        uses: anthropics/claude-code-action@v1.0.23
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          settings: |
+            {
+              "env": {
+                "CLAUDE_CODE_MAX_OUTPUT_TOKENS": 30000,
+                "BASH_DEFAULT_TIMEOUT_MS": 60000,
+                "CI": "true"
+              },
+              "permissions": {
+                "allow": [],
+                "deny": [
+                  "Read(**/*.key)",
+                  "Read(**/*.pem)",
+                  "Read(**/credentials*)",
+                  "Read(**/.env)",
+                  "Read(**/.env.*)",
+                  "Bash(sudo:*)",
+                  "Bash(rm -rf /*)",
+                  "Write(modules/**)",
+                  "Write(migrations/**)",
+                  "Edit(modules/**)",
+                  "Edit(migrations/**)"
+                ]
+              }
+            }
+          show_full_output: true
+          claude_args: "--dangerously-skip-permissions --model sonnet"
+          prompt: ${{ steps.prompt.outputs.content }}
+
+      - name: Update sync tag (proactive mode)
+        if: |
+          steps.context.outputs.mode == 'proactive' &&
+          steps.context.outputs.has_changes == 'true' &&
+          success()
+        run: |
+          echo "Updating docs-sync-latest tag..."
+          git tag -f docs-sync-latest
+          git push origin docs-sync-latest --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  claude-docs-update:
+    # Run validation for Claude documentation files
+    # Checks for outdated API references, command syntax, and tool changes
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.actor != 'github-actions[bot]') ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
+
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || 'staging' }}
+          fetch-depth: 0
+
+      - name: Detect changes requiring Claude docs update
+        id: detect
+        run: |
+          echo "=========================================="
+          echo "Detecting changes to external APIs/tools..."
+          echo "=========================================="
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # Reactive mode: Check PR for relevant changes
+            echo "mode=reactive" >> $GITHUB_OUTPUT
+            echo "source=PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" >> $GITHUB_OUTPUT
+            echo "branch=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
+
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+
+            # Check for changes to key files that affect Claude documentation
+            NEEDS_UPDATE="false"
+
+            # Check Makefile changes
+            if git diff --name-only "$BASE" "$HEAD" | grep -q "^Makefile$"; then
+              echo "✓ Makefile changed - may need Claude docs update"
+              NEEDS_UPDATE="true"
+            fi
+
+            # Check go.mod changes (IOTA SDK version updates)
+            if git diff --name-only "$BASE" "$HEAD" | grep -q "^go.mod$"; then
+              echo "✓ go.mod changed - may need Claude docs update"
+              NEEDS_UPDATE="true"
+            fi
+
+            # Check for package.json changes (tool version updates)
+            if git diff --name-only "$BASE" "$HEAD" | grep -q "package.json"; then
+              echo "✓ package.json changed - may need Claude docs update"
+              NEEDS_UPDATE="true"
+            fi
+
+            # Check for tailwind config changes
+            if git diff --name-only "$BASE" "$HEAD" | grep -q "tailwind.config.js"; then
+              echo "✓ Tailwind config changed - may need Claude docs update"
+              NEEDS_UPDATE="true"
+            fi
+
+            # Check for docker compose changes
+            if git diff --name-only "$BASE" "$HEAD" | grep -q "compose.*\.yml"; then
+              echo "✓ Docker compose changed - may need Claude docs update"
+              NEEDS_UPDATE="true"
+            fi
+
+            echo "needs_update=$NEEDS_UPDATE" >> $GITHUB_OUTPUT
+          else
+            # Proactive mode: Always check on schedule/manual trigger
+            echo "mode=proactive" >> $GITHUB_OUTPUT
+            echo "source=Scheduled/manual validation" >> $GITHUB_OUTPUT
+            echo "branch=staging" >> $GITHUB_OUTPUT
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip if no relevant changes
+        if: steps.detect.outputs.needs_update != 'true'
+        run: |
+          echo "No changes detected that require Claude documentation update."
+
+      - name: Set up Node.js
+        if: steps.detect.outputs.needs_update == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Gomplate
+        if: steps.detect.outputs.needs_update == 'true'
+        uses: ./.github/actions/setup-gomplate
+
+      - name: Process Claude docs update prompt
+        if: steps.detect.outputs.needs_update == 'true'
+        id: claude_prompt
+        env:
+          SOURCE: ${{ steps.detect.outputs.source }}
+          MODE: ${{ steps.detect.outputs.mode }}
+          BRANCH: ${{ steps.detect.outputs.branch }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          {
+            echo 'content<<EOF'
+            gomplate -f ".github/claude/prompts/claude-docs-update.md"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Run Claude documentation validation
+        if: steps.detect.outputs.needs_update == 'true'
+        uses: anthropics/claude-code-action@v1.0.23
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          settings: |
+            {
+              "env": {
+                "CLAUDE_CODE_MAX_OUTPUT_TOKENS": 30000,
+                "BASH_DEFAULT_TIMEOUT_MS": 60000,
+                "CI": "true"
+              },
+              "permissions": {
+                "allow": [],
+                "deny": [
+                  "Read(**/*.key)",
+                  "Read(**/*.pem)",
+                  "Read(**/credentials*)",
+                  "Read(**/.env)",
+                  "Read(**/.env.*)",
+                  "Bash(sudo:*)",
+                  "Bash(rm -rf /*)",
+                  "Write(modules/**)",
+                  "Write(migrations/**)",
+                  "Write(internal/**)",
+                  "Write(cmd/**)",
+                  "Write(pkg/**)",
+                  "Edit(modules/**)",
+                  "Edit(migrations/**)",
+                  "Edit(internal/**)",
+                  "Edit(cmd/**)",
+                  "Edit(pkg/**)",
+                  "Edit(*.go)",
+                  "Edit(*.sql)",
+                  "Edit(*.templ)",
+                  "Edit(.github/workflows/**)"
+                ]
+              }
+            }
+          show_full_output: true
+          claude_args: "--dangerously-skip-permissions --model sonnet"
+          prompt: ${{ steps.claude_prompt.outputs.content }}
