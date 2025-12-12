@@ -1,0 +1,22 @@
+title: IOTA SDK Documentation
+description: Multi-tenant business management platform SDK
+remote_theme: just-the-docs/just-the-docs
+url: https://iota-uz.github.io
+baseurl: /iota-sdk
+
+search_enabled: true
+search_heading_level: 3
+
+aux_links:
+  "GitHub": "https://github.com/iota-uz/iota-sdk"
+aux_links_new_tab: true
+
+footer_content: "IOTA SDK - Multi-tenant Business Management Platform"
+color_scheme: dark
+
+enable_copy_code_button: true
+mermaid:
+  version: "10.6.0"
+heading_anchors: true
+back_to_top: true
+back_to_top_text: "Back to top"
