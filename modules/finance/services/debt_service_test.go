@@ -33,7 +33,7 @@ func committedCtx(fixtures *itf.TestEnvironment) context.Context {
 
 // setupDebtTestData creates necessary test data for debt tests
 // It uses a committed context so data is visible to InTx operations.
-func setupDebtTestData(fixtures *itf.TestEnvironment, t *testing.T) counterparty.Counterparty {
+func setupDebtTestData(t *testing.T, fixtures *itf.TestEnvironment) counterparty.Counterparty {
 	t.Helper()
 
 	// Use committed context for setup data so it's visible to InTx operations
@@ -78,7 +78,7 @@ func TestDebtService_CRUD(t *testing.T) {
 
 	// Use committed context for setup data and operations
 	ctx := committedCtx(f)
-	counterparty := setupDebtTestData(f, t)
+	counterparty := setupDebtTestData(t, f)
 	debtService := getDebtService(f)
 
 	// Get tenant ID from context
@@ -153,7 +153,7 @@ func TestDebtService_Settle(t *testing.T) {
 
 	// Use committed context for setup data and operations
 	ctx := committedCtx(f)
-	counterparty := setupDebtTestData(f, t)
+	counterparty := setupDebtTestData(t, f)
 	debtService := getDebtService(f)
 
 	// Get tenant ID from context
@@ -200,7 +200,7 @@ func TestDebtService_WriteOff(t *testing.T) {
 
 	// Use committed context for setup data and operations
 	ctx := committedCtx(f)
-	counterparty := setupDebtTestData(f, t)
+	counterparty := setupDebtTestData(t, f)
 	debtService := getDebtService(f)
 
 	// Get tenant ID from context

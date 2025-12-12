@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProduct_New_Success(t *testing.T) {
@@ -267,7 +268,7 @@ func TestNewStatus_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			status, err := NewStatus(tt.input)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, status)
 		})
 	}
@@ -277,7 +278,7 @@ func TestNewStatus_InvalidValue(t *testing.T) {
 	t.Parallel()
 
 	status, err := NewStatus("invalid_status")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, Status(""), status)
 }
 

@@ -168,54 +168,6 @@ const (
 		         ma.balance_currency_id
 		ORDER BY ec.name, year, month`
 
-	// Query to get monthly COGS by category
-	selectMonthlyCOGSByCategory = `
-		SELECT
-			ec.id as category_id,
-			ec.name as category_name,
-			EXTRACT(YEAR FROM t.accounting_period) as year,
-			EXTRACT(MONTH FROM t.accounting_period) as month,
-			COALESCE(SUM(t.amount), 0) as total_amount,
-			ma.balance_currency_id as currency
-		FROM transactions t
-		INNER JOIN expenses e ON t.id = e.transaction_id
-		INNER JOIN expense_categories ec ON e.category_id = ec.id
-		LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
-		WHERE t.tenant_id = $1
-			AND t.transaction_type = 'WITHDRAWAL'
-			AND t.accounting_period >= $2
-			AND t.accounting_period <= $3
-			AND ec.is_cogs = TRUE
-		GROUP BY ec.id, ec.name,
-		         EXTRACT(YEAR FROM t.accounting_period),
-		         EXTRACT(MONTH FROM t.accounting_period),
-		         ma.balance_currency_id
-		ORDER BY ec.name, year, month`
-
-	// Query to get monthly operating expenses by category
-	selectMonthlyOperatingExpensesByCategory = `
-		SELECT
-			ec.id as category_id,
-			ec.name as category_name,
-			EXTRACT(YEAR FROM t.accounting_period) as year,
-			EXTRACT(MONTH FROM t.accounting_period) as month,
-			COALESCE(SUM(t.amount), 0) as total_amount,
-			ma.balance_currency_id as currency
-		FROM transactions t
-		INNER JOIN expenses e ON t.id = e.transaction_id
-		INNER JOIN expense_categories ec ON e.category_id = ec.id
-		LEFT JOIN money_accounts ma ON t.destination_account_id = ma.id
-		WHERE t.tenant_id = $1
-			AND t.transaction_type = 'WITHDRAWAL'
-			AND t.accounting_period >= $2
-			AND t.accounting_period <= $3
-			AND ec.is_cogs = FALSE
-		GROUP BY ec.id, ec.name,
-		         EXTRACT(YEAR FROM t.accounting_period),
-		         EXTRACT(MONTH FROM t.accounting_period),
-		         ma.balance_currency_id
-		ORDER BY ec.name, year, month`
-
 	// Query to get cashflow by category for operating activities
 	selectCashflowByCategory = `
 		WITH cashflow_data AS (
