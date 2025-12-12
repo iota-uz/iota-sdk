@@ -19,7 +19,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: /tmp/tailwind-bin/tailwindcss
-        key: tailwindcss-standalone-${{ runner.os }}-x64-${{ inputs.version }}
+        key: tailwindcss-standalone-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
 
     - name: Install TailwindCSS
       if: steps.cache-tailwind.outputs.cache-hit != 'true'
@@ -33,8 +33,23 @@ runs:
         # Create directory for tailwind binary
         mkdir -p /tmp/tailwind-bin
 
+        # Detect OS
+        case "$(uname -s)" in
+          Linux) OS="linux";;
+          Darwin) OS="macos";;
+          MINGW*|MSYS*) OS="windows";;
+          *) echo "::error::Unsupported OS: $(uname -s)"; exit 1;;
+        esac
+
+        # Detect architecture
+        case "$(uname -m)" in
+          x86_64) ARCH="x64";;
+          arm64|aarch64) ARCH="arm64";;
+          *) echo "::error::Unsupported architecture: $(uname -m)"; exit 1;;
+        esac
+
         # Download TailwindCSS standalone binary with authentication
-        DOWNLOAD_URL="https://github.com/tailwindlabs/tailwindcss/releases/download/${{ inputs.version }}/tailwindcss-linux-x64"
+        DOWNLOAD_URL="https://github.com/tailwindlabs/tailwindcss/releases/download/${{ inputs.version }}/tailwindcss-${OS}-${ARCH}"
         echo "Downloading from: $DOWNLOAD_URL"
 
         if ! curl -sSfL \

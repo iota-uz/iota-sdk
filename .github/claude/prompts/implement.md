@@ -2,7 +2,7 @@
 
 Implement the feature/fix for issue #{{ .Env.ISSUE_NUMBER }}: {{ .Env.ISSUE_TITLE }}
 
-**Application URL:** http://localhost:3200
+**Application URL:** `http://localhost:3200`
 
 ## Key Requirements
 

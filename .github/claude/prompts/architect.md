@@ -57,7 +57,7 @@ graph TD
 
 ## Output Format
 
-Post a comment with the architecture document in markdown format.
+Post a comment with the architecture document in Markdown format.
 
 ```markdown
 ## Architecture Design: [Feature Name]

@@ -263,6 +263,8 @@ jobs:
       - name: Run documentation update agent
         if: steps.context.outputs.has_changes == 'true'
         uses: anthropics/claude-code-action@v1.0.23
+        env:
+          USE_AGENT_SDK: 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -415,6 +417,8 @@ jobs:
       - name: Run Claude documentation validation
         if: steps.detect.outputs.needs_update == 'true'
         uses: anthropics/claude-code-action@v1.0.23
+        env:
+          USE_AGENT_SDK: 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
