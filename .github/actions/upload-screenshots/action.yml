@@ -1,0 +1,136 @@
+name: Upload Screenshots
+description: Upload screenshots and videos to Railway R2 bucket and add to step summary
+
+inputs:
+  directory:
+    description: Directory containing screenshots and videos
+    required: false
+    default: '.ci-artifacts/screenshots'
+  s3-prefix:
+    description: S3 key prefix (e.g., "claude", "e2e", "iota-sdk")
+    required: false
+    default: 'screenshots'
+  r2-secret-access-key:
+    description: Railway R2 secret access key
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check for artifacts
+      id: check
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        ARTIFACTS_DIR="${{ inputs.directory }}"
+
+        if [ ! -d "$ARTIFACTS_DIR" ]; then
+          echo "::notice::Artifacts directory does not exist: $ARTIFACTS_DIR"
+          echo "exists=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        if [ -z "$(ls -A "$ARTIFACTS_DIR" 2>/dev/null)" ]; then
+          echo "::notice::Artifacts directory is empty: $ARTIFACTS_DIR"
+          echo "exists=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "exists=true" >> $GITHUB_OUTPUT
+        echo "Found artifacts in: $ARTIFACTS_DIR"
+
+    - name: Upload artifacts to Railway R2
+      if: steps.check.outputs.exists == 'true'
+      shell: bash
+      env:
+        AWS_ACCESS_KEY_ID: tid_godPLtvKlApLMbTPScMIANGAeXmOhGeQW_sePonswTnHDqHjto
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
+        AWS_DEFAULT_REGION: auto
+        R2_BUCKET: reserved-stashbox-if6r-sy
+        R2_ENDPOINT: https://storage.railway.app
+        RUN_ID: ${{ github.run_id }}
+        ARTIFACTS_DIR: ${{ inputs.directory }}
+        S3_PREFIX: ${{ inputs.s3-prefix }}
+      run: |
+        set -euo pipefail
+
+        # Configure AWS CLI for virtual-hosted-style URLs (required by Railway)
+        aws configure set default.s3.addressing_style virtual
+
+        # Find screenshots
+        screenshots=$(find "$ARTIFACTS_DIR" -name "*.png" 2>/dev/null || true)
+        screenshot_count=$(echo "$screenshots" | grep -c . || echo "0")
+
+        # Find videos
+        videos=$(find "$ARTIFACTS_DIR" -name "*.webm" 2>/dev/null || true)
+        video_count=$(echo "$videos" | grep -c . || echo "0")
+
+        # Screenshots section
+        echo "### Screenshots" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$screenshot_count" -eq 0 ]; then
+          echo "_No screenshots captured_" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "Found **$screenshot_count** screenshot(s)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          while read -r screenshot; do
+            [ -z "$screenshot" ] && continue
+
+            filename=$(basename "$screenshot")
+            s3_key="${S3_PREFIX}/${RUN_ID}/${filename}"
+
+            aws s3 cp "$screenshot" "s3://${R2_BUCKET}/${s3_key}" \
+              --endpoint-url "$R2_ENDPOINT" --quiet
+
+            presigned_url=$(aws s3 presign "s3://${R2_BUCKET}/${s3_key}" \
+              --endpoint-url "$R2_ENDPOINT" \
+              --expires-in 2592000)
+
+            display_name=$(echo "$filename" | sed 's/\.png$//' | tr '_-' ' ')
+            echo "- [${display_name}](${presigned_url})" >> $GITHUB_STEP_SUMMARY
+          done <<< "$screenshots"
+        fi
+
+        # Videos section
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Videos" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "$video_count" -eq 0 ]; then
+          echo "_No videos captured_" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "Found **$video_count** video(s)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          while read -r video; do
+            [ -z "$video" ] && continue
+
+            filename=$(basename "$video")
+            s3_key="${S3_PREFIX}/${RUN_ID}/${filename}"
+
+            aws s3 cp "$video" "s3://${R2_BUCKET}/${s3_key}" \
+              --endpoint-url "$R2_ENDPOINT" --quiet
+
+            presigned_url=$(aws s3 presign "s3://${R2_BUCKET}/${s3_key}" \
+              --endpoint-url "$R2_ENDPOINT" \
+              --expires-in 2592000)
+
+            display_name=$(echo "$filename" | sed 's/\.webm$//' | tr '_-' ' ')
+            echo "- 🎬 [${display_name}](${presigned_url})" >> $GITHUB_STEP_SUMMARY
+          done <<< "$videos"
+        fi
+
+    - name: Add no artifacts notice to summary
+      if: steps.check.outputs.exists == 'false'
+      shell: bash
+      run: |
+        echo "### Screenshots" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "_No screenshots found_" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Videos" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "_No videos found_" >> $GITHUB_STEP_SUMMARY

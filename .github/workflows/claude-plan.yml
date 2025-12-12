@@ -1,0 +1,100 @@
+name: Claude Plan
+
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+jobs:
+  plan:
+    if: |
+      !github.event.issue.pull_request &&
+      (
+        (github.event_name == 'issue_comment' &&
+         github.event.comment.user.type != 'Bot' &&
+         contains(github.event.comment.body, '@plan')) ||
+        (github.event_name == 'issues' &&
+         contains(github.event.issue.body, '@plan'))
+      )
+    uses: ./.github/workflows/_claude-reusable.yml
+    with:
+      model: opus
+      prompt_file: .github/claude/prompts/plan.md
+      setup_level: minimal
+      trigger_phrase: "@plan"
+      runner: blacksmith-4vcpu-ubuntu-2204
+      tools: "Read,Grep,Glob,Bash,Task,TodoWrite,AskUserQuestion,WebFetch,WebSearch,Skill"
+      settings: |
+        {
+          "permissions": {
+            "allow": [
+              "WebFetch",
+              "WebSearch",
+              "Skill",
+              "Bash(cd:*)",
+              "Bash(go version:*)",
+              "Bash(go test:*)",
+              "Bash(go vet:*)",
+              "Bash(go build:*)",
+              "Bash(go fmt:*)",
+              "Bash(go mod:*)",
+              "Bash(go get:*)",
+              "Bash(go list:*)",
+              "Bash(go doc:*)",
+              "Bash(go clean:*)",
+              "Bash(go run:*)",
+              "Bash(go tool cover:*)",
+              "Bash(gofmt:*)",
+              "Bash(git status:*)",
+              "Bash(git diff:*)",
+              "Bash(git branch:*)",
+              "Bash(git pull:*)",
+              "Bash(git fetch:*)",
+              "Bash(git checkout:*)",
+              "Bash(git log:*)",
+              "Bash(git rev-parse:*)",
+              "Bash(git bisect:*)",
+              "Bash(gh:*)",
+              "Bash(gh issue:*)",
+              "Bash(gh issue view:*)",
+              "Bash(gh pr view:*)",
+              "Bash(gh pr list:*)",
+              "Bash(gh pr diff:*)",
+              "Bash(gh pr checks:*)",
+              "Bash(gh api:*)",
+              "Bash(gh project item-list:*)",
+              "Bash(gh project list:*)",
+              "Bash(gh label list:*)",
+              "Bash(make:*)",
+              "Bash(grep:*)",
+              "Bash(tree:*)",
+              "Bash(find:*)",
+              "Bash(head:*)",
+              "Bash(xargs:*)",
+              "Bash(jq:*)",
+              "Bash(rg:*)",
+              "Bash(cat:*)",
+              "Bash(ls:*)",
+              "Bash(wc:*)",
+              "Bash(sed:*)",
+              "Bash(echo:*)",
+              "Bash(command:*)",
+              "Bash(export:*)",
+              "Bash(templ generate:*)",
+              "Bash(templ fmt:*)",
+              "Bash(golangci-lint run:*)",
+              "Bash(curl -s:*)"
+            ],
+            "deny": [
+              "Edit(*)",
+              "Write(*)",
+              "Bash(git add:*)",
+              "Bash(git commit:*)",
+              "Bash(git push:*)",
+              "Bash(rm -rf:*)",
+              "Bash(sudo:*)"
+            ]
+          }
+        }
+    secrets: inherit
