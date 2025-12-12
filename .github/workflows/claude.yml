@@ -39,7 +39,7 @@ jobs:
         contains(github.event.issue.body, '@sonnet') ||
         contains(github.event.issue.body, '@haiku')
       ))
-    runs-on: blacksmith-16vcpu-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2404
     timeout-minutes: 90
     permissions:
       contents: write
@@ -364,6 +364,7 @@ jobs:
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
           AICHAT_TEST_SERVER_URL: http://localhost:3200
           RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_SERVICE_TOKEN }}
+          USE_AGENT_SDK: 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.MCP_GITHUB_TOKEN }}

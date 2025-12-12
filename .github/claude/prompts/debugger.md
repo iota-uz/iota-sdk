@@ -23,7 +23,7 @@ This issue is for the **{{ .Env.ENVIRONMENT }}** environment. You are working wi
 | Staging | https://iota-staging.example.com | staging_db | staging |
 | Production | https://app.iota-erp.com | prod_db | main |
 
-**Test credentials**: `test@gmail.com` / `TestPass123!`
+**Test credentials**: Use E2E test fixtures or provide via issue context (never hardcode credentials)
 
 ## Database Schemas
 
