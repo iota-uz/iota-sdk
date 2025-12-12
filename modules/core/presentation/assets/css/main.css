@@ -997,6 +997,16 @@
   }
 }
 
+/* iOS Safari 100vh fix - use dynamic viewport height */
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh !important;
+  }
+  .h-screen {
+    height: 100dvh !important;
+  }
+}
+
 /* Keyframes */
 @keyframes slide-in-right {
   from {
