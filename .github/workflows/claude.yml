@@ -329,11 +329,9 @@ jobs:
 
       - name: Build MCP config
         id: mcp_config
-        env:
-          BLOOM_TOKEN: ${{ secrets.BLOOM_MCP_TOKEN }}
         run: |
-          # Read base config and add bloom with token
-          MCP_CONFIG=$(cat .github/claude/mcp-config.json | jq --arg token "$BLOOM_TOKEN" '.mcpServers.bloom = {"type":"http","url":"https://api.bloom.pw/api/mcp","name":"bloom","headers":{"Authorization":"Bearer \($token)"}}')
+          # Read MCP config from file
+          MCP_CONFIG=$(cat .github/claude/mcp-config.json)
           # Export as multi-line output
           echo "config<<EOF" >> $GITHUB_OUTPUT
           echo "$MCP_CONFIG" >> $GITHUB_OUTPUT
