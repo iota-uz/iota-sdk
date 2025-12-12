@@ -22,7 +22,6 @@ jobs:
       setup_level: minimal
       trigger_phrase: "@architect"
       runner: blacksmith-4vcpu-ubuntu-2404
-      tools: "Read,Grep,Glob,Bash,Task,TodoWrite,AskUserQuestion,WebFetch,WebSearch,Skill"
       settings: |
         {
           "permissions": {
