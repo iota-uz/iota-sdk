@@ -21,7 +21,6 @@ jobs:
       trigger_phrase: "@implement"
       mcp_playwright: true
       skip_permissions: true
-      tools: "Read,Grep,Glob,Bash,Edit,Write,Task,TodoWrite,AskUserQuestion,WebFetch,WebSearch,Skill,BashOutput,KillShell"
       settings: |
         {
           "permissions": {

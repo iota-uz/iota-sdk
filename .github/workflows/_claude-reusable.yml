@@ -51,10 +51,6 @@ on:
         description: 'Fallback model if AI selection fails'
         type: string
         default: 'opus'
-      tools:
-        description: 'Comma-separated list of allowed tools (limits available tools)'
-        type: string
-        required: false
       branch:
         description: 'Branch to checkout (default: staging)'
         type: string
@@ -288,10 +284,6 @@ jobs:
 
           if [ "${{ inputs.skip_permissions }}" = "true" ]; then
             ARGS="$ARGS --dangerously-skip-permissions"
-          fi
-
-          if [ -n "${{ inputs.tools }}" ]; then
-            ARGS="$ARGS --tools \"${{ inputs.tools }}\""
           fi
 
           # Build MCP config

@@ -28,7 +28,6 @@ jobs:
       setup_level: full
       trigger_phrase: "@review"
       skip_permissions: true
-      tools: "Read,Grep,Glob,Bash,Edit,Write,Task,TodoWrite,AskUserQuestion,WebFetch,WebSearch,Skill,BashOutput,KillShell"
       settings: |
         {
           "permissions": {

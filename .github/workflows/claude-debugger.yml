@@ -184,7 +184,6 @@ jobs:
             }
           claude_args: >-
             --model opus
-            --tools "Bash,Read,Grep,Glob,Task,AskUserQuestion,TodoWrite,BashOutput,KillShell,WebFetch,WebSearch,Skill"
             --allowedTools "mcp__local_db,mcp__playwright"
             --mcp-config '{
               "mcpServers": {
