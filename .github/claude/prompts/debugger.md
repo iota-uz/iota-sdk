@@ -19,9 +19,9 @@ This issue is for the **{{ .Env.ENVIRONMENT }}** environment. You are working wi
 
 | Environment | URL | Database MCP | Branch |
 |-------------|-----|--------------|--------|
-| Local | http://localhost:3200 | local_db | staging |
-| Staging | https://iota-staging.example.com | staging_db | staging |
-| Production | https://app.iota-erp.com | prod_db | main |
+| Local | <http://localhost:3200> | local_db | staging |
+| Staging | <https://iota-staging.example.com> | staging_db | staging |
+| Production | <https://app.iota-erp.com> | prod_db | main |
 
 **Test credentials**: Use E2E test fixtures or provide via issue context (never hardcode credentials)
 
@@ -43,7 +43,7 @@ Use PostgreSQL MCP `list_objects` to discover tables before querying.
 
 Post a comment with your analysis:
 
-```markdown
+~~~markdown
 ## Bug Analysis
 
 ### Summary
@@ -70,7 +70,7 @@ Post a comment with your analysis:
 
 ---
 *Analyzed by Claude Debugger Agent (read-only)*
-```
+~~~
 
 ## Edge Cases
 

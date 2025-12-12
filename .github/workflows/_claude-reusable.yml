@@ -183,17 +183,21 @@ jobs:
         id: ai_select
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          TRIGGER_PHRASE: ${{ inputs.trigger_phrase }}
+          ISSUE_TITLE: ${{ github.event.issue.title || github.event.pull_request.title || 'N/A' }}
+          REQUEST_BODY: ${{ github.event.comment.body || github.event.issue.body || 'N/A' }}
+          LABELS: ${{ join(github.event.issue.labels.*.name, ', ') || 'none' }}
         run: |
-          # Create variables file for the prompt
-          cat > /tmp/model-select-vars.json << 'VARSEOF'
-          {
-            "event": "${{ github.event_name }}",
-            "trigger": "${{ inputs.trigger_phrase }}",
-            "title": "${{ github.event.issue.title || github.event.pull_request.title || 'N/A' }}",
-            "request": ${{ toJson(github.event.comment.body || github.event.issue.body || 'N/A') }},
-            "labels": "${{ join(github.event.issue.labels.*.name, ', ') || 'none' }}"
-          }
-          VARSEOF
+          # Create variables file for the prompt using jq for safe JSON construction
+          jq -n \
+            --arg event "$EVENT_NAME" \
+            --arg trigger "$TRIGGER_PHRASE" \
+            --arg title "$ISSUE_TITLE" \
+            --arg request "$REQUEST_BODY" \
+            --arg labels "$LABELS" \
+            '{event:$event, trigger:$trigger, title:$title, request:$request, labels:$labels}' \
+            > /tmp/model-select-vars.json
 
           # Run the model with the prompt file
           RESPONSE=$(gh models run .github/prompts/model-selector.prompt.yaml \
