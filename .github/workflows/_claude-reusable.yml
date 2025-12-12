@@ -1,0 +1,407 @@
+name: Claude Code (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: 'Claude model: opus, sonnet, haiku'
+        type: string
+        required: true
+      prompt_file:
+        description: 'Path to prompt template file'
+        type: string
+        required: true
+      setup_level:
+        description: 'Setup level: minimal, standard, full'
+        type: string
+        required: true
+      settings:
+        description: 'Inline JSON settings for Claude Code'
+        type: string
+        required: true
+      trigger_phrase:
+        description: 'Trigger phrase for the action'
+        type: string
+        required: true
+      runner:
+        description: 'GitHub runner to use'
+        type: string
+        default: 'blacksmith-16vcpu-ubuntu-2204'
+      timeout:
+        description: 'Timeout in minutes'
+        type: number
+        default: 90
+      max_turns:
+        description: 'Max agentic turns'
+        type: number
+        default: 100
+      mcp_playwright:
+        description: 'Enable Playwright MCP'
+        type: boolean
+        default: false
+      skip_permissions:
+        description: 'Skip permission prompts'
+        type: boolean
+        default: false
+      dynamic_model_selection:
+        description: 'Enable AI-powered model selection'
+        type: boolean
+        default: false
+      default_model:
+        description: 'Fallback model if AI selection fails'
+        type: string
+        default: 'opus'
+      tools:
+        description: 'Comma-separated list of allowed tools (limits available tools)'
+        type: string
+        required: false
+      branch:
+        description: 'Branch to checkout (default: staging)'
+        type: string
+        default: 'staging'
+
+jobs:
+  claude:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout }}
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+      models: read
+
+    services:
+      postgres:
+        image: ${{ inputs.setup_level == 'full' && 'postgres:17' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_sdk_claude
+          POSTGRES_INITDB_ARGS: >-
+            -c max_connections=1000
+            -c shared_buffers=2GB
+            -c fsync=off
+            -c synchronous_commit=off
+            -c full_page_writes=off
+            -c autovacuum=off
+            -c jit=off
+        ports:
+          - 5432:5432
+        options: >-
+          --hostname=iota_db_claude
+          --tmpfs /var/lib/postgresql/data:rw,size=4g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_sdk_claude"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Validate inputs
+        run: |
+          # Validate setup_level
+          if [[ ! "${{ inputs.setup_level }}" =~ ^(minimal|standard|full)$ ]]; then
+            echo "::error::Invalid setup_level: ${{ inputs.setup_level }}. Must be: minimal, standard, or full"
+            exit 1
+          fi
+          # Validate model
+          if [[ ! "${{ inputs.model }}" =~ ^(haiku|sonnet|opus)$ ]]; then
+            echo "::error::Invalid model: ${{ inputs.model }}. Must be: haiku, sonnet, or opus"
+            exit 1
+          fi
+          # Validate prompt_file exists
+          if [ ! -f "${{ inputs.prompt_file }}" ]; then
+            echo "::error::Prompt file not found: ${{ inputs.prompt_file }}"
+            exit 1
+          fi
+          echo "✓ All inputs validated"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Collect workflow telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 5
+          proc_trace_sys_enable: true
+          proc_trace_chart_show: true
+
+      # Standard/Full setup steps
+      - name: Setup Backend
+        if: inputs.setup_level != 'minimal'
+        uses: ./.github/actions/setup-backend
+        with:
+          install-golangci-lint: 'true'
+
+      - name: Setup TailwindCSS
+        if: inputs.setup_level != 'minimal'
+        uses: ./.github/actions/setup-tailwind
+
+      - name: Setup Frontend
+        if: inputs.setup_level == 'full'
+        uses: ./.github/actions/setup-frontend
+
+      - name: Install E2E dependencies
+        if: inputs.setup_level == 'full'
+        run: cd e2e && pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        if: inputs.setup_level == 'full' && inputs.mcp_playwright
+        run: cd e2e && pnpm exec playwright install chromium
+
+      - name: Generate CSS
+        if: inputs.setup_level != 'minimal'
+        run: make css
+
+      - name: Setup Database
+        if: inputs.setup_level == 'full'
+        uses: ./.github/actions/setup-database
+        with:
+          db-name: iota_sdk_claude
+
+      - name: Create artifacts directory
+        run: mkdir -p .ci-artifacts/screenshots
+
+      # AI-powered model selection (when enabled)
+      - name: Install gh-models extension
+        if: inputs.dynamic_model_selection
+        run: gh extension install https://github.com/github/gh-models
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: AI model selection
+        if: inputs.dynamic_model_selection
+        id: ai_select
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create variables file for the prompt
+          cat > /tmp/model-select-vars.json << 'VARSEOF'
+          {
+            "event": "${{ github.event_name }}",
+            "trigger": "${{ inputs.trigger_phrase }}",
+            "title": "${{ github.event.issue.title || github.event.pull_request.title || 'N/A' }}",
+            "request": ${{ toJson(github.event.comment.body || github.event.issue.body || 'N/A') }},
+            "labels": "${{ join(github.event.issue.labels.*.name, ', ') || 'none' }}"
+          }
+          VARSEOF
+
+          # Run the model with the prompt file
+          RESPONSE=$(gh models run .github/prompts/model-selector.prompt.yaml \
+            --variables /tmp/model-select-vars.json 2>/dev/null || echo '{"model":"${{ inputs.default_model }}","reason":"AI inference failed"}')
+
+          # Parse response
+          MODEL=$(echo "$RESPONSE" | jq -r '.model // "${{ inputs.default_model }}"')
+          REASON=$(echo "$RESPONSE" | jq -r '.reason // "AI selection"')
+
+          # Validate model (only haiku and opus allowed for dynamic selection)
+          if [[ ! "$MODEL" =~ ^(haiku|opus)$ ]]; then
+            MODEL="${{ inputs.default_model }}"
+            REASON="Invalid AI response, using default"
+          fi
+
+          echo "model=$MODEL" >> $GITHUB_OUTPUT
+          echo "reason=$REASON" >> $GITHUB_OUTPUT
+          echo "success=true" >> $GITHUB_OUTPUT
+
+      - name: Determine model
+        id: selected_model
+        run: |
+          if [ "${{ inputs.dynamic_model_selection }}" = "true" ] && [ "${{ steps.ai_select.outputs.success }}" = "true" ]; then
+            echo "model=${{ steps.ai_select.outputs.model }}" >> $GITHUB_OUTPUT
+            echo "method=ai_inference (gpt-5-nano)" >> $GITHUB_OUTPUT
+            echo "reason=${{ steps.ai_select.outputs.reason }}" >> $GITHUB_OUTPUT
+          else
+            echo "model=${{ inputs.model }}" >> $GITHUB_OUTPUT
+            echo "method=input" >> $GITHUB_OUTPUT
+            echo "reason=Using workflow input model" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post model selection comment
+        if: steps.selected_model.outputs.method == 'ai_inference (gpt-5-nano)'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODEL: ${{ steps.selected_model.outputs.model }}
+          SELECTION_METHOD: ${{ steps.selected_model.outputs.method }}
+          REASONING: ${{ steps.selected_model.outputs.reason }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$PR_NUMBER" ]; then
+            TARGET_NUMBER="$PR_NUMBER"
+          elif [ -n "$ISSUE_NUMBER" ]; then
+            TARGET_NUMBER="$ISSUE_NUMBER"
+          else
+            echo "No issue or PR number found, skipping comment"
+            exit 0
+          fi
+          COMMENT_BODY=$(cat <<EOF
+          🤖 **Model Selection** (AI-powered)
+
+          | Field | Value |
+          |-------|-------|
+          | Model | \`$MODEL\` |
+          | Method | $SELECTION_METHOD |
+          | Reasoning | $REASONING |
+          EOF
+          )
+          gh issue comment "$TARGET_NUMBER" --body "$COMMENT_BODY"
+          echo "Posted model selection comment to #$TARGET_NUMBER"
+
+      - name: Start Server
+        if: inputs.setup_level == 'full'
+        uses: ./.github/actions/start-server
+        with:
+          port: '3200'
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: iota_sdk_claude
+          PORT: 3200
+          SESSION_DURATION: 720h
+          DOMAIN: localhost:3200
+          GO_APP_ENV: test
+          LOG_LEVEL: info
+
+      # Build Claude args dynamically
+      - name: Build Claude args
+        id: claude_args
+        run: |
+          # Use selected model (AI or input)
+          FINAL_MODEL="${{ steps.selected_model.outputs.model || inputs.model }}"
+          ARGS="--model $FINAL_MODEL --max-turns ${{ inputs.max_turns }}"
+
+          if [ "${{ inputs.skip_permissions }}" = "true" ]; then
+            ARGS="$ARGS --dangerously-skip-permissions"
+          fi
+
+          if [ -n "${{ inputs.tools }}" ]; then
+            ARGS="$ARGS --tools \"${{ inputs.tools }}\""
+          fi
+
+          # Build MCP config
+          MCP_BASE='{"mcpServers":{'
+          MCP_SERVERS=''
+
+          # Always include local PostgreSQL MCP
+          MCP_SERVERS="$MCP_SERVERS\"postgres\":{\"command\":\"npx\",\"args\":[\"-y\",\"@modelcontextprotocol/server-postgres\",\"postgresql://postgres:postgres@localhost:5432/iota_sdk_claude\"]},"
+
+          # Add context7 MCP
+          MCP_SERVERS="$MCP_SERVERS\"context7\":{\"type\":\"http\",\"url\":\"https://mcp.context7.com/mcp\",\"name\":\"context7\"},"
+
+          # Add godoc-mcp
+          MCP_SERVERS="$MCP_SERVERS\"godoc-mcp\":{\"command\":\"go\",\"args\":[\"run\",\"github.com/mrjoshuak/godoc-mcp@latest\"]},"
+
+          # Add bloom MCP
+          MCP_SERVERS="$MCP_SERVERS\"bloom\":{\"type\":\"http\",\"url\":\"https://api.bloom.pw/api/mcp\",\"name\":\"bloom\",\"headers\":{\"Authorization\":\"Bearer ${{ secrets.BLOOM_MCP_TOKEN }}\"}},"
+
+          # Add Playwright if enabled
+          if [ "${{ inputs.mcp_playwright }}" = "true" ]; then
+            MCP_SERVERS="$MCP_SERVERS\"playwright\":{\"command\":\"npx\",\"args\":[\"@playwright/mcp@latest\",\"--headless\",\"--browser\",\"chromium\",\"--output-dir\",\".ci-artifacts/screenshots\",\"--save-trace\",\"--save-video\",\"--viewport-size\",\"1280x720\",\"--timeout-action\",\"10000\",\"--no-sandbox\",\"--isolated\",\"--caps\",\"vision,testing\"]},"
+          fi
+
+          # Remove trailing comma and close JSON
+          MCP_SERVERS="${MCP_SERVERS%,}"
+          MCP_CONFIG="${MCP_BASE}${MCP_SERVERS}}}"
+
+          ARGS="$ARGS --mcp-config '$MCP_CONFIG'"
+          echo "args=$ARGS" >> $GITHUB_OUTPUT
+
+      - name: Setup Gomplate
+        uses: ./.github/actions/setup-gomplate
+
+      # Process prompt template with gomplate
+      - name: Process prompt template
+        id: prompt
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title || github.event.pull_request.title }}
+          ISSUE_BODY: ${{ github.event.issue.body || github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          REPO_NAME: ${{ github.repository }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ -f "${{ inputs.prompt_file }}" ]; then
+            {
+              echo 'content<<EOF'
+              gomplate -f "${{ inputs.prompt_file }}"
+              echo 'EOF'
+            } >> $GITHUB_OUTPUT
+          else
+            echo "Prompt file not found: ${{ inputs.prompt_file }}"
+            exit 1
+          fi
+
+      # Run Claude Code Action
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1.0.23
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: iota_sdk_claude
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/iota_sdk_claude
+          PORT: 3200
+          SESSION_DURATION: 720h
+          DOMAIN: localhost:3200
+          GO_APP_ENV: test
+          LOG_LEVEL: info
+          BASE_URL: http://localhost:3200
+          CI: true
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AICHAT_TEST_SERVER_URL: http://localhost:3200
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_SERVICE_TOKEN }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.MCP_GITHUB_TOKEN }}
+          trigger_phrase: ${{ inputs.trigger_phrase }}
+          track_progress: true
+          show_full_output: true
+          settings: ${{ inputs.settings }}
+          claude_args: ${{ steps.claude_args.outputs.args }}
+          prompt: ${{ steps.prompt.outputs.content }}
+          additional_permissions: 'actions: read'
+
+      # Cleanup
+      - name: Stop application server
+        if: always() && inputs.setup_level == 'full'
+        run: |
+          if [ -f server.pid ]; then
+            SERVER_PID=$(cat server.pid)
+            echo "Stopping server process $SERVER_PID"
+            kill $SERVER_PID 2>/dev/null || true
+            sleep 2
+            kill -9 $SERVER_PID 2>/dev/null || true
+          fi
+
+      - name: Upload server logs
+        uses: actions/upload-artifact@v4
+        if: always() && inputs.setup_level == 'full'
+        with:
+          name: server-logs-${{ github.run_id }}
+          path: server.log
+          retention-days: 7
+
+      - name: Upload Screenshots
+        if: always() && inputs.mcp_playwright
+        uses: ./.github/actions/upload-screenshots
+        with:
+          s3-prefix: claude
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
