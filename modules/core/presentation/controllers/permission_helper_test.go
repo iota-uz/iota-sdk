@@ -104,7 +104,7 @@ func TestBuildModulePermissionGroups_IncludesAllModulesWithResources(t *testing.
 	// Verify that both modules are returned
 	require.Len(t, result, 2, "Expected 2 modules with resources")
 	
-	// Core should come first due to sorting logic
+	// Core should come first (sorting logic prioritizes "Core" module)
 	require.Equal(t, "Core", result[0].Module)
 	require.Len(t, result[0].ResourceGroups, 1)
 	require.Equal(t, "users", result[0].ResourceGroups[0].Resource)
