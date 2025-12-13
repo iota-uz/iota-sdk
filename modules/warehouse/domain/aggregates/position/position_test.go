@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockUpload is a simple mock of upload.Upload for testing
@@ -429,7 +430,7 @@ func TestParseStatus_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			status, err := ParseStatus(tt.input)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expected, status)
 		})
 	}
@@ -439,7 +440,7 @@ func TestParseStatus_InvalidValue(t *testing.T) {
 	t.Parallel()
 
 	status, err := ParseStatus("invalid_status")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, Status(""), status)
 }
 

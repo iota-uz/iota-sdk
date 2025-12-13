@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOrder_New_Success(t *testing.T) {
@@ -57,7 +58,7 @@ func TestOrder_AddItem_Success(t *testing.T) {
 
 	newOrder, err := o.AddItem(pos, prod)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, newOrder)
 	assert.Len(t, newOrder.Items(), 1)
 	assert.Equal(t, pos.ID(), newOrder.Items()[0].Position().ID())
@@ -77,7 +78,7 @@ func TestOrder_AddItem_MultipleProducts(t *testing.T) {
 
 	newOrder, err := o.AddItem(pos, prod1, prod2)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, newOrder.Items(), 1)
 	assert.Equal(t, 2, newOrder.Items()[0].Quantity())
 	assert.Equal(t, prod1.ID(), newOrder.Items()[0].Products()[0].ID())
@@ -94,7 +95,7 @@ func TestOrder_AddItem_EmitsItemAddedEvent(t *testing.T) {
 	o := New(TypeIn, WithTenantID(tenantID), WithID(1))
 	newOrder, err := o.AddItem(pos, prod)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	events := newOrder.Events()
 	assert.Len(t, events, 2)
@@ -118,7 +119,7 @@ func TestOrder_AddItem_ShippedProduct_Error(t *testing.T) {
 
 	newOrder, err := o.AddItem(pos, shippedProd)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, newOrder)
 
 	shippedErr, ok := err.(*ProductIsShippedError)
@@ -138,7 +139,7 @@ func TestOrder_AddItem_MixedProductsWithShipped_Error(t *testing.T) {
 
 	newOrder, err := o.AddItem(pos, goodProd, shippedProd)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, newOrder)
 
 	shippedErr, ok := err.(*ProductIsShippedError)
@@ -156,7 +157,7 @@ func TestOrder_AddItem_Immutability(t *testing.T) {
 	originalOrder := New(TypeIn, WithTenantID(tenantID), WithID(1))
 	newOrder, err := originalOrder.AddItem(pos, prod)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Original order should remain unchanged
 	assert.Empty(t, originalOrder.Items())
@@ -174,7 +175,7 @@ func TestOrder_Complete_Success(t *testing.T) {
 
 	completedOrder, err := o.Complete()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, completedOrder)
 	assert.Equal(t, Complete, completedOrder.Status())
 	assert.NotEqual(t, o, completedOrder)
@@ -188,7 +189,7 @@ func TestOrder_Complete_AlreadyComplete_Error(t *testing.T) {
 
 	completedOrder, err := o.Complete()
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, completedOrder)
 
 	completeErr, ok := err.(*OrderIsCompleteError)
@@ -204,7 +205,7 @@ func TestOrder_Complete_EmitsOrderCompletedEvent(t *testing.T) {
 
 	completedOrder, err := o.Complete()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	events := completedOrder.Events()
 	assert.Greater(t, len(events), 1)
@@ -223,7 +224,7 @@ func TestOrder_Complete_Immutability(t *testing.T) {
 
 	completedOrder, err := originalOrder.Complete()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Original order should remain pending
 	assert.Equal(t, Pending, originalOrder.Status())
@@ -319,11 +320,11 @@ func TestOrder_MultipleAdditions(t *testing.T) {
 	o := New(TypeIn, WithTenantID(tenantID), WithID(1))
 
 	o1, err1 := o.AddItem(pos1, prod1)
-	assert.NoError(t, err1)
+	require.NoError(t, err1)
 	assert.Len(t, o1.Items(), 1)
 
 	o2, err2 := o1.AddItem(pos2, prod2)
-	assert.NoError(t, err2)
+	require.NoError(t, err2)
 	assert.Len(t, o2.Items(), 2)
 
 	// Original should be unchanged
@@ -361,7 +362,7 @@ func TestOrder_Item_Quantity(t *testing.T) {
 	o := New(TypeIn, WithTenantID(tenantID), WithID(1))
 	newOrder, err := o.AddItem(pos, prod1, prod2, prod3)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 3, newOrder.Items()[0].Quantity())
 }
 
@@ -411,11 +412,11 @@ func TestNewStatus_Success(t *testing.T) {
 	t.Parallel()
 
 	status, err := NewStatus("pending")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Pending, status)
 
 	status, err = NewStatus("complete")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, Complete, status)
 }
 
@@ -423,7 +424,7 @@ func TestNewStatus_InvalidValue(t *testing.T) {
 	t.Parallel()
 
 	status, err := NewStatus("invalid")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, Status(""), status)
 }
 
@@ -431,11 +432,11 @@ func TestNewType_Success(t *testing.T) {
 	t.Parallel()
 
 	typ, err := NewType("in")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, TypeIn, typ)
 
 	typ, err = NewType("out")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, TypeOut, typ)
 }
 
@@ -443,6 +444,6 @@ func TestNewType_InvalidValue(t *testing.T) {
 	t.Parallel()
 
 	typ, err := NewType("invalid")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, Type(""), typ)
 }

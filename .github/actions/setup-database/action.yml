@@ -1,0 +1,75 @@
+name: Setup Database
+description: Wait for PostgreSQL and run migrations for IOTA SDK
+
+inputs:
+  db-name:
+    description: Database name
+    required: true
+  db-host:
+    description: Database host
+    required: false
+    default: 'localhost'
+  db-port:
+    description: Database port
+    required: false
+    default: '5432'
+  db-user:
+    description: Database user
+    required: false
+    default: 'postgres'
+  db-password:
+    description: Database password
+    required: false
+    default: 'postgres'
+  run-migrations:
+    description: Whether to run database migrations
+    required: false
+    default: 'true'
+  max-retries:
+    description: Maximum number of retries for database readiness check
+    required: false
+    default: '30'
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for PostgreSQL
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Waiting for PostgreSQL"
+
+        RETRY_COUNT=0
+        MAX_RETRIES=${{ inputs.max-retries }}
+
+        until pg_isready -h ${{ inputs.db-host }} -p ${{ inputs.db-port }} -U ${{ inputs.db-user }} -d ${{ inputs.db-name }}; do
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+            echo "::error::PostgreSQL not ready after $MAX_RETRIES attempts. Database: ${{ inputs.db-name }}, Host: ${{ inputs.db-host }}:${{ inputs.db-port }}"
+            exit 1
+          fi
+          echo "Waiting for postgres... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+          sleep 1
+        done
+
+        echo "PostgreSQL is ready"
+        echo "::endgroup::"
+
+    - name: Run database migrations
+      if: inputs.run-migrations == 'true'
+      shell: bash
+      env:
+        DB_HOST: ${{ inputs.db-host }}
+        DB_PORT: ${{ inputs.db-port }}
+        DB_USER: ${{ inputs.db-user }}
+        DB_PASSWORD: ${{ inputs.db-password }}
+        DB_NAME: ${{ inputs.db-name }}
+      run: |
+        set -euo pipefail
+        echo "::group::Running database migrations"
+        if ! make db migrate up; then
+          echo "::error::Database migrations failed for database: ${{ inputs.db-name }}"
+          exit 1
+        fi
+        echo "Database migrations completed successfully"
+        echo "::endgroup::"

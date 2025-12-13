@@ -37,20 +37,20 @@ test.describe('user auth and registration flow', () => {
 		await page.locator('[name=Language]').selectOption({ index: 2 });
 
 		// Handle Alpine.js dropdown for RoleIDs
-		const roleSelect = page.locator('select[name="RoleIDs"]');
-		const roleContainer = roleSelect.locator('xpath=ancestor::div[1]');
-		await roleContainer.locator('button[x-ref="trigger"]').click();
+		// Find the combobox container and click the dropdown indicator (caret down icon)
+		const roleCombobox = page.locator('select[name="RoleIDs"]').locator('..');
+		await roleCombobox.locator('svg.cursor-pointer').click(); // Click the CaretDown icon with cursor-pointer class
 
-		// Wait for dropdown to be visible and click first option (scope to role container)
-		const dropdown = roleContainer.locator('ul[x-ref=list]');
-		await expect(dropdown).toBeVisible();
-		await dropdown.locator('li').first().click();
+		// Wait for dropdown to be visible and click first option (scope to role combobox)
+		const roleDropdown = roleCombobox.locator('ul[x-ref=list]');
+		await expect(roleDropdown).toBeVisible();
+		await roleDropdown.locator('li').first().click();
 
 		// Save the form
 		await page.locator('[id=save-btn]').click();
 
-		// Verify user appears in table
-		await expect(page.locator('tbody tr')).toHaveCount(3);
+		// Verify user appears in table (comprehensive seed creates 3 users + 1 new = 4 total)
+		await expect(page.locator('tbody tr')).toHaveCount(4);
 
 		await logout(page);
 
@@ -59,7 +59,7 @@ test.describe('user auth and registration flow', () => {
 		await page.goto('/users');
 
 		await expect(page).toHaveURL(/\/users/);
-		await expect(page.locator('tbody tr')).toHaveCount(3);
+		await expect(page.locator('tbody tr')).toHaveCount(4);
 	});
 
 	test('edits a user and displays changes in users table', async ({ page }) => {
@@ -87,8 +87,8 @@ test.describe('user auth and registration flow', () => {
 		// Wait for redirect after save
 		await page.waitForURL(/\/users$/);
 
-		// Verify changes in the users list
-		await expect(page.locator('tbody tr')).toHaveCount(3);
+		// Verify changes in the users list (still 4 users total)
+		await expect(page.locator('tbody tr')).toHaveCount(4);
 		await expect(page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' })).toBeVisible();
 
 		// Verify phone number persists by checking the edit page
