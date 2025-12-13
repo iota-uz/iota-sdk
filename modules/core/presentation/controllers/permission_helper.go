@@ -186,10 +186,13 @@ func BuildModulePermissionGroups(
 			return resourceGroups[i].Resource < resourceGroups[j].Resource
 		})
 
-		groups = append(groups, &viewmodels.ModulePermissionGroup{
-			Module:         module,
-			ResourceGroups: resourceGroups,
-		})
+		// Only add module if it has resources
+		if len(resourceGroups) > 0 {
+			groups = append(groups, &viewmodels.ModulePermissionGroup{
+				Module:         module,
+				ResourceGroups: resourceGroups,
+			})
+		}
 	}
 
 	// Sort by module name for consistent ordering
