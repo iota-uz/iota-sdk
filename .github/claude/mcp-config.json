@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--headless",
+        "--browser",
+        "chromium",
+        "--output-dir",
+        ".ci-artifacts/screenshots",
+        "--save-trace",
+        "--save-video",
+        "--viewport-size",
+        "1280x720",
+        "--timeout-action",
+        "10000",
+        "--no-sandbox",
+        "--isolated",
+        "--caps",
+        "vision,testing"
+      ]
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://postgres:postgres@localhost:5432/iota_sdk_claude"
+      ]
+    }
+  }
+}

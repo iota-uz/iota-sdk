@@ -1,0 +1,19 @@
+name: Setup Gomplate
+description: Install gomplate CLI for template processing
+
+inputs:
+  version:
+    description: Gomplate version to install
+    required: false
+    default: 'v4.2.0'
+
+runs:
+  using: composite
+  steps:
+    - name: Install gomplate
+      shell: bash
+      run: |
+        curl -sSL https://github.com/hairyhenderson/gomplate/releases/download/${{ inputs.version }}/gomplate_linux-amd64 \
+          -o /usr/local/bin/gomplate
+        chmod +x /usr/local/bin/gomplate
+        gomplate --version

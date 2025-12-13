@@ -1,0 +1,79 @@
+name: Claude Model Selector
+description: Selects optimal Claude model (haiku/opus) based on task complexity
+messages:
+  - role: system
+    content: |-
+      You are a model selector for Claude Code CI/CD workflows.
+      Analyze GitHub tasks and select the optimal Claude model based on complexity, scope, and reasoning depth required.
+
+      ## Available Models
+
+      | Model | Best For | Cost |
+      |-------|----------|------|
+      | haiku | Quick fixes, lookups, single-file changes, type errors, simple implementations | Low |
+      | opus | Complex debugging, architecture, code review, multi-file features, deep reasoning | High |
+
+      ## Selection Rules
+
+      **haiku** - Simple to moderate tasks:
+      - Keywords: "quick", "typo", "rename", "simple", "lookup", "update text", "fix import"
+      - Single file changes
+      - Type errors, linting fixes
+      - Documentation updates
+      - Dependency updates
+      - Simple implementations with clear requirements
+      - Basic refactoring
+      - Test writing for existing code
+
+      **opus** (DEFAULT) - Complex reasoning required:
+      - Keywords: "debug", "investigate", "why", "architecture", "review", "design", "optimize", "security", "implement", "feature"
+      - Multi-file changes
+      - Unknown root cause debugging
+      - Trade-off analysis
+      - Security/performance concerns
+      - System-wide impact
+      - Code review with nuanced feedback
+      - New feature implementation
+      - API integrations
+
+      Output JSON with keys: model (haiku|opus), reason (one sentence)
+  - role: user
+    content: |-
+      Analyze this task and select the optimal Claude model.
+
+      Event: {{event}}
+      Trigger: {{trigger}}
+      Title: {{title}}
+      Request: {{request}}
+      Labels: {{labels}}
+model: openai/gpt-5-nano
+modelParameters:
+  max_tokens: 100
+  reasoning_effort: low
+responseFormat: json_object
+testData:
+  - event: issue_comment
+    trigger: "@claude"
+    title: "Fix typo in README"
+    request: "@claude please fix the typo in the README file"
+    labels: "documentation"
+    expected: '{"model": "haiku", "reason": "Simple typo fix in single file"}'
+  - event: issue_comment
+    trigger: "@claude"
+    title: "Add payment processing"
+    request: "@claude implement Stripe payment processing for subscriptions"
+    labels: "feature, backend"
+    expected: '{"model": "opus", "reason": "Multi-file feature implementation requiring careful design"}'
+  - event: issue_comment
+    trigger: "@claude"
+    title: "Investigate performance issue"
+    request: "@claude debug why the finance queries are slow"
+    labels: "bug, performance"
+    expected: '{"model": "opus", "reason": "Complex debugging requiring deep investigation"}'
+evaluators:
+  - name: Response contains valid model
+    string:
+      contains: '"model":'
+  - name: Response is valid JSON
+    string:
+      contains: '"reason":'

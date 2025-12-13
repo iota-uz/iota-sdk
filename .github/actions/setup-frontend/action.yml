@@ -1,0 +1,55 @@
+name: Setup Frontend Environment
+description: Set up Node.js, pnpm, and frontend dependencies for IOTA SDK
+
+inputs:
+  node-version:
+    description: Node.js version to install
+    required: false
+    default: '22'
+  working-directory:
+    description: Working directory for frontend app (relative to repository root)
+    required: false
+    default: '.'
+  install-dependencies:
+    description: Whether to install dependencies (only if package.json exists)
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
+    - name: Check for package.json
+      id: check-package
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [ -f "package.json" ]; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Found package.json in ${{ inputs.working-directory }}"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "::notice::No package.json found in ${{ inputs.working-directory }}, skipping dependency installation"
+        fi
+
+    - name: Install frontend dependencies
+      if: inputs.install-dependencies == 'true' && steps.check-package.outputs.exists == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euo pipefail
+        echo "::group::Installing frontend dependencies"
+        if ! pnpm install --frozen-lockfile; then
+          echo "::error::Failed to install frontend dependencies in ${{ inputs.working-directory }}"
+          exit 1
+        fi
+        echo "::endgroup::"

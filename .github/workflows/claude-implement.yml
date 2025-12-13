@@ -1,0 +1,39 @@
+name: Claude Implement
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  implement:
+    if: |
+      github.event.comment.user.type != 'Bot' &&
+      contains(github.event.comment.body, '@implement')
+    uses: ./.github/workflows/_claude-reusable.yml
+    with:
+      model: sonnet
+      dynamic_model_selection: true
+      default_model: sonnet
+      prompt_file: .github/claude/prompts/implement.md
+      setup_level: full
+      trigger_phrase: "@implement"
+      mcp_playwright: true
+      skip_permissions: true
+      settings: |
+        {
+          "permissions": {
+            "allow": [],
+            "deny": [
+              "Read(**/*.key)",
+              "Read(**/*.pem)",
+              "Read(**/credentials*)",
+              "Read(**/.env)",
+              "Read(**/.env.*)",
+              "Bash(sudo:*)",
+              "Bash(rm -rf /*)"
+            ]
+          }
+        }
+    secrets: inherit

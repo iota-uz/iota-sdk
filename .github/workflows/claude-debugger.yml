@@ -1,0 +1,276 @@
+name: Claude Debugger
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened, assigned, labeled]
+
+jobs:
+  debug:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@debugger')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@debugger')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@debugger')) ||
+      (github.event_name == 'issues' && github.event.action == 'labeled' && contains(github.event.label.name, 'bug')) ||
+      (github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'assigned') && contains(github.event.issue.body, '@debugger'))
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 90
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: iota_sdk_debugger
+        ports:
+          - 5432:5432
+        options: >-
+          --hostname=iota_db_debugger
+          --tmpfs /var/lib/postgresql/data:rw,size=4g,noatime
+          --health-cmd="pg_isready -U postgres -d iota_sdk_debugger"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli@4.12.0
+
+      - name: Log debugger trigger
+        run: |
+          echo "### Bug Debugger Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Issue | #${{ github.event.issue.number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Title | ${{ github.event.issue.title }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Author | ${{ github.event.issue.user.login }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | staging |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Collect workflow telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          metric_frequency: 5
+          proc_trace_sys_enable: true
+          proc_trace_chart_show: true
+
+      - name: Setup Backend
+        uses: ./.github/actions/setup-backend
+        with:
+          install-golangci-lint: 'true'
+
+      - name: Setup TailwindCSS
+        uses: ./.github/actions/setup-tailwind
+
+      - name: Setup Frontend
+        uses: ./.github/actions/setup-frontend
+
+      - name: Install E2E dependencies
+        run: cd e2e && pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: cd e2e && pnpm exec playwright install chromium
+
+      - name: Generate CSS
+        run: make css
+
+      - name: Setup Database
+        uses: ./.github/actions/setup-database
+        with:
+          db-name: iota_sdk_debugger
+
+      - name: Create artifacts directory
+        run: mkdir -p .ci-artifacts/screenshots
+
+      - name: Start Server
+        uses: ./.github/actions/start-server
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: iota_sdk_debugger
+          PORT: 3200
+          SESSION_DURATION: 720h
+          DOMAIN: localhost:3200
+          GO_APP_ENV: test
+          LOG_LEVEL: info
+
+      - name: Setup Gomplate
+        uses: ./.github/actions/setup-gomplate
+
+      - name: Process prompt template
+        id: prompt
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          BRANCH: staging
+          ENVIRONMENT: local
+        run: |
+          {
+            echo 'content<<EOF'
+            gomplate -f ".github/claude/prompts/debugger.md"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+      - name: Run Claude Debugger
+        id: claude
+        uses: anthropics/claude-code-action@v1.0.23
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: iota_sdk_debugger
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/iota_sdk_debugger
+          PORT: 3200
+          SESSION_DURATION: 720h
+          DOMAIN: localhost:3200
+          GO_APP_ENV: test
+          LOG_LEVEL: info
+          BASE_URL: http://localhost:3200
+          CI: true
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_SERVICE_TOKEN }}
+          LOCAL_URL: http://localhost:3200
+          USE_AGENT_SDK: 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.MCP_GITHUB_TOKEN }}
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Bash(:*)",
+                  "WebFetch",
+                  "WebSearch",
+                  "Skill",
+                  "mcp__local_db",
+                  "mcp__playwright"
+                ],
+                "deny": [
+                  "Bash(git add:*)",
+                  "Bash(git commit:*)",
+                  "Bash(git push:*)",
+                  "Bash(git checkout -b:*)",
+                  "Bash(gh pr create:*)",
+                  "Bash(rm -rf:*)",
+                  "Bash(rm -r:*)"
+                ]
+              }
+            }
+          claude_args: >-
+            --model opus
+            --allowedTools "mcp__local_db,mcp__playwright"
+            --mcp-config '{
+              "mcpServers": {
+                "playwright": {
+                  "command": "npx",
+                  "args": [
+                    "@playwright/mcp@latest",
+                    "--headless",
+                    "--browser", "chromium",
+                    "--output-dir", ".ci-artifacts/screenshots",
+                    "--save-trace",
+                    "--save-video",
+                    "--viewport-size", "1280x720",
+                    "--timeout-action", "10000",
+                    "--no-sandbox",
+                    "--isolated",
+                    "--caps", "vision,testing"
+                  ]
+                },
+                "local_db": {
+                  "command": "npx",
+                  "args": [
+                    "-y",
+                    "@modelcontextprotocol/server-postgres",
+                    "postgresql://postgres:postgres@localhost:5432/iota_sdk_debugger"
+                  ]
+                }
+              }
+            }'
+          show_full_output: "true"
+          track_progress: "true"
+          trigger_phrase: "@debugger"
+          label_trigger: "bug"
+          additional_permissions: "actions: read"
+          prompt: ${{ steps.prompt.outputs.content }}
+
+      - name: Verify Read-Only Mode
+        if: always()
+        run: |
+          # Check for modified tracked files only (ignore untracked temp files like server.log, mcp.pid)
+          MODIFIED=$(git diff --name-only)
+          if [ -n "$MODIFIED" ]; then
+            echo "❌ ERROR: Debugger modified tracked files (should be read-only)" >> $GITHUB_STEP_SUMMARY
+            echo "$MODIFIED" >> $GITHUB_STEP_SUMMARY
+            git checkout -- .
+            exit 1
+          else
+            echo "✅ Read-only mode maintained - no tracked files modified" >> $GITHUB_STEP_SUMMARY
+          fi
+          # Clean up temp files
+          git clean -fd
+
+      - name: Verify Analysis Posted
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.MCP_GITHUB_TOKEN }}
+        run: |
+          # Check if Claude posted an analysis comment
+          COMMENT_COUNT=$(gh issue view ${{ github.event.issue.number }} --json comments --jq '.comments | map(select(.body | contains("Bug Analysis"))) | length')
+          if [ "$COMMENT_COUNT" -eq "0" ]; then
+            echo "⚠️ WARNING: No bug analysis comment was posted" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Bug analysis comment posted" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Stop application server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            SERVER_PID=$(cat server.pid)
+            echo "Stopping server process $SERVER_PID"
+            kill $SERVER_PID 2>/dev/null || true
+            sleep 2
+            kill -9 $SERVER_PID 2>/dev/null || true
+          fi
+
+      - name: Upload server logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: server-logs
+          path: server.log
+          retention-days: 7
+
+      - name: Upload Screenshots
+        if: always()
+        uses: ./.github/actions/upload-screenshots
+        with:
+          s3-prefix: debugger
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
