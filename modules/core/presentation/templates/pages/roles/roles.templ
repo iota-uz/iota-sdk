@@ -20,8 +20,9 @@ type IndexPageProps struct {
 templ RoleRow(role *viewmodels.Role) {
 	@base.TableRow(base.TableRowProps{
 		Attrs: templ.Attributes{
-			"id":    fmt.Sprintf("role-%s", role.ID),
-			"class": "hide-on-load",
+			"id":           fmt.Sprintf("role-%s", role.ID),
+			"class":        "hide-on-load",
+			"data-test-id": fmt.Sprintf("role-row-%s", role.ID),
 		},
 	}) {
 		@base.TableCell(base.TableCellProps{}) {
@@ -39,6 +40,9 @@ templ RoleRow(role *viewmodels.Role) {
 				Size:     button.SizeSM,
 				Class:    "btn-fixed",
 				Href:     fmt.Sprintf("/roles/%s", role.ID),
+				Attrs: templ.Attributes{
+					"data-test-id": fmt.Sprintf("edit-role-btn-%s", role.ID),
+				},
 			}) {
 				@icons.PencilSimple(icons.Props{Size: "20"})
 			}
@@ -106,6 +110,9 @@ templ RolesContent(props *IndexPageProps) {
 					Size: button.SizeNormal,
 					Href: "/roles/new",
 					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+					Attrs: templ.Attributes{
+						"data-test-id": "new-role-btn",
+					},
 				}) {
 					{ pageCtx.T("Roles.List.New") }
 				}
