@@ -6,17 +6,22 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	octoapi "github.com/iota-uz/octo"
 	octoauth "github.com/iota-uz/octo/auth"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
@@ -131,6 +136,18 @@ func (c *OctoController) Handle(
 	// Send response to Octo
 	if err := c.sendCallbackResponse(w, entity, logger); err != nil {
 		logger.WithError(err).Error("Failed to write Octo callback response")
+		return
+	}
+
+	// After responding with capture, check the status to get the final result
+	// This handles the case where Octo doesn't send the Succeeded notification
+	// Run in background goroutine so the HTTP response returns immediately
+	if notification.Status == octoapi.WaitingForCaptureStatus && entity.Status() == billing.Pending {
+		// Extract context values needed for background processing
+		pool, _ := composables.UsePool(r.Context())
+		tenantID, _ := composables.UseTenantID(r.Context())
+
+		go c.checkAndUpdateStatusAsync(pool, tenantID, entity, notification, logger)
 	}
 }
 
@@ -357,4 +374,114 @@ func (c *OctoController) determineFinalAcceptStatus(
 
 	// Default to capture status
 	return octoapi.CaptureStatus
+}
+
+// checkAndUpdateStatusAsync checks the payment status via Octo API and updates the transaction.
+// This runs in a background goroutine after responding with capture.
+// It waits 3 seconds before checking to give Octo time to process the payment.
+func (c *OctoController) checkAndUpdateStatusAsync(
+	pool *pgxpool.Pool,
+	tenantID uuid.UUID,
+	entity billing.Transaction,
+	notification octoapi.NotificationRequest,
+	logger *logrus.Entry,
+) {
+	// Build background context with essential values from the original request
+	ctx := context.Background()
+	if pool != nil {
+		ctx = composables.WithPool(ctx, pool)
+	}
+	if tenantID != uuid.Nil {
+		ctx = composables.WithTenantID(ctx, tenantID)
+	}
+	ctx = context.WithValue(ctx, constants.LoggerKey, logger)
+
+	logger.WithField("shop_transaction_id", notification.ShopTransactionId).
+		Info("Scheduling payment status check after capture response")
+
+	// Wait for Octo to process the capture before checking status
+	time.Sleep(3 * time.Second)
+
+	logger.WithField("shop_transaction_id", notification.ShopTransactionId).
+		Info("Checking payment status after delay")
+
+	// Create API client
+	apiClient := c.newApiClient()
+
+	// Create check status request
+	req := octoapi.NewCheckStatusRequest(
+		c.octo.OctoShopID,
+		c.octo.OctoSecret,
+		notification.ShopTransactionId,
+	)
+
+	// Call check status API
+	resp, httpResp, err := apiClient.StatusAPI.
+		CheckStatus(ctx).
+		CheckStatusRequest(*req).
+		Execute()
+
+	if httpResp != nil {
+		if hErr := httpResp.Body.Close(); hErr != nil {
+			logger.WithError(hErr).Warn("Failed to close check status response body")
+		}
+	}
+
+	if err != nil {
+		logger.WithError(err).WithField("shop_transaction_id", notification.ShopTransactionId).
+			Warn("Failed to check payment status")
+		return
+	}
+
+	if resp.GetError() != 0 {
+		logger.WithFields(logrus.Fields{
+			"shop_transaction_id": notification.ShopTransactionId,
+			"error":               resp.GetError(),
+			"err_message":         resp.GetErrMessage(),
+		}).Warn("Octo check status returned error")
+		return
+	}
+
+	newStatus := resp.Data.GetStatus()
+	logger.WithFields(logrus.Fields{
+		"shop_transaction_id": notification.ShopTransactionId,
+		"octo_status":         newStatus,
+		"current_status":      entity.Status(),
+	}).Info("Received status from Octo check status API")
+
+	// Update transaction if status changed to succeeded
+	if newStatus == octoapi.SucceededStatus {
+		entity = entity.SetStatus(billing.Completed)
+
+		// Update details with new status
+		if octoDetails, ok := entity.Details().(details.OctoDetails); ok {
+			octoDetails = octoDetails.SetStatus(newStatus)
+			entity = entity.SetDetails(octoDetails)
+		}
+
+		// Save updated transaction
+		updatedEntity, saveErr := c.billingService.Save(ctx, entity)
+		if saveErr != nil {
+			logger.WithError(saveErr).Error("Failed to save transaction after check status")
+			return
+		}
+
+		// Invoke callback for completed status (non-blocking)
+		if err := c.billingService.InvokeCallback(ctx, updatedEntity); err != nil {
+			logger.WithError(err).WithField("shop_transaction_id", notification.ShopTransactionId).
+				Warn("Callback error after check status update")
+		}
+
+		logger.WithField("shop_transaction_id", notification.ShopTransactionId).
+			Info("Transaction status updated to Completed after check status")
+	}
+}
+
+// newApiClient creates a new Octo API client
+func (c *OctoController) newApiClient() *octoapi.APIClient {
+	configuration := octoapi.NewConfiguration()
+	configuration.HTTPClient = &http.Client{
+		Transport: c.logTransport,
+	}
+	return octoapi.NewAPIClient(configuration)
 }
