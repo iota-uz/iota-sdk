@@ -14,6 +14,7 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -1295,16 +1296,19 @@ func TestTenantsController_ResetUserPassword_Success(t *testing.T) {
 	tenant, err := itf.CreateTestTenant(ctx, suite.Env().Pool)
 	require.NoError(t, err)
 
+	// Update context with test tenant ID so user creation works correctly
+	ctx = composables.WithTenantID(ctx, tenant.ID)
+
 	// Create test user in that tenant
-	email, _ := internet.NewEmail("testuser@reset.com")
 	testUser := user.New(
 		"Test",
 		"User",
-		email,
+		internet.MustParseEmail("testuser@reset.com"),
 		user.UILanguageEN,
 		user.WithTenantID(tenant.ID),
 	)
-	testUser, _ = testUser.SetPassword("oldpassword123")
+	testUser, err = testUser.SetPassword("oldpassword123")
+	require.NoError(t, err)
 
 	createdUser, err := userService.Create(ctx, testUser)
 	require.NoError(t, err)
@@ -1416,12 +1420,15 @@ func TestTenantsController_ResetUserPassword_WrongTenant(t *testing.T) {
 	tenantB, err := itf.CreateTestTenant(ctx, suite.Env().Pool)
 	require.NoError(t, err)
 
-	// Create user in tenant A
-	email, _ := internet.NewEmail("user@tenanta.com")
-	testUser := user.New("Test", "User", email, user.UILanguageEN, user.WithTenantID(tenantA.ID))
-	testUser, _ = testUser.SetPassword("password123")
+	// Update context with tenant A's ID so user creation works correctly
+	tenantACtx := composables.WithTenantID(ctx, tenantA.ID)
 
-	createdUser, err := userService.Create(ctx, testUser)
+	// Create user in tenant A
+	testUser := user.New("Test", "User", internet.MustParseEmail("user@tenanta.com"), user.UILanguageEN, user.WithTenantID(tenantA.ID))
+	testUser, err = testUser.SetPassword("password123")
+	require.NoError(t, err)
+
+	createdUser, err := userService.Create(tenantACtx, testUser)
 	require.NoError(t, err)
 
 	// Try to reset password using tenant B's ID (should fail - cross-tenant protection)
@@ -1502,9 +1509,12 @@ func TestTenantsController_ResetUserPassword_Permissions(t *testing.T) {
 		tenant, err := itf.CreateTestTenant(ctx, suite.Env().Pool)
 		require.NoError(t, err)
 
-		email, _ := internet.NewEmail("test@example.com")
-		testUser := user.New("Test", "User", email, user.UILanguageEN, user.WithTenantID(tenant.ID))
-		testUser, _ = testUser.SetPassword("oldpass123")
+		// Update context with test tenant ID so user creation works correctly
+		ctx = composables.WithTenantID(ctx, tenant.ID)
+
+		testUser := user.New("Test", "User", internet.MustParseEmail("test@example.com"), user.UILanguageEN, user.WithTenantID(tenant.ID))
+		testUser, err = testUser.SetPassword("oldpass123")
+		require.NoError(t, err)
 
 		createdUser, err := userService.Create(ctx, testUser)
 		require.NoError(t, err)
