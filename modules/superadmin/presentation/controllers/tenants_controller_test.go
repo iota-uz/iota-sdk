@@ -1312,13 +1312,10 @@ func TestTenantsController_ResetUserPassword_Success(t *testing.T) {
 	resp := suite.POST(fmt.Sprintf("/superadmin/tenants/%s/users/%d/reset-password", tenant.ID.String(), createdUser.ID())).
 		JSON(map[string]string{"password": newPassword}).
 		Assert(t)
-
 	resp.ExpectOK()
-
-	// Verify response
-	jsonAssert := resp.ExpectJSON()
-	jsonAssert.ExpectField("$.success", true)
-	jsonAssert.ExpectField("$.message", "Password reset successfully")
+	jsonResp := resp.ExpectJSON()
+	jsonResp.ExpectField("success", true)
+	jsonResp.ExpectField("message", "Password reset successfully")
 
 	// Verify password was actually changed
 	updatedUser, err := userService.GetByID(ctx, createdUser.ID())
