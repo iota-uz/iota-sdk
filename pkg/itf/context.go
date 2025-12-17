@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -120,6 +122,10 @@ func (tc *TestContext) buildContext() context.Context {
 	}
 
 	ctx = composables.WithSession(ctx, MockSession())
+
+	// Add localizer for service-layer tests that bypass HTTP middleware
+	localizer := i18n.NewLocalizer(tc.app.Bundle(), "en")
+	ctx = intl.WithLocalizer(ctx, localizer)
 
 	return ctx
 }

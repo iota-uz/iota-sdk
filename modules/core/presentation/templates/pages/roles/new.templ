@@ -33,8 +33,9 @@ templ CreateForm(props *CreateFormProps) {
 					Label:       pageCtx.T("Roles.Single.Name.Label"),
 					Placeholder: pageCtx.T("Roles.Single.Name.Placeholder"),
 					Attrs: templ.Attributes{
-						"name":  "Name",
-						"value": props.Role.Name,
+						"name":         "Name",
+						"value":        props.Role.Name,
+						"data-test-id": "role-name-input",
 					},
 					Error: props.Errors["Name"],
 				})
@@ -42,8 +43,9 @@ templ CreateForm(props *CreateFormProps) {
 					Label:       pageCtx.T("Roles.Single._Description.Label"),
 					Placeholder: pageCtx.T("Roles.Single._Description.Placeholder"),
 					Attrs: templ.Attributes{
-						"name": "Description",
-						"rows": "4",
+						"name":         "Description",
+						"rows":         "4",
+						"data-test-id": "role-description-input",
 					},
 					Value: props.Role.Description,
 					Error: props.Errors["Description"],
@@ -69,7 +71,7 @@ templ CreateForm(props *CreateFormProps) {
 					}
 					for _, moduleGroup := range props.ModulePermissionGroups {
 						@tab.Content(moduleGroup.Module) {
-							<div class="space-y-3 pt-4">
+							<div class="space-y-3 pt-4" data-test-id={ fmt.Sprintf("module-content-%s", moduleGroup.Module) }>
 								for _, resourceGroup := range moduleGroup.ResourceGroups {
 									@card.Card(card.Props{
 										Class: "space-y-3",
@@ -99,7 +101,8 @@ templ CreateForm(props *CreateFormProps) {
 			@button.Primary(button.Props{
 				Size: button.SizeMD,
 				Attrs: templ.Attributes{
-					"id": "save-btn",
+					"id":           "save-btn",
+					"data-test-id": "save-role-btn",
 				},
 			}) {
 				{ pageCtx.T("Save") }
