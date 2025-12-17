@@ -38,20 +38,27 @@ func (s *SortBy[T]) ToSQL(mapping map[T]string) string {
 	if len(s.Fields) == 0 {
 		return ""
 	}
-	fields := make([]string, len(s.Fields))
-	for i, sort := range s.Fields {
+	fields := make([]string, 0, len(s.Fields))
+	for _, sort := range s.Fields {
 		field := mapping[sort.Field]
+		// Skip invalid fields (empty mappings)
+		if field == "" {
+			continue
+		}
 		if sort.Ascending {
 			field += " ASC"
 		} else {
 			field += " DESC"
 		}
+		// Only add NULLS clause if explicitly set
 		if sort.NullsLast {
 			field += " NULLS LAST"
-		} else {
-			field += " NULLS FIRST"
 		}
-		fields[i] = field
+		fields = append(fields, field)
+	}
+	// Return empty if no valid fields found
+	if len(fields) == 0 {
+		return ""
 	}
 	return fmt.Sprintf("ORDER BY %s", strings.Join(fields, ", "))
 }
@@ -267,6 +274,74 @@ func (f *andFilter) Value() []any {
 	return values
 }
 
+// existsFilter allows EXISTS subqueries (column is ignored, SQL is the full EXISTS clause)
+type existsFilter struct {
+	subquery string
+	values   []any
+}
+
+func (f *existsFilter) String(column string, argIdx int) string {
+	// Replace placeholders in subquery with actual argument indices
+	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
+	subquery := f.subquery
+	for i := len(f.values) - 1; i >= 0; i-- {
+		placeholder := fmt.Sprintf("$%d", i+1)
+		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
+		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
+	}
+	return subquery
+}
+
+func (f *existsFilter) Value() []any {
+	return f.values
+}
+
+// subqueryFilter allows subquery-based lookups
+type subqueryFilter struct {
+	subquery string
+	values   []any
+}
+
+func (f *subqueryFilter) String(column string, argIdx int) string {
+	// Replace placeholders in subquery with actual argument indices
+	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
+	subquery := f.subquery
+	for i := len(f.values) - 1; i >= 0; i-- {
+		placeholder := fmt.Sprintf("$%d", i+1)
+		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
+		subquery = strings.ReplaceAll(subquery, placeholder, actualPlaceholder)
+	}
+	return fmt.Sprintf("%s IN (%s)", column, subquery)
+}
+
+func (f *subqueryFilter) Value() []any {
+	return f.values
+}
+
+// rawFilter allows custom SQL expressions (escape hatch)
+// Use sparingly - prefer typed filters when possible
+type rawFilter struct {
+	sql    string
+	values []any
+}
+
+func (f *rawFilter) String(column string, argIdx int) string {
+	// Replace placeholders in SQL with actual argument indices
+	// IMPORTANT: Iterate in reverse order to avoid cascading replacements
+	// (e.g., $1 -> $2, then $2 -> $3 would incorrectly change the first replacement)
+	sql := f.sql
+	for i := len(f.values) - 1; i >= 0; i-- {
+		placeholder := fmt.Sprintf("$%d", i+1)
+		actualPlaceholder := fmt.Sprintf("$%d", argIdx+i)
+		sql = strings.ReplaceAll(sql, placeholder, actualPlaceholder)
+	}
+	return sql
+}
+
+func (f *rawFilter) Value() []any {
+	return f.values
+}
+
 // ==============================
 // === Filter Constructors    ===
 // ==============================
@@ -304,4 +379,25 @@ func Or(filters ...Filter) Filter {
 
 func And(filters ...Filter) Filter {
 	return &andFilter{filters}
+}
+
+// Complex filters
+
+// ExistsFilter creates an EXISTS subquery filter
+// Example: ExistsFilter("EXISTS (SELECT 1 FROM table WHERE column = $1)", value)
+func ExistsFilter(subquery string, values ...any) Filter {
+	return &existsFilter{subquery, values}
+}
+
+// SubqueryFilter creates a subquery-based lookup filter
+// Example: SubqueryFilter("SELECT id FROM table WHERE column = $1", value)
+func SubqueryFilter(subquery string, values ...any) Filter {
+	return &subqueryFilter{subquery, values}
+}
+
+// RawFilter creates a custom SQL expression filter (escape hatch)
+// Use sparingly - prefer typed filters when possible
+// Example: RawFilter("column = $1 OR column = $2", value1, value2)
+func RawFilter(sql string, values ...any) Filter {
+	return &rawFilter{sql, values}
 }

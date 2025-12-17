@@ -20,8 +20,9 @@ type Type string
 type Option func(u *user)
 
 const (
-	TypeSystem Type = "system"
-	TypeUser   Type = "user"
+	TypeSystem     Type = "system"
+	TypeUser       Type = "user"
+	TypeSuperAdmin Type = "superadmin"
 )
 
 // --- Option setters ---
@@ -83,7 +84,7 @@ func WithGroupIDs(groupIDs []uuid.UUID) Option {
 	}
 }
 
-func WithPermissions(permissions []*permission.Permission) Option {
+func WithPermissions(permissions []permission.Permission) Option {
 	return func(u *user) {
 		u.permissions = permissions
 	}
@@ -143,7 +144,7 @@ type User interface {
 	UILanguage() UILanguage
 	Roles() []role.Role
 	GroupIDs() []uuid.UUID
-	Permissions() []*permission.Permission
+	Permissions() []permission.Permission
 	LastLogin() time.Time
 	LastAction() time.Time
 	CreatedAt() time.Time
@@ -151,7 +152,7 @@ type User interface {
 
 	Events() []interface{}
 
-	Can(perm *permission.Permission) bool
+	Can(perm permission.Permission) bool
 	CanUpdate() bool
 	CanDelete() bool
 
@@ -163,9 +164,9 @@ type User interface {
 	AddGroupID(groupID uuid.UUID) User
 	RemoveGroupID(groupID uuid.UUID) User
 	SetGroupIDs(groupIDs []uuid.UUID) User
-	AddPermission(perm *permission.Permission) User
+	AddPermission(perm permission.Permission) User
 	RemovePermission(permID uuid.UUID) User
-	SetPermissions(perms []*permission.Permission) User
+	SetPermissions(perms []permission.Permission) User
 	SetName(firstName, lastName, middleName string) User
 	SetUILanguage(lang UILanguage) User
 	SetAvatarID(id uint) User
@@ -200,7 +201,7 @@ func New(
 		uiLanguage:  uiLanguage,
 		roles:       []role.Role{},
 		groupIDs:    []uuid.UUID{},
-		permissions: []*permission.Permission{},
+		permissions: []permission.Permission{},
 		lastLogin:   time.Time{},
 		lastAction:  time.Time{},
 		createdAt:   time.Now(),
@@ -228,7 +229,7 @@ type user struct {
 	uiLanguage  UILanguage
 	roles       []role.Role
 	groupIDs    []uuid.UUID
-	permissions []*permission.Permission
+	permissions []permission.Permission
 	lastLogin   time.Time
 	lastAction  time.Time
 	createdAt   time.Time
@@ -296,7 +297,7 @@ func (u *user) GroupIDs() []uuid.UUID {
 	return u.groupIDs
 }
 
-func (u *user) Permissions() []*permission.Permission {
+func (u *user) Permissions() []permission.Permission {
 	return u.permissions
 }
 
@@ -372,7 +373,7 @@ func (u *user) SetGroupIDs(groupIDs []uuid.UUID) User {
 	return &result
 }
 
-func (u *user) AddPermission(perm *permission.Permission) User {
+func (u *user) AddPermission(perm permission.Permission) User {
 	result := *u
 	result.permissions = append(result.permissions, perm)
 	result.updatedAt = time.Now()
@@ -381,9 +382,9 @@ func (u *user) AddPermission(perm *permission.Permission) User {
 
 func (u *user) RemovePermission(permID uuid.UUID) User {
 	result := *u
-	filteredPermissions := make([]*permission.Permission, 0, len(result.permissions))
+	filteredPermissions := make([]permission.Permission, 0, len(result.permissions))
 	for _, p := range result.permissions {
-		if p.ID == permID {
+		if p.ID() == permID {
 			continue
 		}
 		filteredPermissions = append(filteredPermissions, p)
@@ -393,7 +394,7 @@ func (u *user) RemovePermission(permID uuid.UUID) User {
 	return &result
 }
 
-func (u *user) SetPermissions(perms []*permission.Permission) User {
+func (u *user) SetPermissions(perms []permission.Permission) User {
 	result := *u
 	result.permissions = perms
 	result.updatedAt = time.Now()
@@ -420,10 +421,10 @@ func (u *user) Events() []interface{} {
 	return u.events
 }
 
-func (u *user) Can(perm *permission.Permission) bool {
+func (u *user) Can(perm permission.Permission) bool {
 	for _, p := range u.permissions {
-		if p.ID == perm.ID || (p.Resource == perm.Resource && p.Action == perm.Action &&
-			(p.Modifier == permission.ModifierAll || p.Modifier == perm.Modifier)) {
+		if p.ID() == perm.ID() || (p.Resource() == perm.Resource() && p.Action() == perm.Action() &&
+			(p.Modifier() == permission.ModifierAll || p.Modifier() == perm.Modifier())) {
 			return true
 		}
 	}

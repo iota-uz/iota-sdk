@@ -1,0 +1,15 @@
+package tenants
+
+import "github.com/iota-uz/iota-sdk/components/base/badge"
+
+// SafeText renders text safely with automatic XSS escaping
+templ SafeText(text string) {
+	{ text }
+}
+
+// StatusBadge renders a status badge with text
+templ StatusBadge(text string, variant badge.Variant) {
+	@badge.New(badge.Props{Variant: variant}) {
+		{ text }
+	}
+}

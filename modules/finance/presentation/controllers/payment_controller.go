@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,8 +22,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/di"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	"github.com/sirupsen/logrus"
 )
 
 type PaymentsController struct {
@@ -61,7 +65,7 @@ func (c *PaymentsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -72,6 +76,10 @@ func (c *PaymentsController) Register(r *mux.Router) {
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Update).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9a-fA-F-]+}", c.Delete).Methods(http.MethodDelete)
+
+	// Attachment endpoints
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/attachments", di.H(c.AttachFile)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9a-fA-F-]+}/attachments/{uploadId:[0-9]+}", di.H(c.DetachFile)).Methods(http.MethodDelete)
 }
 
 func (c *PaymentsController) viewModelPayment(r *http.Request) (*viewmodels.Payment, error) {
@@ -134,7 +142,6 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	isHxRequest := len(r.Header.Get("Hx-Request")) > 0
 	isEmbedded := r.URL.Query().Get("embedded") == "true"
 
 	props := &payments.IndexPageProps{
@@ -143,9 +150,8 @@ func (c *PaymentsController) Payments(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isEmbedded {
-		// For embedded view, just return the content without the full layout
 		templ.Handler(payments.PaymentsEmbedded(props), templ.WithStreaming()).ServeHTTP(w, r)
-	} else if isHxRequest {
+	} else if htmx.IsHxRequest(r) {
 		templ.Handler(payments.PaymentsTable(props), templ.WithStreaming()).ServeHTTP(w, r)
 	} else {
 		templ.Handler(payments.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
@@ -190,6 +196,82 @@ func (c *PaymentsController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
+}
+
+// AttachFile attaches a file upload to a payment
+func (c *PaymentsController) AttachFile(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	paymentService *services.PaymentService,
+) {
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		logger.Errorf("Error parsing payment ID: %v", err)
+		http.Error(w, "Error parsing payment ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse upload ID from form data
+	uploadIDStr := r.FormValue("uploadId")
+	if uploadIDStr == "" {
+		logger.Error("Upload ID is required")
+		http.Error(w, "Upload ID is required", http.StatusBadRequest)
+		return
+	}
+
+	uploadID, err := strconv.ParseUint(uploadIDStr, 10, 32)
+	if err != nil {
+		logger.Errorf("Invalid upload ID: %v", err)
+		http.Error(w, "Invalid upload ID", http.StatusBadRequest)
+		return
+	}
+
+	err = paymentService.AttachFileToPayment(r.Context(), id, uint(uploadID))
+	if err != nil {
+		logger.Errorf("Error attaching file to payment: %v", err)
+		http.Error(w, "Error attaching file", http.StatusInternalServerError)
+		return
+	}
+
+	shared.Redirect(w, r, fmt.Sprintf("%s/%s", c.basePath, id.String()))
+}
+
+// DetachFile detaches a file upload from a payment
+func (c *PaymentsController) DetachFile(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	paymentService *services.PaymentService,
+) {
+	id, err := shared.ParseUUID(r)
+	if err != nil {
+		logger.Errorf("Error parsing payment ID: %v", err)
+		http.Error(w, "Error parsing payment ID", http.StatusBadRequest)
+		return
+	}
+
+	// Parse upload ID from URL path
+	uploadIDStr := mux.Vars(r)["uploadId"]
+	uploadID, err := strconv.ParseUint(uploadIDStr, 10, 32)
+	if err != nil {
+		logger.Errorf("Invalid upload ID: %v", err)
+		http.Error(w, "Invalid upload ID", http.StatusBadRequest)
+		return
+	}
+
+	err = paymentService.DetachFileFromPayment(r.Context(), id, uint(uploadID))
+	if err != nil {
+		logger.Errorf("Error detaching file from payment: %v", err)
+		http.Error(w, "Error detaching file", http.StatusInternalServerError)
+		return
+	}
+
+	if htmx.IsHxRequest(r) {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		shared.Redirect(w, r, fmt.Sprintf("%s/%s", c.basePath, id.String()))
+	}
 }
 
 func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
@@ -268,6 +350,16 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 	if _, err := c.paymentService.Update(r.Context(), entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Handle file attachments
+	for _, uploadID := range dto.Attachments {
+		if uploadID > 0 {
+			if err := c.paymentService.AttachFileToPayment(r.Context(), id, uploadID); err != nil {
+				http.Error(w, "Error attaching file to payment", http.StatusInternalServerError)
+				return
+			}
+		}
 	}
 
 	shared.Redirect(w, r, c.basePath)
@@ -358,9 +450,20 @@ func (c *PaymentsController) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	entity := dto.ToEntity(tenantID, categoryEntity)
-	if _, err := c.paymentService.Create(r.Context(), entity); err != nil {
+	createdEntity, err := c.paymentService.Create(r.Context(), entity)
+	if err != nil {
 		http.Error(w, fmt.Sprintf("%+v", err), http.StatusInternalServerError)
 		return
+	}
+
+	// Handle file attachments
+	for _, uploadID := range dto.Attachments {
+		if uploadID > 0 {
+			if err := c.paymentService.AttachFileToPayment(r.Context(), createdEntity.ID(), uploadID); err != nil {
+				http.Error(w, "Error attaching file to payment", http.StatusInternalServerError)
+				return
+			}
+		}
 	}
 
 	shared.Redirect(w, r, c.basePath)

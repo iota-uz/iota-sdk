@@ -46,7 +46,7 @@ func Spotlight() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"spotlight\" class=\"relative\" x-id=\"[&#39;spotlight&#39;, &#39;spinner&#39;]\"><button @click=\"open()\" class=\"flex items-center justify-center w-9 h-9 rounded-full bg-surface-400 text-black cursor-pointer\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"spotlight\" class=\"relative\" x-id=\"[&#39;spotlight&#39;, &#39;spinner&#39;]\"><button @click=\"open()\" class=\"flex items-center justify-center w-9 h-9 rounded-full bg-surface-400 text-100 cursor-pointer\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -56,7 +56,7 @@ func Spotlight() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</button><!-- Spotlight Trigger --><div @keydown.window=\"handleShortcut($event)\"></div><!-- Spotlight Modal --><div @keydown.escape.window=\"close()\" class=\"fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50 w-screen\" x-show=\"isOpen\" x-cloak><div class=\"flex flex-col bg-white p-6 rounded-lg shadow-lg w-2/3 max-h-[400px]\" @click.away=\"close()\" x-transition><!-- Search Input --><input hx-ext=\"stream\" type=\"text\" @keydown.up=\"highlightPrevious\" @keydown.down=\"highlightNext\" @keydown.enter=\"goToLink\" class=\"w-full border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</button><!-- Spotlight Trigger --><div @keydown.window=\"handleShortcut($event)\"></div><!-- Spotlight Modal --><div @keydown.escape.window=\"close()\" class=\"fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50 w-screen\" x-show=\"isOpen\" x-cloak><div class=\"flex flex-col bg-surface-200 p-6 rounded-lg shadow-lg w-2/3 max-h-[400px]\" @click.away=\"close()\" x-transition><!-- Search Input --><input hx-ext=\"stream\" type=\"text\" @keydown.up=\"highlightPrevious\" @keydown.down=\"highlightNext\" @keydown.enter=\"goToLink\" class=\"w-full border-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:outline-none bg-surface-100 text-100\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -169,8 +169,8 @@ func SpotlightItem(i int) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		var templ_7745c5c3_Var7 = []any{
-			"border border-gray-200 px-4 py-3 rounded-md cursor-pointer",
-			"hover:bg-brand-500 hover:text-white transition-all duration-200",
+			"border border-200 px-4 py-3 rounded-md cursor-pointer text-100",
+			"hover:bg-primary-500 hover:text-white transition-all duration-200",
 		}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var7...)
 		if templ_7745c5c3_Err != nil {
@@ -194,9 +194,9 @@ func SpotlightItem(i int) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{'bg-brand-500 text-white': highlightedIndex === %d }", i))
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{'bg-primary-500 text-white': highlightedIndex === %d }", i))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 98, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 98, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -240,7 +240,7 @@ func NotFound() templ.Component {
 			templ_7745c5c3_Var10 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<li class=\"text-center text-gray-700\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<li class=\"text-center text-200\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

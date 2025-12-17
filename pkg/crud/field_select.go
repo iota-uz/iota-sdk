@@ -232,17 +232,17 @@ func (f *selectField) SetValueType(t FieldType) SelectField {
 	f.valueType = t
 	// Recreate the base field with the new type
 	newField := newField(
-		f.field.name,
+		f.name,
 		t,
 		// Preserve existing options
 		func(field *field) {
-			field.key = f.field.key
-			field.readonly = f.field.readonly
-			field.hidden = f.field.hidden
-			field.searchable = f.field.searchable
-			field.attrs = f.field.attrs
-			field.initialValueFn = f.field.initialValueFn
-			field.rules = f.field.rules
+			field.key = f.key
+			field.readonly = f.readonly
+			field.hidden = f.hidden
+			field.searchable = f.searchable
+			field.attrs = f.attrs
+			field.initialValueFn = f.initialValueFn
+			field.rules = f.rules
 		},
 	).(*field)
 	f.field = newField

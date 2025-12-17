@@ -62,7 +62,7 @@ func (c *RolesController) Register(r *mux.Router) {
 		middleware.RequireAuthorization(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -76,7 +76,7 @@ func (c *RolesController) Register(r *mux.Router) {
 }
 
 func (c *RolesController) modulePermissionGroups(
-	selected ...*permission.Permission,
+	selected ...permission.Permission,
 ) []*viewmodels.ModulePermissionGroup {
 	return BuildModulePermissionGroups(c.permissionSchema, selected...)
 }

@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
@@ -31,6 +33,8 @@ type BillingService struct {
 	repo      billing.Repository
 	providers map[billing.Gateway]billing.Provider
 	publisher eventbus.EventBus
+	callback  billing.TransactionCallback
+	mu        sync.RWMutex
 }
 
 func NewBillingService(
@@ -88,11 +92,18 @@ func (s *BillingService) Create(ctx context.Context, cmd *CreateTransactionComma
 
 	var createdTransaction billing.Transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		providedTransaction, err := provider.Create(txCtx, entity)
-		if err != nil {
+		// If provider exists (Click, Payme, Octo, Stripe), use it
+		if provider != nil {
+			providedTransaction, err := provider.Create(txCtx, entity)
+			if err != nil {
+				return err
+			}
+			createdTransaction, err = s.repo.Save(txCtx, providedTransaction)
 			return err
 		}
-		createdTransaction, err = s.repo.Save(txCtx, providedTransaction)
+
+		// For Details-only gateways (Cash, Integrator), save directly
+		createdTransaction, err = s.repo.Save(txCtx, entity)
 		return err
 	})
 	if err != nil {
@@ -164,11 +175,19 @@ func (s *BillingService) Cancel(ctx context.Context, cmd *CancelTransactionComma
 
 	var updatedTransaction billing.Transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		providedTransaction, err := provider.Cancel(txCtx, entity)
-		if err != nil {
+		// If provider exists, use it
+		if provider != nil {
+			providedTransaction, err := provider.Cancel(txCtx, entity)
+			if err != nil {
+				return err
+			}
+			updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
 			return err
 		}
-		updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
+
+		// For Details-only gateways, just update status to Canceled
+		entity = entity.SetStatus(billing.Canceled)
+		updatedTransaction, err = s.repo.Save(txCtx, entity)
 		return err
 	})
 	if err != nil {
@@ -199,11 +218,23 @@ func (s *BillingService) Refund(ctx context.Context, cmd *RefundTransactionComma
 
 	var updatedTransaction billing.Transaction
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		providedTransaction, err := provider.Refund(txCtx, entity, cmd.Quantity)
-		if err != nil {
+		// If provider exists, use it
+		if provider != nil {
+			providedTransaction, err := provider.Refund(txCtx, entity, cmd.Quantity)
+			if err != nil {
+				return err
+			}
+			updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
 			return err
 		}
-		updatedTransaction, err = s.repo.Save(txCtx, providedTransaction)
+
+		// For Details-only gateways, update status based on refund amount
+		if cmd.Quantity >= entity.Amount().Quantity() {
+			entity = entity.SetStatus(billing.Refunded)
+		} else {
+			entity = entity.SetStatus(billing.PartiallyRefunded)
+		}
+		updatedTransaction, err = s.repo.Save(txCtx, entity)
 		return err
 	})
 	if err != nil {
@@ -247,4 +278,32 @@ func (s *BillingService) Delete(ctx context.Context, id uuid.UUID) (billing.Tran
 	s.publisher.Publish(deletedEvent)
 
 	return deletedTransaction, nil
+}
+
+// RegisterCallback registers a callback function to be invoked during transaction processing.
+// This method is thread-safe and can be called concurrently.
+func (s *BillingService) RegisterCallback(callback billing.TransactionCallback) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.callback = callback
+}
+
+// InvokeCallback safely invokes the registered callback if it exists.
+// This method is thread-safe and can be called concurrently.
+// If the callback panics, the panic is recovered and returned as an error.
+func (s *BillingService) InvokeCallback(ctx context.Context, transaction billing.Transaction) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("callback panic: %v", r)
+		}
+	}()
+
+	s.mu.RLock()
+	callback := s.callback
+	s.mu.RUnlock()
+
+	if callback == nil {
+		return nil
+	}
+	return callback(ctx, transaction)
 }

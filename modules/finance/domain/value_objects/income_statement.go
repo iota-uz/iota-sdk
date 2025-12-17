@@ -25,18 +25,23 @@ type IncomeStatementSection struct {
 
 // IncomeStatement represents a complete income statement for a period
 type IncomeStatement struct {
-	ID               uuid.UUID              `json:"id"`
-	TenantID         uuid.UUID              `json:"tenantId"`
-	StartDate        time.Time              `json:"startDate"`
-	EndDate          time.Time              `json:"endDate"`
-	RevenueSection   IncomeStatementSection `json:"revenueSection"`
-	ExpenseSection   IncomeStatementSection `json:"expenseSection"`
-	GrossProfit      *money.Money           `json:"grossProfit"`
-	GrossProfitRatio float64                `json:"grossProfitRatio"`
-	NetProfit        *money.Money           `json:"netProfit"`
-	NetProfitRatio   float64                `json:"netProfitRatio"`
-	Currency         string                 `json:"currency"`
-	GeneratedAt      time.Time              `json:"generatedAt"`
+	ID                      uuid.UUID              `json:"id"`
+	TenantID                uuid.UUID              `json:"tenantId"`
+	StartDate               time.Time              `json:"startDate"`
+	EndDate                 time.Time              `json:"endDate"`
+	RevenueSection          IncomeStatementSection `json:"revenueSection"`
+	COGSSection             IncomeStatementSection `json:"cogsSection"`
+	OperatingExpenseSection IncomeStatementSection `json:"operatingExpenseSection"`
+	GrossProfit             *money.Money           `json:"grossProfit"`
+	GrossProfitRatio        float64                `json:"grossProfitRatio"`
+	OperatingProfit         *money.Money           `json:"operatingProfit"`
+	OperatingProfitRatio    float64                `json:"operatingProfitRatio"`
+	NetProfit               *money.Money           `json:"netProfit"`
+	NetProfitRatio          float64                `json:"netProfitRatio"`
+	Currency                string                 `json:"currency"`
+	GeneratedAt             time.Time              `json:"generatedAt"`
+	// Backwards compatibility: ExpenseSection combines COGS and Operating Expenses
+	ExpenseSection IncomeStatementSection `json:"expenseSection"`
 }
 
 // NewIncomeStatement creates a new income statement
@@ -60,18 +65,22 @@ func NewIncomeStatement(
 	}
 
 	return &IncomeStatement{
-		ID:               uuid.New(),
-		TenantID:         tenantID,
-		StartDate:        startDate,
-		EndDate:          endDate,
-		RevenueSection:   revenueSection,
-		ExpenseSection:   expenseSection,
-		GrossProfit:      grossProfit,
-		GrossProfitRatio: grossProfitRatio,
-		NetProfit:        grossProfit, // For now, net profit equals gross profit
-		NetProfitRatio:   netProfitRatio,
-		Currency:         currency,
-		GeneratedAt:      time.Now(),
+		ID:                      uuid.New(),
+		TenantID:                tenantID,
+		StartDate:               startDate,
+		EndDate:                 endDate,
+		RevenueSection:          revenueSection,
+		COGSSection:             IncomeStatementSection{Title: "Cost of Goods Sold", LineItems: []IncomeStatementLineItem{}, Subtotal: money.New(0, currency)},
+		OperatingExpenseSection: IncomeStatementSection{Title: "Operating Expenses", LineItems: []IncomeStatementLineItem{}, Subtotal: money.New(0, currency)},
+		ExpenseSection:          expenseSection,
+		GrossProfit:             grossProfit,
+		GrossProfitRatio:        grossProfitRatio,
+		OperatingProfit:         grossProfit,
+		OperatingProfitRatio:    grossProfitRatio,
+		NetProfit:               grossProfit, // For now, net profit equals gross profit
+		NetProfitRatio:          netProfitRatio,
+		Currency:                currency,
+		GeneratedAt:             time.Now(),
 	}
 }
 

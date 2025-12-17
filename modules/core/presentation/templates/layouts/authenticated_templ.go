@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/toast"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -216,7 +217,7 @@ func SidebarTrigger(class string) templ.Component {
 	})
 }
 
-func Navbar(pageCtx *types.PageContext) templ.Component {
+func Navbar(pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -280,7 +281,7 @@ func Navbar(pageCtx *types.PageContext) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.Profile"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 145, Col: 50}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 146, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -311,7 +312,7 @@ func Navbar(pageCtx *types.PageContext) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Navbar.Logout"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 148, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 149, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -375,7 +376,7 @@ func DefaultSidebarFooter() templ.Component {
 	})
 }
 
-func SidebarFooter(pageCtx *types.PageContext) templ.Component {
+func SidebarFooter(pageCtx types.PageContextProvider) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -465,7 +466,7 @@ func SidebarFooter(pageCtx *types.PageContext) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SignOut"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 188, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 189, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -631,11 +632,32 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = toast.Container().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, " ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = MobileSidebar(sidebarProps).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, " <div x-data=\"{ \n\t\t\t\tsidebarCollapsed: localStorage.getItem(&#39;sidebar-collapsed&#39;) === &#39;true&#39;,\n\t\t\t\tinit() {\n\t\t\t\t\tthis.$nextTick(() =&gt; {\n\t\t\t\t\t\t// Listen for storage changes from other tabs\n\t\t\t\t\t\twindow.addEventListener(&#39;storage&#39;, (e) =&gt; {\n\t\t\t\t\t\t\tif (e.key === &#39;sidebar-collapsed&#39;) {\n\t\t\t\t\t\t\t\tthis.sidebarCollapsed = e.newValue === &#39;true&#39;;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t}\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" :class=\"{ &#39;lg:grid-cols-[4rem_1fr]&#39;: sidebarCollapsed, &#39;lg:grid-cols-[280px_1fr]&#39;: !sidebarCollapsed }\" class=\"grid min-h-screen w-full overflow-y-auto\"><div class=\"hidden lg:block\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, " <div x-data=\"{\n\t\t\t\tsidebarCollapsed: initSidebarCollapsed(),\n\t\t\t\tinit() {\n\t\t\t\t\tthis.$nextTick(() =&gt; {\n\t\t\t\t\t\t// Listen for storage changes from other tabs\n\t\t\t\t\t\twindow.addEventListener(&#39;storage&#39;, (e) =&gt; {\n\t\t\t\t\t\t\tif (e.key === &#39;sidebar-collapsed&#39;) {\n\t\t\t\t\t\t\t\tthis.sidebarCollapsed = e.newValue === &#39;true&#39;;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t}\" data-sidebar-state=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var23 string
+			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(string(sidebarProps.InitialState))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/layouts/authenticated.templ`, Line: 243, Col: 57}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" :class=\"{ &#39;lg:grid-cols-[4rem_1fr]&#39;: sidebarCollapsed, &#39;lg:grid-cols-[280px_1fr]&#39;: !sidebarCollapsed }\" class=\"grid min-h-screen w-full overflow-y-auto\"><div class=\"hidden lg:block\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -643,7 +665,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div><div class=\"flex flex-col h-screen overflow-x-hidden\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div><div class=\"flex flex-col h-screen overflow-x-hidden\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -651,7 +673,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"flex-1 overflow-y-auto content\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<div class=\"flex-1 overflow-y-auto content\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -659,7 +681,7 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

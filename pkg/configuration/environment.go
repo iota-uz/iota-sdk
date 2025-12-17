@@ -161,7 +161,7 @@ type Configuration struct {
 	SocketAddress    string        `env:"-"`
 	OpenAIKey        string        `env:"OPENAI_KEY"`
 	UploadsPath      string        `env:"UPLOADS_PATH" envDefault:"static"`
-	Domain           string        `env:"DOMAIN" envDefault:"localhost:3200"`
+	Domain           string        `env:"DOMAIN" envDefault:"localhost"`
 	Origin           string        `env:"ORIGIN" envDefault:"http://localhost:3200"`
 	PageSize         int           `env:"PAGE_SIZE" envDefault:"25"`
 	MaxPageSize      int           `env:"MAX_PAGE_SIZE" envDefault:"100"`
@@ -177,6 +177,9 @@ type Configuration struct {
 	OauthStateCookieKey string `env:"OAUTH_STATE_COOKIE_KEY" envDefault:"oauthState"`
 
 	TelegramBotToken string `env:"TELEGRAM_BOT_TOKEN"`
+
+	// Test endpoints - only enable in test environment
+	EnableTestEndpoints bool `env:"ENABLE_TEST_ENDPOINTS" envDefault:"false"`
 
 	logFile *os.File
 	logger  *logrus.Logger
@@ -247,6 +250,22 @@ func (c *Configuration) load(envFiles []string) error {
 	} else {
 		c.SocketAddress = fmt.Sprintf("localhost:%d", c.ServerPort)
 	}
+
+	// Update Domain and Origin dynamically if they weren't explicitly set via environment variables
+	// This ensures logs show the correct port when PORT is set via environment
+	if os.Getenv("DOMAIN") == "" {
+		c.Domain = "localhost"
+	}
+	if os.Getenv("ORIGIN") == "" {
+		// Only include port in Origin for development environment
+		// Production and staging should use standard ports (80/443)
+		if c.GoAppEnvironment == "development" {
+			c.Origin = fmt.Sprintf("%s://%s:%d", c.Scheme(), c.Domain, c.ServerPort)
+		} else {
+			c.Origin = fmt.Sprintf("%s://%s", c.Scheme(), c.Domain)
+		}
+	}
+
 	return nil
 }
 

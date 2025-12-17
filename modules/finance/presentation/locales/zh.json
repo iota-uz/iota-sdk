@@ -1,0 +1,573 @@
+{
+  "Resources": {
+    "payment": "付款",
+    "expense": "支出",
+    "expense_category": "支出类别",
+    "debt": "债务"
+  },
+  "Permissions": {
+    "Payment": {
+      "Create": "创建付款",
+      "Read": "查看付款",
+      "Update": "更新付款",
+      "Delete": "删除付款"
+    },
+    "Expense": {
+      "Create": "创建支出",
+      "Read": "查看支出",
+      "Update": "更新支出",
+      "Delete": "删除支出"
+    },
+    "ExpenseCategory": {
+      "Create": "创建支出类别",
+      "Read": "查看支出类别",
+      "Update": "更新支出类别",
+      "Delete": "删除支出类别"
+    },
+    "Debt": {
+      "Create": "创建债务",
+      "Read": "查看债务",
+      "Update": "更新债务",
+      "Delete": "删除债务"
+    }
+  },
+  "NavigationLinks": {
+    "Finances": "财务",
+    "FinancialOverview": "财务概览",
+    "Transactions": "交易",
+    "Accounts": "账户",
+    "Expenses": "支出",
+    "ExpenseCategories": "支出类别",
+    "Payments": "付款",
+    "PaymentCategories": "付款类别",
+    "Counterparties": "交易对手",
+    "Debts": "债务",
+    "DebtAggregates": "债务汇总",
+    "Inventory": "库存",
+    "Reports": "报告",
+    "IncomeStatement": "损益表",
+    "CashflowStatement": "现金流量表",
+    "Finance": {
+      "Enums": "枚举"
+    }
+  },
+  "FinancialOverview": {
+    "Meta": {
+      "Title": "财务概览"
+    }
+  },
+  "ExpenseCategories": {
+    "Meta": {
+      "List": {
+        "Title": "支出类别"
+      },
+      "Edit": {
+        "Title": "编辑类别"
+      },
+      "New": {
+        "Title": "新类别"
+      }
+    },
+    "List": {
+      "New": "新类别",
+      "Name": "名称",
+      "Amount": "金额",
+      "NoCategories": {
+        "Title": "未找到支出类别",
+        "_Description": "还没有支出类别。点击\"新类别\"创建一个。"
+      }
+    },
+    "Single": {
+      "EditUser": "编辑类别",
+      "Name": "名称",
+      "Amount": "金额",
+      "CurrencyCode": {
+        "Label": "货币",
+        "Placeholder": "选择货币"
+      },
+      "_Description": "描述",
+      "IsCOGS": "销货成本 (COGS)",
+      "Delete": "删除类别",
+      "DeleteConfirmation": "您确定要删除此支出类别吗？"
+    }
+  },
+  "Payments": {
+    "Meta": {
+      "List": {
+        "Title": "付款"
+      },
+      "Edit": {
+        "Title": "编辑付款"
+      },
+      "New": {
+        "Title": "添加付款"
+      }
+    },
+    "List": {
+      "New": "添加付款",
+      "Amount": "金额",
+      "NoPayments": {
+        "Title": "未找到付款",
+        "_Description": "还没有付款。点击\"添加付款\"创建一个。"
+      }
+    },
+    "Single": {
+      "AccountID": "账户",
+      "SelectAccount": "选择账户",
+      "Edit": "编辑付款",
+      "Name": "名称",
+      "Amount": "金额",
+      "Date": "日期",
+      "AccountingPeriod": "会计期间",
+      "CounterpartyID": {
+        "Label": "发送方",
+        "Placeholder": "选择发送方"
+      },
+      "CategoryID": "类别",
+      "SelectCategory": "选择类别",
+      "Comment": "备注",
+      "User": "用户",
+      "Delete": "删除付款",
+      "DeleteConfirmation": "您确定要删除此付款吗？"
+    }
+  },
+  "Expenses": {
+    "Meta": {
+      "List": {
+        "Title": "支出"
+      },
+      "Edit": {
+        "Title": "编辑支出"
+      },
+      "New": {
+        "Title": "添加支出"
+      }
+    },
+    "List": {
+      "New": "添加支出",
+      "Export": "导出",
+      "Category": "类别",
+      "Amount": "金额",
+      "AccountingPeriod": "会计期间",
+      "Date": "日期",
+      "NoExpenses": {
+        "Title": "未找到支出",
+        "_Description": "还没有支出。点击\"添加支出\"创建一个。"
+      }
+    },
+    "Single": {
+      "AccountID": "账户",
+      "SelectAccount": "选择账户",
+      "CategoryID": "类别",
+      "SelectCategory": "选择类别",
+      "Edit": "编辑支出",
+      "Name": "名称",
+      "Amount": "金额",
+      "Date": "日期",
+      "AccountingPeriod": "会计期间",
+      "Comment": "备注",
+      "Delete": "删除支出",
+      "DeleteConfirmation": "您确定要删除此支出吗？"
+    }
+  },
+  "Counterparties": {
+    "Meta": {
+      "List": {
+        "Title": "交易对手"
+      },
+      "Edit": {
+        "Title": "编辑交易对手"
+      },
+      "New": {
+        "Title": "添加交易对手"
+      }
+    },
+    "List": {
+      "New": "添加交易对手",
+      "Name": "名称",
+      "TIN": "税号",
+      "Type": "类型",
+      "LegalType": "法人类型",
+      "LegalAddress": "法定地址",
+      "NoCounterparties": {
+        "Title": "未找到交易对手",
+        "_Description": "还没有交易对手。点击\"添加交易对手\"创建一个。"
+      }
+    },
+    "Single": {
+      "Edit": "编辑交易对手",
+      "Name": "名称",
+      "TIN": "税号",
+      "Type": "类型",
+      "SelectType": "选择类型",
+      "LegalType": "法人类型",
+      "SelectLegalType": "选择法人类型",
+      "LegalAddress": "法定地址",
+      "Delete": "删除交易对手",
+      "DeleteConfirmation": "您确定要删除此交易对手吗？"
+    },
+    "Types": {
+      "CUSTOMER": "客户",
+      "SUPPLIER": "供应商",
+      "BOTH": "两者",
+      "_OTHER": "其他"
+    },
+    "LegalTypes": {
+      "INDIVIDUAL": "个人",
+      "LLC": "有限责任公司",
+      "JSC": "股份公司",
+      "SOLE_PROPRIETORSHIP": "独资企业"
+    }
+  },
+  "MoneyAccounts": {
+    "Meta": {
+      "List": {
+        "Title": "账户"
+      },
+      "Edit": {
+        "Title": "编辑账户"
+      },
+      "New": {
+        "Title": "添加账户"
+      }
+    },
+    "List": {
+      "New": "添加账户",
+      "Name": "名称",
+      "Balance": "余额",
+      "NoAccounts": {
+        "Title": "未找到账户",
+        "_Description": "还没有账户。点击\"添加账户\"创建一个。"
+      }
+    },
+    "Single": {
+      "Edit": "编辑账户",
+      "Name": "名称",
+      "Balance": "余额",
+      "CurrencyCode": "货币",
+      "Currency": {
+        "Label": "货币",
+        "Placeholder": "选择货币"
+      },
+      "_Description": "描述",
+      "AccountNumber": "账户号码",
+      "Delete": "删除账户",
+      "DeleteConfirmation": "您确定要删除此账户吗？",
+      "General": "常规",
+      "Transactions": "交易",
+      "Transfer": "转账"
+    },
+    "Transactions": {
+      "NoTransactions": "还没有交易",
+      "NoTransactionsDescription": "此账户没有交易。当您添加支出、付款或转账时，交易将显示在这里。",
+      "ViewAll": "查看所有交易"
+    }
+  },
+  "Transfers": {
+    "Meta": {
+      "New": {
+        "Title": "转账"
+      }
+    },
+    "Single": {
+      "From": "从",
+      "To": "到",
+      "DestinationAccountID": "目标账户",
+      "SelectDestinationAccount": "选择目标账户",
+      "Amount": "金额",
+      "Comment": "备注",
+      "CommentPlaceholder": "可选的转账描述...",
+      "Transfer": "转账",
+      "ExchangeRate": "汇率",
+      "DestinationAmount": "目标金额",
+      "ExchangeNotice": "检测到不同货币 - 需要汇率"
+    }
+  },
+  "PaymentCategories": {
+    "Meta": {
+      "List": {
+        "Title": "付款类别"
+      },
+      "Edit": {
+        "Title": "编辑付款类别"
+      },
+      "New": {
+        "Title": "新付款类别"
+      }
+    },
+    "List": {
+      "New": "新类别",
+      "Name": "名称",
+      "NoCategories": {
+        "Title": "未找到付款类别",
+        "_Description": "还没有付款类别。点击\"新类别\"创建一个。"
+      }
+    },
+    "Single": {
+      "Name": "名称",
+      "_Description": "描述",
+      "Delete": "删除付款类别",
+      "DeleteConfirmation": "您确定要删除此付款类别吗？"
+    }
+  },
+  "Inventory": {
+    "Meta": {
+      "List": {
+        "Title": "库存"
+      },
+      "Edit": {
+        "Title": "编辑库存项目"
+      },
+      "New": {
+        "Title": "添加库存项目"
+      }
+    },
+    "List": {
+      "New": "添加库存项目",
+      "Name": "名称",
+      "Price": "价格",
+      "Quantity": "数量",
+      "TotalValue": "总价值",
+      "NoInventory": {
+        "Title": "未找到库存项目",
+        "_Description": "还没有库存项目。点击\"添加库存项目\"创建一个。"
+      }
+    },
+    "Single": {
+      "Edit": "编辑库存项目",
+      "Name": "名称",
+      "Price": "价格",
+      "Quantity": "数量",
+      "Currency": {
+        "Label": "货币",
+        "Placeholder": "选择货币"
+      },
+      "_Description": "描述",
+      "Delete": "删除库存项目",
+      "DeleteConfirmation": "您确定要删除此库存项目吗？"
+    }
+  },
+  "Transactions": {
+    "Meta": {
+      "List": {
+        "Title": "交易"
+      }
+    },
+    "List": {
+      "Date": "日期",
+      "Type": "类型",
+      "Amount": "金额",
+      "Account": "账户",
+      "Category": "类别",
+      "Counterparty": "交易对手",
+      "Comment": "备注",
+      "NoTransactions": {
+        "Title": "未找到交易",
+        "_Description": "还没有交易。当您添加支出或付款时会创建交易。"
+      }
+    },
+    "Filters": {
+      "AllTypes": "所有类型",
+      "AllTime": "全部时间",
+      "AccountingPeriod": "会计期间",
+      "AllPeriods": "所有期间",
+      "ThisMonth": "本月",
+      "LastMonth": "上月",
+      "TwoMonthsAgo": "两个月前",
+      "ThreeMonthsAgo": "三个月前"
+    },
+    "Single": {
+      "Title": "交易详情",
+      "Details": "交易信息",
+      "Type": "类型",
+      "Amount": "金额",
+      "Date": "交易日期",
+      "AccountingPeriod": "会计期间",
+      "OriginAccount": "源账户",
+      "DestinationAccountID": "目标账户",
+      "Comment": "备注",
+      "ExchangeDetails": "汇率详情",
+      "ExchangeRate": "汇率",
+      "DestinationAmount": "目标金额",
+      "RelatedDetails": "相关信息",
+      "PaymentCategory": "付款类别",
+      "ExpenseCategory": "支出类别",
+      "Counterparty": "交易对手",
+      "TransactionID": "交易 ID",
+      "From": "从",
+      "To": "到",
+      "Category": "类别"
+    },
+    "Types": {
+      "DEPOSIT": "存款",
+      "WITHDRAWAL": "提款",
+      "TRANSFER": "转账",
+      "EXCHANGE": "兑换"
+    }
+  },
+  "Reports": {
+    "IncomeStatement": {
+      "Title": "损益表",
+      "GenerateReport": "生成报告",
+      "StartDate": "开始日期",
+      "EndDate": "结束日期",
+      "ComparePeriods": "比较期间",
+      "Generate": "生成报告",
+      "EnableComparison": "启用期间比较",
+      "Generating": "正在生成报告...",
+      "NoReportGenerated": "未生成报告",
+      "SelectDatesAndGenerate": "选择日期并点击\"生成报告\"以查看您的损益表",
+      "Period": "期间",
+      "Print": "打印",
+      "GrossProfit": "毛利润",
+      "NetProfit": "净利润",
+      "NoItemsInSection": "此部分没有项目",
+      "Total": "总计",
+      "ComparativeTitle": "比较损益表",
+      "CurrentPeriod": "当前期间",
+      "ComparisonPeriods": "比较期间",
+      "Revenue": "收入",
+      "Expenses": "支出",
+      "Category": "类别",
+      "OperationalIncome": "营业收入",
+      "TotalExpenses": "总支出",
+      "GeneratedAt": "生成于"
+    },
+    "CashflowStatement": {
+      "Title": "现金流量表",
+      "_Description": "查看和分析您账户中的现金流",
+      "Account": "账户",
+      "SelectAccount": "选择账户",
+      "AllAccounts": "所有账户",
+      "StartDate": "开始日期",
+      "EndDate": "结束日期",
+      "Generate": "生成报告",
+      "LastGenerated": "最后生成",
+      "Never": "从未",
+      "ReportTitle": "现金流量表",
+      "StartingBalance": "期初余额",
+      "NetCashFlow": "净现金流",
+      "EndingBalance": "期末余额",
+      "GeneratedAt": "生成于",
+      "Category": "类别",
+      "Total": "总计",
+      "Count": "数量",
+      "Inflows": "现金流入",
+      "Outflows": "现金流出",
+      "NoReportGenerated": "未生成报告",
+      "SelectDatesAndGenerate": "选择日期和账户，然后点击\"生成报告\"以查看您的现金流量表",
+      "Generating": "正在生成报告..."
+    }
+  },
+  "Debts": {
+    "Meta": {
+      "List": {
+        "Title": "债务"
+      },
+      "Edit": {
+        "Title": "编辑债务"
+      },
+      "New": {
+        "Title": "添加债务"
+      }
+    },
+    "List": {
+      "New": "添加债务",
+      "Type": "类型",
+      "Status": "状态",
+      "Counterparty": "交易对手",
+      "OriginalAmount": "原始金额",
+      "OutstandingAmount": "未偿金额",
+      "_Description": "描述",
+      "DueDate": "到期日期",
+      "CreatedAt": "创建于",
+      "Actions": "操作",
+      "NoDebts": {
+        "Title": "未找到债务",
+        "_Description": "还没有债务。点击\"添加债务\"创建一个。"
+      }
+    },
+    "Single": {
+      "Edit": "编辑债务",
+      "CounterpartyID": "交易对手",
+      "SelectCounterparty": "选择交易对手",
+      "Type": "债务类型",
+      "SelectType": "选择债务类型",
+      "Status": "状态",
+      "Amount": "金额",
+      "OriginalAmount": "原始金额",
+      "OutstandingAmount": "未偿金额",
+      "_Description": "描述",
+      "DueDate": "到期日期",
+      "SettlementTransactionID": "结算交易",
+      "Settle": "结算债务",
+      "WriteOff": "核销",
+      "Delete": "删除债务",
+      "DeleteConfirmation": "您确定要删除此债务吗？",
+      "SettleConfirmation": "您确定要结算此债务吗？",
+      "WriteOffConfirmation": "您确定要将此债务核销为无法收回吗？",
+      "SelectTransaction": "选择交易"
+    },
+    "Types": {
+      "RECEIVABLE": "应收账款（欠我们的）",
+      "PAYABLE": "应付账款（我们欠的）"
+    },
+    "Statuses": {
+      "PENDING": "待处理",
+      "SETTLED": "已结算",
+      "PARTIAL": "部分结算",
+      "WRITTEN_OFF": "已核销"
+    },
+    "Actions": {
+      "Created": "债务创建成功",
+      "Updated": "债务更新成功",
+      "Deleted": "债务删除成功",
+      "Settled": "债务结算成功",
+      "WrittenOff": "债务核销成功"
+    }
+  },
+  "DebtAggregates": {
+    "Meta": {
+      "List": {
+        "Title": "按交易对手汇总的债务"
+      }
+    },
+    "List": {
+      "Counterparty": "交易对手",
+      "TotalReceivable": "总应收账款",
+      "TotalPayable": "总应付账款",
+      "OutstandingReceivable": "未偿应收账款",
+      "OutstandingPayable": "未偿应付账款",
+      "NetAmount": "净金额",
+      "DebtCount": "总债务数"
+    },
+    "Drawer": {
+      "Title": "债务详情"
+    }
+  },
+  "Attachments": {
+    "Title": "附件",
+    "AddFiles": "添加文件",
+    "ChooseFiles": "选择文件",
+    "SupportedFormats": "支持的格式：PDF、JPG、PNG、DOC、DOCX、XLS、XLSX",
+    "ExistingFiles": "现有文件",
+    "AttachedFiles": "已附加的文件",
+    "DeleteConfirmation": "您确定要删除此附件吗？",
+    "DeleteFile": "删除文件"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "财务文档",
+      "AddFiles": "添加文档",
+      "ChooseFiles": "选择文档",
+      "SupportedFormats": "上传收据、发票、合同和其他财务文档",
+      "ExistingFiles": "现有文档",
+      "AttachedFiles": "已附加的文档",
+      "DeleteConfirmation": "您确定要删除此文档吗？",
+      "DeleteFile": "删除文档"
+    }
+  },
+  "ValidationErrors": {
+    "invalidTIN": "{{.Details}}"
+  }
+}

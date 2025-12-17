@@ -1,6 +1,7 @@
 import "./lib/alpine.lib.min.js";
 import "./lib/alpine-focus.min.js";
 import "./lib/alpine-anchor.min.js";
+import "./lib/alpine-mask.min.js";
 import Sortable from "./lib/alpine-sort.js";
 
 let relativeFormat = () => ({
@@ -179,26 +180,28 @@ let combobox = (searchable = false) => ({
   open: false,
   openedWithKeyboard: false,
   options: [],
+  allOptions: [],
   activeIndex: null,
   selectedIndices: new Set(),
   selectedValues: new Map(),
   activeValue: null,
   multiple: false,
   observer: null,
+  searchQuery: '',
   searchable,
   setValue(value) {
     if (value == null || !(this.open || this.openedWithKeyboard)) return;
     let index, option
-    for (let i = 0, len = this.options.length; i < len; i++) {
-      let o = this.options[i];
+    for (let i = 0, len = this.allOptions.length; i < len; i++) {
+      let o = this.allOptions[i];
       if (o.value === value) {
         index = i;
         option = o;
       }
     }
-    if (index == null || index > this.options.length - 1) return;
+    if (index == null || index > this.allOptions.length - 1) return;
     if (this.multiple) {
-      this.options[index].toggleAttribute("selected");
+      this.allOptions[index].toggleAttribute("selected");
       if (this.selectedValues.has(value)) {
         this.selectedValues.delete(value);
       } else {
@@ -208,10 +211,10 @@ let combobox = (searchable = false) => ({
         });
       }
     } else {
-      for (let i = 0, len = this.options.length; i < len; i++) {
-        let option = this.options[i];
-        if (option.value === value) this.options[i].toggleAttribute("selected");
-        else this.options[i].removeAttribute("selected");
+      for (let i = 0, len = this.allOptions.length; i < len; i++) {
+        let option = this.allOptions[i];
+        if (option.value === value) this.allOptions[i].toggleAttribute("selected");
+        else this.allOptions[i].removeAttribute("selected");
       }
       if (
         this.selectedValues.size > 0 &&
@@ -261,6 +264,20 @@ let combobox = (searchable = false) => ({
   onInput() {
     if (!this.open) this.open = true;
   },
+  onSearch(e) {
+    if (!this.open) this.open = true
+    this.searchQuery = e.target.value.toLowerCase();
+    this.options = Array.from(this.allOptions).filter((o) => {
+      return o.textContent.toLowerCase().includes(this.searchQuery);
+    });
+    if (this.options.length > 0) {
+      let option = this.options[0];
+      this.activeValue = option.value;
+    }
+    if (!this.searchQuery) {
+      this.options = this.$el.querySelectorAll("option");
+    }
+  },
   highlightMatchingOption(pressedKey) {
     this.setActiveIndex(pressedKey);
     this.setActiveValue(pressedKey);
@@ -277,7 +294,8 @@ let combobox = (searchable = false) => ({
     if (select) {
       for (const option of select.options) {
         if (option.value === value) {
-          select.removeChild(option);
+          option.removeAttribute("selected");
+          // select.removeChild(option); // TODO: Why removed???
           break;
         }
       }
@@ -287,6 +305,7 @@ let combobox = (searchable = false) => ({
   select: {
     ["x-init"]() {
       this.options = this.$el.querySelectorAll("option");
+      this.allOptions = this.options;
       this.multiple = this.$el.multiple;
       for (let i = 0, len = this.options.length; i < len; i++) {
         let option = this.options[i];
@@ -318,7 +337,9 @@ let filtersDropdown = () => ({
   open: false,
   selected: [],
   init() {
-    this.selected = Array.from(this.$el.querySelectorAll('input[type=checkbox]:checked'))
+    // Use [checked] attribute selector instead of :checked pseudo-selector
+    // because Alpine's :checked binding may clear the property before init() runs
+    this.selected = Array.from(this.$el.querySelectorAll('input[type=checkbox][checked]'))
       .map(el => el.value);
   },
   toggleValue(val) {
@@ -328,6 +349,12 @@ let filtersDropdown = () => ({
     } else {
       this.selected.splice(index, 1);
     }
+    // Dispatch custom event after Alpine state is updated
+    // We use 'filter-changed' custom event instead of 'change' to avoid race condition
+    // where HTMX collects form data before Alpine updates checkbox state
+    this.$nextTick(() => {
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
   }
 });
 
@@ -458,9 +485,14 @@ let datePicker = ({
       let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
       plugins.push(yearSelect())
     }
+    if (selected) {
+      this.selected = selected;
+    }
     let self = this;
     flatpickr(this.$refs.input, {
       altInput: true,
+      static: true,
+      altInputClass: "form-control-input input outline-none w-full",
       altFormat: labelFormat,
       dateFormat: dateFormat,
       mode,
@@ -469,15 +501,22 @@ let datePicker = ({
       defaultDate: selected,
       plugins,
       onChange(selected = []) {
-        let isoDates = selected.map((s) => s.toISOString());
-        if (!isoDates.length) return;
+        let formattedDates = selected.map((s) => flatpickr.formatDate(s, dateFormat));
+        if (!formattedDates.length) return;
         if (mode === 'single') {
-          self.selected = [isoDates[0]];
+          self.selected = [formattedDates[0]];
         } else if (mode === 'range') {
-          if (isoDates.length === 2) self.selected = isoDates;
+          if (formattedDates.length === 2) self.selected = formattedDates;
         } else {
-          self.selected = isoDates;
+          self.selected = formattedDates;
         }
+        // Dispatch custom event for HTMX integration
+        self.$nextTick(() => {
+          self.$el.dispatchEvent(new CustomEvent('date-selected', {
+            bubbles: true,
+            detail: {selected: self.selected}
+          }));
+        });
       },
     });
   }
@@ -540,8 +579,31 @@ let navTabs = (defaultValue = '') => ({
   }
 })
 
+// Helper function to determine sidebar initial state with 3-state priority
+// Make globally available for use in templates
+window.initSidebarCollapsed = function() {
+  // Priority 1: Check server hint (overrides localStorage)
+  const el = document.querySelector('[data-sidebar-state]');
+  const serverState = el?.dataset.sidebarState;
+
+  if (serverState === 'collapsed') {
+    return true;
+  } else if (serverState === 'expanded') {
+    return false;
+  }
+
+  // Priority 2: Fall back to localStorage (only when serverState is 'auto' or missing)
+  const stored = localStorage.getItem('sidebar-collapsed');
+  if (stored !== null) {
+    return stored === 'true';
+  }
+
+  // Priority 3: Default to expanded
+  return false;
+}
+
 let sidebar = () => ({
-  isCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+  isCollapsed: initSidebarCollapsed(),
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
 
   toggle() {
@@ -636,6 +698,163 @@ let kanban = () => ({
   }
 })
 
+let moneyInput = (config = {}) => ({
+  displayValue: '',
+  amountInCents: config.value || 0,
+  min: config.min ?? null,
+  max: config.max ?? null,
+  decimal: config.decimal || '.',
+  thousand: config.thousand || ',',
+  precision: config.precision || 2,
+  conversionRate: config.conversionRate || 0,
+  convertTo: config.convertTo || '',
+  convertedAmount: 0,
+  validationError: '',
+
+  // Helper to calculate divisor (reduces code duplication)
+  getDivisor() {
+    return Math.pow(10, this.precision);
+  },
+
+  // Convert cents to formatted display value
+  centsToDisplay(cents) {
+    return (cents / this.getDivisor()).toFixed(this.precision);
+  },
+
+  // Parse display value to cents
+  displayToCents(value) {
+    // Remove all non-numeric characters except decimal point and minus sign
+    const cleaned = value.replace(/[^0-9.-]/g, '');
+
+    // Handle edge cases: multiple decimals, multiple minus signs
+    const parts = cleaned.split(this.decimal);
+    let normalized = parts[0] || '0';
+    if (parts.length > 1) {
+      // Take only the first decimal part
+      normalized += '.' + parts[1];
+    }
+
+    // Handle negative sign (should only be at start)
+    const isNegative = normalized.startsWith('-');
+    const absoluteValue = normalized.replace(/-/g, '');
+    const finalValue = (isNegative ? '-' : '') + absoluteValue;
+
+    const floatValue = parseFloat(finalValue) || 0;
+    return Math.round(floatValue * this.getDivisor());
+  },
+
+  init() {
+    this.displayValue = this.centsToDisplay(this.amountInCents);
+    this.updateConversion();
+
+    // Watch amountInCents for external changes (e.g., from calculator scripts)
+    // Only update displayValue if it doesn't match the current amountInCents
+    // This prevents circular updates during user input
+    this.$watch('amountInCents', (value) => {
+      const expectedDisplay = this.centsToDisplay(value);
+      // Only update if displayValue differs (accounting for formatting)
+      if (this.displayToCents(this.displayValue) !== value) {
+        this.displayValue = expectedDisplay;
+        this.updateConversion();
+      }
+    });
+  },
+
+  onInput(event) {
+    this.amountInCents = this.displayToCents(event.target.value);
+    this.validateMinMax();
+    this.updateConversion();
+
+    // Dispatch custom event so parent scopes can react to user input
+    const hiddenInput = event.target.closest('[x-data]').querySelector('input[type="hidden"]');
+    if (hiddenInput) {
+      hiddenInput.dispatchEvent(new CustomEvent('money-changed', {
+        bubbles: true,
+        detail: { amountInCents: this.amountInCents }
+      }));
+    }
+  },
+
+  validateMinMax() {
+    this.validationError = '';
+
+    if (this.min !== null && this.amountInCents < this.min) {
+      const minDisplay = this.centsToDisplay(this.min);
+      this.validationError = `Minimum amount is ${minDisplay}`;
+    }
+
+    if (this.max !== null && this.amountInCents > this.max) {
+      const maxDisplay = this.centsToDisplay(this.max);
+      this.validationError = `Maximum amount is ${maxDisplay}`;
+    }
+  },
+
+  updateConversion() {
+    if (this.conversionRate > 0) {
+      const floatValue = this.amountInCents / this.getDivisor();
+      this.convertedAmount = floatValue * this.conversionRate;
+    } else {
+      this.convertedAmount = 0;
+    }
+  },
+
+  // Format conversion amount for display (handles negative values)
+  formatConversion() {
+    if (this.convertedAmount === 0) return '0';
+
+    const absValue = Math.abs(this.convertedAmount);
+    const sign = this.convertedAmount < 0 ? '-' : '';
+    return sign + absValue.toFixed(this.precision);
+  }
+});
+
+let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
+  formatDate(d) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+  updateDateRange(startDate, endDate) {
+    const startStr = this.formatDate(startDate);
+    const endStr = this.formatDate(endDate);
+
+    document.getElementById(hiddenStartID).value = startStr;
+    document.getElementById(hiddenEndID).value = endStr;
+
+    const fpElements = document.querySelectorAll('.flatpickr-input');
+    fpElements.forEach(fp => {
+      if (fp._flatpickr) {
+        fp._flatpickr.setDate([startDate, endDate], true);
+      }
+    });
+
+    const form = document.getElementById(formID);
+    if (form) {
+      const event = new Event('change', { bubbles: true });
+      form.dispatchEvent(event);
+    }
+  },
+  applyDays(days) {
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1));
+    this.updateDateRange(startDate, endDate);
+  },
+  applyMonths(months) {
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startDate = new Date(today.getFullYear(), today.getMonth() - months, today.getDate());
+    this.updateDateRange(startDate, endDate);
+  },
+  applyFiscalYear() {
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startDate = new Date(today.getFullYear(), 0, 1);
+    this.updateDateRange(startDate, endDate);
+  }
+});
+
 document.addEventListener("alpine:init", () => {
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
@@ -651,5 +870,7 @@ document.addEventListener("alpine:init", () => {
   Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
   Alpine.data("editableTableRows", editableTableRows);
   Alpine.data("kanban", kanban);
+  Alpine.data("moneyInput", moneyInput);
+  Alpine.data("dateRangeButtons", dateRangeButtons);
   Sortable(Alpine);
 });

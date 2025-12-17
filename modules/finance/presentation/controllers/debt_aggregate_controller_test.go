@@ -36,7 +36,7 @@ func TestDebtAggregateController_List_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -102,7 +102,7 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -114,7 +114,7 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 	counterparty1 := counterparty.New(
 		"HTMX Test Counterparty",
 		counterparty.Supplier,
-		counterparty.LegalEntity,
+		counterparty.LLC,
 		counterparty.WithTenantID(env.Tenant.ID),
 	)
 
@@ -154,7 +154,7 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -164,8 +164,12 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 		Status(200)
 
 	html := response.HTML()
-	// Should have table headers but no data rows
-	require.Empty(t, html.Elements("//table//tbody//tr"))
+	// Should have empty state row (no data rows)
+	// The table scaffold renders an empty state <tr> when there's no data
+	rows := html.Elements("//table//tbody//tr")
+	require.Len(t, rows, 1, "Should have exactly 1 row (the empty state row)")
+	// Verify it's the empty state, not actual data
+	response.Contains("No data available")
 }
 
 func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
@@ -181,7 +185,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -246,7 +250,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -270,7 +274,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_InvalidUUID(t *testing.T)
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -290,7 +294,7 @@ func TestDebtAggregateController_Permission_Forbidden(t *testing.T) {
 		AsUser(userWithoutPermission)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -314,7 +318,7 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 		AsUser(adminUser)
 
 	env := suite.Environment()
-	createCurrencies(t, env.Ctx, &currency.USD)
+	createCurrencies(t, env, currency.USD)
 
 	controller := controllers.NewDebtAggregateController(env.App)
 	suite.Register(controller)
@@ -333,7 +337,7 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 	counterparty2 := counterparty.New(
 		"Second Counterparty",
 		counterparty.Supplier,
-		counterparty.LegalEntity,
+		counterparty.LLC,
 		counterparty.WithTenantID(env.Tenant.ID),
 	)
 

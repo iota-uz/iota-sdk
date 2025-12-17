@@ -7,14 +7,22 @@ import (
 
 func UploadToGraphModel(u upload.Upload) *model.Upload {
 	upload := &model.Upload{
-		ID:   int64(u.ID()),
-		Hash: u.Hash(),
-		Name: u.Name(),
-		Path: u.Path(),
-		Slug: u.Slug(),
-		Size: u.Size().Bytes(),
-		Type: u.Type(),
-		URL:  u.URL().String(),
+		ID:       int64(u.ID()),
+		Hash:     u.Hash(),
+		Name:     u.Name(),
+		Path:     u.Path(),
+		Slug:     u.Slug(),
+		Size:     u.Size().Bytes(),
+		Type:     u.Type(),
+		URL:      u.URL().String(),
+		GeoPoint: &model.GeoPoint{},
+	}
+
+	if point := u.GeoPoint(); point != nil {
+		upload.GeoPoint = &model.GeoPoint{
+			Lat: point.Lat(),
+			Lng: point.Lng(),
+		}
 	}
 
 	if mime := u.Mimetype(); mime != nil {

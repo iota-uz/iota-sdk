@@ -10,14 +10,15 @@ import (
 )
 
 type DropdownProps struct {
-	Label string
-	Name  string
+	Label   string
+	Name    string
+	Classes templ.CSSClasses
 }
 
 templ Dropdown(props DropdownProps) {
 	<div
 		x-data="filtersDropdown"
-		class="relative w-32"
+		class={ twmerge.Merge("relative min-w-32", props.Classes.String()) }
 	>
 		<!-- Trigger -->
 		<div class="flex">
@@ -26,7 +27,7 @@ templ Dropdown(props DropdownProps) {
 				x-show="selected.length"
 				class={
 					"flex items-center justify-center cursor-pointer",
-					"border border-gray-500 rounded-md rounded-r-none px-2",
+					"border border-gray-300 rounded-md rounded-r-none px-2",
 				}
 			>
 				@icons.X(icons.Props{
@@ -41,7 +42,7 @@ templ Dropdown(props DropdownProps) {
 				@click="open = !open"
 				type="button"
 				class={
-					"w-full border border-gray-500 rounded-md shadow-sm cursor-pointer",
+					"w-full border border-gray-300 rounded-md shadow-sm cursor-pointer",
 					"flex items-center justify-between px-4 py-2",
 				}
 				:class="selected.length ? 'rounded-l-none border-l-0' : ''"
@@ -107,8 +108,9 @@ templ DropdownItem(props DropdownItemProps) {
 templ (t *TableFilter) Component() {
 	if t.multiple {
 		@Dropdown(DropdownProps{
-			Label: t.placeholder,
-			Name:  t.Name,
+			Label:   t.placeholder,
+			Name:    t.Name,
+			Classes: t.multiSelectClasses,
 		}) {
 			for _, opt := range t.options {
 				@DropdownItem(DropdownItemProps{

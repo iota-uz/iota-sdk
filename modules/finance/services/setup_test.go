@@ -18,7 +18,7 @@ func TestMain(m *testing.M) {
 }
 
 // setupTest creates all necessary dependencies for tests
-func setupTest(t *testing.T, permissions ...*permission.Permission) *itf.TestEnvironment {
+func setupTest(t *testing.T, permissions ...permission.Permission) *itf.TestEnvironment {
 	t.Helper()
 
 	user := itf.User(permissions...)

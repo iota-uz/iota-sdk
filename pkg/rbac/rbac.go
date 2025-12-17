@@ -11,13 +11,13 @@ type Permission interface {
 }
 
 type rbacPermission struct {
-	*permission.Permission
+	permission permission.Permission
 }
 
 var _ Permission = (*rbacPermission)(nil)
 
 func (p rbacPermission) Can(u user.User) bool {
-	return u.Can(p.Permission)
+	return u.Can(p.permission)
 }
 
 type or struct {
@@ -61,6 +61,6 @@ func And(perms ...Permission) Permission {
 }
 
 // Perm wraps a permission.Permission into the Permission interface
-func Perm(p *permission.Permission) Permission {
-	return rbacPermission{Permission: p}
+func Perm(p permission.Permission) Permission {
+	return rbacPermission{permission: p}
 }

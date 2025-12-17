@@ -6,10 +6,20 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/navtabs"
 )
 
+// SidebarState represents the initial state of the sidebar
+type SidebarState string
+
+const (
+	SidebarCollapsed SidebarState = "collapsed" // Force collapsed (overrides localStorage)
+	SidebarExpanded  SidebarState = "expanded"  // Force expanded (overrides localStorage)
+	SidebarAuto      SidebarState = "auto"      // Respect localStorage (default)
+)
+
 type Props struct {
-	Header    templ.Component
-	TabGroups TabGroupCollection
-	Footer    templ.Component
+	Header       templ.Component
+	TabGroups    TabGroupCollection
+	Footer       templ.Component
+	InitialState SidebarState // Server-side initial state hint
 }
 
 templ Sidebar(props Props) {
@@ -100,7 +110,12 @@ templ SidebarContent(props Props) {
 templ AccordionGroup(group Group) {
 	<div>
 		<!-- Collapsed view: only icon -->
-		<div x-show="isCollapsed" class="accordion-group-collapsed w-full">
+		<div
+			x-show="isCollapsed"
+			@click="toggle(); $dispatch('sidebar-toggle')"
+			x-tooltip.placement.right.raw={ group.Text() }
+			class="accordion-group-collapsed w-full cursor-pointer"
+		>
 			if group.Icon() != nil {
 				@group.Icon()
 			}
@@ -136,7 +151,7 @@ templ AccordionLink(link Link) {
 	}}
 	<li>
 		<!-- Collapsed view: icon only -->
-		<div x-show="isCollapsed">
+		<div x-show="isCollapsed" x-tooltip.placement.right.raw={ link.Text() }>
 			@button.Sidebar(button.Props{
 				Size:  button.SizeMD,
 				Href:  link.Href(),

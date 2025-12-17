@@ -48,14 +48,20 @@ func ParseSortDirection(value string) SortDirection {
 	}
 }
 
+type Addon struct {
+	Render    func(c *TableColumn) templ.Component
+	Component templ.Component
+}
+
 type TableColumn struct {
-	Label     string
-	Key       string
-	Class     string
-	Sortable  bool
-	SortDir   SortDirection
-	SortURL   string // URL for sorting this column
-	StickyPos StickyPosition
+	Label       string
+	Key         string
+	Class       string
+	Sortable    bool
+	SortDir     SortDirection
+	SortURL     string // URL for sorting this column
+	StickyPos   StickyPosition
+	AddonBottom *Addon
 }
 
 type TableRowProps struct {
@@ -88,6 +94,7 @@ type TableProps struct {
 	Attrs        templ.Attributes
 	TBodyClasses templ.CSSClasses
 	TBodyAttrs   templ.Attributes
+	THeadAttrs   templ.Attributes
 	NoTBody      bool
 }
 
@@ -102,36 +109,55 @@ templ Table(props TableProps) {
 			}
 			{ props.Attrs... }
 		>
-			<thead>
+			<thead { props.THeadAttrs... }>
 				<tr class="bg-surface-500 text-200">
 					for _, col := range props.Columns {
 						if col.Sortable {
 							<th
 								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", col.Class }
-								hx-get={ col.SortURL }
-								hx-target="#sortable-table-container"
-								hx-swap="outerHTML"
-								hx-push-url="true"
-								hx-indicator="#table-body"
 							>
-								<div class="flex items-center gap-2">
-									<span>{ col.Label }</span>
-									<span class="sort-indicator">
-										if col.SortDir.IsAsc() {
-											@icons.CaretDown(icons.Props{Size: "16"})
-										} else if col.SortDir.IsDesc() {
-											@icons.CaretUp(icons.Props{Size: "16"})
-										} else {
-											@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
+								<div class="flex flex-col gap-1">
+									<div
+										class="flex items-center gap-2"
+										hx-get={ col.SortURL }
+										hx-target="#sortable-table-container"
+										hx-swap="outerHTML"
+										hx-include="closest form"
+									>
+										<span>{ col.Label }</span>
+										<span class="sort-indicator">
+											if col.SortDir.IsAsc() {
+												@icons.CaretDown(icons.Props{Size: "16"})
+											} else if col.SortDir.IsDesc() {
+												@icons.CaretUp(icons.Props{Size: "16"})
+											} else {
+												@icons.CaretUpDown(icons.Props{Size: "16", Class: "opacity-30"})
+											}
+										</span>
+									</div>
+									if col.AddonBottom != nil {
+										if col.AddonBottom.Render != nil {
+											@col.AddonBottom.Render(col)
+										} else if col.AddonBottom.Component != nil {
+											@col.AddonBottom.Component
 										}
-									</span>
+									}
 								</div>
 							</th>
 						} else {
 							<th
 								class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", templ.KV("bg-surface-500 sticky shadow-lg", col.StickyPos == StickyPositionRight || col.StickyPos == StickyPositionLeft), templ.KV("right-0", col.StickyPos == StickyPositionRight), templ.KV("left-0", col.StickyPos == StickyPositionLeft), col.Class }
 							>
-								{ col.Label }
+								<div class="flex flex-col gap-1">
+									{ col.Label }
+									if col.AddonBottom != nil {
+										if col.AddonBottom.Render != nil {
+											@col.AddonBottom.Render(col)
+										} else if col.AddonBottom.Component != nil {
+											@col.AddonBottom.Component
+										}
+									}
+								</div>
 							</th>
 						}
 					}

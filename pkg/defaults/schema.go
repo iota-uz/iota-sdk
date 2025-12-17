@@ -29,30 +29,30 @@ func newPermissionSetBuilder(module string) *permissionSetBuilder {
 }
 
 // viewSet creates a "view" permission set for a resource
-func (b *permissionSetBuilder) viewSet(resource string, readPerm *permission.Permission) rbac.PermissionSet {
+func (b *permissionSetBuilder) viewSet(resource string, readPerm permission.Permission) rbac.PermissionSet {
 	return rbac.PermissionSet{
 		Key:         resource + "_view",
 		Label:       b.prefix + resource + "View.Label",
 		Description: b.prefix + resource + "View._Description",
 		Module:      b.module,
-		Permissions: []*permission.Permission{readPerm},
+		Permissions: []permission.Permission{readPerm},
 	}
 }
 
 // manageSet creates a "manage" permission set for a resource with full CRUD permissions
-func (b *permissionSetBuilder) manageSet(resource string, create, read, update, deletePerm *permission.Permission) rbac.PermissionSet {
+func (b *permissionSetBuilder) manageSet(resource string, create, read, update, deletePerm permission.Permission) rbac.PermissionSet {
 	return rbac.PermissionSet{
 		Key:         resource + "_manage",
 		Label:       b.prefix + resource + "Manage.Label",
 		Description: b.prefix + resource + "Manage._Description",
 		Module:      b.module,
-		Permissions: []*permission.Permission{create, read, update, deletePerm},
+		Permissions: []permission.Permission{create, read, update, deletePerm},
 	}
 }
 
 // AllPermissions returns all permissions from all modules
 // This is used for seeding and RBAC initialization
-func AllPermissions() []*permission.Permission {
+func AllPermissions() []permission.Permission {
 	// Pre-calculate total capacity to avoid slice re-allocations
 	totalCapacity := len(corePerms.Permissions) +
 		len(billingPerms.Permissions) +
@@ -63,7 +63,7 @@ func AllPermissions() []*permission.Permission {
 		len(projectsPerms.Permissions) +
 		len(warehousePerms.Permissions)
 
-	permissions := make([]*permission.Permission, 0, totalCapacity)
+	permissions := make([]permission.Permission, 0, totalCapacity)
 	permissions = append(permissions, corePerms.Permissions...)
 	permissions = append(permissions, billingPerms.Permissions...)
 	permissions = append(permissions, crmPerms.Permissions...)
@@ -159,17 +159,17 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 // appendRemainingPermissionSets adds remaining modules as individual permission sets
 func appendRemainingPermissionSets(sets []rbac.PermissionSet) []rbac.PermissionSet {
 	// Collect all remaining permissions
-	remainingPermissions := make([]*permission.Permission, 0)
+	remainingPermissions := make([]permission.Permission, 0)
 	remainingPermissions = append(remainingPermissions, billingPerms.Permissions...)
 	remainingPermissions = append(remainingPermissions, loggingPerms.Permissions...)
 
 	// Convert each permission to a permission set
 	for _, perm := range remainingPermissions {
 		sets = append(sets, rbac.PermissionSet{
-			Key:         perm.ID.String(),
-			Label:       "Permissions." + perm.Name,
+			Key:         perm.ID().String(),
+			Label:       "Permissions." + perm.Name(),
 			Module:      "Core", // Assign to Core module for now
-			Permissions: []*permission.Permission{perm},
+			Permissions: []permission.Permission{perm},
 		})
 	}
 

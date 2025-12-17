@@ -13,7 +13,7 @@ import (
 )
 
 // preparePieChartData formats analytics categories for pie chart display
-func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx *types.PageContext) charts.ChartOptions {
+func preparePieChartData(categories []lens.AnalyticsCategory, pgCtx types.PageContextProvider) charts.ChartOptions {
 	if categories == nil || len(categories) == 0 {
 		return charts.ChartOptions{}
 	}
@@ -151,8 +151,8 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 						<!-- Centered Tabs -->
 						<nav class="-mb-px flex space-x-12" aria-label="Tabs">
 							{{
-								revenueClass := "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-								countClass := "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+								revenueClass := "border-transparent text-gray-300 hover:text-gray-700 hover:border-gray-300"
+								countClass := "border-transparent text-gray-300 hover:text-gray-700 hover:border-gray-300"
 								if config.DataType == "revenue" {
 									revenueClass = "border-blue-500 text-blue-600"
 								} else {
@@ -211,7 +211,7 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 								}
 							}}
 							if !hasVisibleData {
-								<div class="text-center text-gray-500">
+								<div class="text-center text-gray-300">
 									<p class="text-lg font-medium">{ pgCtx.T("Analytics.NoDataTitle") }</p>
 									<p class="text-sm mt-2">{ pgCtx.T("Analytics.NoDataDescription") }</p>
 									<p class="text-xs mt-1 text-gray-400">{ fmt.Sprintf("%s: %d", pgCtx.T("Analytics.Categories"), len(config.Categories)) }</p>
@@ -260,7 +260,7 @@ templ AnalyticsDetail(config lens.AnalyticsDetailConfig) {
 								}
 							}
 							if !hasData {
-								<div class="text-center text-gray-500 py-8">
+								<div class="text-center text-gray-300 py-8">
 									<p class="text-lg font-medium">{ pgCtx.T("Analytics.NoDataTitle") }</p>
 									<p class="text-sm mt-2">{ pgCtx.T("Analytics.NoDataDescription") }</p>
 								</div>

@@ -1,61 +1,17 @@
 package currency
 
 var (
-	USD = Currency{
-		Code:   UsdCode,
-		Name:   "US Dollar",
-		Symbol: UsdSymbol,
-	}
-	EUR = Currency{
-		Code:   EurCode,
-		Name:   "Euro",
-		Symbol: EurSymbol,
-	}
-	TRY = Currency{
-		Code:   TryCode,
-		Name:   "Turkish Lira",
-		Symbol: TrySymbol,
-	}
-	GBP = Currency{
-		Code:   GbpCode,
-		Name:   "British Pound",
-		Symbol: GbpSymbol,
-	}
-	RUB = Currency{
-		Code:   RubCode,
-		Name:   "Russian Ruble",
-		Symbol: RubSymbol,
-	}
-	JPY = Currency{
-		Code:   JpyCode,
-		Name:   "Japanese Yen",
-		Symbol: JpySymbol,
-	}
-	CNY = Currency{
-		Code:   CnyCode,
-		Name:   "Chinese Yuan",
-		Symbol: CnySymbol,
-	}
-	UZS = Currency{
-		Code:   UzsCode,
-		Name:   "Som",
-		Symbol: UzsSymbol,
-	}
-	AUD = Currency{
-		Code:   AudCode,
-		Name:   "Australian Dollar",
-		Symbol: AudSymbol,
-	}
-	CAD = Currency{
-		Code:   CadCode,
-		Name:   "Canadian Dollar",
-		Symbol: CadSymbol,
-	}
-	CHF = Currency{
-		Code:   ChfCode,
-		Name:   "Swiss Franc",
-		Symbol: ChfSymbol,
-	}
+	USD = New(UsdCode, "US Dollar", UsdSymbol)
+	EUR = New(EurCode, "Euro", EurSymbol)
+	TRY = New(TryCode, "Turkish Lira", TrySymbol)
+	GBP = New(GbpCode, "British Pound", GbpSymbol)
+	RUB = New(RubCode, "Russian Ruble", RubSymbol)
+	JPY = New(JpyCode, "Japanese Yen", JpySymbol)
+	CNY = New(CnyCode, "Chinese Yuan", CnySymbol)
+	UZS = New(UzsCode, "Som", UzsSymbol)
+	AUD = New(AudCode, "Australian Dollar", AudSymbol)
+	CAD = New(CadCode, "Canadian Dollar", CadSymbol)
+	CHF = New(ChfCode, "Swiss Franc", ChfSymbol)
 )
 
 var (

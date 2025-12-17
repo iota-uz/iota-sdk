@@ -1,6 +1,6 @@
 module github.com/iota-uz/iota-sdk
 
-go 1.23.2
+go 1.24.10
 
 require (
 	github.com/99designs/gqlgen v0.17.57
@@ -31,7 +31,7 @@ require (
 	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
 	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.2
-	github.com/iota-uz/octo v1.2.1
+	github.com/iota-uz/octo v1.2.2-0.20251217065529-a4c263bfd38b
 	github.com/iota-uz/payme v1.4.1
 	github.com/iota-uz/psql-parser v0.0.0-20250308150107-d4e0b094f3a6
 	github.com/iota-uz/utils v0.0.2
@@ -46,7 +46,9 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/rubenv/sql-migrate v1.7.0
 	github.com/sashabaranov/go-openai v1.40.1
+	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
+	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.10.0
 	github.com/stripe/stripe-go/v82 v82.1.0
 	github.com/twilio/twilio-go v1.23.11
@@ -103,6 +105,7 @@ require (
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -119,7 +122,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sosodev/duration v1.3.1 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tidwall/gjson v1.14.4 // indirect
 	github.com/tidwall/match v1.1.1 // indirect

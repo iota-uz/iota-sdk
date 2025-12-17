@@ -22,6 +22,7 @@ import (
 
 type RowOpt func(r *tableRowImpl)
 type ColumnOpt func(c *tableColumnImpl)
+type CellOpt func(c *tableCellImpl)
 
 type TableColumn interface {
 	Key() string
@@ -34,15 +35,20 @@ type TableColumn interface {
 	EditableField() crud.Field
 	SortURL() string
 	StickyPos() StickyPosition
+	AddonBottom() *Addon
 }
 
 type TableCell interface {
 	Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component
+	Classes() templ.CSSClasses
+	Attrs() templ.Attributes
 }
 
 type tableCellImpl struct {
 	component templ.Component
 	value     any
+	classes   templ.CSSClasses
+	attrs     templ.Attributes
 }
 
 func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType) string {
@@ -94,7 +100,7 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 	if currentValue != nil {
 		valueStr = c.convertValueToString(currentValue, selectField.ValueType())
 	}
-
+	maps.Copy(fieldAttrs, selectField.Attrs())
 	switch selectField.SelectType() {
 	case crud.SelectTypeStatic:
 		// Get options
@@ -200,6 +206,14 @@ func (c *tableCellImpl) handleSelectField(ctx context.Context, selectField crud.
 	}
 }
 
+func (c *tableCellImpl) Classes() templ.CSSClasses {
+	return c.classes
+}
+
+func (c *tableCellImpl) Attrs() templ.Attributes {
+	return c.attrs
+}
+
 func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool, fieldAttrs templ.Attributes) templ.Component {
 	field := col.EditableField()
 	if col.Editable() && field != nil && editMode {
@@ -213,12 +227,13 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 		ctx := context.TODO()
 		var currentValue any
 		if withValue {
-			if c.value != nil && !(c.value == nil || reflect.ValueOf(c.value).IsZero()) {
+			if c.value != nil && !reflect.ValueOf(c.value).IsZero() {
 				currentValue = c.value
 			} else if field.InitialValue(ctx) != nil {
 				currentValue = field.InitialValue(ctx)
 			}
 		}
+		maps.Copy(fieldAttrs, field.Attrs())
 		switch field.Type() {
 		case crud.StringFieldType:
 			// Check if this is actually a select field
@@ -362,7 +377,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				builder = builder.Max(floatField.Max())
 			}
 
-			attrs := templ.Attributes{}
+			attrs := fieldAttrs
 			if floatField.Step() != 0 {
 				attrs["step"] = fmt.Sprintf("%f", floatField.Step())
 			} else {
@@ -372,8 +387,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			if field.Readonly() {
 				attrs["disabled"] = true
 			}
-
-			maps.Copy(attrs, fieldAttrs)
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
@@ -413,7 +426,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 					builder = builder.Default(timeVal)
 				}
 			}
-
 			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.TimeFieldType:
@@ -508,7 +520,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 					builder = builder.Default(v)
 				}
 			}
-
 			return builder.Attrs(fieldAttrs).Build().Component()
 
 		case crud.DecimalFieldType:
@@ -530,7 +541,7 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 				}
 			}
 
-			attrs := templ.Attributes{}
+			attrs := fieldAttrs
 			if decimalField.Scale() > 0 {
 				step := 1.0
 				for range decimalField.Scale() {
@@ -544,8 +555,6 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			if field.Readonly() {
 				attrs["disabled"] = true
 			}
-
-			maps.Copy(attrs, fieldAttrs)
 
 			if len(field.Rules()) > 0 {
 				builder = builder.Required()
@@ -620,6 +629,7 @@ type tableColumnImpl struct {
 	editable      bool
 	editableField crud.Field
 	stickyPos     StickyPosition
+	addonBottom   *Addon
 }
 
 func (c *tableColumnImpl) Key() string               { return c.key }
@@ -631,6 +641,7 @@ func (c *tableColumnImpl) SortDir() SortDirection    { return c.sortDir }
 func (c *tableColumnImpl) SortURL() string           { return c.sortURL }
 func (c *tableColumnImpl) Editable() bool            { return c.editable }
 func (c *tableColumnImpl) StickyPos() StickyPosition { return c.stickyPos }
+func (c *tableColumnImpl) AddonBottom() *Addon       { return c.addonBottom }
 func (c *tableColumnImpl) EditableField() crud.Field { return c.editableField }
 
 type tableRowImpl struct {
@@ -664,7 +675,19 @@ func WithDrawer(fetchURL string) RowOpt {
 	}
 }
 
+func WithRowAttrs(attrs templ.Attributes) RowOpt {
+	return func(r *tableRowImpl) {
+		maps.Copy(r.attrs, attrs)
+	}
+}
+
 // --- Column Options ---
+
+func WithAddonBottom(addonBottom *Addon) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.addonBottom = addonBottom
+	}
+}
 
 func WithClass(classes string) ColumnOpt {
 	return func(c *tableColumnImpl) {
@@ -714,6 +737,12 @@ func WithEditableColumn(field crud.Field) ColumnOpt {
 
 type TableConfigOpt func(c *TableConfig)
 
+func WithoutSearch() TableConfigOpt {
+	return func(c *TableConfig) {
+		c.WithoutSearch = true
+	}
+}
+
 func WithEditable(config TableEditableConfig) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.Editable = config
@@ -725,6 +754,12 @@ func WithInfiniteScroll(hasMore bool, page, perPage int) TableConfigOpt {
 		c.Infinite.HasMore = hasMore
 		c.Infinite.Page = page
 		c.Infinite.PerPage = perPage
+	}
+}
+
+func WithSearchPlaceholder(placeholder string) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.SearchPlaceholder = placeholder
 	}
 }
 
@@ -743,16 +778,23 @@ type TableEditableConfig struct {
 	ActionColumnLabel string
 }
 
+type TableHeadConfig struct {
+	Attrs templ.Attributes
+}
+
 type TableConfig struct {
-	Title      string
-	DataURL    string
-	Filters    []templ.Component
-	Actions    []templ.Component // Actions like Create button
-	Columns    []TableColumn
-	Rows       []TableRow
-	Infinite   *InfiniteScrollConfig
-	SideFilter templ.Component
-	Editable   TableEditableConfig
+	Title             string
+	DataURL           string
+	Filters           []templ.Component
+	Actions           []templ.Component // Actions like Create button
+	Columns           []TableColumn
+	Rows              []TableRow
+	Head              TableHeadConfig
+	Infinite          *InfiniteScrollConfig
+	SideFilter        templ.Component
+	Editable          TableEditableConfig
+	WithoutSearch     bool
+	SearchPlaceholder string // Custom placeholder for search input
 
 	// Sorting configuration
 	CurrentSort      string // Current sort field
@@ -799,11 +841,27 @@ func Row(cells ...TableCell) TableRow {
 	}
 }
 
-func Cell(component templ.Component, value any) TableCell {
-	return &tableCellImpl{
+func WithCellClasses(classes templ.CSSClasses) CellOpt {
+	return func(c *tableCellImpl) {
+		c.classes = classes
+	}
+}
+
+func WithCellAttrs(attrs templ.Attributes) CellOpt {
+	return func(c *tableCellImpl) {
+		c.attrs = attrs
+	}
+}
+
+func Cell(component templ.Component, value any, opts ...CellOpt) TableCell {
+	cell := &tableCellImpl{
 		component: component,
 		value:     value,
 	}
+	for _, opt := range opts {
+		opt(cell)
+	}
+	return cell
 }
 
 func (c *TableConfig) AddCols(cols ...TableColumn) *TableConfig {
@@ -864,12 +922,20 @@ func (c *TableConfig) AddActions(actions ...templ.Component) *TableConfig {
 
 // UseSearchQuery gets the "Search" query parameter from the request
 func UseSearchQuery(r *http.Request) string {
-	return r.URL.Query().Get(QueryParamSearch)
+	values := r.URL.Query()[QueryParamSearch]
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	return ""
 }
 
 // UsePageQuery gets the "page" query parameter from the request and converts it to int
 func UsePageQuery(r *http.Request) int {
-	pageStr := r.URL.Query().Get(QueryParamPage)
+	values := r.URL.Query()[QueryParamPage]
+	pageStr := ""
+	if len(values) > 0 {
+		pageStr = values[len(values)-1]
+	}
 	if pageStr == "" {
 		return 1 // default to page 1
 	}
@@ -898,12 +964,20 @@ func UseLimitQuery(r *http.Request) int {
 
 // UseSortQuery gets the "sort" query parameter from the request
 func UseSortQuery(r *http.Request) string {
-	return r.URL.Query().Get(QueryParamSort)
+	values := r.URL.Query()[QueryParamSort]
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	return ""
 }
 
 // UseOrderQuery gets the "order" query parameter from the request (asc/desc)
 func UseOrderQuery(r *http.Request) string {
-	order := r.URL.Query().Get(QueryParamOrder)
+	values := r.URL.Query()[QueryParamOrder]
+	order := ""
+	if len(values) > 0 {
+		order = values[len(values)-1]
+	}
 	// Only return a value if explicitly set, otherwise return empty string
 	if order == SortDirectionAsc.String() || order == SortDirectionDesc.String() {
 		return order

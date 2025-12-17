@@ -86,6 +86,7 @@
         "Placeholder": "Select currency"
       },
       "_Description": "Description",
+      "IsCOGS": "Cost of Goods Sold (COGS)",
       "Delete": "Delete category",
       "DeleteConfirmation": "Are you sure you want to delete this expense category?"
     }
@@ -213,32 +214,9 @@
     },
     "LegalTypes": {
       "INDIVIDUAL": "Individual",
-      "LEGAL_ENTITY": "Legal Entity",
-      "LLC": "LLC",
-      "JSC": "Joint Stock Company",
-      "INC": "Incorporated",
-      "LTD": "Limited",
-      "PLC": "Public Limited Company",
-      "LLP": "Limited Liability Partnership",
-      "GMBH": "GmbH",
-      "AG": "AG",
-      "SA": "SA",
-      "PTYLTD": "Pty Ltd",
-      "CCORP": "C Corporation",
-      "SCORP": "S Corporation",
-      "SP": "Sole Proprietorship",
-      "SC": "Sociedad Colectiva",
-      "OU": "Osaühing",
-      "AB": "Aktiebolag",
-      "AS": "Aksjeselskap",
-      "SARL": "SARL",
-      "BV": "BV",
-      "KK": "Kabushiki Kaisha",
-      "SAO": "Societate pe Acțiuni",
-      "LLLP": "Limited Liability Limited Partnership",
-      "UAB": "Uždaroji Akcinė Bendrovė",
-      "SPZOO": "Sp. z o.o.",
-      "SRL": "SRL"
+      "LLC": "LLC (Limited Liability Company)",
+      "JSC": "JSC (Joint Stock Company)",
+      "SOLE_PROPRIETORSHIP": "Sole Proprietorship"
     }
   },
   "MoneyAccounts": {
@@ -566,6 +544,28 @@
     },
     "Drawer": {
       "Title": "Debt Details"
+    }
+  },
+  "Attachments": {
+    "Title": "Attachments",
+    "AddFiles": "Add Files",
+    "ChooseFiles": "Choose Files",
+    "SupportedFormats": "Supported formats: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX",
+    "ExistingFiles": "Existing Files",
+    "AttachedFiles": "Attached Files",
+    "DeleteConfirmation": "Are you sure you want to delete this attachment?",
+    "DeleteFile": "Delete File"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "Financial Documents",
+      "AddFiles": "Add Documents",
+      "ChooseFiles": "Choose Documents",
+      "SupportedFormats": "Upload receipts, invoices, contracts and other financial documents",
+      "ExistingFiles": "Existing Documents",
+      "AttachedFiles": "Attached Documents",
+      "DeleteConfirmation": "Are you sure you want to delete this document?",
+      "DeleteFile": "Delete Document"
     }
   },
   "ValidationErrors": {

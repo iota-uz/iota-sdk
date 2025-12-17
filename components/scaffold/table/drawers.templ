@@ -59,7 +59,7 @@ templ DefaultDrawer(props DefaultDrawerProps) {
 			"@closed":  "document.getElementById('view-drawer').innerHTML = ''",
 		},
 	}) {
-		<div class="bg-white w-full md:w-2/3 ml-auto">
+		<div class="bg-white dark:bg-gray-900 w-full md:w-2/3 ml-auto">
 			<div class="flex flex-col h-full">
 				<form method="dialog">
 					<div class="flex justify-between px-4 py-3 border-b border-primary">
@@ -94,13 +94,13 @@ templ DetailsDrawer(props DetailsDrawerProps) {
 			},
 		}) {
 			<div class="p-6 space-y-4">
-				<dl class="divide-y divide-gray-100">
+				<dl class="divide-y divide-gray-100 dark:divide-gray-700">
 					for _, field := range props.Fields {
 						<div class="px-4 py-6 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
-							<dt class="text-sm font-medium leading-6 text-gray-900">
+							<dt class="text-sm font-medium leading-6 text-gray-900 dark:text-gray-100">
 								{ field.Label }
 							</dt>
-							<dd class="mt-1 text-sm leading-6 text-gray-700 sm:col-span-2 sm:mt-0">
+							<dd class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-300 sm:col-span-2 sm:mt-0">
 								@renderDetailFieldValue(field)
 							</dd>
 						</div>
@@ -137,19 +137,19 @@ templ DetailsDrawer(props DetailsDrawerProps) {
 
 templ renderDetailFieldValue(field DetailFieldValue) {
 	if field.Value == "" {
-		<span class="text-gray-400">-</span>
+		<span class="text-gray-400 dark:text-gray-300">-</span>
 	} else {
 		switch field.Type {
 			case DetailFieldTypeHTML:
 				@templ.Raw(field.Value)
 			case DetailFieldTypeBoolean:
 				if field.Value == "true" {
-					<span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">True</span>
+					<span class="inline-flex items-center rounded-md bg-green-50 dark:bg-green-900/20 px-2 py-1 text-xs font-medium text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20 dark:ring-green-500/30">True</span>
 				} else {
-					<span class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/20">False</span>
+					<span class="inline-flex items-center rounded-md bg-red-50 dark:bg-red-900/20 px-2 py-1 text-xs font-medium text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20 dark:ring-red-500/30">False</span>
 				}
 			case DetailFieldTypeBadge:
-				<span class="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">{ field.Value }</span>
+				<span class="inline-flex items-center rounded-md bg-blue-50 dark:bg-blue-900/20 px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 ring-1 ring-inset ring-blue-600/20 dark:ring-blue-500/30">{ field.Value }</span>
 			default:
 				{ field.Value }
 		}

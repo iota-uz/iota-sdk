@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/exportconfig"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -34,6 +35,14 @@ func (m *MockUploadRepository) GetByID(ctx context.Context, id uint) (upload.Upl
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(upload.Upload), args.Error(1)
+}
+
+func (m *MockUploadRepository) GetByIDs(ctx context.Context, ids []uint) ([]upload.Upload, error) {
+	args := m.Called(ctx, ids)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]upload.Upload), args.Error(1)
 }
 
 func (m *MockUploadRepository) GetByHash(ctx context.Context, hash string) (upload.Upload, error) {
@@ -204,6 +213,18 @@ func (m *MockUpload) SetID(id uint) {
 	m.Called()
 }
 
+func (m *MockUpload) GeoPoint() geopoint.GeoPoint {
+	args := m.Called()
+	if args.Get(0) == nil {
+		return nil
+	}
+	return args.Get(0).(geopoint.GeoPoint)
+}
+
+func (m *MockUpload) SetGeoPoint(point geopoint.GeoPoint) {
+	m.Called(point)
+}
+
 // TestExcelExportService tests
 func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 	// Create mocks
@@ -236,6 +257,7 @@ func TestExcelExportService_ExportFromDataSource(t *testing.T) {
 	mockUpload.On("Hash").Return("abc123")
 	mockUpload.On("Slug").Return("abc123")
 	mockUpload.On("Path").Return("uploads/abc123.xlsx")
+	mockUpload.On("GeoPoint").Return(nil)
 
 	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
@@ -319,6 +341,7 @@ func TestExcelExportService_ExportFromDataSourceWithOptions(t *testing.T) {
 	mockUpload := new(MockUpload)
 	mockUpload.On("ID").Return(uint(2))
 	mockUpload.On("Name").Return("scores.xlsx")
+	mockUpload.On("GeoPoint").Return(nil)
 
 	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
@@ -365,6 +388,7 @@ func TestExcelExportService_ExportFromDataSource_EmptyFilename(t *testing.T) {
 	mockUpload := new(MockUpload)
 	mockUpload.On("ID").Return(uint(3))
 	mockUpload.On("Name").Return(mock.Anything)
+	mockUpload.On("GeoPoint").Return(nil)
 
 	mockRepo.On("GetBySlug", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)
 	mockRepo.On("GetByHash", mock.Anything, mock.Anything).Return(nil, persistence.ErrUploadNotFound)

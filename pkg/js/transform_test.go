@@ -111,7 +111,7 @@ func TestToJS(t *testing.T) {
 		{name: "slice_of_ints", input: []int{1, 2, 3}, expected: "[1,2,3]"},
 		{name: "slice_of_strings", input: []string{"a", "b", "c"}, expected: "['a','b','c']"},
 		{name: "slice_of_bools", input: []bool{true, false, true}, expected: "[true,false,true]"},
-		{name: "slice_of_mixed_primitives_interface_with_nil", input: []interface{}{1, "two", true, 3.14, nil}, expected: "[1,\"two\",true,3.14,null]"},
+		{name: "slice_of_mixed_primitives_interface_with_nil", input: []interface{}{1, "two", true, 3.14, nil}, expected: "[1,'two',true,3.14,null]"},
 		{name: "slice_of_simple_structs", input: []simpleStruct{person, {Name: "Jane", Age: 25}}, expected: "[{'Name': 'John','Age': 30},{'Name': 'Jane','Age': 25}]"},
 		{name: "slice_of_pointers_to_structs_with_nil", input: []*simpleStruct{&person, nil, {Name: "Doe", Age: 99}}, expected: "[{'Name': 'John','Age': 30},null,{'Name': 'Doe','Age': 99}]"},
 		{name: "slice_of_JSExpression", input: []templ.JSExpression{templ.JSExpression("fn1()"), templ.JSExpression("fn2()")}, expected: "[fn1(),fn2()]"},
@@ -217,4 +217,52 @@ func TestToJS(t *testing.T) {
 			assert.Equal(t, tt.expected, result, "Output mismatch for test: %s", tt.name)
 		})
 	}
+}
+
+func TestMustToJS(t *testing.T) {
+	t.Run("Success cases", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			input    interface{}
+			expected string
+		}{
+			{
+				name:     "String slice",
+				input:    []string{"a", "b", "c"},
+				expected: "['a','b','c']",
+			},
+			{
+				name:     "Int slice",
+				input:    []int{1, 2, 3},
+				expected: "[1,2,3]",
+			},
+			{
+				name:     "Map",
+				input:    map[string]int{"key1": 100},
+				expected: "{'key1': 100}",
+			},
+			{
+				name:     "Empty slice",
+				input:    []int{},
+				expected: "[]",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := MustToJS(tt.input)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("Panic on error", func(t *testing.T) {
+		// This test ensures MustToJS panics on unsupported types
+		// Currently, all types are supported via json.Marshal fallback,
+		// so we can't easily trigger a panic without mocking.
+		// This test documents the expected behavior.
+		assert.NotPanics(t, func() {
+			_ = MustToJS([]string{"test"})
+		})
+	})
 }

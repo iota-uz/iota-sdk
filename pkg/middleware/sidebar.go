@@ -80,9 +80,10 @@ func NavItems() mux.MiddlewareFunc {
 				tabGroups := pkgsidebar.BuildTabGroups(enabledNavItems, localizer)
 
 				sidebarProps := sidebar.Props{
-					Header:    layouts.DefaultSidebarHeader(),
-					TabGroups: tabGroups,
-					Footer:    layouts.DefaultSidebarFooter(),
+					Header:       layouts.DefaultSidebarHeader(),
+					TabGroups:    tabGroups,
+					Footer:       layouts.DefaultSidebarFooter(),
+					InitialState: sidebar.SidebarAuto, // Default: respect localStorage
 				}
 
 				ctx := context.WithValue(r.Context(), constants.AllNavItemsKey, filtered)

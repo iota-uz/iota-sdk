@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/toast"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -130,7 +131,7 @@ templ SidebarTrigger(class string) {
 	</button>
 }
 
-templ Navbar(pageCtx *types.PageContext) {
+templ Navbar(pageCtx types.PageContextProvider) {
 	<section class="h-16 shadow-b-lg border-b w-full flex items-center px-8 bg-surface-300 border-b-primary">
 		<div class="ml-auto flex items-center gap-8">
 			<div class="hidden lg:block">
@@ -160,7 +161,7 @@ templ DefaultSidebarFooter() {
 	@SidebarFooter(pageCtx)
 }
 
-templ SidebarFooter(pageCtx *types.PageContext) {
+templ SidebarFooter(pageCtx types.PageContextProvider) {
 	<!-- Collapsed view: icon only -->
 	<div x-show="isCollapsed">
 		@button.Sidebar(button.Props{
@@ -223,10 +224,11 @@ templ Authenticated(props AuthenticatedProps) {
 		{{ props.WebsocketURL = "/ws" }}
 	}
 	@Base(&props.BaseProps) {
+		@toast.Container()
 		@MobileSidebar(sidebarProps)
 		<div
-			x-data="{ 
-				sidebarCollapsed: localStorage.getItem('sidebar-collapsed') === 'true',
+			x-data="{
+				sidebarCollapsed: initSidebarCollapsed(),
 				init() {
 					this.$nextTick(() => {
 						// Listen for storage changes from other tabs
@@ -238,6 +240,7 @@ templ Authenticated(props AuthenticatedProps) {
 					});
 				}
 			}"
+			data-sidebar-state={ string(sidebarProps.InitialState) }
 			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
 			:class="{ 'lg:grid-cols-[4rem_1fr]': sidebarCollapsed, 'lg:grid-cols-[280px_1fr]': !sidebarCollapsed }"
 			class="grid min-h-screen w-full overflow-y-auto"

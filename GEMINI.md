@@ -61,16 +61,21 @@ DevHub is a development environment orchestrator that manages all development se
 - **Reviewing older logs**: Use `get_logs("server", lines=100, offset=200)` to see logs from earlier in the session
 
 ## Build/Lint/Test Commands
-- Format code and remove unused imports: `make fmt`
-- Apply migrations: `make migrate up`
+
+### Code Quality Commands:
+- Format Go code and templates: `make fix fmt`
+- Organize and format Go imports: `make fix imports`
+- Lint code (check unused variables/functions): `make check lint`
+- Check translation files: `make check tr`
+
+### Other Commands:
+- Apply migrations: `make db migrate up`
 - After changes to .templ files: `templ generate`
-- After changes to Go code: `go vet ./...` 
+- After changes to Go code: `go vet ./...`
 - Do NOT run `go build`, as it does the same thing as `go vet`
 - Run all tests: `make test` or `go test -v ./...`
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
-- Linting translation files: `make check-tr`
-- Linting code: `make lint`
 
 ## Code Style Guidelines
 - Use Go v1.23.2 and follow standard Go idioms

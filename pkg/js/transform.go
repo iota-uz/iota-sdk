@@ -14,6 +14,23 @@ func ToJS(v interface{}) (string, error) {
 	return toJSInternal(reflect.ValueOf(v), 0)
 }
 
+// MustToJS is like ToJS but panics if an error occurs.
+// This is useful in contexts where errors are unexpected and indicate
+// a programming error rather than runtime conditions.
+//
+// Example:
+//
+//	data := []string{"a", "b", "c"}
+//	jsCode := js.MustToJS(data)
+//	// jsCode is "['a','b','c']"
+func MustToJS(v interface{}) string {
+	result, err := ToJS(v)
+	if err != nil {
+		panic(fmt.Sprintf("js.MustToJS: failed to convert to JavaScript: %v", err))
+	}
+	return result
+}
+
 // toJSInternal handles the actual transformation
 func toJSInternal(v reflect.Value, indent int) (string, error) {
 	// Handle nil values
@@ -65,7 +82,11 @@ func toJSInternal(v reflect.Value, indent int) (string, error) {
 		// with a real function reference later
 		return fmt.Sprintf("/* function reference: %s */", v.Type()), nil
 
-	case reflect.Chan, reflect.Interface, reflect.Ptr, reflect.UnsafePointer, reflect.Uintptr:
+	case reflect.Interface:
+		// Unwrap interface and recursively process the contained value
+		return toJSInternal(v.Elem(), indent)
+
+	case reflect.Chan, reflect.Ptr, reflect.UnsafePointer, reflect.Uintptr:
 		// For these types, try to marshal to JSON if possible
 		js, err := json.Marshal(v.Interface())
 		if err != nil {

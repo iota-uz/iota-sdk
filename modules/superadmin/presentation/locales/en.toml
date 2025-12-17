@@ -1,0 +1,89 @@
+[SuperAdmin.NavigationLinks]
+Dashboard = "Dashboard"
+Tenants = "Tenants"
+
+[SuperAdmin.Dashboard]
+Title = "Super Admin Dashboard"
+DateRange = "Date Range"
+
+[SuperAdmin.Dashboard.Meta]
+Title = "Dashboard - Super Admin"
+
+[SuperAdmin.Dashboard.Metrics]
+TotalTenants = "Total Tenants"
+TotalUsers = "Total Users"
+ActiveUsers = "Active Users"
+DAU = "Daily Active Users"
+WAU = "Weekly Active Users"
+MAU = "Monthly Active Users"
+TotalSessions = "Total Sessions"
+
+[SuperAdmin.Dashboard.Charts]
+UserSignups = "User Sign-ups"
+TenantSignups = "Tenant Sign-ups"
+
+[SuperAdmin.Tenants]
+Title = "Tenants"
+Name = "Tenant Name"
+Domain = "Domain"
+Email = "Email"
+Phone = "Phone"
+UserCount = "User Count"
+StatusColumn = "Status"
+CreatedAt = "Created Date"
+Actions = "Actions"
+ViewUsers = "View Users"
+Export = "Export to Excel"
+FilterByDate = "Filter by Date Range"
+StartDate = "Start Date"
+EndDate = "End Date"
+ClearFilter = "Clear Filter"
+
+[SuperAdmin.Tenants.Meta]
+Title = "Tenants - Super Admin"
+
+[SuperAdmin.Tenants.Status]
+Active = "Active"
+Inactive = "Inactive"
+
+[SuperAdmin.Tenants.Users]
+Title = "Tenant Users"
+ViewUsers = "View Users"
+BackToTenants = "Back to Tenants"
+TenantInfo = "Tenant Information"
+FullName = "Full Name"
+FirstName = "First Name"
+LastName = "Last Name"
+Email = "Email"
+Phone = "Phone"
+Role = "Role"
+CreatedAt = "Created Date"
+LastLogin = "Last Login"
+Status = "Status"
+Actions = "Actions"
+ResetPassword = "Reset Password"
+ResetPasswordTitle = "Reset Password"
+ResetPasswordFor = "Reset Password for %s"
+NewPassword = "New Password"
+EnterNewPassword = "Enter new password"
+GeneratePassword = "Generate Secure Password"
+GeneratedPassword = "Generated Password"
+SetPassword = "Set Password"
+CopyPassword = "Copy Password"
+PasswordCopied = "Password copied to clipboard"
+PasswordResetSuccess = "Password reset successfully"
+PasswordResetError = "Failed to reset password"
+Cancel = "Cancel"
+ManualEntry = "Manual Entry"
+AutoGenerate = "Auto-Generate"
+
+[SuperAdmin.Tenants.Users.Meta]
+Title = "Tenant Users - Super Admin"
+
+[SuperAdmin.Tenants.Users.Errors]
+PasswordTooShort = "Password must be at least 8 characters"
+PasswordTooLong = "Password cannot exceed 128 characters"
+PasswordEmpty = "Password cannot be empty"
+InvalidContentType = "Request must use JSON format"
+NetworkError = "Network error occurred. Please try again"
+ServerError = "Server error occurred. Please contact support"

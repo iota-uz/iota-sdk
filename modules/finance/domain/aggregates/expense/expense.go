@@ -1,6 +1,7 @@
 package expense
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,6 +79,12 @@ func WithTenantID(tenantID uuid.UUID) Option {
 	}
 }
 
+func WithAttachments(attachments []uint) Option {
+	return func(e *expense) {
+		e.attachments = attachments
+	}
+}
+
 // Interface
 type Expense interface {
 	ID() uuid.UUID
@@ -98,6 +105,12 @@ type Expense interface {
 	SetAmount(amount *money.Money) Expense
 	SetDate(date time.Time) Expense
 	SetAccountingPeriod(period time.Time) Expense
+
+	// Attachment methods
+	GetAttachments() []uint
+	HasAttachment(uploadID uint) bool
+	AttachFile(uploadID uint) (Expense, error)
+	DetachFile(uploadID uint) (Expense, error)
 }
 
 // Implementation
@@ -120,6 +133,7 @@ func New(
 		createdAt:        time.Now(),
 		updatedAt:        time.Now(),
 		tenantID:         uuid.Nil,
+		attachments:      []uint{},
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -139,6 +153,7 @@ type expense struct {
 	createdAt        time.Time
 	updatedAt        time.Time
 	tenantID         uuid.UUID
+	attachments      []uint
 }
 
 func (e *expense) ID() uuid.UUID {
@@ -225,4 +240,58 @@ func (e *expense) SetAccountingPeriod(period time.Time) Expense {
 
 func (e *expense) TenantID() uuid.UUID {
 	return e.tenantID
+}
+
+// Attachment methods
+func (e *expense) GetAttachments() []uint {
+	// Return a copy to prevent external modification
+	attachments := make([]uint, len(e.attachments))
+	copy(attachments, e.attachments)
+	return attachments
+}
+
+func (e *expense) HasAttachment(uploadID uint) bool {
+	for _, id := range e.attachments {
+		if id == uploadID {
+			return true
+		}
+	}
+	return false
+}
+
+func (e *expense) AttachFile(uploadID uint) (Expense, error) {
+	if uploadID == 0 {
+		return nil, fmt.Errorf("upload ID cannot be zero")
+	}
+
+	if e.HasAttachment(uploadID) {
+		return nil, fmt.Errorf("file with ID %d is already attached", uploadID)
+	}
+
+	result := *e
+	result.attachments = make([]uint, len(e.attachments)+1)
+	copy(result.attachments, e.attachments)
+	result.attachments[len(e.attachments)] = uploadID
+	result.updatedAt = time.Now()
+	return &result, nil
+}
+
+func (e *expense) DetachFile(uploadID uint) (Expense, error) {
+	if uploadID == 0 {
+		return nil, fmt.Errorf("upload ID cannot be zero")
+	}
+
+	if !e.HasAttachment(uploadID) {
+		return nil, fmt.Errorf("file with ID %d is not attached", uploadID)
+	}
+
+	result := *e
+	result.attachments = make([]uint, 0, len(e.attachments)-1)
+	for _, id := range e.attachments {
+		if id != uploadID {
+			result.attachments = append(result.attachments, id)
+		}
+	}
+	result.updatedAt = time.Now()
+	return &result, nil
 }

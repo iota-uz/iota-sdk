@@ -22,13 +22,25 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
+// paymentCommittedCtx returns a context without the test transaction, so data saved
+// with this context will be committed immediately and visible to InTx operations.
+func paymentCommittedCtx(fixtures *itf.TestEnvironment) context.Context {
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, fixtures.Pool)
+	ctx = composables.WithTenantID(ctx, fixtures.TenantID())
+	ctx = composables.WithParams(ctx, itf.DefaultParams())
+	ctx = composables.WithSession(ctx, itf.MockSession())
+	ctx = composables.WithUser(ctx, fixtures.User)
+	return ctx
+}
+
 // setupTestData creates necessary test data and returns account and counterparty
 func setupTestData(ctx context.Context, t *testing.T, f *itf.TestEnvironment) (moneyaccount.Account, counterparty.Counterparty) {
 	t.Helper()
 
 	// Create currency
 	currencyRepo := corepersistence.NewCurrencyRepository()
-	if err := currencyRepo.Create(ctx, &currency.USD); err != nil {
+	if err := currencyRepo.Create(ctx, currency.USD); err != nil {
 		t.Fatal(err)
 	}
 
@@ -76,14 +88,17 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		permissions.PaymentUpdate,
 		permissions.PaymentDelete,
 	)
-	account, createdCounterparty := setupTestData(f.Ctx, t, f)
+
+	// Use committed context for all operations so data is visible to InTx operations
+	ctx := paymentCommittedCtx(f)
+	account, createdCounterparty := setupTestData(ctx, t, f)
 	accountRepository := persistence.NewMoneyAccountRepository()
 
 	// Create payment category with tenant ID
-	tenantID, err := composables.UseTenantID(f.Ctx)
+	tenantID, err := composables.UseTenantID(ctx)
 	require.NoError(t, err)
 	category := paymentcategory.New("Test Category", paymentcategory.WithTenantID(tenantID))
-	createdCategory, err := getPaymentCategoryService(f).Create(f.Ctx, category)
+	createdCategory, err := getPaymentCategoryService(f).Create(ctx, category)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,12 +114,12 @@ func TestPaymentsService_CRUD(t *testing.T) {
 		payment.WithAccount(account),
 	)
 
-	_, err = getPaymentService(f).Create(f.Ctx, paymentEntity)
+	_, err = getPaymentService(f).Create(ctx, paymentEntity)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	accountEntity, err := accountRepository.GetByID(f.Ctx, account.ID())
+	accountEntity, err := accountRepository.GetByID(ctx, account.ID())
 	if err != nil {
 		t.Fatal(err)
 	}

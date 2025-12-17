@@ -19,11 +19,11 @@ func NewProjectService(repo project.Repository, publisher eventbus.EventBus) *Pr
 	}
 }
 
-func (s *ProjectService) GetByID(ctx context.Context, id uint) (*project.Project, error) {
+func (s *ProjectService) GetByID(ctx context.Context, id uint) (project.Project, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *ProjectService) GetAll(ctx context.Context) ([]*project.Project, error) {
+func (s *ProjectService) GetAll(ctx context.Context) ([]project.Project, error) {
 	return s.repo.GetAll(ctx)
 }
 
@@ -31,7 +31,7 @@ func (s *ProjectService) GetPaginated(
 	ctx context.Context,
 	limit, offset int,
 	sortBy []string,
-) ([]*project.Project, error) {
+) ([]project.Project, error) {
 	return s.repo.GetPaginated(ctx, limit, offset, sortBy)
 }
 
@@ -40,7 +40,7 @@ func (s *ProjectService) Create(ctx context.Context, data *project.CreateDTO) er
 	if err := s.repo.Create(ctx, entity); err != nil {
 		return err
 	}
-	createdEvent, err := project.NewCreatedEvent(ctx, *data, *entity)
+	createdEvent, err := project.NewCreatedEvent(ctx, *data, entity)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (s *ProjectService) Update(ctx context.Context, id uint, data *project.Upda
 	if err := s.repo.Update(ctx, entity); err != nil {
 		return err
 	}
-	updatedEvent, err := project.NewUpdatedEvent(ctx, *data, *entity)
+	updatedEvent, err := project.NewUpdatedEvent(ctx, *data, entity)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (s *ProjectService) Update(ctx context.Context, id uint, data *project.Upda
 	return nil
 }
 
-func (s *ProjectService) Delete(ctx context.Context, id uint) (*project.Project, error) {
+func (s *ProjectService) Delete(ctx context.Context, id uint) (project.Project, error) {
 	entity, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (s *ProjectService) Delete(ctx context.Context, id uint) (*project.Project,
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return nil, err
 	}
-	deletedEvent, err := project.NewDeletedEvent(ctx, *entity)
+	deletedEvent, err := project.NewDeletedEvent(ctx, entity)
 	if err != nil {
 		return nil, err
 	}

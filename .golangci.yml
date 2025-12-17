@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 10000s
   allow-parallel-runners: true
@@ -16,19 +18,12 @@ issues:
     - migrations
 
 output:
-  formats:
-    - format: colored-line-number
-      path: stderr
-
+  format: colored-line-number
   sort-results: true
   sort-order:
     - linter
     - severity
     - file
-  # print lines of code with issue, default is true
-  print-issued-lines: false
-  # print linter name in the end of issue text, default is true
-  print-linter-name: true
 
 
 linters:
@@ -60,15 +55,15 @@ linters:
     #    - goconst
     #    - gocyclo
     #    - godot
-    - gofmt
+    #    - gofmt
     #    - gofumpt
     - goheader
     #    - goimports
     - gomoddirectives
     - gomodguard
     - goprintffuncname
-    - gosimple
-    - gosmopolitan
+    #    - gosimple
+    #    - gosmopolitan
     - govet
     - grouper
     - importas

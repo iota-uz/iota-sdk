@@ -159,9 +159,9 @@ func InventoryTable(props *IndexPageProps) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var9 string
-							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(check.LocalizedStatus(pageCtx.Localizer))
+							templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(check.LocalizedStatus(pageCtx.GetLocalizer()))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/inventory/inventory.templ`, Line: 55, Col: 50}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/inventory/inventory.templ`, Line: 55, Col: 55}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 							if templ_7745c5c3_Err != nil {

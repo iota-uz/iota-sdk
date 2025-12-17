@@ -42,6 +42,12 @@ func WithCreatedAt(createdAt time.Time) Option {
 	}
 }
 
+func WithUpdatedAt(updatedAt time.Time) Option {
+	return func(o *order) {
+		o.updatedAt = updatedAt
+	}
+}
+
 // --- Interfaces ---
 
 type Order interface {
@@ -51,10 +57,13 @@ type Order interface {
 	Status() Status
 	Items() []Item
 	CreatedAt() time.Time
+	UpdatedAt() time.Time
 
 	Events() []interface{}
 
 	SetTenantID(tenantID uuid.UUID) Order
+	SetStatus(status Status) Order
+	SetItems(items []Item) Order
 	AddItem(position position.Position, products ...product.Product) (Order, error)
 	Complete() (Order, error)
 }

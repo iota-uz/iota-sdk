@@ -60,11 +60,17 @@ module.exports = {
           700: "oklch(var(--primary-700) / <alpha-value>)",
         },
         gray: {
+          50: "oklch(var(--gray-50) / <alpha-value>)",
           100: "oklch(var(--gray-100) / <alpha-value>)",
           200: "oklch(var(--gray-200) / <alpha-value>)",
           300: "oklch(var(--gray-300) / <alpha-value>)",
           400: "oklch(var(--gray-400) / <alpha-value>)",
           500: "oklch(var(--gray-500) / <alpha-value>)",
+          600: "oklch(var(--gray-600) / <alpha-value>)",
+          700: "oklch(var(--gray-700) / <alpha-value>)",
+          800: "oklch(var(--gray-800) / <alpha-value>)",
+          900: "oklch(var(--gray-900) / <alpha-value>)",
+          950: "oklch(var(--gray-950) / <alpha-value>)",
         },
         green: {
           50: "oklch(var(--green-50) / <alpha-value>)",
@@ -77,6 +83,8 @@ module.exports = {
           100: "oklch(var(--red-100))",
           200: "oklch(var(--red-200))",
           500: "oklch(var(--red-500) / <alpha-value>)",
+          600: "oklch(var(--red-600) / <alpha-value>)",
+          700: "oklch(var(--red-700) / <alpha-value>)",
         },
         badge: {
           pink: "oklch(var(--clr-badge-pink))",

@@ -86,11 +86,12 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 // ---- Application implementation ----
 
 type ApplicationOptions struct {
-	Pool     *pgxpool.Pool
-	EventBus eventbus.EventBus
-	Logger   *logrus.Logger
-	Bundle   *i18n.Bundle
-	Huber    Huber
+	Pool               *pgxpool.Pool
+	EventBus           eventbus.EventBus
+	Logger             *logrus.Logger
+	Bundle             *i18n.Bundle
+	Huber              Huber
+	SupportedLanguages []string
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -106,34 +107,36 @@ func New(opts *ApplicationOptions) Application {
 	sl.Register(quickLinks)
 
 	return &application{
-		pool:           opts.Pool,
-		eventPublisher: opts.EventBus,
-		websocket:      opts.Huber,
-		controllers:    make(map[string]Controller),
-		services:       make(map[reflect.Type]interface{}),
-		quickLinks:     quickLinks,
-		spotlight:      sl,
-		bundle:         opts.Bundle,
-		migrations:     NewMigrationManager(opts.Pool),
+		pool:               opts.Pool,
+		eventPublisher:     opts.EventBus,
+		websocket:          opts.Huber,
+		controllers:        make(map[string]Controller),
+		services:           make(map[reflect.Type]interface{}),
+		quickLinks:         quickLinks,
+		spotlight:          sl,
+		bundle:             opts.Bundle,
+		migrations:         NewMigrationManager(opts.Pool),
+		supportedLanguages: opts.SupportedLanguages,
 	}
 }
 
 // application with a dynamically extendable service registry
 type application struct {
-	pool           *pgxpool.Pool
-	eventPublisher eventbus.EventBus
-	websocket      Huber
-	services       map[reflect.Type]interface{}
-	controllers    map[string]Controller
-	middleware     []mux.MiddlewareFunc
-	hashFsAssets   []*hashfs.FS
-	assets         []*embed.FS
-	graphSchemas   []GraphSchema
-	bundle         *i18n.Bundle
-	spotlight      spotlight.Spotlight
-	quickLinks     *spotlight.QuickLinks
-	migrations     MigrationManager
-	navItems       []types.NavigationItem
+	pool               *pgxpool.Pool
+	eventPublisher     eventbus.EventBus
+	websocket          Huber
+	services           map[reflect.Type]interface{}
+	controllers        map[string]Controller
+	middleware         []mux.MiddlewareFunc
+	hashFsAssets       []*hashfs.FS
+	assets             []*embed.FS
+	graphSchemas       []GraphSchema
+	bundle             *i18n.Bundle
+	spotlight          spotlight.Spotlight
+	quickLinks         *spotlight.QuickLinks
+	migrations         MigrationManager
+	navItems           []types.NavigationItem
+	supportedLanguages []string
 }
 
 func (app *application) Spotlight() spotlight.Spotlight {
@@ -254,4 +257,8 @@ func (app *application) Services() map[reflect.Type]interface{} {
 
 func (app *application) Bundle() *i18n.Bundle {
 	return app.bundle
+}
+
+func (app *application) GetSupportedLanguages() []string {
+	return app.supportedLanguages
 }

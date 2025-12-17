@@ -14,16 +14,17 @@ var (
 	tippyCss     = "/assets/" + assets.HashFS.HashName("css/tippy.css")
 	tippyAnimCss = "/assets/" + assets.HashFS.HashName("css/tippy-animations.css")
 
-	alpine        = "/assets/" + assets.HashFS.HashName("js/alpine.js")
-	htmx          = "/assets/" + assets.HashFS.HashName("js/lib/htmx.min.js")
-	htmxSSE       = "/assets/" + assets.HashFS.HashName("js/lib/htmx-sse.js")
-	htmxStream    = "/assets/" + assets.HashFS.HashName("js/lib/htmx-stream.js")
-	htmxPreload   = "/assets/" + assets.HashFS.HashName("js/lib/htmx.preload.js")
-	apexJs        = "/assets/" + assets.HashFS.HashName("js/lib/apexcharts.min.js")
-	chartEvents   = "/assets/" + assets.HashFS.HashName("js/lib/chart-events.js")
-	htmxWS        = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
-	alpineTooltip = "/assets/" + assets.HashFS.HashName("js/lib/alpine-tooltip.min.js")
-	permissionsJs = "/assets/" + assets.HashFS.HashName("js/permissions.js")
+	alpine         = "/assets/" + assets.HashFS.HashName("js/alpine.js")
+	htmx           = "/assets/" + assets.HashFS.HashName("js/lib/htmx.min.js")
+	htmxSSE        = "/assets/" + assets.HashFS.HashName("js/lib/htmx-sse.js")
+	htmxStream     = "/assets/" + assets.HashFS.HashName("js/lib/htmx-stream.js")
+	htmxPreload    = "/assets/" + assets.HashFS.HashName("js/lib/htmx.preload.js")
+	apexJs         = "/assets/" + assets.HashFS.HashName("js/lib/apexcharts.min.js")
+	chartEvents    = "/assets/" + assets.HashFS.HashName("js/lib/chart-events.js")
+	htmxWS         = "/assets/" + assets.HashFS.HashName("js/lib/htmx.ws.js")
+	alpineTooltip  = "/assets/" + assets.HashFS.HashName("js/lib/alpine-tooltip.min.js")
+	htmxAlpineInit = "/assets/" + assets.HashFS.HashName("js/lib/htmx-alpine-init.js")
+	permissionsJs  = "/assets/" + assets.HashFS.HashName("js/permissions.js")
 )
 
 templ DefaultHead() {
@@ -46,6 +47,7 @@ templ DefaultHead() {
 	<script src={ apexJs }></script>
 	<script defer src={ chartEvents }></script>
 	<script src={ htmxWS }></script>
+	<script src={ htmxAlpineInit }></script>
 }
 
 type BaseProps struct {
@@ -56,7 +58,7 @@ type BaseProps struct {
 templ Base(props *BaseProps) {
 	<!DOCTYPE html>
 	<html
-		lang={ composables.UsePageCtx(ctx).Locale.String() }
+		lang={ composables.UsePageCtx(ctx).GetLocale().String() }
 		class="system bg-surface-100 text-100"
 	>
 		<head>

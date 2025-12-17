@@ -92,20 +92,21 @@ func UseUserAgent(ctx context.Context) (string, bool) {
 
 // UsePageCtx returns the page context from the context.
 // If the page context is not found, function will panic.
-func UsePageCtx(ctx context.Context) *types.PageContext {
+func UsePageCtx(ctx context.Context) types.PageContextProvider {
 	pageCtx := ctx.Value(constants.PageContext)
 	if pageCtx == nil {
 		panic("page context not found")
 	}
-	v, ok := pageCtx.(*types.PageContext)
+	v, ok := pageCtx.(types.PageContextProvider)
 	if !ok {
-		panic(fmt.Sprintf("page context is not of type *types.PageContext: %T", pageCtx))
+		panic(fmt.Sprintf("page context is not of type PageContextProvider: %T", pageCtx))
 	}
 	return v
 }
 
 // WithPageCtx returns a new context with the page context.
-func WithPageCtx(ctx context.Context, pageCtx *types.PageContext) context.Context {
+// Accepts any type implementing PageContextProvider interface for extensibility.
+func WithPageCtx(ctx context.Context, pageCtx types.PageContextProvider) context.Context {
 	return context.WithValue(ctx, constants.PageContext, pageCtx)
 }
 
@@ -153,4 +154,41 @@ func UseForm[T comparable](v T, r *http.Request) (T, error) {
 		return v, err
 	}
 	return v, shared.Decoder.Decode(v, r.Form)
+}
+
+// GetLastQueryParam returns the last occurrence of a query parameter.
+// This is useful when HTMX includes form data via hx-include="closest form",
+// which appends form values to the URL, creating duplicate parameters.
+// The last occurrence represents the current form state, while earlier
+// occurrences may be stale values from the URL.
+//
+// Example:
+//
+//	URL: /loads?driver=uuid-1&sort=load&driver=uuid-2
+//	GetLastQueryParam(r, "driver") returns "uuid-2"
+func GetLastQueryParam(r *http.Request, key string) string {
+	values := r.URL.Query()[key]
+	if len(values) > 0 {
+		return values[len(values)-1]
+	}
+	return ""
+}
+
+// GetLastQueryParams returns the last occurrence of multiple query parameters.
+// This is optimized for retrieving several filter parameters at once.
+//
+// Example:
+//
+//	params := GetLastQueryParams(r, "driver", "status", "broker")
+//	driverID := params["driver"]
+//	status := params["status"]
+func GetLastQueryParams(r *http.Request, keys ...string) map[string]string {
+	result := make(map[string]string, len(keys))
+	query := r.URL.Query()
+	for _, key := range keys {
+		if values := query[key]; len(values) > 0 {
+			result[key] = values[len(values)-1]
+		}
+	}
+	return result
 }

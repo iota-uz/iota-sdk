@@ -58,25 +58,18 @@
     --primary-700: 45.57% 0.171 280.34;
     /* #4A42B2 */
 
-    /* Gray */
-    --gray-50: 99.73% 0.0013 286.38;
-    /* #FEFEFF */
-    --gray-100: 98.03% 0.005 286.3;
-    /* #F8F8FC */
-    --gray-200: 96.04% 0.011 286.2;
-    /* #F1F1F9 */
-    --gray-300: 92.39% 0.009 286.21;
-    /* #E5E5EC */
-    --gray-400: 71.07% 0.035 256.79;
-    /* #94A3B8 */
-    --gray-450: 61.4% 0.0127 252.15;
-    /* #7F858C */
-    --gray-500: 89.71% 0.015 251.17;
-    /* #D6DEE7 */
-    --gray-600: 43.03% 0.032 234.82;
-    /* #3f535f */
-    --gray-700: 29.31% 0 0;
-    /* #2c2c2c */
+    /* Gray - Tailwind CSS v4 OKLCH palette */
+    --gray-50: 98.5% 0.002 247.839;
+    --gray-100: 96.7% 0.003 264.542;
+    --gray-200: 92.8% 0.006 264.531;
+    --gray-300: 87.2% 0.01 258.338;
+    --gray-400: 70.7% 0.022 261.325;
+    --gray-500: 55.1% 0.027 264.364;
+    --gray-600: 44.6% 0.03 256.802;
+    --gray-700: 37.3% 0.034 259.733;
+    --gray-800: 27.8% 0.033 256.848;
+    --gray-900: 21% 0.034 264.665;
+    --gray-950: 13% 0.028 261.692;
 
     /* Red */
     --red-500: 59.16% 0.218 0.58;
@@ -145,8 +138,8 @@
     --clr-secondary-btn-bg-hover: var(--gray-200);
     --clr-secondary-btn-text: var(--black);
     --clr-secondary-btn-text-hover: var(--black);
-    --clr-secondary-btn-border: var(--gray-500);
-    --clr-secondary-btn-border-hover: var(--gray-500);
+    --clr-secondary-btn-border: var(--gray-300);
+    --clr-secondary-btn-border-hover: var(--gray-300);
 
     /* Danger btn */
     --clr-danger-btn-bg: var(--red-500) / 10%;
@@ -177,7 +170,7 @@
     --clr-form-control-bg: var(--transparent);
     --clr-form-control-bg-active: var(--transparent);
     --clr-form-control-placeholder: var(--gray-400);
-    --clr-form-control-border: var(--gray-500);
+    --clr-form-control-border: var(--gray-300);
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--black);
     --clr-form-control-ring: var(--primary-650) / 20%;
@@ -210,7 +203,7 @@
     --clr-avatar-text: var(--primary-500);
 
     /* Border */
-    --clr-border-primary: var(--gray-500);
+    --clr-border-primary: var(--gray-300);
     --clr-border-secondary: var(--gray-100);
     --clr-border-green: var(--green-500);
     --clr-border-pink: var(--pink-500);
@@ -1001,6 +994,16 @@
 
   .slider-thumb:disabled::-moz-range-thumb {
     background: oklch(var(--gray-400));
+  }
+}
+
+/* iOS Safari 100vh fix - use dynamic viewport height */
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh !important;
+  }
+  .h-screen {
+    height: 100dvh !important;
   }
 }
 

@@ -195,6 +195,26 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 			d.ClientReferenceID,
 			opts...,
 		), nil
+
+	case billing.Cash:
+		var d models.CashDetails
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		cashDetails := details.NewCashDetails(details.CashWithData(d.Data))
+		return cashDetails, nil
+
+	case billing.Integrator:
+		var d models.IntegratorDetails
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		return details.NewIntegratorDetails(
+			details.IntegratorWithData(d.Data),
+			details.IntegratorWithErrorCode(d.ErrorCode),
+			details.IntegratorWithErrorNote(d.ErrorNote),
+		), nil
+
 	default:
 		return nil, fmt.Errorf("unsupported gateway: %s", gateway)
 	}
@@ -296,6 +316,18 @@ func ToDbDetails(data details.Details) (json.RawMessage, error) {
 			SuccessURL:        d.SuccessURL(),
 			CancelURL:         d.CancelURL(),
 			URL:               d.URL(),
+		})
+
+	case details.CashDetails:
+		return json.Marshal(&models.CashDetails{
+			Data: d.Data(),
+		})
+
+	case details.IntegratorDetails:
+		return json.Marshal(&models.IntegratorDetails{
+			Data:      d.Data(),
+			ErrorCode: d.ErrorCode(),
+			ErrorNote: d.ErrorNote(),
 		})
 
 	default:

@@ -75,10 +75,10 @@ func (l *layoutEngine) panelsOverlap(panel1, panel2 PanelConfig) bool {
 	p2Right := panel2.Position.X + panel2.Dimensions.Width
 	p2Bottom := panel2.Position.Y + panel2.Dimensions.Height
 
-	return !(p1Right <= panel2.Position.X ||
-		p2Right <= panel1.Position.X ||
-		p1Bottom <= panel2.Position.Y ||
-		p2Bottom <= panel1.Position.Y)
+	return p1Right > panel2.Position.X &&
+		p2Right > panel1.Position.X &&
+		p1Bottom > panel2.Position.Y &&
+		p2Bottom > panel1.Position.Y
 }
 
 // GetResponsiveLayout adjusts layout for different breakpoints

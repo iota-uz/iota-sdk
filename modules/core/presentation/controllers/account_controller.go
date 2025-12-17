@@ -14,6 +14,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 type AccountController struct {
@@ -44,7 +45,7 @@ func (c *AccountController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
@@ -66,10 +67,16 @@ func (c *AccountController) defaultProps(r *http.Request, errors map[string]stri
 	if err != nil {
 		return nil, err
 	}
+
+	// Get supported languages from application config
+	supportedLanguages := c.app.GetSupportedLanguages()
+	languages := intl.GetSupportedLanguages(supportedLanguages)
+
 	props := &account.ProfilePageProps{
-		PostPath: c.basePath,
-		User:     mappers.UserToViewModel(u),
-		Errors:   nonNilErrors,
+		PostPath:  c.basePath,
+		User:      mappers.UserToViewModel(u),
+		Errors:    nonNilErrors,
+		Languages: languages,
 	}
 	return props, nil
 }
@@ -120,8 +127,13 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get supported languages for the response
+	supportedLanguages := c.app.GetSupportedLanguages()
+	languages := intl.GetSupportedLanguages(supportedLanguages)
+
 	templ.Handler(account.ProfileForm(&account.ProfilePageProps{
-		User:   mappers.UserToViewModel(entity),
-		Errors: map[string]string{},
+		User:      mappers.UserToViewModel(entity),
+		Errors:    map[string]string{},
+		Languages: languages,
 	})).ServeHTTP(w, r)
 }

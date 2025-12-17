@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	coremappers "github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
+	coreviewmodels "github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/counterparty"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/inventory"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/entities/transaction"
 	"github.com/iota-uz/iota-sdk/modules/finance/domain/value_objects"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/money"
 
 	"github.com/google/uuid"
@@ -27,6 +31,7 @@ func ExpenseCategoryToViewModel(entity category.ExpenseCategory) *viewmodels.Exp
 		ID:          entity.ID().String(),
 		Name:        entity.Name(),
 		Description: entity.Description(),
+		IsCOGS:      entity.IsCOGS(),
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
 	}
@@ -951,4 +956,23 @@ func DebtCounterpartyAggregateToViewModel(agg debt.CounterpartyAggregate, counte
 		DebtCount:                  agg.DebtCount(),
 		CurrencyCode:               agg.CurrencyCode(),
 	}
+}
+
+// PaymentToViewModelWithAttachments converts a payment entity to view model with attachments
+func PaymentToViewModelWithAttachments(entity payment.Payment, uploads []upload.Upload) *viewmodels.Payment {
+	vm := PaymentToViewModel(entity)
+	vm.Attachments = mapping.MapViewModels(uploads, coremappers.UploadToViewModel)
+	return vm
+}
+
+// ExpenseToViewModelWithAttachments converts an expense entity to view model with attachments
+func ExpenseToViewModelWithAttachments(entity expense.Expense, uploads []upload.Upload) *viewmodels.Expense {
+	vm := ExpenseToViewModel(entity)
+	vm.Attachments = mapping.MapViewModels(uploads, coremappers.UploadToViewModel)
+	return vm
+}
+
+// AttachmentsToViewModels converts upload entities to view models
+func AttachmentsToViewModels(uploads []upload.Upload) []*coreviewmodels.Upload {
+	return mapping.MapViewModels(uploads, coremappers.UploadToViewModel)
 }

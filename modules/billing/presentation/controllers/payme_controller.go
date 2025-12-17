@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"math"
 	"net/http"
 	"sort"
@@ -15,8 +14,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/di"
 	paymeapi "github.com/iota-uz/payme"
 	paymeauth "github.com/iota-uz/payme/auth"
+	"github.com/sirupsen/logrus"
 )
 
 type PaymeController struct {
@@ -37,26 +38,34 @@ func NewPaymeController(app application.Application, payme configuration.PaymeOp
 
 func (c *PaymeController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
-	router.HandleFunc("", c.Handle)
+	router.HandleFunc("", di.H(c.Handle))
 }
 
 func (c *PaymeController) Key() string {
 	return c.basePath
 }
 
-func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
+func (c *PaymeController) Handle(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+) {
 	var (
 		req             paymeapi.JSONRPCRequest
 		successResponse *paymeapi.JSONRPCSuccessResponse
 		errorResponse   *paymeapi.JSONRPCErrorResponse
 	)
 
+	logger.Info("Payme JSON-RPC request received")
+
 	if err := paymeauth.ValidateBasicAuth(r, c.payme.User, c.payme.SecretKey); err != nil {
+		logger.WithError(err).Error("Payme authentication failed")
 		errorResponse = &paymeapi.JSONRPCErrorResponse{
 			Error: paymeapi.InsufficientPrivilegesError(),
 		}
 	}
 	if errorResponse == nil && r.Method != http.MethodPost {
+		logger.WithField("method", r.Method).Error("Invalid HTTP method for Payme")
 		errorResponse = &paymeapi.JSONRPCErrorResponse{
 			Error: paymeapi.MethodNotPOSTError(),
 		}
@@ -64,6 +73,7 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 
 	if errorResponse == nil {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			logger.WithError(err).Error("Failed to parse Payme JSON-RPC request")
 			errorResponse = &paymeapi.JSONRPCErrorResponse{
 				Error: paymeapi.JSONParseError(),
 			}
@@ -72,8 +82,9 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 	if errorResponse == nil {
 		switch {
 		case req.CancelTransactionRequestWrapper != nil:
+			logger.Info("Processing Payme CancelTransaction request")
 			cancelReq := req.CancelTransactionRequestWrapper
-			resp, errRPC := c.cancel(r.Context(), &cancelReq.Params)
+			resp, errRPC := c.cancel(r.Context(), &cancelReq.Params, logger)
 			if errRPC != nil {
 				errorResponse = &paymeapi.JSONRPCErrorResponse{
 					Id:    cancelReq.Id,
@@ -88,8 +99,9 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case req.CheckPerformTransactionRequestWrapper != nil:
+			logger.Info("Processing Payme CheckPerformTransaction request")
 			checkPerformReq := req.CheckPerformTransactionRequestWrapper
-			resp, errRPC := c.checkPerform(r.Context(), &checkPerformReq.Params)
+			resp, errRPC := c.checkPerform(r.Context(), &checkPerformReq.Params, logger)
 			if errRPC != nil {
 				errorResponse = &paymeapi.JSONRPCErrorResponse{
 					Id:    checkPerformReq.Id,
@@ -104,8 +116,9 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case req.CheckTransactionRequestWrapper != nil:
+			logger.Info("Processing Payme CheckTransaction request")
 			checkReq := req.CheckTransactionRequestWrapper
-			resp, errRPC := c.check(r.Context(), &checkReq.Params)
+			resp, errRPC := c.check(r.Context(), &checkReq.Params, logger)
 			if errRPC != nil {
 				errorResponse = &paymeapi.JSONRPCErrorResponse{
 					Id:    checkReq.Id,
@@ -120,8 +133,9 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case req.CreateTransactionRequestWrapper != nil:
+			logger.Info("Processing Payme CreateTransaction request")
 			createReq := req.CreateTransactionRequestWrapper
-			resp, errRPC := c.create(r.Context(), &createReq.Params)
+			resp, errRPC := c.create(r.Context(), &createReq.Params, logger)
 			if errRPC != nil {
 				errorResponse = &paymeapi.JSONRPCErrorResponse{
 					Id:    createReq.Id,
@@ -136,8 +150,9 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case req.PerformTransactionRequestWrapper != nil:
+			logger.Info("Processing Payme PerformTransaction request")
 			performReq := req.PerformTransactionRequestWrapper
-			resp, errRPC := c.perform(r.Context(), &performReq.Params)
+			resp, errRPC := c.perform(r.Context(), &performReq.Params, logger)
 			if errRPC != nil {
 				errorResponse = &paymeapi.JSONRPCErrorResponse{
 					Id:    performReq.Id,
@@ -152,8 +167,9 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case req.GetStatementRequestWrapper != nil:
+			logger.Info("Processing Payme GetStatement request")
 			getStatementReq := req.GetStatementRequestWrapper
-			resp, errRPC := c.getStatement(r.Context(), &getStatementReq.Params)
+			resp, errRPC := c.getStatement(r.Context(), &getStatementReq.Params, logger)
 			if errRPC != nil {
 				errorResponse = &paymeapi.JSONRPCErrorResponse{
 					Id:    getStatementReq.Id,
@@ -169,6 +185,7 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 			}
 
 		default:
+			logger.Error("Method not found in Payme request data")
 			errorResponse = &paymeapi.JSONRPCErrorResponse{
 				Error: paymeapi.MethodNotFoundInDataError(),
 			}
@@ -176,23 +193,25 @@ func (c *PaymeController) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errorResponse != nil {
+		logger.WithField("error_code", errorResponse.Error.Code).Error("Payme request failed")
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(errorResponse); err != nil {
-			log.Printf("Failed to write response: %v", err)
+			logger.WithError(err).Error("Failed to write Payme error response")
 		}
 		return
 	}
 
 	if successResponse != nil {
+		logger.Info("Payme request completed successfully")
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(successResponse); err != nil {
-			log.Printf("Failed to write response: %v", err)
+			logger.WithError(err).Error("Failed to write Payme success response")
 		}
 		return
 	}
 }
 
-func (c *PaymeController) check(ctx context.Context, r *paymeapi.CheckTransactionRequest) (*paymeapi.CheckTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
+func (c *PaymeController) check(ctx context.Context, r *paymeapi.CheckTransactionRequest, logger *logrus.Entry) (*paymeapi.CheckTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
 	entities, err := c.billingService.GetByDetailsFields(
 		ctx,
 		billing.Payme,
@@ -205,6 +224,7 @@ func (c *PaymeController) check(ctx context.Context, r *paymeapi.CheckTransactio
 		},
 	)
 	if err != nil || len(entities) != 1 {
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Transaction not found in CheckTransaction")
 		errRPC := paymeapi.CheckTransactionTransactionNotFoundError()
 		return nil, &errRPC
 	}
@@ -212,7 +232,7 @@ func (c *PaymeController) check(ctx context.Context, r *paymeapi.CheckTransactio
 
 	paymeDetails, ok := entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails in CheckTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
@@ -231,10 +251,15 @@ func (c *PaymeController) check(ctx context.Context, r *paymeapi.CheckTransactio
 		resp.Reason.Set(&reason)
 	}
 
+	logger.WithFields(logrus.Fields{
+		"transaction_id": r.Id,
+		"state":          paymeDetails.State(),
+	}).Info("CheckTransaction completed")
+
 	return &resp, nil
 }
 
-func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransactionRequest) (*paymeapi.CreateTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
+func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransactionRequest, logger *logrus.Entry) (*paymeapi.CreateTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
 	filters := make([]billing.DetailsFieldFilter, 0, len(r.Account))
 	for k, v := range r.Account {
 		filters = append(filters, billing.DetailsFieldFilter{
@@ -249,6 +274,7 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 		filters,
 	)
 	if err != nil || len(entities) != 1 {
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Invalid account in CreateTransaction")
 		errRPC := paymeapi.InvalidAccountError()
 		return nil, &errRPC
 	}
@@ -257,18 +283,27 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
+		logger.WithFields(logrus.Fields{
+			"expected_amount": entity.Amount().Quantity(),
+			"provided_amount": amount,
+			"transaction_id":  r.Id,
+		}).Error("Invalid amount in CreateTransaction")
 		errRPC := paymeapi.InvalidAmountError()
 		return nil, &errRPC
 	}
 
 	paymeDetails, ok := entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails in CreateTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
 	if paymeDetails.ID() != "" && paymeDetails.ID() != r.Id {
+		logger.WithFields(logrus.Fields{
+			"existing_id":  paymeDetails.ID(),
+			"requested_id": r.Id,
+		}).Error("Transaction ID mismatch in CreateTransaction")
 		errRPC := paymeapi.InvalidAccountError()
 		return nil, &errRPC
 	}
@@ -287,14 +322,14 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 
 	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
-		log.Printf("Failed to update transaction: %v", err)
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Failed to save transaction in CreateTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
 	paymeDetails, ok = entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails after save in CreateTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
@@ -316,10 +351,15 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 		resp.Receivers = receivers
 	}
 
+	logger.WithFields(logrus.Fields{
+		"transaction_id": r.Id,
+		"state":          paymeDetails.State(),
+	}).Info("CreateTransaction completed successfully")
+
 	return resp, nil
 }
 
-func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransactionRequest) (*paymeapi.CancelTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
+func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransactionRequest, logger *logrus.Entry) (*paymeapi.CancelTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
 	entities, err := c.billingService.GetByDetailsFields(
 		ctx,
 		billing.Payme,
@@ -332,6 +372,7 @@ func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransact
 		},
 	)
 	if err != nil || len(entities) != 1 {
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Transaction not found in CancelTransaction")
 		errRPC := paymeapi.CancelTransactionTransactionNotFoundError()
 		return nil, &errRPC
 	}
@@ -340,7 +381,7 @@ func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransact
 
 	paymeDetails, ok := entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails in CancelTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
@@ -350,6 +391,9 @@ func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransact
 	}
 
 	paymeDetails = paymeDetails.SetReason(r.Reason)
+
+	oldState := paymeDetails.State()
+	oldStatus := entity.Status()
 
 	switch paymeDetails.State() {
 	case paymeapi.TransactionStateCreated:
@@ -364,17 +408,31 @@ func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransact
 
 	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
-		log.Printf("Failed to update transaction: %v", err)
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Failed to save transaction in CancelTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
+	// Invoke callback for notification (non-blocking)
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		logger.WithError(err).WithField("transaction_id", r.Id).Warn("Callback error on status change")
+	}
+
 	paymeDetails, ok = entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails after save in CancelTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
+
+	logger.WithFields(logrus.Fields{
+		"transaction_id": r.Id,
+		"old_state":      oldState,
+		"new_state":      paymeDetails.State(),
+		"old_status":     oldStatus,
+		"new_status":     entity.Status(),
+		"reason":         r.Reason,
+	}).Info("CancelTransaction completed successfully")
 
 	return &paymeapi.CancelTransactionResponse{
 		Transaction: paymeDetails.Transaction(),
@@ -383,7 +441,7 @@ func (c *PaymeController) cancel(ctx context.Context, r *paymeapi.CancelTransact
 	}, nil
 }
 
-func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPerformTransactionRequest) (*paymeapi.CheckPerformTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
+func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPerformTransactionRequest, logger *logrus.Entry) (*paymeapi.CheckPerformTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
 	filters := make([]billing.DetailsFieldFilter, 0, len(r.Account))
 	for k, v := range r.Account {
 		filters = append(filters, billing.DetailsFieldFilter{
@@ -398,6 +456,7 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 		filters,
 	)
 	if err != nil || len(entities) != 1 {
+		logger.WithError(err).Error("Invalid account in CheckPerformTransaction")
 		errRPC := paymeapi.CheckPerformTransactionInvalidAccountError()
 		return nil, &errRPC
 	}
@@ -406,18 +465,23 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
+		logger.WithFields(logrus.Fields{
+			"expected_amount": entity.Amount().Quantity(),
+			"provided_amount": amount,
+		}).Error("Invalid amount in CheckPerformTransaction")
 		errRPC := paymeapi.CheckPerformTransactionInvalidAmountError()
 		return nil, &errRPC
 	}
 
 	paymeDetails, ok := entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails in CheckPerformTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
 	if paymeDetails.State() != paymeapi.TransactionStateCreated {
+		logger.WithField("state", paymeDetails.State()).Error("Invalid transaction state in CheckPerformTransaction")
 		errRPC := paymeapi.InvalidAccountError()
 		return nil, &errRPC
 	}
@@ -434,17 +498,19 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 
 	_, err = c.billingService.Save(ctx, entity)
 	if err != nil {
-		log.Printf("Failed to update transaction: %v", err)
+		logger.WithError(err).Error("Failed to save transaction in CheckPerformTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
+
+	logger.Info("CheckPerformTransaction completed successfully")
 
 	return &paymeapi.CheckPerformTransactionResponse{
 		Allow: true,
 	}, nil
 }
 
-func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransactionRequest) (*paymeapi.PerformTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
+func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransactionRequest, logger *logrus.Entry) (*paymeapi.PerformTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {
 	entities, err := c.billingService.GetByDetailsFields(
 		ctx,
 		billing.Payme,
@@ -457,6 +523,7 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 		},
 	)
 	if err != nil || len(entities) != 1 {
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Transaction not found in PerformTransaction")
 		errRPC := paymeapi.PerformTransactionTransactionNotFoundError()
 		return nil, &errRPC
 	}
@@ -465,11 +532,27 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 
 	paymeDetails, ok := entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails in PerformTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
+	// Invoke callback to validate transaction
+	if err := c.billingService.InvokeCallback(ctx, entity); err != nil {
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Callback error in PerformTransaction")
+		paymeDetails = paymeDetails.
+			SetReason(paymeapi.CancelReasonExecutionError).
+			SetState(paymeapi.TransactionStateCancelledBeforeCompletion).
+			SetErrorCode(paymeapi.PerformTransactionErrorOperationNotAllowed)
+		entity = entity.SetStatus(billing.Failed).SetDetails(paymeDetails)
+		if _, saveErr := c.billingService.Save(ctx, entity); saveErr != nil {
+			logger.WithError(saveErr).Error("Failed to save callback error in PerformTransaction")
+		}
+		errRPC := paymeapi.PerformTransactionOperationNotAllowedError()
+		return nil, &errRPC
+	}
+
+	oldState := paymeDetails.State()
 	if paymeDetails.State() == paymeapi.TransactionStateCreated {
 		paymeDetails = paymeDetails.
 			SetState(paymeapi.TransactionStateCompleted).
@@ -482,17 +565,24 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 
 	entity, err = c.billingService.Save(ctx, entity)
 	if err != nil {
-		log.Printf("Failed to update transaction: %v", err)
+		logger.WithError(err).WithField("transaction_id", r.Id).Error("Failed to save transaction in PerformTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
 
 	paymeDetails, ok = entity.Details().(details.PaymeDetails)
 	if !ok {
-		log.Printf("Details is not of type PaymeDetails")
+		logger.Error("Details is not of type PaymeDetails after save in PerformTransaction")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
+
+	logger.WithFields(logrus.Fields{
+		"transaction_id": r.Id,
+		"old_state":      oldState,
+		"new_state":      paymeDetails.State(),
+		"new_status":     billing.Completed,
+	}).Info("PerformTransaction completed successfully")
 
 	return &paymeapi.PerformTransactionResponse{
 		Transaction: paymeDetails.Transaction(),
@@ -501,7 +591,7 @@ func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransa
 	}, nil
 }
 
-func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetStatementRequest) (*paymeapi.GetStatementResponse, *paymeapi.JSONRPCErrorResponseError) {
+func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetStatementRequest, logger *logrus.Entry) (*paymeapi.GetStatementResponse, *paymeapi.JSONRPCErrorResponseError) {
 	entities, err := c.billingService.GetByDetailsFields(
 		ctx,
 		billing.Payme,
@@ -514,6 +604,10 @@ func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetState
 		},
 	)
 	if err != nil {
+		logger.WithError(err).WithFields(logrus.Fields{
+			"from": r.From,
+			"to":   r.To,
+		}).Error("Failed to get transactions in GetStatement")
 		errRPC := paymeapi.InternalSystemError()
 		return nil, &errRPC
 	}
@@ -522,7 +616,7 @@ func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetState
 	for _, entity := range entities {
 		paymeDetails, ok := entity.Details().(details.PaymeDetails)
 		if !ok {
-			log.Printf("Details is not of type PaymeDetails")
+			logger.Error("Details is not of type PaymeDetails in GetStatement, skipping")
 			continue
 		}
 
@@ -560,6 +654,12 @@ func (c *PaymeController) getStatement(ctx context.Context, r *paymeapi.GetState
 	sort.Slice(sts, func(i, j int) bool {
 		return sts[i].Time < sts[j].Time
 	})
+
+	logger.WithFields(logrus.Fields{
+		"from":              r.From,
+		"to":                r.To,
+		"transaction_count": len(sts),
+	}).Info("GetStatement completed successfully")
 
 	return &paymeapi.GetStatementResponse{
 		Transactions: sts,

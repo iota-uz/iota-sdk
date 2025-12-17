@@ -1,0 +1,90 @@
+name: Start Application Server
+description: Build and start the IOTA SDK application server with health check
+
+inputs:
+  port:
+    description: Port to run the server on
+    required: false
+    default: '3200'
+  max-retries:
+    description: Maximum number of retries for health check
+    required: false
+    default: '30'
+  build:
+    description: Whether to build the server binary
+    required: false
+    default: 'true'
+  binary-name:
+    description: Name of the binary to build
+    required: false
+    default: 'iota-sdk'
+  build-path:
+    description: Path to main.go file for building
+    required: false
+    default: './cmd/server/main.go'
+  pid-file:
+    description: Path to store server PID
+    required: false
+    default: 'server.pid'
+  log-file:
+    description: Path to store server logs
+    required: false
+    default: 'server.log'
+
+outputs:
+  pid:
+    description: Process ID of the started server
+    value: ${{ steps.start.outputs.pid }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build application server
+      if: inputs.build == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Building application server"
+        if ! go build -o ${{ inputs.binary-name }} ${{ inputs.build-path }}; then
+          echo "::error::Failed to build application server from ${{ inputs.build-path }}"
+          exit 1
+        fi
+        echo "Application server built successfully: ${{ inputs.binary-name }}"
+        echo "::endgroup::"
+
+    - name: Start application server
+      id: start
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Starting application server"
+
+        # Start server in background
+        ./${{ inputs.binary-name }} > ${{ inputs.log-file }} 2>&1 &
+        SERVER_PID=$!
+        echo "$SERVER_PID" > ${{ inputs.pid-file }}
+        echo "Server started with PID: $SERVER_PID"
+
+        # Wait for server to be ready
+        RETRY_COUNT=0
+        MAX_RETRIES=${{ inputs.max-retries }}
+        HEALTH_URL="http://localhost:${{ inputs.port }}/health"
+
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if curl -f "$HEALTH_URL" > /dev/null 2>&1; then
+            echo "Server started successfully on port ${{ inputs.port }}"
+            echo "pid=$SERVER_PID" >> $GITHUB_OUTPUT
+            echo "::endgroup::"
+            exit 0
+          fi
+          sleep 2
+          RETRY_COUNT=$((RETRY_COUNT + 1))
+          echo "Waiting for server... (attempt $RETRY_COUNT/$MAX_RETRIES)"
+        done
+
+        # Server failed to start
+        echo "::error::Server failed to start after $MAX_RETRIES attempts. Health check URL: $HEALTH_URL"
+        echo "::group::Server logs"
+        cat ${{ inputs.log-file }} || echo "No logs available"
+        echo "::endgroup::"
+        exit 1

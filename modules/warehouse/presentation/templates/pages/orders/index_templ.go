@@ -99,9 +99,9 @@ func OrdersTable(props *IndexPageProps) templ.Component {
 							}
 							ctx = templ.InitializeContext(ctx)
 							var templ_7745c5c3_Var5 string
-							templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(order.LocalizedType(pageCtx.Localizer))
+							templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(order.LocalizedType(pageCtx.GetLocalizer()))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/orders/index.templ`, Line: 43, Col: 47}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/orders/index.templ`, Line: 43, Col: 52}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 							if templ_7745c5c3_Err != nil {
@@ -130,9 +130,9 @@ func OrdersTable(props *IndexPageProps) templ.Component {
 							}
 							ctx = templ.InitializeContext(ctx)
 							var templ_7745c5c3_Var7 string
-							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(order.LocalizedStatus(pageCtx.Localizer))
+							templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(order.LocalizedStatus(pageCtx.GetLocalizer()))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/orders/index.templ`, Line: 46, Col: 49}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/orders/index.templ`, Line: 46, Col: 54}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 							if templ_7745c5c3_Err != nil {

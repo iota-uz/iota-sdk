@@ -13,14 +13,12 @@ import (
 	messagetemplate "github.com/iota-uz/iota-sdk/modules/crm/domain/entities/message-template"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
-	_ "github.com/iota-uz/iota-sdk/modules/crm/presentation/mappers"
 	msgtui "github.com/iota-uz/iota-sdk/modules/crm/presentation/templates/pages/message-templates"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
-	_ "github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
@@ -49,7 +47,7 @@ func (c *MessageTemplateController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

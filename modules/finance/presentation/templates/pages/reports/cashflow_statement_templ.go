@@ -278,7 +278,7 @@ func CashflowStatementPage(formData map[string]interface{}) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span></div></div></div><!-- Report Container --><div id=\"cashflow-report-content\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center\"><div class=\"text-gray-500\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</span></div></div></div><!-- Report Container --><div id=\"cashflow-report-content\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center\"><div class=\"text-gray-300\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -941,7 +941,7 @@ func CashflowStatementTable(report *viewmodels.CashflowStatement) templ.Componen
 			}
 		} else if len(report.Months) > 0 {
 			for range report.Months {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<td class=\"px-4 py-4 text-sm text-right text-gray-500 dark:text-gray-400\">-</td>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<td class=\"px-4 py-4 text-sm text-right text-gray-300 dark:text-gray-400\">-</td>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1170,7 +1170,7 @@ func cashflowSection(section viewmodels.CashflowSection, months []string, sectio
 			}
 		} else if len(months) > 0 {
 			for range months {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<td class=\"px-4 py-3 text-sm text-right text-gray-500 dark:text-gray-400\">-</td>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "<td class=\"px-4 py-3 text-sm text-right text-gray-300 dark:text-gray-400\">-</td>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1257,7 +1257,7 @@ func cashflowLineItem(item viewmodels.CashflowLineItem, months []string, flowTyp
 			}
 		} else if len(months) > 0 {
 			for range months {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "<td class=\"px-4 py-3 text-sm text-right text-gray-500 dark:text-gray-400\">-</td>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 97, "<td class=\"px-4 py-3 text-sm text-right text-gray-300 dark:text-gray-400\">-</td>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

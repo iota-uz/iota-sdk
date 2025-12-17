@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -46,13 +47,17 @@ func DefaultLoggerOptions() LoggerOptions {
 
 type responseCaptureWriter struct {
 	http.ResponseWriter
-	statusCode int
-	body       *bytes.Buffer
+	statusCode    int
+	statusWritten bool
+	body          *bytes.Buffer
 }
 
 func (w *responseCaptureWriter) WriteHeader(code int) {
-	w.statusCode = code
-	w.ResponseWriter.WriteHeader(code)
+	if !w.statusWritten {
+		w.statusCode = code
+		w.statusWritten = true
+		w.ResponseWriter.WriteHeader(code)
+	}
 }
 
 // Status returns the HTTP status code
@@ -85,6 +90,7 @@ func wrapResponseWriter(w http.ResponseWriter) *responseCaptureWriter {
 	return &responseCaptureWriter{
 		ResponseWriter: w,
 		statusCode:     0,
+		statusWritten:  false,
 		body:           &bytes.Buffer{},
 	}
 }
@@ -262,6 +268,46 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 				w.Header().Set("X-Request-Id", requestID)
 
 				wrappedWriter := wrapResponseWriter(w)
+
+				// Recover from panics, log them with full context, then re-panic
+				defer func() {
+					if recovered := recover(); recovered != nil {
+						duration := time.Since(start)
+
+						// Build comprehensive panic log fields
+						panicFields := logrus.Fields{
+							"panic":       recovered,
+							"stack":       string(debug.Stack()),
+							"method":      r.Method,
+							"path":        r.URL.Path,
+							"remote_addr": getRealIP(r, conf),
+							"user_agent":  r.UserAgent(),
+							"status":      http.StatusInternalServerError,
+							"duration":    duration,
+						}
+
+						// Add query string if present
+						if r.URL.RawQuery != "" {
+							panicFields["query"] = r.URL.RawQuery
+						}
+
+						// Add content type if present
+						if contentType := r.Header.Get("Content-Type"); contentType != "" {
+							panicFields["content_type"] = contentType
+						}
+
+						fieldsLogger.WithFields(panicFields).Error("panic recovered in request handler")
+
+						// Set 500 status code so client receives proper HTTP response
+						if !wrappedWriter.statusWritten {
+							wrappedWriter.WriteHeader(http.StatusInternalServerError)
+						}
+
+						// Re-panic to propagate upstream to process-level recovery
+						panic(recovered)
+					}
+				}()
+
 				next.ServeHTTP(wrappedWriter, r.WithContext(ctx))
 
 				// Log the status code

@@ -86,6 +86,7 @@
         "Placeholder": "Valyutani tanlang"
       },
       "_Description": "Tavsif",
+      "IsCOGS": "Sotilgan tovarlarning tannarxi (COGS)",
       "Delete": "Kategoriyani o'chirish",
       "DeleteConfirmation": "Ushbu xarajat kategoriyasini o'chirishni xohlaysizmi?"
     }
@@ -213,32 +214,9 @@
     },
     "LegalTypes": {
       "INDIVIDUAL": "Jismoniy shaxs",
-      "LEGAL_ENTITY": "Yuridik shaxs",
-      "LLC": "MChJ",
-      "JSC": "AJ",
-      "INC": "Korporatsiya",
-      "LTD": "LTD",
-      "PLC": "Ochiq kompaniya",
-      "LLP": "Cheklangan javobgarlikdagi sheriklik",
-      "GMBH": "GmbH",
-      "AG": "AG",
-      "SA": "SA",
-      "PTYLTD": "Pty Ltd",
-      "CCORP": "C-Korporatsiya",
-      "SCORP": "S-Korporatsiya",
-      "SP": "Yakka tartibdagi tadbirkor",
-      "SC": "To'liq sheriklik",
-      "OU": "Osaühing",
-      "AB": "Aktiebolag",
-      "AS": "Aksjeselskap",
-      "SARL": "SARL",
-      "BV": "BV",
-      "KK": "Kabushiki Kaisha",
-      "SAO": "SAO",
-      "LLLP": "Cheklangan javobgarlikdagi kommanditat sheriklik",
-      "UAB": "UAB",
-      "SPZOO": "Sp. z o.o.",
-      "SRL": "SRL"
+      "LLC": "MChJ (Mas'uliyati cheklangan jamiyat)",
+      "JSC": "AJ (Aksiyadorlik jamiyati)",
+      "SOLE_PROPRIETORSHIP": "Yakka tadbirkor"
     }
   },
   "MoneyAccounts": {
@@ -566,6 +544,28 @@
     },
     "Drawer": {
       "Title": "Qarz tafsilotlari"
+    }
+  },
+  "Attachments": {
+    "Title": "Ilovalar",
+    "AddFiles": "Fayllar qo'shish",
+    "ChooseFiles": "Fayllarni tanlash",
+    "SupportedFormats": "Qo'llab-quvvatlanadigan formatlar: PDF, JPG, PNG, DOC, DOCX, XLS, XLSX",
+    "ExistingFiles": "Mavjud fayllar",
+    "AttachedFiles": "Biriktirilgan fayllar",
+    "DeleteConfirmation": "Haqiqatan ham bu ilovani o'chirmoqchimisiz?",
+    "DeleteFile": "Faylni o'chirish"
+  },
+  "Finance": {
+    "Attachments": {
+      "Title": "Moliyaviy hujjatlar",
+      "AddFiles": "Hujjatlar qo'shish",
+      "ChooseFiles": "Hujjatlarni tanlash",
+      "SupportedFormats": "Kvitansiyalar, schyot-fakturalar, shartnomalar va boshqa moliyaviy hujjatlarni yuklang",
+      "ExistingFiles": "Mavjud hujjatlar",
+      "AttachedFiles": "Biriktirilgan hujjatlar",
+      "DeleteConfirmation": "Haqiqatan ham bu hujjatni o'chirmoqchimisiz?",
+      "DeleteFile": "Hujjatni o'chirish"
     }
   },
   "ValidationErrors": {

@@ -70,7 +70,7 @@ func (c *DebtsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

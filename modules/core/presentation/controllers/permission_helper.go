@@ -12,15 +12,15 @@ import (
 // This is shared between RolesController and UsersController
 func BuildResourcePermissionGroups(
 	schema *rbac.PermissionSchema,
-	selected ...*permission.Permission,
+	selected ...permission.Permission,
 ) []*viewmodels.ResourcePermissionGroup {
 	if schema == nil || len(schema.Sets) == 0 {
 		return nil
 	}
 
-	isSelected := func(p2 *permission.Permission) bool {
+	isSelected := func(p2 permission.Permission) bool {
 		for _, p1 := range selected {
-			if p1.ID == p2.ID {
+			if p1.ID() == p2.ID() {
 				return true
 			}
 		}
@@ -42,14 +42,14 @@ func BuildResourcePermissionGroups(
 				checkedCount++
 			}
 			permissions = append(permissions, &viewmodels.PermissionItem{
-				ID:      perm.ID.String(),
-				Name:    perm.Name,
+				ID:      perm.ID().String(),
+				Name:    perm.Name(),
 				Checked: checked,
 			})
 
 			// Get resource from the first permission
-			if resource == "" && perm.Resource != "" {
-				resource = string(perm.Resource)
+			if resource == "" && perm.Resource() != "" {
+				resource = string(perm.Resource())
 			}
 		}
 
@@ -95,15 +95,15 @@ func BuildResourcePermissionGroups(
 // Within each module, permissions are further grouped by resource
 func BuildModulePermissionGroups(
 	schema *rbac.PermissionSchema,
-	selected ...*permission.Permission,
+	selected ...permission.Permission,
 ) []*viewmodels.ModulePermissionGroup {
 	if schema == nil || len(schema.Sets) == 0 {
 		return nil
 	}
 
-	isSelected := func(p2 *permission.Permission) bool {
+	isSelected := func(p2 permission.Permission) bool {
 		for _, p1 := range selected {
-			if p1.ID == p2.ID {
+			if p1.ID() == p2.ID() {
 				return true
 			}
 		}
@@ -125,14 +125,14 @@ func BuildModulePermissionGroups(
 				checkedCount++
 			}
 			permissions = append(permissions, &viewmodels.PermissionItem{
-				ID:      perm.ID.String(),
-				Name:    perm.Name,
+				ID:      perm.ID().String(),
+				Name:    perm.Name(),
 				Checked: checked,
 			})
 
 			// Get resource from the first permission
-			if resource == "" && perm.Resource != "" {
-				resource = string(perm.Resource)
+			if resource == "" && perm.Resource() != "" {
+				resource = string(perm.Resource())
 			}
 		}
 
@@ -186,10 +186,13 @@ func BuildModulePermissionGroups(
 			return resourceGroups[i].Resource < resourceGroups[j].Resource
 		})
 
-		groups = append(groups, &viewmodels.ModulePermissionGroup{
-			Module:         module,
-			ResourceGroups: resourceGroups,
-		})
+		// Only add module if it has resources
+		if len(resourceGroups) > 0 {
+			groups = append(groups, &viewmodels.ModulePermissionGroup{
+				Module:         module,
+				ResourceGroups: resourceGroups,
+			})
+		}
 	}
 
 	// Sort by module name for consistent ordering

@@ -173,7 +173,7 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -189,7 +189,7 @@ func (c *UsersController) Register(r *mux.Router) {
 }
 
 func (c *UsersController) resourcePermissionGroups(
-	selected ...*permission.Permission,
+	selected ...permission.Permission,
 ) []*viewmodels.ResourcePermissionGroup {
 	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
 }
@@ -201,9 +201,11 @@ func (c *UsersController) Users(
 	userService *services.UserService,
 	userQueryService *services.UserQueryService,
 	groupQueryService *services.GroupQueryService,
+	roleQueryService *services.RoleQueryService,
 ) {
 	params := composables.UsePaginated(r)
 	groupIDs := r.URL.Query()["groupID"]
+	roleIDs := r.URL.Query()["roleID"]
 
 	// Create find params using the query service types
 	findParams := &query.FindParams{
@@ -226,6 +228,14 @@ func (c *UsersController) Users(
 		findParams.Filters = append(findParams.Filters, query.Filter{
 			Column: query.FieldGroupID,
 			Filter: repo.In(groupIDs),
+		})
+	}
+
+	// Add role filter if specified
+	if len(roleIDs) > 0 {
+		findParams.Filters = append(findParams.Filters, query.Filter{
+			Column: query.FieldRoleID,
+			Filter: repo.In(roleIDs),
 		})
 	}
 
@@ -281,9 +291,18 @@ func (c *UsersController) Users(
 		return
 	}
 
+	// Get all roles with user counts for the sidebar
+	roleViewModels, err := roleQueryService.GetRolesWithCounts(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving roles: %v", err)
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		return
+	}
+
 	props := &users.IndexPageProps{
-		Users:   us,     // Already viewmodels from query service
-		Groups:  groups, // Already viewmodels from query service
+		Users:   us,             // Already viewmodels from query service
+		Groups:  groups,         // Already viewmodels from query service
+		Roles:   roleViewModels, // Mapped from domain roles
 		Page:    params.Page,
 		PerPage: params.Limit,
 		HasMore: total > params.Page*params.Limit,
@@ -346,12 +365,23 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
+	canDelete, err := userService.CanUserBeDeleted(r.Context(), id)
+	if err != nil {
+		logger.Errorf("Error checking if user can be deleted: %v", err)
+		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
+		return
+	}
+
+	userViewModel := mappers.UserToViewModel(us)
+	userViewModel.CanDelete = canDelete
+
 	props := &users.EditFormProps{
-		User:                     mappers.UserToViewModel(us),
+		User:                     userViewModel,
 		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
 		Groups:                   groups, // Already viewmodels from query service
 		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
 		Errors:                   map[string]string{},
+		CanDelete:                canDelete,
 	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
@@ -559,6 +589,13 @@ func (c *UsersController) Update(
 			return
 		}
 
+		canDelete, err := userService.CanUserBeDeleted(ctx, id)
+		if err != nil {
+			logger.Errorf("Error checking if user can be deleted: %v", err)
+			http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
+			return
+		}
+
 		var avatar *viewmodels.Upload
 		if us.Avatar() != nil {
 			avatar = mappers.UploadToViewModel(us.Avatar())
@@ -580,11 +617,13 @@ func (c *UsersController) Update(
 				GroupIDs:    dto.GroupIDs,
 				Permissions: mapping.MapViewModels(us.Permissions(), mappers.PermissionToViewModel),
 				AvatarID:    strconv.FormatUint(uint64(dto.AvatarID), 10),
+				CanDelete:   canDelete,
 			},
 			Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
 			Groups:                   groups, // Already viewmodels from query service
 			ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
 			Errors:                   errors,
+			CanDelete:                canDelete,
 		}
 		templ.Handler(users.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
@@ -613,7 +652,7 @@ func (c *UsersController) Update(
 	}
 
 	permissionIDs := r.Form["PermissionIDs"]
-	permissions := make([]*permission.Permission, 0, len(permissionIDs))
+	permissions := make([]permission.Permission, 0, len(permissionIDs))
 	for _, permID := range permissionIDs {
 		if permID == "" {
 			continue

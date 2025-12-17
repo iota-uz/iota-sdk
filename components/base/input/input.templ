@@ -1,8 +1,13 @@
 package input
 
 import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
 	"github.com/Oudwins/tailwind-merge-go/pkg/twmerge"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/utils/random"
 )
 
@@ -19,6 +24,7 @@ type Props struct {
 	Class        string
 	Attrs        templ.Attributes
 	WrapperProps templ.Attributes
+	WrapperClass templ.CSSClasses
 	AddonRight   *Addon
 	AddonLeft    *Addon
 	Error        string
@@ -39,13 +45,22 @@ func newInput(props *Props) *Props {
 }
 
 templ (p *Props) render() {
-	<div class="flex flex-col w-full">
+	<div class={ twmerge.Merge("flex flex-col w-full", p.WrapperClass.String()) }>
 		if len(p.Label) > 0 {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
-		<div class="flex items-center w-full relative form-control" { p.WrapperProps... }>
+		{{
+			wrapperPropsClass := ""
+			if p.WrapperProps != nil {
+				switch v := p.WrapperProps["class"].(type) {
+				case string:
+					wrapperPropsClass = v
+				}
+			}
+		}}
+		<div class={ twmerge.Merge("flex items-center w-full relative form-control", wrapperPropsClass) } { p.WrapperProps... }>
 			if p.AddonLeft != nil {
-				<div class={ "flex pl-2.5", p.AddonLeft.Class } { p.AddonLeft.Attrs... }>
+				<div class={ twmerge.Merge("flex pl-2.5", p.AddonLeft.Class) } { p.AddonLeft.Attrs... }>
 					if p.AddonLeft.Render != nil {
 						@p.AddonLeft.Render(p)
 					} else if p.AddonLeft.Component != nil {
@@ -55,13 +70,13 @@ templ (p *Props) render() {
 			}
 			<input
 				id={ p.id }
-				class={ "form-control-input outline-none w-full", p.Class }
+				class={ twmerge.Merge("form-control-input outline-none w-full", p.Class) }
 				type={ p.typ }
 				placeholder={ p.Placeholder }
 				{ p.Attrs... }
 			/>
 			if p.AddonRight != nil {
-				<div class={ "flex pr-2.5", p.AddonRight.Class } { p.AddonRight.Attrs... }>
+				<div class={ twmerge.Merge("flex pr-2.5", p.AddonRight.Class) } { p.AddonRight.Attrs... }>
 					if p.AddonRight.Render != nil {
 						@p.AddonRight.Render(p)
 					} else if p.AddonRight.Component != nil {
@@ -93,6 +108,7 @@ templ Text(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -107,6 +123,7 @@ templ Number(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -121,6 +138,7 @@ templ Email(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -135,6 +153,7 @@ templ Tel(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -149,6 +168,7 @@ templ Date(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -163,6 +183,7 @@ templ DateTime(props *Props) {
 		AddonLeft:    props.AddonLeft,
 		Error:        props.Error,
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
 }
 
@@ -225,7 +246,7 @@ templ (p *CheckboxProps) render() {
 		/>
 		<!-- Visual checkbox box -->
 		<div
-			class="w-5 h-5 rounded-[5px] border border-gray-500 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
+			class="w-5 h-5 rounded-[5px] border border-gray-300 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
 		>
 			@icons.Check(icons.Props{
 				Size:  "16",
@@ -272,5 +293,288 @@ templ Password(props *Props) {
 			},
 		},
 		WrapperProps: props.WrapperProps,
+		WrapperClass: props.WrapperClass,
 	}).render()
+}
+
+// MoneyProps represents properties for a money input component with currency formatting
+type MoneyProps struct {
+	// Required fields
+	Label    string
+	Name     string
+	Value    int64  // Amount in smallest units (cents)
+	Currency string // Currency code (USD, EUR, UZS, etc.)
+
+	// Optional fields
+	Placeholder string
+	Error       string
+
+	// Standard input props
+	Class        string
+	Attrs        templ.Attributes
+	WrapperProps templ.Attributes
+	WrapperClass templ.CSSClasses
+	AddonLeft    *Addon // Manual currency symbol control
+	AddonRight   *Addon
+
+	// Internal (set by options or auto-populated)
+	id             string
+	decimal        string  // Auto from pkg/money, overridable
+	thousand       string  // Auto from pkg/money, overridable
+	precision      int     // Auto from pkg/money, overridable
+	min            *int64  // Set via WithMin()
+	max            *int64  // Set via WithMax()
+	readOnly       bool    // Set via WithReadOnly()
+	convertTo      string  // Set via WithConversion()
+	conversionRate float64 // Set via WithConversion()
+}
+
+// MoneyOption is a functional option for configuring MoneyProps
+type MoneyOption func(*MoneyProps)
+
+// WithMin sets the minimum allowed amount (in cents)
+func WithMin(min int64) MoneyOption {
+	return func(p *MoneyProps) {
+		p.min = &min
+	}
+}
+
+// WithMax sets the maximum allowed amount (in cents)
+func WithMax(max int64) MoneyOption {
+	return func(p *MoneyProps) {
+		p.max = &max
+	}
+}
+
+// WithFormatting overrides the default decimal, thousand separator, and precision
+// from pkg/money currency definitions
+func WithFormatting(decimal, thousand string, precision int) MoneyOption {
+	return func(p *MoneyProps) {
+		p.decimal = decimal
+		p.thousand = thousand
+		p.precision = precision
+	}
+}
+
+// WithReadOnly sets the input to read-only mode (display only)
+func WithReadOnly() MoneyOption {
+	return func(p *MoneyProps) {
+		p.readOnly = true
+	}
+}
+
+// WithConversion enables currency conversion display
+// Shows the equivalent amount in another currency
+func WithConversion(toCurrency string, rate float64) MoneyOption {
+	return func(p *MoneyProps) {
+		p.convertTo = toCurrency
+		p.conversionRate = rate
+	}
+}
+
+// applyMoneyOptions applies all functional options to the props
+func applyMoneyOptions(p *MoneyProps, opts []MoneyOption) {
+	for _, opt := range opts {
+		opt(p)
+	}
+}
+
+// autoPopulateCurrency auto-populates currency formatting from pkg/money
+// if not already overridden by WithFormatting()
+func autoPopulateCurrency(p *MoneyProps) {
+	if p.Currency != "" {
+		// Try to get currency from pkg/money
+		if currency := money.GetCurrency(p.Currency); currency != nil {
+			// Only set if not already overridden
+			if p.decimal == "" {
+				p.decimal = currency.Decimal
+			}
+			if p.thousand == "" {
+				p.thousand = currency.Thousand
+			}
+			if p.precision == 0 {
+				p.precision = currency.Fraction
+			}
+		}
+	}
+
+	// Fallback defaults if currency not found
+	if p.decimal == "" {
+		p.decimal = "."
+	}
+	if p.thousand == "" {
+		p.thousand = ","
+	}
+	if p.precision == 0 {
+		p.precision = 2
+	}
+
+	// Generate ID if not set
+	if p.id == "" {
+		if explicitID, exists := p.Attrs["id"]; exists && explicitID != "" {
+			p.id = explicitID.(string)
+		} else {
+			p.id = random.String(12, random.LowerCharSet)
+		}
+	}
+}
+
+// moneyInputConfig represents the Alpine.js configuration for money input
+type moneyInputConfig struct {
+	Value          int64   `json:"value"`
+	Min            *int64  `json:"min"`
+	Max            *int64  `json:"max"`
+	Decimal        string  `json:"decimal"`
+	Thousand       string  `json:"thousand"`
+	Precision      int     `json:"precision"`
+	ConversionRate float64 `json:"conversionRate"`
+	ConvertTo      string  `json:"convertTo"`
+}
+
+// buildMoneyConfig creates a JSON-safe configuration for Alpine.js
+func buildMoneyConfig(p *MoneyProps) string {
+	config := moneyInputConfig{
+		Value:          p.Value,
+		Min:            p.min,
+		Max:            p.max,
+		Decimal:        p.decimal,
+		Thousand:       p.thousand,
+		Precision:      p.precision,
+		ConversionRate: p.conversionRate,
+		ConvertTo:      p.convertTo,
+	}
+
+	jsonBytes, err := json.Marshal(config)
+	if err != nil {
+		// Fallback to safe defaults if marshaling fails
+		return `{"value":0,"min":null,"max":null,"decimal":".","thousand":",","precision":2,"conversionRate":0,"convertTo":""}`
+	}
+
+	return string(jsonBytes)
+}
+
+// Money renders a money input component with currency formatting and masking
+templ Money(props *MoneyProps, opts ...MoneyOption) {
+	{{ applyMoneyOptions(props, opts) }}
+	{{ autoPopulateCurrency(props) }}
+	@props.render()
+}
+
+// render is the internal template for rendering the money input
+templ (p *MoneyProps) render() {
+	{{
+		// Extract wrapper class
+		wrapperPropsClass := ""
+		if p.WrapperProps != nil {
+			switch v := p.WrapperProps["class"].(type) {
+			case string:
+				wrapperPropsClass = v
+			}
+		}
+
+		// Build error ID for ARIA
+		errorID := ""
+		if p.Error != "" {
+			errorID = p.id + "-error"
+		}
+		validationErrorID := p.id + "-validation-error"
+		conversionID := p.id + "-conversion"
+
+		// Build Alpine config safely
+		alpineConfig := "moneyInput(" + buildMoneyConfig(p) + ")"
+	}}
+	<div class={ twmerge.Merge("flex flex-col w-full", p.WrapperClass.String()) }>
+		if len(p.Label) > 0 {
+			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
+		}
+		<div
+			x-data={ alpineConfig }
+			class="w-full"
+		>
+			// Hidden input with integer value (cents) for form submission
+			<input
+				type="hidden"
+				name={ p.Name }
+				x-model="amountInCents"
+				{ p.Attrs... }
+			/>
+			// Visible masked input
+			<div class={ twmerge.Merge("flex items-center w-full relative form-control", wrapperPropsClass) } { p.WrapperProps... }>
+				if p.AddonLeft != nil {
+					<div class={ twmerge.Merge("flex pl-2.5", p.AddonLeft.Class) } { p.AddonLeft.Attrs... }>
+						if p.AddonLeft.Render != nil {
+							@p.AddonLeft.Render(&Props{id: p.id})
+						} else if p.AddonLeft.Component != nil {
+							@p.AddonLeft.Component
+						}
+					</div>
+				}
+				<input
+					id={ p.id }
+					type="text"
+					inputmode="decimal"
+					autocomplete="off"
+					class={ twmerge.Merge("form-control-input outline-none w-full", p.Class) }
+					placeholder={ p.Placeholder }
+					x-model="displayValue"
+					x-mask:dynamic="$money($input, decimal, thousand, precision)"
+					@input="onInput"
+					x-bind:aria-invalid={ "validationError !== '' || " + fmt.Sprintf("%t", p.Error != "") }
+					if errorID != "" || p.min != nil || p.max != nil {
+						aria-describedby={ func() string {
+								ids := []string{}
+								if errorID != "" { ids = append(ids, errorID) }
+								if p.min != nil || p.max != nil { ids = append(ids, validationErrorID) }
+								if p.convertTo != "" { ids = append(ids, conversionID) }
+								return strings.Join(ids, " ")
+							}() }
+					}
+					readonly?={ p.readOnly }
+					{ p.Attrs... }
+				/>
+				if p.AddonRight != nil {
+					<div class={ twmerge.Merge("flex pr-2.5", p.AddonRight.Class) } { p.AddonRight.Attrs... }>
+						if p.AddonRight.Render != nil {
+							@p.AddonRight.Render(&Props{id: p.id})
+						} else if p.AddonRight.Component != nil {
+							@p.AddonRight.Component
+						}
+					</div>
+				}
+			</div>
+			// Server-side validation error
+			if p.Error != "" {
+				<small
+					id={ errorID }
+					class="text-xs text-red-500 mt-1"
+					data-testid="field-error"
+					data-field-id={ p.id }
+					role="alert"
+				>
+					{ p.Error }
+				</small>
+			}
+			// Client-side min/max validation error
+			if p.min != nil || p.max != nil {
+				<small
+					id={ validationErrorID }
+					x-show="validationError"
+					x-text="validationError"
+					x-cloak
+					class="text-xs text-red-500 mt-1"
+					role="alert"
+				></small>
+			}
+			// Currency conversion display
+			if p.convertTo != "" && p.conversionRate > 0 {
+				<small
+					id={ conversionID }
+					x-show="convertedAmount !== 0"
+					x-text="`≈ ${formatConversion()} ${convertTo}`"
+					x-cloak
+					class="text-xs text-gray-300 mt-1"
+				></small>
+			}
+		</div>
+	</div>
 }

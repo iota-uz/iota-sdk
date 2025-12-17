@@ -3,6 +3,7 @@ package filters
 import (
 	"context"
 
+	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -17,6 +18,12 @@ func WithPlaceholder(placeholder string) Option {
 func MultiSelect() Option {
 	return func(t *TableFilter) {
 		t.multiple = true
+	}
+}
+
+func WithMultiSelectClasses(classes templ.CSSClasses) Option {
+	return func(t *TableFilter) {
+		t.multiSelectClasses = classes
 	}
 }
 
@@ -39,10 +46,11 @@ type OptionItem struct {
 }
 
 type TableFilter struct {
-	Name        string
-	placeholder string
-	options     []OptionItem
-	multiple    bool
+	Name               string
+	placeholder        string
+	multiSelectClasses templ.CSSClasses
+	options            []OptionItem
+	multiple           bool
 }
 
 func NewFilter(name string, opts ...Option) *TableFilter {
@@ -62,7 +70,7 @@ func (t *TableFilter) Add(opts ...OptionItem) *TableFilter {
 
 func isOptionChecked(ctx context.Context, name string, opt OptionItem) bool {
 	pgCtx := composables.UsePageCtx(ctx)
-	query := pgCtx.URL.Query()
+	query := pgCtx.GetURL().Query()
 	if v := query.Get(name); v == "" {
 		return false
 	}

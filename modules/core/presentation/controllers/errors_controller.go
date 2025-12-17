@@ -27,7 +27,7 @@ func handler404(w http.ResponseWriter, r *http.Request) {
 func NotFound(app application.Application) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		handler := middleware.WithPageContext()(http.HandlerFunc(handler404))
-		handler = middleware.ProvideLocalizer(app.Bundle())(handler)
+		handler = middleware.ProvideLocalizer(app)(handler)
 		handler.ServeHTTP(w, r)
 	}
 }

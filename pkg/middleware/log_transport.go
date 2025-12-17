@@ -9,30 +9,48 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/sirupsen/logrus"
 )
 
 // LogTransport is a http.RoundTripper middleware for logging outgoing HTTP requests/responses.
 type LogTransport struct {
 	Base            http.RoundTripper
+	Conf            *configuration.Configuration
 	Logger          *logrus.Logger
 	LogRequestBody  bool
 	LogResponseBody bool
+	Name            string
 }
 
 // NewLogTransport constructs a new LogTransport with given options.
-func NewLogTransport(logger *logrus.Logger, logRequestBody, logResponseBody bool) *LogTransport {
+func NewLogTransport(logger *logrus.Logger, conf *configuration.Configuration, logRequestBody, logResponseBody bool, name string) *LogTransport {
+	if name == "" {
+		name = "client"
+	}
 	return &LogTransport{
 		Base:            http.DefaultTransport,
+		Conf:            conf,
 		Logger:          logger,
 		LogRequestBody:  logRequestBody,
 		LogResponseBody: logResponseBody,
+		Name:            name,
 	}
 }
 
 // RoundTrip implements http.RoundTripper.
 func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
+
+	// Extract or generate request-id
+	var requestID string
+	if req.Header.Get(l.Conf.RequestIDHeader) != "" {
+		requestID = req.Header.Get(l.Conf.RequestIDHeader)
+	} else {
+		requestID = uuid.New().String()
+		req.Header.Set(l.Conf.RequestIDHeader, requestID)
+	}
 
 	// Log request body
 	var reqBody string
@@ -44,11 +62,14 @@ func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	l.Logger.WithFields(logrus.Fields{
 		"type":           "http-client-request",
+		"request-id":     requestID,
 		"method":         req.Method,
 		"url":            req.URL.String(),
+		"origin":         req.URL.Scheme + "://" + req.URL.Host,
 		"headers":        req.Header,
 		"request-body":   parseBody(reqBody, req.Header.Get("Content-Type")),
 		"request-length": len(reqBody),
+		"client":         l.Name,
 	}).Info("HTTP client request started")
 
 	// Perform request
@@ -57,11 +78,14 @@ func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	if err != nil {
 		l.Logger.WithFields(logrus.Fields{
-			"type":     "http-client-error",
-			"method":   req.Method,
-			"url":      req.URL.String(),
-			"error":    err,
-			"duration": duration,
+			"type":       "http-client-error",
+			"request-id": requestID,
+			"method":     req.Method,
+			"url":        req.URL.String(),
+			"origin":     req.URL.Scheme + "://" + req.URL.Host,
+			"error":      err,
+			"duration":   duration,
+			"client":     l.Name,
 		}).Error("HTTP client request failed")
 		return nil, err
 	}
@@ -76,14 +100,17 @@ func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	l.Logger.WithFields(logrus.Fields{
 		"type":            "http-client-response",
+		"request-id":      requestID,
 		"method":          req.Method,
 		"url":             req.URL.String(),
+		"origin":          req.URL.Scheme + "://" + req.URL.Host,
 		"status":          resp.Status,
 		"status_code":     resp.StatusCode,
 		"headers":         resp.Header,
 		"response-body":   parseBody(respBody, resp.Header.Get("Content-Type")),
 		"response-length": len(respBody),
 		"duration":        duration,
+		"client":          l.Name,
 	}).Info("HTTP client response received")
 
 	return resp, nil

@@ -22,7 +22,7 @@ templ TransactionsTab(props *TransactionsTabProps) {
 					@icons.Receipt(icons.Props{Size: "32", Class: "text-gray-400"})
 				</div>
 				<h3 class="text-lg font-medium text-gray-900 mb-1">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactions") }</h3>
-				<p class="text-gray-500">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactionsDescription") }</p>
+				<p class="text-gray-300">{ pageCtx.T("MoneyAccounts.Transactions.NoTransactionsDescription") }</p>
 			</div>
 		} else {
 			<div class="space-y-1">
@@ -73,7 +73,7 @@ templ transactionListItem(transaction *viewmodels.Transaction, pageCtx any) {
 						<div class="text-right ml-3">
 							<p class="text-sm font-semibold text-gray-900">{ transaction.AmountWithCurrency }</p>
 							if transaction.Category != nil {
-								<p class="text-xs text-gray-500 truncate max-w-24">{ transaction.Category.Name }</p>
+								<p class="text-xs text-gray-300 truncate max-w-24">{ transaction.Category.Name }</p>
 							}
 						</div>
 					</div>

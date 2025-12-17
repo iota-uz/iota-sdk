@@ -30,9 +30,10 @@ templ EditForm(props *EditFormProps) {
 					Label:       pageCtx.T("Roles.Single.Name.Label"),
 					Placeholder: pageCtx.T("Roles.Single.Name.Placeholder"),
 					Attrs: templ.Attributes{
-						"name":  "Name",
-						"value": props.Role.Name,
-						"form":  "save-form",
+						"name":         "Name",
+						"value":        props.Role.Name,
+						"form":         "save-form",
+						"data-test-id": "role-name-input",
 					},
 					Error: props.Errors["Name"],
 				})
@@ -40,9 +41,10 @@ templ EditForm(props *EditFormProps) {
 					Label:       pageCtx.T("Roles.Single._Description.Label"),
 					Placeholder: pageCtx.T("Roles.Single._Description.Placeholder"),
 					Attrs: templ.Attributes{
-						"name": "Description",
-						"form": "save-form",
-						"rows": "4",
+						"name":         "Description",
+						"form":         "save-form",
+						"rows":         "4",
+						"data-test-id": "role-description-input",
 					},
 					Value: props.Role.Description,
 					Error: props.Errors["Description"],
@@ -68,7 +70,7 @@ templ EditForm(props *EditFormProps) {
 					}
 					for _, moduleGroup := range props.ModulePermissionGroups {
 						@tab.Content(moduleGroup.Module) {
-							<div class="space-y-3 pt-4">
+							<div class="space-y-3 pt-4" data-test-id={ fmt.Sprintf("module-content-%s", moduleGroup.Module) }>
 								for _, resourceGroup := range moduleGroup.ResourceGroups {
 									@card.Card(card.Props{
 										Class: "space-y-3",
@@ -111,11 +113,12 @@ templ EditForm(props *EditFormProps) {
 					Disabled: !props.Role.CanDelete,
 					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
-						"name":   "_action",
-						"value":  "delete",
-						"type":   "button",
-						"@click": "$dispatch('open-delete-role-confirmation')",
-						"id":     "delete-role-btn",
+						"name":         "_action",
+						"value":        "delete",
+						"type":         "button",
+						"@click":       "$dispatch('open-delete-role-confirmation')",
+						"id":           "delete-role-btn",
+						"data-test-id": "delete-role-btn",
 					},
 				}) {
 					{ pageCtx.T("Delete") }
@@ -133,9 +136,10 @@ templ EditForm(props *EditFormProps) {
 					Disabled: !props.Role.CanUpdate,
 					Size:     button.SizeMD,
 					Attrs: templ.Attributes{
-						"name":  "_action",
-						"value": "save",
-						"id":    "save-btn",
+						"name":         "_action",
+						"value":        "save",
+						"id":           "save-btn",
+						"data-test-id": "save-role-btn",
 					},
 				}) {
 					{ pageCtx.T("Save") }
@@ -152,10 +156,12 @@ templ Edit(props *EditFormProps) {
 	}) {
 		@EditForm(props)
 		@dialog.Confirmation(&dialog.Props{
-			Heading: pageCtx.T("Roles.Single.Delete"),
-			Text:    pageCtx.T("Roles.Single.DeleteConfirmation"),
-			Icon:    icons.Trash(icons.Props{Size: "20"}),
-			Action:  "open-delete-role-confirmation",
+			Heading:     pageCtx.T("Roles.Single.Delete"),
+			Text:        pageCtx.T("Roles.Single.DeleteConfirmation"),
+			Icon:        icons.Trash(icons.Props{Size: "20"}),
+			Action:      "open-delete-role-confirmation",
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Delete"),
 			Attrs: templ.Attributes{
 				"@closing": `({target}) => {
 					if (target.returnValue === "confirm") {
@@ -163,6 +169,7 @@ templ Edit(props *EditFormProps) {
 						htmx.trigger(deleteForm, "submit");
 					}
 				}`,
+				"data-test-id": "delete-confirmation-dialog",
 			},
 		})
 	}

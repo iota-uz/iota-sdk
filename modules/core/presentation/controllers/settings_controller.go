@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 
@@ -44,7 +46,7 @@ func (c *SettingsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -110,7 +112,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logoID := dto.LogoID
-		tenant.SetLogoID(&logoID)
+		tenant = tenant.SetLogoID(&logoID)
 	}
 	if dto.LogoCompactID > 0 {
 		// Validate that the upload exists before setting it
@@ -126,7 +128,47 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logoCompactID := dto.LogoCompactID
-		tenant.SetLogoCompactID(&logoCompactID)
+		tenant = tenant.SetLogoCompactID(&logoCompactID)
+	}
+
+	// Handle phone number update
+	if dto.Phone != "" {
+		parsedPhone, err := phone.NewFromE164(dto.Phone)
+		if err != nil {
+			logger.WithError(err).Error("invalid phone number")
+			props, propErr := c.logoProps(r, map[string]string{"Phone": "Invalid phone number format"}, tenant)
+			if propErr != nil {
+				logger.WithError(propErr).Error("failed to get logo props")
+				http.Error(w, propErr.Error(), http.StatusInternalServerError)
+				return
+			}
+			templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
+			return
+		}
+		tenant = tenant.SetPhone(parsedPhone)
+	} else {
+		// Clear phone if empty
+		tenant = tenant.SetPhone(nil)
+	}
+
+	// Handle email update
+	if dto.Email != "" {
+		parsedEmail, err := internet.NewEmail(dto.Email)
+		if err != nil {
+			logger.WithError(err).Error("invalid email")
+			props, propErr := c.logoProps(r, map[string]string{"Email": "Invalid email format"}, tenant)
+			if propErr != nil {
+				logger.WithError(propErr).Error("failed to get logo props")
+				http.Error(w, propErr.Error(), http.StatusInternalServerError)
+				return
+			}
+			templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
+			return
+		}
+		tenant = tenant.SetEmail(parsedEmail)
+	} else {
+		// Clear email if empty
+		tenant = tenant.SetEmail(nil)
 	}
 
 	if _, err := c.tenantService.Update(r.Context(), tenant); err != nil {
@@ -144,7 +186,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
 }
 
-func (c *SettingsController) logoProps(r *http.Request, errors map[string]string, tenant *tenant.Tenant) (*settings.LogoPageProps, error) {
+func (c *SettingsController) logoProps(r *http.Request, errors map[string]string, tenant tenant.Tenant) (*settings.LogoPageProps, error) {
 	nonNilErrors := make(map[string]string)
 	if errors != nil {
 		nonNilErrors = errors
@@ -179,10 +221,23 @@ func (c *SettingsController) logoProps(r *http.Request, errors map[string]string
 		}
 	}
 
+	// Get phone and email values
+	phoneValue := ""
+	if tenant.Phone() != nil {
+		phoneValue = tenant.Phone().E164()
+	}
+
+	emailValue := ""
+	if tenant.Email() != nil {
+		emailValue = tenant.Email().Value()
+	}
+
 	props := &settings.LogoPageProps{
 		PostPath:          c.basePath + "/logo",
 		LogoUpload:        logoUpload,
 		LogoCompactUpload: logoCompactUpload,
+		Phone:             phoneValue,
+		Email:             emailValue,
 		Errors:            nonNilErrors,
 	}
 

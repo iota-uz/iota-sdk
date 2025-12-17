@@ -161,7 +161,7 @@ func DetailsViewCompact(ctx context.Context, ml models.MultiLang) templ.Componen
 				return templ_7745c5c3_Err
 			}
 			if hasMultipleTranslations(ml) {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"text-xs text-gray-500 mt-1\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"text-xs text-gray-300 mt-1\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

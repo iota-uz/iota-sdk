@@ -51,7 +51,7 @@ func (c *CounterpartiesController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(c.app),
-		middleware.ProvideLocalizer(c.app.Bundle()),
+		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -121,22 +121,9 @@ func (c *CounterpartiesController) Create(w http.ResponseWriter, r *http.Request
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
-		tenantID, err := composables.UseTenantID(r.Context())
-		if err != nil {
-			logrus.WithError(err).Error("Error getting tenant ID")
-			http.Error(w, "Error getting tenant ID", http.StatusInternalServerError)
-			return
-		}
-
-		entity, err := dto.ToEntity(tenantID)
-		if err != nil {
-			logrus.WithError(err).Error("Error converting DTO to entity")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
+		// Use DTO-to-ViewModel mapping to preserve submitted form values including invalid TIN
 		props := &counterpartiesui.CreatePageProps{
-			Counterparty: mappers.CounterpartyToViewModel(entity),
+			Counterparty: dto.ToViewModel(),
 			Errors:       errorsMap,
 			PostPath:     c.basePath,
 		}
@@ -219,8 +206,9 @@ func (c *CounterpartiesController) Update(w http.ResponseWriter, r *http.Request
 	}
 
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
+		// Use DTO-to-ViewModel mapping to preserve submitted form values including invalid TIN
 		props := &counterpartiesui.EditPageProps{
-			Counterparty: mappers.CounterpartyToViewModel(existing),
+			Counterparty: dto.ToViewModel(id.String()),
 			Errors:       errorsMap,
 			PostPath:     c.basePath + "/" + id.String(),
 			DeletePath:   c.basePath + "/" + id.String(),

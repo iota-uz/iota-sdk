@@ -404,10 +404,10 @@ func (c *LogCollector) SendBatch(ctx context.Context, client *http.Client, batch
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return fmt.Errorf("Loki returned status code %d, but failed to read response body: %w", resp.StatusCode, err)
+			return fmt.Errorf("loki returned status code %d, but failed to read response body: %w", resp.StatusCode, err)
 		}
 
-		return fmt.Errorf("Loki returned status code %d: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("loki returned status code %d: %s", resp.StatusCode, string(respBody))
 	}
 
 	return nil

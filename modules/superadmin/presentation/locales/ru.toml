@@ -1,0 +1,89 @@
+[SuperAdmin.NavigationLinks]
+Dashboard = "Панель управления"
+Tenants = "Арендаторы"
+
+[SuperAdmin.Dashboard]
+Title = "Панель Super Admin"
+DateRange = "Период дат"
+
+[SuperAdmin.Dashboard.Meta]
+Title = "Панель управления - Super Admin"
+
+[SuperAdmin.Dashboard.Metrics]
+TotalTenants = "Всего арендаторов"
+TotalUsers = "Всего пользователей"
+ActiveUsers = "Активные пользователи"
+DAU = "Активные за день"
+WAU = "Активные за неделю"
+MAU = "Активные за месяц"
+TotalSessions = "Всего сессий"
+
+[SuperAdmin.Dashboard.Charts]
+UserSignups = "Регистрации пользователей"
+TenantSignups = "Регистрации арендаторов"
+
+[SuperAdmin.Tenants]
+Title = "Арендаторы"
+Name = "Название арендатора"
+Domain = "Домен"
+Email = "Email"
+Phone = "Телефон"
+UserCount = "Количество пользователей"
+StatusColumn = "Статус"
+CreatedAt = "Дата создания"
+Actions = "Действия"
+ViewUsers = "Просмотр пользователей"
+Export = "Экспорт в Excel"
+FilterByDate = "Фильтр по диапазону дат"
+StartDate = "Дата начала"
+EndDate = "Дата окончания"
+ClearFilter = "Очистить фильтр"
+
+[SuperAdmin.Tenants.Meta]
+Title = "Арендаторы - Super Admin"
+
+[SuperAdmin.Tenants.Status]
+Active = "Активен"
+Inactive = "Неактивен"
+
+[SuperAdmin.Tenants.Users]
+Title = "Пользователи арендатора"
+ViewUsers = "Просмотр пользователей"
+BackToTenants = "Назад к арендаторам"
+TenantInfo = "Информация об арендаторе"
+FullName = "Полное имя"
+FirstName = "Имя"
+LastName = "Фамилия"
+Email = "Email"
+Phone = "Телефон"
+Role = "Роль"
+CreatedAt = "Дата создания"
+LastLogin = "Последний вход"
+Status = "Статус"
+Actions = "Действия"
+ResetPassword = "Сбросить пароль"
+ResetPasswordTitle = "Сброс пароля"
+ResetPasswordFor = "Сбросить пароль для %s"
+NewPassword = "Новый пароль"
+EnterNewPassword = "Введите новый пароль"
+GeneratePassword = "Сгенерировать безопасный пароль"
+GeneratedPassword = "Сгенерированный пароль"
+SetPassword = "Установить пароль"
+CopyPassword = "Копировать пароль"
+PasswordCopied = "Пароль скопирован в буфер обмена"
+PasswordResetSuccess = "Пароль успешно сброшен"
+PasswordResetError = "Не удалось сбросить пароль"
+Cancel = "Отмена"
+ManualEntry = "Ввести вручную"
+AutoGenerate = "Автогенерация"
+
+[SuperAdmin.Tenants.Users.Meta]
+Title = "Пользователи арендатора - Super Admin"
+
+[SuperAdmin.Tenants.Users.Errors]
+PasswordTooShort = "Пароль должен содержать не менее 8 символов"
+PasswordTooLong = "Пароль не может превышать 128 символов"
+PasswordEmpty = "Пароль не может быть пустым"
+InvalidContentType = "Запрос должен использовать формат JSON"
+NetworkError = "Произошла ошибка сети. Пожалуйста, попробуйте снова"
+ServerError = "Произошла ошибка сервера. Пожалуйста, обратитесь в поддержку"

@@ -112,6 +112,42 @@ func (o *octoProvider) Refund(ctx context.Context, t billing.Transaction, quanti
 	panic("implement me")
 }
 
+// CheckStatus checks the current status of a transaction via Octo's API.
+// This is used after responding with capture to get the final transaction status.
+// Implements the billing.StatusChecker interface.
+func (o *octoProvider) CheckStatus(ctx context.Context, shopTransactionId string) (*billing.StatusCheckResult, error) {
+	apiClient := newApiClient(o.logger)
+
+	req := octoapi.NewCheckStatusRequest(o.config.OctoShopID, o.config.OctoSecret, shopTransactionId)
+
+	resp, httpResp, err := apiClient.StatusAPI.
+		CheckStatus(ctx).
+		CheckStatusRequest(*req).
+		Execute()
+
+	if httpResp != nil {
+		if hErr := httpResp.Body.Close(); hErr != nil {
+			log.Printf("failed to close http response body: %v", hErr)
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to check status: %w", err)
+	}
+
+	if resp.GetError() != 0 {
+		return nil, fmt.Errorf("octo check status error: %s", resp.GetErrMessage())
+	}
+
+	result := &billing.StatusCheckResult{
+		Status:            resp.Data.GetStatus(),
+		ShopTransactionID: resp.Data.GetShopTransactionId(),
+		OctoPaymentUUID:   resp.Data.GetOctoPaymentUUID(),
+	}
+
+	return result, nil
+}
+
 func toOctoDetails(detailsObj details.Details) (details.OctoDetails, error) {
 	octoDetails, ok := detailsObj.(details.OctoDetails)
 	if !ok {

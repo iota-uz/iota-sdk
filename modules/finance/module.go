@@ -4,6 +4,7 @@ import (
 	"embed"
 
 	icons "github.com/iota-uz/icons/phosphor"
+	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/finance/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/finance/presentation/controllers"
@@ -26,6 +27,9 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	// Create upload repository for attachment functionality
+	uploadRepo := corepersistence.NewUploadRepository()
+
 	moneyAccountService := services.NewMoneyAccountService(
 		persistence.NewMoneyAccountRepository(),
 		persistence.NewTransactionRepository(),
@@ -42,6 +46,7 @@ func (m *Module) Register(app application.Application) error {
 			persistence.NewPaymentRepository(),
 			app.EventPublisher(),
 			moneyAccountService,
+			uploadRepo,
 		),
 		services.NewExpenseCategoryService(
 			categoryRepo,
@@ -55,6 +60,7 @@ func (m *Module) Register(app application.Application) error {
 			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
 			app.EventPublisher(),
 			moneyAccountService,
+			uploadRepo,
 		),
 		moneyAccountService,
 		services.NewCounterpartyService(persistence.NewCounterpartyRepository()),

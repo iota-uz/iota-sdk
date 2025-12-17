@@ -120,7 +120,7 @@ func ToDBPayment(entity payment.Payment) (*models.Payment, *models.Transaction) 
 }
 
 // TODO: populate user && account
-func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transaction) (payment.Payment, error) {
+func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transaction, attachments ...[]uint) (payment.Payment, error) {
 	t, err := ToDomainTransaction(dbTransaction)
 	if err != nil {
 		return nil, err
@@ -145,9 +145,8 @@ func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 
 	// Create default money account with zero balance
 	defaultBalance := money.New(0, "USD")
-	return payment.New(
-		t.Amount(),
-		category,
+
+	opts := []payment.Option{
 		payment.WithID(uuid.MustParse(dbPayment.ID)),
 		payment.WithTenantID(tenantID),
 		payment.WithTransactionID(t.ID()),
@@ -164,6 +163,17 @@ func ToDomainPayment(dbPayment *models.Payment, dbTransaction *models.Transactio
 		payment.WithAccountingPeriod(t.AccountingPeriod()),
 		payment.WithCreatedAt(dbPayment.CreatedAt),
 		payment.WithUpdatedAt(dbPayment.UpdatedAt),
+	}
+
+	// Add attachments if provided
+	if len(attachments) > 0 {
+		opts = append(opts, payment.WithAttachments(attachments[0]))
+	}
+
+	return payment.New(
+		t.Amount(),
+		category,
+		opts...,
 	), nil
 }
 
@@ -173,6 +183,7 @@ func ToDBExpenseCategory(entity category.ExpenseCategory) *models.ExpenseCategor
 		TenantID:    entity.TenantID().String(),
 		Name:        entity.Name(),
 		Description: mapping.ValueToSQLNullString(entity.Description()),
+		IsCOGS:      entity.IsCOGS(),
 		CreatedAt:   entity.CreatedAt(),
 		UpdatedAt:   entity.UpdatedAt(),
 	}
@@ -187,6 +198,7 @@ func ToDomainExpenseCategory(dbCategory *models.ExpenseCategory) (category.Expen
 	opts := []category.Option{
 		category.WithID(uuid.MustParse(dbCategory.ID)),
 		category.WithTenantID(tenantID),
+		category.WithIsCOGS(dbCategory.IsCOGS),
 		category.WithCreatedAt(dbCategory.CreatedAt),
 		category.WithUpdatedAt(dbCategory.UpdatedAt),
 	}
@@ -277,7 +289,7 @@ func ToDBMoneyAccount(entity moneyaccount.Account) *models.MoneyAccount {
 	}
 }
 
-func ToDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction) (expense.Expense, error) {
+func ToDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transaction, attachments ...[]uint) (expense.Expense, error) {
 	tenantID, err := uuid.Parse(dbExpense.TenantID)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse tenant ID")
@@ -300,11 +312,8 @@ func ToDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 
 	// Create expense amount as negative money
 	expenseAmount := money.New(-1*dbTransaction.Amount, "USD")
-	domainExpense := expense.New(
-		expenseAmount,
-		account,
-		expenseCategory,
-		dbTransaction.TransactionDate,
+
+	opts := []expense.Option{
 		expense.WithID(uuid.MustParse(dbExpense.ID)),
 		expense.WithTenantID(tenantID),
 		expense.WithComment(dbTransaction.Comment),
@@ -312,6 +321,19 @@ func ToDomainExpense(dbExpense *models.Expense, dbTransaction *models.Transactio
 		expense.WithAccountingPeriod(dbTransaction.AccountingPeriod),
 		expense.WithCreatedAt(dbExpense.CreatedAt),
 		expense.WithUpdatedAt(dbExpense.UpdatedAt),
+	}
+
+	// Add attachments if provided
+	if len(attachments) > 0 {
+		opts = append(opts, expense.WithAttachments(attachments[0]))
+	}
+
+	domainExpense := expense.New(
+		expenseAmount,
+		account,
+		expenseCategory,
+		dbTransaction.TransactionDate,
+		opts...,
 	)
 
 	return domainExpense, nil
@@ -353,7 +375,7 @@ func ToDomainCounterparty(dbRow *models.Counterparty) (counterparty.Counterparty
 	if err != nil {
 		return nil, err
 	}
-	var t tax.Tin = tax.NilTin
+	t := tax.NilTin
 	if dbRow.Tin.Valid && dbRow.Tin.String != "" {
 		t, err = tax.NewTin(dbRow.Tin.String, country.Uzbekistan)
 		if err != nil {
