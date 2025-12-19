@@ -418,6 +418,8 @@
     "Finances": "财务",
     "Projects": "项目",
     "Reports": "报告",
+    "Portfolio": "投资组合",
+    "SalesReport": "销售报告",
     "CRM": "CRM",
     "HRM": "人力资源管理",
     "Warehouse": "仓库",
@@ -566,6 +568,24 @@
       "ClientManage": {
         "Label": "管理客户",
         "_Description": "完整的客户管理功能"
+      },
+      "PayoutView": {
+        "Label": "查看支付",
+        "_Description": "查看支付信息"
+      },
+      "PayoutManage": {
+        "Label": "管理支付",
+        "_Description": "完整的支付管理功能"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "查看管道",
+        "_Description": "仅查看管道信息"
+      },
+      "PipelineManage": {
+        "Label": "管理管道",
+        "_Description": "完整的管道管理功能"
       }
     },
     "HRM": {
@@ -576,6 +596,16 @@
       "EmployeeManage": {
         "Label": "管理员工",
         "_Description": "完整的员工管理功能"
+      }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "查看网站",
+        "_Description": "仅查看网站信息"
+      },
+      "WebsiteManage": {
+        "Label": "管理网站",
+        "_Description": "完整的网站管理功能"
       }
     }
   },
@@ -613,6 +643,22 @@
       "Read": "查看上传",
       "Update": "更新上传",
       "Delete": "删除上传"
+    },
+    "Payout": {
+      "Pay": "支付",
+      "PayAll": "支付所有",
+      "Reverse": "撤销支付"
+    },
+    "Pipeline": {
+      "Create": "创建管道",
+      "Read": "查看管道",
+      "Update": "更新管道",
+      "Delete": "删除管道",
+      "SubmitForUnderwriting": "提交承保",
+      "Approve": "批准管道",
+      "Decline": "拒绝管道",
+      "RequestAdditionalInfo": "请求附加信息",
+      "CompleteAssessment": "完成评估"
     }
   },
   "Projects": {
@@ -645,7 +691,9 @@
     "user": "用户",
     "role": "角色",
     "group": "组",
-    "upload": "上传"
+    "upload": "上传",
+    "payout_request": "支付请求",
+    "pipeline": "管道"
   },
   "Roles": {
     "Meta": {

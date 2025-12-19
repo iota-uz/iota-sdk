@@ -418,6 +418,8 @@
     "Finances": "Moliya",
     "Projects": "Loyihalar",
     "Reports": "Hisobotlar",
+    "Portfolio": "Portfel",
+    "SalesReport": "Sotish hisoboti",
     "Navbar": {
       "Profile": "Profil",
       "Logout": "Chiqish"
@@ -562,6 +564,24 @@
       "ClientManage": {
         "Label": "Mijozlarni boshqarish",
         "_Description": "Mijozlarni to'liq boshqarish"
+      },
+      "PayoutView": {
+        "Label": "To'lovlarni ko'rish",
+        "_Description": "To'lov ma'lumotlarini ko'rish"
+      },
+      "PayoutManage": {
+        "Label": "To'lovlarni boshqarish",
+        "_Description": "To'lovlarni to'liq boshqarish"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "Voronkalarni ko'rish",
+        "_Description": "Voronkalar ma'lumotlarini faqat ko'rish"
+      },
+      "PipelineManage": {
+        "Label": "Voronkalarni boshqarish",
+        "_Description": "Voronkalarni to'liq boshqarish"
       }
     },
     "HRM": {
@@ -572,6 +592,16 @@
       "EmployeeManage": {
         "Label": "Xodimlarni boshqarish",
         "_Description": "Xodimlarni to'liq boshqarish"
+      }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "Veb-saytni ko'rish",
+        "_Description": "Veb-sayt ma'lumotlarini faqat ko'rish"
+      },
+      "WebsiteManage": {
+        "Label": "Veb-saytni boshqarish",
+        "_Description": "Veb-saytni to'liq boshqarish"
       }
     }
   },
@@ -609,6 +639,22 @@
       "Read": "Yuklashlarni ko'rish",
       "Update": "Yuklashni tahrirlash",
       "Delete": "Yuklashni o'chirish"
+    },
+    "Payout": {
+      "Pay": "To'lash",
+      "PayAll": "Barchasini to'lash",
+      "Reverse": "To'lovni bekor qilish"
+    },
+    "Pipeline": {
+      "Create": "Voronka yaratish",
+      "Read": "Voronkalarni ko'rish",
+      "Update": "Voronkani tahrirlash",
+      "Delete": "Voronkani o'chirish",
+      "SubmitForUnderwriting": "Anderraytingga yuborish",
+      "Approve": "Voronkalarni tasdiqlash",
+      "Decline": "Voronkalarni rad etish",
+      "RequestAdditionalInfo": "Qo'shimcha ma'lumot so'rash",
+      "CompleteAssessment": "Baholashni yakunlash"
     }
   },
   "Projects": {
@@ -641,7 +687,9 @@
     "user": "Foydalanuvchilar",
     "role": "Rollar",
     "group": "Guruhlar",
-    "upload": "Yuklashlar"
+    "upload": "Yuklashlar",
+    "payout_request": "To'lov so'rovi",
+    "pipeline": "Quvur liniyasi"
   },
   "Roles": {
     "Meta": {

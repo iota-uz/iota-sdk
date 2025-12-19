@@ -418,6 +418,8 @@
     "Finances": "Finances",
     "Projects": "Projects",
     "Reports": "Reports",
+    "Portfolio": "Portfolio",
+    "SalesReport": "Sales Report",
     "Navbar": {
       "Profile": "Profile",
       "Logout": "Logout"
@@ -562,6 +564,24 @@
       "ClientManage": {
         "Label": "Manage Clients",
         "_Description": "Full client management capabilities"
+      },
+      "PayoutView": {
+        "Label": "View Payouts",
+        "_Description": "View payout information"
+      },
+      "PayoutManage": {
+        "Label": "Manage Payouts",
+        "_Description": "Full payout management capabilities"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "View Pipelines",
+        "_Description": "View pipeline information only"
+      },
+      "PipelineManage": {
+        "Label": "Manage Pipelines",
+        "_Description": "Full pipeline management capabilities"
       }
     },
     "HRM": {
@@ -572,6 +592,16 @@
       "EmployeeManage": {
         "Label": "Manage Employees",
         "_Description": "Full employee management capabilities"
+      }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "View Website",
+        "_Description": "View website information only"
+      },
+      "WebsiteManage": {
+        "Label": "Manage Website",
+        "_Description": "Full website management capabilities"
       }
     }
   },
@@ -609,6 +639,22 @@
       "Read": "View uploads",
       "Update": "Update uploads",
       "Delete": "Delete uploads"
+    },
+    "Payout": {
+      "Pay": "Pay out",
+      "PayAll": "Pay out all",
+      "Reverse": "Reverse payout"
+    },
+    "Pipeline": {
+      "Create": "Create pipelines",
+      "Read": "View pipelines",
+      "Update": "Update pipelines",
+      "Delete": "Delete pipelines",
+      "SubmitForUnderwriting": "Submit for underwriting",
+      "Approve": "Approve pipelines",
+      "Decline": "Decline pipelines",
+      "RequestAdditionalInfo": "Request additional information",
+      "CompleteAssessment": "Complete assessment"
     }
   },
   "Projects": {
@@ -641,7 +687,9 @@
     "user": "Users",
     "role": "Roles",
     "group": "Groups",
-    "upload": "Uploads"
+    "upload": "Uploads",
+    "payout_request": "Payout Request",
+    "pipeline": "Pipeline"
   },
   "Roles": {
     "Meta": {
