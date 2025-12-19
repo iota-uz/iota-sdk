@@ -1,6 +1,8 @@
 package viewmodels
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -25,8 +27,16 @@ type User struct {
 	CanDelete   bool
 }
 
-func (u *User) FullName() string {
-	return u.FirstName + " " + u.LastName
+func (u *User) Title() string {
+	fullName := u.FirstName + " " + u.LastName
+
+	if strings.TrimSpace(fullName) != "" {
+		return fullName
+	} else if u.Phone != "" {
+		return u.Phone
+	}
+
+	return u.Email
 }
 
 func (u *User) RolesVerbose() string {

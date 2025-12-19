@@ -60,7 +60,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 				})
 				<div class="flex items-center gap-2">
 					<span>
-						{ user.FullName() }
+						{ user.Title() }
 					</span>
 					if user.Type == "system" {
 						@badge.New(badge.Props{
