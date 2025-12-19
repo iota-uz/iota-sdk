@@ -418,6 +418,8 @@
     "Finances": "Финансы",
     "Projects": "Проекты",
     "Reports": "Отчеты",
+    "Portfolio": "Портфолио",
+    "SalesReport": "Отчет о продажах",
     "Navbar": {
       "Profile": "Профиль",
       "Logout": "Выйти"
@@ -562,6 +564,24 @@
       "ClientManage": {
         "Label": "Управление клиентами",
         "_Description": "Полное управление клиентами"
+      },
+      "PayoutView": {
+        "Label": "Вывод средств",
+        "_Description": "Вывести средства"
+      },
+      "PayoutManage": {
+        "Label": "PayoutManage",
+        "_Description": "PayoutManage description"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "Просмотр воронок",
+        "_Description": "Только просмотр информации о воронках"
+      },
+      "PipelineManage": {
+        "Label": "Управление воронками",
+        "_Description": "Полное управление воронками"
       }
     },
     "HRM": {
@@ -572,6 +592,16 @@
       "EmployeeManage": {
         "Label": "Управление сотрудниками",
         "_Description": "Полное управление сотрудниками"
+      }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "Просмотр веб-сайта",
+        "_Description": "Только просмотр информации о веб-сайте"
+      },
+      "WebsiteManage": {
+        "Label": "Управление веб-сайтом",
+        "_Description": "Полное управление веб-сайтом"
       }
     }
   },
@@ -609,6 +639,22 @@
       "Read": "Просмотр загрузок",
       "Update": "Изменение загрузки",
       "Delete": "Удаление загрузки"
+    },
+    "Payout": {
+      "Pay": "Вывести",
+      "PayAll": "Вывести все",
+      "Reverse": "Reverse"
+    },
+    "Pipeline": {
+      "Create": "Создание воронки",
+      "Read": "Просмотр воронок",
+      "Update": "Изменение воронки",
+      "Delete": "Удаление воронки",
+      "SubmitForUnderwriting": "Отправить на андеррайтинг",
+      "Approve": "Одобрить воронки",
+      "Decline": "Отклонить воронки",
+      "RequestAdditionalInfo": "Запросить дополнительную информацию",
+      "CompleteAssessment": "Завершить оценку"
     }
   },
   "Projects": {
@@ -641,7 +687,9 @@
     "user": "Пользователи",
     "role": "Роли",
     "group": "Группы",
-    "upload": "Загрузки"
+    "upload": "Загрузки",
+    "payout_request": "Запросить вывод",
+    "pipeline": "Pipeline"
   },
   "Roles": {
     "Meta": {
