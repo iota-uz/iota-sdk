@@ -194,9 +194,9 @@ func InventoryTable(props *IndexPageProps) templ.Component {
 							}
 							ctx = templ.InitializeContext(ctx)
 							var templ_7745c5c3_Var11 string
-							templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(check.CreatedBy.FullName())
+							templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(check.CreatedBy.Title())
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/inventory/inventory.templ`, Line: 59, Col: 35}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/inventory/inventory.templ`, Line: 59, Col: 32}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 							if templ_7745c5c3_Err != nil {
@@ -226,9 +226,9 @@ func InventoryTable(props *IndexPageProps) templ.Component {
 							ctx = templ.InitializeContext(ctx)
 							if check.FinishedBy != nil {
 								var templ_7745c5c3_Var13 string
-								templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(check.FinishedBy.FullName())
+								templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(check.FinishedBy.Title())
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/inventory/inventory.templ`, Line: 63, Col: 37}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/warehouse/presentation/templates/pages/inventory/inventory.templ`, Line: 63, Col: 34}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 								if templ_7745c5c3_Err != nil {

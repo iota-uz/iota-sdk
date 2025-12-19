@@ -149,9 +149,9 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var5 string
-				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.FullName())
+				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.Title())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 63, Col: 23}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 63, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
