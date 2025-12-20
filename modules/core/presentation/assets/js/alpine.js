@@ -5,7 +5,7 @@ import "./lib/alpine-mask.min.js";
 import Sortable from "./lib/alpine-sort.js";
 
 let relativeFormat = () => ({
-  format(dateStr = new Date().toISOString(), locale = "ru") {
+  format(dateStr = new Date().toISOString(), locale = document.documentElement.lang || "ru") {
     let date = new Date(dateStr);
     let timeMs = date.getTime();
     let delta = Math.round((timeMs - Date.now()) / 1000);
@@ -27,7 +27,7 @@ let relativeFormat = () => ({
 });
 
 let dateFns = () => ({
-  formatter: new Intl.DateTimeFormat("ru", {
+  formatter: new Intl.DateTimeFormat(document.documentElement.lang || "ru", {
     year: "numeric",
     month: "numeric",
     day: "numeric",
