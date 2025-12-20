@@ -657,8 +657,8 @@
         "_Description": "Вывести средства"
       },
       "PayoutManage": {
-        "Label": "PayoutManage",
-        "_Description": "PayoutManage description"
+        "Label": "Управление выплатами",
+        "_Description": "Полное управление выплатами"
       }
     },
     "Pipeline": {
@@ -730,7 +730,7 @@
     "Payout": {
       "Pay": "Вывести",
       "PayAll": "Вывести все",
-      "Reverse": "Reverse"
+      "Reverse": "Отменить выплату"
     },
     "Pipeline": {
       "Create": "Создание воронки",
@@ -776,7 +776,7 @@
     "group": "Группы",
     "upload": "Загрузки",
     "payout_request": "Запросить вывод",
-    "pipeline": "Pipeline",
+    "pipeline": "Воронка",
     "website": "Веб-сайт"
   },
   "Roles": {
