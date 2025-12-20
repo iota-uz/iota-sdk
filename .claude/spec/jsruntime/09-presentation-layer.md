@@ -2,10 +2,499 @@
 
 ## Overview
 
-This specification defines the HTTP controllers, templates, ViewModels, DTOs, and UI components for the JavaScript Runtime module's presentation layer.
+The presentation layer provides web UI for managing JavaScript scripts, viewing executions, editing code with Monaco editor, and handling HTMX-powered interactions. It follows MVC architecture with controllers, ViewModels, Templ templates, and localization.
 
-## File Structure
+```mermaid
+graph TB
+    subgraph "MVC Architecture"
+        A[HTTP Request] --> B[ScriptController]
+        B --> C[ScriptService]
+        C --> D[Repository]
+        D --> E[(Database)]
 
+        C --> F[ViewModel]
+        F --> G[Templ Template]
+        G --> H[HTML Response]
+
+        B -.HTMX.-> I[Partial HTML]
+        I --> H
+    end
+
+    style B fill:#e1f5ff
+    style F fill:#fff4e1
+    style G fill:#e1ffe1
+```
+
+## What It Does
+
+The presentation layer:
+- **Renders** script management UI with list, create, edit, view pages
+- **Handles** form submissions for script CRUD operations
+- **Displays** execution history with real-time updates via HTMX
+- **Integrates** Monaco editor for JavaScript code editing
+- **Localizes** UI text in English, Russian, Uzbek
+- **Validates** user permissions via RBAC middleware
+
+## How It Works
+
+### Controller Structure
+
+```mermaid
+graph LR
+    subgraph "Routes"
+        A[GET /scripts] --> B[Index]
+        C[GET /scripts/new] --> D[New]
+        E[POST /scripts] --> F[Create]
+        G[GET /scripts/:id] --> H[View]
+        I[GET /scripts/:id/edit] --> J[Edit]
+        K[PUT /scripts/:id] --> L[Update]
+        M[DELETE /scripts/:id] --> N[Delete]
+        O[POST /scripts/:id/execute] --> P[Execute]
+        Q[GET /scripts/:id/executions] --> R[Executions List]
+    end
+
+    B --> S[ScriptController.Index]
+    D --> T[ScriptController.New]
+    F --> U[ScriptController.Create]
+    H --> V[ScriptController.View]
+    J --> W[ScriptController.Edit]
+    L --> X[ScriptController.Update]
+    N --> Y[ScriptController.Delete]
+    P --> Z[ScriptController.Execute]
+    R --> AA[ScriptController.Executions]
+
+    style S fill:#e1f5ff
+    style U fill:#fff4e1
+    style Z fill:#ffe1e1
+```
+
+**What It Does:**
+- Maps HTTP routes to controller methods
+- Applies authentication and permission middleware
+- Handles both full-page and HTMX partial responses
+
+**How It Works:**
+1. Router registers routes with controller methods
+2. Middleware chain executes: Auth → RBAC → Handler
+3. Controller method extracts request data (path params, query, form)
+4. Service layer processes business logic
+5. ViewModel transforms domain entities for display
+6. Template renders HTML (full page or HTMX partial)
+
+### CRUD Workflow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Browser
+    participant Controller as ScriptController
+    participant Service as ScriptService
+    participant Repo as ScriptRepository
+    participant VM as ViewModel
+    participant Tmpl as Template
+
+    User->>Browser: Click "New Script"
+    Browser->>Controller: GET /scripts/new
+    Controller->>Tmpl: Render new.templ
+    Tmpl-->>Browser: HTML Form
+
+    User->>Browser: Fill form & submit
+    Browser->>Controller: POST /scripts (form data)
+    Controller->>Service: Create(dto)
+    Service->>Repo: Create(entity)
+    Repo-->>Service: script
+    Service-->>Controller: script
+    Controller->>VM: ToViewModel(script)
+    VM-->>Controller: viewModel
+    Controller->>Tmpl: Render view.templ
+    Tmpl-->>Browser: Success view
+
+    alt HTMX Request
+        Browser->>Controller: hx-get="/scripts/:id"
+        Controller->>Service: GetByID(id)
+        Service-->>Controller: script
+        Controller->>Tmpl: Render _table_row.templ
+        Tmpl-->>Browser: Partial HTML (row)
+    end
+```
+
+**What It Does:**
+- Renders form for new script creation
+- Validates form data via DTO
+- Creates script entity via service
+- Redirects to script view on success
+- Supports HTMX partial updates for dynamic UI
+
+**How It Works:**
+1. **GET /scripts/new**: Render empty form
+2. **POST /scripts**: Parse form → DTO → Service → Create entity
+3. **Success**: Redirect to `/scripts/:id`
+4. **Validation Error**: Re-render form with errors
+5. **HTMX**: Return partial HTML for in-place updates
+
+### ViewModel Transformation
+
+```mermaid
+classDiagram
+    class Script {
+        +UUID ID
+        +String Name
+        +String Code
+        +String TriggerType
+        +Time CreatedAt
+        +Time UpdatedAt
+    }
+
+    class ScriptViewModel {
+        +String ID
+        +String Name
+        +String TriggerLabel
+        +String FormattedCreatedAt
+        +String FormattedUpdatedAt
+        +Boolean CanEdit
+        +Boolean CanDelete
+        +Boolean CanExecute
+    }
+
+    class ViewModelMapper {
+        +ToViewModel(script, user)
+        +ToListViewModel(scripts[], user)
+    }
+
+    Script --> ViewModelMapper : input
+    ViewModelMapper --> ScriptViewModel : output
+
+    note for ViewModelMapper "Transforms domain to presentation\nApplies permissions\nFormats dates/enums"
+```
+
+**What It Does:**
+- Transforms domain entities into presentation-friendly structures
+- Formats dates, enums, UUIDs for display
+- Computes permission flags (CanEdit, CanDelete) based on user role
+- Separates domain logic from presentation logic
+
+**How It Works:**
+1. Controller receives domain entity from service
+2. ViewModel mapper transforms entity:
+    - UUID → string
+    - Timestamp → formatted date string
+    - Enum → localized label
+    - Compute permissions based on user role
+3. ViewModel passes to template
+4. Template renders using ViewModel fields
+
+### Monaco Editor Integration
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant HTML as Template
+    participant Monaco as Monaco Editor
+    participant Form as Form Submit
+
+    Browser->>HTML: Load /scripts/new
+    HTML->>Monaco: Initialize editor
+    Monaco->>Monaco: Set language: javascript
+    Monaco->>Monaco: Set theme: vs-dark
+    Monaco->>Monaco: Load script code
+
+    User->>Monaco: Edit code
+    Monaco->>Monaco: Syntax highlighting
+    Monaco->>Monaco: Auto-completion
+    Monaco->>Monaco: Error detection
+
+    User->>Form: Submit
+    Form->>Form: textarea.value = editor.getValue()
+    Form->>Browser: POST /scripts (code in textarea)
+```
+
+**What It Does:**
+- Provides rich code editor with syntax highlighting
+- Offers auto-completion and error detection
+- Synchronizes editor content with form textarea
+- Supports JavaScript language mode
+
+**How It Works:**
+1. Template includes Monaco editor library (CDN or bundled)
+2. JavaScript initializes editor on page load:
+    ```javascript
+    const editor = monaco.editor.create(container, {
+        value: initialCode,
+        language: 'javascript',
+        theme: 'vs-dark'
+    });
+    ```
+3. User edits code with syntax highlighting
+4. On form submit: `textarea.value = editor.getValue()`
+5. Form submits code to server
+
+### HTMX Patterns
+
+```mermaid
+graph TB
+    subgraph "HTMX Interactions"
+        A[User Action] --> B{HTMX Trigger}
+
+        B -->|hx-get| C[Fetch Partial]
+        B -->|hx-post| D[Submit Form]
+        B -->|hx-delete| E[Delete Item]
+
+        C --> F[Server Response]
+        D --> F
+        E --> F
+
+        F --> G{Swap Strategy}
+        G -->|outerHTML| H[Replace Element]
+        G -->|innerHTML| I[Replace Content]
+        G -->|beforeend| J[Append]
+        G -->|afterend| K[Insert After]
+
+        H --> L[DOM Updated]
+        I --> L
+        J --> L
+        K --> L
+    end
+
+    style B fill:#e1f5ff
+    style F fill:#fff4e1
+    style L fill:#e1ffe1
+```
+
+**What It Does:**
+- Enables dynamic UI updates without full page reloads
+- Handles form submissions with partial HTML responses
+- Supports real-time execution history updates
+- Provides smooth UX with loading indicators
+
+**Common Patterns:**
+1. **Execute Script Button:**
+    ```html
+    <button hx-post="/scripts/:id/execute"
+            hx-target="#execution-history"
+            hx-swap="afterbegin">
+        Execute
+    </button>
+    ```
+2. **Delete Script Link:**
+    ```html
+    <a hx-delete="/scripts/:id"
+       hx-confirm="Delete this script?"
+       hx-target="closest tr"
+       hx-swap="outerHTML swap:1s">
+        Delete
+    </a>
+    ```
+3. **Live Execution Rows:**
+    ```html
+    <div id="execution-history"
+         hx-get="/scripts/:id/executions"
+         hx-trigger="every 5s">
+        <!-- Execution rows -->
+    </div>
+    ```
+
+### Form Handling
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Browser
+    participant Controller
+    participant DTO as CreateScriptDTO
+    participant Validator
+    participant Service
+
+    User->>Browser: Submit form
+    Browser->>Controller: POST /scripts (form data)
+    Controller->>Controller: composables.UseForm[DTO]
+    Controller->>DTO: Parse form fields
+    DTO->>Validator: Validate fields
+
+    alt Validation Fails
+        Validator-->>Controller: Validation errors
+        Controller->>Browser: Re-render form with errors
+    else Validation Passes
+        Validator-->>DTO: OK
+        DTO-->>Controller: dto
+        Controller->>Service: Create(dto)
+        Service-->>Controller: script
+        Controller->>Browser: Redirect /scripts/:id
+    end
+```
+
+**What It Does:**
+- Parses form data into DTO structs
+- Validates input fields (required, length, format)
+- Displays validation errors inline
+- Prevents invalid data from reaching service layer
+
+**How It Works:**
+1. Controller uses `composables.UseForm[CreateScriptDTO](r)` to parse form
+2. DTO struct tags define validation rules:
+    ```go
+    type CreateScriptDTO struct {
+        Name        string `form:"Name" validate:"required,min=3,max=100"`
+        Code        string `form:"Code" validate:"required"`
+        TriggerType string `form:"TriggerType" validate:"required,oneof=manual scheduled event http"`
+    }
+    ```
+3. Validator checks rules, returns errors map
+4. Controller re-renders form with errors if validation fails
+5. Valid DTO passes to service layer
+
+### Localization
+
+```mermaid
+graph LR
+    A[User Locale] --> B[Localizer]
+    B --> C[Translation Files]
+
+    C --> D[en.toml]
+    C --> E[ru.toml]
+    C --> F[uz.toml]
+
+    D --> G{Key Lookup}
+    E --> G
+    F --> G
+
+    G --> H[Translated Text]
+    H --> I[Template Render]
+
+    style A fill:#e1f5ff
+    style H fill:#e1ffe1
+```
+
+**What It Does:**
+- Provides UI text in English, Russian, Uzbek
+- Translates labels, buttons, error messages, enums
+- Supports parameterized translations (e.g., "Hello, {name}")
+- Falls back to English if translation missing
+
+**Translation Keys Structure:**
+```
+Scripts.Title = "Scripts"
+Scripts.New = "New Script"
+Scripts.Form.Name = "Script Name"
+Scripts.Form.Code = "JavaScript Code"
+Scripts.Enums.TriggerType.MANUAL = "Manual"
+Scripts.Enums.TriggerType.SCHEDULED = "Scheduled"
+Scripts.Enums.TriggerType.EVENT = "Event"
+Scripts.Messages.Created = "Script created successfully"
+Scripts.Errors.NotFound = "Script not found"
+```
+
+**Template Usage:**
+```templ
+<h1>{ ctx.T("Scripts.Title") }</h1>
+<button>{ ctx.T("Scripts.New") }</button>
+<label>{ ctx.T("Scripts.Form.Name") }</label>
+```
+
+### Permission Guards
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Middleware
+    participant RBAC
+    participant Controller
+
+    User->>Middleware: Request /scripts/new
+    Middleware->>Middleware: Authenticate (session)
+    Middleware->>RBAC: Check permission (scripts.create)
+
+    alt Has Permission
+        RBAC-->>Middleware: Allowed
+        Middleware->>Controller: Forward request
+        Controller-->>User: Render page
+    else No Permission
+        RBAC-->>Middleware: Denied
+        Middleware-->>User: 403 Forbidden
+    end
+```
+
+**What It Does:**
+- Enforces RBAC permissions on all script operations
+- Protects routes with middleware
+- Hides UI elements based on user permissions
+- Returns 403 for unauthorized access
+
+**Permission Mapping:**
+- **View Scripts**: `scripts.read`
+- **Create Script**: `scripts.create`
+- **Edit Script**: `scripts.update`
+- **Delete Script**: `scripts.delete`
+- **Execute Script**: `scripts.execute`
+
+**Route Protection:**
+```go
+router.Use(middleware.Authorize())
+router.Use(middleware.RequirePermission("scripts.read"))
+```
+
+**Template Conditionals:**
+```templ
+@if ctx.User.HasPermission("scripts.create") {
+    <a href="/scripts/new">New Script</a>
+}
+```
+
+## Acceptance Criteria
+
+### Controller Routes
+- [ ] All routes registered with correct HTTP methods
+- [ ] Authentication middleware applied to all routes
+- [ ] RBAC middleware enforces permissions
+- [ ] HTMX requests return partial HTML
+- [ ] Full requests return complete pages
+
+### ViewModels
+- [ ] ViewModels transform all domain entities
+- [ ] Dates formatted according to user locale
+- [ ] Enums translated to localized labels
+- [ ] Permission flags computed correctly
+
+### Templates
+- [ ] All pages use Templ (no raw HTML strings)
+- [ ] CSRF tokens included in all forms
+- [ ] HTMX attributes set correctly
+- [ ] Monaco editor initializes on edit pages
+- [ ] Responsive design (mobile-friendly)
+
+### Forms
+- [ ] All forms use DTO structs with validation tags
+- [ ] Validation errors display inline
+- [ ] CamelCase field names match DTO struct
+- [ ] Form submissions handled via HTMX or standard POST
+
+### Localization
+- [ ] All 3 languages (en, ru, uz) have complete translations
+- [ ] No hardcoded strings in templates
+- [ ] Parameterized translations work correctly
+- [ ] Fallback to English if translation missing
+
+### Permissions
+- [ ] Unauthorized users see 403 for protected routes
+- [ ] UI elements hidden based on permissions
+- [ ] Permission checks performed on both routes and templates
+- [ ] Tenant isolation enforced in all queries
+
+### HTMX Integration
+- [ ] Execute button triggers HTMX POST
+- [ ] Delete link triggers HTMX DELETE with confirm
+- [ ] Execution history polls every 5 seconds
+- [ ] Loading indicators show during requests
+- [ ] Errors display via HTMX response
+
+### Monaco Editor
+- [ ] Editor loads with JavaScript syntax highlighting
+- [ ] Auto-completion suggests JavaScript keywords
+- [ ] Editor syncs with form textarea on submit
+- [ ] Theme matches application (light/dark mode)
+
+---
+
+**File Structure:**
 ```
 modules/scripts/
 ├── presentation/
@@ -30,1269 +519,8 @@ modules/scripts/
 │       └── uz.toml
 ```
 
-## ScriptController
-
-### Interface
-
-```go
-package controllers
-
-import (
-    "net/http"
-
-    "github.com/gorilla/mux"
-    "github.com/iota-uz/iota-sdk/pkg/application"
-    "github.com/iota-uz/iota-sdk/pkg/composables"
-    "github.com/iota-uz/iota-sdk/pkg/htmx"
-    "github.com/iota-uz/iota-sdk/pkg/middleware"
-    "github.com/iota-uz/iota-sdk/pkg/permission"
-    scriptservices "github.com/yourorg/yourapp/modules/scripts/services"
-)
-
-type ScriptController struct {
-    app           application.Application
-    scriptSvc     *scriptservices.ScriptService
-    executionSvc  *scriptservices.ExecutionService
-    basePath      string
-}
-
-func NewScriptController(
-    app application.Application,
-    scriptSvc *scriptservices.ScriptService,
-    executionSvc *scriptservices.ExecutionService,
-) *ScriptController {
-    return &ScriptController{
-        app:          app,
-        scriptSvc:    scriptSvc,
-        executionSvc: executionSvc,
-        basePath:     "/scripts",
-    }
-}
-
-func (c *ScriptController) Key() string {
-    return "scripts"
-}
-
-func (c *ScriptController) Register(r *mux.Router) {
-    // Apply authentication middleware
-    subRouter := r.PathPrefix(c.basePath).Subrouter()
-    subRouter.Use(middleware.Authorize(c.app.Auth()))
-
-    // List and create
-    subRouter.HandleFunc("", middleware.RequirePermission(
-        permission.ScriptRead,
-    )(c.List)).Methods(http.MethodGet)
-
-    subRouter.HandleFunc("/new", middleware.RequirePermission(
-        permission.ScriptCreate,
-    )(c.New)).Methods(http.MethodGet)
-
-    subRouter.HandleFunc("", middleware.RequirePermission(
-        permission.ScriptCreate,
-    )(c.Create)).Methods(http.MethodPost)
-
-    // View, edit, update, delete
-    subRouter.HandleFunc("/{id:[0-9]+}", middleware.RequirePermission(
-        permission.ScriptRead,
-    )(c.View)).Methods(http.MethodGet)
-
-    subRouter.HandleFunc("/{id:[0-9]+}/edit", middleware.RequirePermission(
-        permission.ScriptUpdate,
-    )(c.Edit)).Methods(http.MethodGet)
-
-    subRouter.HandleFunc("/{id:[0-9]+}", middleware.RequirePermission(
-        permission.ScriptUpdate,
-    )(c.Update)).Methods(http.MethodPut, http.MethodPost)
-
-    subRouter.HandleFunc("/{id:[0-9]+}", middleware.RequirePermission(
-        permission.ScriptDelete,
-    )(c.Delete)).Methods(http.MethodDelete)
-
-    // Execute
-    subRouter.HandleFunc("/{id:[0-9]+}/execute", middleware.RequirePermission(
-        permission.ScriptExecute,
-    )(c.Execute)).Methods(http.MethodPost)
-
-    // Execution history
-    subRouter.HandleFunc("/{id:[0-9]+}/executions", middleware.RequirePermission(
-        permission.ScriptRead,
-    )(c.Executions)).Methods(http.MethodGet)
-}
-```
-
-### Handler Methods
-
-#### List Scripts
-
-```go
-func (c *ScriptController) List(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.List")
-
-    ctx := r.Context()
-    pageCtx := composables.UsePageCtx(ctx)
-    params := composables.UsePaginated(r)
-
-    // Get filter parameters
-    search := r.URL.Query().Get("search")
-    triggerType := r.URL.Query().Get("trigger_type")
-
-    // Fetch scripts
-    scripts, total, err := c.scriptSvc.FindAll(ctx, script.FindParams{
-        Limit:       params.Limit,
-        Offset:      params.Offset,
-        Search:      search,
-        TriggerType: triggerType,
-    })
-    if err != nil {
-        http.Error(w, "Failed to load scripts", http.StatusInternalServerError)
-        return
-    }
-
-    // Convert to ViewModels
-    scriptVMs := make([]viewmodels.ScriptViewModel, len(scripts))
-    for i, s := range scripts {
-        scriptVMs[i] = viewmodels.NewScriptViewModel(s)
-    }
-
-    // Check if HTMX partial request
-    if htmx.IsHxRequest(r) {
-        templates.ScriptsTable(scriptVMs, params, total).Render(ctx, w)
-        return
-    }
-
-    // Full page render
-    templates.ScriptsIndex(pageCtx, scriptVMs, params, total).Render(ctx, w)
-}
-```
-
-#### New Script Form
-
-```go
-func (c *ScriptController) New(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.New")
-
-    ctx := r.Context()
-    pageCtx := composables.UsePageCtx(ctx)
-
-    templates.ScriptsNew(pageCtx, nil).Render(ctx, w)
-}
-```
-
-#### Create Script
-
-```go
-type CreateScriptDTO struct {
-    Name        string `form:"Name" validate:"required,min=3,max=100"`
-    Description string `form:"Description" validate:"max=500"`
-    Source      string `form:"Source" validate:"required"`
-    TriggerType string `form:"TriggerType" validate:"required,oneof=manual scheduled webhook event"`
-    Schedule    string `form:"Schedule" validate:"omitempty,cron"`
-    WebhookPath string `form:"WebhookPath" validate:"omitempty,uri"`
-    EventType   string `form:"EventType" validate:"omitempty"`
-    Enabled     bool   `form:"Enabled"`
-}
-
-func (c *ScriptController) Create(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.Create")
-
-    ctx := r.Context()
-    pageCtx := composables.UsePageCtx(ctx)
-
-    // Parse form
-    dto, err := composables.UseForm[CreateScriptDTO](r)
-    if err != nil {
-        templates.ScriptsNew(pageCtx, err).Render(ctx, w)
-        return
-    }
-
-    // Create script
-    newScript, err := c.scriptSvc.Create(ctx, script.CreateParams{
-        Name:        dto.Name,
-        Description: dto.Description,
-        Source:      dto.Source,
-        TriggerType: dto.TriggerType,
-        Schedule:    dto.Schedule,
-        WebhookPath: dto.WebhookPath,
-        EventType:   dto.EventType,
-        Enabled:     dto.Enabled,
-    })
-    if err != nil {
-        templates.ScriptsNew(pageCtx, err).Render(ctx, w)
-        return
-    }
-
-    // Redirect to view
-    htmx.Redirect(w, fmt.Sprintf("/scripts/%d", newScript.GetID()))
-}
-```
-
-#### View Script
-
-```go
-func (c *ScriptController) View(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.View")
-
-    ctx := r.Context()
-    pageCtx := composables.UsePageCtx(ctx)
-    vars := mux.Vars(r)
-    id, _ := strconv.Atoi(vars["id"])
-
-    // Fetch script
-    script, err := c.scriptSvc.FindByID(ctx, uint(id))
-    if err != nil {
-        http.Error(w, "Script not found", http.StatusNotFound)
-        return
-    }
-
-    // Fetch recent executions
-    executions, _, err := c.executionSvc.FindByScriptID(ctx, uint(id), execution.FindParams{
-        Limit:  10,
-        Offset: 0,
-    })
-    if err != nil {
-        executions = []execution.Execution{}
-    }
-
-    // Convert to ViewModels
-    scriptVM := viewmodels.NewScriptViewModel(script)
-    executionVMs := make([]viewmodels.ExecutionViewModel, len(executions))
-    for i, e := range executions {
-        executionVMs[i] = viewmodels.NewExecutionViewModel(e)
-    }
-
-    templates.ScriptsView(pageCtx, scriptVM, executionVMs).Render(ctx, w)
-}
-```
-
-#### Edit Script Form
-
-```go
-func (c *ScriptController) Edit(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.Edit")
-
-    ctx := r.Context()
-    pageCtx := composables.UsePageCtx(ctx)
-    vars := mux.Vars(r)
-    id, _ := strconv.Atoi(vars["id"])
-
-    // Fetch script
-    script, err := c.scriptSvc.FindByID(ctx, uint(id))
-    if err != nil {
-        http.Error(w, "Script not found", http.StatusNotFound)
-        return
-    }
-
-    scriptVM := viewmodels.NewScriptViewModel(script)
-    templates.ScriptsEdit(pageCtx, scriptVM, nil).Render(ctx, w)
-}
-```
-
-#### Update Script
-
-```go
-type UpdateScriptDTO struct {
-    Name        string `form:"Name" validate:"required,min=3,max=100"`
-    Description string `form:"Description" validate:"max=500"`
-    Source      string `form:"Source" validate:"required"`
-    TriggerType string `form:"TriggerType" validate:"required,oneof=manual scheduled webhook event"`
-    Schedule    string `form:"Schedule" validate:"omitempty,cron"`
-    WebhookPath string `form:"WebhookPath" validate:"omitempty,uri"`
-    EventType   string `form:"EventType" validate:"omitempty"`
-    Enabled     bool   `form:"Enabled"`
-}
-
-func (c *ScriptController) Update(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.Update")
-
-    ctx := r.Context()
-    pageCtx := composables.UsePageCtx(ctx)
-    vars := mux.Vars(r)
-    id, _ := strconv.Atoi(vars["id"])
-
-    // Parse form
-    dto, err := composables.UseForm[UpdateScriptDTO](r)
-    if err != nil {
-        // Re-fetch script for error display
-        script, _ := c.scriptSvc.FindByID(ctx, uint(id))
-        scriptVM := viewmodels.NewScriptViewModel(script)
-        templates.ScriptsEdit(pageCtx, scriptVM, err).Render(ctx, w)
-        return
-    }
-
-    // Update script
-    updatedScript, err := c.scriptSvc.Update(ctx, uint(id), script.UpdateParams{
-        Name:        dto.Name,
-        Description: dto.Description,
-        Source:      dto.Source,
-        TriggerType: dto.TriggerType,
-        Schedule:    dto.Schedule,
-        WebhookPath: dto.WebhookPath,
-        EventType:   dto.EventType,
-        Enabled:     dto.Enabled,
-    })
-    if err != nil {
-        script, _ := c.scriptSvc.FindByID(ctx, uint(id))
-        scriptVM := viewmodels.NewScriptViewModel(script)
-        templates.ScriptsEdit(pageCtx, scriptVM, err).Render(ctx, w)
-        return
-    }
-
-    // Redirect to view
-    htmx.Redirect(w, fmt.Sprintf("/scripts/%d", updatedScript.GetID()))
-}
-```
-
-#### Delete Script
-
-```go
-func (c *ScriptController) Delete(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.Delete")
-
-    ctx := r.Context()
-    vars := mux.Vars(r)
-    id, _ := strconv.Atoi(vars["id"])
-
-    // Delete script
-    if err := c.scriptSvc.Delete(ctx, uint(id)); err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        w.Write([]byte("Failed to delete script"))
-        return
-    }
-
-    // HTMX redirect
-    htmx.Redirect(w, "/scripts")
-}
-```
-
-#### Execute Script
-
-```go
-func (c *ScriptController) Execute(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.Execute")
-
-    ctx := r.Context()
-    vars := mux.Vars(r)
-    id, _ := strconv.Atoi(vars["id"])
-
-    // Parse input data (optional JSON payload)
-    var inputData map[string]interface{}
-    if r.Body != nil {
-        json.NewDecoder(r.Body).Decode(&inputData)
-    }
-
-    // Execute script asynchronously
-    execution, err := c.executionSvc.Execute(ctx, uint(id), inputData)
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        json.NewEncoder(w).Encode(map[string]string{
-            "error": err.Error(),
-        })
-        return
-    }
-
-    // Return execution ID
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "execution_id": execution.GetID(),
-        "status":       execution.GetStatus(),
-    })
-}
-```
-
-#### Execution History
-
-```go
-func (c *ScriptController) Executions(w http.ResponseWriter, r *http.Request) {
-    const op = serrors.Op("controllers.ScriptController.Executions")
-
-    ctx := r.Context()
-    vars := mux.Vars(r)
-    id, _ := strconv.Atoi(vars["id"])
-    params := composables.UsePaginated(r)
-
-    // Fetch executions
-    executions, total, err := c.executionSvc.FindByScriptID(ctx, uint(id), execution.FindParams{
-        Limit:  params.Limit,
-        Offset: params.Offset,
-    })
-    if err != nil {
-        http.Error(w, "Failed to load executions", http.StatusInternalServerError)
-        return
-    }
-
-    // Convert to ViewModels
-    executionVMs := make([]viewmodels.ExecutionViewModel, len(executions))
-    for i, e := range executions {
-        executionVMs[i] = viewmodels.NewExecutionViewModel(e)
-    }
-
-    // HTMX partial
-    if htmx.IsHxRequest(r) {
-        templates.ExecutionRows(executionVMs).Render(ctx, w)
-        return
-    }
-
-    // Full response
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "executions": executionVMs,
-        "total":      total,
-    })
-}
-```
-
-## ViewModels
-
-### ScriptViewModel
-
-```go
-package viewmodels
-
-import (
-    "time"
-
-    "github.com/yourorg/yourapp/modules/scripts/domain/script"
-)
-
-type ScriptViewModel struct {
-    ID              uint
-    Name            string
-    Description     string
-    Source          string
-    TriggerType     string
-    Schedule        string
-    WebhookPath     string
-    EventType       string
-    Enabled         bool
-    Version         int
-    LastExecutedAt  *time.Time
-    ExecutionCount  int
-    SuccessCount    int
-    FailureCount    int
-    CreatedAt       time.Time
-    UpdatedAt       time.Time
-}
-
-func NewScriptViewModel(s script.Script) ScriptViewModel {
-    var lastExec *time.Time
-    if s.GetLastExecutedAt() != nil {
-        t := *s.GetLastExecutedAt()
-        lastExec = &t
-    }
-
-    return ScriptViewModel{
-        ID:             s.GetID(),
-        Name:           s.GetName(),
-        Description:    s.GetDescription(),
-        Source:         s.GetSource(),
-        TriggerType:    s.GetTriggerType(),
-        Schedule:       s.GetSchedule(),
-        WebhookPath:    s.GetWebhookPath(),
-        EventType:      s.GetEventType(),
-        Enabled:        s.IsEnabled(),
-        Version:        s.GetVersion(),
-        LastExecutedAt: lastExec,
-        ExecutionCount: s.GetExecutionCount(),
-        SuccessCount:   s.GetSuccessCount(),
-        FailureCount:   s.GetFailureCount(),
-        CreatedAt:      s.GetCreatedAt(),
-        UpdatedAt:      s.GetUpdatedAt(),
-    }
-}
-
-func (vm ScriptViewModel) SuccessRate() float64 {
-    if vm.ExecutionCount == 0 {
-        return 0
-    }
-    return float64(vm.SuccessCount) / float64(vm.ExecutionCount) * 100
-}
-
-func (vm ScriptViewModel) StatusBadgeClass() string {
-    if !vm.Enabled {
-        return "badge-gray"
-    }
-    if vm.SuccessRate() >= 80 {
-        return "badge-success"
-    }
-    if vm.SuccessRate() >= 50 {
-        return "badge-warning"
-    }
-    return "badge-danger"
-}
-```
-
-### ExecutionViewModel
-
-```go
-package viewmodels
-
-import (
-    "time"
-
-    "github.com/yourorg/yourapp/modules/scripts/domain/execution"
-)
-
-type ExecutionViewModel struct {
-    ID          uint
-    ScriptID    uint
-    Status      string
-    Input       string
-    Output      string
-    ErrorMsg    string
-    StartedAt   time.Time
-    CompletedAt *time.Time
-    Duration    time.Duration
-}
-
-func NewExecutionViewModel(e execution.Execution) ExecutionViewModel {
-    var completed *time.Time
-    if e.GetCompletedAt() != nil {
-        t := *e.GetCompletedAt()
-        completed = &t
-    }
-
-    var duration time.Duration
-    if completed != nil {
-        duration = completed.Sub(e.GetStartedAt())
-    }
-
-    return ExecutionViewModel{
-        ID:          e.GetID(),
-        ScriptID:    e.GetScriptID(),
-        Status:      e.GetStatus(),
-        Input:       e.GetInput(),
-        Output:      e.GetOutput(),
-        ErrorMsg:    e.GetErrorMessage(),
-        StartedAt:   e.GetStartedAt(),
-        CompletedAt: completed,
-        Duration:    duration,
-    }
-}
-
-func (vm ExecutionViewModel) StatusBadgeClass() string {
-    switch vm.Status {
-    case "completed":
-        return "badge-success"
-    case "failed":
-        return "badge-danger"
-    case "running":
-        return "badge-info"
-    case "pending":
-        return "badge-warning"
-    default:
-        return "badge-gray"
-    }
-}
-
-func (vm ExecutionViewModel) DurationMs() int64 {
-    return vm.Duration.Milliseconds()
-}
-```
-
-### ScriptVersionViewModel
-
-```go
-package viewmodels
-
-import (
-    "time"
-
-    "github.com/yourorg/yourapp/modules/scripts/domain/version"
-)
-
-type ScriptVersionViewModel struct {
-    ID        uint
-    ScriptID  uint
-    Version   int
-    Source    string
-    CreatedBy uint
-    CreatedAt time.Time
-}
-
-func NewScriptVersionViewModel(v version.ScriptVersion) ScriptVersionViewModel {
-    return ScriptVersionViewModel{
-        ID:        v.GetID(),
-        ScriptID:  v.GetScriptID(),
-        Version:   v.GetVersion(),
-        Source:    v.GetSource(),
-        CreatedBy: v.GetCreatedBy(),
-        CreatedAt: v.GetCreatedAt(),
-    }
-}
-```
-
-## Templates
-
-### Index Template (index.templ)
-
-```templ
-package scripts
-
-import (
-    "github.com/iota-uz/iota-sdk/components"
-    "github.com/iota-uz/iota-sdk/pkg/types"
-    "github.com/yourorg/yourapp/modules/scripts/presentation/viewmodels"
-    "github.com/yourorg/yourapp/modules/core/presentation/templates/layouts"
-)
-
-templ ScriptsIndex(
-    pageCtx types.PageContextProvider,
-    scripts []viewmodels.ScriptViewModel,
-    params types.PaginatedQuery,
-    total int,
-) {
-    @layouts.Default(pageCtx) {
-        <div class="container mx-auto px-4 py-8">
-            <!-- Header -->
-            <div class="flex justify-between items-center mb-6">
-                <h1 class="text-3xl font-bold">{ pageCtx.T("Scripts.List.Title") }</h1>
-                <a href="/scripts/new" class="btn btn-primary">
-                    { pageCtx.T("Scripts.List.New") }
-                </a>
-            </div>
-
-            <!-- Filters -->
-            <div class="bg-white rounded-lg shadow p-4 mb-6">
-                <form
-                    hx-get="/scripts"
-                    hx-target="#scripts-table"
-                    hx-trigger="change, submit"
-                    class="flex gap-4"
-                >
-                    <input
-                        type="text"
-                        name="search"
-                        placeholder={ pageCtx.T("Scripts.List.Search") }
-                        class="input input-bordered flex-1"
-                    />
-                    <select name="trigger_type" class="select select-bordered">
-                        <option value="">{ pageCtx.T("Scripts.List.AllTriggers") }</option>
-                        <option value="manual">{ pageCtx.T("Scripts.TriggerType.Manual") }</option>
-                        <option value="scheduled">{ pageCtx.T("Scripts.TriggerType.Scheduled") }</option>
-                        <option value="webhook">{ pageCtx.T("Scripts.TriggerType.Webhook") }</option>
-                        <option value="event">{ pageCtx.T("Scripts.TriggerType.Event") }</option>
-                    </select>
-                    <button type="submit" class="btn btn-secondary">
-                        { pageCtx.T("Scripts.List.Filter") }
-                    </button>
-                </form>
-            </div>
-
-            <!-- Table -->
-            <div id="scripts-table">
-                @ScriptsTable(scripts, params, total)
-            </div>
-        </div>
-    }
-}
-```
-
-### Table Template (_table.templ)
-
-```templ
-package scripts
-
-import (
-    "fmt"
-    "github.com/iota-uz/iota-sdk/components"
-    "github.com/yourorg/yourapp/modules/scripts/presentation/viewmodels"
-)
-
-templ ScriptsTable(
-    scripts []viewmodels.ScriptViewModel,
-    params types.PaginatedQuery,
-    total int,
-) {
-    <div class="bg-white rounded-lg shadow overflow-hidden">
-        <table class="table w-full">
-            <thead>
-                <tr>
-                    <th>{ "Name" }</th>
-                    <th>{ "Trigger" }</th>
-                    <th>{ "Status" }</th>
-                    <th>{ "Success Rate" }</th>
-                    <th>{ "Last Run" }</th>
-                    <th>{ "Actions" }</th>
-                </tr>
-            </thead>
-            <tbody>
-                for _, s := range scripts {
-                    <tr>
-                        <td>
-                            <div class="font-medium">{ s.Name }</div>
-                            <div class="text-sm text-gray-500">{ s.Description }</div>
-                        </td>
-                        <td>
-                            <span class="badge">{ s.TriggerType }</span>
-                        </td>
-                        <td>
-                            <span class={ "badge", s.StatusBadgeClass() }>
-                                if s.Enabled {
-                                    { "Enabled" }
-                                } else {
-                                    { "Disabled" }
-                                }
-                            </span>
-                        </td>
-                        <td>
-                            <div class="flex items-center gap-2">
-                                <div class="progress-bar w-20">
-                                    <div
-                                        class="progress-fill bg-success"
-                                        style={ fmt.Sprintf("width: %.0f%%", s.SuccessRate()) }
-                                    ></div>
-                                </div>
-                                <span class="text-sm">{ fmt.Sprintf("%.0f%%", s.SuccessRate()) }</span>
-                            </div>
-                        </td>
-                        <td>
-                            if s.LastExecutedAt != nil {
-                                <time datetime={ s.LastExecutedAt.Format("2006-01-02T15:04:05Z") }>
-                                    { s.LastExecutedAt.Format("Jan 02, 15:04") }
-                                </time>
-                            } else {
-                                <span class="text-gray-400">{ "Never" }</span>
-                            }
-                        </td>
-                        <td>
-                            <div class="flex gap-2">
-                                <a href={ templ.URL(fmt.Sprintf("/scripts/%d", s.ID)) } class="btn btn-sm btn-ghost">
-                                    { "View" }
-                                </a>
-                                <a href={ templ.URL(fmt.Sprintf("/scripts/%d/edit", s.ID)) } class="btn btn-sm btn-ghost">
-                                    { "Edit" }
-                                </a>
-                                <button
-                                    hx-post={ fmt.Sprintf("/scripts/%d/execute", s.ID) }
-                                    hx-trigger="click"
-                                    class="btn btn-sm btn-primary"
-                                >
-                                    { "Run" }
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-
-        <!-- Pagination -->
-        @components.Pagination(components.PaginationProps{
-            Total: total,
-            Limit: params.Limit,
-            Page:  params.Page,
-            URL:   "/scripts",
-        })
-    </div>
-}
-```
-
-### New Template (new.templ)
-
-```templ
-package scripts
-
-import (
-    "github.com/iota-uz/iota-sdk/pkg/types"
-    "github.com/yourorg/yourapp/modules/core/presentation/templates/layouts"
-)
-
-templ ScriptsNew(
-    pageCtx types.PageContextProvider,
-    err error,
-) {
-    @layouts.Default(pageCtx) {
-        <div class="container mx-auto px-4 py-8 max-w-4xl">
-            <h1 class="text-3xl font-bold mb-6">{ pageCtx.T("Scripts.New.Title") }</h1>
-
-            <form
-                method="POST"
-                action="/scripts"
-                class="bg-white rounded-lg shadow p-6 space-y-6"
-            >
-                <input type="hidden" name="gorilla.csrf.Token" value={ ctx.Value("gorilla.csrf.Token").(string) }/>
-
-                if err != nil {
-                    <div class="alert alert-error">{ err.Error() }</div>
-                }
-
-                <!-- Name -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.Name.Label") }</span>
-                    </label>
-                    <input
-                        type="text"
-                        name="Name"
-                        required
-                        class="input input-bordered"
-                        placeholder={ pageCtx.T("Scripts.Single.Name.Placeholder") }
-                    />
-                </div>
-
-                <!-- Description -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.Description.Label") }</span>
-                    </label>
-                    <textarea
-                        name="Description"
-                        rows="3"
-                        class="textarea textarea-bordered"
-                        placeholder={ pageCtx.T("Scripts.Single.Description.Placeholder") }
-                    ></textarea>
-                </div>
-
-                <!-- Trigger Type -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.TriggerType.Label") }</span>
-                    </label>
-                    <select
-                        name="TriggerType"
-                        required
-                        class="select select-bordered"
-                        x-data="{ type: 'manual' }"
-                        x-model="type"
-                    >
-                        <option value="manual">{ pageCtx.T("Scripts.TriggerType.Manual") }</option>
-                        <option value="scheduled">{ pageCtx.T("Scripts.TriggerType.Scheduled") }</option>
-                        <option value="webhook">{ pageCtx.T("Scripts.TriggerType.Webhook") }</option>
-                        <option value="event">{ pageCtx.T("Scripts.TriggerType.Event") }</option>
-                    </select>
-                </div>
-
-                <!-- Conditional Fields (Alpine.js) -->
-                <div x-show="type === 'scheduled'" class="form-control">
-                    <label class="label">
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.Schedule.Label") }</span>
-                    </label>
-                    <input
-                        type="text"
-                        name="Schedule"
-                        class="input input-bordered"
-                        placeholder="0 0 * * *"
-                    />
-                    <label class="label">
-                        <span class="label-text-alt">{ pageCtx.T("Scripts.Single.Schedule.Help") }</span>
-                    </label>
-                </div>
-
-                <div x-show="type === 'webhook'" class="form-control">
-                    <label class="label">
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.WebhookPath.Label") }</span>
-                    </label>
-                    <input
-                        type="text"
-                        name="WebhookPath"
-                        class="input input-bordered"
-                        placeholder="/api/webhooks/my-script"
-                    />
-                </div>
-
-                <div x-show="type === 'event'" class="form-control">
-                    <label class="label">
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.EventType.Label") }</span>
-                    </label>
-                    <input
-                        type="text"
-                        name="EventType"
-                        class="input input-bordered"
-                        placeholder="user.created"
-                    />
-                </div>
-
-                <!-- Monaco Editor -->
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.Source.Label") }</span>
-                    </label>
-                    <div id="monaco-editor" class="border rounded-lg" style="height: 400px;"></div>
-                    <textarea
-                        name="Source"
-                        id="source-input"
-                        required
-                        class="hidden"
-                    ></textarea>
-                </div>
-
-                <!-- Enabled Toggle -->
-                <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-4">
-                        <input
-                            type="checkbox"
-                            name="Enabled"
-                            class="toggle toggle-primary"
-                        />
-                        <span class="label-text">{ pageCtx.T("Scripts.Single.Enabled.Label") }</span>
-                    </label>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex justify-end gap-4">
-                    <a href="/scripts" class="btn btn-ghost">
-                        { pageCtx.T("Common.Cancel") }
-                    </a>
-                    <button type="submit" class="btn btn-primary">
-                        { pageCtx.T("Scripts.New.Submit") }
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Monaco Editor Integration -->
-        @MonacoEditorScript()
-    }
-}
-```
-
-### Monaco Editor Script Component
-
-```templ
-package scripts
-
-script MonacoEditorScript() {
-    // Load Monaco from CDN
-    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
-
-    require(['vs/editor/editor.main'], function() {
-        // TypeScript definitions for SDK
-        const sdkTypings = `
-declare namespace sdk {
-    namespace http {
-        function get(url: string, options?: RequestOptions): Promise<Response>;
-        function post(url: string, body: any, options?: RequestOptions): Promise<Response>;
-        function put(url: string, body: any, options?: RequestOptions): Promise<Response>;
-        function delete(url: string, options?: RequestOptions): Promise<Response>;
-    }
-
-    namespace db {
-        function query(sql: string, params?: any[]): Promise<QueryResult>;
-        function execute(sql: string, params?: any[]): Promise<number>;
-    }
-
-    namespace cache {
-        function get(key: string): Promise<any>;
-        function set(key: string, value: any, ttlSeconds?: number): Promise<void>;
-        function delete(key: string): Promise<void>;
-    }
-
-    namespace log {
-        function info(message: string, ...args: any[]): void;
-        function warn(message: string, ...args: any[]): void;
-        function error(message: string, ...args: any[]): void;
-    }
-}
-
-declare namespace events {
-    function publish(eventType: string, payload: any): Promise<void>;
-}
-
-interface Context {
-    tenantId: number;
-    userId: number;
-    orgId: number;
-    input: any;
-}
-
-declare const ctx: Context;
-`;
-
-        // Register TypeScript definitions
-        monaco.languages.typescript.javascriptDefaults.addExtraLib(
-            sdkTypings,
-            'sdk.d.ts'
-        );
-
-        // Create editor
-        const editor = monaco.editor.create(document.getElementById('monaco-editor'), {
-            value: '// Your script code here\n',
-            language: 'javascript',
-            theme: 'vs-dark',
-            automaticLayout: true,
-            minimap: { enabled: true },
-            lineNumbers: 'on',
-            scrollBeyondLastLine: false,
-        });
-
-        // Sync with form textarea
-        const sourceInput = document.getElementById('source-input');
-        editor.onDidChangeModelContent(() => {
-            sourceInput.value = editor.getValue();
-        });
-
-        // Set initial value from textarea (for edit mode)
-        if (sourceInput.value) {
-            editor.setValue(sourceInput.value);
-        }
-    });
-}
-```
-
-### Execution Row Template (_execution_row.templ)
-
-```templ
-package scripts
-
-import (
-    "fmt"
-    "github.com/yourorg/yourapp/modules/scripts/presentation/viewmodels"
-)
-
-templ ExecutionRow(exec viewmodels.ExecutionViewModel) {
-    <tr>
-        <td>
-            <span class={ "badge", exec.StatusBadgeClass() }>
-                { exec.Status }
-            </span>
-        </td>
-        <td>
-            <time datetime={ exec.StartedAt.Format("2006-01-02T15:04:05Z") }>
-                { exec.StartedAt.Format("Jan 02, 15:04:05") }
-            </time>
-        </td>
-        <td>
-            if exec.CompletedAt != nil {
-                { fmt.Sprintf("%dms", exec.DurationMs()) }
-            } else {
-                <span class="text-gray-400">-</span>
-            }
-        </td>
-        <td>
-            <button
-                class="btn btn-sm btn-ghost"
-                onclick={ fmt.Sprintf("showExecutionDetails(%d)", exec.ID) }
-            >
-                { "Details" }
-            </button>
-        </td>
-    </tr>
-}
-
-templ ExecutionRows(executions []viewmodels.ExecutionViewModel) {
-    for _, exec := range executions {
-        @ExecutionRow(exec)
-    }
-}
-```
-
-## Localization
-
-### English (en.toml)
-
-```toml
-[Scripts]
-[Scripts.List]
-Title = "Scripts"
-New = "New Script"
-Search = "Search scripts..."
-AllTriggers = "All Triggers"
-Filter = "Filter"
-
-[Scripts.New]
-Title = "Create Script"
-Submit = "Create Script"
-
-[Scripts.Edit]
-Title = "Edit Script"
-Submit = "Update Script"
-
-[Scripts.Single]
-[Scripts.Single.Name]
-Label = "Name"
-Placeholder = "My automation script"
-
-[Scripts.Single.Description]
-Label = "Description"
-Placeholder = "What does this script do?"
-
-[Scripts.Single.Source]
-Label = "Script Code"
-
-[Scripts.Single.TriggerType]
-Label = "Trigger Type"
-
-[Scripts.Single.Schedule]
-Label = "Cron Schedule"
-Help = "Format: minute hour day month weekday (e.g., 0 0 * * * = daily at midnight)"
-
-[Scripts.Single.WebhookPath]
-Label = "Webhook Path"
-
-[Scripts.Single.EventType]
-Label = "Event Type"
-
-[Scripts.Single.Enabled]
-Label = "Enable script"
-
-[Scripts.TriggerType]
-Manual = "Manual"
-Scheduled = "Scheduled"
-Webhook = "Webhook"
-Event = "Event"
-
-[Scripts.Execution]
-[Scripts.Execution.Status]
-Pending = "Pending"
-Running = "Running"
-Completed = "Completed"
-Failed = "Failed"
-```
-
-### Russian (ru.toml)
-
-```toml
-[Scripts]
-[Scripts.List]
-Title = "Скрипты"
-New = "Новый скрипт"
-Search = "Поиск скриптов..."
-AllTriggers = "Все триггеры"
-Filter = "Фильтр"
-
-[Scripts.New]
-Title = "Создать скрипт"
-Submit = "Создать скрипт"
-
-[Scripts.Edit]
-Title = "Редактировать скрипт"
-Submit = "Обновить скрипт"
-
-[Scripts.Single]
-[Scripts.Single.Name]
-Label = "Название"
-Placeholder = "Мой скрипт автоматизации"
-
-[Scripts.Single.Description]
-Label = "Описание"
-Placeholder = "Что делает этот скрипт?"
-
-[Scripts.Single.Source]
-Label = "Код скрипта"
-
-[Scripts.Single.TriggerType]
-Label = "Тип триггера"
-
-[Scripts.Single.Schedule]
-Label = "Расписание Cron"
-Help = "Формат: минута час день месяц день_недели (например, 0 0 * * * = ежедневно в полночь)"
-
-[Scripts.Single.WebhookPath]
-Label = "Путь вебхука"
-
-[Scripts.Single.EventType]
-Label = "Тип события"
-
-[Scripts.Single.Enabled]
-Label = "Включить скрипт"
-
-[Scripts.TriggerType]
-Manual = "Ручной"
-Scheduled = "По расписанию"
-Webhook = "Вебхук"
-Event = "Событие"
-
-[Scripts.Execution]
-[Scripts.Execution.Status]
-Pending = "Ожидание"
-Running = "Выполняется"
-Completed = "Завершено"
-Failed = "Ошибка"
-```
-
-### Uzbek (uz.toml)
-
-```toml
-[Scripts]
-[Scripts.List]
-Title = "Skriptlar"
-New = "Yangi skript"
-Search = "Skriptlarni qidirish..."
-AllTriggers = "Barcha triggerlar"
-Filter = "Filter"
-
-[Scripts.New]
-Title = "Skript yaratish"
-Submit = "Skript yaratish"
-
-[Scripts.Edit]
-Title = "Skriptni tahrirlash"
-Submit = "Skriptni yangilash"
-
-[Scripts.Single]
-[Scripts.Single.Name]
-Label = "Nomi"
-Placeholder = "Mening avtomatlashtirish skriptim"
-
-[Scripts.Single.Description]
-Label = "Tavsif"
-Placeholder = "Bu skript nima qiladi?"
-
-[Scripts.Single.Source]
-Label = "Skript kodi"
-
-[Scripts.Single.TriggerType]
-Label = "Trigger turi"
-
-[Scripts.Single.Schedule]
-Label = "Cron jadvali"
-Help = "Format: daqiqa soat kun oy hafta_kuni (masalan, 0 0 * * * = har kuni yarim tunda)"
-
-[Scripts.Single.WebhookPath]
-Label = "Webhook yo'li"
-
-[Scripts.Single.EventType]
-Label = "Hodisa turi"
-
-[Scripts.Single.Enabled]
-Label = "Skriptni yoqish"
-
-[Scripts.TriggerType]
-Manual = "Qo'lda"
-Scheduled = "Jadval bo'yicha"
-Webhook = "Webhook"
-Event = "Hodisa"
-
-[Scripts.Execution]
-[Scripts.Execution.Status]
-Pending = "Kutilmoqda"
-Running = "Bajarilmoqda"
-Completed = "Tugallandi"
-Failed = "Xatolik"
-```
-
-## RBAC Permissions
-
-```go
-package permissions
-
-import "github.com/iota-uz/iota-sdk/pkg/permission"
-
-const (
-    ResourceScript permission.Resource = "Script"
-    ActionExecute  permission.Action   = "Execute"
-)
-
-var (
-    ScriptCreate  = permission.MustCreate("Script.Create", ResourceScript, permission.ActionCreate, permission.ModifierAll)
-    ScriptRead    = permission.MustCreate("Script.Read", ResourceScript, permission.ActionRead, permission.ModifierAll)
-    ScriptUpdate  = permission.MustCreate("Script.Update", ResourceScript, permission.ActionUpdate, permission.ModifierAll)
-    ScriptDelete  = permission.MustCreate("Script.Delete", ResourceScript, permission.ActionDelete, permission.ModifierAll)
-    ScriptExecute = permission.MustCreate("Script.Execute", ResourceScript, ActionExecute, permission.ModifierAll)
-)
-```
-
-## Summary
-
-This specification provides:
-
-1. **Full CRUD controllers** with HTMX integration
-2. **ViewModels** for clean data transformation
-3. **Templ templates** with Monaco editor integration
-4. **Multi-language support** (en, ru, uz)
-5. **RBAC integration** for permission checks
-6. **Form validation** with DTOs
-7. **Execution history** with real-time updates
-8. **Monaco TypeScript definitions** for SDK autocomplete
-
-The presentation layer follows IOTA SDK patterns and integrates seamlessly with the domain/service layers defined in previous specifications.
+**Performance Targets:**
+- Page load: < 500ms (p95)
+- HTMX partial render: < 100ms (p95)
+- Monaco editor initialization: < 1s
+- Form validation: < 50ms

@@ -1,1085 +1,557 @@
-# JavaScript Runtime - API Bindings Specification
-
-**Status:** Implementation Ready
-**Layer:** Infrastructure Layer
-**Dependencies:** Runtime engine, Service layer, Domain entities
-**Related Issues:** #414, #415, #418, #420
-
----
+# JavaScript Runtime - API Bindings
 
 ## Overview
 
-This specification defines JavaScript APIs exposed to scripts, including context objects, HTTP client, database access, cache operations, logging, and event publishing. All APIs enforce tenant isolation and security restrictions.
+API bindings expose controlled JavaScript APIs to scripts for database access, HTTP requests, caching, logging, and event publishing with tenant isolation and security enforcement.
 
-## API Architecture
+```mermaid
+graph TB
+    subgraph "JavaScript APIs (Exposed to Scripts)"
+        Context[context<br/>tenantId, userId, scriptId, input]
+        HTTP[sdk.http<br/>SSRF-protected requests]
+        DB[sdk.db<br/>Tenant-scoped queries]
+        Cache[sdk.cache<br/>Key-value storage]
+        Log[sdk.log<br/>Structured logging]
+        Events[events<br/>Publish domain events]
+    end
 
+    subgraph "Go Implementation (Backend)"
+        HTTPClient[HTTP Client<br/>Allowlist validation]
+        DBClient[Database Client<br/>Parameterized queries]
+        CacheClient[Cache Client<br/>Redis/Memory]
+        Logger[Logger<br/>Execution context]
+        EventPublisher[Event Publisher<br/>EventBus]
+    end
+
+    subgraph "Security Layer"
+        TenantIsolation[Tenant ID Injection]
+        SSRFProtection[SSRF Prevention]
+        SQLInjection[SQL Injection Prevention]
+        RateLimiting[API Rate Limiting]
+    end
+
+    Context --> TenantIsolation
+    HTTP --> HTTPClient
+    HTTP --> SSRFProtection
+    DB --> DBClient
+    DB --> SQLInjection
+    DB --> TenantIsolation
+    Cache --> CacheClient
+    Cache --> TenantIsolation
+    Log --> Logger
+    Events --> EventPublisher
+    Events --> TenantIsolation
+
+    HTTPClient --> RateLimiting
+    DBClient --> RateLimiting
 ```
-JavaScript Context:
-
-ctx.*          - Execution context (tenant, user, script, input)
-sdk.http.*     - HTTP client (SSRF-protected)
-sdk.db.*       - Database queries (tenant-scoped, parameterized)
-sdk.cache.*    - Key-value cache (tenant-scoped)
-sdk.log.*      - Structured logging (execution-linked)
-events.*       - Event publishing (tenant-scoped)
-```
-
----
-
-## APIBindings Interface
-
-**Location:** `modules/scripts/runtime/bindings.go`
-
-```go
-package runtime
-
-import (
-    "github.com/dop251/goja"
-)
-
-// APIBindings defines how to inject APIs into VM
-type APIBindings interface {
-    // Inject injects all APIs into a Goja VM
-    Inject(vm *goja.Runtime) error
-}
-
-// BindingsImpl implements APIBindings
-type BindingsImpl struct {
-    httpClient  *HTTPClient
-    dbClient    *DBClient
-    cacheClient *CacheClient
-    logClient   *LogClient
-    eventClient *EventClient
-}
-
-// NewAPIBindings creates API bindings
-func NewAPIBindings(
-    httpClient *HTTPClient,
-    dbClient *DBClient,
-    cacheClient *CacheClient,
-    logClient *LogClient,
-    eventClient *EventClient,
-) APIBindings {
-    return &BindingsImpl{
-        httpClient:  httpClient,
-        dbClient:    dbClient,
-        cacheClient: cacheClient,
-        logClient:   logClient,
-        eventClient: eventClient,
-    }
-}
-
-// Inject injects all APIs into VM
-func (b *BindingsImpl) Inject(vm *goja.Runtime) error {
-    // Create sdk namespace
-    sdk := vm.NewObject()
-
-    // Inject HTTP client
-    sdk.Set("http", b.httpClient.ToGojaObject(vm))
-
-    // Inject database client
-    sdk.Set("db", b.dbClient.ToGojaObject(vm))
-
-    // Inject cache client
-    sdk.Set("cache", b.cacheClient.ToGojaObject(vm))
-
-    // Inject log client
-    sdk.Set("log", b.logClient.ToGojaObject(vm))
-
-    // Set sdk in global scope
-    vm.Set("sdk", sdk)
-
-    // Inject events client
-    vm.Set("events", b.eventClient.ToGojaObject(vm))
-
-    return nil
-}
-```
-
----
 
 ## Context API
 
-**Location:** `modules/scripts/runtime/context.go`
+**What It Provides:**
+Execution context information available to every script via the `context` global object.
 
-### Context Structure
+**Available Properties:**
+- `context.tenantId` - Current tenant UUID (read-only)
+- `context.userId` - Authenticated user ID (read-only)
+- `context.organizationId` - Organization UUID (read-only)
+- `context.scriptId` - Executing script UUID (read-only)
+- `context.executionId` - Current execution UUID (read-only)
+- `context.input` - Input parameters passed to script
+- `context.trigger` - Trigger information (type, event data, HTTP request)
 
-```javascript
-// Available as `ctx` in scripts
-const ctx = {
-    tenant: {
-        id: "uuid",
-        name: "Tenant Name",
-        domain: "tenant.example.com"
-    },
-    user: {
-        id: 123,
-        email: "user@example.com",
-        firstName: "John",
-        lastName: "Doe"
-    } | null, // null if not authenticated
-    execution: {
-        id: "uuid",
-        trigger: "manual|cron|event|http"
-    },
-    input: {
-        // Input data passed to execution
+```mermaid
+classDiagram
+    class Context {
+        +string tenantId
+        +number userId
+        +string organizationId
+        +string scriptId
+        +string executionId
+        +object input
+        +TriggerData trigger
     }
-};
+
+    class TriggerData {
+        +string type
+        +string eventType
+        +object eventPayload
+        +HTTPRequest httpRequest
+        +string cronExpression
+    }
+
+    class HTTPRequest {
+        +string method
+        +string path
+        +object headers
+        +object query
+        +object body
+    }
+
+    Context --> TriggerData
+    TriggerData --> HTTPRequest
 ```
 
-### Implementation
-
-Context is injected by Executor (see `06-runtime-engine.md` - `setupContext` method).
-
----
+**Usage Example (conceptual):**
+- Access tenant: `const tenantId = context.tenantId`
+- Access input: `const name = context.input.name`
+- Check trigger: `if (context.trigger.type === 'http')`
 
 ## HTTP Client API
 
-**Location:** `modules/scripts/runtime/http_client.go`
+**What It Provides:**
+SSRF-protected HTTP client for making external API calls from scripts.
 
-### JavaScript Interface
+**Methods:**
+- `sdk.http.get(url, options)` - GET request
+- `sdk.http.post(url, body, options)` - POST request
+- `sdk.http.put(url, body, options)` - PUT request
+- `sdk.http.delete(url, options)` - DELETE request
+- `sdk.http.patch(url, body, options)` - PATCH request
 
-```javascript
-// GET request
-const response = await sdk.http.get(url, options);
+**Options:**
+- `headers` - Custom HTTP headers (object)
+- `query` - Query parameters (object)
+- `timeout` - Request timeout in milliseconds (default: 10000)
 
-// POST request
-const response = await sdk.http.post(url, body, options);
+```mermaid
+sequenceDiagram
+    participant Script
+    participant HTTPClient
+    participant SSRFValidator
+    participant ExternalAPI
 
-// PUT request
-const response = await sdk.http.put(url, body, options);
+    Script->>HTTPClient: sdk.http.get(url, options)
+    HTTPClient->>SSRFValidator: Validate URL
 
-// DELETE request
-const response = await sdk.http.delete(url, options);
-
-// Options:
-// {
-//   headers: { "Authorization": "Bearer token" },
-//   timeout: 5000 // milliseconds
-// }
-
-// Response:
-// {
-//   status: 200,
-//   headers: { "content-type": "application/json" },
-//   body: { ... } | "string"
-// }
+    alt URL allowed (public internet, allowlist)
+        SSRFValidator-->>HTTPClient: Valid
+        HTTPClient->>ExternalAPI: HTTP GET
+        ExternalAPI-->>HTTPClient: Response
+        HTTPClient-->>Script: {status, headers, body}
+    else URL blocked (private IP, localhost, cloud metadata)
+        SSRFValidator-->>HTTPClient: Blocked
+        HTTPClient-->>Script: Error: SSRF protection
+    end
 ```
-
-### Go Implementation
-
-```go
-package runtime
-
-import (
-    "bytes"
-    "context"
-    "encoding/json"
-    "fmt"
-    "io"
-    "net"
-    "net/http"
-    "net/url"
-    "time"
-
-    "github.com/dop251/goja"
-    "github.com/dop251/goja_nodejs/require"
-)
-
-var (
-    // Blocked IP ranges (SSRF protection)
-    blockedCIDRs = []string{
-        "10.0.0.0/8",       // Private
-        "172.16.0.0/12",    // Private
-        "192.168.0.0/16",   // Private
-        "127.0.0.0/8",      // Loopback
-        "169.254.0.0/16",   // Link-local
-        "::1/128",          // IPv6 loopback
-        "fc00::/7",         // IPv6 private
-    }
-
-    // Allowed hosts whitelist (optional)
-    allowedHosts = []string{
-        // Empty = allow all except blocked IPs
-        // Add specific domains if needed
-    }
-)
-
-// HTTPClient provides HTTP functionality to scripts
-type HTTPClient struct {
-    client  *http.Client
-    context context.Context
-}
-
-// NewHTTPClient creates a new HTTP client for scripts
-func NewHTTPClient(ctx context.Context) *HTTPClient {
-    transport := &http.Transport{
-        DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-            // SSRF protection
-            host, _, err := net.SplitHostPort(addr)
-            if err != nil {
-                return nil, err
-            }
-
-            // Resolve host to IP
-            ips, err := net.LookupIP(host)
-            if err != nil {
-                return nil, err
-            }
-
-            // Check if any IP is in blocked range
-            for _, ip := range ips {
-                if isBlockedIP(ip) {
-                    return nil, fmt.Errorf("access to IP %s is blocked", ip)
-                }
-            }
-
-            // Use default dialer
-            dialer := &net.Dialer{
-                Timeout: 10 * time.Second,
-            }
-            return dialer.DialContext(ctx, network, addr)
-        },
-    }
-
-    return &HTTPClient{
-        client: &http.Client{
-            Transport: transport,
-            Timeout:   30 * time.Second,
-        },
-        context: ctx,
-    }
-}
-
-// ToGojaObject converts HTTPClient to Goja object
-func (h *HTTPClient) ToGojaObject(vm *goja.Runtime) *goja.Object {
-    obj := vm.NewObject()
-
-    obj.Set("get", h.get)
-    obj.Set("post", h.post)
-    obj.Set("put", h.put)
-    obj.Set("delete", h.delete_)
-
-    return obj
-}
-
-func (h *HTTPClient) get(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-    return h.request(vm, "GET", call.Arguments)
-}
-
-func (h *HTTPClient) post(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-    return h.request(vm, "POST", call.Arguments)
-}
-
-func (h *HTTPClient) put(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-    return h.request(vm, "PUT", call.Arguments)
-}
-
-func (h *HTTPClient) delete_(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-    return h.request(vm, "DELETE", call.Arguments)
-}
-
-func (h *HTTPClient) request(
-    vm *goja.Runtime,
-    method string,
-    args []goja.Value,
-) goja.Value {
-    if len(args) == 0 {
-        panic(vm.NewTypeError("URL is required"))
-    }
-
-    urlStr := args[0].String()
-
-    var body interface{}
-    var options map[string]interface{}
-
-    if method == "POST" || method == "PUT" {
-        if len(args) > 1 {
-            body = args[1].Export()
-        }
-        if len(args) > 2 {
-            options = args[2].Export().(map[string]interface{})
-        }
-    } else {
-        if len(args) > 1 {
-            options = args[1].Export().(map[string]interface{})
-        }
-    }
-
-    // Validate URL
-    if _, err := url.Parse(urlStr); err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Invalid URL: %s", err)))
-    }
-
-    // Build request
-    var bodyReader io.Reader
-    if body != nil {
-        jsonBody, err := json.Marshal(body)
-        if err != nil {
-            panic(vm.NewTypeError(fmt.Sprintf("Failed to marshal body: %s", err)))
-        }
-        bodyReader = bytes.NewReader(jsonBody)
-    }
-
-    req, err := http.NewRequestWithContext(h.context, method, urlStr, bodyReader)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Failed to create request: %s", err)))
-    }
-
-    // Set headers
-    if options != nil {
-        if headers, ok := options["headers"].(map[string]interface{}); ok {
-            for key, value := range headers {
-                req.Header.Set(key, fmt.Sprintf("%v", value))
-            }
-        }
-    }
-
-    // Set default content type for POST/PUT
-    if (method == "POST" || method == "PUT") && req.Header.Get("Content-Type") == "" {
-        req.Header.Set("Content-Type", "application/json")
-    }
-
-    // Execute request
-    resp, err := h.client.Do(req)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Request failed: %s", err)))
-    }
-    defer resp.Body.Close()
-
-    // Read response body
-    respBody, err := io.ReadAll(resp.Body)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Failed to read response: %s", err)))
-    }
-
-    // Parse JSON if content-type is JSON
-    var parsedBody interface{}
-    if isJSONContentType(resp.Header.Get("Content-Type")) {
-        json.Unmarshal(respBody, &parsedBody)
-    } else {
-        parsedBody = string(respBody)
-    }
-
-    // Build response object
-    response := map[string]interface{}{
-        "status":  resp.StatusCode,
-        "headers": resp.Header,
-        "body":    parsedBody,
-    }
-
-    return vm.ToValue(response)
-}
-
-func isBlockedIP(ip net.IP) bool {
-    for _, cidr := range blockedCIDRs {
-        _, ipNet, _ := net.ParseCIDR(cidr)
-        if ipNet.Contains(ip) {
-            return true
-        }
-    }
-    return false
-}
-
-func isJSONContentType(contentType string) bool {
-    return contentType == "application/json" ||
-        contentType == "application/json; charset=utf-8"
-}
-```
-
----
-
-## Database Client API
-
-**Location:** `modules/scripts/runtime/db_client.go`
-
-### JavaScript Interface
-
-```javascript
-// Parameterized query (tenant-scoped)
-const users = await sdk.db.query(
-    "SELECT * FROM users WHERE status = $1 LIMIT $2",
-    ["active", 10]
-);
-
-// Execute (tenant-scoped)
-const result = await sdk.db.execute(
-    "UPDATE users SET last_login = NOW() WHERE id = $1",
-    [userId]
-);
-
-// Result:
-// {
-//   rowsAffected: 1
-// }
-```
-
-### Go Implementation
-
-```go
-package runtime
-
-import (
-    "context"
-    "fmt"
-
-    "github.com/dop251/goja"
-    "github.com/iota-uz/iota-sdk/pkg/composables"
-)
-
-// DBClient provides database access to scripts
-type DBClient struct {
-    context context.Context
-}
-
-// NewDBClient creates a new database client for scripts
-func NewDBClient(ctx context.Context) *DBClient {
-    return &DBClient{
-        context: ctx,
-    }
-}
-
-// ToGojaObject converts DBClient to Goja object
-func (d *DBClient) ToGojaObject(vm *goja.Runtime) *goja.Object {
-    obj := vm.NewObject()
-
-    obj.Set("query", d.query)
-    obj.Set("execute", d.execute)
-
-    return obj
-}
-
-func (d *DBClient) query(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-
-    if len(call.Arguments) == 0 {
-        panic(vm.NewTypeError("SQL query is required"))
-    }
-
-    sql := call.Arguments[0].String()
-    var params []interface{}
-
-    if len(call.Arguments) > 1 {
-        params = call.Arguments[1].Export().([]interface{})
-    }
-
-    // Get tenant ID from context
-    tenantID, err := composables.UseTenantID(d.context)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Tenant context required: %s", err)))
-    }
-
-    // Add tenant_id to WHERE clause (automatic tenant isolation)
-    // TODO: Parse SQL and inject tenant_id filter
-    // For now, trust script author to include tenant_id in WHERE
-
-    // Get database connection
-    tx, err := composables.UseTx(d.context)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Database connection required: %s", err)))
-    }
-
-    // Execute query
-    rows, err := tx.Query(d.context, sql, params...)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Query failed: %s", err)))
-    }
-    defer rows.Close()
-
-    // Build result
-    var result []map[string]interface{}
-
-    for rows.Next() {
-        // Get column names
-        fields := rows.FieldDescriptions()
-        values := make([]interface{}, len(fields))
-        valuePtrs := make([]interface{}, len(fields))
-
-        for i := range values {
-            valuePtrs[i] = &values[i]
-        }
-
-        if err := rows.Scan(valuePtrs...); err != nil {
-            panic(vm.NewTypeError(fmt.Sprintf("Scan failed: %s", err)))
-        }
-
-        row := make(map[string]interface{})
-        for i, field := range fields {
-            row[string(field.Name)] = values[i]
-        }
-
-        result = append(result, row)
-    }
-
-    return vm.ToValue(result)
-}
-
-func (d *DBClient) execute(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-
-    if len(call.Arguments) == 0 {
-        panic(vm.NewTypeError("SQL query is required"))
-    }
-
-    sql := call.Arguments[0].String()
-    var params []interface{}
-
-    if len(call.Arguments) > 1 {
-        params = call.Arguments[1].Export().([]interface{})
-    }
-
-    // Get database connection
-    tx, err := composables.UseTx(d.context)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Database connection required: %s", err)))
-    }
-
-    // Execute
-    cmdTag, err := tx.Exec(d.context, sql, params...)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Execute failed: %s", err)))
-    }
-
-    result := map[string]interface{}{
-        "rowsAffected": cmdTag.RowsAffected(),
-    }
-
-    return vm.ToValue(result)
-}
-```
-
----
-
-## Cache Client API
-
-**Location:** `modules/scripts/runtime/cache_client.go`
-
-### JavaScript Interface
-
-```javascript
-// Get value (tenant-scoped keys)
-const value = await sdk.cache.get("my-key");
-
-// Set value with TTL (seconds)
-await sdk.cache.set("my-key", { data: "value" }, 3600);
-
-// Delete
-await sdk.cache.delete("my-key");
-```
-
-### Go Implementation
-
-```go
-package runtime
-
-import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "time"
-
-    "github.com/dop251/goja"
-    "github.com/iota-uz/iota-sdk/pkg/composables"
-    "github.com/redis/go-redis/v9"
-)
-
-// CacheClient provides cache access to scripts
-type CacheClient struct {
-    context context.Context
-    redis   *redis.Client
-}
-
-// NewCacheClient creates a new cache client for scripts
-func NewCacheClient(ctx context.Context, redis *redis.Client) *CacheClient {
-    return &CacheClient{
-        context: ctx,
-        redis:   redis,
-    }
-}
-
-// ToGojaObject converts CacheClient to Goja object
-func (c *CacheClient) ToGojaObject(vm *goja.Runtime) *goja.Object {
-    obj := vm.NewObject()
-
-    obj.Set("get", c.get)
-    obj.Set("set", c.set)
-    obj.Set("delete", c.delete_)
-
-    return obj
-}
-
-func (c *CacheClient) get(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-
-    if len(call.Arguments) == 0 {
-        panic(vm.NewTypeError("Key is required"))
-    }
-
-    key := call.Arguments[0].String()
-
-    // Prefix with tenant ID
-    fullKey := c.tenantKey(key)
-
-    // Get from Redis
-    val, err := c.redis.Get(c.context, fullKey).Result()
-    if err == redis.Nil {
-        return goja.Null()
-    }
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Cache get failed: %s", err)))
-    }
-
-    // Parse JSON
-    var result interface{}
-    if err := json.Unmarshal([]byte(val), &result); err != nil {
-        // Return as string if not JSON
-        return vm.ToValue(val)
-    }
-
-    return vm.ToValue(result)
-}
-
-func (c *CacheClient) set(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-
-    if len(call.Arguments) < 2 {
-        panic(vm.NewTypeError("Key and value are required"))
-    }
-
-    key := call.Arguments[0].String()
-    value := call.Arguments[1].Export()
-
-    var ttl time.Duration
-    if len(call.Arguments) > 2 {
-        ttlSeconds := int64(call.Arguments[2].ToInteger())
-        ttl = time.Duration(ttlSeconds) * time.Second
-    }
-
-    // Prefix with tenant ID
-    fullKey := c.tenantKey(key)
-
-    // Serialize value
-    jsonValue, err := json.Marshal(value)
-    if err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Failed to serialize value: %s", err)))
-    }
-
-    // Set in Redis
-    if err := c.redis.Set(c.context, fullKey, jsonValue, ttl).Err(); err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Cache set failed: %s", err)))
-    }
-
-    return goja.Undefined()
-}
-
-func (c *CacheClient) delete_(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-
-    if len(call.Arguments) == 0 {
-        panic(vm.NewTypeError("Key is required"))
-    }
-
-    key := call.Arguments[0].String()
-
-    // Prefix with tenant ID
-    fullKey := c.tenantKey(key)
-
-    // Delete from Redis
-    if err := c.redis.Del(c.context, fullKey).Err(); err != nil {
-        panic(vm.NewTypeError(fmt.Sprintf("Cache delete failed: %s", err)))
-    }
-
-    return goja.Undefined()
-}
-
-func (c *CacheClient) tenantKey(key string) string {
-    tenantID, _ := composables.UseTenantID(c.context)
-    return fmt.Sprintf("script:%s:%s", tenantID, key)
-}
-```
-
----
-
-## Log Client API
-
-**Location:** `modules/scripts/runtime/log_client.go`
-
-### JavaScript Interface
-
-```javascript
-// Log levels
-sdk.log.info("User created", { userId: 123 });
-sdk.log.warn("Low memory", { availableMB: 10 });
-sdk.log.error("Failed to process", { error: "Network timeout" });
-```
-
-### Go Implementation
-
-```go
-package runtime
-
-import (
-    "context"
-
-    "github.com/dop251/goja"
-    "github.com/sirupsen/logrus"
-)
-
-// LogClient provides logging to scripts
-type LogClient struct {
-    context context.Context
-    logger  *logrus.Logger
-}
-
-// NewLogClient creates a new log client for scripts
-func NewLogClient(ctx context.Context, logger *logrus.Logger) *LogClient {
-    return &LogClient{
-        context: ctx,
-        logger:  logger,
-    }
-}
-
-// ToGojaObject converts LogClient to Goja object
-func (l *LogClient) ToGojaObject(vm *goja.Runtime) *goja.Object {
-    obj := vm.NewObject()
-
-    obj.Set("info", l.info)
-    obj.Set("warn", l.warn)
-    obj.Set("error", l.error_)
-
-    return obj
-}
-
-func (l *LogClient) info(call goja.FunctionCall) goja.Value {
-    l.log(logrus.InfoLevel, call.Arguments)
-    return goja.Undefined()
-}
-
-func (l *LogClient) warn(call goja.FunctionCall) goja.Value {
-    l.log(logrus.WarnLevel, call.Arguments)
-    return goja.Undefined()
-}
-
-func (l *LogClient) error_(call goja.FunctionCall) goja.Value {
-    l.log(logrus.ErrorLevel, call.Arguments)
-    return goja.Undefined()
-}
-
-func (l *LogClient) log(level logrus.Level, args []goja.Value) {
-    if len(args) == 0 {
-        return
-    }
-
-    message := args[0].String()
-
-    fields := logrus.Fields{
-        "source": "script",
-    }
-
-    // Add execution context
-    if execID, err := execution.UseExecutionID(l.context); err == nil {
-        fields["execution_id"] = execID.String()
-    }
-    if scriptID, err := execution.UseScriptID(l.context); err == nil {
-        fields["script_id"] = scriptID.String()
-    }
-
-    if len(args) > 1 {
-        data := args[1].Export()
-        if dataMap, ok := data.(map[string]interface{}); ok {
-            for k, v := range dataMap {
-                fields[k] = v
-            }
-        }
-    }
-
-    l.logger.WithFields(fields).Log(level, message)
-}
-```
-
----
-
-## Event Client API
-
-**Location:** `modules/scripts/runtime/event_client.go`
-
-### JavaScript Interface
-
-```javascript
-// Publish event (tenant-scoped)
-await events.publish("order.created", {
-    orderId: 123,
-    total: 99.99
-});
-```
-
-### Go Implementation
-
-```go
-package runtime
-
-import (
-    "context"
-    "fmt"
-
-    "github.com/dop251/goja"
-    "github.com/iota-uz/iota-sdk/pkg/eventbus"
-)
-
-// EventClient provides event publishing to scripts
-type EventClient struct {
-    context   context.Context
-    publisher eventbus.EventBus
-}
-
-// NewEventClient creates a new event client for scripts
-func NewEventClient(ctx context.Context, publisher eventbus.EventBus) *EventClient {
-    return &EventClient{
-        context:   ctx,
-        publisher: publisher,
-    }
-}
-
-// ToGojaObject converts EventClient to Goja object
-func (e *EventClient) ToGojaObject(vm *goja.Runtime) *goja.Object {
-    obj := vm.NewObject()
-
-    obj.Set("publish", e.publish)
-
-    return obj
-}
-
-func (e *EventClient) publish(call goja.FunctionCall) goja.Value {
-    vm := call.This.Runtime()
-
-    if len(call.Arguments) < 2 {
-        panic(vm.NewTypeError("Event type and payload are required"))
-    }
-
-    eventType := call.Arguments[0].String()
-    payload := call.Arguments[1].Export()
-
-    // Create generic event
-    event := &ScriptEvent{
-        Type:    eventType,
-        Payload: payload,
-    }
-
-    // Publish
-    e.publisher.Publish(event)
-
-    return goja.Undefined()
-}
-
-// ScriptEvent is a generic event published by scripts
-type ScriptEvent struct {
-    Type    string
-    Payload interface{}
-}
-```
-
----
-
-## TypeScript Definitions
-
-**Location:** `modules/scripts/presentation/static/sdk.d.ts`
-
-```typescript
-// Context
-interface Context {
-    tenant: {
-        id: string;
-        name: string;
-        domain: string;
-    };
-    user: {
-        id: number;
-        email: string;
-        firstName: string;
-        lastName: string;
-    } | null;
-    execution: {
-        id: string;
-        trigger: "manual" | "cron" | "event" | "http";
-    };
-    input: any;
-}
-
-declare const ctx: Context;
-
-// SDK namespace
-declare namespace sdk {
-    // HTTP client
-    namespace http {
-        interface RequestOptions {
-            headers?: Record<string, string>;
-            timeout?: number;
-        }
-
-        interface Response<T = any> {
-            status: number;
-            headers: Record<string, string>;
-            body: T;
-        }
-
-        function get<T = any>(
-            url: string,
-            options?: RequestOptions
-        ): Promise<Response<T>>;
-
-        function post<T = any>(
-            url: string,
-            body: any,
-            options?: RequestOptions
-        ): Promise<Response<T>>;
-
-        function put<T = any>(
-            url: string,
-            body: any,
-            options?: RequestOptions
-        ): Promise<Response<T>>;
-
-        function delete<T = any>(
-            url: string,
-            options?: RequestOptions
-        ): Promise<Response<T>>;
-    }
-
-    // Database client
-    namespace db {
-        function query<T = any>(
-            sql: string,
-            params?: any[]
-        ): Promise<T[]>;
-
-        function execute(
-            sql: string,
-            params?: any[]
-        ): Promise<{ rowsAffected: number }>;
-    }
-
-    // Cache client
-    namespace cache {
-        function get<T = any>(key: string): Promise<T | null>;
-
-        function set(
-            key: string,
-            value: any,
-            ttlSeconds?: number
-        ): Promise<void>;
-
-        function delete(key: string): Promise<void>;
-    }
-
-    // Log client
-    namespace log {
-        function info(message: string, data?: Record<string, any>): void;
-        function warn(message: string, data?: Record<string, any>): void;
-        function error(message: string, data?: Record<string, any>): void;
-    }
-}
-
-// Events
-declare namespace events {
-    function publish(eventType: string, payload: any): Promise<void>;
-}
-```
-
-**Usage in Monaco Editor:**
-
-```javascript
-// In script editor component
-monaco.languages.typescript.javascriptDefaults.addExtraLib(
-    sdkTypings,
-    "sdk.d.ts"
-);
-```
-
----
-
-## Security Considerations
 
 ### SSRF Protection
 
-**Blocked IP Ranges:**
-- Private networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
-- Loopback (127.0.0.0/8)
-- Link-local (169.254.0.0/16)
+**What It Does:**
+Prevents scripts from accessing internal/private network resources.
 
-**Implementation:**
-- DNS resolution before connection
-- IP validation against blocked CIDRs
-- Optional allowed hosts whitelist
+**Blocked URLs:**
+- Private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+- Localhost (127.0.0.1, ::1)
+- Link-local addresses (169.254.0.0/16)
+- Cloud metadata endpoints (169.254.169.254)
+- Internal DNS names
 
-### SQL Injection Prevention
+**Allowed URLs:**
+- Public internet (default)
+- Configured allowlist domains
+- Specific partner APIs
 
-**Parameterized Queries Only:**
-```javascript
-// SAFE: Parameterized
-sdk.db.query("SELECT * FROM users WHERE id = $1", [userId]);
+```mermaid
+graph TB
+    subgraph "URL Validation Flow"
+        URL[URL Input]
+        Parse[Parse URL]
+        CheckIP[Resolve & Check IP]
+        CheckAllowlist[Check Allowlist]
+    end
 
-// UNSAFE: String concatenation (blocked by API design)
-// Scripts cannot construct dynamic SQL strings
+    subgraph "Blocked"
+        Private[Private IP]
+        Localhost[Localhost]
+        Metadata[Cloud Metadata]
+        LinkLocal[Link-Local]
+    end
+
+    subgraph "Allowed"
+        Public[Public Internet]
+        Allowlist[Allowlist Domain]
+    end
+
+    URL --> Parse
+    Parse --> CheckIP
+
+    CheckIP -->|Private IP| Private
+    CheckIP -->|Localhost| Localhost
+    CheckIP -->|Metadata IP| Metadata
+    CheckIP -->|Link-local| LinkLocal
+    CheckIP -->|Public IP| CheckAllowlist
+
+    CheckAllowlist -->|In allowlist| Allowlist
+    CheckAllowlist -->|Public & not blocked| Public
+
+    Private -.Reject.-> Error[Error: SSRF]
+    Localhost -.Reject.-> Error
+    Metadata -.Reject.-> Error
+    LinkLocal -.Reject.-> Error
+
+    Allowlist -.Accept.-> Request[Make HTTP Request]
+    Public -.Accept.-> Request
 ```
 
-### Tenant Isolation
+## Database API
 
-**Automatic Tenant Scoping:**
-- Database queries include tenant_id filter
-- Cache keys prefixed with tenant_id
-- Events published with tenant context
+**What It Provides:**
+Tenant-scoped database queries with automatic tenant_id injection and SQL injection prevention.
 
----
+**Methods:**
+- `sdk.db.query(sql, params)` - Execute SELECT query
+- `sdk.db.execute(sql, params)` - Execute INSERT/UPDATE/DELETE
+- `sdk.db.queryOne(sql, params)` - Get single row
+- `sdk.db.transaction(fn)` - Execute in transaction
 
-## Testing
+**Security Features:**
+- Automatic tenant_id injection in WHERE clause
+- Parameterized queries only (no string concatenation)
+- Read-only access for SELECT (no DDL/DCL)
+- Row count limits (max 1000 rows)
+- Query timeout (max 5 seconds)
 
-**Location:** `modules/scripts/runtime/bindings_test.go`
+```mermaid
+sequenceDiagram
+    participant Script
+    participant DBClient
+    participant TenantValidator
+    participant PostgreSQL
 
-```go
-func TestHTTPClient_Get_Success(t *testing.T) {
-    ctx := context.Background()
-    client := NewHTTPClient(ctx)
+    Script->>DBClient: sdk.db.query(sql, params)
+    DBClient->>DBClient: Validate SQL (no DDL/DCL)
+    DBClient->>TenantValidator: Inject tenant_id
+    TenantValidator-->>DBClient: Modified SQL + params
 
-    vm := goja.New()
-    vm.Set("http", client.ToGojaObject(vm))
+    DBClient->>PostgreSQL: Execute parameterized query<br/>WHERE tenant_id = $1 AND ...
+    PostgreSQL-->>DBClient: Rows (max 1000)
 
-    script := `
-        const response = http.get("https://api.example.com/users");
-        response.status;
-    `
-
-    // Mock HTTP transport for testing
-    // ...
-
-    value, err := vm.RunString(script)
-    assert.NoError(t, err)
-    assert.Equal(t, 200, value.ToInteger())
-}
-
-func TestDBClient_Query_TenantIsolation(t *testing.T) {
-    // Test that queries include tenant_id filter
-    // ...
-}
+    DBClient->>DBClient: Map rows to JavaScript objects
+    DBClient-->>Script: Array of objects
 ```
 
----
+### Query Patterns
 
-## Next Steps
+**Supported Queries:**
+- SELECT with filters, joins, aggregations
+- INSERT with returning clause
+- UPDATE with WHERE clause
+- DELETE with WHERE clause
+- Transactions (BEGIN, COMMIT, ROLLBACK)
 
-After implementing API bindings:
+**Restricted Operations:**
+- No DDL (CREATE, ALTER, DROP)
+- No DCL (GRANT, REVOKE)
+- No TRUNCATE or VACUUM
+- No file system access (COPY, pg_read_file)
 
-1. **Event Integration** (08-event-integration.md) - Event triggers and handlers
-2. **Presentation Layer** (09-presentation.md) - Controllers and templates
+```mermaid
+graph TB
+    subgraph "Query Validation"
+        Input[SQL Query]
+        Parse[Parse SQL]
+        CheckType[Check Query Type]
+    end
 
----
+    subgraph "Allowed"
+        SELECT[SELECT]
+        INSERT[INSERT]
+        UPDATE[UPDATE]
+        DELETE[DELETE]
+    end
 
-## References
+    subgraph "Blocked"
+        DDL[DDL CREATE/ALTER/DROP]
+        DCL[DCL GRANT/REVOKE]
+        System[System Functions]
+    end
 
-- Runtime engine: `06-runtime-engine.md`
-- Service layer: `05-service-layer.md`
-- Domain entities: `01-domain-entities.md`
+    Input --> Parse
+    Parse --> CheckType
+
+    CheckType -->|SELECT| SELECT
+    CheckType -->|INSERT| INSERT
+    CheckType -->|UPDATE| UPDATE
+    CheckType -->|DELETE| DELETE
+    CheckType -->|DDL/DCL| DDL
+    CheckType -->|System| System
+
+    SELECT -.Add tenant_id.-> Execute[Execute with Tenant Filter]
+    INSERT -.Add tenant_id.-> Execute
+    UPDATE -.Add tenant_id.-> Execute
+    DELETE -.Add tenant_id.-> Execute
+
+    DDL -.Reject.-> Error[Error: Unauthorized]
+    DCL -.Reject.-> Error
+    System -.Reject.-> Error
+```
+
+## Cache API
+
+**What It Provides:**
+Tenant-scoped key-value cache for temporary data storage.
+
+**Methods:**
+- `sdk.cache.get(key)` - Retrieve value by key
+- `sdk.cache.set(key, value, ttl)` - Store value with TTL (seconds)
+- `sdk.cache.delete(key)` - Remove key
+- `sdk.cache.exists(key)` - Check if key exists
+- `sdk.cache.increment(key, delta)` - Atomic increment
+- `sdk.cache.expire(key, ttl)` - Update TTL
+
+**Automatic Prefixing:**
+- Keys automatically prefixed with `tenant:{tenantId}:script:{scriptId}:`
+- Prevents cross-tenant and cross-script key collisions
+- Transparent to script (script sees unprefixed keys)
+
+```mermaid
+sequenceDiagram
+    participant Script
+    participant CacheClient
+    participant Redis
+
+    Script->>CacheClient: sdk.cache.set('user:123', data, 3600)
+    CacheClient->>CacheClient: Prefix key:<br/>tenant:{id}:script:{id}:user:123
+    CacheClient->>Redis: SET prefixed_key data EX 3600
+    Redis-->>CacheClient: OK
+    CacheClient-->>Script: true
+
+    Script->>CacheClient: sdk.cache.get('user:123')
+    CacheClient->>CacheClient: Prefix key
+    CacheClient->>Redis: GET prefixed_key
+    Redis-->>CacheClient: data
+    CacheClient-->>Script: data
+```
+
+## Logging API
+
+**What It Provides:**
+Structured logging with automatic execution context linkage.
+
+**Methods:**
+- `sdk.log.debug(message, metadata)` - Debug level
+- `sdk.log.info(message, metadata)` - Info level
+- `sdk.log.warn(message, metadata)` - Warning level
+- `sdk.log.error(message, metadata)` - Error level
+
+**Automatic Context:**
+- tenant_id, user_id, organization_id
+- script_id, execution_id
+- Timestamp, log level
+- Custom metadata from script
+
+```mermaid
+graph TB
+    subgraph "Logging Flow"
+        Script[Script calls sdk.log.info]
+        Logger[Logger Implementation]
+        Enrich[Enrich with Context]
+        Format[Format as JSON]
+        Write[Write to stdout]
+    end
+
+    subgraph "Log Entry"
+        Timestamp[timestamp]
+        Level[level: info]
+        Message[message]
+        Context[tenant_id, script_id, execution_id]
+        Metadata[Custom metadata]
+    end
+
+    Script --> Logger
+    Logger --> Enrich
+    Enrich --> Format
+    Format --> Write
+
+    Enrich -.Adds.-> Timestamp
+    Enrich -.Adds.-> Level
+    Enrich -.Adds.-> Context
+    Script -.Provides.-> Message
+    Script -.Provides.-> Metadata
+```
+
+## Events API
+
+**What It Provides:**
+Publish domain events to EventBus with tenant isolation.
+
+**Methods:**
+- `events.publish(eventType, payload)` - Publish event
+- Event types follow convention: `module.entity.action`
+
+**Automatic Enrichment:**
+- Tenant ID automatically injected
+- Timestamp added
+- Source script ID tracked
+- Event ID generated
+
+```mermaid
+sequenceDiagram
+    participant Script
+    participant EventsAPI
+    participant EventBus
+    participant Subscribers
+
+    Script->>EventsAPI: events.publish('user.created', {userId: 123})
+    EventsAPI->>EventsAPI: Enrich event<br/>(tenant_id, timestamp, script_id)
+    EventsAPI->>EventsAPI: Validate event type
+    EventsAPI->>EventBus: Publish enriched event
+
+    EventBus->>Subscribers: Notify (tenant-filtered)
+    EventBus-->>EventsAPI: Published
+    EventsAPI-->>Script: true
+```
+
+## Rate Limiting
+
+**What It Does:**
+Prevents abuse by limiting API call frequency per script execution.
+
+**Limits:**
+- Database queries: 60 per minute
+- HTTP requests: 60 per minute
+- Cache operations: 120 per minute
+- Event publishes: 30 per minute
+- Log entries: 100 per minute
+
+**How It Works:**
+- Token bucket algorithm per execution
+- Refills at configured rate
+- Blocks when bucket empty
+- Returns error with retry-after
+
+```mermaid
+graph TB
+    subgraph "Rate Limiter (Per Execution)"
+        Request[API Call]
+        CheckBucket[Check Token Bucket]
+        ConsumeToken[Consume Token]
+        Allow[Allow Request]
+        Deny[Deny Request]
+    end
+
+    subgraph "Token Bucket"
+        Capacity[Capacity: 60]
+        Current[Current: X]
+        RefillRate[Refill: 1/second]
+    end
+
+    Request --> CheckBucket
+    CheckBucket -->|Tokens available| ConsumeToken
+    CheckBucket -->|Bucket empty| Deny
+
+    ConsumeToken --> Current
+    ConsumeToken --> Allow
+
+    RefillRate -.Adds tokens.-> Current
+
+    Deny -.Error.-> Script[Error: Rate limit exceeded]
+    Allow -.Success.-> Execute[Execute API Call]
+```
+
+## API Injection Process
+
+**What It Does:**
+Injects all APIs into Goja VM global scope before script execution.
+
+**Injection Steps:**
+1. Create API client instances (HTTP, DB, Cache, Logger, Events)
+2. Inject execution context (`context` global)
+3. Bind HTTP client methods to `sdk.http` namespace
+4. Bind database methods to `sdk.db` namespace
+5. Bind cache methods to `sdk.cache` namespace
+6. Bind logger methods to `sdk.log` namespace
+7. Bind event publisher to `events` global
+8. Set tenant ID in all API clients
+
+```mermaid
+sequenceDiagram
+    participant VMPool
+    participant VM as Goja VM
+    participant Bindings as API Bindings
+
+    VMPool->>Bindings: InjectAPIs(vm, ctx)
+
+    Bindings->>VM: Set context global
+    Note over VM: context.tenantId = "..."<br/>context.userId = 123
+
+    Bindings->>VM: Set sdk.http namespace
+    Note over VM: sdk.http.get = func(...)<br/>sdk.http.post = func(...)
+
+    Bindings->>VM: Set sdk.db namespace
+    Note over VM: sdk.db.query = func(...)<br/>sdk.db.execute = func(...)
+
+    Bindings->>VM: Set sdk.cache namespace
+    Note over VM: sdk.cache.get = func(...)<br/>sdk.cache.set = func(...)
+
+    Bindings->>VM: Set sdk.log namespace
+    Note over VM: sdk.log.info = func(...)<br/>sdk.log.error = func(...)
+
+    Bindings->>VM: Set events global
+    Note over VM: events.publish = func(...)
+
+    Bindings-->>VMPool: APIs injected
+```
+
+## Acceptance Criteria
+
+### Context API
+- ✅ context.tenantId available (read-only, non-null)
+- ✅ context.userId available (read-only, may be null)
+- ✅ context.organizationId available (read-only, may be null)
+- ✅ context.scriptId available (read-only, non-null)
+- ✅ context.executionId available (read-only, non-null)
+- ✅ context.input provides script input parameters
+- ✅ context.trigger provides trigger information
+
+### HTTP Client API
+- ✅ Support GET, POST, PUT, DELETE, PATCH methods
+- ✅ Custom headers and query parameters
+- ✅ Request timeout configurable (default 10s)
+- ✅ SSRF protection blocks private IPs
+- ✅ SSRF protection blocks cloud metadata
+- ✅ Allowlist domains bypass SSRF checks
+- ✅ Rate limiting (60 requests/minute)
+
+### Database API
+- ✅ sdk.db.query executes SELECT with tenant filter
+- ✅ sdk.db.execute for INSERT/UPDATE/DELETE
+- ✅ sdk.db.queryOne returns single row
+- ✅ sdk.db.transaction for atomic operations
+- ✅ Automatic tenant_id injection in WHERE
+- ✅ Parameterized queries only (SQL injection prevention)
+- ✅ Row limit (max 1000 rows)
+- ✅ Query timeout (max 5 seconds)
+- ✅ Block DDL/DCL operations
+
+### Cache API
+- ✅ sdk.cache.get/set/delete/exists methods
+- ✅ sdk.cache.increment for atomic counters
+- ✅ sdk.cache.expire to update TTL
+- ✅ Automatic key prefixing (tenant + script)
+- ✅ TTL in seconds (default: no expiration)
+- ✅ Rate limiting (120 operations/minute)
+
+### Logging API
+- ✅ sdk.log.debug/info/warn/error methods
+- ✅ Automatic context enrichment (tenant, script, execution)
+- ✅ Custom metadata support
+- ✅ JSON formatted output
+- ✅ Rate limiting (100 logs/minute)
+
+### Events API
+- ✅ events.publish method
+- ✅ Automatic tenant ID injection
+- ✅ Timestamp and event ID generation
+- ✅ Source script ID tracking
+- ✅ Event type validation
+- ✅ Rate limiting (30 events/minute)
+
+### Security
+- ✅ All APIs enforce tenant isolation
+- ✅ No cross-tenant data access possible
+- ✅ SSRF protection for HTTP calls
+- ✅ SQL injection prevention for database
+- ✅ Rate limiting prevents abuse
+- ✅ API errors include safe error messages (no stack traces to scripts)

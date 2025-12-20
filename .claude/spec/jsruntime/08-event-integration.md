@@ -9,922 +9,419 @@
 
 ## Overview
 
-This specification defines how scripts are triggered by domain events, including event routing, filtering, async execution, error handling, and dead letter queue management.
+Event integration enables scripts to react to domain events across the application. Scripts subscribe to specific event types, apply filters to match relevant events, and execute asynchronously with retry logic and dead letter queue handling.
 
-## Event Integration Architecture
+```mermaid
+graph TB
+    subgraph "Event Flow"
+        A[Domain Event Published] --> B[Event Bus]
+        B --> C{Match Subscriptions}
+        C -->|Matched| D[Apply Filters]
+        C -->|No Match| E[Discard]
+        D -->|Pass| F[Async Queue]
+        D -->|Fail| E
+        F --> G[Worker Pool]
+        G --> H[Execute Script]
+        H -->|Success| I[Record Execution]
+        H -->|Failure| J{Retry Logic}
+        J -->|Retry| F
+        J -->|Max Retries| K[Dead Letter Queue]
+    end
 
-```
-┌─────────────────────────────────────────────────┐
-│           Domain Event Flow                      │
-│                                                  │
-│  ┌──────────────────────────────────────────┐   │
-│  │     Application Event Bus                │   │
-│  │  • user.created                          │   │
-│  │  • client.created                        │   │
-│  │  • payment.completed                     │   │
-│  │  • ...                                   │   │
-│  └────────────┬─────────────────────────────┘   │
-│               │                                  │
-│               ▼                                  │
-│  ┌──────────────────────────────────────────┐   │
-│  │     Event Trigger Handler                │   │
-│  │  • Subscribe to event types              │   │
-│  │  • Match events to scripts               │   │
-│  │  • Apply filters                         │   │
-│  │  • Queue for execution                   │   │
-│  └────────────┬─────────────────────────────┘   │
-│               │                                  │
-│               ▼                                  │
-│  ┌──────────────────────────────────────────┐   │
-│  │     Event Buffer (Async Queue)           │   │
-│  │  • Worker pool (configurable)            │   │
-│  │  • Concurrent execution                  │   │
-│  │  • Graceful shutdown                     │   │
-│  └────────────┬─────────────────────────────┘   │
-│               │                                  │
-│               ▼                                  │
-│  ┌──────────────────────────────────────────┐   │
-│  │     Script Execution                     │   │
-│  │  • ExecutionService.Execute()            │   │
-│  │  • Event data as input                   │   │
-│  └────────────┬─────────────────────────────┘   │
-│               │                                  │
-│               ├─Success──────────────────────┐   │
-│               │                              │   │
-│               ▼                              ▼   │
-│  ┌──────────────────────┐     ┌──────────────┐  │
-│  │  Execution Complete  │     │  Dead Letter │  │
-│  │  • Log result        │     │  Queue (DLQ) │  │
-│  │  • Publish event     │     │  • Retry     │  │
-│  └──────────────────────┘     │  • Alert     │  │
-│                               └──────────────┘  │
-└─────────────────────────────────────────────────┘
+    style A fill:#e1f5ff
+    style H fill:#fff4e1
+    style K fill:#ffe1e1
 ```
 
----
+## What It Does
 
-## Event Trigger Handler
+The event integration system:
+- **Subscribes** scripts to domain events by event type and optional filters
+- **Routes** events to matching scripts based on subscription rules
+- **Executes** scripts asynchronously without blocking the event publisher
+- **Retries** failed executions with exponential backoff
+- **Captures** permanently failed events in a Dead Letter Queue (DLQ)
+- **Monitors** event processing with metrics and logging
 
-**Location:** `modules/scripts/infrastructure/events/event_trigger_handler.go`
+## How It Works
 
-### Interface
+### Event Subscription Model
 
-```go
-package events
+Scripts declare which events they want to process:
 
-import (
-    "context"
-
-    "github.com/google/uuid"
-    "github.com/iota-uz/iota-sdk/modules/scripts/domain/aggregates/script"
-    "github.com/iota-uz/iota-sdk/modules/scripts/services"
-    "github.com/iota-uz/iota-sdk/pkg/eventbus"
-)
-
-// EventTriggerHandler handles domain events and triggers scripts
-type EventTriggerHandler struct {
-    scriptRepo   script.Repository
-    executionSvc *services.ExecutionService
-    eventBus     eventbus.EventBus
-    buffer       *EventBuffer
-}
-
-// NewEventTriggerHandler creates a new event trigger handler
-func NewEventTriggerHandler(
-    scriptRepo script.Repository,
-    executionSvc *services.ExecutionService,
-    eventBus eventbus.EventBus,
-    bufferSize int,
-    workerCount int,
-) *EventTriggerHandler {
-    handler := &EventTriggerHandler{
-        scriptRepo:   scriptRepo,
-        executionSvc: executionSvc,
-        eventBus:     eventBus,
-        buffer:       NewEventBuffer(bufferSize, workerCount),
+```mermaid
+classDiagram
+    class ScriptEventSubscription {
+        +UUID ID
+        +UUID ScriptID
+        +UUID TenantID
+        +String EventType
+        +JSON FilterRules
+        +Boolean Enabled
+        +Time CreatedAt
     }
 
-    // Subscribe to all supported events
-    handler.subscribeToEvents()
+    class FilterRules {
+        +Map~String,Any~ Conditions
+        +String Logic
+    }
 
-    return handler
-}
+    class MatchedEvent {
+        +String EventType
+        +JSON EventData
+        +UUID TenantID
+        +Time Timestamp
+    }
 
-// subscribeToEvents subscribes handler to domain events
-func (h *EventTriggerHandler) subscribeToEvents() {
-    // Core events
-    h.eventBus.Subscribe(h.onUserCreated)
-    h.eventBus.Subscribe(h.onUserUpdated)
-    h.eventBus.Subscribe(h.onSessionCreated)
+    ScriptEventSubscription --> FilterRules
+    ScriptEventSubscription ..> MatchedEvent : matches
 
-    // CRM events
-    h.eventBus.Subscribe(h.onClientCreated)
-    h.eventBus.Subscribe(h.onClientUpdated)
-    h.eventBus.Subscribe(h.onChatMessageReceived)
-
-    // Finance events
-    h.eventBus.Subscribe(h.onPaymentCreated)
-    h.eventBus.Subscribe(h.onTransactionCompleted)
-    h.eventBus.Subscribe(h.onExpenseCreated)
-
-    // Custom events from scripts
-    h.eventBus.Subscribe(h.onScriptEvent)
-}
+    note for FilterRules "Logic: AND, OR\nConditions: field comparisons"
 ```
 
-### Event Handlers
+**What It Does:**
+- Stores event subscriptions per script with tenant isolation
+- Defines filter rules for conditional event matching
+- Enables/disables subscriptions without deleting
 
-```go
-// Core events
-func (h *EventTriggerHandler) onUserCreated(event *user.CreatedEvent) {
-    h.handleEvent(event.Context(), "user.created", map[string]interface{}{
-        "userId":    event.Result.ID(),
-        "email":     event.Result.Email().String(),
-        "firstName": event.Result.FirstName(),
-        "lastName":  event.Result.LastName(),
-    })
-}
+**How It Works:**
+1. Script declares event type interest (e.g., `"user.created"`)
+2. Optional filter rules narrow matching (e.g., `{"role": "admin"}`)
+3. Event bus queries active subscriptions for each published event
+4. Filter engine evaluates rules against event data
+5. Matched events queue for execution
 
-func (h *EventTriggerHandler) onUserUpdated(event *user.UpdatedEvent) {
-    h.handleEvent(event.Context(), "user.updated", map[string]interface{}{
-        "userId":    event.Result.ID(),
-        "email":     event.Result.Email().String(),
-        "firstName": event.Result.FirstName(),
-        "lastName":  event.Result.LastName(),
-    })
-}
+### Event Matching Flow
 
-func (h *EventTriggerHandler) onSessionCreated(event *session.CreatedEvent) {
-    h.handleEvent(event.Context(), "session.created", map[string]interface{}{
-        "sessionId": event.Session.ID().String(),
-        "userId":    event.Session.UserID(),
-    })
-}
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant Bus as Event Bus
+    participant Handler as Event Handler
+    participant Repo as Subscription Repository
+    participant Filter as Filter Engine
+    participant Queue as Async Queue
 
-// CRM events
-func (h *EventTriggerHandler) onClientCreated(event *client.CreatedEvent) {
-    h.handleEvent(event.Context(), "client.created", map[string]interface{}{
-        "clientId": event.Client.ID().String(),
-        "name":     event.Client.Name(),
-        "email":    event.Client.Email(),
-    })
-}
+    App->>Bus: Publish(event)
+    Bus->>Handler: Notify(event)
+    Handler->>Repo: FindByEventType(eventType, tenantID)
+    Repo-->>Handler: subscriptions[]
 
-func (h *EventTriggerHandler) onClientUpdated(event *client.UpdatedEvent) {
-    h.handleEvent(event.Context(), "client.updated", map[string]interface{}{
-        "clientId": event.Client.ID().String(),
-        "name":     event.Client.Name(),
-        "email":    event.Client.Email(),
-    })
-}
+    loop For each subscription
+        Handler->>Filter: Matches(event, filterRules)
+        Filter-->>Handler: match result
+        alt Matches
+            Handler->>Queue: Enqueue(script, event)
+        else No Match
+            Handler->>Handler: Skip
+        end
+    end
 
-func (h *EventTriggerHandler) onChatMessageReceived(event *chat.MessageReceivedEvent) {
-    h.handleEvent(event.Context(), "chat.message_received", map[string]interface{}{
-        "chatId":    event.ChatID.String(),
-        "messageId": event.MessageID.String(),
-        "content":   event.Content,
-    })
-}
-
-// Finance events
-func (h *EventTriggerHandler) onPaymentCreated(event *payment.CreatedEvent) {
-    h.handleEvent(event.Context(), "payment.created", map[string]interface{}{
-        "paymentId": event.Payment.ID().String(),
-        "amount":    event.Payment.Amount(),
-        "currency":  event.Payment.Currency(),
-    })
-}
-
-func (h *EventTriggerHandler) onTransactionCompleted(event *transaction.CompletedEvent) {
-    h.handleEvent(event.Context(), "transaction.completed", map[string]interface{}{
-        "transactionId": event.Transaction.ID().String(),
-        "amount":        event.Transaction.Amount(),
-        "status":        event.Transaction.Status(),
-    })
-}
-
-func (h *EventTriggerHandler) onExpenseCreated(event *expense.CreatedEvent) {
-    h.handleEvent(event.Context(), "expense.created", map[string]interface{}{
-        "expenseId": event.Expense.ID().String(),
-        "amount":    event.Expense.Amount(),
-        "category":  event.Expense.Category(),
-    })
-}
-
-// Script events (custom events published by scripts)
-func (h *EventTriggerHandler) onScriptEvent(event *runtime.ScriptEvent) {
-    h.handleEvent(context.Background(), event.Type, event.Payload.(map[string]interface{}))
-}
+    Handler-->>Bus: Ack
+    Bus-->>App: Published
 ```
 
-### Event Router
+**What It Does:**
+- Matches events to subscriptions in real-time
+- Filters events based on subscription rules
+- Queues matched events for async execution
 
-```go
-// handleEvent processes an event and triggers matching scripts
-func (h *EventTriggerHandler) handleEvent(
-    ctx context.Context,
-    eventType string,
-    data map[string]interface{},
-) {
-    // Find scripts listening to this event type
-    params := &script.FindParams{
-        Type:      script.TypeEvent,
-        EventType: &eventType,
-        Enabled:   true,
-    }
+**How It Works:**
+1. Application publishes domain event to event bus
+2. Event handler receives event notification
+3. Repository queries subscriptions by event type and tenant
+4. Filter engine evaluates each subscription's rules
+5. Matched scripts enqueue for execution
+6. Publisher receives acknowledgment (non-blocking)
 
-    scripts, err := h.scriptRepo.GetPaginated(ctx, params)
-    if err != nil {
-        // Log error but don't fail
-        // TODO: Add structured logging
-        return
-    }
+### Async Execution Queue
 
-    // Queue each script for execution
-    for _, scr := range scripts {
-        // Apply filters if configured
-        if !h.matchesFilters(scr, data) {
-            continue
-        }
+```mermaid
+stateDiagram-v2
+    [*] --> Queued: Event Matched
+    Queued --> Processing: Worker Available
+    Processing --> Success: Execution OK
+    Processing --> Retrying: Transient Error
+    Retrying --> Processing: Backoff Elapsed
+    Retrying --> DeadLetter: Max Retries
+    Success --> [*]
+    DeadLetter --> [*]
 
-        // Queue for async execution
-        h.buffer.Enqueue(ctx, scr.ID(), data)
-    }
-}
+    note right of Processing
+        Timeout: 30s
+        Memory: 128MB
+        Workers: 10 (configurable)
+    end note
 
-// matchesFilters checks if event data matches script filters
-func (h *EventTriggerHandler) matchesFilters(
-    scr script.Script,
-    data map[string]interface{},
-) bool {
-    filters := scr.Filters()
-    if len(filters) == 0 {
-        return true
-    }
-
-    // Apply filters (simple key-value matching)
-    for key, expectedValue := range filters {
-        actualValue, exists := data[key]
-        if !exists || actualValue != expectedValue {
-            return false
-        }
-    }
-
-    return true
-}
-
-// Shutdown gracefully shuts down the handler
-func (h *EventTriggerHandler) Shutdown(ctx context.Context) error {
-    return h.buffer.Shutdown(ctx)
-}
+    note right of Retrying
+        Retry 1: +2s
+        Retry 2: +4s
+        Retry 3: +8s
+        Max: 3 attempts
+    end note
 ```
 
----
+**What It Does:**
+- Executes scripts asynchronously without blocking event publishers
+- Manages worker pool for concurrent execution
+- Retries failed executions with exponential backoff
+- Moves permanently failed events to Dead Letter Queue
 
-## Event Buffer (Async Queue)
-
-**Location:** `modules/scripts/infrastructure/events/event_buffer.go`
-
-```go
-package events
-
-import (
-    "context"
-    "sync"
-    "time"
-
-    "github.com/google/uuid"
-    "github.com/iota-uz/iota-sdk/modules/scripts/services"
-)
-
-// EventBuffer queues events for async processing
-type EventBuffer struct {
-    queue       chan *QueuedEvent
-    workerCount int
-    executionSvc *services.ExecutionService
-    wg          sync.WaitGroup
-    shutdown    chan struct{}
-}
-
-// QueuedEvent represents an event in the queue
-type QueuedEvent struct {
-    Context  context.Context
-    ScriptID uuid.UUID
-    Data     map[string]interface{}
-}
-
-// NewEventBuffer creates a new event buffer
-func NewEventBuffer(size int, workerCount int) *EventBuffer {
-    buffer := &EventBuffer{
-        queue:       make(chan *QueuedEvent, size),
-        workerCount: workerCount,
-        shutdown:    make(chan struct{}),
-    }
-
-    // Start workers
-    for i := 0; i < workerCount; i++ {
-        buffer.wg.Add(1)
-        go buffer.worker()
-    }
-
-    return buffer
-}
-
-// Enqueue adds an event to the queue
-func (b *EventBuffer) Enqueue(
-    ctx context.Context,
-    scriptID uuid.UUID,
-    data map[string]interface{},
-) {
-    select {
-    case b.queue <- &QueuedEvent{
-        Context:  ctx,
-        ScriptID: scriptID,
-        Data:     data,
-    }:
-    default:
-        // Queue full, drop event
-        // TODO: Add metrics for dropped events
-    }
-}
-
-// worker processes events from the queue
-func (b *EventBuffer) worker() {
-    defer b.wg.Done()
-
-    for {
-        select {
-        case event := <-b.queue:
-            b.processEvent(event)
-        case <-b.shutdown:
-            return
-        }
-    }
-}
-
-// processEvent executes a script for an event
-func (b *EventBuffer) processEvent(event *QueuedEvent) {
-    // Execute script
-    _, err := b.executionSvc.Execute(
-        event.Context,
-        event.ScriptID,
-        event.Data,
-    )
-
-    if err != nil {
-        // Add to dead letter queue
-        b.addToDeadLetterQueue(event, err)
-    }
-}
-
-// addToDeadLetterQueue adds failed execution to DLQ
-func (b *EventBuffer) addToDeadLetterQueue(
-    event *QueuedEvent,
-    err error,
-) {
-    // TODO: Implement DLQ persistence
-    // For now, just log
-}
-
-// Shutdown gracefully shuts down the buffer
-func (b *EventBuffer) Shutdown(ctx context.Context) error {
-    close(b.shutdown)
-
-    // Wait for workers to finish with timeout
-    done := make(chan struct{})
-    go func() {
-        b.wg.Wait()
-        close(done)
-    }()
-
-    select {
-    case <-done:
-        return nil
-    case <-ctx.Done():
-        return ctx.Err()
-    case <-time.After(30 * time.Second):
-        return context.DeadlineExceeded
-    }
-}
-```
-
----
-
-## Dead Letter Queue
-
-**Location:** `modules/scripts/infrastructure/events/dead_letter_queue.go`
-
-### Database Schema
-
-```sql
--- Migration: Create dead_letter_queue table
-CREATE TABLE dead_letter_queue (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    script_id UUID NOT NULL REFERENCES scripts(id) ON DELETE CASCADE,
-    event_type VARCHAR(255) NOT NULL,
-    event_data JSONB NOT NULL,
-    error TEXT NOT NULL,
-    retry_count INTEGER NOT NULL DEFAULT 0,
-    max_retries INTEGER NOT NULL DEFAULT 3,
-    next_retry_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    INDEX idx_dlq_tenant (tenant_id),
-    INDEX idx_dlq_script (script_id),
-    INDEX idx_dlq_retry (next_retry_at) WHERE next_retry_at IS NOT NULL
-);
-```
-
-### Repository Interface
-
-```go
-package events
-
-import (
-    "context"
-    "time"
-
-    "github.com/google/uuid"
-)
-
-// DeadLetterEntry represents a failed execution
-type DeadLetterEntry struct {
-    ID          uuid.UUID
-    TenantID    uuid.UUID
-    ScriptID    uuid.UUID
-    EventType   string
-    EventData   map[string]interface{}
-    Error       string
-    RetryCount  int
-    MaxRetries  int
-    NextRetryAt *time.Time
-    CreatedAt   time.Time
-    UpdatedAt   time.Time
-}
-
-// DeadLetterQueueRepository manages failed executions
-type DeadLetterQueueRepository interface {
-    // Add adds an entry to the DLQ
-    Add(ctx context.Context, entry *DeadLetterEntry) error
-
-    // GetPendingRetries gets entries ready for retry
-    GetPendingRetries(ctx context.Context) ([]*DeadLetterEntry, error)
-
-    // MarkRetried updates retry count and next retry time
-    MarkRetried(ctx context.Context, id uuid.UUID, success bool) error
-
-    // Delete removes an entry from DLQ
-    Delete(ctx context.Context, id uuid.UUID) error
-
-    // GetForScript gets DLQ entries for a script
-    GetForScript(ctx context.Context, scriptID uuid.UUID) ([]*DeadLetterEntry, error)
-}
-```
+**How It Works:**
+1. Matched events enter async queue (buffered channel)
+2. Worker goroutines consume events from queue
+3. Each worker executes script with event data as input
+4. Success: Record execution, continue to next event
+5. Failure: Apply retry logic with exponential backoff
+6. Max retries exceeded: Move to Dead Letter Queue
 
 ### Retry Strategy
 
-```go
-package events
+```mermaid
+graph LR
+    A[Execution Failed] --> B{Error Type}
+    B -->|Timeout| C[Retry]
+    B -->|Runtime Error| C
+    B -->|Resource Limit| C
+    B -->|Validation Error| D[Dead Letter]
+    B -->|Permission Error| D
 
-import (
-    "math"
-    "time"
-)
+    C --> E{Retry Count}
+    E -->|< Max| F[Exponential Backoff]
+    E -->|>= Max| D
 
-// RetryStrategy defines retry behavior
-type RetryStrategy struct {
-    MaxRetries      int
-    InitialDelay    time.Duration
-    MaxDelay        time.Duration
-    BackoffFactor   float64
-}
+    F -->|2^n seconds| G[Re-queue]
+    D --> H[DLQ Table]
 
-// DefaultRetryStrategy returns default retry config
-func DefaultRetryStrategy() *RetryStrategy {
-    return &RetryStrategy{
-        MaxRetries:    3,
-        InitialDelay:  1 * time.Minute,
-        MaxDelay:      1 * time.Hour,
-        BackoffFactor: 2.0,
-    }
-}
-
-// CalculateNextRetry calculates next retry time
-func (s *RetryStrategy) CalculateNextRetry(retryCount int) time.Time {
-    delay := float64(s.InitialDelay) * math.Pow(s.BackoffFactor, float64(retryCount))
-
-    if delay > float64(s.MaxDelay) {
-        delay = float64(s.MaxDelay)
-    }
-
-    return time.Now().Add(time.Duration(delay))
-}
-
-// ShouldRetry checks if entry should be retried
-func (s *RetryStrategy) ShouldRetry(retryCount int) bool {
-    return retryCount < s.MaxRetries
-}
+    style C fill:#fff4e1
+    style D fill:#ffe1e1
 ```
 
-### Retry Worker
+**What It Does:**
+- Distinguishes transient failures (retry) from permanent failures (DLQ)
+- Applies exponential backoff to prevent thundering herd
+- Limits retry attempts to prevent infinite loops
 
-```go
-package events
+**How It Works:**
+1. **Transient Errors** (timeout, runtime crash): Retry with backoff
+2. **Permanent Errors** (validation, permission): Send to DLQ immediately
+3. **Retry Delays**: 2^n seconds (2s, 4s, 8s)
+4. **Max Retries**: 3 attempts (configurable)
+5. **Backoff**: `time.Sleep(2^retryCount * time.Second)`
 
-import (
-    "context"
-    "time"
-)
+### Dead Letter Queue (DLQ)
 
-// RetryWorker processes DLQ retries
-type RetryWorker struct {
-    dlqRepo      DeadLetterQueueRepository
-    executionSvc *services.ExecutionService
-    strategy     *RetryStrategy
-    ticker       *time.Ticker
-    shutdown     chan struct{}
-}
-
-// NewRetryWorker creates a new retry worker
-func NewRetryWorker(
-    dlqRepo DeadLetterQueueRepository,
-    executionSvc *services.ExecutionService,
-) *RetryWorker {
-    return &RetryWorker{
-        dlqRepo:      dlqRepo,
-        executionSvc: executionSvc,
-        strategy:     DefaultRetryStrategy(),
-        ticker:       time.NewTicker(1 * time.Minute),
-        shutdown:     make(chan struct{}),
-    }
-}
-
-// Start starts the retry worker
-func (w *RetryWorker) Start(ctx context.Context) {
-    go func() {
-        for {
-            select {
-            case <-w.ticker.C:
-                w.processRetries(ctx)
-            case <-w.shutdown:
-                return
-            }
-        }
-    }()
-}
-
-// processRetries processes pending retries
-func (w *RetryWorker) processRetries(ctx context.Context) {
-    entries, err := w.dlqRepo.GetPendingRetries(ctx)
-    if err != nil {
-        // Log error
-        return
+```mermaid
+erDiagram
+    script_event_dead_letters {
+        UUID id PK
+        UUID tenant_id FK
+        UUID script_id FK
+        String event_type
+        JSON event_data
+        String error_message
+        TEXT stack_trace
+        Int retry_count
+        Timestamp failed_at
+        Timestamp created_at
     }
 
-    for _, entry := range entries {
-        w.retryExecution(ctx, entry)
-    }
-}
-
-// retryExecution retries a failed execution
-func (w *RetryWorker) retryExecution(ctx context.Context, entry *DeadLetterEntry) {
-    // Execute script
-    _, err := w.executionSvc.Execute(ctx, entry.ScriptID, entry.EventData)
-
-    success := err == nil
-
-    // Update DLQ entry
-    if err := w.dlqRepo.MarkRetried(ctx, entry.ID, success); err != nil {
-        // Log error
+    scripts {
+        UUID id PK
     }
 
-    if !success && w.strategy.ShouldRetry(entry.RetryCount+1) {
-        // Schedule next retry
-        // Already handled by MarkRetried
-    } else if !success {
-        // Max retries reached, send alert
-        w.sendAlert(entry)
-    }
-}
+    script_event_dead_letters }|--|| scripts : "belongs to"
 
-// sendAlert sends alert for failed execution
-func (w *RetryWorker) sendAlert(entry *DeadLetterEntry) {
-    // TODO: Implement alerting (email, Slack, etc.)
-}
-
-// Shutdown stops the retry worker
-func (w *RetryWorker) Shutdown() {
-    w.ticker.Stop()
-    close(w.shutdown)
-}
+    script_event_dead_letters ||--o{ tenants : "isolated by"
 ```
+
+**What It Does:**
+- Captures events that failed after all retry attempts
+- Stores error context for debugging (error message, stack trace)
+- Enables manual review and reprocessing
+- Maintains tenant isolation for failed events
+
+**How It Works:**
+1. After max retries exceeded, event moves to DLQ
+2. Record captures:
+    - Event type and data
+    - Script ID and tenant ID
+    - Error message and stack trace
+    - Retry count and failure timestamp
+3. Admins query DLQ for debugging
+4. Manual reprocessing: Fix script, re-publish event
+
+### Worker Pool Management
+
+```mermaid
+graph TB
+    subgraph "Worker Pool"
+        Q[Event Queue<br/>Buffer: 1000]
+        W1[Worker 1]
+        W2[Worker 2]
+        W3[Worker 3]
+        WN[Worker N]
+
+        Q --> W1
+        Q --> W2
+        Q --> W3
+        Q --> WN
+    end
+
+    subgraph "Execution"
+        W1 --> E1[Execute Script]
+        W2 --> E2[Execute Script]
+        W3 --> E3[Execute Script]
+        WN --> EN[Execute Script]
+    end
+
+    E1 --> R[Record Result]
+    E2 --> R
+    E3 --> R
+    EN --> R
+
+    style Q fill:#e1f5ff
+    style R fill:#e1ffe1
+```
+
+**What It Does:**
+- Manages fixed pool of worker goroutines
+- Prevents unbounded concurrency
+- Gracefully shuts down on application exit
+
+**How It Works:**
+1. On startup: Spawn N worker goroutines (default: 10)
+2. Workers consume from buffered event queue (size: 1000)
+3. Each worker processes one event at a time
+4. On shutdown: Close queue, wait for workers to finish (WaitGroup)
+
+### Event Data Injection
+
+```mermaid
+sequenceDiagram
+    participant Queue as Event Queue
+    participant Worker as Worker
+    participant VM as JavaScript VM
+    participant Script as User Script
+
+    Queue->>Worker: event {type, data, timestamp}
+    Worker->>VM: Prepare Context
+    VM->>VM: Inject ctx.event = {type, data, timestamp}
+    VM->>VM: Inject ctx.tenant = {tenantID}
+    VM->>Script: Execute
+
+    Script->>Script: const eventType = ctx.event.type
+    Script->>Script: const user = ctx.event.data.user
+    Script->>Script: // Process event
+
+    Script-->>VM: Return/Throw
+    VM-->>Worker: Result
+    Worker->>Worker: Record Execution
+```
+
+**What It Does:**
+- Injects event data into JavaScript execution context
+- Provides tenant context for multi-tenant operations
+- Makes event metadata available to scripts
+
+**How It Works:**
+1. Worker receives event from queue
+2. VM prepares execution context with:
+    - `ctx.event.type`: Event type string
+    - `ctx.event.data`: Event payload (JSON)
+    - `ctx.event.timestamp`: Event time
+    - `ctx.tenant.id`: Tenant UUID
+3. Script accesses event via `ctx` global
+4. Script processes event data and returns/throws
+
+### Monitoring and Metrics
+
+```mermaid
+graph LR
+    A[Event Handler] --> B{Metrics}
+    B --> C[events_matched_total]
+    B --> D[events_filtered_total]
+    B --> E[executions_queued_total]
+    B --> F[executions_success_total]
+    B --> G[executions_failed_total]
+    B --> H[dlq_events_total]
+    B --> I[queue_depth_gauge]
+    B --> J[execution_duration_histogram]
+
+    style C fill:#e1ffe1
+    style G fill:#ffe1e1
+    style H fill:#ffe1e1
+```
+
+**What It Does:**
+- Tracks event processing metrics for observability
+- Exposes Prometheus-compatible metrics
+- Enables alerting on failures and queue depth
+
+**Metrics:**
+- `events_matched_total`: Counter of matched events
+- `events_filtered_total`: Counter of filtered-out events
+- `executions_queued_total`: Counter of queued executions
+- `executions_success_total`: Counter of successful executions
+- `executions_failed_total`: Counter of failed executions (by error type)
+- `dlq_events_total`: Counter of events sent to DLQ
+- `queue_depth_gauge`: Current queue size
+- `execution_duration_histogram`: Execution time distribution
+
+## Acceptance Criteria
+
+### Event Subscription
+- [ ] Scripts can subscribe to event types via database records
+- [ ] Subscriptions support optional filter rules (AND/OR logic)
+- [ ] Subscriptions can be enabled/disabled without deletion
+- [ ] Subscriptions enforce tenant isolation (no cross-tenant)
+
+### Event Matching
+- [ ] Events route to all matching subscriptions
+- [ ] Filter rules correctly evaluate against event data
+- [ ] Non-matching events are discarded without execution
+- [ ] Matching completes within 10ms per event
+
+### Async Execution
+- [ ] Events execute asynchronously (non-blocking publishers)
+- [ ] Worker pool size is configurable
+- [ ] Queue buffer size is configurable
+- [ ] Graceful shutdown waits for in-flight executions
+
+### Retry Logic
+- [ ] Transient errors trigger retry with exponential backoff
+- [ ] Permanent errors skip retry and go to DLQ immediately
+- [ ] Max retry count is configurable (default: 3)
+- [ ] Retry delays follow 2^n pattern (2s, 4s, 8s)
+
+### Dead Letter Queue
+- [ ] Failed events after max retries save to DLQ
+- [ ] DLQ records include error message and stack trace
+- [ ] DLQ supports manual review via admin UI
+- [ ] DLQ maintains tenant isolation
+
+### Monitoring
+- [ ] All metrics export to Prometheus
+- [ ] Alerts trigger on high failure rate (>10%)
+- [ ] Alerts trigger on queue depth (>90% capacity)
+- [ ] Execution duration tracks p50, p95, p99
+
+### Security
+- [ ] Event data sanitized before injection into VM
+- [ ] Tenant ID validated for all operations
+- [ ] Scripts cannot access events from other tenants
+- [ ] Filter rules validated to prevent injection attacks
 
 ---
 
-## Supported Event Types
+**Dependencies:**
+- Event bus implementation in application core
+- Runtime engine (VM, VMPool) from Phase 1
+- ExecutionService for script execution
+- Metrics framework (Prometheus)
 
-### Core Events
-
-```go
-const (
-    EventUserCreated       = "user.created"
-    EventUserUpdated       = "user.updated"
-    EventUserDeleted       = "user.deleted"
-    EventSessionCreated    = "session.created"
-    EventSessionExpired    = "session.expired"
-)
-```
-
-### CRM Events
-
-```go
-const (
-    EventClientCreated         = "client.created"
-    EventClientUpdated         = "client.updated"
-    EventClientDeleted         = "client.deleted"
-    EventChatMessageReceived   = "chat.message_received"
-    EventChatMessageSent       = "chat.message_sent"
-)
-```
-
-### Finance Events
-
-```go
-const (
-    EventPaymentCreated       = "payment.created"
-    EventPaymentCompleted     = "payment.completed"
-    EventTransactionCompleted = "transaction.completed"
-    EventExpenseCreated       = "expense.created"
-    EventDebtCreated          = "debt.created"
-)
-```
-
-### Custom Events
-
-Scripts can publish custom events via `events.publish()` API.
-
----
-
-## Configuration
-
-**Environment Variables:**
-
-```bash
-# Event processing
-EVENT_BUFFER_SIZE=1000
-EVENT_WORKER_COUNT=10
-
-# Retry configuration
-EVENT_RETRY_MAX_RETRIES=3
-EVENT_RETRY_INITIAL_DELAY=1m
-EVENT_RETRY_MAX_DELAY=1h
-EVENT_RETRY_BACKOFF_FACTOR=2.0
-```
-
-**Config Loading:**
-
-```go
-// In modules/scripts/module.go
-func loadEventConfig() EventConfig {
-    return EventConfig{
-        BufferSize:  getEnvInt("EVENT_BUFFER_SIZE", 1000),
-        WorkerCount: getEnvInt("EVENT_WORKER_COUNT", 10),
-        RetryStrategy: &RetryStrategy{
-            MaxRetries:    getEnvInt("EVENT_RETRY_MAX_RETRIES", 3),
-            InitialDelay:  getEnvDuration("EVENT_RETRY_INITIAL_DELAY", 1*time.Minute),
-            MaxDelay:      getEnvDuration("EVENT_RETRY_MAX_DELAY", 1*time.Hour),
-            BackoffFactor: getEnvFloat("EVENT_RETRY_BACKOFF_FACTOR", 2.0),
-        },
-    }
-}
-```
-
----
-
-## Module Registration
-
-**Location:** `modules/scripts/module.go`
-
-```go
-func (m *Module) RegisterEventHandlers(app *application.Application) {
-    // Create event trigger handler
-    handler := events.NewEventTriggerHandler(
-        m.scriptRepo,
-        m.executionService,
-        app.EventBus(),
-        m.config.EventBufferSize,
-        m.config.EventWorkerCount,
-    )
-
-    // Store handler for graceful shutdown
-    m.eventHandler = handler
-
-    // Start retry worker
-    retryWorker := events.NewRetryWorker(
-        m.dlqRepo,
-        m.executionService,
-    )
-    retryWorker.Start(context.Background())
-
-    // Store worker for graceful shutdown
-    m.retryWorker = retryWorker
-}
-
-func (m *Module) Shutdown(ctx context.Context) error {
-    if m.eventHandler != nil {
-        if err := m.eventHandler.Shutdown(ctx); err != nil {
-            return err
-        }
-    }
-
-    if m.retryWorker != nil {
-        m.retryWorker.Shutdown()
-    }
-
-    return nil
-}
-```
-
----
-
-## Event Filters
-
-### Filter Configuration
-
-Scripts can define filters to match specific events:
-
-```go
-// In script entity
-type Script interface {
-    // ...
-    Filters() map[string]interface{}
-    SetFilters(filters map[string]interface{}) Script
-}
-```
-
-### Example Filters
-
-```javascript
-// Script only triggers for specific client
-{
-    "eventType": "client.created",
-    "filters": {
-        "email": "important@client.com"
-    }
-}
-
-// Script only triggers for high-value payments
-{
-    "eventType": "payment.created",
-    "filters": {
-        "amount": { "gt": 10000 }
-    }
-}
-```
-
-### Filter Matching
-
-```go
-func (h *EventTriggerHandler) matchesFilters(
-    scr script.Script,
-    data map[string]interface{},
-) bool {
-    filters := scr.Filters()
-    if len(filters) == 0 {
-        return true
-    }
-
-    for key, expectedValue := range filters {
-        actualValue, exists := data[key]
-        if !exists {
-            return false
-        }
-
-        // Simple equality check
-        if actualValue != expectedValue {
-            // TODO: Support operators (gt, lt, in, contains)
-            return false
-        }
-    }
-
-    return true
-}
-```
-
----
-
-## Monitoring & Metrics
-
-### Metrics to Track
-
-```go
-// Event processing metrics
-type EventMetrics struct {
-    EventsReceived   int64
-    EventsProcessed  int64
-    EventsDropped    int64
-    EventsFailed     int64
-    AverageQueueTime time.Duration
-}
-
-// DLQ metrics
-type DLQMetrics struct {
-    TotalEntries    int64
-    PendingRetries  int64
-    SuccessfulRetries int64
-    FailedRetries   int64
-}
-```
-
-### Prometheus Integration
-
-```go
-// Example Prometheus metrics
-var (
-    eventsReceived = prometheus.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "scripts_events_received_total",
-            Help: "Total events received",
-        },
-        []string{"event_type"},
-    )
-
-    eventsProcessed = prometheus.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "scripts_events_processed_total",
-            Help: "Total events processed",
-        },
-        []string{"event_type", "status"},
-    )
-)
-```
-
----
-
-## Testing
-
-**Location:** `modules/scripts/infrastructure/events/event_trigger_handler_test.go`
-
-```go
-func TestEventTriggerHandler_OnUserCreated(t *testing.T) {
-    t.Parallel()
-    env := itf.Setup(t)
-
-    // Create event-triggered script
-    scriptSvc := itf.GetService[*services.ScriptService](env)
-    scr, _ := scriptSvc.Create(env.Ctx, dtos.CreateScriptDTO{
-        Name:      "User Welcome",
-        Type:      "event",
-        EventType: "user.created",
-        Source:    "sdk.log.info('User created', { email: ctx.input.email });",
-        Enabled:   true,
-    })
-
-    // Create event handler
-    handler := events.NewEventTriggerHandler(
-        env.Repository(),
-        itf.GetService[*services.ExecutionService](env),
-        env.EventBus(),
-        100,
-        2,
-    )
-
-    // Publish user.created event
-    event := &user.CreatedEvent{
-        Result: testUser,
-    }
-    env.EventBus().Publish(event)
-
-    // Wait for async processing
-    time.Sleep(100 * time.Millisecond)
-
-    // Verify execution was created
-    executions, _ := env.Repository().GetPaginated(env.Ctx, &execution.FindParams{
-        ScriptID: &scr.ID(),
-    })
-
-    assert.Len(t, executions, 1)
-    assert.Equal(t, execution.StatusCompleted, executions[0].Status())
-}
-```
-
----
-
-## Next Steps
-
-After implementing event integration:
-
-1. **Presentation Layer** (09-presentation.md) - Controllers, ViewModels, templates
-2. **Cron Scheduler** (10-cron-scheduler.md) - Scheduled script execution
-
----
-
-## References
-
-- Service layer: `05-service-layer.md`
-- Runtime engine: `06-runtime-engine.md`
-- API bindings: `07-api-bindings.md`
-- Domain entities: `01-domain-entities.md`
-- Event bus: `pkg/eventbus/event_bus.go`
+**Performance Targets:**
+- Event matching: < 10ms per event
+- Queue throughput: > 100 events/sec
+- Execution latency: < 2s (p95)
+- DLQ write latency: < 100ms

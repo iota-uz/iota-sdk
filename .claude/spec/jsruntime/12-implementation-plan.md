@@ -2,31 +2,73 @@
 
 ## Overview
 
-This document provides a phased implementation plan for the JavaScript Runtime feature, breaking down the work into manageable phases with clear dependencies, acceptance criteria, and testing requirements.
+This plan breaks down the JavaScript Runtime feature into 6 phased milestones with clear dependencies, deliverables, testing requirements, and timelines. Each phase builds on the previous, enabling incremental delivery and validation.
 
-## Implementation Phases
+```mermaid
+gantt
+    title JavaScript Runtime Implementation Timeline
+    dateFormat  YYYY-MM-DD
+    section Phase 1
+    Core Runtime Infrastructure    :p1, 2024-01-01, 14d
+    section Phase 2
+    Domain & Repository Layer      :p2, after p1, 10d
+    section Phase 3
+    Service Layer                  :p3, after p2, 10d
+    section Phase 4
+    Event Integration              :p4, after p3, 10d
+    section Phase 5
+    Presentation Layer             :p5, after p4, 10d
+    section Phase 6
+    Advanced Features              :p6, after p5, 14d
+```
+
+## What It Does
+
+The implementation plan:
+- **Structures** development into manageable phases
+- **Defines** clear acceptance criteria per phase
+- **Identifies** dependencies between components
+- **Estimates** realistic timelines
+- **Prioritizes** core functionality before advanced features
+
+## How It Works
 
 ### Phase 1: Core Runtime Infrastructure (Foundation)
 
-**Goal**: Build the foundational JavaScript execution engine with basic sandboxing and resource controls.
+**Duration:** 2 weeks
+**Goal:** Build foundational JavaScript execution engine with sandboxing and resource controls
 
-**Duration**: 1-2 weeks
+```mermaid
+graph TB
+    subgraph "Phase 1 Deliverables"
+        A[VM with Goja] --> B[Execute JavaScript]
+        C[VM Pool] --> D[Reuse VMs]
+        E[Sandboxing] --> F[Remove dangerous globals]
+        G[Resource Limits] --> H[Timeout enforcement]
+        G --> I[Memory monitoring]
+        J[Console Capture] --> K[Capture output]
+        L[Panic Recovery] --> M[Stack traces]
+    end
 
-#### Tasks
+    style A fill:#e1f5ff
+    style C fill:#fff4e1
+    style E fill:#ffe1e1
+    style G fill:#ffe1e1
+```
 
+**Tasks:**
 - [ ] Create `pkg/jsruntime/` package structure
 - [ ] Implement `VM` struct with `goja` integration
 - [ ] Implement `VMPool` with acquire/release pattern
-- [ ] Add basic sandboxing (remove dangerous globals)
+- [ ] Add sandboxing (remove `eval`, `require`, `fetch`)
 - [ ] Implement `ResourceLimits` configuration
 - [ ] Add timeout enforcement via context cancellation
-- [ ] Add memory usage monitoring
+- [ ] Add memory usage monitoring (approximate)
 - [ ] Implement panic recovery with stack traces
 - [ ] Add console output capture
 - [ ] Write unit tests (>80% coverage)
 
-#### Files to Create
-
+**Files to Create:**
 ```
 pkg/jsruntime/
 ├── vm.go                    # VM struct, sandboxing, execution
@@ -38,405 +80,243 @@ pkg/jsruntime/
 └── resource_limits_test.go  # Limits tests
 ```
 
-#### Acceptance Criteria
+**Acceptance Criteria:**
+- [ ] Can execute simple JavaScript with `console.log()`
+- [ ] Dangerous globals (`eval`, `fetch`, `require`) are undefined
+- [ ] Execution timeouts after configured duration (30s default)
+- [ ] Panic recovery prevents VM crashes
+- [ ] Console output is captured and returned
+- [ ] VM pool can acquire/release VMs concurrently
+- [ ] Memory usage monitoring works (approximate)
+- [ ] Unit tests pass with >80% coverage
 
-- ✅ Can execute simple JavaScript with `console.log()`
-- ✅ Dangerous globals (`eval`, `fetch`, `require`) are undefined
-- ✅ Execution timeouts after configured duration
-- ✅ Panic recovery prevents VM crashes
-- ✅ Console output is captured and returned
-- ✅ VM pool can acquire/release VMs concurrently
-- ✅ Memory usage monitoring works (approximate)
-- ✅ Unit tests pass with >80% coverage
-
-#### Testing Requirements
-
-```go
-// Test Cases
-- TestVMSandboxing_DangerousGlobalsRemoved
-- TestVMSandboxing_EvalBlocked
-- TestVMSandboxing_FunctionConstructorBlocked
-- TestVMExecution_SimpleScript
-- TestVMExecution_ConsoleOutput
-- TestVMExecution_Timeout
-- TestVMExecution_PanicRecovery
-- TestVMPool_AcquireRelease
-- TestVMPool_ConcurrentAccess
-- TestResourceLimits_Timeout
-- TestResourceLimits_MemoryCheck
-```
-
-#### Dependencies
-
-- None (foundational phase)
+**Dependencies:** None (foundation layer)
 
 ---
 
-### Phase 2: Domain Model & Persistence (Data Layer)
+### Phase 2: Domain & Repository Layer
 
-**Goal**: Implement domain entities, repositories, and database schema for scripts, executions, and versions.
+**Duration:** 1.5 weeks
+**Goal:** Define domain entities, value objects, and data persistence
 
-**Duration**: 1-2 weeks
+```mermaid
+graph TB
+    subgraph "Phase 2 Deliverables"
+        A[Script Aggregate] --> B[Create/Update/Delete]
+        C[ScriptVersion Entity] --> D[Version history]
+        E[Execution Entity] --> F[Track executions]
+        G[ScriptRepository] --> H[CRUD operations]
+        I[ExecutionRepository] --> J[Query executions]
+        K[Database Migrations] --> L[Tables + indexes]
+    end
 
-#### Tasks
+    style A fill:#e1f5ff
+    style G fill:#fff4e1
+    style K fill:#e1ffe1
+```
 
-- [ ] Create `modules/scripts/` module structure
-- [ ] Implement `Script` aggregate with interface pattern
-- [ ] Implement `Execution` entity
-- [ ] Implement `ScriptVersion` entity
-- [ ] Define repository interfaces in domain layer
-- [ ] Create database migrations (scripts, executions, script_versions)
-- [ ] Implement `ScriptRepository` in infrastructure/persistence
-- [ ] Implement `ExecutionRepository`
-- [ ] Implement `ScriptVersionRepository`
-- [ ] Add database indexes for performance
-- [ ] Write integration tests for repositories
+**Tasks:**
+- [ ] Define domain entities (Script, ScriptVersion, Execution)
+- [ ] Define value objects (TriggerType, ExecutionStatus)
+- [ ] Create repository interfaces in domain layer
+- [ ] Implement repository in infrastructure layer
+- [ ] Create database migration (7 tables)
+- [ ] Add indexes for performance
+- [ ] Add composite indexes for tenant isolation
+- [ ] Write repository tests (ITF framework)
 
-#### Files to Create
-
+**Files to Create:**
 ```
 modules/scripts/
 ├── domain/
-│   ├── script/
-│   │   ├── script.go          # Script interface
-│   │   ├── script_impl.go     # Private implementation
-│   │   └── repository.go      # Repository interface
-│   ├── execution/
-│   │   ├── execution.go       # Execution interface
-│   │   ├── execution_impl.go
-│   │   └── repository.go
-│   └── version/
-│       ├── version.go         # ScriptVersion interface
-│       ├── version_impl.go
-│       └── repository.go
+│   ├── aggregates/
+│   │   └── script.go
+│   ├── entities/
+│   │   ├── script_version.go
+│   │   └── script_execution.go
+│   ├── value_objects/
+│   │   ├── trigger_type.go
+│   │   └── execution_status.go
+│   └── repositories/
+│       ├── script_repository.go
+│       └── execution_repository.go
 ├── infrastructure/
 │   └── persistence/
-│       ├── script_repository.go     # Implementation
+│       ├── script_repository.go
 │       ├── execution_repository.go
-│       ├── version_repository.go
 │       ├── script_repository_test.go
-│       ├── execution_repository_test.go
-│       └── version_repository_test.go
-└── permissions/
-    └── permissions.go         # RBAC permissions
-
+│       └── execution_repository_test.go
 migrations/
-├── XXXXXXXXXX_create_scripts.sql
-├── XXXXXXXXXX_create_executions.sql
-└── XXXXXXXXXX_create_script_versions.sql
+└── {timestamp}_create_script_tables.sql
 ```
 
-#### Database Schema
+**Acceptance Criteria:**
+- [ ] Script aggregate implements Create, Update, Delete, Enable, Disable
+- [ ] ScriptVersion tracks code changes with timestamps
+- [ ] Execution entity stores status, output, error, metrics
+- [ ] All repositories enforce tenant isolation (tenant_id in WHERE)
+- [ ] Migration creates all 7 tables with proper constraints
+- [ ] Indexes exist for foreign keys and common queries
+- [ ] Repository tests cover CRUD, pagination, filtering
+- [ ] Migration reversibility tested (Up→Down→Up)
 
-```sql
--- scripts table
-CREATE TABLE scripts (
-    id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL,
-    org_id INTEGER NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    source TEXT NOT NULL,
-    trigger_type VARCHAR(20) NOT NULL CHECK (trigger_type IN ('manual', 'scheduled', 'webhook', 'event')),
-    schedule VARCHAR(100),
-    webhook_path VARCHAR(255),
-    event_type VARCHAR(100),
-    enabled BOOLEAN NOT NULL DEFAULT true,
-    version INTEGER NOT NULL DEFAULT 1,
-    last_executed_at TIMESTAMP,
-    execution_count INTEGER NOT NULL DEFAULT 0,
-    success_count INTEGER NOT NULL DEFAULT 0,
-    failure_count INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE(tenant_id, name)
-);
-
-CREATE INDEX idx_scripts_tenant ON scripts(tenant_id);
-CREATE INDEX idx_scripts_scheduled ON scripts(tenant_id, trigger_type, enabled, last_executed_at)
-    WHERE trigger_type = 'scheduled' AND enabled = true;
-CREATE INDEX idx_scripts_webhook ON scripts(tenant_id, trigger_type, webhook_path)
-    WHERE trigger_type = 'webhook' AND enabled = true;
-
--- executions table
-CREATE TABLE executions (
-    id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL,
-    script_id INTEGER NOT NULL REFERENCES scripts(id) ON DELETE CASCADE,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed')),
-    input TEXT,
-    output TEXT,
-    error_message TEXT,
-    started_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMP,
-    retry_count INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE INDEX idx_executions_script ON executions(script_id, started_at DESC);
-CREATE INDEX idx_executions_status ON executions(tenant_id, status, started_at DESC);
-
--- script_versions table
-CREATE TABLE script_versions (
-    id SERIAL PRIMARY KEY,
-    tenant_id INTEGER NOT NULL,
-    script_id INTEGER NOT NULL REFERENCES scripts(id) ON DELETE CASCADE,
-    version INTEGER NOT NULL,
-    source TEXT NOT NULL,
-    created_by INTEGER NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE(script_id, version)
-);
-
-CREATE INDEX idx_script_versions ON script_versions(script_id, version DESC);
-```
-
-#### Acceptance Criteria
-
-- ✅ Scripts can be created, read, updated, deleted
-- ✅ Executions are tracked with status transitions
-- ✅ Script versions are created on update
-- ✅ Tenant isolation enforced (all queries include tenant_id)
-- ✅ Unique constraints prevent duplicate script names per tenant
-- ✅ Foreign key constraints maintain referential integrity
-- ✅ Indexes improve query performance
-- ✅ Repository tests pass with >80% coverage
-
-#### Testing Requirements
-
-```go
-// Repository Tests
-- TestScriptRepository_Create
-- TestScriptRepository_FindByID
-- TestScriptRepository_FindAll_WithFilters
-- TestScriptRepository_Update
-- TestScriptRepository_Delete
-- TestScriptRepository_TenantIsolation
-- TestScriptRepository_UniqueNameConstraint
-- TestExecutionRepository_Create
-- TestExecutionRepository_FindByScriptID
-- TestExecutionRepository_UpdateStatus
-- TestVersionRepository_Create
-- TestVersionRepository_FindByScriptID
-```
-
-#### Dependencies
-
-- Phase 1 (Core Runtime Infrastructure)
+**Dependencies:** Phase 1 (VM execution)
 
 ---
 
-### Phase 3: Service Layer (Business Logic)
+### Phase 3: Service Layer
 
-**Goal**: Implement business logic for script and execution management with permission checks, validation, and event publishing.
+**Duration:** 1.5 weeks
+**Goal:** Implement business logic and orchestration
 
-**Duration**: 1-2 weeks
+```mermaid
+graph TB
+    subgraph "Phase 3 Deliverables"
+        A[ScriptService] --> B[Create/Update/Delete]
+        A --> C[Version management]
+        D[ExecutionService] --> E[Execute scripts]
+        D --> F[Record results]
+        G[ValidationService] --> H[Validate code]
+        I[VersioningService] --> J[Track changes]
+    end
 
-#### Tasks
+    style A fill:#e1f5ff
+    style D fill:#fff4e1
+    style G fill:#ffe1e1
+```
 
-- [ ] Implement `ScriptService` with CRUD operations
-- [ ] Implement `ExecutionService` with execution orchestration
-- [ ] Add permission checks via `sdkcomposables.CanUser()`
-- [ ] Add validation (cron schedule, webhook path, script name)
-- [ ] Implement version creation on script update
-- [ ] Add event publishing for script lifecycle
-- [ ] Add transaction management for multi-step operations
-- [ ] Implement execution status transitions
-- [ ] Write service tests with ITF framework
+**Tasks:**
+- [ ] Implement ScriptService (CRUD operations)
+- [ ] Implement ExecutionService (execute, record)
+- [ ] Implement ValidationService (syntax check, forbidden patterns)
+- [ ] Implement VersioningService (track changes, rollback)
+- [ ] Add permission checks (`sdkcomposables.CanUser`)
+- [ ] Add error wrapping (`serrors.E`)
+- [ ] Write service tests (ITF framework)
 
-#### Files to Create
-
+**Files to Create:**
 ```
 modules/scripts/
 ├── services/
 │   ├── script_service.go
 │   ├── execution_service.go
+│   ├── validation_service.go
+│   ├── versioning_service.go
 │   ├── script_service_test.go
-│   └── execution_service_test.go
-└── events/
-    └── events.go              # Event type definitions
+│   ├── execution_service_test.go
+│   ├── validation_service_test.go
+│   └── versioning_service_test.go
 ```
 
-#### Service Methods
+**Acceptance Criteria:**
+- [ ] ScriptService creates scripts with automatic versioning
+- [ ] ScriptService enforces RBAC permissions (create, update, delete)
+- [ ] ExecutionService executes scripts with resource limits
+- [ ] ExecutionService records output, errors, metrics to database
+- [ ] ValidationService detects forbidden patterns (eval, require)
+- [ ] VersioningService creates new version on code change
+- [ ] Service tests cover happy path, errors, permissions
+- [ ] All tests use ITF framework with parallel execution
 
-**ScriptService**:
-```go
-- Create(ctx, CreateParams) (Script, error)
-- FindByID(ctx, id) (Script, error)
-- FindAll(ctx, FindParams) ([]Script, int, error)
-- Update(ctx, id, UpdateParams) (Script, error)
-- Delete(ctx, id) error
-- Enable(ctx, id) error
-- Disable(ctx, id) error
-```
-
-**ExecutionService**:
-```go
-- Execute(ctx, scriptID, input) (Execution, error)
-- FindByID(ctx, executionID) (Execution, error)
-- FindByScriptID(ctx, scriptID, params) ([]Execution, int, error)
-- CancelExecution(ctx, executionID) error
-```
-
-#### Acceptance Criteria
-
-- ✅ Users without `Script.Create` permission cannot create scripts
-- ✅ Users without `Script.Execute` permission cannot execute scripts
-- ✅ Invalid cron expressions are rejected
-- ✅ Script name validation enforces alphanumeric + underscore/hyphen
-- ✅ Script updates create new version entries
-- ✅ Events published on script create/update/delete/execute
-- ✅ Executions transition through pending→running→completed/failed
-- ✅ Service tests pass with >80% coverage
-
-#### Testing Requirements
-
-```go
-// Service Tests
-- TestScriptService_Create_Success
-- TestScriptService_Create_PermissionDenied
-- TestScriptService_Create_InvalidName
-- TestScriptService_Create_InvalidCron
-- TestScriptService_Update_CreatesVersion
-- TestScriptService_Delete_RequiresPermission
-- TestExecutionService_Execute_Success
-- TestExecutionService_Execute_PermissionDenied
-- TestExecutionService_Execute_ScriptNotFound
-- TestExecutionService_Execute_StatusTransitions
-```
-
-#### Dependencies
-
-- Phase 1 (Core Runtime Infrastructure)
-- Phase 2 (Domain Model & Persistence)
+**Dependencies:** Phase 1 (VM), Phase 2 (Repositories)
 
 ---
 
-### Phase 4: API Bindings (JavaScript SDK)
+### Phase 4: Event Integration
 
-**Goal**: Implement SDK API bindings that scripts can call (`sdk.http.*`, `sdk.db.*`, etc.) with security controls.
+**Duration:** 1.5 weeks
+**Goal:** Enable scripts to react to domain events
 
-**Duration**: 1-2 weeks
+```mermaid
+graph TB
+    subgraph "Phase 4 Deliverables"
+        A[Event Subscriptions] --> B[Subscribe to events]
+        C[Event Handler] --> D[Match & filter]
+        E[Async Queue] --> F[Worker pool]
+        G[Retry Logic] --> H[Exponential backoff]
+        I[Dead Letter Queue] --> J[Failed events]
+    end
 
-#### Tasks
-
-- [ ] Implement `ctx` global (tenantId, userId, orgId, input)
-- [ ] Implement `sdk.http.*` API with SSRF protection
-- [ ] Implement `sdk.db.*` API with tenant isolation
-- [ ] Implement `sdk.cache.*` API with key prefixing
-- [ ] Implement `sdk.log.*` API with output capture
-- [ ] Implement `events.publish()` API
-- [ ] Generate TypeScript definitions (`sdk.d.ts`)
-- [ ] Add API call counting for rate limiting
-- [ ] Write binding tests
-
-#### Files to Create
-
-```
-pkg/jsruntime/
-├── bindings/
-│   ├── context.go         # ctx global
-│   ├── http_api.go        # sdk.http.*
-│   ├── db_api.go          # sdk.db.*
-│   ├── cache_api.go       # sdk.cache.*
-│   ├── log_api.go         # sdk.log.*
-│   ├── events_api.go      # events.publish()
-│   ├── ssrf_protection.go # ValidateURL, SSRFProtectedTransport
-│   ├── http_api_test.go
-│   ├── db_api_test.go
-│   └── cache_api_test.go
-└── typescript/
-    └── sdk.d.ts           # TypeScript definitions
+    style A fill:#e1f5ff
+    style C fill:#fff4e1
+    style E fill:#ffe1e1
 ```
 
-#### API Surface
+**Tasks:**
+- [ ] Create event subscription repository
+- [ ] Implement event handler (subscribe to event bus)
+- [ ] Implement filter engine for conditional matching
+- [ ] Implement async queue with worker pool
+- [ ] Implement retry logic with exponential backoff
+- [ ] Implement Dead Letter Queue (DLQ) repository
+- [ ] Add metrics (events_matched, executions_queued, dlq_events)
+- [ ] Write integration tests (event flow end-to-end)
 
-```javascript
-// Context
-ctx.tenantId: number
-ctx.userId: number
-ctx.orgId: number
-ctx.input: any
-
-// HTTP API
-sdk.http.get(url, options?)
-sdk.http.post(url, body, options?)
-sdk.http.put(url, body, options?)
-sdk.http.delete(url, options?)
-
-// Database API
-sdk.db.query(sql, params?)
-sdk.db.execute(sql, params?)
-
-// Cache API
-sdk.cache.get(key)
-sdk.cache.set(key, value, ttlSeconds?)
-sdk.cache.delete(key)
-
-// Logging API
-sdk.log.info(message, ...args)
-sdk.log.warn(message, ...args)
-sdk.log.error(message, ...args)
-
-// Events API
-events.publish(eventType, payload)
+**Files to Create:**
+```
+modules/scripts/
+├── domain/
+│   └── repositories/
+│       ├── event_subscription_repository.go
+│       └── dead_letter_queue_repository.go
+├── infrastructure/
+│   └── persistence/
+│       ├── event_subscription_repository.go
+│       └── dead_letter_queue_repository.go
+├── services/
+│   ├── event_handler_service.go
+│   ├── filter_engine_service.go
+│   └── retry_service.go
+migrations/
+└── {timestamp}_add_event_subscriptions.sql
 ```
 
-#### Acceptance Criteria
+**Acceptance Criteria:**
+- [ ] Scripts can subscribe to event types via database
+- [ ] Event handler matches events to subscriptions
+- [ ] Filter engine evaluates AND/OR rules against event data
+- [ ] Async queue processes events with configurable worker pool
+- [ ] Retry logic applies exponential backoff (2s, 4s, 8s)
+- [ ] DLQ captures events after max retries
+- [ ] Metrics track matched events, failures, DLQ entries
+- [ ] Integration tests verify event flow end-to-end
 
-- ✅ Scripts can access `ctx.tenantId`, `ctx.userId`, `ctx.input`
-- ✅ HTTP requests to private IPs (127.0.0.1, 192.168.x.x) are blocked
-- ✅ Database queries require tenant_id filter
-- ✅ Cache keys are automatically prefixed with tenant_id
-- ✅ Log output is captured and returned
-- ✅ Events are published with tenant metadata
-- ✅ TypeScript definitions provide autocomplete in Monaco
-- ✅ API call limits are enforced (100 calls per execution)
-- ✅ Binding tests pass with >80% coverage
-
-#### Testing Requirements
-
-```go
-// Binding Tests
-- TestHTTPAPI_Get_Success
-- TestHTTPAPI_SSRFProtection_LocalhostBlocked
-- TestHTTPAPI_SSRFProtection_PrivateIPBlocked
-- TestDBAPI_Query_RequiresTenantID
-- TestDBAPI_Query_TenantIsolation
-- TestCacheAPI_KeyPrefixing
-- TestLogAPI_OutputCapture
-- TestEventsAPI_PublishWithMetadata
-- TestAPICallLimits_Exceeded
-```
-
-#### Dependencies
-
-- Phase 1 (Core Runtime Infrastructure)
-- Phase 2 (Domain Model & Persistence)
-- Phase 3 (Service Layer)
+**Dependencies:** Phase 3 (ExecutionService)
 
 ---
 
-### Phase 5: Presentation Layer (UI)
+### Phase 5: Presentation Layer
 
-**Goal**: Build user interface for script management with Monaco editor integration and execution history.
+**Duration:** 1.5 weeks
+**Goal:** Build web UI for script management
 
-**Duration**: 1-2 weeks
+```mermaid
+graph TB
+    subgraph "Phase 5 Deliverables"
+        A[ScriptController] --> B[CRUD routes]
+        C[ViewModels] --> D[Transform entities]
+        E[Templates] --> F[Templ pages]
+        G[Monaco Editor] --> H[Code editor]
+        I[Translations] --> J[en, ru, uz]
+        K[HTMX] --> L[Partial updates]
+    end
 
-#### Tasks
+    style A fill:#e1f5ff
+    style E fill:#fff4e1
+    style G fill:#ffe1e1
+```
 
-- [ ] Implement `ScriptController` with CRUD handlers
-- [ ] Create list template with filtering and pagination
-- [ ] Create new/edit templates with Monaco editor
-- [ ] Create view template with execution history
-- [ ] Implement ViewModels (Script, Execution, Version)
-- [ ] Add localization (en.toml, ru.toml, uz.toml)
-- [ ] Integrate HTMX for table updates
-- [ ] Add form validation with DTOs
-- [ ] Register routes with auth middleware
-- [ ] Write E2E tests with Playwright
+**Tasks:**
+- [ ] Implement ScriptController (Index, New, Create, Edit, Update, Delete, View, Execute)
+- [ ] Implement ViewModels (ScriptViewModel, ExecutionViewModel)
+- [ ] Create Templ templates (index, new, edit, view, partials)
+- [ ] Integrate Monaco editor for code editing
+- [ ] Add translations (en.toml, ru.toml, uz.toml)
+- [ ] Add HTMX interactions (execute button, delete link, live executions)
+- [ ] Add RBAC middleware to routes
+- [ ] Write controller tests (ITF framework)
 
-#### Files to Create
-
+**Files to Create:**
 ```
 modules/scripts/
 ├── presentation/
@@ -445,8 +325,7 @@ modules/scripts/
 │   │   └── script_controller_test.go
 │   ├── viewmodels/
 │   │   ├── script_viewmodel.go
-│   │   ├── execution_viewmodel.go
-│   │   └── version_viewmodel.go
+│   │   └── execution_viewmodel.go
 │   ├── templates/
 │   │   └── pages/
 │   │       └── scripts/
@@ -460,361 +339,222 @@ modules/scripts/
 │       ├── en.toml
 │       ├── ru.toml
 │       └── uz.toml
-
-e2e/
-└── tests/
-    └── scripts/
-        ├── create-script.spec.ts
-        ├── edit-script.spec.ts
-        ├── execute-script.spec.ts
-        └── delete-script.spec.ts
 ```
 
-#### Acceptance Criteria
+**Acceptance Criteria:**
+- [ ] All CRUD routes accessible and functional
+- [ ] Monaco editor loads with JavaScript syntax highlighting
+- [ ] Forms submit with CSRF tokens
+- [ ] HTMX execute button updates execution history
+- [ ] HTMX delete link removes script row with confirmation
+- [ ] Translations complete for all 3 languages
+- [ ] ViewModels format dates, enums, permissions
+- [ ] Controller tests verify routes, permissions, HTMX responses
+- [ ] UI responsive (mobile-friendly)
 
-- ✅ Users can view list of scripts with filtering
-- ✅ Monaco editor loads with TypeScript definitions
-- ✅ Users can create scripts with trigger type selection
-- ✅ Users can edit scripts (creates new version)
-- ✅ Users can execute scripts manually (Run button)
-- ✅ Execution history updates via HTMX
-- ✅ CSRF tokens included in forms
-- ✅ Translations work in all 3 languages
-- ✅ Permission middleware blocks unauthorized access
-- ✅ E2E tests pass in CI mode
-
-#### Testing Requirements
-
-```go
-// Controller Tests
-- TestScriptController_List_Success
-- TestScriptController_List_PermissionDenied
-- TestScriptController_Create_ValidForm
-- TestScriptController_Create_InvalidCron
-- TestScriptController_Edit_LoadsExisting
-- TestScriptController_Update_Success
-- TestScriptController_Delete_RequiresPermission
-- TestScriptController_Execute_ReturnsExecutionID
-```
-
-```typescript
-// E2E Tests
-- test('create script with manual trigger')
-- test('create script with cron schedule')
-- test('edit script source code')
-- test('execute script and see result')
-- test('delete script removes from list')
-- test('permission denied shows error')
-```
-
-#### Dependencies
-
-- Phase 3 (Service Layer)
-- Phase 4 (API Bindings)
+**Dependencies:** Phase 3 (Services)
 
 ---
 
-### Phase 6: Advanced Features (Production Polish)
+### Phase 6: Advanced Features
 
-**Goal**: Add production-ready features like scheduling, HTTP endpoints, monitoring, and health checks.
+**Duration:** 2 weeks
+**Goal:** Add production-ready features (cron, HTTP endpoints, monitoring)
 
-**Duration**: 2-3 weeks
+```mermaid
+graph TB
+    subgraph "Phase 6 Deliverables"
+        A[Cron Scheduler] --> B[Scheduled execution]
+        C[HTTP Endpoints] --> D[Script-based APIs]
+        E[Prometheus Metrics] --> F[Monitoring]
+        G[VM Pool Optimization] --> H[Compilation cache]
+        I[Health Checks] --> J[Readiness/Liveness]
+    end
 
-#### Tasks
-
-- [ ] Implement `Scheduler` with cron parsing
-- [ ] Implement `EndpointRouter` for webhook triggers
-- [ ] Add rate limiting per endpoint
-- [ ] Implement Prometheus metrics
-- [ ] Add compilation caching with LRU eviction
-- [ ] Implement adaptive VM pool sizing
-- [ ] Add health check endpoints (liveness/readiness)
-- [ ] Optimize database queries with indexes
-- [ ] Add dead letter queue for failed executions
-- [ ] Write load tests and benchmarks
-- [ ] Document all features
-
-#### Files to Create
-
+    style A fill:#e1f5ff
+    style C fill:#fff4e1
+    style E fill:#e1ffe1
 ```
+
+**Tasks:**
+- [ ] Implement cron scheduler (ticker every 1 minute)
+- [ ] Implement HTTP endpoint router (script-based APIs)
+- [ ] Add Prometheus metrics (counters, histograms, gauges)
+- [ ] Add compilation cache (goja.Program)
+- [ ] Add health check endpoints (/health/ready, /health/live)
+- [ ] Add graceful shutdown logic
+- [ ] Write performance benchmarks
+- [ ] Write end-to-end tests
+
+**Files to Create:**
+```
+modules/scripts/
+├── services/
+│   ├── scheduler_service.go
+│   ├── http_endpoint_service.go
+│   └── metrics_service.go
+├── infrastructure/
+│   ├── scheduler.go
+│   ├── http_router.go
+│   └── metrics.go
 pkg/jsruntime/
-├── scheduler.go
-├── scheduler_test.go
-├── endpoint_router.go
-├── endpoint_router_test.go
-├── rate_limiter.go
-├── metrics.go
 ├── compilation_cache.go
-├── adaptive_pool.go
-├── health_checker.go
-└── dead_letter_queue.go
-
-docs/
-├── javascript-runtime.md
-├── api-reference.md
-└── examples/
-    ├── scheduled-backup.js
-    ├── webhook-handler.js
-    └── event-listener.js
+└── health.go
 ```
 
-#### Acceptance Criteria
+**Acceptance Criteria:**
+- [ ] Cron scheduler executes scripts on schedule (±1 minute)
+- [ ] HTTP endpoints route requests to scripts by path
+- [ ] Prometheus metrics export at /metrics
+- [ ] Compilation cache reduces latency by 10x for frequent scripts
+- [ ] Health checks return 200 OK when ready
+- [ ] Graceful shutdown waits for in-flight executions
+- [ ] Performance benchmarks verify targets (< 100ms p95)
+- [ ] E2E tests verify full workflow (create → schedule → execute)
 
-- ✅ Scheduled scripts execute at correct times
-- ✅ Webhook endpoints respond with script output
-- ✅ Prometheus metrics are exposed and accurate
-- ✅ Compilation cache reduces repeated parsing overhead
-- ✅ VM pool adapts to load (scales up/down)
-- ✅ Health checks return correct status
-- ✅ Failed executions retry via dead letter queue
-- ✅ Load tests show acceptable performance (>100 RPS)
-- ✅ Documentation is complete and accurate
-
-#### Testing Requirements
-
-```go
-// Advanced Tests
-- TestScheduler_RunDueScripts
-- TestScheduler_PreventConcurrentExecution
-- TestEndpointRouter_DynamicRouting
-- TestEndpointRouter_RateLimiting
-- TestMetrics_RecordExecution
-- TestCompilationCache_HitMiss
-- TestAdaptivePool_Scaling
-- TestHealthChecker_AllChecks
-- BenchmarkScriptExecution
-- TestConcurrentExecutions_100Goroutines
-```
-
-#### Dependencies
-
-- Phase 5 (Presentation Layer)
-- All previous phases complete
+**Dependencies:** Phase 4 (Event Integration), Phase 5 (UI)
 
 ---
 
-## Dependency Diagram
+## Implementation Workflow
 
-```
-Phase 1: Core Runtime Infrastructure
-    │
-    ├──> Phase 2: Domain Model & Persistence
-    │        │
-    │        └──> Phase 3: Service Layer
-    │                 │
-    │                 ├──> Phase 4: API Bindings
-    │                 │        │
-    │                 │        └──> Phase 5: Presentation Layer
-    │                 │                 │
-    │                 │                 └──> Phase 6: Advanced Features
-    │                 │
-    │                 └──────────────────────┘
-    │
-    └──> Phase 4: API Bindings (parallel with Phase 2-3)
-```
+### Development Process
 
-**Critical Path**: Phase 1 → Phase 2 → Phase 3 → Phase 5 → Phase 6
+```mermaid
+graph LR
+    A[Read Specification] --> B[Implement Code]
+    B --> C[Write Tests]
+    C --> D[Run Tests Locally]
+    D --> E{Tests Pass?}
+    E -->|No| F[Fix Issues]
+    F --> C
+    E -->|Yes| G[Format Code]
+    G --> H[Commit Changes]
+    H --> I[Open Pull Request]
+    I --> J[CI Pipeline]
+    J --> K{CI Pass?}
+    K -->|No| F
+    K -->|Yes| L[Code Review]
+    L --> M{Approved?}
+    M -->|No| F
+    M -->|Yes| N[Merge to Main]
 
-**Parallel Work**: Phase 4 can start after Phase 1 completes (doesn't depend on Phase 2/3)
-
----
-
-## Testing Strategy
-
-### Unit Tests (Per Phase)
-
-- **Phase 1**: VM, VMPool, ResourceLimits
-- **Phase 2**: Repositories (CRUD, tenant isolation)
-- **Phase 3**: Services (permissions, validation, events)
-- **Phase 4**: API Bindings (SSRF, tenant isolation)
-- **Phase 5**: Controllers (form parsing, HTMX)
-- **Phase 6**: Scheduler, EndpointRouter, Metrics
-
-**Target**: >80% coverage per phase before moving to next
-
-### Integration Tests
-
-```go
-// Test full stack integration
-func TestFullStack_CreateAndExecuteScript(t *testing.T) {
-    // Setup ITF environment
-    // Create script via service
-    // Execute script via service
-    // Verify execution result
-    // Check database state
-}
-
-func TestFullStack_ScheduledExecution(t *testing.T) {
-    // Create scheduled script
-    // Wait for scheduler tick
-    // Verify execution occurred
-}
-
-func TestFullStack_WebhookTrigger(t *testing.T) {
-    // Create webhook script
-    // Send HTTP request to webhook
-    // Verify script executed
-    // Check response
-}
+    style E fill:#fff4e1
+    style K fill:#fff4e1
+    style M fill:#fff4e1
+    style N fill:#e1ffe1
 ```
 
-### E2E Tests (Playwright)
+**Per Feature:**
+1. Read specification for phase/component
+2. Implement code following DDD patterns
+3. Write tests (ITF framework, >80% coverage)
+4. Run tests locally: `go test -v ./path -count=1`
+5. Format code: `make fix imports && make fix fmt`
+6. Commit changes: `git commit -m "feat: implement X"`
+7. Open pull request with description
+8. CI pipeline runs tests, linting, coverage
+9. Code review by team
+10. Merge to main after approval
 
-```typescript
-// e2e/tests/scripts/full-workflow.spec.ts
-test('full script workflow', async ({ page }) => {
-    // Login
-    // Navigate to scripts
-    // Create new script
-    // Edit script source
-    // Execute script
-    // View execution history
-    // Delete script
-});
+### Testing Strategy
+
+```mermaid
+graph TB
+    subgraph "Test Pyramid"
+        A[E2E Tests] --> B[5%]
+        C[Integration Tests] --> D[15%]
+        E[Service Tests] --> F[30%]
+        G[Repository Tests] --> H[25%]
+        I[Unit Tests] --> J[25%]
+    end
+
+    style A fill:#ffe1e1
+    style E fill:#fff4e1
+    style I fill:#e1ffe1
 ```
 
-### Performance Tests
+**Test Coverage Targets:**
+- **Unit Tests** (25%): VM, VMPool, ResourceLimits, CompilationCache
+- **Repository Tests** (25%): CRUD, pagination, tenant isolation
+- **Service Tests** (30%): Business logic, validation, permissions
+- **Integration Tests** (15%): Event flow, async queue, retry logic
+- **E2E Tests** (5%): Full workflow (UI → Service → DB → Execution)
 
-```go
-// Benchmark script execution
-func BenchmarkExecution_SimpleScript(b *testing.B)
-func BenchmarkExecution_ComplexScript(b *testing.B)
-func BenchmarkExecution_WithAPICalls(b *testing.B)
+**Test Execution:**
+- Run all: `make test` (10-minute timeout for full suite)
+- Run targeted: `go test -v ./modules/scripts/services -run ^TestCreate$ -count=1`
+- Run with coverage: `make test coverage`
 
-// Load test
-func TestLoad_100ConcurrentExecutions(t *testing.T)
-func TestLoad_SustainedThroughput(t *testing.T)
-```
+### Risk Mitigation
 
----
+**Identified Risks:**
 
-## Documentation Requirements
+| Risk | Mitigation |
+|------|------------|
+| Goja performance | Benchmark early (Phase 1), implement VM pooling (Phase 1), add compilation cache (Phase 6) |
+| Memory leaks | Monitor memory usage (Phase 1), add limits (Phase 1), load test (Phase 6) |
+| Security vulnerabilities | Implement sandboxing (Phase 1), SSRF protection (Phase 3), code review (all phases) |
+| Database performance | Add indexes (Phase 2), use EXPLAIN ANALYZE (Phase 2), optimize queries (Phase 3) |
+| Event queue backpressure | Configurable worker pool (Phase 4), buffered queue (Phase 4), metrics/alerts (Phase 6) |
+| Deployment complexity | Health checks (Phase 6), graceful shutdown (Phase 6), documentation (all phases) |
 
-### User Documentation
+### Success Metrics
 
-1. **JavaScript Runtime Guide** (`docs/javascript-runtime.md`)
-   - Overview and use cases
-   - Creating your first script
-   - Trigger types explained
-   - SDK API reference
-   - Security best practices
+**Performance:**
+- [ ] Execution latency < 100ms (p95) for cached scripts
+- [ ] Execution latency < 500ms (p95) for uncached scripts
+- [ ] Event processing throughput > 100 events/sec
+- [ ] VM pool acquisition < 1ms (p95)
 
-2. **API Reference** (`docs/api-reference.md`)
-   - `ctx` object
-   - `sdk.http.*` methods
-   - `sdk.db.*` methods
-   - `sdk.cache.*` methods
-   - `sdk.log.*` methods
-   - `events.publish()` method
+**Reliability:**
+- [ ] Success rate > 99% for valid scripts
+- [ ] Retry logic recovers > 80% of transient failures
+- [ ] DLQ captures < 1% of events
 
-3. **Examples** (`docs/examples/`)
-   - Scheduled data backup script
-   - Webhook notification handler
-   - Event-triggered automation
-   - HTTP API integration
+**Security:**
+- [ ] 100% tenant isolation (no cross-tenant access)
+- [ ] 100% RBAC enforcement (all routes protected)
+- [ ] SSRF attempts blocked (0 successful attacks)
 
-### Developer Documentation
+**Usability:**
+- [ ] Page load time < 500ms (p95)
+- [ ] Monaco editor initialization < 1s
+- [ ] Form validation feedback < 50ms
 
-1. **Architecture Overview** (`docs/architecture/javascript-runtime.md`)
-   - Component diagram
-   - Data flow
-   - Security model
-   - Performance characteristics
+## Acceptance Criteria (Overall)
 
-2. **Implementation Guide** (`docs/implementation/`)
-   - Adding new SDK APIs
-   - Extending VM capabilities
-   - Custom trigger types
-   - Metrics and monitoring
+### Phase Completion
+- [ ] All 6 phases completed in sequence
+- [ ] Each phase passes acceptance criteria before starting next
+- [ ] All tests green (>80% coverage)
+- [ ] All code reviewed and merged to main
 
----
+### Production Readiness
+- [ ] Feature flags enable/disable functionality
+- [ ] Prometheus metrics export and alerting configured
+- [ ] Health checks integrated with Kubernetes
+- [ ] Documentation complete (README, API docs, runbooks)
+- [ ] Load testing validates performance targets
+- [ ] Security audit passes (OWASP Top 10)
 
-## Rollout Plan
-
-### Phase 1-4: Internal Testing (4-6 weeks)
-
-- Deploy to development environment
-- Internal testing by development team
-- Performance benchmarking
-- Security review
-
-### Phase 5: Beta Release (2 weeks)
-
-- Deploy to staging environment
-- Limited beta access for trusted users
-- Gather feedback
-- Fix critical bugs
-
-### Phase 6: Production Release (1 week)
-
-- Deploy to production
-- Monitor metrics closely
-- Gradual rollout (feature flag)
-- Full documentation published
+### Migration & Rollout
+- [ ] Database migrations tested (Up→Down→Up)
+- [ ] Zero-downtime deployment validated
+- [ ] Rollback plan documented and tested
+- [ ] Feature released behind flag (phased rollout)
+- [ ] Monitoring dashboards created (Grafana)
+- [ ] Runbooks written for common issues
 
 ---
 
-## Success Metrics
+**Estimated Total Duration:** 10-12 weeks (2.5-3 months)
 
-### Performance Metrics
+**Team Size:** 2-3 developers (backend/fullstack)
 
-- **Script Execution Latency**: P50 < 50ms, P95 < 200ms, P99 < 500ms
-- **Throughput**: >100 scripts/second per instance
-- **VM Pool Utilization**: 60-80% average
-- **Scheduler Precision**: ±1 minute for cron schedules
-
-### Quality Metrics
-
-- **Test Coverage**: >80% across all layers
-- **Bug Density**: <1 critical bug per 1000 LOC
-- **Uptime**: 99.9% availability
-- **Error Rate**: <0.1% failed executions (excluding user errors)
-
-### Adoption Metrics
-
-- **Active Scripts**: >50 scripts created in first month
-- **Executions**: >10,000 executions in first month
-- **User Satisfaction**: >4.5/5 rating in feedback
-
----
-
-## Risk Management
-
-### Technical Risks
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| VM memory leaks | High | Implement VM recycling, memory monitoring |
-| SSRF bypass | Critical | Thorough security testing, DNS rebinding protection |
-| Database performance | Medium | Add indexes, query optimization, connection pooling |
-| Scheduler drift | Low | Use robust cron library, monitor precision |
-
-### Operational Risks
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Resource exhaustion | High | Resource limits, adaptive pool sizing, alerts |
-| Malicious scripts | Critical | Sandboxing, permission checks, audit logs |
-| Migration failures | Medium | Test migrations in staging, rollback plan |
-
----
-
-## Conclusion
-
-This implementation plan breaks down the JavaScript Runtime feature into **6 manageable phases** over approximately **10-14 weeks**:
-
-1. **Phase 1** (1-2 weeks): Core runtime infrastructure
-2. **Phase 2** (1-2 weeks): Domain model and persistence
-3. **Phase 3** (1-2 weeks): Service layer
-4. **Phase 4** (1-2 weeks): API bindings
-5. **Phase 5** (1-2 weeks): Presentation layer
-6. **Phase 6** (2-3 weeks): Advanced features
-
-Each phase has:
-- ✅ Clear tasks and deliverables
-- ✅ Acceptance criteria
-- ✅ Testing requirements
-- ✅ Dependency mapping
-
-Following this plan ensures a **systematic, testable, and production-ready implementation** of the JavaScript Runtime feature.
-
+**Dependencies:**
+- Event bus implementation (existing)
+- RBAC system (existing)
+- Multi-tenant infrastructure (existing)
+- Prometheus setup (existing)
+- Kubernetes cluster (existing)
