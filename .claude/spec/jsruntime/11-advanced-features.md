@@ -2,1164 +2,557 @@
 
 ## Overview
 
-This specification defines advanced production features including cron scheduling, HTTP endpoint registration, monitoring/metrics, performance optimization, and health checks.
+Advanced features enhance the JavaScript runtime with cron scheduling, HTTP endpoint registration, monitoring/metrics, performance optimization, and health checks for production readiness.
 
-## Cron Scheduler
+```mermaid
+graph TB
+    subgraph "Advanced Features"
+        A[Cron Scheduler] --> B[Scheduled Execution]
+        C[HTTP Endpoint Router] --> D[Script-based APIs]
+        E[Metrics Exporter] --> F[Prometheus]
+        G[Performance Optimizer] --> H[VM Pooling]
+        I[Health Check] --> J[Readiness Probe]
+    end
 
-### Architecture
+    B --> K[Script Execution]
+    D --> K
+    H --> K
+    K --> F
+    K --> J
 
-```
-┌─────────────────────────────────────────────────┐
-│              Cron Scheduler                     │
-│  (Ticker runs every minute)                     │
-└─────────────────────────────────────────────────┘
-                      ↓
-        ┌─────────────────────────┐
-        │ Load Scheduled Scripts  │
-        │ (WHERE enabled=true     │
-        │  AND trigger='scheduled'│
-        │  AND schedule IS SET)   │
-        └─────────────────────────┘
-                      ↓
-        ┌─────────────────────────┐
-        │  Parse Cron Expression  │
-        │  (robfig/cron/v3)       │
-        └─────────────────────────┘
-                      ↓
-        ┌─────────────────────────┐
-        │   Check Due Scripts     │
-        │  (next run <= now)      │
-        └─────────────────────────┘
-                      ↓
-        ┌─────────────────────────┐
-        │  Prevent Concurrent     │
-        │  Execution (sync.Map)   │
-        └─────────────────────────┘
-                      ↓
-        ┌─────────────────────────┐
-        │  Execute Asynchronously │
-        │  (goroutine)            │
-        └─────────────────────────┘
-                      ↓
-        ┌─────────────────────────┐
-        │  Update last_executed   │
-        │  (on completion)        │
-        └─────────────────────────┘
+    style A fill:#e1f5ff
+    style C fill:#fff4e1
+    style E fill:#e1ffe1
+    style G fill:#ffe1e1
+    style I fill:#e1ffe1
 ```
 
-### Implementation
+## What It Does
 
+Advanced features enable:
+- **Scheduled Execution** via cron expressions for periodic tasks
+- **HTTP Endpoints** for script-based API routes
+- **Monitoring** with Prometheus metrics for observability
+- **Performance** optimization via VM pooling and compilation caching
+- **Health Checks** for Kubernetes readiness and liveness probes
+
+## How It Works
+
+### Feature 1: Cron Scheduler
+
+```mermaid
+sequenceDiagram
+    participant Ticker
+    participant Scheduler
+    participant Repo as ScriptRepository
+    participant VM as VMPool
+    participant Script
+    participant DB as Database
+
+    Ticker->>Scheduler: Tick (every 1 minute)
+    Scheduler->>Repo: FindScheduledScripts(enabled=true)
+    Repo-->>Scheduler: scripts[]
+
+    loop For each script
+        Scheduler->>Scheduler: Parse cron expression
+        Scheduler->>Scheduler: Check if due (next run <= now)
+
+        alt Script is due
+            Scheduler->>Scheduler: Check concurrent execution lock
+            alt Not running
+                Scheduler->>VM: Execute script (async)
+                VM->>Script: Run
+                Script-->>VM: Result
+                VM->>DB: Update last_executed_at
+            else Already running
+                Scheduler->>Scheduler: Skip (prevent duplicate)
+            end
+        else Not due yet
+            Scheduler->>Scheduler: Skip
+        end
+    end
+```
+
+**What It Does:**
+- Executes scripts on cron schedules (e.g., "0 0 * * *" for daily)
+- Prevents concurrent execution of same script
+- Updates last execution timestamp
+- Supports standard cron syntax
+
+**Cron Expression Format:**
+```
+┌───────────── minute (0 - 59)
+│ ┌───────────── hour (0 - 23)
+│ │ ┌───────────── day of month (1 - 31)
+│ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday)
+│ │ │ │ │
+* * * * *
+```
+
+**Examples:**
+- `0 0 * * *` - Daily at midnight
+- `*/5 * * * *` - Every 5 minutes
+- `0 9-17 * * 1-5` - Hourly during business hours (Mon-Fri)
+- `0 0 1 * *` - First day of every month
+
+**Concurrency Prevention:**
 ```go
-package jsruntime
-
-import (
-    "context"
-    "sync"
-    "time"
-
-    "github.com/robfig/cron/v3"
-    "github.com/yourorg/yourapp/modules/scripts/domain/script"
-    "github.com/yourorg/yourapp/modules/scripts/services"
-)
-
-// Scheduler manages scheduled script execution
-type Scheduler struct {
-    scriptRepo   script.Repository
-    executionSvc *services.ExecutionService
-    ticker       *time.Ticker
-    stop         chan struct{}
-    running      sync.Map // map[uint]bool to prevent concurrent execution
-    cronParser   cron.Parser
+type SchedulerLock struct {
+    runningScripts sync.Map // scriptID -> bool
 }
 
-// NewScheduler creates a new scheduler instance
-func NewScheduler(
-    scriptRepo script.Repository,
-    executionSvc *services.ExecutionService,
-) *Scheduler {
-    return &Scheduler{
-        scriptRepo:   scriptRepo,
-        executionSvc: executionSvc,
-        ticker:       time.NewTicker(1 * time.Minute),
-        stop:         make(chan struct{}),
-        cronParser: cron.NewParser(
-            cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-        ),
+func (s *Scheduler) Execute(scriptID UUID) {
+    if _, loaded := s.runningScripts.LoadOrStore(scriptID, true); loaded {
+        return // Already running, skip
     }
-}
+    defer s.runningScripts.Delete(scriptID)
 
-// Start begins the scheduler loop
-func (s *Scheduler) Start(ctx context.Context) {
-    go func() {
-        for {
-            select {
-            case <-s.ticker.C:
-                s.runDueScripts(ctx)
-            case <-s.stop:
-                s.ticker.Stop()
-                return
-            }
-        }
-    }()
-}
-
-// Stop halts the scheduler
-func (s *Scheduler) Stop() {
-    close(s.stop)
-}
-
-// runDueScripts checks and executes all due scheduled scripts
-func (s *Scheduler) runDueScripts(ctx context.Context) {
-    // Fetch all enabled scheduled scripts
-    scripts, _, err := s.scriptRepo.FindAll(ctx, script.FindParams{
-        TriggerType: "scheduled",
-        Enabled:     true,
-        Limit:       1000, // Max scheduled scripts per tenant
-    })
-    if err != nil {
-        // Log error but continue
-        return
-    }
-
-    now := time.Now()
-
-    for _, scr := range scripts {
-        // Parse cron schedule
-        schedule, err := s.cronParser.Parse(scr.GetSchedule())
-        if err != nil {
-            // Log invalid cron expression
-            continue
-        }
-
-        // Get last execution time
-        lastExec := scr.GetLastExecutedAt()
-        if lastExec == nil {
-            // Never executed, use creation time
-            createdAt := scr.GetCreatedAt()
-            lastExec = &createdAt
-        }
-
-        // Calculate next run time
-        nextRun := schedule.Next(*lastExec)
-
-        // Check if script is due
-        if nextRun.After(now) {
-            continue // Not due yet
-        }
-
-        // Prevent concurrent execution of same script
-        if _, running := s.running.LoadOrStore(scr.GetID(), true); running {
-            continue // Already running
-        }
-
-        // Execute asynchronously
-        go func(script script.Script) {
-            defer s.running.Delete(script.GetID())
-
-            // Create tenant context
-            execCtx := context.Background()
-            execCtx = composables.WithTenantID(execCtx, script.GetTenantID())
-            execCtx = composables.WithOrgID(execCtx, script.GetOrgID())
-
-            // Execute script
-            _, err := s.executionSvc.Execute(execCtx, script.GetID(), nil)
-            if err != nil {
-                // Log execution error
-            }
-        }(scr)
-    }
+    // Execute script...
 }
 ```
 
-### Cron Expression Validation
+**Database Fields:**
+```sql
+ALTER TABLE scripts ADD COLUMN schedule VARCHAR(100);
+ALTER TABLE scripts ADD COLUMN last_executed_at TIMESTAMP;
+ALTER TABLE scripts ADD COLUMN next_run_at TIMESTAMP;
+```
 
+### Feature 2: HTTP Endpoint Registration
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Router
+    participant Handler as HTTP Handler
+    participant VM as VMPool
+    participant Script
+
+    Client->>Router: GET /api/scripts/my-endpoint
+    Router->>Router: Match route "/api/scripts/:path"
+    Router->>Handler: ServeHTTP(w, r)
+    Handler->>Handler: Extract path (:path = "my-endpoint")
+    Handler->>Handler: Query script WHERE http_path = "my-endpoint"
+
+    alt Script found
+        Handler->>VM: Execute(script, request context)
+        VM->>Script: Run with ctx.request
+        Script->>Script: Process request
+        Script-->>VM: Return response {status, body, headers}
+        VM-->>Handler: Response
+        Handler->>Handler: Set headers
+        Handler->>Handler: Set status code
+        Handler-->>Client: HTTP Response
+    else Script not found
+        Handler-->>Client: 404 Not Found
+    end
+```
+
+**What It Does:**
+- Registers scripts as HTTP endpoints
+- Routes requests to scripts based on path matching
+- Injects request context (method, headers, body, query params)
+- Returns script response with custom status, headers, body
+
+**Request Context Injection:**
+```javascript
+// Available in script via ctx.request
+const request = {
+    method: "GET",
+    path: "/api/scripts/my-endpoint",
+    headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ..."
+    },
+    query: { page: "1", limit: "10" },
+    body: { ... }, // Parsed JSON if Content-Type: application/json
+    params: { id: "123" } // Path parameters
+};
+
+// Script returns response
+return {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+    body: { message: "Success", data: [...] }
+};
+```
+
+**Route Registration:**
 ```go
-package services
-
-import (
-    "fmt"
-
-    "github.com/robfig/cron/v3"
-)
-
-// ValidateCronSchedule checks if cron expression is valid
-func ValidateCronSchedule(schedule string) error {
-    parser := cron.NewParser(
-        cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-    )
-
-    _, err := parser.Parse(schedule)
-    if err != nil {
-        return fmt.Errorf("invalid cron expression: %w", err)
-    }
-
-    return nil
-}
-
-// GetNextRunTime calculates next execution time
-func GetNextRunTime(schedule string, lastRun time.Time) (time.Time, error) {
-    parser := cron.NewParser(
-        cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-    )
-
-    parsed, err := parser.Parse(schedule)
-    if err != nil {
-        return time.Time{}, err
-    }
-
-    return parsed.Next(lastRun), nil
-}
+router.HandleFunc("/api/scripts/{path:.*}", httpEndpointHandler)
 ```
 
-### Dead Letter Queue for Failed Executions
-
-```go
-package jsruntime
-
-import (
-    "context"
-    "time"
-
-    "github.com/yourorg/yourapp/modules/scripts/domain/execution"
-)
-
-// DeadLetterQueue stores failed scheduled executions for retry
-type DeadLetterQueue struct {
-    maxRetries   int
-    retryDelay   time.Duration
-    executionSvc *services.ExecutionService
-}
-
-func NewDeadLetterQueue(executionSvc *services.ExecutionService) *DeadLetterQueue {
-    return &DeadLetterQueue{
-        maxRetries:   3,
-        retryDelay:   5 * time.Minute,
-        executionSvc: executionSvc,
-    }
-}
-
-// Enqueue adds failed execution for retry
-func (dlq *DeadLetterQueue) Enqueue(ctx context.Context, exec execution.Execution) {
-    retryCount := exec.GetRetryCount()
-    if retryCount >= dlq.maxRetries {
-        // Max retries exceeded, log and abandon
-        return
-    }
-
-    // Schedule retry after delay
-    time.AfterFunc(dlq.retryDelay, func() {
-        dlq.retry(ctx, exec)
-    })
-}
-
-func (dlq *DeadLetterQueue) retry(ctx context.Context, exec execution.Execution) {
-    // Increment retry count
-    // Re-execute script
-    _, err := dlq.executionSvc.Execute(ctx, exec.GetScriptID(), nil)
-    if err != nil {
-        // Failed again, re-enqueue
-        dlq.Enqueue(ctx, exec)
-    }
-}
+**Database Fields:**
+```sql
+ALTER TABLE scripts ADD COLUMN http_path VARCHAR(255);
+ALTER TABLE scripts ADD COLUMN http_method VARCHAR(10); -- GET, POST, PUT, DELETE
+CREATE UNIQUE INDEX idx_scripts_http_path ON scripts(tenant_id, http_path, http_method);
 ```
 
-## HTTP Endpoint Registration
+**Security:**
+- HTTP endpoints require authentication (same as web UI)
+- RBAC permissions apply (scripts.execute)
+- Tenant isolation enforced (query by tenant_id)
+- Rate limiting applied per tenant
 
-### Dynamic Route Registration
+### Feature 3: Monitoring & Metrics
 
-```go
-package jsruntime
+```mermaid
+graph TB
+    subgraph "Prometheus Metrics"
+        A[Counter: executions_total]
+        B[Counter: executions_success_total]
+        C[Counter: executions_failed_total]
+        D[Histogram: execution_duration_seconds]
+        E[Gauge: vm_pool_active]
+        F[Gauge: vm_pool_idle]
+        G[Counter: api_calls_total]
+        H[Counter: ssrf_attempts_total]
+    end
 
-import (
-    "encoding/json"
-    "fmt"
-    "net/http"
-    "strings"
+    subgraph "Labels"
+        I[tenant_id]
+        J[trigger_type]
+        K[error_type]
+        L[api_type]
+    end
 
-    "github.com/gorilla/mux"
-    "github.com/iota-uz/iota-sdk/pkg/composables"
-    "github.com/iota-uz/iota-sdk/pkg/middleware"
-    "github.com/yourorg/yourapp/modules/scripts/domain/script"
-    "github.com/yourorg/yourapp/modules/scripts/services"
-)
+    A --> I
+    B --> I
+    C --> I
+    D --> I
+    E --> M[No labels]
+    F --> M
+    G --> L
+    H --> I
 
-// EndpointRouter manages HTTP endpoints for webhook-triggered scripts
-type EndpointRouter struct {
-    scriptRepo     script.Repository
-    executionSvc   *services.ExecutionService
-    authMiddleware mux.MiddlewareFunc
-    router         *mux.Router
-    registeredPaths map[string]uint // path -> script_id
-}
+    C --> K
+    D --> J
 
-func NewEndpointRouter(
-    scriptRepo script.Repository,
-    executionSvc *services.ExecutionService,
-    authMiddleware mux.MiddlewareFunc,
-) *EndpointRouter {
-    return &EndpointRouter{
-        scriptRepo:      scriptRepo,
-        executionSvc:    executionSvc,
-        authMiddleware:  authMiddleware,
-        registeredPaths: make(map[string]uint),
-    }
-}
-
-// Register sets up the base webhook route
-func (r *EndpointRouter) Register(router *mux.Router) {
-    r.router = router
-
-    // Webhook endpoint prefix
-    subRouter := router.PathPrefix("/api/webhooks").Subrouter()
-
-    // Optional authentication (configurable per script)
-    subRouter.Use(r.authMiddleware)
-
-    // Dynamic handler for all webhook paths
-    subRouter.PathPrefix("/").HandlerFunc(r.handleScriptEndpoint)
-
-    // Reload endpoints on startup
-    r.ReloadEndpoints(context.Background())
-}
-
-// ReloadEndpoints loads all webhook scripts and builds path mapping
-func (r *EndpointRouter) ReloadEndpoints(ctx context.Context) error {
-    // Fetch all enabled webhook scripts
-    scripts, _, err := r.scriptRepo.FindAll(ctx, script.FindParams{
-        TriggerType: "webhook",
-        Enabled:     true,
-        Limit:       1000,
-    })
-    if err != nil {
-        return err
-    }
-
-    // Clear existing mappings
-    r.registeredPaths = make(map[string]uint)
-
-    // Register each script's webhook path
-    for _, scr := range scripts {
-        path := scr.GetWebhookPath()
-        if path == "" {
-            continue
-        }
-
-        // Normalize path (ensure leading slash)
-        if !strings.HasPrefix(path, "/") {
-            path = "/" + path
-        }
-
-        r.registeredPaths[path] = scr.GetID()
-    }
-
-    return nil
-}
-
-// handleScriptEndpoint dynamically routes to the correct script
-func (r *EndpointRouter) handleScriptEndpoint(w http.ResponseWriter, req *http.Request) {
-    ctx := req.Context()
-    path := req.URL.Path
-
-    // Strip /api/webhooks prefix
-    path = strings.TrimPrefix(path, "/api/webhooks")
-
-    // Lookup script ID by path
-    scriptID, exists := r.registeredPaths[path]
-    if !exists {
-        http.Error(w, "Webhook endpoint not found", http.StatusNotFound)
-        return
-    }
-
-    // Parse request body
-    var inputData map[string]interface{}
-    if req.Body != nil && req.ContentLength > 0 {
-        if err := json.NewDecoder(req.Body).Decode(&inputData); err != nil {
-            // If not JSON, store raw body as string
-            inputData = map[string]interface{}{
-                "body": req.Body,
-            }
-        }
-    }
-
-    // Add request metadata to input
-    inputData["method"] = req.Method
-    inputData["headers"] = req.Header
-    inputData["query"] = req.URL.Query()
-
-    // Execute script asynchronously
-    execution, err := r.executionSvc.Execute(ctx, scriptID, inputData)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Execution failed: %v", err), http.StatusInternalServerError)
-        return
-    }
-
-    // Wait for execution to complete (with timeout)
-    execCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-    defer cancel()
-
-    result, err := r.waitForExecution(execCtx, execution.GetID())
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Execution timeout: %v", err), http.StatusGatewayTimeout)
-        return
-    }
-
-    // Return result as JSON
-    w.Header().Set("Content-Type", "application/json")
-    if result.GetStatus() == "failed" {
-        w.WriteHeader(http.StatusInternalServerError)
-        json.NewEncoder(w).Encode(map[string]interface{}{
-            "error": result.GetErrorMessage(),
-        })
-        return
-    }
-
-    // Parse output as JSON if possible
-    var output interface{}
-    if err := json.Unmarshal([]byte(result.GetOutput()), &output); err != nil {
-        // Not JSON, return as string
-        output = result.GetOutput()
-    }
-
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "result": output,
-    })
-}
-
-// waitForExecution polls for execution completion
-func (r *EndpointRouter) waitForExecution(ctx context.Context, executionID uint) (execution.Execution, error) {
-    ticker := time.NewTicker(100 * time.Millisecond)
-    defer ticker.Stop()
-
-    for {
-        select {
-        case <-ctx.Done():
-            return nil, ctx.Err()
-        case <-ticker.C:
-            exec, err := r.executionSvc.FindByID(ctx, executionID)
-            if err != nil {
-                return nil, err
-            }
-
-            status := exec.GetStatus()
-            if status == "completed" || status == "failed" {
-                return exec, nil
-            }
-        }
-    }
-}
+    style A fill:#e1ffe1
+    style B fill:#e1ffe1
+    style C fill:#ffe1e1
+    style D fill:#fff4e1
 ```
 
-### Rate Limiting per Endpoint
+**What It Does:**
+- Exposes Prometheus metrics for monitoring
+- Tracks execution counts, durations, errors
+- Monitors VM pool health and API usage
+- Labels metrics by tenant, trigger type, error type
 
-```go
-package jsruntime
+**Metric Definitions:**
 
-import (
-    "net/http"
-    "sync"
-    "time"
+**Counters:**
+- `script_executions_total{tenant_id, trigger_type}` - Total executions
+- `script_executions_success_total{tenant_id, trigger_type}` - Successful executions
+- `script_executions_failed_total{tenant_id, trigger_type, error_type}` - Failed executions
+- `script_api_calls_total{tenant_id, api_type}` - API calls (db, http, cache)
+- `script_ssrf_attempts_total{tenant_id}` - Blocked SSRF attempts
 
-    "golang.org/x/time/rate"
-)
+**Histograms:**
+- `script_execution_duration_seconds{tenant_id, trigger_type}` - Execution time distribution
+    - Buckets: [0.1, 0.5, 1, 2, 5, 10, 30]
 
-// EndpointRateLimiter applies per-script rate limits
-type EndpointRateLimiter struct {
-    limiters map[uint]*rate.Limiter // script_id -> limiter
-    mu       sync.RWMutex
-}
+**Gauges:**
+- `script_vm_pool_active` - Active VMs in pool
+- `script_vm_pool_idle` - Idle VMs in pool
+- `script_vm_pool_capacity` - Max VMs in pool
 
-func NewEndpointRateLimiter() *EndpointRateLimiter {
-    return &EndpointRateLimiter{
-        limiters: make(map[uint]*rate.Limiter),
-    }
-}
+**Prometheus Query Examples:**
+```promql
+# P95 execution duration by tenant
+histogram_quantile(0.95, sum(rate(script_execution_duration_seconds_bucket[5m])) by (tenant_id, le))
 
-// GetLimiter returns rate limiter for script (creates if not exists)
-func (rl *EndpointRateLimiter) GetLimiter(scriptID uint) *rate.Limiter {
-    rl.mu.RLock()
-    limiter, exists := rl.limiters[scriptID]
-    rl.mu.RUnlock()
+# Error rate by tenant
+sum(rate(script_executions_failed_total[5m])) by (tenant_id) / sum(rate(script_executions_total[5m])) by (tenant_id)
 
-    if exists {
-        return limiter
-    }
-
-    rl.mu.Lock()
-    defer rl.mu.Unlock()
-
-    // Double-check after acquiring write lock
-    if limiter, exists := rl.limiters[scriptID]; exists {
-        return limiter
-    }
-
-    // Create new limiter: 10 requests per second, burst of 20
-    limiter = rate.NewLimiter(rate.Limit(10), 20)
-    rl.limiters[scriptID] = limiter
-    return limiter
-}
-
-// Middleware wraps handler with rate limiting
-func (rl *EndpointRateLimiter) Middleware(scriptID uint) mux.MiddlewareFunc {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            limiter := rl.GetLimiter(scriptID)
-            if !limiter.Allow() {
-                http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
-                return
-            }
-            next.ServeHTTP(w, r)
-        })
-    }
-}
+# VM pool utilization
+script_vm_pool_active / script_vm_pool_capacity
 ```
 
-## Monitoring & Metrics (Prometheus)
-
-### Metric Definitions
-
-```go
-package jsruntime
-
-import (
-    "github.com/prometheus/client_golang/prometheus"
-    "github.com/prometheus/client_golang/prometheus/promauto"
-)
-
-var (
-    // Script execution metrics
-    scriptExecutions = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "script_executions_total",
-            Help: "Total number of script executions",
-        },
-        []string{"tenant_id", "script_id", "trigger_type", "status"},
-    )
-
-    scriptExecutionDuration = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name:    "script_execution_duration_seconds",
-            Help:    "Script execution duration in seconds",
-            Buckets: prometheus.ExponentialBuckets(0.001, 2, 15), // 1ms to 16s
-        },
-        []string{"tenant_id", "script_id", "trigger_type"},
-    )
-
-    scriptExecutionErrors = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "script_execution_errors_total",
-            Help: "Total number of script execution errors",
-        },
-        []string{"tenant_id", "script_id", "error_type"},
-    )
-
-    // VM pool metrics
-    vmPoolSize = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "jsruntime_vm_pool_size",
-            Help: "Total number of VMs in pool",
-        },
-    )
-
-    vmPoolInUse = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "jsruntime_vm_pool_in_use",
-            Help: "Number of VMs currently in use",
-        },
-    )
-
-    vmPoolWaitTime = promauto.NewHistogram(
-        prometheus.HistogramOpts{
-            Name:    "jsruntime_vm_pool_wait_seconds",
-            Help:    "Time spent waiting for VM from pool",
-            Buckets: prometheus.ExponentialBuckets(0.0001, 2, 12), // 0.1ms to 400ms
-        },
-    )
-
-    // API call metrics
-    scriptAPICalls = promauto.NewCounterVec(
-        prometheus.CounterOpts{
-            Name: "script_api_calls_total",
-            Help: "Total number of SDK API calls from scripts",
-        },
-        []string{"tenant_id", "api_type"}, // api_type: http, db, cache, etc.
-    )
-
-    scriptAPICallDuration = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name:    "script_api_call_duration_seconds",
-            Help:    "SDK API call duration in seconds",
-            Buckets: prometheus.ExponentialBuckets(0.001, 2, 12), // 1ms to 4s
-        },
-        []string{"tenant_id", "api_type"},
-    )
-
-    // Resource usage metrics
-    scriptMemoryUsage = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name:    "script_memory_usage_bytes",
-            Help:    "Script memory usage in bytes",
-            Buckets: prometheus.ExponentialBuckets(1024, 2, 20), // 1KB to 512MB
-        },
-        []string{"tenant_id", "script_id"},
-    )
-
-    scriptCPUTime = promauto.NewHistogramVec(
-        prometheus.HistogramOpts{
-            Name:    "script_cpu_time_seconds",
-            Help:    "Script CPU time in seconds",
-            Buckets: prometheus.ExponentialBuckets(0.001, 2, 15),
-        },
-        []string{"tenant_id", "script_id"},
-    )
-
-    // Scheduler metrics
-    schedulerTicks = promauto.NewCounter(
-        prometheus.CounterOpts{
-            Name: "scheduler_ticks_total",
-            Help: "Total number of scheduler ticks",
-        },
-    )
-
-    scheduledScriptsDue = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "scheduled_scripts_due",
-            Help: "Number of scheduled scripts currently due",
-        },
-    )
-
-    scheduledScriptsRunning = promauto.NewGauge(
-        prometheus.GaugeOpts{
-            Name: "scheduled_scripts_running",
-            Help: "Number of scheduled scripts currently running",
-        },
-    )
-)
-```
-
-### Metric Instrumentation
-
-```go
-package jsruntime
-
-import (
-    "context"
-    "strconv"
-    "time"
-
-    "github.com/iota-uz/iota-sdk/pkg/composables"
-)
-
-// RecordExecution instruments script execution
-func RecordExecution(ctx context.Context, scriptID uint, triggerType string, status string, duration time.Duration) {
-    tenantID := composables.UseTenantID(ctx)
-
-    labels := prometheus.Labels{
-        "tenant_id":    strconv.Itoa(int(tenantID)),
-        "script_id":    strconv.Itoa(int(scriptID)),
-        "trigger_type": triggerType,
-        "status":       status,
-    }
-
-    scriptExecutions.With(labels).Inc()
-
-    durationLabels := prometheus.Labels{
-        "tenant_id":    strconv.Itoa(int(tenantID)),
-        "script_id":    strconv.Itoa(int(scriptID)),
-        "trigger_type": triggerType,
-    }
-    scriptExecutionDuration.With(durationLabels).Observe(duration.Seconds())
-}
-
-// RecordAPICall instruments SDK API calls
-func RecordAPICall(ctx context.Context, apiType string, duration time.Duration) {
-    tenantID := composables.UseTenantID(ctx)
-
-    labels := prometheus.Labels{
-        "tenant_id": strconv.Itoa(int(tenantID)),
-        "api_type":  apiType,
-    }
-
-    scriptAPICalls.With(labels).Inc()
-    scriptAPICallDuration.With(labels).Observe(duration.Seconds())
-}
-
-// RecordVMPoolMetrics updates VM pool metrics
-func (p *VMPool) RecordMetrics() {
-    vmPoolSize.Set(float64(p.maxSize))
-    vmPoolInUse.Set(float64(p.maxSize - len(p.vms)))
-}
-```
-
-### Example Prometheus Query Dashboard
-
+**Alerting Rules:**
 ```yaml
-# Grafana Dashboard Queries
+groups:
+  - name: script_alerts
+    rules:
+      - alert: HighScriptErrorRate
+        expr: sum(rate(script_executions_failed_total[5m])) by (tenant_id) / sum(rate(script_executions_total[5m])) by (tenant_id) > 0.1
+        for: 5m
+        annotations:
+          summary: "High script error rate for tenant {{ $labels.tenant_id }}"
 
-# Script Execution Rate
-rate(script_executions_total[5m])
+      - alert: VMPoolExhausted
+        expr: script_vm_pool_idle == 0
+        for: 2m
+        annotations:
+          summary: "VM pool has no idle VMs"
 
-# Script Error Rate
-rate(script_execution_errors_total[5m]) / rate(script_executions_total[5m])
-
-# P95 Execution Duration
-histogram_quantile(0.95, rate(script_execution_duration_seconds_bucket[5m]))
-
-# VM Pool Utilization
-jsruntime_vm_pool_in_use / jsruntime_vm_pool_size
-
-# Top Slowest Scripts
-topk(10, avg(rate(script_execution_duration_seconds_sum[5m])) by (script_id))
-
-# API Call Distribution
-sum(rate(script_api_calls_total[5m])) by (api_type)
+      - alert: SSRFAttemptsDetected
+        expr: rate(script_ssrf_attempts_total[1m]) > 0
+        for: 1m
+        annotations:
+          summary: "SSRF attempts detected for tenant {{ $labels.tenant_id }}"
 ```
 
-## Performance Optimization
+### Feature 4: Performance Optimization
 
-### Script Compilation Caching
+```mermaid
+stateDiagram-v2
+    [*] --> VMPoolCreated: Initialize pool
+    VMPoolCreated --> Idle: Pre-warm VMs
 
+    Idle --> Acquired: Request VM
+    Acquired --> Compiling: Compile script
+    Compiling --> CheckCache: Check compilation cache
+
+    CheckCache --> CacheHit: Compiled program found
+    CheckCache --> CacheMiss: Not in cache
+
+    CacheMiss --> Compile: goja.Compile()
+    Compile --> StoreCache: Cache compiled program
+    StoreCache --> Executing
+
+    CacheHit --> Executing: Use cached program
+
+    Executing --> Released: Return VM to pool
+    Released --> Idle: Reset VM state
+
+    note right of CheckCache
+        Cache Key: hash(script code)
+        Cache Value: goja.Program
+        TTL: Until code changes
+    end note
+
+    note right of Idle
+        Pool Size: 10-100 VMs
+        Pre-warmed: Globals injected
+        Ready: < 1ms acquisition
+    end note
+```
+
+**What It Does:**
+- **VM Pooling**: Reuses pre-initialized VMs to eliminate startup overhead
+- **Compilation Caching**: Caches compiled JavaScript programs to skip parsing
+- **Connection Pooling**: Reuses database connections across executions
+- **Lazy Loading**: Only loads required modules and APIs
+
+**VM Pool Benefits:**
+- **Cold Start**: ~50ms (compile + initialize + execute)
+- **Warm Start**: ~5ms (execute from pool)
+- **Improvement**: 10x faster execution for frequent scripts
+
+**Compilation Cache:**
 ```go
-package jsruntime
-
-import (
-    "sync"
-
-    "github.com/dop251/goja"
-    lru "github.com/hashicorp/golang-lru"
-)
-
-// CompilationCache stores compiled scripts
 type CompilationCache struct {
-    cache *lru.Cache
-    mu    sync.RWMutex
+    cache sync.Map // scriptID -> goja.Program
 }
 
-// NewCompilationCache creates LRU cache for compiled scripts
-func NewCompilationCache(size int) (*CompilationCache, error) {
-    cache, err := lru.New(size)
-    if err != nil {
-        return nil, err
-    }
-
-    return &CompilationCache{
-        cache: cache,
-    }, nil
-}
-
-// Get retrieves compiled program from cache
-func (cc *CompilationCache) Get(scriptID uint, version int) (*goja.Program, bool) {
-    cc.mu.RLock()
-    defer cc.mu.RUnlock()
-
-    key := compilationKey(scriptID, version)
-    if val, ok := cc.cache.Get(key); ok {
-        return val.(*goja.Program), true
+func (c *CompilationCache) Get(scriptID UUID, code string) (*goja.Program, bool) {
+    if prog, ok := c.cache.Load(scriptID); ok {
+        return prog.(*goja.Program), true
     }
     return nil, false
 }
 
-// Set stores compiled program in cache
-func (cc *CompilationCache) Set(scriptID uint, version int, program *goja.Program) {
-    cc.mu.Lock()
-    defer cc.mu.Unlock()
-
-    key := compilationKey(scriptID, version)
-    cc.cache.Add(key, program)
+func (c *CompilationCache) Set(scriptID UUID, prog *goja.Program) {
+    c.cache.Store(scriptID, prog)
 }
 
-// Invalidate removes script from cache
-func (cc *CompilationCache) Invalidate(scriptID uint) {
-    cc.mu.Lock()
-    defer cc.mu.Unlock()
-
-    // LRU doesn't support prefix deletion, so we'd need to track keys
-    // For simplicity, clear entire cache on invalidation
-    cc.cache.Purge()
-}
-
-func compilationKey(scriptID uint, version int) string {
-    return fmt.Sprintf("%d:%d", scriptID, version)
+func (c *CompilationCache) Invalidate(scriptID UUID) {
+    c.cache.Delete(scriptID)
 }
 ```
 
-### VM Pool Tuning
+**Cache Invalidation:**
+- On script update: Delete cached program
+- On version change: Delete cached program
+- On deployment: Clear all cache (optional)
 
+**Connection Pooling:**
 ```go
-package jsruntime
-
-import (
-    "context"
-    "runtime"
-)
-
-// AdaptiveVMPool adjusts pool size based on load
-type AdaptiveVMPool struct {
-    *VMPool
-    minSize int
-    maxSize int
-}
-
-func NewAdaptiveVMPool(ctx context.Context, minSize, maxSize int) (*AdaptiveVMPool, error) {
-    pool, err := NewVMPool(ctx, minSize)
-    if err != nil {
-        return nil, err
-    }
-
-    return &AdaptiveVMPool{
-        VMPool:  pool,
-        minSize: minSize,
-        maxSize: maxSize,
-    }, nil
-}
-
-// Scale adjusts pool size based on utilization
-func (p *AdaptiveVMPool) Scale() {
-    inUse := p.maxSize - len(p.vms)
-    utilization := float64(inUse) / float64(p.maxSize)
-
-    if utilization > 0.8 && p.maxSize < p.maxSize {
-        // High utilization, grow pool
-        p.grow()
-    } else if utilization < 0.2 && p.maxSize > p.minSize {
-        // Low utilization, shrink pool
-        p.shrink()
-    }
-}
-
-func (p *AdaptiveVMPool) grow() {
-    // Add one VM to pool
-    vm, err := NewSandboxedVM(p.ctx)
-    if err != nil {
-        return
-    }
-    p.vms <- vm
-    p.maxSize++
-}
-
-func (p *AdaptiveVMPool) shrink() {
-    // Remove one VM from pool
-    select {
-    case <-p.vms:
-        p.maxSize--
-    default:
-        // Pool empty, can't shrink
-    }
-}
+// Database connection pool (shared across executions)
+db, err := sql.Open("postgres", dsn)
+db.SetMaxOpenConns(25)
+db.SetMaxIdleConns(5)
+db.SetConnMaxLifetime(5 * time.Minute)
 ```
 
-### Database Query Optimization
+### Feature 5: Health Checks
 
+```mermaid
+sequenceDiagram
+    participant K8s as Kubernetes
+    participant Health as Health Endpoint
+    participant Scheduler
+    participant VMPool
+    participant DB
+
+    K8s->>Health: GET /health/ready
+    Health->>Scheduler: Check scheduler running
+    Scheduler-->>Health: OK
+    Health->>VMPool: Check pool has idle VMs
+    VMPool-->>Health: OK (idle > 0)
+    Health->>DB: Ping database
+    DB-->>Health: OK
+    Health-->>K8s: 200 OK
+
+    alt Component Unhealthy
+        Health->>K8s: 503 Service Unavailable
+        K8s->>K8s: Mark pod NotReady
+        K8s->>K8s: Stop routing traffic
+    end
+```
+
+**What It Does:**
+- Provides health check endpoints for Kubernetes
+- Validates critical components (scheduler, VM pool, database)
+- Supports readiness and liveness probes
+- Enables graceful degradation
+
+**Endpoints:**
+
+**Readiness Probe** (`/health/ready`):
+- Checks if service can handle requests
+- Returns 200 if ready, 503 if not ready
+- Checks:
+    - [ ] Scheduler is running
+    - [ ] VM pool has idle VMs (> 0)
+    - [ ] Database is reachable (ping)
+    - [ ] Event bus is connected
+
+**Liveness Probe** (`/health/live`):
+- Checks if service is alive (not deadlocked)
+- Returns 200 if alive, 503 if dead
+- Checks:
+    - [ ] Goroutines are responsive (timeout < 1s)
+    - [ ] No panic in main loop
+
+**Kubernetes Configuration:**
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 2
+```
+
+**Graceful Shutdown:**
 ```go
-package persistence
+func (s *Server) Shutdown(ctx context.Context) error {
+    // Stop accepting new requests
+    s.httpServer.Shutdown(ctx)
 
-import (
-    "context"
-    "database/sql"
+    // Stop scheduler (no new executions)
+    s.scheduler.Stop()
 
-    "github.com/iota-uz/iota-sdk/pkg/composables"
-)
+    // Wait for in-flight executions (with timeout)
+    s.vmPool.Drain(ctx)
 
-// Optimized query with indexes
-const findScheduledScriptsQuery = `
-    SELECT
-        id, name, source, schedule, last_executed_at, tenant_id, org_id
-    FROM
-        scripts
-    WHERE
-        tenant_id = $1
-        AND trigger_type = 'scheduled'
-        AND enabled = true
-        AND (last_executed_at IS NULL OR last_executed_at < NOW() - INTERVAL '1 minute')
-    ORDER BY
-        last_executed_at ASC NULLS FIRST
-    LIMIT $2
-`
+    // Close database connections
+    s.db.Close()
 
-// Database indexes for performance:
-/*
-CREATE INDEX idx_scripts_scheduled ON scripts(tenant_id, trigger_type, enabled, last_executed_at)
-    WHERE trigger_type = 'scheduled' AND enabled = true;
-
-CREATE INDEX idx_scripts_webhook ON scripts(tenant_id, trigger_type, webhook_path)
-    WHERE trigger_type = 'webhook' AND enabled = true;
-
-CREATE INDEX idx_executions_script ON executions(script_id, started_at DESC);
-
-CREATE INDEX idx_executions_status ON executions(tenant_id, status, started_at DESC);
-*/
-```
-
-### Connection Pooling
-
-```go
-package infrastructure
-
-import (
-    "database/sql"
-    "time"
-)
-
-// ConfigureDBPool optimizes database connection pool
-func ConfigureDBPool(db *sql.DB) {
-    // Maximum number of open connections
-    db.SetMaxOpenConns(25)
-
-    // Maximum number of idle connections
-    db.SetMaxIdleConns(10)
-
-    // Maximum lifetime of a connection
-    db.SetConnMaxLifetime(5 * time.Minute)
-
-    // Maximum idle time for a connection
-    db.SetConnMaxIdleTime(1 * time.Minute)
+    return nil
 }
 ```
 
-## Health Checks
+## Acceptance Criteria
 
-### Health Check Endpoints
+### Cron Scheduler
+- [ ] Supports standard cron syntax (5-field)
+- [ ] Executes scripts on schedule (±1 minute accuracy)
+- [ ] Prevents concurrent execution of same script
+- [ ] Updates last_executed_at and next_run_at fields
+- [ ] Handles timezone configuration (UTC default)
+- [ ] Logs scheduler errors to audit trail
 
-```go
-package jsruntime
+### HTTP Endpoints
+- [ ] Scripts register as HTTP endpoints via http_path field
+- [ ] Routes match requests to scripts by path
+- [ ] Request context injected (method, headers, body, query, params)
+- [ ] Script response sets status, headers, body
+- [ ] Supports GET, POST, PUT, DELETE methods
+- [ ] Enforces authentication and RBAC permissions
+- [ ] Rate limiting applied per tenant
 
-import (
-    "context"
-    "encoding/json"
-    "net/http"
-    "time"
-)
+### Monitoring & Metrics
+- [ ] All metrics export to Prometheus at /metrics
+- [ ] Execution duration tracked as histogram (p50, p95, p99)
+- [ ] Success and failure counters labeled by tenant, trigger type
+- [ ] VM pool gauges (active, idle, capacity)
+- [ ] API call counters labeled by type (db, http, cache)
+- [ ] SSRF attempt counter tracks blocked requests
+- [ ] Metrics retained for 15 days minimum
 
-// HealthChecker monitors runtime health
-type HealthChecker struct {
-    vmPool       *VMPool
-    db           *sql.DB
-    scheduler    *Scheduler
-}
+### Performance Optimization
+- [ ] VM pool pre-warms N VMs on startup (configurable)
+- [ ] VM acquisition time < 1ms (p95)
+- [ ] Compilation cache stores goja.Program per script
+- [ ] Cache invalidates on script update
+- [ ] Connection pooling limits max connections (25 default)
+- [ ] Execution latency < 100ms for cached scripts (p95)
 
-func NewHealthChecker(vmPool *VMPool, db *sql.DB, scheduler *Scheduler) *HealthChecker {
-    return &HealthChecker{
-        vmPool:    vmPool,
-        db:        db,
-        scheduler: scheduler,
-    }
-}
+### Health Checks
+- [ ] Readiness probe checks scheduler, VM pool, database
+- [ ] Liveness probe checks goroutine responsiveness
+- [ ] Endpoints return 200 OK when healthy, 503 when unhealthy
+- [ ] Kubernetes integration tested (livenessProbe, readinessProbe)
+- [ ] Graceful shutdown waits for in-flight executions
+- [ ] Shutdown timeout configurable (default: 30s)
 
-// HealthStatus represents system health
-type HealthStatus struct {
-    Healthy   bool              `json:"healthy"`
-    Timestamp time.Time         `json:"timestamp"`
-    Checks    map[string]Check  `json:"checks"`
-}
+---
 
-type Check struct {
-    Status  string `json:"status"` // "pass", "warn", "fail"
-    Message string `json:"message"`
-}
+**Configuration:**
+```yaml
+jsruntime:
+  scheduler:
+    enabled: true
+    tick_interval: 1m
+    timezone: UTC
 
-// Check performs all health checks
-func (hc *HealthChecker) Check(ctx context.Context) HealthStatus {
-    checks := make(map[string]Check)
-    healthy := true
+  http_endpoints:
+    enabled: true
+    base_path: /api/scripts
+    rate_limit: 100/min
 
-    // VM Pool health
-    vmCheck := hc.checkVMPool()
-    checks["vm_pool"] = vmCheck
-    if vmCheck.Status == "fail" {
-        healthy = false
-    }
+  metrics:
+    enabled: true
+    path: /metrics
+    retention_days: 15
 
-    // Database connectivity
-    dbCheck := hc.checkDatabase(ctx)
-    checks["database"] = dbCheck
-    if dbCheck.Status == "fail" {
-        healthy = false
-    }
+  vm_pool:
+    size: 20
+    max_idle: 10
+    prewarm: true
 
-    // Scheduler status
-    schedulerCheck := hc.checkScheduler()
-    checks["scheduler"] = schedulerCheck
-    if schedulerCheck.Status == "fail" {
-        healthy = false
-    }
+  compilation_cache:
+    enabled: true
+    max_size: 1000
+    ttl: 1h
 
-    return HealthStatus{
-        Healthy:   healthy,
-        Timestamp: time.Now(),
-        Checks:    checks,
-    }
-}
-
-func (hc *HealthChecker) checkVMPool() Check {
-    available := len(hc.vmPool.vms)
-    total := hc.vmPool.maxSize
-
-    if available == 0 {
-        return Check{Status: "fail", Message: "VM pool exhausted"}
-    }
-
-    utilization := float64(total-available) / float64(total)
-    if utilization > 0.9 {
-        return Check{Status: "warn", Message: "VM pool utilization > 90%"}
-    }
-
-    return Check{Status: "pass", Message: fmt.Sprintf("%d/%d VMs available", available, total)}
-}
-
-func (hc *HealthChecker) checkDatabase(ctx context.Context) Check {
-    ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-    defer cancel()
-
-    if err := hc.db.PingContext(ctx); err != nil {
-        return Check{Status: "fail", Message: fmt.Sprintf("Database unreachable: %v", err)}
-    }
-
-    return Check{Status: "pass", Message: "Database connected"}
-}
-
-func (hc *HealthChecker) checkScheduler() Check {
-    // Check if scheduler is running (basic check)
-    select {
-    case <-hc.scheduler.stop:
-        return Check{Status: "fail", Message: "Scheduler stopped"}
-    default:
-        return Check{Status: "pass", Message: "Scheduler running"}
-    }
-}
-
-// Handler provides HTTP endpoint
-func (hc *HealthChecker) Handler() http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        status := hc.Check(r.Context())
-
-        w.Header().Set("Content-Type", "application/json")
-        if !status.Healthy {
-            w.WriteHeader(http.StatusServiceUnavailable)
-        }
-
-        json.NewEncoder(w).Encode(status)
-    }
-}
+  health_checks:
+    readiness_path: /health/ready
+    liveness_path: /health/live
+    shutdown_timeout: 30s
 ```
 
-### Readiness vs Liveness Probes
-
-```go
-package jsruntime
-
-// Liveness probe: Is the service running?
-func (hc *HealthChecker) Liveness() http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        // Simple check: service is alive if it can respond
-        w.WriteHeader(http.StatusOK)
-        w.Write([]byte("OK"))
-    }
-}
-
-// Readiness probe: Can the service handle requests?
-func (hc *HealthChecker) Readiness() http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        status := hc.Check(r.Context())
-
-        if !status.Healthy {
-            w.WriteHeader(http.StatusServiceUnavailable)
-            json.NewEncoder(w).Encode(status)
-            return
-        }
-
-        w.WriteHeader(http.StatusOK)
-        w.Write([]byte("Ready"))
-    }
-}
-```
-
-### Registration in Router
-
-```go
-package main
-
-import (
-    "github.com/gorilla/mux"
-)
-
-func RegisterHealthChecks(router *mux.Router, checker *jsruntime.HealthChecker) {
-    router.HandleFunc("/health", checker.Handler()).Methods("GET")
-    router.HandleFunc("/health/live", checker.Liveness()).Methods("GET")
-    router.HandleFunc("/health/ready", checker.Readiness()).Methods("GET")
-}
-```
-
-## Load Testing Example
-
-```go
-package jsruntime_test
-
-import (
-    "context"
-    "sync"
-    "testing"
-    "time"
-)
-
-func BenchmarkScriptExecution(b *testing.B) {
-    // Setup
-    env := itf.Setup(b, itf.WithPermissions(permissions.AllScriptPermissions()...))
-    executionSvc := itf.GetService[*services.ExecutionService](env)
-
-    ctx := env.Context()
-    scriptID := createTestScript(ctx, env)
-
-    b.ResetTimer()
-
-    // Run N executions
-    for i := 0; i < b.N; i++ {
-        _, err := executionSvc.Execute(ctx, scriptID, nil)
-        if err != nil {
-            b.Fatal(err)
-        }
-    }
-}
-
-func TestConcurrentExecutions(t *testing.T) {
-    env := itf.Setup(t, itf.WithPermissions(permissions.AllScriptPermissions()...))
-    executionSvc := itf.GetService[*services.ExecutionService](env)
-
-    ctx := env.Context()
-    scriptID := createTestScript(ctx, env)
-
-    concurrency := 100
-    var wg sync.WaitGroup
-    wg.Add(concurrency)
-
-    start := time.Now()
-
-    for i := 0; i < concurrency; i++ {
-        go func() {
-            defer wg.Done()
-            _, err := executionSvc.Execute(ctx, scriptID, nil)
-            if err != nil {
-                t.Error(err)
-            }
-        }()
-    }
-
-    wg.Wait()
-    duration := time.Since(start)
-
-    t.Logf("Executed %d scripts concurrently in %v", concurrency, duration)
-    t.Logf("Throughput: %.2f executions/second", float64(concurrency)/duration.Seconds())
-}
-```
-
-## Summary
-
-This specification provides:
-
-1. **Cron Scheduler**: Minute-based ticker, cron expression parsing, concurrent execution prevention, dead letter queue
-2. **HTTP Endpoints**: Dynamic route registration, webhook path mapping, rate limiting, request/response handling
-3. **Monitoring**: Prometheus metrics for executions, VM pool, API calls, resource usage, scheduler
-4. **Performance Optimization**: Compilation caching, adaptive VM pool, database query optimization, connection pooling
-5. **Health Checks**: VM pool, database, scheduler status checks with liveness/readiness probes
-6. **Load Testing**: Benchmarks and concurrent execution tests
-
-These features transform the JavaScript runtime from a basic execution engine into a production-ready, scalable, and observable system.
-
+**Performance Benchmarks:**
+- Cron scheduler overhead: < 1% CPU
+- HTTP endpoint latency: < 50ms (p95) for cached scripts
+- VM pool acquisition: < 1ms (p95)
+- Compilation cache hit rate: > 90%
+- Metrics export latency: < 10ms
+- Health check latency: < 5ms

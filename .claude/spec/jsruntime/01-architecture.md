@@ -4,145 +4,291 @@
 
 The JavaScript Runtime module is a self-contained IOTA SDK module following Domain-Driven Design (DDD) principles. It integrates with the IOTA SDK application layer, EventBus, and database pool while maintaining clear boundaries and multi-tenant isolation.
 
-## Component Diagram
+```mermaid
+graph TB
+    subgraph "IOTA SDK Application"
+        subgraph "JavaScript Runtime Module"
+            subgraph "Presentation Layer"
+                Controllers[Controllers]
+                Templates[Templates]
+                ViewModels[ViewModels]
+                Locales[Locales]
+            end
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         IOTA SDK Application                            │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │                      JavaScript Runtime Module                     │  │
-│  │                                                                    │  │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │  │
-│  │  │ Presentation │  │   Service    │  │   Domain     │            │  │
-│  │  │   Layer      │  │    Layer     │  │   Layer      │            │  │
-│  │  ├──────────────┤  ├──────────────┤  ├──────────────┤            │  │
-│  │  │ Controllers  │─▶│ ScriptSvc    │─▶│ Script       │            │  │
-│  │  │ Templates    │  │ ExecutionSvc │  │ Execution    │            │  │
-│  │  │ ViewModels   │  │ VMPoolSvc    │  │ Version      │            │  │
-│  │  │ Locales      │  │ SchedulerSvc │  │ ValueObjects │            │  │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘            │  │
-│  │                            │                  │                   │  │
-│  │                            ▼                  ▼                   │  │
-│  │                    ┌──────────────┐  ┌──────────────┐            │  │
-│  │                    │Infrastructure│  │   Execution  │            │  │
-│  │                    │   Layer      │  │   Engine     │            │  │
-│  │                    ├──────────────┤  ├──────────────┤            │  │
-│  │                    │ Repositories │  │ VMPool       │            │  │
-│  │                    │ - Script     │  │ Sandbox      │            │  │
-│  │                    │ - Execution  │  │ APIBindings  │            │  │
-│  │                    │ - Version    │  │ ResourceMgr  │            │  │
-│  │                    └──────────────┘  └──────────────┘            │  │
-│  │                            │                  │                   │  │
-│  └────────────────────────────┼──────────────────┼───────────────────┘  │
-│                               │                  │                      │
-│  ┌────────────────────────────┼──────────────────┼───────────────────┐  │
-│  │         Shared Infrastructure                │                    │  │
-│  ├────────────────────────────┼──────────────────┼───────────────────┤  │
-│  │  pgxpool.Pool              │   EventBus       │   HTTP Router     │  │
-│  │  (tenant-scoped queries)   │   (pub/sub)      │   (endpoints)     │  │
-│  └────────────────────────────┴──────────────────┴───────────────────┘  │
-└─────────────────────────────────────────────────────────────────────────┘
-                                   │
-                                   ▼
-                         ┌──────────────────┐
-                         │   PostgreSQL     │
-                         ├──────────────────┤
-                         │ scripts          │
-                         │ executions       │
-                         │ versions         │
-                         │ subscriptions    │
-                         │ scheduled_jobs   │
-                         │ http_endpoints   │
-                         │ dead_letters     │
-                         └──────────────────┘
-```
+            subgraph "Service Layer"
+                ScriptSvc[Script Service]
+                ExecutionSvc[Execution Service]
+                VMPoolSvc[VM Pool Service]
+                SchedulerSvc[Scheduler Service]
+            end
 
-## Data Flow Diagrams
+            subgraph "Domain Layer"
+                Script[Script Aggregate]
+                Execution[Execution Entity]
+                Version[Version Entity]
+                ValueObjects[Value Objects]
+            end
 
-### 1. Scheduled Script Execution Flow
+            subgraph "Infrastructure Layer"
+                Repositories[Repositories]
+                VMPool[VM Pool]
+                Sandbox[Sandbox]
+                APIBindings[API Bindings]
+            end
+        end
 
-```
-┌──────────┐      ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-│  Cron    │─────▶│  Scheduler   │─────▶│  VMPool      │─────▶│ Script   │
-│  Ticker  │      │  Service     │      │  Service     │      │ Execution│
-└──────────┘      └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Get Scheduled│      │ Acquire VM   │      │  Store   │
-                  │ Scripts      │      │ from Pool    │      │  Results │
-                  └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Filter by    │      │ Inject APIs  │      │  Release │
-                  │ Tenant       │      │ & Context    │      │  VM      │
-                  └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Check Next   │      │ Execute with │      │  Publish │
-                  │ Run Time     │      │ Timeout      │      │  Event   │
-                  └──────────────┘      └──────────────┘      └──────────┘
+        subgraph "Shared Infrastructure"
+            DBPool[pgxpool.Pool]
+            EventBus[EventBus]
+            HTTPRouter[HTTP Router]
+        end
+    end
+
+    Database[(PostgreSQL)]
+
+    Controllers --> ScriptSvc
+    Controllers --> ExecutionSvc
+    ScriptSvc --> Script
+    ExecutionSvc --> Execution
+    Script --> Repositories
+    Execution --> Repositories
+    ScriptSvc --> VMPoolSvc
+    VMPoolSvc --> VMPool
+    VMPool --> Sandbox
+    Repositories --> DBPool
+    DBPool --> Database
+    SchedulerSvc --> EventBus
+    EventBus --> Database
 ```
 
-### 2. HTTP Endpoint Script Execution Flow
+## Layer Responsibilities
 
-```
-┌──────────┐      ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-│  HTTP    │─────▶│  Router      │─────▶│  VMPool      │─────▶│ Script   │
-│  Request │      │  Middleware  │      │  Service     │      │ Execution│
-└──────────┘      └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Authenticate │      │ Acquire VM   │      │  Build   │
-                  │ & Authorize  │      │ for Tenant   │      │  Response│
-                  └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Lookup Script│      │ Inject HTTP  │      │  Return  │
-                  │ by Path      │      │ Request Obj  │      │  to User │
-                  └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Check Status │      │ Execute with │      │  Log     │
-                  │ & Limits     │      │ Timeout      │      │  Execution│
-                  └──────────────┘      └──────────────┘      └──────────┘
+### Presentation Layer
+**What It Does:**
+- Handles HTTP requests and responses for script management
+- Provides Monaco Editor integration for code editing
+- Transforms domain data into UI-friendly formats via ViewModels
+- Manages multi-language translations (en, ru, uz)
+
+**Components:**
+- **Controllers**: HTTP endpoints for CRUD operations, execution monitoring
+- **Templates**: Templ-based UI templates for script listing, editing, execution history
+- **ViewModels**: Transform domain entities to presentation-friendly structures
+- **Locales**: Translation files for all user-facing text
+
+### Service Layer
+**What It Does:**
+- Orchestrates business logic and coordinates between domain and infrastructure
+- Manages script lifecycle (create, update, delete, execute)
+- Coordinates VM pool operations and resource allocation
+- Handles cron scheduling and event subscriptions
+
+**Components:**
+- **Script Service**: CRUD operations, validation, versioning
+- **Execution Service**: Script execution orchestration, result tracking
+- **VM Pool Service**: VM lifecycle management, warm-up, cleanup
+- **Scheduler Service**: Cron job scheduling, next run calculation
+- **Event Handler Service**: Event subscription, script matching, execution triggering
+
+### Domain Layer
+**What It Does:**
+- Defines core business entities and rules
+- Enforces invariants and validation logic
+- Publishes domain events for state changes
+- Provides repository interfaces (contracts)
+
+**Components:**
+- **Script Aggregate**: Root entity with execution triggers, resource limits, status
+- **Execution Entity**: Single script run with input/output, status, metrics
+- **Version Entity**: Immutable snapshot of script source for audit trail
+- **Value Objects**: ScriptType, ScriptStatus, ExecutionStatus, ResourceLimits, CronExpression, TriggerData
+
+### Infrastructure Layer
+**What It Does:**
+- Implements repository interfaces from domain layer
+- Provides VM execution environment and API bindings
+- Manages cron scheduling infrastructure
+- Handles database persistence with tenant isolation
+
+**Components:**
+- **Repositories**: Script, Execution, Version data access with PostgreSQL
+- **VM Pool**: Goja VM lifecycle, warm-up, acquisition, release
+- **Sandbox**: Script execution environment with resource limits
+- **API Bindings**: JavaScript APIs (console, database, HTTP client)
+- **Scheduler**: Cron job execution coordinator
+
+## Data Flow Patterns
+
+### 1. Scheduled Script Execution
+
+```mermaid
+sequenceDiagram
+    participant Cron as Cron Ticker
+    participant Scheduler as Scheduler Service
+    participant DB as Database
+    participant VMPool as VM Pool
+    participant Execution as Execution Tracker
+
+    Cron->>Scheduler: Tick (every minute)
+    Scheduler->>DB: Query scripts due to run
+    DB-->>Scheduler: Return scheduled scripts
+
+    loop For each script
+        Scheduler->>DB: Check tenant context
+        Scheduler->>DB: Verify no overlapping execution
+        Scheduler->>VMPool: Request VM for tenant
+        VMPool-->>Scheduler: Provide VM
+
+        Scheduler->>VMPool: Execute with timeout
+        VMPool-->>Scheduler: Return result
+
+        Scheduler->>Execution: Log execution
+        Scheduler->>DB: Update next run time
+        Scheduler->>VMPool: Release VM
+    end
+
+    Scheduler->>EventBus: Publish execution events
 ```
 
-### 3. Event-Triggered Script Execution Flow
+**Key Steps:**
+1. Cron ticker triggers scheduler every minute
+2. Query active scheduled scripts due to run (filtered by tenant)
+3. Check for overlapping executions via database lock
+4. Acquire VM from pool (tenant-scoped)
+5. Inject tenant context and API bindings
+6. Execute with timeout enforcement
+7. Store results and update next run time
+8. Release VM back to pool
+9. Publish execution events for monitoring
 
+### 2. HTTP Endpoint Script Execution
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Router as HTTP Router
+    participant Auth as Auth Middleware
+    participant ScriptSvc as Script Service
+    participant VMPool as VM Pool
+    participant DB as Database
+
+    Client->>Router: GET /api/scripts/my-endpoint
+    Router->>Auth: Authenticate request
+    Auth->>Router: Tenant context extracted
+
+    Router->>ScriptSvc: Find script by HTTP path
+    ScriptSvc->>DB: Query by (tenant_id, http_path)
+    DB-->>ScriptSvc: Return script
+
+    alt Script found and active
+        ScriptSvc->>VMPool: Execute with request context
+        VMPool-->>ScriptSvc: Response object (status, headers, body)
+        ScriptSvc->>DB: Log execution
+        ScriptSvc->>Router: Format HTTP response
+        Router-->>Client: 200 OK + response
+    else Script not found or inactive
+        ScriptSvc->>Router: 404 Not Found
+        Router-->>Client: 404 Not Found
+    end
 ```
-┌──────────┐      ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-│  Domain  │─────▶│  EventBus    │─────▶│  Script      │─────▶│  VMPool  │
-│  Event   │      │  Handler     │      │  Matcher     │      │  Service │
-└──────────┘      └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Publish to   │      │ Find Scripts │      │ Execute  │
-                  │ Event Type   │      │ by Event Type│      │ in Pool  │
-                  └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Filter by    │      │ Filter by    │      │  Store   │
-                  │ Tenant       │      │ Tenant       │      │  Results │
-                  └──────────────┘      └──────────────┘      └──────────┘
-                         │                      │                    │
-                         ▼                      ▼                    ▼
-                  ┌──────────────┐      ┌──────────────┐      ┌──────────┐
-                  │ Queue for    │      │ Execute Each │      │  Retry   │
-                  │ Execution    │      │ Script       │      │  on Fail │
-                  └──────────────┘      └──────────────┘      └──────────┘
+
+**Key Steps:**
+1. Client sends HTTP request to registered endpoint
+2. Authentication middleware extracts tenant context
+3. Router matches request path to script
+4. Query script by tenant ID and HTTP path
+5. Verify script is active and matches HTTP method
+6. Acquire VM and inject HTTP request object
+7. Execute script with timeout
+8. Script returns response object (status, headers, body)
+9. Log execution and format HTTP response
+10. Return response to client
+
+### 3. Event-Triggered Script Execution
+
+```mermaid
+sequenceDiagram
+    participant Service as Domain Service
+    participant EventBus
+    participant EventHandler as Event Handler Service
+    participant DB as Database
+    participant VMPool as VM Pool
+    participant DLQ as Dead Letter Queue
+
+    Service->>EventBus: Publish event (user.created)
+    EventBus->>EventHandler: Notify subscribers
+
+    EventHandler->>DB: Find scripts by event type
+    DB-->>EventHandler: Return subscribed scripts
+
+    loop For each script
+        EventHandler->>VMPool: Execute with event payload
+
+        alt Success
+            VMPool-->>EventHandler: Execution succeeded
+            EventHandler->>DB: Log success
+        else Failure (retry)
+            VMPool-->>EventHandler: Execution failed
+            EventHandler->>EventHandler: Wait (exponential backoff)
+            EventHandler->>VMPool: Retry execution
+
+            alt Max retries exceeded
+                EventHandler->>DLQ: Move to dead letter queue
+                EventHandler->>DB: Log failure
+            end
+        end
+    end
+
+    EventHandler->>EventBus: Acknowledge event
 ```
+
+**Key Steps:**
+1. Domain service publishes event to EventBus
+2. Event Handler receives event notification
+3. Query scripts subscribed to event type (filtered by tenant)
+4. For each matching script, execute in VM pool
+5. Pass event payload to script as input
+6. On failure, retry with exponential backoff
+7. After max retries, move to dead letter queue
+8. Log all execution attempts
+9. Acknowledge event to EventBus
 
 ## Key Design Decisions
 
 ### 1. Why Goja?
+
+```mermaid
+graph LR
+    subgraph "JavaScript Engines Evaluated"
+        Goja[Goja<br/>Pure Go]
+        V8[V8Go<br/>CGO Binding]
+        QuickJS[QuickJS<br/>C Binding]
+        Otto[Otto<br/>Abandoned]
+    end
+
+    subgraph "Selection Criteria"
+        NoCGO[No CGO Dependencies]
+        Memory[Memory Safety]
+        Interop[Go Interoperability]
+        Maintenance[Active Maintenance]
+        Performance[Acceptable Performance]
+    end
+
+    Goja --> NoCGO
+    Goja --> Memory
+    Goja --> Interop
+    Goja --> Maintenance
+    Goja --> Performance
+
+    V8 -.->|Rejected| NoCGO
+    QuickJS -.->|Rejected| Interop
+    Otto -.->|Rejected| Maintenance
+
+    style Goja fill:#90EE90
+    style V8 fill:#FFB6C1
+    style QuickJS fill:#FFB6C1
+    style Otto fill:#FFB6C1
+```
 
 **Decision**: Use Goja as the JavaScript runtime engine.
 
@@ -166,6 +312,20 @@ The JavaScript Runtime module is a self-contained IOTA SDK module following Doma
 
 ### 2. Why VM Pooling?
 
+```mermaid
+stateDiagram-v2
+    [*] --> Available: VM Created
+    Available --> Acquired: Request from tenant
+    Acquired --> InUse: Executing script
+    InUse --> Released: Execution complete
+    Released --> Available: Reset state
+    Available --> Destroyed: Idle timeout (5 min)
+    Destroyed --> [*]
+
+    InUse --> Released: Timeout enforced
+    InUse --> Released: Error occurred
+```
+
 **Decision**: Implement a pool of pre-warmed Goja VMs.
 
 **Rationale:**
@@ -182,16 +342,42 @@ The JavaScript Runtime module is a self-contained IOTA SDK module following Doma
 - Per-tenant limit: Max 5 concurrent VMs per tenant (prevent monopolization)
 - Warm-up: Pre-load standard library and common APIs
 
-**Pool States:**
-```
-Available → Acquired → In-Use → Released → Available
-                                     ↓
-                                 (timeout)
-                                     ↓
-                              Destroyed
-```
-
 ### 3. Multi-Tenant Architecture
+
+```mermaid
+graph TB
+    subgraph "Tenant A Isolation"
+        ScriptsA[Scripts]
+        ExecutionsA[Executions]
+        VMA[Dedicated VMs]
+        DataA[(Tenant A Data)]
+    end
+
+    subgraph "Tenant B Isolation"
+        ScriptsB[Scripts]
+        ExecutionsB[Executions]
+        VMB[Dedicated VMs]
+        DataB[(Tenant B Data)]
+    end
+
+    subgraph "Shared Infrastructure"
+        VMPool[VM Pool Manager]
+        DBPool[Database Pool]
+        EventBus[Event Bus]
+    end
+
+    ScriptsA --> VMA
+    ScriptsB --> VMB
+    VMA --> VMPool
+    VMB --> VMPool
+    ScriptsA --> DBPool
+    ScriptsB --> DBPool
+    VMA --> DataA
+    VMB --> DataB
+
+    DBPool -.->|tenant_id filter| DataA
+    DBPool -.->|tenant_id filter| DataB
+```
 
 **Decision**: Enforce tenant isolation at all layers (database, VM, API).
 
@@ -208,219 +394,178 @@ Available → Acquired → In-Use → Released → Available
 - **Execution Tracking**: Separate execution logs per tenant
 - **Resource Limits**: Per-tenant quotas (executions/hour, concurrent VMs, storage)
 
-**Tenant Context Injection:**
-```javascript
-// Available in all scripts via global context
-const tenantId = context.tenantId;
-const userId = context.userId;
-const organizationId = context.organizationId;
-
-// API calls automatically scoped
-db.query("SELECT * FROM users"); // Only returns users in current tenant
-http.get("/api/data"); // Includes tenant context in request
-```
+**Tenant Context Available in Scripts:**
+- `context.tenantId` - Current tenant identifier
+- `context.userId` - Authenticated user identifier
+- `context.organizationId` - Organization identifier within tenant
+- All API calls automatically inherit tenant context
 
 ### 4. Integration Points with IOTA SDK
 
-#### 4.1 Application Interface
+```mermaid
+graph TB
+    subgraph "JavaScript Runtime Module"
+        Module[Module Registration]
+        ScriptSvc[Script Service]
+        VMPoolSvc[VM Pool Service]
+        SchedulerSvc[Scheduler Service]
+        EventHandlerSvc[Event Handler Service]
+    end
 
-**Integration**: JavaScript Runtime module registers with `application.Application`.
+    subgraph "IOTA SDK Core"
+        App[Application]
+        Router[HTTP Router]
+        EventBus[Event Bus]
+        DBPool[Database Pool]
+    end
 
-**Pattern:**
-```go
-// modules/jsruntime/module.go
-type Module struct {
-    app            application.Application
-    scriptService  services.ScriptService
-    vmPoolService  services.VMPoolService
-    scheduler      services.SchedulerService
-}
+    Module -->|Register routes| Router
+    Module -->|Subscribe to lifecycle| EventBus
+    Module -->|Use for queries| DBPool
 
-func (m *Module) Register(app application.Application) error {
-    // Register HTTP routes
-    m.registerRoutes(app.Router())
+    App -->|app.started| VMPoolSvc
+    App -->|app.stopping| SchedulerSvc
 
-    // Subscribe to lifecycle events
-    app.EventBus().Subscribe("app.started", m.onAppStarted)
-    app.EventBus().Subscribe("app.stopping", m.onAppStopping)
-
-    // Start background services
-    go m.scheduler.Start(app.Context())
-    go m.vmPoolService.Start(app.Context())
-
-    return nil
-}
-
-func (m *Module) onAppStarted(event eventbus.Event) {
-    // Warm up VM pool
-    m.vmPoolService.WarmUp(10)
-
-    // Load scheduled scripts
-    m.scheduler.LoadSchedules()
-}
-
-func (m *Module) onAppStopping(event eventbus.Event) {
-    // Graceful shutdown
-    m.scheduler.Stop()
-    m.vmPoolService.Drain()
-}
+    EventBus -->|domain events| EventHandlerSvc
+    EventHandlerSvc -->|trigger scripts| ScriptSvc
+    ScriptSvc -->|execute| VMPoolSvc
 ```
 
-#### 4.2 EventBus Integration
+#### Application Lifecycle Integration
+**What It Does:**
+- Module registers with `application.Application` on startup
+- Subscribes to application lifecycle events (`app.started`, `app.stopping`)
+- Registers HTTP routes for script management
+- Starts background services (scheduler, VM pool)
 
-**Integration**: Subscribe to domain events for event-triggered scripts.
+**How It Works:**
+1. Module registration called during application bootstrap
+2. Routes registered with application router
+3. EventBus subscriptions established for lifecycle events
+4. Background goroutines started for scheduler and VM pool
+5. On shutdown, graceful drain of pending executions
 
-**Pattern:**
-```go
-// modules/jsruntime/services/event_handler_service.go
-type EventHandlerService struct {
-    eventBus          eventbus.EventBus
-    scriptRepo        domain.ScriptRepository
-    executionService  ExecutionService
-}
+#### EventBus Integration
+**What It Does:**
+- Subscribes to wildcard pattern (`*`) to receive all domain events
+- Matches incoming events to subscribed scripts by event type
+- Triggers script execution with event payload as input
+- Handles retry logic and dead letter queue
 
-func (s *EventHandlerService) Start(ctx context.Context) error {
-    // Subscribe to wildcard pattern
-    s.eventBus.Subscribe("*", s.handleEvent)
-    return nil
-}
+**How It Works:**
+1. Event Handler Service subscribes to all events
+2. On event publish, query scripts by event type and tenant
+3. Execute each matching script asynchronously
+4. Log execution results and handle failures
 
-func (s *EventHandlerService) handleEvent(event eventbus.Event) {
-    ctx := event.Context()
-    tenantID := composables.UseTenantID(ctx)
+#### Database Pool Integration
+**What It Does:**
+- Uses shared PostgreSQL connection pool via `pgxpool.Pool`
+- Leverages composables for tenant isolation (`composables.UseTenantID`)
+- Participates in transactions via `composables.UseTx`
 
-    // Find scripts subscribed to this event type
-    scripts, err := s.scriptRepo.GetByEventType(ctx, event.Type())
-    if err != nil {
-        return
-    }
-
-    // Execute each script
-    for _, script := range scripts {
-        go s.executionService.ExecuteAsync(ctx, script.ID(), event.Data())
-    }
-}
-```
-
-#### 4.3 Database Pool Integration
-
-**Integration**: Use shared `pgxpool.Pool` with composables for tenant isolation.
-
-**Pattern:**
-```go
-// modules/jsruntime/infrastructure/persistence/script_repository.go
-type ScriptRepository struct {
-    pool *pgxpool.Pool
-}
-
-func (r *ScriptRepository) GetByID(ctx context.Context, id uuid.UUID) (domain.Script, error) {
-    const op serrors.Op = "ScriptRepository.GetByID"
-
-    tx := composables.UseTx(ctx)
-    pool := composables.UsePool(ctx, r.pool)
-    tenantID := composables.UseTenantID(ctx)
-
-    const query = `
-        SELECT id, tenant_id, name, description, source, type, status,
-               resource_limits, cron_expression, http_path, http_methods,
-               event_types, metadata, created_at, updated_at, created_by
-        FROM scripts
-        WHERE id = $1 AND tenant_id = $2
-    `
-
-    var row ScriptRow
-    err := tx.QueryRow(ctx, query, id, tenantID).Scan(...)
-    if err != nil {
-        return nil, serrors.E(op, err)
-    }
-
-    return MapRowToScript(row), nil
-}
-```
+**How It Works:**
+1. Repository receives context with tenant ID
+2. Composables extract tenant ID from context
+3. All queries include `tenant_id` in WHERE clause
+4. Row-level security enforced at database level
 
 ## Module Structure (DDD)
 
-```
-modules/jsruntime/
-├── domain/
-│   ├── aggregates/
-│   │   └── script/
-│   │       ├── script.go              # Script aggregate interface
-│   │       └── script_impl.go         # Script implementation (private)
-│   ├── entities/
-│   │   ├── execution/
-│   │   │   ├── execution.go           # Execution entity interface
-│   │   │   └── execution_impl.go      # Execution implementation
-│   │   └── version/
-│   │       ├── version.go             # Version entity interface
-│   │       └── version_impl.go        # Version implementation
-│   ├── value_objects/
-│   │   ├── script_type.go             # ScriptType enum
-│   │   ├── script_status.go           # ScriptStatus enum
-│   │   ├── execution_status.go        # ExecutionStatus enum
-│   │   ├── resource_limits.go         # ResourceLimits struct
-│   │   ├── cron_expression.go         # CronExpression value object
-│   │   └── trigger_data.go            # TriggerData value object
-│   ├── events/
-│   │   ├── script_events.go           # Script lifecycle events
-│   │   └── execution_events.go        # Execution events
-│   └── repositories/
-│       ├── script_repository.go       # Script repository interface
-│       ├── execution_repository.go    # Execution repository interface
-│       └── version_repository.go      # Version repository interface
-├── services/
-│   ├── script_service.go              # Script CRUD service
-│   ├── script_service_test.go         # Service tests
-│   ├── execution_service.go           # Execution orchestration
-│   ├── vmpool_service.go              # VM pool management
-│   ├── scheduler_service.go           # Cron scheduler
-│   └── event_handler_service.go       # Event subscription
-├── infrastructure/
-│   ├── persistence/
-│   │   ├── script_repository.go       # Script repo implementation
-│   │   ├── script_repository_test.go  # Repo tests
-│   │   ├── execution_repository.go    # Execution repo implementation
-│   │   ├── version_repository.go      # Version repo implementation
-│   │   └── mappers.go                 # DB row to domain mappers
-│   ├── runtime/
-│   │   ├── vm_pool.go                 # VM pool implementation
-│   │   ├── sandbox.go                 # Goja sandbox wrapper
-│   │   └── bindings/
-│   │       ├── console.go             # console.log API
-│   │       ├── database.go            # db.query API
-│   │       └── http.go                # http.get/post API
-│   └── scheduler/
-│       └── cron_scheduler.go          # Cron job scheduler
-├── presentation/
-│   ├── controllers/
-│   │   ├── script_controller.go       # Script CRUD endpoints
-│   │   ├── script_controller_test.go  # Controller tests
-│   │   ├── execution_controller.go    # Execution monitoring
-│   │   └── editor_controller.go       # Monaco editor integration
-│   ├── viewmodels/
-│   │   ├── script_viewmodel.go        # Script UI transformation
-│   │   └── execution_viewmodel.go     # Execution UI transformation
-│   ├── templates/
-│   │   ├── pages/
-│   │   │   ├── scripts/
-│   │   │   │   ├── index.templ        # Script listing
-│   │   │   │   ├── create.templ       # Create script form
-│   │   │   │   ├── edit.templ         # Edit script (Monaco)
-│   │   │   │   └── show.templ         # Script details
-│   │   │   └── executions/
-│   │   │       ├── index.templ        # Execution history
-│   │   │       └── show.templ         # Execution details
-│   │   └── components/
-│   │       ├── script_form.templ      # Reusable form component
-│   │       └── monaco_editor.templ    # Editor wrapper
-│   └── locales/
-│       ├── en.toml                    # English translations
-│       ├── ru.toml                    # Russian translations
-│       └── uz.toml                    # Uzbek translations
-└── module.go                          # Module registration
+```mermaid
+graph TB
+    subgraph "Domain Layer (Pure Business Logic)"
+        Aggregates[Aggregates<br/>Script]
+        Entities[Entities<br/>Execution, Version]
+        ValueObjects[Value Objects<br/>ScriptType, Status, Limits]
+        DomainEvents[Domain Events<br/>ScriptCreated, ExecutionCompleted]
+        RepoInterfaces[Repository Interfaces]
+    end
+
+    subgraph "Service Layer (Orchestration)"
+        ScriptService[Script Service]
+        ExecutionService[Execution Service]
+        VMPoolService[VM Pool Service]
+        SchedulerService[Scheduler Service]
+        EventHandlerService[Event Handler Service]
+    end
+
+    subgraph "Infrastructure Layer (Technical Implementation)"
+        Repositories[Repository Implementations]
+        VMPoolImpl[VM Pool Implementation]
+        SandboxImpl[Sandbox Implementation]
+        APIBindings[API Bindings]
+        SchedulerImpl[Scheduler Implementation]
+    end
+
+    subgraph "Presentation Layer (UI/API)"
+        Controllers[Controllers]
+        ViewModels[View Models]
+        Templates[Templates]
+        Locales[Translations]
+    end
+
+    Aggregates --> RepoInterfaces
+    Entities --> RepoInterfaces
+    ScriptService --> Aggregates
+    ScriptService --> RepoInterfaces
+    ExecutionService --> Entities
+    VMPoolService --> Repositories
+    Repositories -.implements.-> RepoInterfaces
+    Controllers --> ScriptService
+    Controllers --> ExecutionService
+    ViewModels --> Aggregates
+    ViewModels --> Entities
 ```
 
+**Directory Structure:**
+- `domain/` - Pure business logic, no external dependencies
+  - `aggregates/` - Root entities with business rules
+  - `entities/` - Domain entities with identity
+  - `value_objects/` - Immutable value types
+  - `events/` - Domain event definitions
+  - `repositories/` - Repository interface contracts
+
+- `services/` - Business logic orchestration
+  - `*_service.go` - Service implementations
+  - `*_service_test.go` - Service tests
+
+- `infrastructure/` - Technical implementations
+  - `persistence/` - Repository implementations
+  - `runtime/` - VM pool, sandbox, API bindings
+  - `scheduler/` - Cron scheduler implementation
+
+- `presentation/` - UI and API layer
+  - `controllers/` - HTTP endpoint handlers
+  - `viewmodels/` - Domain to UI transformation
+  - `templates/` - Templ-based UI templates
+  - `locales/` - Translation files (en, ru, uz)
+
 ## Performance Considerations
+
+### VM Pool Optimization
+
+```mermaid
+graph LR
+    subgraph "VM Pool Metrics"
+        HitRate[Pool Hit Rate<br/>Target: >95%]
+        PoolSize[Pool Size<br/>2x CPU cores]
+        WarmupTime[Warmup Time<br/><500ms]
+        UtilizationRate[Utilization Rate<br/>60-80%]
+    end
+
+    subgraph "Optimization Strategies"
+        PreWarm[Pre-warm VMs]
+        DynamicExpansion[Dynamic Expansion]
+        IdleTimeout[Idle Timeout]
+        CircuitBreaker[Circuit Breaker]
+    end
+
+    HitRate --> PreWarm
+    PoolSize --> DynamicExpansion
+    WarmupTime --> PreWarm
+    UtilizationRate --> IdleTimeout
+```
 
 **VM Pool Tuning:**
 - Monitor pool hit rate (target: >95%)
@@ -449,6 +594,34 @@ modules/jsruntime/
 
 ## Security Architecture
 
+```mermaid
+graph TB
+    subgraph "Defense in Depth Layers"
+        Layer1[1. Input Validation<br/>Sanitize source, validate limits]
+        Layer2[2. Sandbox Isolation<br/>Restricted global scope]
+        Layer3[3. API Authorization<br/>Tenant context checks]
+        Layer4[4. Database Isolation<br/>Row-level security]
+        Layer5[5. Resource Limits<br/>CPU, memory, rate limits]
+        Layer6[6. Audit Trail<br/>Log all changes]
+    end
+
+    UserInput[User Script Input] --> Layer1
+    Layer1 --> Layer2
+    Layer2 --> Layer3
+    Layer3 --> Layer4
+    Layer4 --> Layer5
+    Layer5 --> Layer6
+    Layer6 --> SafeExecution[Safe Execution]
+
+    style Layer1 fill:#FFE4E1
+    style Layer2 fill:#FFE4B5
+    style Layer3 fill:#E0FFE0
+    style Layer4 fill:#E0F2FF
+    style Layer5 fill:#E6E6FA
+    style Layer6 fill:#FFE4E1
+    style SafeExecution fill:#90EE90
+```
+
 **Defense in Depth:**
 1. **Input Validation**: Sanitize script source, validate resource limits
 2. **Sandbox Isolation**: Goja VM with restricted global scope
@@ -465,6 +638,33 @@ modules/jsruntime/
 - All API bindings go through authorization layer
 
 ## Monitoring & Observability
+
+```mermaid
+graph TB
+    subgraph "Metrics Collection"
+        ExecMetrics[Execution Metrics<br/>rate, duration, errors]
+        VMMetrics[VM Pool Metrics<br/>utilization, hit rate]
+        ResourceMetrics[Resource Metrics<br/>memory, CPU, queue depth]
+    end
+
+    subgraph "Logging"
+        AuditLogs[Audit Logs<br/>create, update, delete]
+        ExecutionLogs[Execution Logs<br/>start, end, errors]
+        SecurityLogs[Security Logs<br/>violations, anomalies]
+    end
+
+    subgraph "Alerting"
+        ErrorRateAlert[Error Rate > 5%]
+        PoolExhaustion[VM Pool Exhausted]
+        TimeoutSpike[Timeout Spike]
+        MemoryPressure[Memory > 80%]
+    end
+
+    ExecMetrics --> ErrorRateAlert
+    VMMetrics --> PoolExhaustion
+    ExecMetrics --> TimeoutSpike
+    ResourceMetrics --> MemoryPressure
+```
 
 **Metrics to Track:**
 - Script executions per second (by tenant, by type)
@@ -487,3 +687,33 @@ modules/jsruntime/
 - Execution timeout spike
 - Memory usage > 80% of limit
 - Database connection pool exhaustion
+
+## Acceptance Criteria
+
+### Architecture Requirements
+- ✅ Module follows DDD layer boundaries (domain, service, infrastructure, presentation)
+- ✅ Domain layer has zero external dependencies
+- ✅ Repository interfaces defined in domain, implemented in infrastructure
+- ✅ Multi-tenant isolation enforced at all layers
+- ✅ Integration with IOTA SDK via application interface
+
+### Performance Requirements
+- ✅ VM pool hit rate > 95% under normal load
+- ✅ Cold VM warmup time < 500ms
+- ✅ Script execution start latency < 100ms (warm pool)
+- ✅ Support 1000+ concurrent executions
+- ✅ Database queries use indexed columns for tenant filtering
+
+### Security Requirements
+- ✅ Tenant ID enforced in all database queries
+- ✅ VM sandbox prevents access to Go runtime
+- ✅ Resource limits enforced (timeout, memory, rate)
+- ✅ Audit trail for all script modifications
+- ✅ No cross-tenant data access possible
+
+### Integration Requirements
+- ✅ Graceful startup and shutdown with IOTA SDK lifecycle
+- ✅ EventBus integration for event-triggered scripts
+- ✅ HTTP router integration for endpoint scripts
+- ✅ Database pool integration with composables
+- ✅ Monitoring metrics exposed via Prometheus

@@ -1,887 +1,562 @@
-# JavaScript Runtime - Service Layer Specification
-
-**Status:** Implementation Ready
-**Layer:** Service Layer
-**Dependencies:** Domain entities, Repository interfaces, Event bus
-**Related Issues:** #411, #412, #413, #415, #418, #419
-
----
+# JavaScript Runtime - Service Layer
 
 ## Overview
 
-This specification defines the service layer for JavaScript runtime functionality, including script management and execution orchestration. Services coordinate business logic, permission checks, validation, and event publishing.
+The service layer orchestrates business logic, coordinates between repositories, manages VM execution, and enforces permissions and validation rules.
 
-## Service Architecture
+```mermaid
+graph TB
+    subgraph "Service Layer"
+        ScriptService[Script Service]
+        ExecutionService[Execution Service]
+        VMPoolService[VM Pool Service]
+        SchedulerService[Scheduler Service]
+        EventHandlerService[Event Handler Service]
+    end
 
-### ScriptService
+    subgraph "Domain Layer"
+        ScriptRepo[ScriptRepository]
+        ExecutionRepo[ExecutionRepository]
+        VersionRepo[VersionRepository]
+    end
 
-**Purpose:** Manage script CRUD operations, versioning, and content updates.
+    subgraph "Infrastructure"
+        VMPool[VM Pool]
+        EventBus[Event Bus]
+        Cron[Cron Ticker]
+    end
 
-**Location:** `modules/scripts/services/script_service.go`
-
-**Dependencies:**
-```go
-type ScriptService struct {
-    repo        script.Repository
-    versionRepo version.Repository
-    runtime     runtime.Runtime
-    publisher   eventbus.EventBus
-}
-
-func NewScriptService(
-    repo script.Repository,
-    versionRepo version.Repository,
-    runtime runtime.Runtime,
-    publisher eventbus.EventBus,
-) *ScriptService {
-    return &ScriptService{
-        repo:        repo,
-        versionRepo: versionRepo,
-        runtime:     runtime,
-        publisher:   publisher,
-    }
-}
+    ScriptService --> ScriptRepo
+    ScriptService --> VersionRepo
+    ScriptService --> ExecutionService
+    ExecutionService --> ExecutionRepo
+    ExecutionService --> VMPoolService
+    VMPoolService --> VMPool
+    SchedulerService --> ScriptRepo
+    SchedulerService --> ExecutionService
+    SchedulerService --> Cron
+    EventHandlerService --> ScriptRepo
+    EventHandlerService --> ExecutionService
+    EventHandlerService --> EventBus
 ```
 
-**Methods:**
+## Script Service
 
-#### Create
+**What It Does:**
+Manages script lifecycle (CRUD), versioning, validation, and permissions enforcement.
 
-```go
-func (s *ScriptService) Create(ctx context.Context, data CreateScriptDTO) (script.Script, error) {
-    const op serrors.Op = "ScriptService.Create"
+**Responsibilities:**
+- Create/update/delete scripts with business validation
+- Automatic version creation on updates
+- Permission checks via RBAC
+- Name and HTTP path uniqueness validation
+- Type-specific validation (cron, HTTP, event requirements)
 
-    // Permission check
-    if err := composables.CanUser(ctx, permissions.ScriptCreate); err != nil {
-        return nil, serrors.E(op, err)
-    }
+```mermaid
+sequenceDiagram
+    participant Controller
+    participant ScriptService
+    participant ScriptRepo
+    participant VersionRepo
+    participant EventBus
 
-    // Validate syntax before saving
-    if err := s.runtime.ValidateSyntax(data.Source); err != nil {
-        return nil, serrors.E(op, serrors.KindValidation,
-            "syntax error in script", err)
-    }
+    Controller->>ScriptService: Create(ctx, createDTO)
+    ScriptService->>ScriptService: Validate(name, source, type)
 
-    var created script.Script
-    err := composables.InTx(ctx, func(txCtx context.Context) error {
-        // Create script entity
-        scr := script.New(
-            data.Name,
-            script.ScriptType(data.Type),
-            data.Source,
-            script.WithDescription(data.Description),
-            script.WithSchedule(data.Schedule),
-            script.WithEventType(data.EventType),
-            script.WithEnabled(data.Enabled),
-        )
+    alt Script type = scheduled
+        ScriptService->>ScriptService: Validate cron expression
+    else Script type = http
+        ScriptService->>ScriptService: Validate HTTP path
+    else Script type = event
+        ScriptService->>ScriptService: Validate event types
+    end
 
-        // Save to repository
-        result, err := s.repo.Create(txCtx, scr)
-        if err != nil {
-            return err
-        }
-        created = result
+    ScriptService->>ScriptRepo: NameExists(name)
+    ScriptRepo-->>ScriptService: false
 
-        // Create initial version
-        ver := version.New(
-            result.ID(),
-            1,
-            data.Source,
-            version.WithCreatedBy(composables.MustUseUser(txCtx).ID()),
-        )
-        if _, err := s.versionRepo.Create(txCtx, ver); err != nil {
-            return err
-        }
+    ScriptService->>ScriptService: Build script entity
+    ScriptService->>ScriptRepo: Create(script)
+    ScriptService->>VersionRepo: Create(version 1)
+    ScriptService->>EventBus: Publish ScriptCreatedEvent
 
-        return nil
-    })
-    if err != nil {
-        return nil, serrors.E(op, err)
-    }
-
-    // Publish creation event
-    s.publisher.Publish(&script.CreatedEvent{
-        Script: created,
-        User:   composables.MustUseUser(ctx),
-    })
-
-    return created, nil
-}
+    ScriptService-->>Controller: Created script
 ```
 
-#### Update
+### Update Flow with Versioning
 
-```go
-func (s *ScriptService) Update(
-    ctx context.Context,
-    id uuid.UUID,
-    data UpdateScriptDTO,
-) error {
-    const op serrors.Op = "ScriptService.Update"
+**What It Does:**
+Updates script and creates immutable version snapshot automatically.
 
-    if err := composables.CanUser(ctx, permissions.ScriptUpdate); err != nil {
-        return serrors.E(op, err)
-    }
+**How It Works:**
+1. Retrieve existing script by ID
+2. Validate update permissions
+3. Apply updates to script entity
+4. Validate updated script
+5. Get next version number
+6. Create new version record
+7. Update script in database
+8. Publish ScriptUpdatedEvent
 
-    return composables.InTx(ctx, func(txCtx context.Context) error {
-        existing, err := s.repo.GetByID(txCtx, id)
-        if err != nil {
-            return err
-        }
+```mermaid
+sequenceDiagram
+    participant Controller
+    participant ScriptService
+    participant ScriptRepo
+    participant VersionRepo
+    participant EventBus
 
-        // Apply updates (metadata only, not source)
-        updated := data.Apply(existing)
+    Controller->>ScriptService: Update(ctx, id, updateDTO)
+    ScriptService->>ScriptRepo: GetByID(id)
+    ScriptRepo-->>ScriptService: Existing script
 
-        if err := s.repo.Update(txCtx, updated); err != nil {
-            return err
-        }
+    ScriptService->>ScriptService: Check permissions (canUpdate)
+    ScriptService->>ScriptService: Apply updates
+    ScriptService->>ScriptService: Validate updated script
 
-        s.publisher.Publish(&script.UpdatedEvent{
-            Script: updated,
-            User:   composables.MustUseUser(ctx),
-        })
+    ScriptService->>VersionRepo: GetNextVersionNumber(scriptID)
+    VersionRepo-->>ScriptService: nextVersion
 
-        return nil
-    })
-}
+    ScriptService->>VersionRepo: Create(new version)
+    ScriptService->>ScriptRepo: Update(script)
+    ScriptService->>EventBus: Publish ScriptUpdatedEvent
+
+    ScriptService-->>Controller: Updated script
 ```
 
-#### UpdateContent
+## Execution Service
 
-```go
-func (s *ScriptService) UpdateContent(
-    ctx context.Context,
-    id uuid.UUID,
-    source string,
-) error {
-    const op serrors.Op = "ScriptService.UpdateContent"
+**What It Does:**
+Orchestrates script execution, manages execution lifecycle, tracks metrics, and handles errors.
 
-    if err := composables.CanUser(ctx, permissions.ScriptUpdate); err != nil {
-        return serrors.E(op, err)
-    }
+**Responsibilities:**
+- Create execution records
+- Acquire VM from pool
+- Execute script with timeout
+- Capture output and metrics
+- Handle errors and retries (event-triggered only)
+- Update execution status
 
-    // Validate syntax
-    if err := s.runtime.ValidateSyntax(source); err != nil {
-        return serrors.E(op, serrors.KindValidation,
-            "syntax error in script", err)
-    }
+```mermaid
+stateDiagram-v2
+    [*] --> Creating: Execute(scriptID)
+    Creating --> Pending: Create execution record
+    Pending --> Running: Acquire VM
+    Running --> Completed: Success
+    Running --> Failed: Error
+    Running --> Timeout: Time limit exceeded
 
-    return composables.InTx(ctx, func(txCtx context.Context) error {
-        existing, err := s.repo.GetByID(txCtx, id)
-        if err != nil {
-            return err
-        }
-
-        // Get latest version number
-        latestVer, err := s.versionRepo.GetLatestVersion(txCtx, id)
-        if err != nil {
-            return err
-        }
-
-        // Create new version
-        newVersion := version.New(
-            id,
-            latestVer.Number()+1,
-            source,
-            version.WithCreatedBy(composables.MustUseUser(txCtx).ID()),
-        )
-        if _, err := s.versionRepo.Create(txCtx, newVersion); err != nil {
-            return err
-        }
-
-        // Update script source
-        updated := existing.SetSource(source)
-        if err := s.repo.Update(txCtx, updated); err != nil {
-            return err
-        }
-
-        s.publisher.Publish(&script.ContentUpdatedEvent{
-            ScriptID: id,
-            Version:  newVersion.Number(),
-            User:     composables.MustUseUser(ctx),
-        })
-
-        return nil
-    })
-}
+    Completed --> [*]
+    Failed --> DeadLetter: Event-triggered
+    Failed --> [*]: Other triggers
+    Timeout --> [*]
 ```
 
-#### Delete
+### Execution Flow
 
-```go
-func (s *ScriptService) Delete(ctx context.Context, id uuid.UUID) error {
-    const op serrors.Op = "ScriptService.Delete"
+**How It Works:**
+1. Validate script exists and is active
+2. Create execution record (status: pending)
+3. Acquire VM from pool
+4. Update status to running
+5. Execute script in VM with timeout
+6. Capture output and metrics
+7. Update status to completed/failed
+8. Release VM back to pool
+9. Publish ExecutionCompletedEvent/ExecutionFailedEvent
 
-    if err := composables.CanUser(ctx, permissions.ScriptDelete); err != nil {
-        return serrors.E(op, err)
-    }
+```mermaid
+sequenceDiagram
+    participant Trigger
+    participant ExecutionService
+    participant ExecutionRepo
+    participant VMPoolService
+    participant VMPool
 
-    return composables.InTx(ctx, func(txCtx context.Context) error {
-        existing, err := s.repo.GetByID(txCtx, id)
-        if err != nil {
-            return err
-        }
+    Trigger->>ExecutionService: Execute(scriptID, input)
+    ExecutionService->>ExecutionRepo: Create(execution{status:pending})
 
-        // Delete versions first (FK constraint)
-        if err := s.versionRepo.DeleteAllForScript(txCtx, id); err != nil {
-            return err
-        }
+    ExecutionService->>VMPoolService: Acquire(tenantID)
+    VMPoolService->>VMPool: Get or create VM
+    VMPool-->>VMPoolService: VM instance
+    VMPoolService-->>ExecutionService: VM
 
-        if err := s.repo.Delete(txCtx, id); err != nil {
-            return err
-        }
+    ExecutionService->>ExecutionRepo: Update(status:running)
+    ExecutionService->>VMPool: Run(source, input, timeout)
 
-        s.publisher.Publish(&script.DeletedEvent{
-            ScriptID: id,
-            User:     composables.MustUseUser(ctx),
-        })
+    alt Success
+        VMPool-->>ExecutionService: Output + metrics
+        ExecutionService->>ExecutionRepo: Update(status:completed)
+    else Error
+        VMPool-->>ExecutionService: Error
+        ExecutionService->>ExecutionRepo: Update(status:failed)
+    end
 
-        return nil
-    })
-}
+    ExecutionService->>VMPoolService: Release(VM)
+    ExecutionService-->>Trigger: Execution result
 ```
 
-#### GetByID
+## VM Pool Service
 
-```go
-func (s *ScriptService) GetByID(
-    ctx context.Context,
-    id uuid.UUID,
-) (script.Script, error) {
-    const op serrors.Op = "ScriptService.GetByID"
+**What It Does:**
+Manages VM lifecycle, pool size, warm-up, acquisition, and resource limits.
 
-    if err := composables.CanUser(ctx, permissions.ScriptRead); err != nil {
-        return nil, serrors.E(op, err)
-    }
+**Responsibilities:**
+- Initialize VM pool on startup
+- Warm up VMs with standard library
+- Acquire VM for tenant (create if needed)
+- Release VM back to pool
+- Enforce per-tenant VM limits
+- Cleanup idle VMs
+- Monitor pool metrics
 
-    return s.repo.GetByID(ctx, id)
-}
+```mermaid
+graph TB
+    subgraph "VM Pool Architecture"
+        Available[Available VMs<br/>Pre-warmed]
+        InUse[In-Use VMs<br/>Executing scripts]
+        Creating[Creating VMs<br/>On-demand expansion]
+    end
+
+    subgraph "VM Lifecycle"
+        Create[Create VM]
+        Warmup[Load Standard Library]
+        AddToPool[Add to Available Pool]
+        Acquire[Acquire for Execution]
+        Execute[Execute Script]
+        Reset[Reset State]
+        Release[Release to Pool]
+        Cleanup[Cleanup if Idle]
+    end
+
+    Create --> Warmup
+    Warmup --> AddToPool
+    AddToPool --> Available
+    Available --> Acquire
+    Acquire --> InUse
+    InUse --> Execute
+    Execute --> Reset
+    Reset --> Release
+    Release --> Available
+    Available --> Cleanup
+
+    style Available fill:#90EE90
+    style InUse fill:#FFB6C1
+    style Creating fill:#E0F2FF
 ```
 
-#### GetPaginated
+### Pool Management Strategy
 
-```go
-func (s *ScriptService) GetPaginated(
-    ctx context.Context,
-    params *script.FindParams,
-) ([]script.Script, int64, error) {
-    const op serrors.Op = "ScriptService.GetPaginated"
+**What It Does:**
+Balances VM availability with resource usage through dynamic pool sizing.
 
-    if err := composables.CanUser(ctx, permissions.ScriptRead); err != nil {
-        return nil, 0, serrors.E(op, err)
-    }
+**Strategy:**
+- **Initial Pool Size**: 10 VMs (configurable)
+- **Expansion**: Create new VM if pool empty (up to max: 100)
+- **Per-Tenant Limit**: Max 5 concurrent VMs per tenant
+- **Idle Timeout**: 5 minutes of inactivity → VM destroyed
+- **Warm-up**: Pre-load standard library and common APIs
+- **Fair Scheduling**: Round-robin across tenants
 
-    scripts, err := s.repo.GetPaginated(ctx, params)
-    if err != nil {
-        return nil, 0, serrors.E(op, err)
-    }
+```mermaid
+sequenceDiagram
+    participant Service
+    participant VMPoolService
+    participant Pool as VM Pool
 
-    total, err := s.repo.Count(ctx, params)
-    if err != nil {
-        return nil, 0, serrors.E(op, err)
-    }
+    Service->>VMPoolService: Acquire(tenantID)
 
-    return scripts, total, nil
-}
+    alt VM available in pool
+        VMPoolService->>Pool: Get available VM
+        Pool-->>VMPoolService: VM instance
+    else Pool empty
+        alt Below max pool size
+            VMPoolService->>VMPoolService: Create new VM
+            VMPoolService->>VMPoolService: Warm up VM
+            VMPoolService-->>Service: New VM
+        else Max pool size reached
+            VMPoolService-->>Service: Error: Pool exhausted
+        end
+    end
+
+    alt Below per-tenant limit
+        VMPoolService-->>Service: VM instance
+    else Tenant limit reached
+        VMPoolService-->>Service: Error: Tenant limit
+    end
 ```
 
----
+## Scheduler Service
 
-### ExecutionService
+**What It Does:**
+Manages cron-based script execution with next run calculation and overlap prevention.
 
-**Purpose:** Execute scripts and manage execution lifecycle.
+**Responsibilities:**
+- Find scripts due to run every minute
+- Calculate next run time from cron expression
+- Prevent overlapping executions via lock
+- Trigger script execution
+- Update next run time and last run status
 
-**Location:** `modules/scripts/services/execution_service.go`
+```mermaid
+sequenceDiagram
+    participant Ticker as Cron Ticker
+    participant Scheduler as Scheduler Service
+    participant ScriptRepo
+    participant JobsTable as script_scheduled_jobs
+    participant ExecutionService
 
-**Dependencies:**
-```go
-type ExecutionService struct {
-    scriptRepo    script.Repository
-    executionRepo execution.Repository
-    runtime       runtime.Runtime
-    publisher     eventbus.EventBus
-}
+    loop Every minute
+        Ticker->>Scheduler: Tick
+        Scheduler->>JobsTable: SELECT jobs WHERE next_run_at <= NOW()<br/>AND is_running = false
 
-func NewExecutionService(
-    scriptRepo script.Repository,
-    executionRepo execution.Repository,
-    runtime runtime.Runtime,
-    publisher eventbus.EventBus,
-) *ExecutionService {
-    return &ExecutionService{
-        scriptRepo:    scriptRepo,
-        executionRepo: executionRepo,
-        runtime:       runtime,
-        publisher:     publisher,
-    }
-}
+        loop For each due job
+            Scheduler->>JobsTable: UPDATE is_running = true
+            Scheduler->>ScriptRepo: GetByID(scriptID)
+            ScriptRepo-->>Scheduler: Script
+
+            Scheduler->>ExecutionService: Execute(script, trigger:cron)
+
+            alt Execution completed
+                Scheduler->>Scheduler: Calculate next_run_at from cron
+                Scheduler->>JobsTable: UPDATE (next_run_at, last_run_status, is_running=false)
+            else Execution failed
+                Scheduler->>JobsTable: UPDATE (last_run_status='failed', is_running=false)
+            end
+        end
+    end
 ```
 
-**Methods:**
+### Cron Expression Calculation
 
-#### Execute
+**What It Does:**
+Calculates next execution time based on cron expression and timezone.
 
-```go
-func (s *ExecutionService) Execute(
-    ctx context.Context,
-    scriptID uuid.UUID,
-    input map[string]interface{},
-) (*execution.Execution, error) {
-    const op serrors.Op = "ExecutionService.Execute"
+**Supported Patterns:**
+- Standard 5-field cron (minute, hour, day, month, weekday)
+- Timezone support (default: UTC)
+- Handles daylight saving time transitions
 
-    if err := composables.CanUser(ctx, permissions.ScriptExecute); err != nil {
-        return nil, serrors.E(op, err)
-    }
+**Examples:**
+- `0 0 * * *` - Daily at midnight
+- `*/15 * * * *` - Every 15 minutes
+- `0 9 * * 1-5` - Weekdays at 9 AM
+- `0 0 1 * *` - First day of month
 
-    // Get script
-    scr, err := s.scriptRepo.GetByID(ctx, scriptID)
-    if err != nil {
-        return nil, serrors.E(op, err)
-    }
+## Event Handler Service
 
-    // Check if enabled
-    if !scr.Enabled() {
-        return nil, serrors.E(op, serrors.KindValidation,
-            "script is disabled")
-    }
+**What It Does:**
+Subscribes to domain events and triggers matching scripts with retry logic and dead letter queue.
 
-    // Create execution record
-    exec := execution.New(
-        scriptID,
-        execution.TriggerManual,
-        execution.WithInput(input),
-        execution.WithTriggeredBy(composables.MustUseUser(ctx).ID()),
-    )
+**Responsibilities:**
+- Subscribe to all domain events via EventBus
+- Find scripts subscribed to event type
+- Trigger script execution with event payload
+- Retry failed executions with exponential backoff
+- Move persistent failures to dead letter queue
 
-    exec, err = s.executionRepo.Create(ctx, exec)
-    if err != nil {
-        return nil, serrors.E(op, err)
-    }
+```mermaid
+graph TB
+    subgraph "Event Flow"
+        DomainService[Domain Service]
+        EventBus[Event Bus]
+        EventHandler[Event Handler Service]
+    end
 
-    // Publish execution started event
-    s.publisher.Publish(&execution.StartedEvent{
-        Execution: exec,
-    })
+    subgraph "Script Resolution"
+        SubsTable[(script_event_subscriptions)]
+        Scripts[(scripts)]
+    end
 
-    // Execute asynchronously
-    go s.executeAsync(context.Background(), exec, scr)
+    subgraph "Execution"
+        ExecutionService[Execution Service]
+        VMPool[VM Pool]
+    end
 
-    return exec, nil
-}
+    subgraph "Failure Handling"
+        Retry[Retry Logic<br/>Exponential Backoff]
+        DLQ[(Dead Letter Queue)]
+    end
 
-func (s *ExecutionService) executeAsync(
-    ctx context.Context,
-    exec execution.Execution,
-    scr script.Script,
-) {
-    // Build execution context
-    execCtx := s.buildExecutionContext(ctx, exec, scr)
+    DomainService -->|Publish event| EventBus
+    EventBus -->|Notify| EventHandler
+    EventHandler -->|Query by event_type| SubsTable
+    SubsTable -->|Join| Scripts
+    Scripts -->|Subscribed scripts| EventHandler
+    EventHandler --> ExecutionService
+    ExecutionService --> VMPool
 
-    // Run script
-    result, err := s.runtime.Execute(execCtx, scr.Source(), exec.Input())
-
-    // Update execution status
-    if err != nil {
-        exec = exec.SetStatus(execution.StatusFailed).
-            SetError(err.Error())
-    } else {
-        exec = exec.SetStatus(execution.StatusCompleted).
-            SetOutput(result)
-    }
-
-    exec = exec.SetCompletedAt(time.Now())
-
-    // Save result
-    if updateErr := s.executionRepo.Update(ctx, exec); updateErr != nil {
-        // Log error but don't fail (execution already complete)
-        // TODO: Add structured logging
-    }
-
-    // Publish completion event
-    s.publisher.Publish(&execution.CompletedEvent{
-        Execution: exec,
-        Success:   err == nil,
-    })
-}
-
-func (s *ExecutionService) buildExecutionContext(
-    ctx context.Context,
-    exec execution.Execution,
-    scr script.Script,
-) context.Context {
-    // Copy tenant, user, session to execution context
-    // Add execution metadata
-    execCtx := context.Background()
-
-    if tenant, err := composables.UseTenantID(ctx); err == nil {
-        execCtx = composables.WithTenantID(execCtx, tenant)
-    }
-
-    if user, err := composables.UseUser(ctx); err == nil {
-        execCtx = composables.WithUser(execCtx, user)
-    }
-
-    if pool, err := composables.UsePool(ctx); err == nil {
-        execCtx = composables.WithPool(execCtx, pool)
-    }
-
-    // Add execution-specific context
-    execCtx = execution.WithExecutionID(execCtx, exec.ID())
-    execCtx = execution.WithScriptID(execCtx, scr.ID())
-
-    return execCtx
-}
+    VMPool -.Failure.-> Retry
+    Retry -.Max retries.-> DLQ
+    Retry -.Backoff.-> ExecutionService
 ```
 
-#### GetByID
+### Retry Strategy
 
-```go
-func (s *ExecutionService) GetByID(
-    ctx context.Context,
-    id uuid.UUID,
-) (execution.Execution, error) {
-    const op serrors.Op = "ExecutionService.GetByID"
+**What It Does:**
+Automatically retries failed event-triggered executions with exponential backoff.
 
-    if err := composables.CanUser(ctx, permissions.ScriptRead); err != nil {
-        return nil, serrors.E(op, err)
-    }
+**Strategy:**
+- **Max Retries**: 3 attempts
+- **Backoff**: 1s, 2s, 4s (exponential)
+- **Dead Letter**: After 3 failures, move to DLQ
+- **Manual Review**: DLQ entries require manual intervention
 
-    return s.executionRepo.GetByID(ctx, id)
-}
+```mermaid
+sequenceDiagram
+    participant EventHandler
+    participant ExecutionService
+    participant DLQ as Dead Letter Queue
+
+    EventHandler->>ExecutionService: Execute (Attempt 1)
+    ExecutionService-->>EventHandler: Failed
+
+    Note over EventHandler: Wait 1 second
+
+    EventHandler->>ExecutionService: Execute (Attempt 2)
+    ExecutionService-->>EventHandler: Failed
+
+    Note over EventHandler: Wait 2 seconds
+
+    EventHandler->>ExecutionService: Execute (Attempt 3)
+    ExecutionService-->>EventHandler: Failed
+
+    Note over EventHandler: Wait 4 seconds
+
+    EventHandler->>ExecutionService: Execute (Attempt 4 - Final)
+    ExecutionService-->>EventHandler: Failed
+
+    EventHandler->>DLQ: INSERT dead letter<br/>(event_type, payload, error, retry_count:3)
 ```
 
-#### GetForScript
+## Business Rules and Validation
 
-```go
-func (s *ExecutionService) GetForScript(
-    ctx context.Context,
-    scriptID uuid.UUID,
-    params *execution.FindParams,
-) ([]execution.Execution, error) {
-    const op serrors.Op = "ExecutionService.GetForScript"
+**Script Creation:**
+- Name required (non-empty)
+- Source code required (non-empty)
+- Name must be unique per tenant
+- Type-specific validation:
+  - Scheduled: Valid cron expression required
+  - HTTP: HTTP path required and unique per tenant
+  - Event: At least one event type required
 
-    if err := composables.CanUser(ctx, permissions.ScriptRead); err != nil {
-        return nil, serrors.E(op, err)
-    }
+**Script Update:**
+- User has permission to update script
+- Name uniqueness maintained (if changed)
+- HTTP path uniqueness maintained (if changed)
+- Version created automatically
 
-    params.ScriptID = &scriptID
-    return s.executionRepo.GetPaginated(ctx, params)
-}
+**Script Execution:**
+- Script must exist and be active
+- User has permission to execute script (for manual triggers)
+- Resource limits enforced (timeout, memory, concurrency)
+
+**Permission Checks:**
+- `canCreateScript` - Create new scripts
+- `canUpdateScript` - Modify existing scripts
+- `canDeleteScript` - Remove scripts
+- `canExecuteScript` - Manually trigger scripts
+- `canViewExecutions` - View execution history
+
+```mermaid
+graph TB
+    subgraph "Validation Layers"
+        Input[Input Validation<br/>Required fields]
+        Business[Business Rules<br/>Uniqueness, type-specific]
+        Permissions[RBAC Permissions<br/>canCreate, canUpdate]
+        ResourceLimits[Resource Limits<br/>Timeout, memory, concurrency]
+    end
+
+    Request[Service Request] --> Input
+    Input --> Business
+    Business --> Permissions
+    Permissions --> ResourceLimits
+    ResourceLimits --> Success[Operation Succeeds]
+
+    Input -.Invalid.-> ValidationError
+    Business -.Violation.-> BusinessError
+    Permissions -.Denied.-> PermissionError
+    ResourceLimits -.Exceeded.-> LimitError
 ```
-
----
-
-## DTOs
-
-### CreateScriptDTO
-
-**Location:** `modules/scripts/services/dtos/create_script_dto.go`
-
-```go
-type CreateScriptDTO struct {
-    Name        string `validate:"required,max=255"`
-    Description string `validate:"max=1000"`
-    Type        string `validate:"required,oneof=cron manual event http"`
-    Source      string `validate:"required"`
-    Schedule    string `validate:"omitempty,cron"` // Required if Type=cron
-    EventType   string `validate:"omitempty"`      // Required if Type=event
-    Enabled     bool   `validate:"omitempty"`
-}
-
-func (dto *CreateScriptDTO) Validate(ctx context.Context) error {
-    if err := constants.Validate.Struct(dto); err != nil {
-        return serrors.ProcessValidatorErrors(
-            err.(validator.ValidationErrors),
-            dto.fieldIDMapping,
-        )
-    }
-
-    // Custom validation
-    if dto.Type == "cron" && dto.Schedule == "" {
-        return serrors.NewFieldRequiredError("Schedule", "Scripts.Form.Schedule")
-    }
-
-    if dto.Type == "event" && dto.EventType == "" {
-        return serrors.NewFieldRequiredError("EventType", "Scripts.Form.EventType")
-    }
-
-    return nil
-}
-
-func (dto *CreateScriptDTO) fieldIDMapping(field string) string {
-    return fmt.Sprintf("Scripts.Form.%s", field)
-}
-```
-
-### UpdateScriptDTO
-
-**Location:** `modules/scripts/services/dtos/update_script_dto.go`
-
-```go
-type UpdateScriptDTO struct {
-    Name        string `validate:"required,max=255"`
-    Description string `validate:"max=1000"`
-    Schedule    string `validate:"omitempty,cron"`
-    EventType   string `validate:"omitempty"`
-    Enabled     bool   `validate:"omitempty"`
-}
-
-func (dto *UpdateScriptDTO) Validate(ctx context.Context) error {
-    if err := constants.Validate.Struct(dto); err != nil {
-        return serrors.ProcessValidatorErrors(
-            err.(validator.ValidationErrors),
-            dto.fieldIDMapping,
-        )
-    }
-    return nil
-}
-
-func (dto *UpdateScriptDTO) Apply(scr script.Script) script.Script {
-    return scr.
-        SetName(dto.Name).
-        SetDescription(dto.Description).
-        SetSchedule(dto.Schedule).
-        SetEventType(dto.EventType).
-        SetEnabled(dto.Enabled)
-}
-
-func (dto *UpdateScriptDTO) fieldIDMapping(field string) string {
-    return fmt.Sprintf("Scripts.Form.%s", field)
-}
-```
-
-### ExecuteScriptDTO
-
-**Location:** `modules/scripts/services/dtos/execute_script_dto.go`
-
-```go
-type ExecuteScriptDTO struct {
-    ScriptID uuid.UUID              `validate:"required"`
-    Input    map[string]interface{} `validate:"omitempty"`
-}
-
-func (dto *ExecuteScriptDTO) Validate(ctx context.Context) error {
-    if err := constants.Validate.Struct(dto); err != nil {
-        return serrors.ProcessValidatorErrors(
-            err.(validator.ValidationErrors),
-            dto.fieldIDMapping,
-        )
-    }
-    return nil
-}
-
-func (dto *ExecuteScriptDTO) fieldIDMapping(field string) string {
-    return fmt.Sprintf("Scripts.Execute.%s", field)
-}
-```
-
----
-
-## Validation Patterns
-
-### Syntax Validation
-
-Scripts must be validated before saving:
-
-```go
-// In ScriptService.Create and UpdateContent
-if err := s.runtime.ValidateSyntax(data.Source); err != nil {
-    return serrors.E(op, serrors.KindValidation,
-        "syntax error in script", err)
-}
-```
-
-### Schedule Validation
-
-Cron expressions validated using existing cron library:
-
-```go
-import "github.com/robfig/cron/v3"
-
-func validateCronSchedule(schedule string) error {
-    parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom |
-        cron.Month | cron.Dow)
-    if _, err := parser.Parse(schedule); err != nil {
-        return err
-    }
-    return nil
-}
-```
-
-Register custom validator tag:
-
-```go
-// In init() or setup
-constants.Validate.RegisterValidation("cron", func(fl validator.FieldLevel) bool {
-    schedule := fl.Field().String()
-    return validateCronSchedule(schedule) == nil
-})
-```
-
----
-
-## Permission Checks
-
-**Required Permissions:**
-
-```go
-// modules/scripts/permissions/permissions.go
-package permissions
-
-import "github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-
-const (
-    ScriptCreate  permission.Permission = "scripts.create"
-    ScriptRead    permission.Permission = "scripts.read"
-    ScriptUpdate  permission.Permission = "scripts.update"
-    ScriptDelete  permission.Permission = "scripts.delete"
-    ScriptExecute permission.Permission = "scripts.execute"
-)
-```
-
-**Permission Checks in Services:**
-
-```go
-// All methods check permissions early
-if err := composables.CanUser(ctx, permissions.ScriptCreate); err != nil {
-    return nil, serrors.E(op, err)
-}
-```
-
----
-
-## Event Publishing
-
-**Domain Events:**
-
-```go
-// Published by ScriptService
-script.CreatedEvent
-script.UpdatedEvent
-script.ContentUpdatedEvent
-script.DeletedEvent
-
-// Published by ExecutionService
-execution.StartedEvent
-execution.CompletedEvent
-```
-
-**Event Pattern:**
-
-```go
-s.publisher.Publish(&script.CreatedEvent{
-    Script: created,
-    User:   composables.MustUseUser(ctx),
-})
-```
-
----
-
-## Transaction Management
-
-**All Write Operations Use Transactions:**
-
-```go
-err := composables.InTx(ctx, func(txCtx context.Context) error {
-    // Create script
-    result, err := s.repo.Create(txCtx, scr)
-    if err != nil {
-        return err
-    }
-
-    // Create initial version
-    ver := version.New(result.ID(), 1, data.Source)
-    if _, err := s.versionRepo.Create(txCtx, ver); err != nil {
-        return err
-    }
-
-    return nil
-})
-```
-
-**Rollback on Error:**
-
-Transaction automatically rolls back if any operation fails.
-
----
 
 ## Error Handling
 
-**Structured Errors:**
+**What It Does:**
+Consistent error handling across all service methods using `serrors` package.
 
-```go
-const op serrors.Op = "ScriptService.Create"
+**Pattern:**
+- Define operation constant: `const op serrors.Op = "ServiceName.MethodName"`
+- Wrap all errors: `return serrors.E(op, err)`
+- Use error kinds: `serrors.KindValidation`, `serrors.KindNotFound`, `serrors.KindPermission`
+- Provide context: `serrors.E(op, serrors.KindValidation, "name is required")`
 
-// Validation errors
-return serrors.E(op, serrors.KindValidation, "syntax error", err)
+**Error Propagation:**
+- Repository errors wrapped with operation context
+- Validation errors include field name and reason
+- Permission errors include required permission
+- Business rule errors include constraint violated
 
-// Not found
-return serrors.E(op, serrors.KindNotFound, "script not found")
+## Acceptance Criteria
 
-// Permission denied
-return serrors.E(op, serrors.KindPermission, "access denied")
+### Script Service
+- ✅ CRUD operations with validation and permissions
+- ✅ Automatic versioning on create and update
+- ✅ Name uniqueness validation per tenant
+- ✅ HTTP path uniqueness validation per tenant
+- ✅ Type-specific validation (cron, HTTP, event)
+- ✅ Permission checks via RBAC (canCreate, canUpdate, canDelete)
+- ✅ Event publishing (ScriptCreated, ScriptUpdated, ScriptDeleted)
 
-// Database errors
-return serrors.E(op, err)
-```
+### Execution Service
+- ✅ Execute method coordinates full execution lifecycle
+- ✅ Status transitions (pending → running → completed/failed)
+- ✅ VM acquisition and release
+- ✅ Timeout enforcement via context
+- ✅ Metrics capture (duration, memory, API calls)
+- ✅ Error handling and logging
+- ✅ Event publishing (ExecutionStarted, ExecutionCompleted, ExecutionFailed)
 
----
+### VM Pool Service
+- ✅ Initialize pool with configurable size
+- ✅ Warm up VMs with standard library
+- ✅ Acquire VM with per-tenant limits
+- ✅ Release VM and reset state
+- ✅ Cleanup idle VMs after timeout
+- ✅ Metrics tracking (available, in-use, total)
+- ✅ Graceful shutdown with drain period
 
-## Testing Strategy
+### Scheduler Service
+- ✅ Find jobs due to run every minute
+- ✅ Calculate next run from cron expression
+- ✅ Prevent overlapping executions via is_running lock
+- ✅ Trigger script execution via Execution Service
+- ✅ Update next run time and last run status
+- ✅ Handle timezone conversions
 
-### Service Tests
+### Event Handler Service
+- ✅ Subscribe to all domain events via EventBus
+- ✅ Find scripts by event type (via repository)
+- ✅ Trigger execution with event payload
+- ✅ Retry failed executions with exponential backoff
+- ✅ Move to dead letter queue after max retries
+- ✅ Log all event-triggered executions
 
-**Location:** `modules/scripts/services/script_service_test.go`
+### Business Rules
+- ✅ Script validation enforced before persistence
+- ✅ Permission checks via sdkcomposables.CanUser()
+- ✅ Resource limits validated
+- ✅ Type-specific requirements validated
+- ✅ Uniqueness constraints enforced
 
-**Test Coverage:**
+### Error Handling
+- ✅ All methods use serrors.Op for operation tracking
+- ✅ Errors wrapped with serrors.E(op, err)
+- ✅ Error kinds used (Validation, NotFound, Permission)
+- ✅ Contextual error messages with details
+- ✅ Proper error propagation through layers
 
-```go
-func TestScriptService_Create_Success(t *testing.T) {
-    t.Parallel()
-    env := itf.Setup(t,
-        itf.WithPermissions(permissions.ScriptCreate),
-    )
-
-    service := itf.GetService[*services.ScriptService](env)
-
-    dto := dtos.CreateScriptDTO{
-        Name:   "Test Script",
-        Type:   "manual",
-        Source: "console.log('hello');",
-    }
-
-    result, err := service.Create(env.Ctx, dto)
-    assert.NoError(t, err)
-    assert.NotNil(t, result)
-    assert.Equal(t, "Test Script", result.Name())
-}
-
-func TestScriptService_Create_SyntaxError(t *testing.T) {
-    t.Parallel()
-    env := itf.Setup(t,
-        itf.WithPermissions(permissions.ScriptCreate),
-    )
-
-    service := itf.GetService[*services.ScriptService](env)
-
-    dto := dtos.CreateScriptDTO{
-        Name:   "Invalid Script",
-        Type:   "manual",
-        Source: "console.log(", // Syntax error
-    }
-
-    _, err := service.Create(env.Ctx, dto)
-    assert.Error(t, err)
-    assert.Contains(t, err.Error(), "syntax error")
-}
-
-func TestScriptService_Create_NoPermission(t *testing.T) {
-    t.Parallel()
-    env := itf.Setup(t) // No permissions
-
-    service := itf.GetService[*services.ScriptService](env)
-
-    dto := dtos.CreateScriptDTO{
-        Name:   "Test Script",
-        Type:   "manual",
-        Source: "console.log('hello');",
-    }
-
-    _, err := service.Create(env.Ctx, dto)
-    assert.Error(t, err)
-    assert.ErrorIs(t, err, composables.ErrForbidden)
-}
-
-func TestExecutionService_Execute_Success(t *testing.T) {
-    t.Parallel()
-    env := itf.Setup(t,
-        itf.WithPermissions(permissions.ScriptExecute),
-    )
-
-    scriptSvc := itf.GetService[*services.ScriptService](env)
-    execSvc := itf.GetService[*services.ExecutionService](env)
-
-    // Create script
-    scr, _ := scriptSvc.Create(env.Ctx, dtos.CreateScriptDTO{
-        Name:   "Test",
-        Type:   "manual",
-        Source: "return { result: 42 };",
-        Enabled: true,
-    })
-
-    // Execute
-    exec, err := execSvc.Execute(env.Ctx, scr.ID(), nil)
-    assert.NoError(t, err)
-    assert.NotNil(t, exec)
-
-    // Wait for async execution (in tests, use synchronous execution)
-    // Poll for completion or use test-specific synchronous mode
-}
-```
-
----
-
-## Dependencies
-
-**Import Paths:**
-
-```go
-import (
-    "context"
-    "time"
-
-    "github.com/google/uuid"
-    "github.com/iota-uz/iota-sdk/modules/scripts/domain/aggregates/script"
-    "github.com/iota-uz/iota-sdk/modules/scripts/domain/entities/execution"
-    "github.com/iota-uz/iota-sdk/modules/scripts/domain/entities/version"
-    "github.com/iota-uz/iota-sdk/modules/scripts/runtime"
-    "github.com/iota-uz/iota-sdk/pkg/composables"
-    "github.com/iota-uz/iota-sdk/pkg/eventbus"
-    "github.com/iota-uz/iota-sdk/pkg/serrors"
-)
-```
-
----
-
-## Integration with ITF
-
-**Service Registration:**
-
-```go
-// In modules/scripts/module.go
-func (m *Module) RegisterServices(c *di.Container) {
-    c.Provide(services.NewScriptService)
-    c.Provide(services.NewExecutionService)
-}
-```
-
-**Test Setup:**
-
-```go
-env := itf.Setup(t,
-    itf.WithModule(scripts.NewModule()),
-    itf.WithPermissions(permissions.ScriptCreate),
-)
-
-service := itf.GetService[*services.ScriptService](env)
-```
-
----
-
-## Next Steps
-
-After implementing service layer:
-
-1. **Runtime Engine** (06-runtime-engine.md) - Goja VM pool and executor
-2. **API Bindings** (07-api-bindings.md) - JavaScript APIs for scripts
-3. **Event Integration** (08-event-integration.md) - Event triggers and handlers
-
----
-
-## References
-
-- Domain entities: `01-domain-entities.md`
-- Repository layer: `02-repository-layer.md`
-- Service pattern: `modules/core/services/user_service.go`
-- DTO pattern: `modules/core/presentation/controllers/dtos/user_dto.go`
-- ITF framework: `.claude/guides/backend/testing.md`
+### Integration
+- ✅ Services use repository interfaces (not implementations)
+- ✅ DI via constructor injection
+- ✅ Transaction management for multi-step operations
+- ✅ EventBus integration for domain events
+- ✅ Composables for tenant context extraction
