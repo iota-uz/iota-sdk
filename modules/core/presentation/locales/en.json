@@ -776,7 +776,8 @@
     "group": "Groups",
     "upload": "Uploads",
     "payout_request": "Payout Request",
-    "pipeline": "Pipeline"
+    "pipeline": "Pipeline",
+    "website": "Website"
   },
   "Roles": {
     "Meta": {
