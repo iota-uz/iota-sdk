@@ -776,7 +776,8 @@
     "group": "Группы",
     "upload": "Загрузки",
     "payout_request": "Запросить вывод",
-    "pipeline": "Pipeline"
+    "pipeline": "Pipeline",
+    "website": "Веб-сайт"
   },
   "Roles": {
     "Meta": {

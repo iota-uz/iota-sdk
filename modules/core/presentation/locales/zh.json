@@ -780,7 +780,8 @@
     "group": "组",
     "upload": "上传",
     "payout_request": "支付请求",
-    "pipeline": "管道"
+    "pipeline": "管道",
+    "website": "网站"
   },
   "Roles": {
     "Meta": {
