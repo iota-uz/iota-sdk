@@ -31,13 +31,16 @@ RUN addgroup -g 10001 -S iota-user \
     && chown -R iota-user:iota-user /home/iota-user
 
 WORKDIR /home/iota-user
-COPY --from=build /build/run_server ./run_server
-COPY --from=build /build/command ./command
-COPY --from=build /build/collect_logs ./collect_logs
-COPY --from=build /build/migrations ./migrations
+COPY --from=build --chown=iota-user:iota-user /build/run_server ./run_server
+COPY --from=build --chown=iota-user:iota-user /build/command ./command
+COPY --from=build --chown=iota-user:iota-user /build/collect_logs ./collect_logs
+COPY --from=build --chown=iota-user:iota-user /build/migrations ./migrations
+COPY --chown=iota-user:iota-user scripts/start.sh ./start.sh
 
 ENV PATH=/home/iota-user:$PATH
 
+# Make startup script executable and switch to non-root user
+RUN chmod +x ./start.sh
 USER iota-user
-CMD ["/bin/sh", "-c", "collect_logs & command migrate up && command seed && run_server"]
+CMD ["./start.sh"]
 
