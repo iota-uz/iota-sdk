@@ -28,9 +28,20 @@ type User struct {
 }
 
 func (u *User) Title() string {
-	fullName := u.FirstName + " " + u.LastName
+	var fullName string
 
-	if strings.TrimSpace(fullName) != "" {
+	firstName := strings.TrimSpace(u.FirstName)
+	lastName := strings.TrimSpace(u.LastName)
+
+	if firstName != "" && lastName != "" {
+		fullName = firstName + " " + lastName
+	} else if firstName != "" {
+		fullName = firstName
+	} else if lastName != "" {
+		fullName = lastName
+	}
+
+	if fullName != "" {
 		return fullName
 	} else if u.Phone != "" {
 		return u.Phone
