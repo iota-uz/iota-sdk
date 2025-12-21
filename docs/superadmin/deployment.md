@@ -273,7 +273,6 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "command migrate up && command seed && run_server"
-restartPolicyType = "on-failure"
 ```
 
 **Service 2: Super Admin**
@@ -286,7 +285,6 @@ dockerfilePath = "Dockerfile.superadmin"
 
 [deploy]
 startCommand = "command migrate up && run_superadmin"
-restartPolicyType = "on-failure"
 ```
 
 ### Railway Environment Setup
