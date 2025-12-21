@@ -272,7 +272,7 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "/home/iota-user/run_server"
+startCommand = "command migrate up && command seed && run_server"
 restartPolicyType = "on-failure"
 ```
 
@@ -285,7 +285,7 @@ builder = "dockerfile"
 dockerfilePath = "Dockerfile.superadmin"
 
 [deploy]
-startCommand = "/home/iota-user/run_superadmin"
+startCommand = "command migrate up && run_superadmin"
 restartPolicyType = "on-failure"
 ```
 

@@ -1,0 +1,7 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "command migrate up && command seed && run_server"
+restartPolicyType = "on-failure"
