@@ -4,6 +4,20 @@ import "./lib/alpine-anchor.min.js";
 import "./lib/alpine-mask.min.js";
 import Sortable from "./lib/alpine-sort.js";
 
+let dateTimeFormat = () => ({
+  format(dateStr = new Date().toISOString(), locale = document.documentElement.lang || "ru") {
+    const date = new Date(dateStr);
+    return date.toLocaleString(locale, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
+    });
+  }
+})
+
 let relativeFormat = () => ({
   format(dateStr = new Date().toISOString(), locale = document.documentElement.lang || "ru") {
     let date = new Date(dateStr);
@@ -856,6 +870,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
 });
 
 document.addEventListener("alpine:init", () => {
+  Alpine.data("dateTimeFormat", dateTimeFormat)
   Alpine.data("relativeformat", relativeFormat);
   Alpine.data("passwordVisibility", passwordVisibility);
   Alpine.data("dialog", dialog);
