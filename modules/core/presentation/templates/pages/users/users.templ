@@ -84,7 +84,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			}
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="relativeformat">
+			<div x-data="dateTimeFormat">
 				<span x-text={ fmt.Sprintf("format('%s')", user.CreatedAt) }></span>
 			</div>
 		}
