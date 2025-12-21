@@ -2,5 +2,5 @@
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
-[deploy]
-startCommand = "command migrate up && command seed && run_server"
+# No startCommand - let Dockerfile CMD handle startup via start.sh
+# This ensures consistent behavior between local Docker and Railway

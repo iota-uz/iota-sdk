@@ -271,8 +271,8 @@ Railway requires two separate services (main app and superadmin) since each need
 builder = "dockerfile"
 dockerfilePath = "Dockerfile"
 
-[deploy]
-startCommand = "command migrate up && command seed && run_server"
+# Startup is handled by Dockerfile CMD via scripts/start.sh
+# This ensures consistent behavior between local Docker and Railway
 ```
 
 **Service 2: Super Admin**
