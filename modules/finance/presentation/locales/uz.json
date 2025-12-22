@@ -101,6 +101,9 @@
       },
       "New": {
         "Title": "To'lov qo'shish"
+      },
+      "Show": {
+        "Title": "To'lov tafsilotlari"
       }
     },
     "List": {
@@ -141,6 +144,9 @@
       },
       "New": {
         "Title": "Xarajat qo'shish"
+      },
+      "Show": {
+        "Title": "Xarajat tafsilotlari"
       }
     },
     "List": {
@@ -384,6 +390,7 @@
       "Date": "Tranzaksiya sanasi",
       "AccountingPeriod": "Hisob davri",
       "OriginAccount": "Jo'natuvchi hisob",
+      "DestinationAccount": "Qabul qiluvchi hisob",
       "DestinationAccountID": "Qabul qiluvchi hisob",
       "Comment": "Izoh",
       "ExchangeDetails": "Ayirboshlash tafsilotlari",
@@ -489,6 +496,7 @@
     },
     "Single": {
       "Edit": "Qarzni tahrirlash",
+      "Counterparty": "Hamkor",
       "CounterpartyID": "Hamkor",
       "SelectCounterparty": "Hamkorni tanlash",
       "Type": "Qarz turi",

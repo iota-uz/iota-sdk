@@ -54,6 +54,7 @@
   "Actions": "Действия",
   "Add": "Добавить",
   "All": "Все",
+  "NotFound": "Не найдено",
   "Analytics": {
     "PreviousDay": "Предыдущий день",
     "NextDay": "Следующий день",
@@ -823,6 +824,13 @@
   },
   "Search": "Поиск",
   "SignOut": "Выйти",
+  "Submit": "Отправить",
+  "UploadLabel": "Загрузить файл",
+  "UploadPlaceholder": "Выберите файл для загрузки",
+  "DownloadTemplate": "Скачать шаблон",
+  "Example": {
+    "Below": "См. пример ниже"
+  },
   "Spotlight": {
     "Placeholder": "Поиск...",
     "NothingFound": "Ничего не найдено",

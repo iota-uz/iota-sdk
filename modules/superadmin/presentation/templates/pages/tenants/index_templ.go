@@ -262,7 +262,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Scaffold.Table.NothingFound"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 148, Col: 91}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tenants/index.templ`, Line: 148, Col: 91}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -284,7 +284,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(tenant.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 159, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tenants/index.templ`, Line: 159, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -297,7 +297,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(safeString(tenant.Email))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 160, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tenants/index.templ`, Line: 160, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -310,7 +310,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(safeString(tenant.Phone))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 161, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tenants/index.templ`, Line: 161, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -323,7 +323,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", tenant.UserCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 162, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tenants/index.templ`, Line: 162, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -348,7 +348,7 @@ func TableRows(tenants []*entities.TenantInfo) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(status)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/tenants/index.templ`, Line: 165, Col: 14}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/tenants/index.templ`, Line: 165, Col: 14}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {

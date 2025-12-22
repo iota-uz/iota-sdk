@@ -54,6 +54,7 @@
   "Actions": "Harakatlar",
   "Add": "Qo'shish",
   "All": "Hammasi",
+  "NotFound": "Topilmadi",
   "Analytics": {
     "PreviousDay": "Oldingi kun",
     "NextDay": "Keyingi kun",
@@ -823,6 +824,13 @@
   },
   "Search": "Qidirish",
   "SignOut": "Chiqish",
+  "Submit": "Yuborish",
+  "UploadLabel": "Fayl yuklash",
+  "UploadPlaceholder": "Yuklash uchun faylni tanlang",
+  "DownloadTemplate": "Shablonni yuklab olish",
+  "Example": {
+    "Below": "Quyida misolni ko'ring"
+  },
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",
