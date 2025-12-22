@@ -61,7 +61,7 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 		// password is ignored by UserService.Update
 		SetPasswordUnsafe("")
 
-	if d.Email != "" && (u.Type() == user.TypeSuperAdmin || u.Email().Value() == "") {
+	if d.Email != "" {
 		email, err := internet.NewEmail(d.Email)
 		if err != nil {
 			return nil, err
@@ -69,7 +69,7 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 		updated = updated.SetEmail(email)
 	}
 
-	if d.Phone != "" && (u.Type() == user.TypeSuperAdmin || u.Phone().E164() == "") {
+	if d.Phone != "" {
 		p, err := phone.NewFromE164(d.Phone)
 		if err != nil {
 			return nil, err
