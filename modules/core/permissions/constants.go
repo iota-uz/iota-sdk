@@ -35,6 +35,13 @@ var (
 		permission.ActionUpdate,
 		permission.ModifierAll,
 	)
+	UserSelfUpdate = permission.MustCreate(
+		uuid.MustParse("1c351fd3-9a2b-40b9-80b1-11ba81e645c9"),
+		"User.SelfUpdate",
+		ResourceUser,
+		permission.ActionUpdate,
+		permission.ModifierOwn,
+	)
 	UserDelete = permission.MustCreate(
 		uuid.MustParse("547cded3-6754-4a05-aeb0-a38d12ed05ee"),
 		"User.Delete",

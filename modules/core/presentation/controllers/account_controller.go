@@ -6,6 +6,8 @@ import (
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/account"
@@ -120,7 +122,24 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if _, err := c.userService.Update(r.Context(), entity); err != nil {
+
+	if u.Type() != user.TypeSuperAdmin {
+		if u.Email() != nil && u.Email().Value() != "" && u.Email().Value() != entity.Email().Value() {
+			logger.Error("normal user can not change non empty email")
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+
+		if u.Phone() != nil && u.Phone().Value() != "" && u.Phone().Value() != entity.Phone().Value() {
+			logger.Error("normal user can not change non empty phone")
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+	}
+
+	u = u.SetPermissions(append(u.Permissions(), permissions.UserSelfUpdate))
+
+	if _, err := c.userService.Update(r.WithContext(composables.WithUser(r.Context(), u)).Context(), entity); err != nil {
 		logger.WithError(err).Error("failed to update user")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

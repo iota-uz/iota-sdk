@@ -19,12 +19,39 @@ type ProfilePageProps struct {
 	Languages []intl.SupportedLanguage
 }
 
+// TODO: Add more country codes when internationalization is needed
+templ phoneCountryCodeSelect(disabled bool) {
+	<select
+		data-country-code-select
+		class="appearance-none bg-transparent text-gray-600 font-medium border-none outline-none pr-1"
+		class={ templ.KV("cursor-pointer", !disabled), templ.KV("cursor-not-allowed opacity-60", disabled) }
+		disabled?={ disabled }
+	>
+		<option value="+998" selected>+998</option>
+	</select>
+}
+
 templ ProfileForm(props *ProfilePageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		// Strip country code from phone display
+		phoneWithoutCountry := props.User.Phone
+		if len(phoneWithoutCountry) >= 3 && phoneWithoutCountry[:3] == "998" {
+			phoneWithoutCountry = phoneWithoutCountry[3:]
+		}
+	}}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
+		x-data="{ countryCode: '+998', phoneNumber: '' }"
+		@submit="
+			const phoneInput = $el.querySelector('input[name=Phone]');
+			const countrySelect = $el.querySelector('[data-country-code-select]');
+			const countryCode = countrySelect.value.replace('+', '');
+			phoneInput.value = countryCode + phoneInput.value;
+			countrySelect.style.display = 'none';
+		"
 	>
 		<div class="flex flex-col gap-5 p-6">
 			@card.Card(card.Props{
@@ -106,7 +133,11 @@ templ ProfileForm(props *ProfilePageProps) {
 							Placeholder: pageCtx.T("Account.Phone.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":  "Phone",
-								"value": props.User.Phone,
+								"value": phoneWithoutCountry,
+							},
+							AddonLeft: &input.Addon{
+								Component: phoneCountryCodeSelect(false),
+								Class:     "pr-2",
 							},
 							Error: props.Errors["Phone"],
 						})
@@ -116,9 +147,13 @@ templ ProfileForm(props *ProfilePageProps) {
 							Placeholder: pageCtx.T("Account.Phone.Placeholder"),
 							Attrs: templ.Attributes{
 								"name":     "Phone",
-								"value":    props.User.Phone,
+								"value":    phoneWithoutCountry,
 								"disabled": "disabled",
 								"readonly": "readonly",
+							},
+							AddonLeft: &input.Addon{
+								Component: phoneCountryCodeSelect(true),
+								Class:     "pr-2",
 							},
 							Error: props.Errors["Phone"],
 						})
