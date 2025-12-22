@@ -106,18 +106,12 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) (user.User, error) {
-	// Get current user from context
 	currentUser, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Check if user is updating themselves
-	isSelfUpdate := currentUser.ID() == data.ID()
-
-	// Only require UserUpdate permission when updating other users
-	// Self-updates are allowed for all authenticated users
-	if !isSelfUpdate {
+	if isSelfUpdate := currentUser.ID() == data.ID(); !isSelfUpdate {
 		if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
 			return nil, err
 		}

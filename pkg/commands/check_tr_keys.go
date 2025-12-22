@@ -191,7 +191,9 @@ func extractKeysFromTemplFile(path string, rootPath string) (map[string][]string
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	// Regex to match .T("key") or .TSafe("key") calls
 	// Matches both single and double quotes
