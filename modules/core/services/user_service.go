@@ -106,8 +106,17 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) (user.User, error) {
-	err := composables.CanUser(ctx, permissions.UserUpdate)
+	currentUser, err := composables.UseUser(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	requiredPermission := permissions.UserUpdate
+	if currentUser.ID() == data.ID() {
+		requiredPermission = permissions.UserSelfUpdate
+	}
+
+	if err := composables.CanUser(ctx, requiredPermission); err != nil {
 		return nil, err
 	}
 
