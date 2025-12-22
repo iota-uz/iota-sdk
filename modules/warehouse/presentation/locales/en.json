@@ -46,6 +46,11 @@
     "ERR_ORDER_IS_ALREADY_COMPLETE": "Order is already complete",
     "ERR_PRODUCT_IS_SHIPPED": "Product is already shipped"
   },
+  "Error": {
+    "ValidationError": "Validation Errors Found",
+    "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - This field is required and cannot be empty",
+    "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (found value: '{{.Value}}')"
+  },
   "NavigationLinks": {
     "Warehouse": "Warehouse",
     "Products": "Products",
@@ -147,7 +152,7 @@
         "_Description": "The sequence of cells in Excel should be as follows:",
         "ItemName": "Item Name",
         "ItemNameDesc": "Full name of the item",
-        "ItemCode": "Item Code", 
+        "ItemCode": "Item Code",
         "ItemCodeDesc": "Unique barcode or item code",
         "Unit": "Unit",
         "UnitDesc": "Unit of measurement (e.g. шт, кг, м)",
@@ -165,6 +170,22 @@
         "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - This field is required and cannot be empty",
         "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (found value: '{{.Value}}')"
       }
+    },
+    "Upload": {
+      "Title": "Import Positions",
+      "_Description": "Import warehouse positions from Excel file",
+      "Example": {
+        "Title": "Excel Import",
+        "_Description": "The sequence of cells in Excel should be as follows:",
+        "ItemName": "Item Name",
+        "ItemCode": "Item Code",
+        "Unit": "Unit",
+        "Quantity": "Quantity",
+        "Below": "Below is an example of how the data should be entered:"
+      },
+      "UploadLabel": "Choose a file",
+      "UploadPlaceholder": "Choose a file",
+      "Submit": "Import"
     }
   },
   "WarehouseUnits": {

@@ -74,7 +74,7 @@ func MetricsCard(title, value string) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 34, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 34, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -87,7 +87,7 @@ func MetricsCard(title, value string) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 35, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 35, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -150,7 +150,7 @@ func ActiveUsersCard(dau, wau, mau int) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SuperAdmin.Dashboard.Metrics.ActiveUsers"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 46, Col: 104}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 46, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -203,7 +203,7 @@ func ActiveUsersCard(dau, wau, mau int) templ.Component {
 						var templ_7745c5c3_Var11 string
 						templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SuperAdmin.Dashboard.Metrics.DAU"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 55, Col: 93}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 55, Col: 93}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 						if templ_7745c5c3_Err != nil {
@@ -242,7 +242,7 @@ func ActiveUsersCard(dau, wau, mau int) templ.Component {
 						var templ_7745c5c3_Var13 string
 						templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SuperAdmin.Dashboard.Metrics.WAU"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 58, Col: 93}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 58, Col: 93}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 						if templ_7745c5c3_Err != nil {
@@ -281,7 +281,7 @@ func ActiveUsersCard(dau, wau, mau int) templ.Component {
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SuperAdmin.Dashboard.Metrics.MAU"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 61, Col: 93}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 61, Col: 93}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
@@ -328,7 +328,7 @@ func ActiveUsersCard(dau, wau, mau int) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", dau))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 65, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 65, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -367,7 +367,7 @@ func ActiveUsersCard(dau, wau, mau int) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", wau))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 68, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 68, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -406,7 +406,7 @@ func ActiveUsersCard(dau, wau, mau int) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", mau))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 71, Col: 77}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 71, Col: 77}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -503,7 +503,7 @@ func SignupsChart(title string, dataPoints []entities.TimeSeriesDataPoint) templ
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 99, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 99, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -661,7 +661,7 @@ func DashboardContent(props *IndexPageProps) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("SuperAdmin.Dashboard.Title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/superadmin/presentation/templates/pages/dashboard/index.templ`, Line: 159, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/dashboard/index.templ`, Line: 159, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {

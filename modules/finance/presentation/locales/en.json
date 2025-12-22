@@ -101,6 +101,9 @@
       },
       "New": {
         "Title": "Add payment"
+      },
+      "Show": {
+        "Title": "Payment Details"
       }
     },
     "List": {
@@ -141,6 +144,9 @@
       },
       "New": {
         "Title": "Add expense"
+      },
+      "Show": {
+        "Title": "Expense Details"
       }
     },
     "List": {
@@ -384,6 +390,7 @@
       "Date": "Transaction Date",
       "AccountingPeriod": "Accounting Period",
       "OriginAccount": "Origin Account",
+      "DestinationAccount": "Destination Account",
       "DestinationAccountID": "Destination Account",
       "Comment": "Comment",
       "ExchangeDetails": "Exchange Details",
@@ -489,6 +496,7 @@
     },
     "Single": {
       "Edit": "Edit debt",
+      "Counterparty": "Counterparty",
       "CounterpartyID": "Counterparty",
       "SelectCounterparty": "Select counterparty",
       "Type": "Debt Type",

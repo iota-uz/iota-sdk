@@ -101,6 +101,9 @@
       },
       "New": {
         "Title": "Добавить платеж"
+      },
+      "Show": {
+        "Title": "Детали платежа"
       }
     },
     "List": {
@@ -141,6 +144,9 @@
       },
       "New": {
         "Title": "Добавить расход"
+      },
+      "Show": {
+        "Title": "Детали расхода"
       }
     },
     "List": {
@@ -384,6 +390,7 @@
       "Date": "Дата транзакции",
       "AccountingPeriod": "Учетный период",
       "OriginAccount": "Счет отправителя",
+      "DestinationAccount": "Счет получателя",
       "DestinationAccountID": "Счет получателя",
       "Comment": "Комментарий",
       "ExchangeDetails": "Детали обмена",
@@ -489,6 +496,7 @@
     },
     "Single": {
       "Edit": "Редактировать долг",
+      "Counterparty": "Контрагент",
       "CounterpartyID": "Контрагент",
       "SelectCounterparty": "Выбрать контрагента",
       "Type": "Тип долга",

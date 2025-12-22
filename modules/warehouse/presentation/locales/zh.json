@@ -46,6 +46,11 @@
     "ERR_ORDER_IS_ALREADY_COMPLETE": "订单已完成",
     "ERR_PRODUCT_IS_SHIPPED": "产品已发货"
   },
+  "Error": {
+    "ValidationError": "发现验证错误",
+    "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - 此字段为必填项，不能为空",
+    "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}}（找到的值：'{{.Value}}'）"
+  },
   "NavigationLinks": {
     "Warehouse": "仓库",
     "Products": "产品",
@@ -165,6 +170,22 @@
         "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - 此字段为必填项，不能为空",
         "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}}（找到的值：'{{.Value}}'）"
       }
+    },
+    "Upload": {
+      "Title": "导入仓位",
+      "_Description": "从 Excel 文件导入仓库仓位",
+      "Example": {
+        "Title": "Excel 导入",
+        "_Description": "Excel 中单元格的顺序应如下：",
+        "ItemName": "项目名称",
+        "ItemCode": "项目代码",
+        "Unit": "单位",
+        "Quantity": "数量",
+        "Below": "以下是数据输入方式的示例："
+      },
+      "UploadLabel": "选择文件",
+      "UploadPlaceholder": "选择文件",
+      "Submit": "导入"
     }
   },
   "WarehouseUnits": {

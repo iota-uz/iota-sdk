@@ -54,6 +54,7 @@
   "Actions": "Actions",
   "Add": "Add",
   "All": "All",
+  "NotFound": "Not Found",
   "Analytics": {
     "PreviousDay": "Previous day",
     "NextDay": "Next day",
@@ -823,6 +824,13 @@
   },
   "Search": "Search",
   "SignOut": "Sign out",
+  "Submit": "Submit",
+  "UploadLabel": "Upload File",
+  "UploadPlaceholder": "Choose a file to upload",
+  "DownloadTemplate": "Download Template",
+  "Example": {
+    "Below": "See example below"
+  },
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",

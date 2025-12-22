@@ -54,6 +54,7 @@
   "Actions": "操作",
   "Add": "添加",
   "All": "全部",
+  "NotFound": "未找到",
   "Analytics": {
     "PreviousDay": "前一天",
     "NextDay": "下一天",
@@ -827,6 +828,13 @@
   },
   "Search": "搜索",
   "SignOut": "退出登录",
+  "Submit": "提交",
+  "UploadLabel": "上传文件",
+  "UploadPlaceholder": "选择要上传的文件",
+  "DownloadTemplate": "下载模板",
+  "Example": {
+    "Below": "请参见下面的示例"
+  },
   "Spotlight": {
     "Placeholder": "搜索...",
     "NothingFound": "未找到任何内容",
