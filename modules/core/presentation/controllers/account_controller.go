@@ -3,18 +3,17 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
-
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/account"
-
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type AccountController struct {
@@ -126,6 +125,8 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set("HX-Refresh", "true")
 
 	// Get supported languages for the response
 	supportedLanguages := c.app.GetSupportedLanguages()
