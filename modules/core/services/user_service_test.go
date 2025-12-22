@@ -218,3 +218,198 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 		assert.Equal(t, composables.ErrForbidden, err, "System user deletion should return ErrForbidden")
 	})
 }
+
+func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Any_Authenticated_User_Can_Update_Self", func(t *testing.T) {
+		// Setup test environment without any special permissions
+		// Self-updates are allowed for all authenticated users
+		f := setupTestWithPermissions(t)
+
+		uploadRepository := persistence.NewUploadRepository()
+		userRepository := persistence.NewUserRepository(uploadRepository)
+		userValidator := validators.NewUserValidator(userRepository)
+		eventBus := eventbus.NewEventPublisher(logrus.New())
+		userService := services.NewUserService(userRepository, userValidator, eventBus)
+
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create a user
+		email, err := internet.NewEmail("selfupdate@test.com")
+		require.NoError(t, err)
+		testUser := user.New("Self", "Update", email, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdUser, err := userRepository.Create(f.Ctx, testUser)
+		require.NoError(t, err)
+
+		// Set the created user as the current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser)
+
+		// Update the user's own information
+		updatedUser := createdUser.SetName("NewFirst", "NewLast", createdUser.MiddleName())
+
+		// Should succeed without any special permission
+		result, err := userService.Update(ctx, updatedUser)
+		require.NoError(t, err)
+		assert.Equal(t, "NewFirst", result.FirstName())
+		assert.Equal(t, "NewLast", result.LastName())
+	})
+
+	t.Run("User_Without_Admin_Permission_Cannot_Update_Others", func(t *testing.T) {
+		// Setup test environment without UserUpdate permission
+		f := setupTestWithPermissions(t)
+
+		uploadRepository := persistence.NewUploadRepository()
+		userRepository := persistence.NewUserRepository(uploadRepository)
+		userValidator := validators.NewUserValidator(userRepository)
+		eventBus := eventbus.NewEventPublisher(logrus.New())
+		userService := services.NewUserService(userRepository, userValidator, eventBus)
+
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create two users
+		email1, err := internet.NewEmail("user1@test.com")
+		require.NoError(t, err)
+		user1 := user.New("User", "One", email1, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		email2, err := internet.NewEmail("user2@test.com")
+		require.NoError(t, err)
+		user2 := user.New("User", "Two", email2, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdUser1, err := userRepository.Create(f.Ctx, user1)
+		require.NoError(t, err)
+		createdUser2, err := userRepository.Create(f.Ctx, user2)
+		require.NoError(t, err)
+
+		// Set user1 as current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser1)
+
+		// Try to update user2's information (should fail)
+		updatedUser2 := createdUser2.SetName("Hacked", createdUser2.LastName(), createdUser2.MiddleName())
+
+		_, err = userService.Update(ctx, updatedUser2)
+		require.Error(t, err)
+		assert.Equal(t, composables.ErrForbidden, err)
+	})
+
+	t.Run("User_With_Update_Can_Update_Others", func(t *testing.T) {
+		// Setup test environment with UserUpdate permission (admin)
+		f := setupTestWithPermissions(t, permissions.UserUpdate)
+
+		uploadRepository := persistence.NewUploadRepository()
+		userRepository := persistence.NewUserRepository(uploadRepository)
+		userValidator := validators.NewUserValidator(userRepository)
+		eventBus := eventbus.NewEventPublisher(logrus.New())
+		userService := services.NewUserService(userRepository, userValidator, eventBus)
+
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create two users
+		email1, err := internet.NewEmail("admin@test.com")
+		require.NoError(t, err)
+		adminUser := user.New("Admin", "User", email1, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		email2, err := internet.NewEmail("targetuser@test.com")
+		require.NoError(t, err)
+		targetUser := user.New("Target", "User", email2, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdAdmin, err := userRepository.Create(f.Ctx, adminUser)
+		require.NoError(t, err)
+		createdTarget, err := userRepository.Create(f.Ctx, targetUser)
+		require.NoError(t, err)
+
+		// Set admin as current user in context
+		ctx := composables.WithUser(f.Ctx, createdAdmin)
+
+		// Admin updates target user's information (should succeed)
+		updatedTarget := createdTarget.SetName("Modified", "ByAdmin", createdTarget.MiddleName())
+
+		result, err := userService.Update(ctx, updatedTarget)
+		require.NoError(t, err)
+		assert.Equal(t, "Modified", result.FirstName())
+		assert.Equal(t, "ByAdmin", result.LastName())
+	})
+
+	t.Run("User_With_Update_Can_Also_Update_Self", func(t *testing.T) {
+		// Setup test environment with UserUpdate permission (admin)
+		f := setupTestWithPermissions(t, permissions.UserUpdate)
+
+		uploadRepository := persistence.NewUploadRepository()
+		userRepository := persistence.NewUserRepository(uploadRepository)
+		userValidator := validators.NewUserValidator(userRepository)
+		eventBus := eventbus.NewEventPublisher(logrus.New())
+		userService := services.NewUserService(userRepository, userValidator, eventBus)
+
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create admin user
+		email, err := internet.NewEmail("selfadmin@test.com")
+		require.NoError(t, err)
+		adminUser := user.New("Admin", "Self", email, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdAdmin, err := userRepository.Create(f.Ctx, adminUser)
+		require.NoError(t, err)
+
+		// Set admin as current user in context
+		ctx := composables.WithUser(f.Ctx, createdAdmin)
+
+		// Admin updates their own information (should succeed with UserUpdate permission)
+		updatedAdmin := createdAdmin.SetName("SelfModified", createdAdmin.LastName(), createdAdmin.MiddleName())
+
+		result, err := userService.Update(ctx, updatedAdmin)
+		require.NoError(t, err)
+		assert.Equal(t, "SelfModified", result.FirstName())
+	})
+
+	t.Run("User_With_Only_Read_Permission_Can_Still_Update_Self", func(t *testing.T) {
+		// Setup test environment with only UserRead permission (no UserUpdate)
+		f := setupTestWithPermissions(t, permissions.UserRead)
+
+		uploadRepository := persistence.NewUploadRepository()
+		userRepository := persistence.NewUserRepository(uploadRepository)
+		userValidator := validators.NewUserValidator(userRepository)
+		eventBus := eventbus.NewEventPublisher(logrus.New())
+		userService := services.NewUserService(userRepository, userValidator, eventBus)
+
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create user
+		email, err := internet.NewEmail("readonly@test.com")
+		require.NoError(t, err)
+		testUser := user.New("Read", "Only", email, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdUser, err := userRepository.Create(f.Ctx, testUser)
+		require.NoError(t, err)
+
+		// Set user as current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser)
+
+		// Update own information - should succeed even without UserUpdate permission
+		updatedUser := createdUser.SetName("Updated", "Successfully", createdUser.MiddleName())
+
+		result, err := userService.Update(ctx, updatedUser)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated", result.FirstName())
+		assert.Equal(t, "Successfully", result.LastName())
+	})
+}
