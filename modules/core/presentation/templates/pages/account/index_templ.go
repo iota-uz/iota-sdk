@@ -147,23 +147,75 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, " ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, " <div class=\"w-full\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = input.Text(&input.Props{
-				Label:       pageCtx.T("Account.Phone.Label"),
-				Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-				Attrs: templ.Attributes{
-					"name":  "Phone",
-					"value": props.User.Phone,
-				},
-				Error: props.Errors["Phone"],
-			}).Render(ctx, templ_7745c5c3_Buffer)
+			if props.User.Email == "" || props.User.Type == "superadmin" {
+				templ_7745c5c3_Err = input.Text(&input.Props{
+					Label:       pageCtx.T("Account.Email.Label"),
+					Placeholder: pageCtx.T("Account.Email.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "Email",
+						"value": props.User.Email,
+						"type":  "email",
+					},
+					Error: props.Errors["Email"],
+				}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = input.Text(&input.Props{
+					Label:       pageCtx.T("Account.Email.Label"),
+					Placeholder: pageCtx.T("Account.Email.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":     "Email",
+						"value":    props.User.Email,
+						"type":     "email",
+						"disabled": "disabled",
+						"readonly": "readonly",
+					},
+					Error: props.Errors["Email"],
+				}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div class=\"w-full\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " ")
+			if props.User.Phone == "" || props.User.Type == "superadmin" {
+				templ_7745c5c3_Err = input.Text(&input.Props{
+					Label:       pageCtx.T("Account.Phone.Label"),
+					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":  "Phone",
+						"value": props.User.Phone,
+					},
+					Error: props.Errors["Phone"],
+				}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			} else {
+				templ_7745c5c3_Err = input.Text(&input.Props{
+					Label:       pageCtx.T("Account.Phone.Label"),
+					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":     "Phone",
+						"value":    props.User.Phone,
+						"disabled": "disabled",
+						"readonly": "readonly",
+					},
+					Error: props.Errors["Phone"],
+				}).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -186,7 +238,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div><div class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div><div class=\"h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -205,7 +257,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Account.Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 100, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 143, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -221,7 +273,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

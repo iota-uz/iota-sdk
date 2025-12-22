@@ -72,15 +72,58 @@ templ ProfileForm(props *ProfilePageProps) {
 					},
 					Error: props.Errors["MiddleName"],
 				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Account.Phone.Label"),
-					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":  "Phone",
-						"value": props.User.Phone,
-					},
-					Error: props.Errors["Phone"],
-				})
+				<div class="w-full">
+					if props.User.Email == "" || props.User.Type == "superadmin" {
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Account.Email.Label"),
+							Placeholder: pageCtx.T("Account.Email.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "Email",
+								"value": props.User.Email,
+								"type":  "email",
+							},
+							Error: props.Errors["Email"],
+						})
+					} else {
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Account.Email.Label"),
+							Placeholder: pageCtx.T("Account.Email.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":     "Email",
+								"value":    props.User.Email,
+								"type":     "email",
+								"disabled": "disabled",
+								"readonly": "readonly",
+							},
+							Error: props.Errors["Email"],
+						})
+					}
+				</div>
+				<div class="w-full">
+					if props.User.Phone == "" || props.User.Type == "superadmin" {
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Account.Phone.Label"),
+							Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":  "Phone",
+								"value": props.User.Phone,
+							},
+							Error: props.Errors["Phone"],
+						})
+					} else {
+						@input.Text(&input.Props{
+							Label:       pageCtx.T("Account.Phone.Label"),
+							Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+							Attrs: templ.Attributes{
+								"name":     "Phone",
+								"value":    props.User.Phone,
+								"disabled": "disabled",
+								"readonly": "readonly",
+							},
+							Error: props.Errors["Phone"],
+						})
+					}
+				</div>
 				@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 					Label:       pageCtx.T("Users.Single.Language"),
 					Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
