@@ -20,17 +20,6 @@ type ProfilePageProps struct {
 	Languages []intl.SupportedLanguage
 }
 
-templ phoneCountryCodeSelect(disabled bool) {
-	<select
-		data-country-code-select
-		class="appearance-none bg-transparent text-gray-600 font-medium border-none outline-none pr-1"
-		class={ templ.KV("cursor-pointer", !disabled), templ.KV("cursor-not-allowed opacity-60", disabled) }
-		disabled?={ disabled }
-	>
-		<option value="+998" selected>+998</option>
-	</select>
-}
-
 templ ProfileForm(props *ProfilePageProps) {
 	{{
 	    pageCtx := composables.UsePageCtx(ctx)

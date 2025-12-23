@@ -28,11 +28,6 @@ var (
 			VerboseName: "O'zbekcha",
 			Tag:         language.Uzbek,
 		},
-		{
-			Code:        "zh",
-			VerboseName: "中文",
-			Tag:         language.Chinese,
-		},
 	}
 
 	// SupportedLanguages is the default list (all languages) for backward compatibility
