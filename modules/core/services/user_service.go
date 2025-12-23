@@ -106,17 +106,7 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) (user.User, error) {
-	currentUser, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	requiredPermission := permissions.UserUpdate
-	if currentUser.ID() == data.ID() {
-		requiredPermission = permissions.UserSelfUpdate
-	}
-
-	if err := composables.CanUser(ctx, requiredPermission); err != nil {
+	if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
 		return nil, err
 	}
 
@@ -124,10 +114,38 @@ func (s *UserService) Update(ctx context.Context, data user.User) (user.User, er
 		return nil, composables.ErrForbidden
 	}
 
+	return s.performUpdate(ctx, data)
+}
+
+func (s *UserService) UpdateSelf(ctx context.Context, data user.User) (user.User, error) {
+	currentUser, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if currentUser.ID() != data.ID() {
+		return nil, composables.ErrForbidden
+	}
+
+	if !data.CanUpdate() {
+		return nil, composables.ErrForbidden
+	}
+
+	// Preserve sensitive fields from current user to prevent privilege escalation
+	data = data.
+		SetRoles(currentUser.Roles()).
+		SetPermissions(currentUser.Permissions()).
+		SetGroupIDs(currentUser.GroupIDs())
+
+	return s.performUpdate(ctx, data)
+}
+
+// performUpdate executes the common update logic for both Update and UpdateSelf
+func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.User, error) {
 	updatedEvent := user.NewUpdatedEvent(ctx, data)
 
 	var updatedUser user.User
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
 		if err := s.validator.ValidateUpdate(txCtx, data); err != nil {
 			return err
 		}

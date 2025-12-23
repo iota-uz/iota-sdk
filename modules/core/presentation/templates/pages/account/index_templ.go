@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -27,7 +28,6 @@ type ProfilePageProps struct {
 	Languages []intl.SupportedLanguage
 }
 
-// TODO: Add more country codes when internationalization is needed
 func phoneCountryCodeSelect(disabled bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -113,6 +113,8 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 		if len(phoneWithoutCountry) >= 3 && phoneWithoutCountry[:3] == "998" {
 			phoneWithoutCountry = phoneWithoutCountry[3:]
 		}
+
+		isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<form class=\"flex flex-col justify-between h-full\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -120,7 +122,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.PostPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 45, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 47, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -215,77 +217,49 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if props.User.Email == "" || props.User.Type == "superadmin" {
-				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       pageCtx.T("Account.Email.Label"),
-					Placeholder: pageCtx.T("Account.Email.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":  "Email",
-						"value": props.User.Email,
-						"type":  "email",
-					},
-					Error: props.Errors["Email"],
-				}).Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else {
-				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       pageCtx.T("Account.Email.Label"),
-					Placeholder: pageCtx.T("Account.Email.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":     "Email",
-						"value":    props.User.Email,
-						"type":     "email",
-						"disabled": "disabled",
-						"readonly": "readonly",
-					},
-					Error: props.Errors["Email"],
-				}).Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
+			isEmailDisabled := props.User.Email != "" && !isUpdatable
+			templ_7745c5c3_Err = input.Text(&input.Props{
+				Label:       pageCtx.T("Account.Email.Label"),
+				Placeholder: pageCtx.T("Account.Email.Placeholder"),
+				Attrs: templ.Attributes{
+					"name":     "Email",
+					"value":    props.User.Email,
+					"type":     "email",
+					"disabled": isEmailDisabled,
+					"readonly": isEmailDisabled,
+					"required": true,
+				},
+				Error: props.Errors["Email"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div><div class=\"w-full\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if props.User.Phone == "" || props.User.Type == "superadmin" {
-				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       pageCtx.T("Account.Phone.Label"),
-					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":  "Phone",
-						"value": phoneWithoutCountry,
-					},
-					AddonLeft: &input.Addon{
-						Component: phoneCountryCodeSelect(false),
-						Class:     "pr-2",
-					},
-					Error: props.Errors["Phone"],
-				}).Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			} else {
-				templ_7745c5c3_Err = input.Text(&input.Props{
-					Label:       pageCtx.T("Account.Phone.Label"),
-					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":     "Phone",
-						"value":    phoneWithoutCountry,
-						"disabled": "disabled",
-						"readonly": "readonly",
-					},
-					AddonLeft: &input.Addon{
-						Component: phoneCountryCodeSelect(true),
-						Class:     "pr-2",
-					},
-					Error: props.Errors["Phone"],
-				}).Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
+			isPhoneDisabled := props.User.Email != "" && !isUpdatable
+			templ_7745c5c3_Err = input.Text(&input.Props{
+				Label:       pageCtx.T("Account.Phone.Label"),
+				Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+				Attrs: templ.Attributes{
+					"name":      "Phone",
+					"value":     phoneWithoutCountry,
+					"disabled":  isPhoneDisabled,
+					"readonly":  isPhoneDisabled,
+					"minlength": "9",
+					"maxlength": "9",
+					"pattern":   "[0-9]+",
+					"required":  true,
+				},
+				AddonLeft: &input.Addon{
+					Component: phoneCountryCodeSelect(true),
+					Class:     "pr-2",
+				},
+				Error: props.Errors["Phone"],
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</div>")
 			if templ_7745c5c3_Err != nil {
@@ -329,7 +303,7 @@ func ProfileForm(props *ProfilePageProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Account.Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 178, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/index.templ`, Line: 158, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
