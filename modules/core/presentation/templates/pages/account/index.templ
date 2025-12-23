@@ -32,28 +32,15 @@ templ phoneCountryCodeSelect(disabled bool) {
 }
 
 templ ProfileForm(props *ProfilePageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
-		// Strip country code from phone display
-		phoneWithoutCountry := props.User.Phone
-		if len(phoneWithoutCountry) >= 3 && phoneWithoutCountry[:3] == "998" {
-			phoneWithoutCountry = phoneWithoutCountry[3:]
-		}
+	    pageCtx := composables.UsePageCtx(ctx)
 
 		isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
-	}}
+    }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
-		x-data="{ countryCode: '+998', phoneNumber: '' }"
-		@submit="
-			const phoneInput = $el.querySelector('input[name=Phone]');
-			const countrySelect = $el.querySelector('[data-country-code-select]');
-			const countryCode = countrySelect.value.replace('+', '');
-			phoneInput.value = countryCode + phoneInput.value;
-			countrySelect.style.display = 'none';
-		"
 	>
 		<div class="flex flex-col gap-5 p-6">
 			@card.Card(card.Props{
@@ -112,32 +99,28 @@ templ ProfileForm(props *ProfilePageProps) {
 							"type":     "email",
 							"disabled": isEmailDisabled,
 							"readonly": isEmailDisabled,
-							"required": true,
 						},
 						Error: props.Errors["Email"],
 					})
 				</div>
 				<div class="w-full">
-					{{ isPhoneDisabled := props.User.Email != "" && !isUpdatable }}
+					{{ isPhoneDisabled := props.User.Phone != "" && !isUpdatable }}
 					@input.Text(&input.Props{
 						Label:       pageCtx.T("Account.Phone.Label"),
 						Placeholder: pageCtx.T("Account.Phone.Placeholder"),
 						Attrs: templ.Attributes{
 							"name":      "Phone",
-							"value":     phoneWithoutCountry,
+							"value":     props.User.Phone,
 							"disabled":  isPhoneDisabled,
 							"readonly":  isPhoneDisabled,
-							"minlength": "9",
-							"maxlength": "9",
-							"pattern":   "[0-9]+",
-							"required":  true,
-						},
-						AddonLeft: &input.Addon{
-							Component: phoneCountryCodeSelect(true),
-							Class:     "pr-2",
+							"minlength": "16",
+							"maxlength": "16",
+							"pattern": "^\\+998.{12}",
+							"x-mask":    "+999 99 999 9999",
 						},
 						Error: props.Errors["Phone"],
 					})
+					<span class="text-gray-500 pr-2 text-xs">+998 XX XXX XXXX</span>
 				</div>
 				@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 					Label:       pageCtx.T("Users.Single.Language"),
