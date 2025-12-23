@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -19,7 +20,6 @@ type ProfilePageProps struct {
 	Languages []intl.SupportedLanguage
 }
 
-// TODO: Add more country codes when internationalization is needed
 templ phoneCountryCodeSelect(disabled bool) {
 	<select
 		data-country-code-select
@@ -39,6 +39,8 @@ templ ProfileForm(props *ProfilePageProps) {
 		if len(phoneWithoutCountry) >= 3 && phoneWithoutCountry[:3] == "998" {
 			phoneWithoutCountry = phoneWithoutCountry[3:]
 		}
+
+		isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
 	}}
 	<form
 		class="flex flex-col justify-between h-full"
@@ -100,64 +102,42 @@ templ ProfileForm(props *ProfilePageProps) {
 					Error: props.Errors["MiddleName"],
 				})
 				<div class="w-full">
-					if props.User.Email == "" || props.User.Type == "superadmin" {
-						@input.Text(&input.Props{
-							Label:       pageCtx.T("Account.Email.Label"),
-							Placeholder: pageCtx.T("Account.Email.Placeholder"),
-							Attrs: templ.Attributes{
-								"name":  "Email",
-								"value": props.User.Email,
-								"type":  "email",
-							},
-							Error: props.Errors["Email"],
-						})
-					} else {
-						@input.Text(&input.Props{
-							Label:       pageCtx.T("Account.Email.Label"),
-							Placeholder: pageCtx.T("Account.Email.Placeholder"),
-							Attrs: templ.Attributes{
-								"name":     "Email",
-								"value":    props.User.Email,
-								"type":     "email",
-								"disabled": "disabled",
-								"readonly": "readonly",
-							},
-							Error: props.Errors["Email"],
-						})
-					}
+					{{ isEmailDisabled := props.User.Email != "" && !isUpdatable }}
+					@input.Text(&input.Props{
+						Label:       pageCtx.T("Account.Email.Label"),
+						Placeholder: pageCtx.T("Account.Email.Placeholder"),
+						Attrs: templ.Attributes{
+							"name":     "Email",
+							"value":    props.User.Email,
+							"type":     "email",
+							"disabled": isEmailDisabled,
+							"readonly": isEmailDisabled,
+							"required": true,
+						},
+						Error: props.Errors["Email"],
+					})
 				</div>
 				<div class="w-full">
-					if props.User.Phone == "" || props.User.Type == "superadmin" {
-						@input.Text(&input.Props{
-							Label:       pageCtx.T("Account.Phone.Label"),
-							Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-							Attrs: templ.Attributes{
-								"name":  "Phone",
-								"value": phoneWithoutCountry,
-							},
-							AddonLeft: &input.Addon{
-								Component: phoneCountryCodeSelect(false),
-								Class:     "pr-2",
-							},
-							Error: props.Errors["Phone"],
-						})
-					} else {
-						@input.Text(&input.Props{
-							Label:       pageCtx.T("Account.Phone.Label"),
-							Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-							Attrs: templ.Attributes{
-								"name":     "Phone",
-								"value":    phoneWithoutCountry,
-								"disabled": "disabled",
-								"readonly": "readonly",
-							},
-							AddonLeft: &input.Addon{
-								Component: phoneCountryCodeSelect(true),
-								Class:     "pr-2",
-							},
-							Error: props.Errors["Phone"],
-						})
-					}
+					{{ isPhoneDisabled := props.User.Email != "" && !isUpdatable }}
+					@input.Text(&input.Props{
+						Label:       pageCtx.T("Account.Phone.Label"),
+						Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+						Attrs: templ.Attributes{
+							"name":      "Phone",
+							"value":     phoneWithoutCountry,
+							"disabled":  isPhoneDisabled,
+							"readonly":  isPhoneDisabled,
+							"minlength": "9",
+							"maxlength": "9",
+							"pattern":   "[0-9]+",
+							"required":  true,
+						},
+						AddonLeft: &input.Addon{
+							Component: phoneCountryCodeSelect(true),
+							Class:     "pr-2",
+						},
+						Error: props.Errors["Phone"],
+					})
 				</div>
 				@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 					Label:       pageCtx.T("Users.Single.Language"),
