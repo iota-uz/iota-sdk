@@ -92,6 +92,10 @@ templ EditForm(props *EditFormProps) {
 									"value": props.User.Phone,
 									"name":  "Phone",
 									"form":  "save-form",
+                                    "minlength": "16",
+                                    "maxlength": "16",
+                                    "pattern": "^\\+998.{12}",
+                                    "x-mask":    "+999 99 999 9999",
 								},
 								Error: props.Errors["Phone"],
 							})
