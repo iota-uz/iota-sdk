@@ -70,14 +70,15 @@ func (m *Module) Register(app application.Application) error {
 	// Create services
 	tenantService := services.NewTenantService(tenantRepo)
 	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
 
 	app.RegisterServices(
 		uploadService,
-		services.NewUserService(userRepo, userValidator, app.EventPublisher()),
+		services.NewUserService(userRepo, userValidator, app.EventPublisher(), sessionService),
 		services.NewUserQueryService(userQueryRepo),
 		services.NewGroupQueryService(groupQueryRepo),
 		services.NewRoleQueryService(roleQueryRepo),
-		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
+		sessionService,
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
 	app.RegisterServices(

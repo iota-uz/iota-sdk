@@ -52,7 +52,8 @@ func TestUserService_CanUserBeDeleted(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	userValidator := validators.NewUserValidator(userRepository)
 	eventBus := eventbus.NewEventPublisher(logrus.New())
-	userService := services.NewUserService(userRepository, userValidator, eventBus)
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
@@ -140,7 +141,8 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	userValidator := validators.NewUserValidator(userRepository)
 	eventBus := eventbus.NewEventPublisher(logrus.New())
-	userService := services.NewUserService(userRepository, userValidator, eventBus)
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
@@ -231,7 +233,8 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		userRepository := persistence.NewUserRepository(uploadRepository)
 		userValidator := validators.NewUserValidator(userRepository)
 		eventBus := eventbus.NewEventPublisher(logrus.New())
-		userService := services.NewUserService(userRepository, userValidator, eventBus)
+		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
@@ -267,7 +270,8 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		userRepository := persistence.NewUserRepository(uploadRepository)
 		userValidator := validators.NewUserValidator(userRepository)
 		eventBus := eventbus.NewEventPublisher(logrus.New())
-		userService := services.NewUserService(userRepository, userValidator, eventBus)
+		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
@@ -309,7 +313,8 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		userRepository := persistence.NewUserRepository(uploadRepository)
 		userValidator := validators.NewUserValidator(userRepository)
 		eventBus := eventbus.NewEventPublisher(logrus.New())
-		userService := services.NewUserService(userRepository, userValidator, eventBus)
+		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
@@ -352,7 +357,8 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		userRepository := persistence.NewUserRepository(uploadRepository)
 		userValidator := validators.NewUserValidator(userRepository)
 		eventBus := eventbus.NewEventPublisher(logrus.New())
-		userService := services.NewUserService(userRepository, userValidator, eventBus)
+		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
@@ -386,7 +392,8 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		userRepository := persistence.NewUserRepository(uploadRepository)
 		userValidator := validators.NewUserValidator(userRepository)
 		eventBus := eventbus.NewEventPublisher(logrus.New())
-		userService := services.NewUserService(userRepository, userValidator, eventBus)
+		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
@@ -424,7 +431,8 @@ func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 		userRepository := persistence.NewUserRepository(uploadRepository)
 		userValidator := validators.NewUserValidator(userRepository)
 		eventBus := eventbus.NewEventPublisher(logrus.New())
-		userService := services.NewUserService(userRepository, userValidator, eventBus)
+		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
@@ -465,7 +473,8 @@ func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 		userRepository := persistence.NewUserRepository(uploadRepository)
 		userValidator := validators.NewUserValidator(userRepository)
 		eventBus := eventbus.NewEventPublisher(logrus.New())
-		userService := services.NewUserService(userRepository, userValidator, eventBus)
+		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)

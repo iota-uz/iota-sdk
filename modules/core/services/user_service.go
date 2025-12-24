@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -12,16 +13,18 @@ import (
 )
 
 type UserService struct {
-	repo      user.Repository
-	validator user.Validator
-	publisher eventbus.EventBus
+	repo           user.Repository
+	validator      user.Validator
+	publisher      eventbus.EventBus
+	sessionService *SessionService
 }
 
-func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus) *UserService {
+func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus, sessionService *SessionService) *UserService {
 	return &UserService{
-		repo:      repo,
-		validator: validator,
-		publisher: publisher,
+		repo:           repo,
+		validator:      validator,
+		publisher:      publisher,
+		sessionService: sessionService,
 	}
 }
 
@@ -287,6 +290,11 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 		// Update in repository
 		if err := s.repo.Update(txCtx, u); err != nil {
 			return err
+		}
+
+		// Delete all active sessions for the blocked user
+		if _, err := s.sessionService.DeleteByUserId(txCtx, userID); err != nil {
+			return fmt.Errorf("failed to invalidate user sessions: %w", err)
 		}
 
 		// Reload user to get updated state
