@@ -55,7 +55,13 @@ templ EditForm(props *EditFormProps) {
 								if props.User.BlockedByUser != "" {
 									<p>
 										<span class="font-medium">{ pageCtx.T("Users.Block.BlockedBy") }:</span>
-										<span class="ml-2">{ props.User.BlockedByUser }</span>
+										if props.User.BlockedBy != "" {
+											<a href={ templ.URL(fmt.Sprintf("/users/%s", props.User.BlockedBy)) } class="ml-2 text-red-700 hover:text-red-900 underline">
+												{ props.User.BlockedByUser }
+											</a>
+										} else {
+											<span class="ml-2">{ props.User.BlockedByUser }</span>
+										}
 									</p>
 								}
 								if props.User.BlockedAt != "" {
