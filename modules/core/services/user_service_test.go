@@ -302,7 +302,7 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	t.Run("User_With_Update_Can_Update_Others", func(t *testing.T) {
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
-		
+
 		// Ensure UserUpdate permission exists (it should from setup, but be safe)
 		err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
 		require.NoError(t, err)
@@ -341,7 +341,7 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	t.Run("User_With_Update_Can_Also_Update_Self", func(t *testing.T) {
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
-		
+
 		// Ensure UserUpdate permission exists (it should from setup, but be safe)
 		err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
 		require.NoError(t, err)
