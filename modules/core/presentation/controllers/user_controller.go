@@ -862,7 +862,7 @@ func (c *UsersController) BlockUser(
 		return
 	}
 
-	if _, err := w.Write([]byte(fmt.Sprintf(`<div id="block-user-drawer-%d"></div>`, id))); err != nil {
+	if _, err := fmt.Fprintf(w, `<div id="block-user-drawer-%d"></div>`, id); err != nil {
 		logger.Errorf("Error writing block-user-drawer div: %v", err)
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
