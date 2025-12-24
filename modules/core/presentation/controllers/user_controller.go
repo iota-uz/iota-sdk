@@ -199,6 +199,84 @@ func (c *UsersController) resourcePermissionGroups(
 	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
 }
 
+// buildEditFormProps is a helper method that fetches all necessary data
+// and builds the EditFormProps for rendering the edit form.
+// This eliminates code duplication between GetEdit, BlockUser, and UnblockUser.
+func (c *UsersController) buildEditFormProps(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+	roleService *services.RoleService,
+	groupQueryService *services.GroupQueryService,
+	userID uint,
+) (*users.EditFormProps, error) {
+	// Fetch roles
+	roles, err := roleService.GetAll(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving roles: %v", err)
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Fetch groups
+	groupParams := &query.GroupFindParams{
+		Limit:   1000,
+		Offset:  0,
+		Filters: []query.GroupFilter{},
+	}
+	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
+	if err != nil {
+		logger.Errorf("Error retrieving groups: %v", err)
+		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Fetch user
+	us, err := userService.GetByID(r.Context(), userID)
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v", err)
+		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Check if user can be deleted
+	canDelete, err := userService.CanUserBeDeleted(r.Context(), userID)
+	if err != nil {
+		logger.Errorf("Error checking if user can be deleted: %v", err)
+		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Map user to view model
+	userViewModel := mappers.UserToViewModel(us)
+	userViewModel.CanDelete = canDelete
+
+	// If user is blocked, fetch the blocker's name
+	if userViewModel.IsBlocked && userViewModel.BlockedBy != "" && userViewModel.BlockedBy != "0" {
+		blockedByID, parseErr := strconv.ParseUint(userViewModel.BlockedBy, 10, 64)
+		if parseErr == nil {
+			blockerUser, fetchErr := userService.GetByID(r.Context(), uint(blockedByID))
+			if fetchErr == nil {
+				blockerVM := mappers.UserToViewModel(blockerUser)
+				userViewModel.BlockedByUser = blockerVM.Title()
+			}
+		}
+	}
+
+	// Build and return EditFormProps
+	props := &users.EditFormProps{
+		User:                     userViewModel,
+		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Groups:                   groups,
+		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
+		Errors:                   map[string]string{},
+		CanDelete:                canDelete,
+	}
+
+	return props, nil
+}
+
 func (c *UsersController) Users(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -343,63 +421,12 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	roles, err := roleService.GetAll(r.Context())
+	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
 	if err != nil {
-		logger.Errorf("Error retrieving roles: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		// Error already logged and response sent by buildEditFormProps
 		return
 	}
 
-	// Use GroupQueryService to fetch all groups
-	groupParams := &query.GroupFindParams{
-		Limit:   1000, // Large limit to fetch all groups
-		Offset:  0,
-		Filters: []query.GroupFilter{},
-	}
-	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
-	if err != nil {
-		logger.Errorf("Error retrieving groups: %v", err)
-		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
-		return
-	}
-
-	us, err := userService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving user: %v", err)
-		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
-		return
-	}
-
-	canDelete, err := userService.CanUserBeDeleted(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error checking if user can be deleted: %v", err)
-		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
-		return
-	}
-
-	userViewModel := mappers.UserToViewModel(us)
-	userViewModel.CanDelete = canDelete
-
-	// If user is blocked, fetch the blocker's name
-	if userViewModel.IsBlocked && userViewModel.BlockedBy != "" && userViewModel.BlockedBy != "0" {
-		blockedByID, err := strconv.ParseUint(userViewModel.BlockedBy, 10, 64)
-		if err == nil {
-			blockerUser, err := userService.GetByID(r.Context(), uint(blockedByID))
-			if err == nil {
-				blockerVM := mappers.UserToViewModel(blockerUser)
-				userViewModel.BlockedByUser = blockerVM.Title()
-			}
-		}
-	}
-
-	props := &users.EditFormProps{
-		User:                     userViewModel,
-		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:                   groups, // Already viewmodels from query service
-		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
-		Errors:                   map[string]string{},
-		CanDelete:                canDelete,
-	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
@@ -835,68 +862,33 @@ func (c *UsersController) BlockUser(
 		return
 	}
 
-	w.Write([]byte(fmt.Sprintf(`<div id="block-user-drawer-%d"></div>`, id)))
-
-	roles, err := roleService.GetAll(r.Context())
-	if err != nil {
-		logger.Errorf("Error retrieving roles: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+	if _, err := w.Write([]byte(fmt.Sprintf(`<div id="block-user-drawer-%d"></div>`, id))); err != nil {
+		logger.Errorf("Error writing block-user-drawer div: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
 
-	groupParams := &query.GroupFindParams{
-		Limit:   1000,
-		Offset:  0,
-		Filters: []query.GroupFilter{},
-	}
-	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
+	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
 	if err != nil {
-		logger.Errorf("Error retrieving groups: %v", err)
-		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		// Error already logged and response sent by buildEditFormProps
 		return
 	}
 
-	us, err := userService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving updated user: %v", err)
-		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
+	if _, err := w.Write([]byte(`<div id="edit-content" hx-swap-oob="true">`)); err != nil {
+		logger.Errorf("Error writing edit-content opening div: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
-
-	canDelete, err := userService.CanUserBeDeleted(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error checking if user can be deleted: %v", err)
-		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
+	if err := users.EditForm(props).Render(r.Context(), w); err != nil {
+		logger.Errorf("Error rendering edit form: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
-
-	userViewModel := mappers.UserToViewModel(us)
-	userViewModel.CanDelete = canDelete
-
-	// If user is blocked, fetch the blocker's name
-	if userViewModel.IsBlocked && userViewModel.BlockedBy != "" && userViewModel.BlockedBy != "0" {
-		blockedByID, parseErr := strconv.ParseUint(userViewModel.BlockedBy, 10, 64)
-		if parseErr == nil {
-			blockerUser, fetchErr := userService.GetByID(r.Context(), uint(blockedByID))
-			if fetchErr == nil {
-				blockerVM := mappers.UserToViewModel(blockerUser)
-				userViewModel.BlockedByUser = blockerVM.Title()
-			}
-		}
+	if _, err := w.Write([]byte(`</div>`)); err != nil {
+		logger.Errorf("Error writing edit-content closing div: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
 	}
-
-	props := &users.EditFormProps{
-		User:                     userViewModel,
-		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:                   groups,
-		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
-		Errors:                   map[string]string{},
-		CanDelete:                canDelete,
-	}
-
-	w.Write([]byte(`<div id="edit-content" hx-swap-oob="true">`))
-	users.EditForm(props).Render(r.Context(), w)
-	w.Write([]byte(`</div>`))
 }
 
 func (c *UsersController) UnblockUser(
@@ -914,7 +906,7 @@ func (c *UsersController) UnblockUser(
 		return
 	}
 
-	_, err = userService.UnblockUser(r.Context(), uint(id))
+	_, err = userService.UnblockUser(r.Context(), id)
 	if err != nil {
 		logger.Errorf("Error unblocking user: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -922,50 +914,15 @@ func (c *UsersController) UnblockUser(
 	}
 
 	// Success - return updated EditForm
-	roles, err := roleService.GetAll(r.Context())
+	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
 	if err != nil {
-		logger.Errorf("Error retrieving roles: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		// Error already logged and response sent by buildEditFormProps
 		return
 	}
 
-	groupParams := &query.GroupFindParams{
-		Limit:   1000,
-		Offset:  0,
-		Filters: []query.GroupFilter{},
-	}
-	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
-	if err != nil {
-		logger.Errorf("Error retrieving groups: %v", err)
-		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+	if err := users.EditForm(props).Render(r.Context(), w); err != nil {
+		logger.Errorf("Error rendering edit form: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
-
-	us, err := userService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving updated user: %v", err)
-		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
-		return
-	}
-
-	canDelete, err := userService.CanUserBeDeleted(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error checking if user can be deleted: %v", err)
-		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
-		return
-	}
-
-	userViewModel := mappers.UserToViewModel(us)
-	userViewModel.CanDelete = canDelete
-
-	props := &users.EditFormProps{
-		User:                     userViewModel,
-		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:                   groups,
-		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
-		Errors:                   map[string]string{},
-		CanDelete:                canDelete,
-	}
-
-	users.EditForm(props).Render(r.Context(), w)
 }
