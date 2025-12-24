@@ -33,25 +33,40 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		}
 	}
 
+	blockedAt := ""
+	if !entity.BlockedAt().IsZero() {
+		blockedAt = entity.BlockedAt().Format(time.RFC3339)
+	}
+
+	blockedBy := ""
+	if entity.BlockedBy() != 0 {
+		blockedBy = strconv.FormatUint(uint64(entity.BlockedBy()), 10)
+	}
+
 	return &viewmodels.User{
-		ID:          strconv.FormatUint(uint64(entity.ID()), 10),
-		Type:        string(entity.Type()),
-		FirstName:   entity.FirstName(),
-		LastName:    entity.LastName(),
-		MiddleName:  entity.MiddleName(),
-		Email:       entity.Email().Value(),
-		Phone:       phone,
-		Avatar:      avatar,
-		Language:    string(entity.UILanguage()),
-		LastAction:  entity.LastAction().Format(time.RFC3339),
-		CreatedAt:   entity.CreatedAt().Format(time.RFC3339),
-		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
-		Roles:       mapping.MapViewModels(entity.Roles(), RoleToViewModel),
-		GroupIDs:    groupIDs,
-		Permissions: mapping.MapViewModels(entity.Permissions(), PermissionToViewModel),
-		AvatarID:    strconv.Itoa(int(entity.AvatarID())),
-		CanUpdate:   entity.CanUpdate(),
-		CanDelete:   entity.CanDelete(),
+		ID:           strconv.FormatUint(uint64(entity.ID()), 10),
+		Type:         string(entity.Type()),
+		FirstName:    entity.FirstName(),
+		LastName:     entity.LastName(),
+		MiddleName:   entity.MiddleName(),
+		Email:        entity.Email().Value(),
+		Phone:        phone,
+		Avatar:       avatar,
+		Language:     string(entity.UILanguage()),
+		LastAction:   entity.LastAction().Format(time.RFC3339),
+		CreatedAt:    entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:    entity.UpdatedAt().Format(time.RFC3339),
+		Roles:        mapping.MapViewModels(entity.Roles(), RoleToViewModel),
+		GroupIDs:     groupIDs,
+		Permissions:  mapping.MapViewModels(entity.Permissions(), PermissionToViewModel),
+		AvatarID:     strconv.Itoa(int(entity.AvatarID())),
+		CanUpdate:    entity.CanUpdate(),
+		CanDelete:    entity.CanDelete(),
+		IsBlocked:    entity.IsBlocked(),
+		BlockReason:  entity.BlockReason(),
+		BlockedAt:    blockedAt,
+		BlockedBy:    blockedBy,
+		CanBeBlocked: entity.CanBeBlocked(),
 	}
 }
 

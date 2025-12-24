@@ -87,6 +87,22 @@ func ProvideUser() mux.MiddlewareFunc {
 					next.ServeHTTP(w, r)
 					return
 				}
+
+				// Check if user is blocked
+				if u.IsBlocked() {
+					// Clear session cookie
+					conf := configuration.Use()
+					http.SetCookie(w, &http.Cookie{
+						Name:   conf.SidCookieKey,
+						Value:  "",
+						Path:   "/",
+						MaxAge: -1,
+					})
+					// Redirect to login with error
+					http.Redirect(w, r, "/login?error=account_blocked", http.StatusFound)
+					return
+				}
+
 				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 

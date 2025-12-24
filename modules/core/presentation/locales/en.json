@@ -392,16 +392,24 @@
       "OauthStateNotFound": "oAuth state not found. Please, try again.",
       "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
       "OauthCodeNotFound": "oAuth code not found. Please, try again.",
-      "UserNotFound": "User not found"
+      "UserNotFound": "User not found",
+      "AccountBlocked": "Your account has been blocked. Please contact administrator."
     }
   },
   "Modules": {
+    "Bichat": "Bichat",
+    "Billing": "Billing",
     "Core": "Administration",
-    "Finance": "Finance",
-    "Projects": "Projects",
-    "Warehouse": "Warehouse",
     "CRM": "CRM",
-    "HRM": "HR Management"
+    "Finance": "Finance",
+    "HRM": "HR Management",
+    "Logging": "Logging",
+    "Pipeline": "Pipeline",
+    "Projects": "Projects",
+    "Superadmin": "Super Admin",
+    "Testkit": "Test Kit",
+    "Warehouse": "Warehouse",
+    "Website": "Website"
   },
   "NavigationLinks": {
     "Dashboard": "Dashboard",
@@ -523,7 +531,7 @@
       },
       "UserManage": {
         "Label": "Manage Users",
-        "_Description": "Full user management capabilities"
+        "_Description": "Full user management capabilities including blocking"
       },
       "RoleView": {
         "Label": "View Roles",
@@ -698,7 +706,8 @@
       "Create": "Create users",
       "Read": "View users",
       "Update": "Update users",
-      "Delete": "Delete users"
+      "Delete": "Delete users",
+      "UpdateBlockStatus": "Block/unblock users"
     },
     "Role": {
       "Create": "Create roles",
@@ -896,6 +905,28 @@
       "Delete": "Delete user",
       "DeleteConfirmation": "Are you sure you want to delete this user?",
       "Permissions": "User Permissions"
+    },
+    "Blocked": "Blocked",
+    "Block": {
+      "Title": "Block User",
+      "Button": "Block User",
+      "Confirm": "Block User",
+      "Reason": "Block Reason",
+      "ReasonPlaceholder": "Enter reason for blocking (minimum 3 characters)",
+      "ConfirmationText": "Are you sure you want to block this user?",
+      "BlockedBy": "Blocked by",
+      "BlockedAt": "Blocked at",
+      "Errors": {
+        "ReasonRequired": "Block reason is required",
+        "ReasonTooShort": "Block reason must be at least 3 characters",
+        "ReasonTooLong": "Block reason must not exceed 1024 characters"
+      }
+    },
+    "Unblock": {
+      "Title": "Unblock User",
+      "Button": "Unblock User",
+      "Confirm": "Unblock",
+      "ConfirmationText": "Are you sure you want to unblock this user?"
     },
     "Errors": {
       "PhoneUnique": "Phone number is already used",

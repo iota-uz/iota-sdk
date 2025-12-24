@@ -392,16 +392,24 @@
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
       "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
-      "UserNotFound": "Foydalanuvchi topilmadi"
+      "UserNotFound": "Foydalanuvchi topilmadi",
+      "AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling."
     }
   },
   "Modules": {
+    "Bichat": "Bichat",
+    "Billing": "To'lov tizimi",
     "Core": "Boshqaruv",
-    "Finance": "Moliya",
-    "Projects": "Loyihalar",
-    "Warehouse": "Ombor",
     "CRM": "CRM",
-    "HRM": "Kadrlar boshqaruvi"
+    "Finance": "Moliya",
+    "HRM": "Kadrlar boshqaruvi",
+    "Logging": "Jurnallashtirish",
+    "Pipeline": "Quvur",
+    "Projects": "Loyihalar",
+    "Superadmin": "Super administrator",
+    "Testkit": "Test to'plami",
+    "Warehouse": "Ombor",
+    "Website": "Veb-sayt"
   },
   "NavigationLinks": {
     "Dashboard": "Boshqaruv paneli",
@@ -523,7 +531,7 @@
       },
       "UserManage": {
         "Label": "Foydalanuvchilarni boshqarish",
-        "_Description": "Foydalanuvchilarni to'liq boshqarish"
+        "_Description": "Foydalanuvchilarni to'liq boshqarish, shu jumladan bloklash"
       },
       "RoleView": {
         "Label": "Rollarni ko'rish",
@@ -698,7 +706,8 @@
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
       "Update": "Foydalanuvchini tahrirlash",
-      "Delete": "Foydalanuvchini o'chirish"
+      "Delete": "Foydalanuvchini o'chirish",
+      "UpdateBlockStatus": "Foydalanuvchilarni bloklash/blokdan chiqarish"
     },
     "Role": {
       "Create": "Rol yaratish",
@@ -896,6 +905,28 @@
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
       "Permissions": "Foydalanuvchi ruxsatlari"
+    },
+    "Blocked": "Bloklangan",
+    "Block": {
+      "Title": "Foydalanuvchini bloklash",
+      "Button": "Bloklash",
+      "Confirm": "Bloklash",
+      "Reason": "Bloklash sababi",
+      "ReasonPlaceholder": "Bloklash sababini kiriting (kamida 3 ta belgi)",
+      "ConfirmationText": "Ushbu foydalanuvchini bloklashni xohlaysizmi?",
+      "BlockedBy": "Bloklagan",
+      "BlockedAt": "Bloklangan vaqt",
+      "Errors": {
+        "ReasonRequired": "Bloklash sababi talab qilinadi",
+        "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+      }
+    },
+    "Unblock": {
+      "Title": "Foydalanuvchini blokdan chiqarish",
+      "Button": "Blokdan chiqarish",
+      "Confirm": "Blokdan chiqarish",
+      "ConfirmationText": "Ushbu foydalanuvchini blokdan chiqarishni xohlaysizmi?"
     },
     "Errors": {
       "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",

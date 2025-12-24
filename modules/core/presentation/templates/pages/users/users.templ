@@ -71,6 +71,15 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 							{ pageCtx.T("System") }
 						}
 					}
+					if user.IsBlocked {
+						@badge.New(badge.Props{
+							Class:   templ.Classes("px-2"),
+							Variant: badge.VariantPink,
+							Size:    badge.SizeNormal,
+						}) {
+							{ pageCtx.T("Users.Blocked") }
+						}
+					}
 				</div>
 			</div>
 		}

@@ -6,11 +6,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 
 	"github.com/go-playground/validator/v10"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -24,7 +26,7 @@ type CreateUserDTO struct {
 	LastName   string   `validate:"required"`
 	MiddleName string   `validate:"omitempty"`
 	Email      string   `validate:"required,email"`
-	Phone      string   `validate:"omitempty"`
+	Phone      string   `validate:"required"`
 	Password   string   `validate:"omitempty"`
 	RoleIDs    []uint   `validate:"omitempty,dive,required"`
 	GroupIDs   []string `validate:"omitempty,dive,required"`
@@ -37,7 +39,7 @@ type UpdateUserDTO struct {
 	LastName   string   `validate:"required"`
 	MiddleName string   `validate:"omitempty"`
 	Email      string   `validate:"required,email"`
-	Phone      string   `validate:"omitempty"`
+	Phone      string   `validate:"required"`
 	Password   string   `validate:"omitempty"`
 	RoleIDs    []uint   `validate:"omitempty,dive,required"`
 	GroupIDs   []string `validate:"omitempty,dive,required"`

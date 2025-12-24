@@ -22,10 +22,10 @@ type ProfilePageProps struct {
 
 templ ProfileForm(props *ProfilePageProps) {
 	{{
-	    pageCtx := composables.UsePageCtx(ctx)
+	pageCtx := composables.UsePageCtx(ctx)
 
-		isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
-    }}
+	isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
+	}}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
@@ -104,7 +104,7 @@ templ ProfileForm(props *ProfilePageProps) {
 							"readonly":  isPhoneDisabled,
 							"minlength": "16",
 							"maxlength": "16",
-							"pattern": "^\\+998.{12}",
+							"pattern":   "^\\+998.{12}",
 							"x-mask":    "+999 99 999 9999",
 						},
 						Error: props.Errors["Phone"],

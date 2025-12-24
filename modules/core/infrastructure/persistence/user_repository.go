@@ -37,7 +37,11 @@ const (
             u.last_ip,
             u.last_action,
             u.created_at,
-            u.updated_at
+            u.updated_at,
+            u.is_blocked,
+            u.block_reason,
+            u.blocked_at,
+            u.blocked_by
         FROM users u`
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
@@ -367,6 +371,10 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		"avatar_id",
 		"created_at",
 		"updated_at",
+		"is_blocked",
+		"block_reason",
+		"blocked_at",
+		"blocked_by",
 	}
 
 	values := []interface{}{
@@ -382,6 +390,10 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		dbUser.AvatarID,
 		dbUser.CreatedAt,
 		dbUser.UpdatedAt,
+		dbUser.IsBlocked,
+		dbUser.BlockReason,
+		dbUser.BlockedAt,
+		dbUser.BlockedBy,
 	}
 
 	if efs, ok := data.(repo.ExtendedFieldSet); ok {
@@ -436,6 +448,10 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		"ui_language",
 		"avatar_id",
 		"updated_at",
+		"is_blocked",
+		"block_reason",
+		"blocked_at",
+		"blocked_by",
 	}
 
 	values := []interface{}{
@@ -448,6 +464,10 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		dbUser.UILanguage,
 		dbUser.AvatarID,
 		dbUser.UpdatedAt,
+		dbUser.IsBlocked,
+		dbUser.BlockReason,
+		dbUser.BlockedAt,
+		dbUser.BlockedBy,
 	}
 
 	if dbUser.Password.Valid && dbUser.Password.String != "" {
@@ -599,6 +619,10 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 			&u.LastAction,
 			&u.CreatedAt,
 			&u.UpdatedAt,
+			&u.IsBlocked,
+			&u.BlockReason,
+			&u.BlockedAt,
+			&u.BlockedBy,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan user row")
 		}
