@@ -51,8 +51,17 @@ func BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return pool.Begin(ctx)
 }
 
-// InTx runs the given function in a transaction. ALWAYS creates a new transaction.
+// InTx runs the given function in a transaction. Reuses existing transaction if present,
+// otherwise ALWAYS creates a new one.
 func InTx(ctx context.Context, fn func(context.Context) error) error {
+	// Check if there's already a transaction in the context
+	existingTx := ctx.Value(constants.TxKey)
+	if existingTx != nil {
+		// Reuse existing transaction - don't commit/rollback as it's managed elsewhere
+		return fn(ctx)
+	}
+
+	// No existing transaction, create a new one
 	pool, err := UsePool(ctx)
 	if err != nil {
 		return err
