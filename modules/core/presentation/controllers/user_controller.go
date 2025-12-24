@@ -878,7 +878,7 @@ func (c *UsersController) BlockUser(
 		return
 	}
 
-	if _, err := buf.Write([]byte(`<div id="edit-content" hx-swap-oob="true">`)); err != nil {
+	if _, err := buf.WriteString(`<div id="edit-content" hx-swap-oob="true">`); err != nil {
 		logger.Errorf("Error writing edit-content opening div: %v", err)
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
@@ -890,7 +890,7 @@ func (c *UsersController) BlockUser(
 		return
 	}
 
-	if _, err := buf.Write([]byte(`</div>`)); err != nil {
+	if _, err := buf.WriteString(`</div>`); err != nil {
 		logger.Errorf("Error writing edit-content closing div: %v", err)
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
