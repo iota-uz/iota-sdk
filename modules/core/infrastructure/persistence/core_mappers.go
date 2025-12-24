@@ -43,6 +43,11 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		return nil, err
 	}
 
+	var blockedByTenantID uuid.UUID
+	if dbUser.BlockedByTenantID.Valid && dbUser.BlockedByTenantID.String != "" {
+		blockedByTenantID = uuid.MustParse(dbUser.BlockedByTenantID.String)
+	}
+
 	options := []user.Option{
 		user.WithID(dbUser.ID),
 		user.WithType(user.Type(dbUser.Type)),
@@ -60,6 +65,7 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		user.WithBlockReason(dbUser.BlockReason.String),
 		user.WithBlockedAt(dbUser.BlockedAt.Time),
 		user.WithBlockedBy(uint(dbUser.BlockedBy.Int64)),
+		user.WithBlockedByTenantID(blockedByTenantID),
 	}
 
 	if permissions != nil {
@@ -100,27 +106,33 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 		phoneValue = mapping.ValueToSQLNullString(entity.Phone().Value())
 	}
 
+	var blockedByTenantID sql.NullString
+	if entity.BlockedByTenantID() != uuid.Nil {
+		blockedByTenantID = mapping.ValueToSQLNullString(entity.BlockedByTenantID().String())
+	}
+
 	return &models.User{
-		ID:          entity.ID(),
-		Type:        string(entity.Type()),
-		TenantID:    entity.TenantID().String(),
-		FirstName:   entity.FirstName(),
-		LastName:    entity.LastName(),
-		MiddleName:  mapping.ValueToSQLNullString(entity.MiddleName()),
-		Email:       entity.Email().Value(),
-		Phone:       phoneValue,
-		UILanguage:  string(entity.UILanguage()),
-		Password:    mapping.ValueToSQLNullString(entity.Password()),
-		AvatarID:    mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
-		LastIP:      mapping.ValueToSQLNullString(entity.LastIP()),
-		LastLogin:   mapping.ValueToSQLNullTime(entity.LastLogin()),
-		LastAction:  mapping.ValueToSQLNullTime(entity.LastAction()),
-		CreatedAt:   entity.CreatedAt(),
-		UpdatedAt:   entity.UpdatedAt(),
-		IsBlocked:   entity.IsBlocked(),
-		BlockReason: mapping.ValueToSQLNullString(entity.BlockReason()),
-		BlockedAt:   mapping.ValueToSQLNullTime(entity.BlockedAt()),
-		BlockedBy:   mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
+		ID:                entity.ID(),
+		Type:              string(entity.Type()),
+		TenantID:          entity.TenantID().String(),
+		FirstName:         entity.FirstName(),
+		LastName:          entity.LastName(),
+		MiddleName:        mapping.ValueToSQLNullString(entity.MiddleName()),
+		Email:             entity.Email().Value(),
+		Phone:             phoneValue,
+		UILanguage:        string(entity.UILanguage()),
+		Password:          mapping.ValueToSQLNullString(entity.Password()),
+		AvatarID:          mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
+		LastIP:            mapping.ValueToSQLNullString(entity.LastIP()),
+		LastLogin:         mapping.ValueToSQLNullTime(entity.LastLogin()),
+		LastAction:        mapping.ValueToSQLNullTime(entity.LastAction()),
+		CreatedAt:         entity.CreatedAt(),
+		UpdatedAt:         entity.UpdatedAt(),
+		IsBlocked:         entity.IsBlocked(),
+		BlockReason:       mapping.ValueToSQLNullString(entity.BlockReason()),
+		BlockedAt:         mapping.ValueToSQLNullTime(entity.BlockedAt()),
+		BlockedBy:         mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
+		BlockedByTenantID: blockedByTenantID,
 	}, roles
 }
 

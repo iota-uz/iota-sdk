@@ -41,7 +41,8 @@ const (
             u.is_blocked,
             u.block_reason,
             u.blocked_at,
-            u.blocked_by
+            u.blocked_by,
+            u.blocked_by_tenant_id
         FROM users u`
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
@@ -375,6 +376,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		"block_reason",
 		"blocked_at",
 		"blocked_by",
+		"blocked_by_tenant_id",
 	}
 
 	values := []interface{}{
@@ -394,6 +396,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 		dbUser.BlockReason,
 		dbUser.BlockedAt,
 		dbUser.BlockedBy,
+		dbUser.BlockedByTenantID,
 	}
 
 	if efs, ok := data.(repo.ExtendedFieldSet); ok {
@@ -452,6 +455,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		"block_reason",
 		"blocked_at",
 		"blocked_by",
+		"blocked_by_tenant_id",
 	}
 
 	values := []interface{}{
@@ -468,6 +472,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 		dbUser.BlockReason,
 		dbUser.BlockedAt,
 		dbUser.BlockedBy,
+		dbUser.BlockedByTenantID,
 	}
 
 	if dbUser.Password.Valid && dbUser.Password.String != "" {
@@ -623,6 +628,7 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 			&u.BlockReason,
 			&u.BlockedAt,
 			&u.BlockedBy,
+			&u.BlockedByTenantID,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan user row")
 		}

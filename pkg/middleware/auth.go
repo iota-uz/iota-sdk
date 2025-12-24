@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
 func getToken(r *http.Request) (string, error) {
@@ -98,8 +100,11 @@ func ProvideUser() mux.MiddlewareFunc {
 						Path:   "/",
 						MaxAge: -1,
 					})
-					// Redirect to login with error
-					http.Redirect(w, r, "/login?error=account_blocked", http.StatusFound)
+					// Redirect to login with localized error
+					errorMsg := intl.MustT(r.Context(), "Login.Errors.AccountBlocked")
+					escapedError := url.QueryEscape(errorMsg)
+					redirectURL := fmt.Sprintf("/login?error=%s", escapedError)
+					http.Redirect(w, r, redirectURL, http.StatusFound)
 					return
 				}
 

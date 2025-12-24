@@ -285,7 +285,7 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 		}
 
 		// Block user
-		u = u.Block(reason, actor.ID())
+		u = u.Block(reason, actor.ID(), actor.TenantID())
 
 		// Update in repository
 		if err := s.repo.Update(txCtx, u); err != nil {
