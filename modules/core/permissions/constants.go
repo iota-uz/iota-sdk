@@ -46,7 +46,7 @@ var (
 		uuid.MustParse("6aec630b-be56-4a34-ae65-7958d693ecb9"),
 		"User.UpdateBlockStatus",
 		ResourceUser,
-		permission.ActionUpdate,
+		permission.ActionUpdateBlockStatus,
 		permission.ModifierAll,
 	)
 	RoleCreate = permission.MustCreate(
