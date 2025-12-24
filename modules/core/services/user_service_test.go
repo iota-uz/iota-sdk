@@ -509,7 +509,7 @@ func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 		assert.Equal(t, "User", result.LastName())
 
 		// But permissions should remain original (UserRead only)
-		assert.Equal(t, 1, len(result.Permissions()))
+		assert.Len(t, result.Permissions(), 1)
 		assert.Equal(t, permissions.UserRead.ID(), result.Permissions()[0].ID())
 	})
 }
