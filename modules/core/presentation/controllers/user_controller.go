@@ -862,31 +862,43 @@ func (c *UsersController) BlockUser(
 		return
 	}
 
-	if _, err := fmt.Fprintf(w, `<div id="block-user-drawer-%d"></div>`, id); err != nil {
-		logger.Errorf("Error writing block-user-drawer div: %v", err)
-		http.Error(w, "Error rendering response", http.StatusInternalServerError)
-		return
-	}
-
+	// Build props first before any writes to avoid partial responses
 	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
 	if err != nil {
 		// Error already logged and response sent by buildEditFormProps
 		return
 	}
 
-	if _, err := w.Write([]byte(`<div id="edit-content" hx-swap-oob="true">`)); err != nil {
+	// Buffer all output to write atomically
+	var buf bytes.Buffer
+
+	if _, err := fmt.Fprintf(&buf, `<div id="block-user-drawer-%d"></div>`, id); err != nil {
+		logger.Errorf("Error writing block-user-drawer div: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := buf.Write([]byte(`<div id="edit-content" hx-swap-oob="true">`)); err != nil {
 		logger.Errorf("Error writing edit-content opening div: %v", err)
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
-	if err := users.EditForm(props).Render(r.Context(), w); err != nil {
+
+	if err := users.EditForm(props).Render(r.Context(), &buf); err != nil {
 		logger.Errorf("Error rendering edit form: %v", err)
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
-	if _, err := w.Write([]byte(`</div>`)); err != nil {
+
+	if _, err := buf.Write([]byte(`</div>`)); err != nil {
 		logger.Errorf("Error writing edit-content closing div: %v", err)
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
+	}
+
+	// Write all buffered content at once
+	if _, err := buf.WriteTo(w); err != nil {
+		logger.Errorf("Error writing response: %v", err)
 		return
 	}
 }
