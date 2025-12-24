@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -11,16 +13,18 @@ import (
 )
 
 type UserService struct {
-	repo      user.Repository
-	validator user.Validator
-	publisher eventbus.EventBus
+	repo           user.Repository
+	validator      user.Validator
+	publisher      eventbus.EventBus
+	sessionService *SessionService
 }
 
-func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus) *UserService {
+func NewUserService(repo user.Repository, validator user.Validator, publisher eventbus.EventBus, sessionService *SessionService) *UserService {
 	return &UserService{
-		repo:      repo,
-		validator: validator,
-		publisher: publisher,
+		repo:           repo,
+		validator:      validator,
+		publisher:      publisher,
+		sessionService: sessionService,
 	}
 }
 
@@ -106,8 +110,7 @@ func (s *UserService) UpdateLastLogin(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) Update(ctx context.Context, data user.User) (user.User, error) {
-	err := composables.CanUser(ctx, permissions.UserUpdate)
-	if err != nil {
+	if err := composables.CanUser(ctx, permissions.UserUpdate); err != nil {
 		return nil, err
 	}
 
@@ -115,10 +118,38 @@ func (s *UserService) Update(ctx context.Context, data user.User) (user.User, er
 		return nil, composables.ErrForbidden
 	}
 
+	return s.performUpdate(ctx, data)
+}
+
+func (s *UserService) UpdateSelf(ctx context.Context, data user.User) (user.User, error) {
+	currentUser, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if currentUser.ID() != data.ID() {
+		return nil, composables.ErrForbidden
+	}
+
+	if !data.CanUpdate() {
+		return nil, composables.ErrForbidden
+	}
+
+	// Preserve sensitive fields from current user to prevent privilege escalation
+	data = data.
+		SetRoles(currentUser.Roles()).
+		SetPermissions(currentUser.Permissions()).
+		SetGroupIDs(currentUser.GroupIDs())
+
+	return s.performUpdate(ctx, data)
+}
+
+// performUpdate executes the common update logic for both Update and UpdateSelf
+func (s *UserService) performUpdate(ctx context.Context, data user.User) (user.User, error) {
 	updatedEvent := user.NewUpdatedEvent(ctx, data)
 
 	var updatedUser user.User
-	err = composables.InTx(ctx, func(txCtx context.Context) error {
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
 		if err := s.validator.ValidateUpdate(txCtx, data); err != nil {
 			return err
 		}
@@ -209,4 +240,120 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	s.publisher.Publish(deletedEvent)
 
 	return deletedUser, nil
+}
+
+func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string) (user.User, error) {
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.UserUpdateBlockStatus); err != nil {
+		return nil, err
+	}
+
+	// Validate reason length
+	reason = strings.TrimSpace(reason)
+	if len(reason) < 3 {
+		return nil, errors.New("block reason must be at least 3 characters")
+	}
+	if len(reason) > 1024 {
+		return nil, errors.New("block reason must not exceed 1024 characters")
+	}
+
+	var blockedUser user.User
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Get user entity
+		u, err := s.repo.GetByID(txCtx, userID)
+		if err != nil {
+			return err
+		}
+
+		// Business rules validation
+		if !u.CanBeBlocked() {
+			return errors.New("system users cannot be blocked")
+		}
+		if u.IsBlocked() {
+			return errors.New("user is already blocked")
+		}
+
+		// Get current user for blockedBy
+		actor, err := composables.UseUser(txCtx)
+		if err != nil {
+			return err
+		}
+
+		// Prevent users from blocking themselves
+		if actor.ID() == userID {
+			return errors.New("you cannot block yourself")
+		}
+
+		// Block user
+		u = u.Block(reason, actor.ID(), actor.TenantID())
+
+		// Update in repository
+		if err := s.repo.Update(txCtx, u); err != nil {
+			return err
+		}
+
+		// Delete all active sessions for the blocked user
+		if _, err := s.sessionService.DeleteByUserId(txCtx, userID); err != nil {
+			return fmt.Errorf("failed to invalidate user sessions: %w", err)
+		}
+
+		// Reload user to get updated state
+		blockedUser, err = s.repo.GetByID(txCtx, userID)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish updated event for realtime updates
+	updatedEvent := user.NewUpdatedEvent(ctx, blockedUser)
+	updatedEvent.Result = blockedUser
+	s.publisher.Publish(updatedEvent)
+
+	return blockedUser, nil
+}
+
+func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, error) {
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.UserUpdateBlockStatus); err != nil {
+		return nil, err
+	}
+
+	var unblockedUser user.User
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Get user entity
+		u, err := s.repo.GetByID(txCtx, userID)
+		if err != nil {
+			return err
+		}
+
+		// Validate is blocked
+		if !u.IsBlocked() {
+			return errors.New("user is not blocked")
+		}
+
+		// Unblock user
+		u = u.Unblock()
+
+		// Update in repository
+		if err := s.repo.Update(txCtx, u); err != nil {
+			return err
+		}
+
+		// Reload user to get updated state
+		unblockedUser, err = s.repo.GetByID(txCtx, userID)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish updated event for realtime updates
+	updatedEvent := user.NewUpdatedEvent(ctx, unblockedUser)
+	updatedEvent.Result = unblockedUser
+	s.publisher.Publish(updatedEvent)
+
+	return unblockedUser, nil
 }

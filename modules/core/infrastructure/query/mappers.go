@@ -11,17 +11,19 @@ import (
 
 func mapToUserViewModel(dbUser models.User, hasAvatar bool, avatar *models.Upload) viewmodels.User {
 	user := viewmodels.User{
-		ID:         strconv.FormatUint(uint64(dbUser.ID), 10),
-		Type:       dbUser.Type,
-		FirstName:  dbUser.FirstName,
-		LastName:   dbUser.LastName,
-		MiddleName: dbUser.MiddleName.String,
-		Email:      dbUser.Email,
-		Language:   dbUser.UILanguage,
-		CreatedAt:  dbUser.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:  dbUser.UpdatedAt.Format(time.RFC3339),
-		CanUpdate:  dbUser.Type != "system",
-		CanDelete:  dbUser.Type != "system",
+		ID:           strconv.FormatUint(uint64(dbUser.ID), 10),
+		Type:         dbUser.Type,
+		FirstName:    dbUser.FirstName,
+		LastName:     dbUser.LastName,
+		MiddleName:   dbUser.MiddleName.String,
+		Email:        dbUser.Email,
+		Language:     dbUser.UILanguage,
+		CreatedAt:    dbUser.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    dbUser.UpdatedAt.Format(time.RFC3339),
+		CanUpdate:    dbUser.Type != "system",
+		CanDelete:    dbUser.Type != "system",
+		IsBlocked:    dbUser.IsBlocked,
+		CanBeBlocked: dbUser.Type != "system",
 	}
 
 	if dbUser.Phone.Valid {
@@ -34,6 +36,18 @@ func mapToUserViewModel(dbUser models.User, hasAvatar bool, avatar *models.Uploa
 
 	if dbUser.AvatarID.Valid {
 		user.AvatarID = strconv.Itoa(int(dbUser.AvatarID.Int32))
+	}
+
+	if dbUser.BlockReason.Valid {
+		user.BlockReason = dbUser.BlockReason.String
+	}
+
+	if dbUser.BlockedAt.Valid {
+		user.BlockedAt = dbUser.BlockedAt.Time.Format(time.RFC3339)
+	}
+
+	if dbUser.BlockedBy.Valid {
+		user.BlockedBy = strconv.FormatInt(dbUser.BlockedBy.Int64, 10)
 	}
 
 	// Map avatar if exists

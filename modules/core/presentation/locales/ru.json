@@ -54,6 +54,7 @@
   "Actions": "Действия",
   "Add": "Добавить",
   "All": "Все",
+  "NotFound": "Не найдено",
   "Analytics": {
     "PreviousDay": "Предыдущий день",
     "NextDay": "Следующий день",
@@ -391,16 +392,24 @@
       "OauthStateNotFound": "Состояние oAuth не найдено. Пожалуйста, попробуйте еще раз.",
       "OauthStateInvalid": "Недопустимое состояние oAuth. Пожалуйста, попробуйте еще раз.",
       "OauthCodeNotFound": "Код oAuth не найден. Пожалуйста, попробуйте еще раз.",
-      "UserNotFound": "Пользователь не найден"
+      "UserNotFound": "Пользователь не найден",
+      "AccountBlocked": "Ваш аккаунт заблокирован. Обратитесь к администратору."
     }
   },
   "Modules": {
+    "Bichat": "Бичат",
+    "Billing": "Биллинг",
     "Core": "Администрирование",
-    "Finance": "Финансы",
-    "Projects": "Проекты",
-    "Warehouse": "Склад",
     "CRM": "CRM",
-    "HRM": "Управление персоналом"
+    "Finance": "Финансы",
+    "HRM": "Управление персоналом",
+    "Logging": "Логирование",
+    "Pipeline": "Конвейер",
+    "Projects": "Проекты",
+    "Superadmin": "Суперадмин",
+    "Testkit": "Тестовый набор",
+    "Warehouse": "Склад",
+    "Website": "Веб-сайт"
   },
   "NavigationLinks": {
     "Dashboard": "Панель управления",
@@ -418,6 +427,95 @@
     "Finances": "Финансы",
     "Projects": "Проекты",
     "Reports": "Отчеты",
+    "Portfolio": "Портфолио",
+    "SalesReport": "Отчет о продажах",
+    "OsagoReport": "Отчет ОСАГО",
+    "Underwriting": "Андеррайтинг",
+    "Submissions": "Заявки",
+    "Policies": "Полисы",
+    "Files": "Файлы",
+    "Lookups": "Справочники",
+    "PolicyObjects": "Объекты полисов",
+    "Persons": "Персоны",
+    "Organizations": "Организации",
+    "Vehicles": "Транспортные средства",
+    "VehicleGroups": "Группы транспорта",
+    "VehicleTypes": "Типы транспорта",
+    "ResidencyTypes": "Типы резидентства",
+    "Discounts": "Скидки",
+    "ContractTermConclusions": "Условия заключения договоров",
+    "ContractStatuses": "Статусы договоров",
+    "ContractSources": "Источники договоров",
+    "UseTerritoryRegions": "Регионы использования территории",
+    "SeasonalInsurances": "Сезонные страховки",
+    "ForeignVehiclesPolicyDurations": "Сроки полисов иностранных транспортных средств",
+    "AreaTypes": "Типы областей",
+    "DocumentAuthorities": "Органы выдачи документов",
+    "Industries": "Отрасли",
+    "InsuranceClasses": "Классы страхования",
+    "InsuranceObjectTypes": "Типы объектов страхования",
+    "InsuranceTerms": "Условия страхования",
+    "InsuranceTypes": "Виды страхования",
+    "InsuranceClassGroups": "Группы классов страхования",
+    "FormOfInsurances": "Формы страхования",
+    "AgriculturalTypes": "Типы сельскохозяйственных объектов",
+    "BuildingTypes": "Типы зданий",
+    "OpoObjectTypes": "Типы объектов ОПО",
+    "OtherObjectTypes": "Типы других объектов",
+    "PaymentConditions": "Условия оплаты",
+    "Risks": "Риски",
+    "OwnershipForms": "Формы собственности",
+    "RightToLandTypes": "Виды прав на землю",
+    "Okeds": "ОКЭД",
+    "Reinsurance": "Перестрахование",
+    "PipelineStatuses": "Статусы воронки",
+    "PipelineInsuranceTypes": "Типы страхования воронки",
+    "PipelineDeclinedReasons": "Причины отказа воронки",
+    "PipelineStructures": "Структуры воронки",
+    "PipelinePayables": "Платежи воронки",
+    "PipelineProbabilityOfBind": "Вероятность заключения воронки",
+    "PipelineDeductionTypes": "Типы франшиз воронки",
+    "PipelineDeductionLevels": "Уровни франшиз воронки",
+    "PipelineTaxTypes": "Типы налогов воронки",
+    "PipelinePremiumScheduleTypes": "Типы графиков премий воронки",
+    "PipelinePremiumScheduleStatus": "Статус графика премий воронки",
+    "PipelineRiskCodes": "Коды рисков воронки",
+    "PipelineInsurancePartiesTypes": "Типы участников страхования воронки",
+    "PipelinePaymentTypes": "Типы платежей воронки",
+    "PipelineChoicesOfLaw": "Выбор права воронки",
+    "PipelineChoicesOfJurisdiction": "Выбор юрисдикции воронки",
+    "Currencies": "Валюты",
+    "Banks": "Банки",
+    "BankBranches": "Филиалы банков",
+    "Countries": "Страны",
+    "Regions": "Регионы",
+    "Districts": "Районы",
+    "Genders": "Пол",
+    "Relatives": "Родственники",
+    "MeasureTypes": "Единицы измерения",
+    "Agencies": "Агентства",
+    "ReferralProgram": "Реферальная программа",
+    "Chats": "Чаты",
+    "Clients": "Клиенты",
+    "Requests": "Заявки",
+    "KaskoRequests": "Заявки КАСКО",
+    "Questions": "Вопросы",
+    "SOS": "SOS",
+    "PartnerProgramRequests": "Заявки партнерской программы",
+    "Commission": "Комиссия",
+    "PromoCodes": "Промокоды",
+    "Payouts": "Выплаты",
+    "ChatBot": "Чат-бот",
+    "AIChatPlayground": "Площадка AI чата",
+    "AIChatLogs": "Логи AI чата",
+    "AIChatConfigurations": "Конфигурации AI чата",
+    "AIChatEvaluation": "Оценка AI чата",
+    "SystemInfo": "Информация о системе",
+    "Logs": "Логи",
+    "LiveLogs": "Живые логи",
+    "RequestLogs": "Логи запросов",
+    "RequestLogsList": "Список логов запросов",
+    "Metrics": "Метрики",
     "Navbar": {
       "Profile": "Профиль",
       "Logout": "Выйти"
@@ -433,7 +531,7 @@
       },
       "UserManage": {
         "Label": "Управление пользователями",
-        "_Description": "Полное управление пользователями"
+        "_Description": "Полное управление пользователями включая блокировку"
       },
       "RoleView": {
         "Label": "Просмотр ролей",
@@ -562,6 +660,24 @@
       "ClientManage": {
         "Label": "Управление клиентами",
         "_Description": "Полное управление клиентами"
+      },
+      "PayoutView": {
+        "Label": "Вывод средств",
+        "_Description": "Вывести средства"
+      },
+      "PayoutManage": {
+        "Label": "Управление выплатами",
+        "_Description": "Полное управление выплатами"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "Просмотр воронок",
+        "_Description": "Только просмотр информации о воронках"
+      },
+      "PipelineManage": {
+        "Label": "Управление воронками",
+        "_Description": "Полное управление воронками"
       }
     },
     "HRM": {
@@ -573,6 +689,16 @@
         "Label": "Управление сотрудниками",
         "_Description": "Полное управление сотрудниками"
       }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "Просмотр веб-сайта",
+        "_Description": "Только просмотр информации о веб-сайте"
+      },
+      "WebsiteManage": {
+        "Label": "Управление веб-сайтом",
+        "_Description": "Полное управление веб-сайтом"
+      }
     }
   },
   "Permissions": {
@@ -580,7 +706,8 @@
       "Create": "Создание пользователя",
       "Read": "Просмотр пользователей",
       "Update": "Изменение пользователя",
-      "Delete": "Удаление пользователя"
+      "Delete": "Удаление пользователя",
+      "UpdateBlockStatus": "Блокировка/разблокировка пользователей"
     },
     "Role": {
       "Create": "Создание роли",
@@ -609,6 +736,22 @@
       "Read": "Просмотр загрузок",
       "Update": "Изменение загрузки",
       "Delete": "Удаление загрузки"
+    },
+    "Payout": {
+      "Pay": "Вывести",
+      "PayAll": "Вывести все",
+      "Reverse": "Отменить выплату"
+    },
+    "Pipeline": {
+      "Create": "Создание воронки",
+      "Read": "Просмотр воронок",
+      "Update": "Изменение воронки",
+      "Delete": "Удаление воронки",
+      "SubmitForUnderwriting": "Отправить на андеррайтинг",
+      "Approve": "Одобрить воронки",
+      "Decline": "Отклонить воронки",
+      "RequestAdditionalInfo": "Запросить дополнительную информацию",
+      "CompleteAssessment": "Завершить оценку"
     }
   },
   "Projects": {
@@ -641,7 +784,10 @@
     "user": "Пользователи",
     "role": "Роли",
     "group": "Группы",
-    "upload": "Загрузки"
+    "upload": "Загрузки",
+    "payout_request": "Запросить вывод",
+    "pipeline": "Воронка",
+    "website": "Веб-сайт"
   },
   "Roles": {
     "Meta": {
@@ -687,6 +833,13 @@
   },
   "Search": "Поиск",
   "SignOut": "Выйти",
+  "Submit": "Отправить",
+  "UploadLabel": "Загрузить файл",
+  "UploadPlaceholder": "Выберите файл для загрузки",
+  "DownloadTemplate": "Скачать шаблон",
+  "Example": {
+    "Below": "См. пример ниже"
+  },
   "Spotlight": {
     "Placeholder": "Поиск...",
     "NothingFound": "Ничего не найдено",
@@ -752,6 +905,28 @@
       "Delete": "Удалить пользователя",
       "DeleteConfirmation": "Вы уверены что хотите удалить пользователя?",
       "Permissions": "Разрешения пользователя"
+    },
+    "Blocked": "Заблокирован",
+    "Block": {
+      "Title": "Заблокировать пользователя",
+      "Button": "Заблокировать",
+      "Confirm": "Заблокировать",
+      "Reason": "Причина блокировки",
+      "ReasonPlaceholder": "Укажите причину блокировки (минимум 3 символа)",
+      "ConfirmationText": "Вы уверены, что хотите заблокировать этого пользователя?",
+      "BlockedBy": "Заблокировал",
+      "BlockedAt": "Дата блокировки",
+      "Errors": {
+        "ReasonRequired": "Необходимо указать причину блокировки",
+        "ReasonTooShort": "Причина должна содержать минимум 3 символа",
+        "ReasonTooLong": "Причина не должна превышать 1024 символа"
+      }
+    },
+    "Unblock": {
+      "Title": "Разблокировать пользователя",
+      "Button": "Разблокировать",
+      "Confirm": "Разблокировать",
+      "ConfirmationText": "Вы уверены, что хотите разблокировать этого пользователя?"
     },
     "Errors": {
       "PhoneUnique": "Номер телефона уже используется",

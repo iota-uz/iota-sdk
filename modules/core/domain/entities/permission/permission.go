@@ -11,6 +11,8 @@ const (
 	ActionRead   Action = "read"
 	ActionUpdate Action = "update"
 	ActionDelete Action = "delete"
+
+	ActionUpdateBlockStatus = "update_block_status"
 )
 
 const (

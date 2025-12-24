@@ -1,0 +1,72 @@
+package users
+
+import (
+	"fmt"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type BlockDrawerProps struct {
+	User   *viewmodels.User
+	Errors map[string]string
+}
+
+templ BlockDrawer(props *BlockDrawerProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div id={ fmt.Sprintf("block-user-drawer-%s", props.User.ID) }>
+		@dialog.StdViewDrawer(dialog.StdDrawerProps{
+			ID:     fmt.Sprintf("block-user-drawer-%s-dialog", props.User.ID),
+			Title:  pageCtx.T("Users.Block.Title"),
+			Action: "open-view-drawer",
+			Open:   true,
+			Attrs: templ.Attributes{
+				"@closing": "window.history.pushState({}, '', '/users')",
+				"@closed":  fmt.Sprintf("document.getElementById('block-user-drawer-%s').remove()", props.User.ID),
+			},
+		}) {
+			<form
+				id={ fmt.Sprintf("block-form-%s", props.User.ID) }
+				method="post"
+				hx-post={ fmt.Sprintf("/users/%s/block", props.User.ID) }
+				hx-target={ fmt.Sprintf("#block-user-drawer-%s", props.User.ID) }
+				hx-swap="outerHTML"
+				class="flex flex-col h-full"
+			>
+				<div class="flex-1 p-6 space-y-4">
+					@input.TextArea(&input.TextAreaProps{
+						Label:       pageCtx.T("Users.Block.Reason"),
+						Placeholder: pageCtx.T("Users.Block.ReasonPlaceholder"),
+						Attrs: templ.Attributes{
+							"name":      "BlockReason",
+							"minlength": "3",
+							"maxlength": "1024",
+							"required":  true,
+							"rows":      "4",
+						},
+						Error: props.Errors["BlockReason"],
+					})
+				</div>
+				<div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+					@button.Secondary(button.Props{
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"@click": fmt.Sprintf("document.getElementById('block-user-drawer-%s-dialog').close()", props.User.ID),
+						},
+					}) {
+						{ pageCtx.T("Cancel") }
+					}
+					@button.Danger(button.Props{
+						Attrs: templ.Attributes{
+							"type": "submit",
+						},
+					}) {
+						{ pageCtx.T("Users.Block.Confirm") }
+					}
+				</div>
+			</form>
+		}
+	</div>
+}

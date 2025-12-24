@@ -54,6 +54,7 @@
   "Actions": "操作",
   "Add": "添加",
   "All": "全部",
+  "NotFound": "未找到",
   "Analytics": {
     "PreviousDay": "前一天",
     "NextDay": "下一天",
@@ -391,16 +392,24 @@
       "OauthStateNotFound": "未找到 oAuth 状态。请重试。",
       "OauthStateInvalid": "无效的 oAuth 状态。请重试。",
       "OauthCodeNotFound": "未找到 oAuth 代码。请重试。",
-      "UserNotFound": "未找到用户"
+      "UserNotFound": "未找到用户",
+      "AccountBlocked": "您的账户已被封禁。请联系管理员。"
     }
   },
   "Modules": {
+    "Bichat": "Bichat",
+    "Billing": "计费",
     "Core": "管理",
-    "Finance": "财务",
-    "Projects": "项目",
-    "Warehouse": "仓库",
     "CRM": "CRM",
-    "HRM": "人力资源管理"
+    "Finance": "财务",
+    "HRM": "人力资源管理",
+    "Logging": "日志记录",
+    "Pipeline": "管道",
+    "Projects": "项目",
+    "Superadmin": "超级管理员",
+    "Testkit": "测试套件",
+    "Warehouse": "仓库",
+    "Website": "网站"
   },
   "NavigationLinks": {
     "Dashboard": "仪表板",
@@ -418,6 +427,95 @@
     "Finances": "财务",
     "Projects": "项目",
     "Reports": "报告",
+    "Portfolio": "投资组合",
+    "SalesReport": "销售报告",
+    "OsagoReport": "OSAGO报告",
+    "Underwriting": "承保",
+    "Submissions": "提交",
+    "Policies": "保单",
+    "Files": "文件",
+    "Lookups": "查找",
+    "PolicyObjects": "保单对象",
+    "Persons": "人员",
+    "Organizations": "组织",
+    "Vehicles": "车辆",
+    "VehicleGroups": "车辆组",
+    "VehicleTypes": "车辆类型",
+    "ResidencyTypes": "居住类型",
+    "Discounts": "折扣",
+    "ContractTermConclusions": "合同条款结论",
+    "ContractStatuses": "合同状态",
+    "ContractSources": "合同来源",
+    "UseTerritoryRegions": "使用地区",
+    "SeasonalInsurances": "季节性保险",
+    "ForeignVehiclesPolicyDurations": "外国车辆保单期限",
+    "AreaTypes": "区域类型",
+    "DocumentAuthorities": "证件发证机关",
+    "Industries": "行业",
+    "InsuranceClasses": "保险类别",
+    "InsuranceObjectTypes": "保险对象类型",
+    "InsuranceTerms": "保险条款",
+    "InsuranceTypes": "保险类型",
+    "InsuranceClassGroups": "保险类别组",
+    "FormOfInsurances": "保险形式",
+    "AgriculturalTypes": "农业类型",
+    "BuildingTypes": "建筑类型",
+    "OpoObjectTypes": "OPO对象类型",
+    "OtherObjectTypes": "其他对象类型",
+    "PaymentConditions": "付款条件",
+    "Risks": "风险",
+    "OwnershipForms": "所有权形式",
+    "RightToLandTypes": "土地权利类型",
+    "Okeds": "经济活动分类",
+    "Reinsurance": "再保险",
+    "PipelineStatuses": "管道状态",
+    "PipelineInsuranceTypes": "管道保险类型",
+    "PipelineDeclinedReasons": "管道拒绝原因",
+    "PipelineStructures": "管道结构",
+    "PipelinePayables": "管道应付款",
+    "PipelineProbabilityOfBind": "管道绑定概率",
+    "PipelineDeductionTypes": "管道免赔额类型",
+    "PipelineDeductionLevels": "管道免赔额级别",
+    "PipelineTaxTypes": "管道税种",
+    "PipelinePremiumScheduleTypes": "管道保费计划类型",
+    "PipelinePremiumScheduleStatus": "管道保费计划状态",
+    "PipelineRiskCodes": "管道风险代码",
+    "PipelineInsurancePartiesTypes": "管道保险当事人类型",
+    "PipelinePaymentTypes": "管道付款类型",
+    "PipelineChoicesOfLaw": "管道法律选择",
+    "PipelineChoicesOfJurisdiction": "管道管辖权选择",
+    "Currencies": "货币",
+    "Banks": "银行",
+    "BankBranches": "银行分行",
+    "Countries": "国家",
+    "Regions": "地区",
+    "Districts": "区县",
+    "Genders": "性别",
+    "Relatives": "亲属",
+    "MeasureTypes": "计量类型",
+    "Agencies": "代理机构",
+    "ReferralProgram": "推荐计划",
+    "Chats": "聊天",
+    "Clients": "客户",
+    "Requests": "请求",
+    "KaskoRequests": "KASKO请求",
+    "Questions": "问题",
+    "SOS": "SOS",
+    "PartnerProgramRequests": "合作伙伴计划请求",
+    "Commission": "佣金",
+    "PromoCodes": "促销代码",
+    "Payouts": "付款",
+    "ChatBot": "聊天机器人",
+    "AIChatPlayground": "AI聊天游乐场",
+    "AIChatLogs": "AI聊天日志",
+    "AIChatConfigurations": "AI聊天配置",
+    "AIChatEvaluation": "AI聊天评估",
+    "SystemInfo": "系统信息",
+    "Logs": "日志",
+    "LiveLogs": "实时日志",
+    "RequestLogs": "请求日志",
+    "RequestLogsList": "请求日志列表",
+    "Metrics": "指标",
     "CRM": "CRM",
     "HRM": "人力资源管理",
     "Warehouse": "仓库",
@@ -437,7 +535,7 @@
       },
       "UserManage": {
         "Label": "管理用户",
-        "_Description": "完整的用户管理功能"
+        "_Description": "完整的用户管理功能包括封禁"
       },
       "RoleView": {
         "Label": "查看角色",
@@ -566,6 +664,24 @@
       "ClientManage": {
         "Label": "管理客户",
         "_Description": "完整的客户管理功能"
+      },
+      "PayoutView": {
+        "Label": "查看支付",
+        "_Description": "查看支付信息"
+      },
+      "PayoutManage": {
+        "Label": "管理支付",
+        "_Description": "完整的支付管理功能"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "查看管道",
+        "_Description": "仅查看管道信息"
+      },
+      "PipelineManage": {
+        "Label": "管理管道",
+        "_Description": "完整的管道管理功能"
       }
     },
     "HRM": {
@@ -577,6 +693,16 @@
         "Label": "管理员工",
         "_Description": "完整的员工管理功能"
       }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "查看网站",
+        "_Description": "仅查看网站信息"
+      },
+      "WebsiteManage": {
+        "Label": "管理网站",
+        "_Description": "完整的网站管理功能"
+      }
     }
   },
   "Permissions": {
@@ -584,7 +710,8 @@
       "Create": "创建用户",
       "Read": "查看用户",
       "Update": "更新用户",
-      "Delete": "删除用户"
+      "Delete": "删除用户",
+      "UpdateBlockStatus": "封禁/解封用户"
     },
     "Role": {
       "Create": "创建角色",
@@ -613,6 +740,22 @@
       "Read": "查看上传",
       "Update": "更新上传",
       "Delete": "删除上传"
+    },
+    "Payout": {
+      "Pay": "支付",
+      "PayAll": "支付所有",
+      "Reverse": "撤销支付"
+    },
+    "Pipeline": {
+      "Create": "创建管道",
+      "Read": "查看管道",
+      "Update": "更新管道",
+      "Delete": "删除管道",
+      "SubmitForUnderwriting": "提交承保",
+      "Approve": "批准管道",
+      "Decline": "拒绝管道",
+      "RequestAdditionalInfo": "请求附加信息",
+      "CompleteAssessment": "完成评估"
     }
   },
   "Projects": {
@@ -645,7 +788,10 @@
     "user": "用户",
     "role": "角色",
     "group": "组",
-    "upload": "上传"
+    "upload": "上传",
+    "payout_request": "支付请求",
+    "pipeline": "管道",
+    "website": "网站"
   },
   "Roles": {
     "Meta": {
@@ -691,6 +837,13 @@
   },
   "Search": "搜索",
   "SignOut": "退出登录",
+  "Submit": "提交",
+  "UploadLabel": "上传文件",
+  "UploadPlaceholder": "选择要上传的文件",
+  "DownloadTemplate": "下载模板",
+  "Example": {
+    "Below": "请参见下面的示例"
+  },
   "Spotlight": {
     "Placeholder": "搜索...",
     "NothingFound": "未找到任何内容",
@@ -756,6 +909,28 @@
       "Delete": "删除用户",
       "DeleteConfirmation": "您确定要删除此用户吗？",
       "Permissions": "用户权限"
+    },
+    "Blocked": "已封禁",
+    "Block": {
+      "Title": "封禁用户",
+      "Button": "封禁用户",
+      "Confirm": "封禁用户",
+      "Reason": "封禁原因",
+      "ReasonPlaceholder": "输入封禁原因（至少3个字符）",
+      "ConfirmationText": "您确定要封禁此用户吗？",
+      "BlockedBy": "封禁操作人",
+      "BlockedAt": "封禁时间",
+      "Errors": {
+        "ReasonRequired": "需要输入封禁原因",
+        "ReasonTooShort": "封禁原因必须至少为3个字符",
+        "ReasonTooLong": "封禁原因不得超过1024个字符"
+      }
+    },
+    "Unblock": {
+      "Title": "解封用户",
+      "Button": "解封用户",
+      "Confirm": "解封",
+      "ConfirmationText": "您确定要解封此用户吗？"
     },
     "Errors": {
       "PhoneUnique": "电话号码已被使用",

@@ -101,6 +101,9 @@
       },
       "New": {
         "Title": "添加付款"
+      },
+      "Show": {
+        "Title": "付款详情"
       }
     },
     "List": {
@@ -141,6 +144,9 @@
       },
       "New": {
         "Title": "添加支出"
+      },
+      "Show": {
+        "Title": "支出详情"
       }
     },
     "List": {
@@ -384,6 +390,7 @@
       "Date": "交易日期",
       "AccountingPeriod": "会计期间",
       "OriginAccount": "源账户",
+      "DestinationAccount": "目标账户",
       "DestinationAccountID": "目标账户",
       "Comment": "备注",
       "ExchangeDetails": "汇率详情",
@@ -489,6 +496,7 @@
     },
     "Single": {
       "Edit": "编辑债务",
+      "Counterparty": "交易对手",
       "CounterpartyID": "交易对手",
       "SelectCounterparty": "选择交易对手",
       "Type": "债务类型",

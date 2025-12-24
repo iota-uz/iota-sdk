@@ -1,14 +1,22 @@
 package commands
 
 import (
+	"bufio"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/sirupsen/logrus"
-	"golang.org/x/text/language"
 )
 
 func CheckTrKeys(allowedLanguages []string, mods ...application.Module) error {
@@ -118,6 +126,189 @@ func CheckTrKeys(allowedLanguages []string, mods ...application.Module) error {
 		"locale_count": len(locales),
 		"key_count":    len(allKeys),
 	}).Info("All translation keys are consistent across all locales")
+
+	if err := checkForUndefinedKeys(allKeys, conf.Logger()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func extractKeysFromGoFile(path string, rootPath string, fset *token.FileSet) (map[string][]string, error) {
+	keysWithLocations := make(map[string][]string)
+
+	// Parse the Go file
+	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
+	}
+
+	// Visit all nodes in the AST
+	ast.Inspect(node, func(n ast.Node) bool {
+		// Look for function calls
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		// Check if it's a method call (selector expression)
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+
+		// Check if method name is T or TSafe
+		methodName := sel.Sel.Name
+		if methodName != "T" && methodName != "TSafe" {
+			return true
+		}
+
+		// Extract the first argument (the translation key)
+		if len(call.Args) == 0 {
+			return true
+		}
+
+		// Check if first argument is a string literal
+		if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+			// Remove quotes from string literal
+			key := strings.Trim(lit.Value, `"`)
+			relPath, _ := filepath.Rel(rootPath, path)
+			position := fset.Position(call.Pos())
+			location := fmt.Sprintf("%s:%d", relPath, position.Line)
+			keysWithLocations[key] = append(keysWithLocations[key], location)
+		}
+
+		return true
+	})
+
+	return keysWithLocations, nil
+}
+
+func extractKeysFromTemplFile(path string, rootPath string) (map[string][]string, error) {
+	keysWithLocations := make(map[string][]string)
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	// Regex to match .T("key") or .TSafe("key") calls
+	// Matches both single and double quotes
+	tCallRegex := regexp.MustCompile(`\.T(?:Safe)?\s*\(\s*["']([^"']+)["']`)
+
+	scanner := bufio.NewScanner(file)
+	lineNum := 0
+	for scanner.Scan() {
+		lineNum++
+		line := scanner.Text()
+
+		// Find all matches in this line
+		matches := tCallRegex.FindAllStringSubmatch(line, -1)
+		for _, match := range matches {
+			if len(match) >= 2 {
+				key := match[1]
+				relPath, _ := filepath.Rel(rootPath, path)
+				location := fmt.Sprintf("%s:%d", relPath, lineNum)
+				keysWithLocations[key] = append(keysWithLocations[key], location)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return keysWithLocations, nil
+}
+
+func extractTranslationKeys(rootPath string) (map[string][]string, error) {
+	keysWithLocations := make(map[string][]string)
+	fset := token.NewFileSet()
+
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip non-relevant directories
+		if info.IsDir() {
+			name := info.Name()
+			if name == "vendor" || name == "node_modules" || name == ".git" || name == "dist" || name == "build" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		var fileKeys map[string][]string
+		var fileErr error
+
+		// Process Go files (excluding tests)
+		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			fileKeys, fileErr = extractKeysFromGoFile(path, rootPath, fset)
+		} else if strings.HasSuffix(path, ".templ") {
+			// Process templ files
+			fileKeys, fileErr = extractKeysFromTemplFile(path, rootPath)
+		} else {
+			return nil
+		}
+
+		if fileErr != nil {
+			return fileErr
+		}
+
+		// Merge keys from this file
+		for key, locations := range fileKeys {
+			keysWithLocations[key] = append(keysWithLocations[key], locations...)
+		}
+
+		return nil
+	})
+
+	return keysWithLocations, err
+}
+
+func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, logger *logrus.Logger) error {
+	logger.Info("Scanning codebase for T() and TSafe() calls...")
+
+	// Get current working directory as root path for scanning
+	rootPath, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	usedKeys, err := extractTranslationKeys(rootPath)
+	if err != nil {
+		return fmt.Errorf("failed to extract translation keys from codebase: %w", err)
+	}
+
+	// Check for keys used in code but not in any locale
+	undefinedKeys := false
+	for key, locations := range usedKeys {
+		// Skip keys that end with "." - these are likely dynamic keys built with string concatenation
+		// Example: pageCtx.T("Countries." + countryCode) will be detected as "Countries."
+		if strings.HasSuffix(key, ".") {
+			continue
+		}
+
+		if _, exists := allKeys[key]; !exists {
+			undefinedKeys = true
+			logger.WithFields(logrus.Fields{
+				"key":     key,
+				"used_in": strings.Join(locations, ", "),
+			}).Error("Translation key used in code but not defined in any locale file")
+		}
+	}
+
+	if undefinedKeys {
+		return fmt.Errorf("some translation keys are used in code but not defined in any locale files, see logs for details")
+	}
+
+	logger.WithFields(logrus.Fields{
+		"used_keys_count": len(usedKeys),
+	}).Info("All used translation keys are properly defined")
 
 	return nil
 }

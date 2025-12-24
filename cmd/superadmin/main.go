@@ -100,14 +100,15 @@ func main() {
 
 	tenantService := services.NewTenantService(tenantRepo)
 	uploadService := services.NewUploadService(uploadRepo, fsStorage, app.EventPublisher())
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher())
 
 	// Register first batch of services (without AuthService)
 	app.RegisterServices(
 		uploadService,
-		services.NewUserService(userRepo, userValidator, app.EventPublisher()),
+		services.NewUserService(userRepo, userValidator, app.EventPublisher(), sessionService),
 		services.NewUserQueryService(userQueryRepo),
 		services.NewGroupQueryService(groupQueryRepo),
-		services.NewSessionService(persistence.NewSessionRepository(), app.EventPublisher()),
+		sessionService,
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
 	// Register second batch (including AuthService which depends on UserService)

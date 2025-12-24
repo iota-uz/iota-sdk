@@ -54,6 +54,7 @@
   "Actions": "Harakatlar",
   "Add": "Qo'shish",
   "All": "Hammasi",
+  "NotFound": "Topilmadi",
   "Analytics": {
     "PreviousDay": "Oldingi kun",
     "NextDay": "Keyingi kun",
@@ -391,16 +392,24 @@
       "OauthStateNotFound": "OAuth holati topilmadi. Iltimos, qayta urinib ko'ring.",
       "OauthStateInvalid": "OAuth holati yaroqsiz. Iltimos, qayta urinib ko'ring.",
       "OauthCodeNotFound": "OAuth kodi topilmadi. Iltimos, qayta urinib ko'ring.",
-      "UserNotFound": "Foydalanuvchi topilmadi"
+      "UserNotFound": "Foydalanuvchi topilmadi",
+      "AccountBlocked": "Sizning akkauntingiz bloklangan. Administratorga murojaat qiling."
     }
   },
   "Modules": {
+    "Bichat": "Bichat",
+    "Billing": "To'lov tizimi",
     "Core": "Boshqaruv",
-    "Finance": "Moliya",
-    "Projects": "Loyihalar",
-    "Warehouse": "Ombor",
     "CRM": "CRM",
-    "HRM": "Kadrlar boshqaruvi"
+    "Finance": "Moliya",
+    "HRM": "Kadrlar boshqaruvi",
+    "Logging": "Jurnallashtirish",
+    "Pipeline": "Quvur",
+    "Projects": "Loyihalar",
+    "Superadmin": "Super administrator",
+    "Testkit": "Test to'plami",
+    "Warehouse": "Ombor",
+    "Website": "Veb-sayt"
   },
   "NavigationLinks": {
     "Dashboard": "Boshqaruv paneli",
@@ -418,6 +427,95 @@
     "Finances": "Moliya",
     "Projects": "Loyihalar",
     "Reports": "Hisobotlar",
+    "Portfolio": "Portfel",
+    "SalesReport": "Sotish hisoboti",
+    "OsagoReport": "OSAGO hisoboti",
+    "Underwriting": "Anderrayting",
+    "Submissions": "Arizalar",
+    "Policies": "Polislar",
+    "Files": "Fayllar",
+    "Lookups": "Ma'lumotnomalar",
+    "PolicyObjects": "Polis ob'ektlari",
+    "Persons": "Shaxslar",
+    "Organizations": "Tashkilotlar",
+    "Vehicles": "Transport vositalari",
+    "VehicleGroups": "Transport guruhlari",
+    "VehicleTypes": "Transport turlari",
+    "ResidencyTypes": "Rezidentlik turlari",
+    "Discounts": "Chegirmalar",
+    "ContractTermConclusions": "Shartnoma tuzish shartlari",
+    "ContractStatuses": "Shartnoma holatlari",
+    "ContractSources": "Shartnoma manbalari",
+    "UseTerritoryRegions": "Hudud foydalanish hududlari",
+    "SeasonalInsurances": "Mavsumiy sug'urtalar",
+    "ForeignVehiclesPolicyDurations": "Xorijiy transport vositalari polisi muddatlari",
+    "AreaTypes": "Hudud turlari",
+    "DocumentAuthorities": "Hujjat beruvchi organlar",
+    "Industries": "Sohalar",
+    "InsuranceClasses": "Sug'urta sinflari",
+    "InsuranceObjectTypes": "Sug'urta ob'ekti turlari",
+    "InsuranceTerms": "Sug'urta shartlari",
+    "InsuranceTypes": "Sug'urta turlari",
+    "InsuranceClassGroups": "Sug'urta sinflari guruhlari",
+    "FormOfInsurances": "Sug'urta shakllari",
+    "AgriculturalTypes": "Qishloq xo'jaligi turlari",
+    "BuildingTypes": "Bino turlari",
+    "OpoObjectTypes": "OPO ob'ektlari turlari",
+    "OtherObjectTypes": "Boshqa ob'ekt turlari",
+    "PaymentConditions": "To'lov shartlari",
+    "Risks": "Xavflar",
+    "OwnershipForms": "Mulkchilik shakllari",
+    "RightToLandTypes": "Yerga huquq turlari",
+    "Okeds": "OKED",
+    "Reinsurance": "Qayta sug'urtalash",
+    "PipelineStatuses": "Voronka holatlari",
+    "PipelineInsuranceTypes": "Voronka sug'urta turlari",
+    "PipelineDeclinedReasons": "Voronka rad etish sabablari",
+    "PipelineStructures": "Voronka tuzilmalari",
+    "PipelinePayables": "Voronka to'lovlari",
+    "PipelineProbabilityOfBind": "Voronka tuzish ehtimoli",
+    "PipelineDeductionTypes": "Voronka franshuza turlari",
+    "PipelineDeductionLevels": "Voronka franshuza darajalari",
+    "PipelineTaxTypes": "Voronka soliq turlari",
+    "PipelinePremiumScheduleTypes": "Voronka mukofot jadval turlari",
+    "PipelinePremiumScheduleStatus": "Voronka mukofot jadval holati",
+    "PipelineRiskCodes": "Voronka xavf kodlari",
+    "PipelineInsurancePartiesTypes": "Voronka sug'urta ishtirokchilari turlari",
+    "PipelinePaymentTypes": "Voronka to'lov turlari",
+    "PipelineChoicesOfLaw": "Voronka huquq tanlovi",
+    "PipelineChoicesOfJurisdiction": "Voronka yurisdiktsiya tanlovi",
+    "Currencies": "Valyutalar",
+    "Banks": "Banklar",
+    "BankBranches": "Bank filiallari",
+    "Countries": "Mamlakatlar",
+    "Regions": "Viloyatlar",
+    "Districts": "Tumanlar",
+    "Genders": "Jins",
+    "Relatives": "Qarindoshlar",
+    "MeasureTypes": "O'lchov turlari",
+    "Agencies": "Agentliklar",
+    "ReferralProgram": "Referal dasturi",
+    "Chats": "Chatlar",
+    "Clients": "Mijozlar",
+    "Requests": "So'rovlar",
+    "KaskoRequests": "KASKO so'rovlari",
+    "Questions": "Savollar",
+    "SOS": "SOS",
+    "PartnerProgramRequests": "Hamkorlik dasturi so'rovlari",
+    "Commission": "Komissiya",
+    "PromoCodes": "Promo kodlar",
+    "Payouts": "To'lovlar",
+    "ChatBot": "Chat bot",
+    "AIChatPlayground": "AI chat maydoni",
+    "AIChatLogs": "AI chat loglar",
+    "AIChatConfigurations": "AI chat konfiguratsiyalari",
+    "AIChatEvaluation": "AI chat baholash",
+    "SystemInfo": "Tizim ma'lumotlari",
+    "Logs": "Loglar",
+    "LiveLogs": "Jonli loglar",
+    "RequestLogs": "So'rov loglar",
+    "RequestLogsList": "So'rov loglar ro'yxati",
+    "Metrics": "Metrikalar",
     "Navbar": {
       "Profile": "Profil",
       "Logout": "Chiqish"
@@ -433,7 +531,7 @@
       },
       "UserManage": {
         "Label": "Foydalanuvchilarni boshqarish",
-        "_Description": "Foydalanuvchilarni to'liq boshqarish"
+        "_Description": "Foydalanuvchilarni to'liq boshqarish, shu jumladan bloklash"
       },
       "RoleView": {
         "Label": "Rollarni ko'rish",
@@ -562,6 +660,24 @@
       "ClientManage": {
         "Label": "Mijozlarni boshqarish",
         "_Description": "Mijozlarni to'liq boshqarish"
+      },
+      "PayoutView": {
+        "Label": "To'lovlarni ko'rish",
+        "_Description": "To'lov ma'lumotlarini ko'rish"
+      },
+      "PayoutManage": {
+        "Label": "To'lovlarni boshqarish",
+        "_Description": "To'lovlarni to'liq boshqarish"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "Voronkalarni ko'rish",
+        "_Description": "Voronkalar ma'lumotlarini faqat ko'rish"
+      },
+      "PipelineManage": {
+        "Label": "Voronkalarni boshqarish",
+        "_Description": "Voronkalarni to'liq boshqarish"
       }
     },
     "HRM": {
@@ -573,6 +689,16 @@
         "Label": "Xodimlarni boshqarish",
         "_Description": "Xodimlarni to'liq boshqarish"
       }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "Veb-saytni ko'rish",
+        "_Description": "Veb-sayt ma'lumotlarini faqat ko'rish"
+      },
+      "WebsiteManage": {
+        "Label": "Veb-saytni boshqarish",
+        "_Description": "Veb-saytni to'liq boshqarish"
+      }
     }
   },
   "Permissions": {
@@ -580,7 +706,8 @@
       "Create": "Foydalanuvchi yaratish",
       "Read": "Foydalanuvchilarni ko'rish",
       "Update": "Foydalanuvchini tahrirlash",
-      "Delete": "Foydalanuvchini o'chirish"
+      "Delete": "Foydalanuvchini o'chirish",
+      "UpdateBlockStatus": "Foydalanuvchilarni bloklash/blokdan chiqarish"
     },
     "Role": {
       "Create": "Rol yaratish",
@@ -609,6 +736,22 @@
       "Read": "Yuklashlarni ko'rish",
       "Update": "Yuklashni tahrirlash",
       "Delete": "Yuklashni o'chirish"
+    },
+    "Payout": {
+      "Pay": "To'lash",
+      "PayAll": "Barchasini to'lash",
+      "Reverse": "To'lovni bekor qilish"
+    },
+    "Pipeline": {
+      "Create": "Voronka yaratish",
+      "Read": "Voronkalarni ko'rish",
+      "Update": "Voronkani tahrirlash",
+      "Delete": "Voronkani o'chirish",
+      "SubmitForUnderwriting": "Anderraytingga yuborish",
+      "Approve": "Voronkalarni tasdiqlash",
+      "Decline": "Voronkalarni rad etish",
+      "RequestAdditionalInfo": "Qo'shimcha ma'lumot so'rash",
+      "CompleteAssessment": "Baholashni yakunlash"
     }
   },
   "Projects": {
@@ -641,7 +784,10 @@
     "user": "Foydalanuvchilar",
     "role": "Rollar",
     "group": "Guruhlar",
-    "upload": "Yuklashlar"
+    "upload": "Yuklashlar",
+    "payout_request": "To'lov so'rovi",
+    "pipeline": "Quvur liniyasi",
+    "website": "Veb-sayt"
   },
   "Roles": {
     "Meta": {
@@ -687,6 +833,13 @@
   },
   "Search": "Qidirish",
   "SignOut": "Chiqish",
+  "Submit": "Yuborish",
+  "UploadLabel": "Fayl yuklash",
+  "UploadPlaceholder": "Yuklash uchun faylni tanlang",
+  "DownloadTemplate": "Shablonni yuklab olish",
+  "Example": {
+    "Below": "Quyida misolni ko'ring"
+  },
   "Spotlight": {
     "Placeholder": "Qidirish...",
     "NothingFound": "Hech narsa topilmadi",
@@ -752,6 +905,28 @@
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
       "Permissions": "Foydalanuvchi ruxsatlari"
+    },
+    "Blocked": "Bloklangan",
+    "Block": {
+      "Title": "Foydalanuvchini bloklash",
+      "Button": "Bloklash",
+      "Confirm": "Bloklash",
+      "Reason": "Bloklash sababi",
+      "ReasonPlaceholder": "Bloklash sababini kiriting (kamida 3 ta belgi)",
+      "ConfirmationText": "Ushbu foydalanuvchini bloklashni xohlaysizmi?",
+      "BlockedBy": "Bloklagan",
+      "BlockedAt": "Bloklangan vaqt",
+      "Errors": {
+        "ReasonRequired": "Bloklash sababi talab qilinadi",
+        "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+      }
+    },
+    "Unblock": {
+      "Title": "Foydalanuvchini blokdan chiqarish",
+      "Button": "Blokdan chiqarish",
+      "Confirm": "Blokdan chiqarish",
+      "ConfirmationText": "Ushbu foydalanuvchini blokdan chiqarishni xohlaysizmi?"
     },
     "Errors": {
       "PhoneUnique": "Telefon raqami allaqachon foydalanilgan",

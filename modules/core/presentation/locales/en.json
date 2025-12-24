@@ -54,6 +54,7 @@
   "Actions": "Actions",
   "Add": "Add",
   "All": "All",
+  "NotFound": "Not Found",
   "Analytics": {
     "PreviousDay": "Previous day",
     "NextDay": "Next day",
@@ -391,16 +392,24 @@
       "OauthStateNotFound": "oAuth state not found. Please, try again.",
       "OauthStateInvalid": "Invalid oAuth state. Please, try again.",
       "OauthCodeNotFound": "oAuth code not found. Please, try again.",
-      "UserNotFound": "User not found"
+      "UserNotFound": "User not found",
+      "AccountBlocked": "Your account has been blocked. Please contact administrator."
     }
   },
   "Modules": {
+    "Bichat": "Bichat",
+    "Billing": "Billing",
     "Core": "Administration",
-    "Finance": "Finance",
-    "Projects": "Projects",
-    "Warehouse": "Warehouse",
     "CRM": "CRM",
-    "HRM": "HR Management"
+    "Finance": "Finance",
+    "HRM": "HR Management",
+    "Logging": "Logging",
+    "Pipeline": "Pipeline",
+    "Projects": "Projects",
+    "Superadmin": "Super Admin",
+    "Testkit": "Test Kit",
+    "Warehouse": "Warehouse",
+    "Website": "Website"
   },
   "NavigationLinks": {
     "Dashboard": "Dashboard",
@@ -418,6 +427,95 @@
     "Finances": "Finances",
     "Projects": "Projects",
     "Reports": "Reports",
+    "Portfolio": "Portfolio",
+    "SalesReport": "Sales Report",
+    "OsagoReport": "OSAGO Report",
+    "Underwriting": "Underwriting",
+    "Submissions": "Submissions",
+    "Policies": "Policies",
+    "Files": "Files",
+    "Lookups": "Lookups",
+    "PolicyObjects": "Policy Objects",
+    "Persons": "Persons",
+    "Organizations": "Organizations",
+    "Vehicles": "Vehicles",
+    "VehicleGroups": "Vehicle Groups",
+    "VehicleTypes": "Vehicle Types",
+    "ResidencyTypes": "Residency Types",
+    "Discounts": "Discounts",
+    "ContractTermConclusions": "Contract Term Conclusions",
+    "ContractStatuses": "Contract Statuses",
+    "ContractSources": "Contract Sources",
+    "UseTerritoryRegions": "Use Territory Regions",
+    "SeasonalInsurances": "Seasonal Insurances",
+    "ForeignVehiclesPolicyDurations": "Foreign Vehicles Policy Durations",
+    "AreaTypes": "Area Types",
+    "DocumentAuthorities": "Document Authorities",
+    "Industries": "Industries",
+    "InsuranceClasses": "Insurance Classes",
+    "InsuranceObjectTypes": "Insurance Object Types",
+    "InsuranceTerms": "Insurance Terms",
+    "InsuranceTypes": "Insurance Types",
+    "InsuranceClassGroups": "Insurance Class Groups",
+    "FormOfInsurances": "Form of Insurances",
+    "AgriculturalTypes": "Agricultural Types",
+    "BuildingTypes": "Building Types",
+    "OpoObjectTypes": "OPO Object Types",
+    "OtherObjectTypes": "Other Object Types",
+    "PaymentConditions": "Payment Conditions",
+    "Risks": "Risks",
+    "OwnershipForms": "Ownership Forms",
+    "RightToLandTypes": "Right to Land Types",
+    "Okeds": "OKEDs",
+    "Reinsurance": "Reinsurance",
+    "PipelineStatuses": "Pipeline Statuses",
+    "PipelineInsuranceTypes": "Pipeline Insurance Types",
+    "PipelineDeclinedReasons": "Pipeline Declined Reasons",
+    "PipelineStructures": "Pipeline Structures",
+    "PipelinePayables": "Pipeline Payables",
+    "PipelineProbabilityOfBind": "Pipeline Probability of Bind",
+    "PipelineDeductionTypes": "Pipeline Deduction Types",
+    "PipelineDeductionLevels": "Pipeline Deduction Levels",
+    "PipelineTaxTypes": "Pipeline Tax Types",
+    "PipelinePremiumScheduleTypes": "Pipeline Premium Schedule Types",
+    "PipelinePremiumScheduleStatus": "Pipeline Premium Schedule Status",
+    "PipelineRiskCodes": "Pipeline Risk Codes",
+    "PipelineInsurancePartiesTypes": "Pipeline Insurance Parties Types",
+    "PipelinePaymentTypes": "Pipeline Payment Types",
+    "PipelineChoicesOfLaw": "Pipeline Choices of Law",
+    "PipelineChoicesOfJurisdiction": "Pipeline Choices of Jurisdiction",
+    "Currencies": "Currencies",
+    "Banks": "Banks",
+    "BankBranches": "Bank Branches",
+    "Countries": "Countries",
+    "Regions": "Regions",
+    "Districts": "Districts",
+    "Genders": "Genders",
+    "Relatives": "Relatives",
+    "MeasureTypes": "Measure Types",
+    "Agencies": "Agencies",
+    "ReferralProgram": "Referral Program",
+    "Chats": "Chats",
+    "Clients": "Clients",
+    "Requests": "Requests",
+    "KaskoRequests": "Kasko Requests",
+    "Questions": "Questions",
+    "SOS": "SOS",
+    "PartnerProgramRequests": "Partner Program Requests",
+    "Commission": "Commission",
+    "PromoCodes": "Promo Codes",
+    "Payouts": "Payouts",
+    "ChatBot": "Chat Bot",
+    "AIChatPlayground": "AI Chat Playground",
+    "AIChatLogs": "AI Chat Logs",
+    "AIChatConfigurations": "AI Chat Configurations",
+    "AIChatEvaluation": "AI Chat Evaluation",
+    "SystemInfo": "System Info",
+    "Logs": "Logs",
+    "LiveLogs": "Live Logs",
+    "RequestLogs": "Request Logs",
+    "RequestLogsList": "Request Logs List",
+    "Metrics": "Metrics",
     "Navbar": {
       "Profile": "Profile",
       "Logout": "Logout"
@@ -433,7 +531,7 @@
       },
       "UserManage": {
         "Label": "Manage Users",
-        "_Description": "Full user management capabilities"
+        "_Description": "Full user management capabilities including blocking"
       },
       "RoleView": {
         "Label": "View Roles",
@@ -562,6 +660,24 @@
       "ClientManage": {
         "Label": "Manage Clients",
         "_Description": "Full client management capabilities"
+      },
+      "PayoutView": {
+        "Label": "View Payouts",
+        "_Description": "View payout information"
+      },
+      "PayoutManage": {
+        "Label": "Manage Payouts",
+        "_Description": "Full payout management capabilities"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "View Pipelines",
+        "_Description": "View pipeline information only"
+      },
+      "PipelineManage": {
+        "Label": "Manage Pipelines",
+        "_Description": "Full pipeline management capabilities"
       }
     },
     "HRM": {
@@ -573,6 +689,16 @@
         "Label": "Manage Employees",
         "_Description": "Full employee management capabilities"
       }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "View Website",
+        "_Description": "View website information only"
+      },
+      "WebsiteManage": {
+        "Label": "Manage Website",
+        "_Description": "Full website management capabilities"
+      }
     }
   },
   "Permissions": {
@@ -580,7 +706,8 @@
       "Create": "Create users",
       "Read": "View users",
       "Update": "Update users",
-      "Delete": "Delete users"
+      "Delete": "Delete users",
+      "UpdateBlockStatus": "Block/unblock users"
     },
     "Role": {
       "Create": "Create roles",
@@ -609,6 +736,22 @@
       "Read": "View uploads",
       "Update": "Update uploads",
       "Delete": "Delete uploads"
+    },
+    "Payout": {
+      "Pay": "Pay out",
+      "PayAll": "Pay out all",
+      "Reverse": "Reverse payout"
+    },
+    "Pipeline": {
+      "Create": "Create pipelines",
+      "Read": "View pipelines",
+      "Update": "Update pipelines",
+      "Delete": "Delete pipelines",
+      "SubmitForUnderwriting": "Submit for underwriting",
+      "Approve": "Approve pipelines",
+      "Decline": "Decline pipelines",
+      "RequestAdditionalInfo": "Request additional information",
+      "CompleteAssessment": "Complete assessment"
     }
   },
   "Projects": {
@@ -641,7 +784,10 @@
     "user": "Users",
     "role": "Roles",
     "group": "Groups",
-    "upload": "Uploads"
+    "upload": "Uploads",
+    "payout_request": "Payout Request",
+    "pipeline": "Pipeline",
+    "website": "Website"
   },
   "Roles": {
     "Meta": {
@@ -687,6 +833,13 @@
   },
   "Search": "Search",
   "SignOut": "Sign out",
+  "Submit": "Submit",
+  "UploadLabel": "Upload File",
+  "UploadPlaceholder": "Choose a file to upload",
+  "DownloadTemplate": "Download Template",
+  "Example": {
+    "Below": "See example below"
+  },
   "Spotlight": {
     "Placeholder": "Search...",
     "NothingFound": "Nothing found",
@@ -752,6 +905,28 @@
       "Delete": "Delete user",
       "DeleteConfirmation": "Are you sure you want to delete this user?",
       "Permissions": "User Permissions"
+    },
+    "Blocked": "Blocked",
+    "Block": {
+      "Title": "Block User",
+      "Button": "Block User",
+      "Confirm": "Block User",
+      "Reason": "Block Reason",
+      "ReasonPlaceholder": "Enter reason for blocking (minimum 3 characters)",
+      "ConfirmationText": "Are you sure you want to block this user?",
+      "BlockedBy": "Blocked by",
+      "BlockedAt": "Blocked at",
+      "Errors": {
+        "ReasonRequired": "Block reason is required",
+        "ReasonTooShort": "Block reason must be at least 3 characters",
+        "ReasonTooLong": "Block reason must not exceed 1024 characters"
+      }
+    },
+    "Unblock": {
+      "Title": "Unblock User",
+      "Button": "Unblock User",
+      "Confirm": "Unblock",
+      "ConfirmationText": "Are you sure you want to unblock this user?"
     },
     "Errors": {
       "PhoneUnique": "Phone number is already used",
