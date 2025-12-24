@@ -56,6 +56,10 @@ func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Rol
 		user.WithLastAction(dbUser.LastAction.Time),
 		user.WithCreatedAt(dbUser.CreatedAt),
 		user.WithUpdatedAt(dbUser.UpdatedAt),
+		user.WithIsBlocked(dbUser.IsBlocked),
+		user.WithBlockReason(dbUser.BlockReason.String),
+		user.WithBlockedAt(dbUser.BlockedAt.Time),
+		user.WithBlockedBy(uint(dbUser.BlockedBy.Int64)),
 	}
 
 	if permissions != nil {
@@ -97,22 +101,26 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 	}
 
 	return &models.User{
-		ID:         entity.ID(),
-		Type:       string(entity.Type()),
-		TenantID:   entity.TenantID().String(),
-		FirstName:  entity.FirstName(),
-		LastName:   entity.LastName(),
-		MiddleName: mapping.ValueToSQLNullString(entity.MiddleName()),
-		Email:      entity.Email().Value(),
-		Phone:      phoneValue,
-		UILanguage: string(entity.UILanguage()),
-		Password:   mapping.ValueToSQLNullString(entity.Password()),
-		AvatarID:   mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
-		LastIP:     mapping.ValueToSQLNullString(entity.LastIP()),
-		LastLogin:  mapping.ValueToSQLNullTime(entity.LastLogin()),
-		LastAction: mapping.ValueToSQLNullTime(entity.LastAction()),
-		CreatedAt:  entity.CreatedAt(),
-		UpdatedAt:  entity.UpdatedAt(),
+		ID:          entity.ID(),
+		Type:        string(entity.Type()),
+		TenantID:    entity.TenantID().String(),
+		FirstName:   entity.FirstName(),
+		LastName:    entity.LastName(),
+		MiddleName:  mapping.ValueToSQLNullString(entity.MiddleName()),
+		Email:       entity.Email().Value(),
+		Phone:       phoneValue,
+		UILanguage:  string(entity.UILanguage()),
+		Password:    mapping.ValueToSQLNullString(entity.Password()),
+		AvatarID:    mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
+		LastIP:      mapping.ValueToSQLNullString(entity.LastIP()),
+		LastLogin:   mapping.ValueToSQLNullTime(entity.LastLogin()),
+		LastAction:  mapping.ValueToSQLNullTime(entity.LastAction()),
+		CreatedAt:   entity.CreatedAt(),
+		UpdatedAt:   entity.UpdatedAt(),
+		IsBlocked:   entity.IsBlocked(),
+		BlockReason: mapping.ValueToSQLNullString(entity.BlockReason()),
+		BlockedAt:   mapping.ValueToSQLNullTime(entity.BlockedAt()),
+		BlockedBy:   mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
 	}, roles
 }
 

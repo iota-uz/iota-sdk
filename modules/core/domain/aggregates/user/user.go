@@ -126,6 +126,30 @@ func WithPhone(p phone.Phone) Option {
 	}
 }
 
+func WithIsBlocked(blocked bool) Option {
+	return func(u *user) {
+		u.isBlocked = blocked
+	}
+}
+
+func WithBlockReason(reason string) Option {
+	return func(u *user) {
+		u.blockReason = reason
+	}
+}
+
+func WithBlockedAt(t time.Time) Option {
+	return func(u *user) {
+		u.blockedAt = t
+	}
+}
+
+func WithBlockedBy(userID uint) Option {
+	return func(u *user) {
+		u.blockedBy = userID
+	}
+}
+
 // ---- Interfaces ----
 
 type User interface {
@@ -175,6 +199,14 @@ type User interface {
 	SetPasswordUnsafe(password string) User
 	SetEmail(email internet.Email) User
 	SetPhone(p phone.Phone) User
+
+	IsBlocked() bool
+	BlockReason() string
+	BlockedAt() time.Time
+	BlockedBy() uint
+	CanBeBlocked() bool
+	Block(reason string, blockedBy uint) User
+	Unblock() User
 }
 
 // ---- Implementation ----
@@ -234,6 +266,10 @@ type user struct {
 	lastAction  time.Time
 	createdAt   time.Time
 	updatedAt   time.Time
+	isBlocked   bool
+	blockReason string
+	blockedAt   time.Time
+	blockedBy   uint
 	events      []interface{}
 }
 
@@ -516,6 +552,49 @@ func (u *user) SetPassword(password string) (User, error) {
 func (u *user) SetPasswordUnsafe(newPassword string) User {
 	result := *u
 	result.password = newPassword
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) IsBlocked() bool {
+	return u.isBlocked
+}
+
+func (u *user) BlockReason() string {
+	return u.blockReason
+}
+
+func (u *user) BlockedAt() time.Time {
+	return u.blockedAt
+}
+
+func (u *user) BlockedBy() uint {
+	return u.blockedBy
+}
+
+func (u *user) CanBeBlocked() bool {
+	return u.type_ != TypeSystem
+}
+
+func (u *user) Block(reason string, blockedBy uint) User {
+	if !u.CanBeBlocked() {
+		return u
+	}
+	result := *u
+	result.isBlocked = true
+	result.blockReason = reason
+	result.blockedAt = time.Now()
+	result.blockedBy = blockedBy
+	result.updatedAt = time.Now()
+	return &result
+}
+
+func (u *user) Unblock() User {
+	result := *u
+	result.isBlocked = false
+	result.blockReason = ""
+	result.blockedAt = time.Time{}
+	result.blockedBy = 0
 	result.updatedAt = time.Now()
 	return &result
 }

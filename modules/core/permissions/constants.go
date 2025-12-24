@@ -42,6 +42,13 @@ var (
 		permission.ActionDelete,
 		permission.ModifierAll,
 	)
+	UserUpdateBlockStatus = permission.MustCreate(
+		uuid.MustParse("e5f6a7b8-c9d0-1234-efab-567890123456"),
+		"User.UpdateBlockStatus",
+		ResourceUser,
+		permission.ActionUpdate,
+		permission.ModifierAll,
+	)
 	RoleCreate = permission.MustCreate(
 		uuid.MustParse("60f195ed-d373-41c3-a39d-bb7484850840"),
 		"Role.Create",
@@ -133,6 +140,7 @@ var Permissions = []permission.Permission{
 	UserRead,
 	UserUpdate,
 	UserDelete,
+	UserUpdateBlockStatus,
 	RoleCreate,
 	RoleRead,
 	RoleUpdate,

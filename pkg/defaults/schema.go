@@ -93,7 +93,19 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 	core := newPermissionSetBuilder("Core")
 	sets = append(sets,
 		core.viewSet("User", corePerms.UserRead),
-		core.manageSet("User", corePerms.UserCreate, corePerms.UserRead, corePerms.UserUpdate, corePerms.UserDelete),
+		rbac.PermissionSet{
+			Key:         "user_manage",
+			Label:       "PermissionSets.Core.UserManage.Label",
+			Description: "PermissionSets.Core.UserManage._Description",
+			Module:      "Core",
+			Permissions: []permission.Permission{
+				corePerms.UserCreate,
+				corePerms.UserRead,
+				corePerms.UserUpdate,
+				corePerms.UserDelete,
+				corePerms.UserUpdateBlockStatus,
+			},
+		},
 		core.viewSet("Role", corePerms.RoleRead),
 		core.manageSet("Role", corePerms.RoleCreate, corePerms.RoleRead, corePerms.RoleUpdate, corePerms.RoleDelete),
 		core.viewSet("Group", corePerms.GroupRead),

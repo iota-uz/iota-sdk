@@ -7,24 +7,30 @@ import (
 )
 
 type User struct {
-	ID          string
-	Type        string
-	FirstName   string
-	LastName    string
-	MiddleName  string
-	Email       string
-	Phone       string
-	Language    string
-	LastAction  string
-	CreatedAt   string
-	UpdatedAt   string
-	AvatarID    string
-	Roles       []*Role
-	GroupIDs    []string
-	Permissions []*Permission
-	Avatar      *Upload
-	CanUpdate   bool
-	CanDelete   bool
+	ID            string
+	Type          string
+	FirstName     string
+	LastName      string
+	MiddleName    string
+	Email         string
+	Phone         string
+	Language      string
+	LastAction    string
+	CreatedAt     string
+	UpdatedAt     string
+	AvatarID      string
+	Roles         []*Role
+	GroupIDs      []string
+	Permissions   []*Permission
+	Avatar        *Upload
+	CanUpdate     bool
+	CanDelete     bool
+	IsBlocked     bool
+	BlockReason   string
+	BlockedAt     string
+	BlockedBy     string
+	BlockedByUser string // Name of user who blocked
+	CanBeBlocked  bool
 }
 
 func (u *User) Title() string {

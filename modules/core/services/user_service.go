@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -236,4 +237,115 @@ func (s *UserService) Delete(ctx context.Context, id uint) (user.User, error) {
 	s.publisher.Publish(deletedEvent)
 
 	return deletedUser, nil
+}
+
+func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string) (user.User, error) {
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.UserUpdateBlockStatus); err != nil {
+		return nil, err
+	}
+
+	// Validate reason length
+	reason = strings.TrimSpace(reason)
+	if len(reason) < 3 {
+		return nil, errors.New("block reason must be at least 3 characters")
+	}
+	if len(reason) > 1024 {
+		return nil, errors.New("block reason must not exceed 1024 characters")
+	}
+
+	var blockedUser user.User
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Get user entity
+		u, err := s.repo.GetByID(txCtx, userID)
+		if err != nil {
+			return err
+		}
+
+		// Business rules validation
+		if !u.CanBeBlocked() {
+			return errors.New("system users cannot be blocked")
+		}
+		if u.IsBlocked() {
+			return errors.New("user is already blocked")
+		}
+
+		// Get current user for blockedBy
+		actor, err := composables.UseUser(txCtx)
+		if err != nil {
+			return err
+		}
+
+		// Prevent users from blocking themselves
+		if actor.ID() == userID {
+			return errors.New("you cannot block yourself")
+		}
+
+		// Block user
+		u = u.Block(reason, actor.ID())
+
+		// Update in repository
+		if err := s.repo.Update(txCtx, u); err != nil {
+			return err
+		}
+
+		// Reload user to get updated state
+		blockedUser, err = s.repo.GetByID(txCtx, userID)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish updated event for realtime updates
+	updatedEvent := user.NewUpdatedEvent(ctx, blockedUser)
+	updatedEvent.Result = blockedUser
+	s.publisher.Publish(updatedEvent)
+
+	return blockedUser, nil
+}
+
+func (s *UserService) UnblockUser(ctx context.Context, userID uint) (user.User, error) {
+	// Check permission
+	if err := composables.CanUser(ctx, permissions.UserUpdateBlockStatus); err != nil {
+		return nil, err
+	}
+
+	var unblockedUser user.User
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Get user entity
+		u, err := s.repo.GetByID(txCtx, userID)
+		if err != nil {
+			return err
+		}
+
+		// Validate is blocked
+		if !u.IsBlocked() {
+			return errors.New("user is not blocked")
+		}
+
+		// Unblock user
+		u = u.Unblock()
+
+		// Update in repository
+		if err := s.repo.Update(txCtx, u); err != nil {
+			return err
+		}
+
+		// Reload user to get updated state
+		unblockedUser, err = s.repo.GetByID(txCtx, userID)
+		return err
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish updated event for realtime updates
+	updatedEvent := user.NewUpdatedEvent(ctx, unblockedUser)
+	updatedEvent.Result = unblockedUser
+	s.publisher.Publish(updatedEvent)
+
+	return unblockedUser, nil
 }

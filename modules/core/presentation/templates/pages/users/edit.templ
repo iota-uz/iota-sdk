@@ -37,6 +37,38 @@ templ EditForm(props *EditFormProps) {
 	{{ uploads := useUploads(props.User) }}
 	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
 		<div class="flex-1 overflow-y-auto p-6">
+			if props.User.IsBlocked {
+				<div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+					<div class="flex items-start gap-3">
+						<div class="flex-shrink-0 mt-0.5">
+							@icons.Warning(icons.Props{Size: "24", Class: "text-red-500"})
+						</div>
+						<div class="flex-1">
+							<h3 class="text-lg font-semibold text-red-900 mb-2">
+								{ pageCtx.T("Users.Blocked") }
+							</h3>
+							<div class="space-y-1 text-sm text-red-800">
+								<p>
+									<span class="font-medium">{ pageCtx.T("Users.Block.Reason") }:</span>
+									<span class="ml-2">{ props.User.BlockReason }</span>
+								</p>
+								if props.User.BlockedByUser != "" {
+									<p>
+										<span class="font-medium">{ pageCtx.T("Users.Block.BlockedBy") }:</span>
+										<span class="ml-2">{ props.User.BlockedByUser }</span>
+									</p>
+								}
+								if props.User.BlockedAt != "" {
+									<p x-data="dateTimeFormat">
+										<span class="font-medium">{ pageCtx.T("Users.Block.BlockedAt") }:</span>
+										<span class="ml-2" x-text={ fmt.Sprintf("format('%s')", props.User.BlockedAt) }></span>
+									</p>
+								}
+							</div>
+						</div>
+					</div>
+				</div>
+			}
 			@tab.Root(tab.Props{
 				DefaultValue: "userinfo",
 			}) {
@@ -89,13 +121,14 @@ templ EditForm(props *EditFormProps) {
 							@input.Text(&input.Props{
 								Label: pageCtx.T("Users.Single.Phone"),
 								Attrs: templ.Attributes{
-									"value": props.User.Phone,
-									"name":  "Phone",
-									"form":  "save-form",
-                                    "minlength": "16",
-                                    "maxlength": "16",
-                                    "pattern": "^\\+998.{12}",
-                                    "x-mask":    "+999 99 999 9999",
+									"value":     props.User.Phone,
+									"name":      "Phone",
+									"form":      "save-form",
+									"minlength": "16",
+									"maxlength": "16",
+									"pattern":   "^\\+998.{12}",
+									"x-mask":    "+999 99 999 9999",
+									"required":  true,
 								},
 								Error: props.Errors["Phone"],
 							})
@@ -166,9 +199,30 @@ templ EditForm(props *EditFormProps) {
 			}
 		</div>
 		<div
-			x-data
 			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
+			if !props.User.IsBlocked {
+				<button
+					type="button"
+					class="btn btn-warning flex items-center gap-2"
+					hx-get={ fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }
+					hx-target="#view-drawer"
+					hx-swap="innerHTML"
+					disabled?={ !props.User.CanBeBlocked }
+				>
+					@icons.Prohibit(icons.Props{Size: "20"})
+					<span>{ pageCtx.T("Users.Block.Button") }</span>
+				</button>
+			} else {
+				<button
+					type="button"
+					class="btn btn-success flex items-center gap-2"
+					@click="$dispatch('open-unblock-user-confirmation')"
+				>
+					@icons.Check(icons.Props{Size: "20"})
+					<span>{ pageCtx.T("Users.Unblock.Button") }</span>
+				</button>
+			}
 			<form
 				id="delete-form"
 				hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
@@ -255,5 +309,22 @@ templ Edit(props *EditFormProps) {
 			CancelText:  pageCtx.T("Cancel"),
 			ConfirmText: pageCtx.T("Delete"),
 		})
+		@dialog.Confirmation(&dialog.Props{
+			Heading: pageCtx.T("Users.Unblock.Title"),
+			Text:    pageCtx.T("Users.Unblock.ConfirmationText"),
+			Icon:    icons.Check(icons.Props{Size: "20"}),
+			Action:  "open-unblock-user-confirmation",
+			Attrs: templ.Attributes{
+				"@closing": fmt.Sprintf(`({target}) => {
+					if (target.returnValue === "confirm") {
+						htmx.ajax('POST', '/users/%s/unblock', {target: '#edit-content', swap: 'innerHTML'});
+					}
+				}`, props.User.ID),
+			},
+			CancelText:  pageCtx.T("Cancel"),
+			ConfirmText: pageCtx.T("Users.Unblock.Confirm"),
+		})
+		<!-- Drawer container for block/unblock -->
+		<div id="view-drawer"></div>
 	}
 }

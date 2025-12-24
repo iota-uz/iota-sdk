@@ -121,8 +121,13 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			templ_7745c5c3_Err = input.Text(&input.Props{
 				Label: pageCtx.T("Users.Single.Phone"),
 				Attrs: templ.Attributes{
-					"name":  "Phone",
-					"value": props.User.Phone,
+					"name":      "Phone",
+					"value":     props.User.Phone,
+					"minlength": "16",
+					"maxlength": "16",
+					"pattern":   "^\\+998.{12}",
+					"x-mask":    "+999 99 999 9999",
+					"required":  true,
 				},
 				Error: props.Errors["Phone"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -261,7 +266,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 120, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 125, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

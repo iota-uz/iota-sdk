@@ -392,16 +392,24 @@
       "OauthStateNotFound": "未找到 oAuth 状态。请重试。",
       "OauthStateInvalid": "无效的 oAuth 状态。请重试。",
       "OauthCodeNotFound": "未找到 oAuth 代码。请重试。",
-      "UserNotFound": "未找到用户"
+      "UserNotFound": "未找到用户",
+      "AccountBlocked": "您的账户已被封禁。请联系管理员。"
     }
   },
   "Modules": {
+    "Bichat": "Bichat",
+    "Billing": "计费",
     "Core": "管理",
-    "Finance": "财务",
-    "Projects": "项目",
-    "Warehouse": "仓库",
     "CRM": "CRM",
-    "HRM": "人力资源管理"
+    "Finance": "财务",
+    "HRM": "人力资源管理",
+    "Logging": "日志记录",
+    "Pipeline": "管道",
+    "Projects": "项目",
+    "Superadmin": "超级管理员",
+    "Testkit": "测试套件",
+    "Warehouse": "仓库",
+    "Website": "网站"
   },
   "NavigationLinks": {
     "Dashboard": "仪表板",
@@ -527,7 +535,7 @@
       },
       "UserManage": {
         "Label": "管理用户",
-        "_Description": "完整的用户管理功能"
+        "_Description": "完整的用户管理功能包括封禁"
       },
       "RoleView": {
         "Label": "查看角色",
@@ -702,7 +710,8 @@
       "Create": "创建用户",
       "Read": "查看用户",
       "Update": "更新用户",
-      "Delete": "删除用户"
+      "Delete": "删除用户",
+      "UpdateBlockStatus": "封禁/解封用户"
     },
     "Role": {
       "Create": "创建角色",
@@ -900,6 +909,28 @@
       "Delete": "删除用户",
       "DeleteConfirmation": "您确定要删除此用户吗？",
       "Permissions": "用户权限"
+    },
+    "Blocked": "已封禁",
+    "Block": {
+      "Title": "封禁用户",
+      "Button": "封禁用户",
+      "Confirm": "封禁用户",
+      "Reason": "封禁原因",
+      "ReasonPlaceholder": "输入封禁原因（至少3个字符）",
+      "ConfirmationText": "您确定要封禁此用户吗？",
+      "BlockedBy": "封禁操作人",
+      "BlockedAt": "封禁时间",
+      "Errors": {
+        "ReasonRequired": "需要输入封禁原因",
+        "ReasonTooShort": "封禁原因必须至少为3个字符",
+        "ReasonTooLong": "封禁原因不得超过1024个字符"
+      }
+    },
+    "Unblock": {
+      "Title": "解封用户",
+      "Button": "解封用户",
+      "Confirm": "解封",
+      "ConfirmationText": "您确定要解封此用户吗？"
     },
     "Errors": {
       "PhoneUnique": "电话号码已被使用",

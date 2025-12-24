@@ -60,8 +60,13 @@ templ CreateForm(props *CreateFormProps) {
 					@input.Text(&input.Props{
 						Label: pageCtx.T("Users.Single.Phone"),
 						Attrs: templ.Attributes{
-							"name":  "Phone",
-							"value": props.User.Phone,
+							"name":      "Phone",
+							"value":     props.User.Phone,
+							"minlength": "16",
+							"maxlength": "16",
+							"pattern":   "^\\+998.{12}",
+							"x-mask":    "+999 99 999 9999",
+							"required":  true,
 						},
 						Error: props.Errors["Phone"],
 					})
