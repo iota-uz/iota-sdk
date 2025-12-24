@@ -4,6 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -15,9 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // userCommittedCtx returns a context without the test transaction, so data saved
@@ -224,18 +225,21 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	t.Parallel()
 
+	f := setupTestWithPermissions(t)
+
+	permissionRepository := persistence.NewPermissionRepository()
+	uploadRepository := persistence.NewUploadRepository()
+	userRepository := persistence.NewUserRepository(uploadRepository)
+	userValidator := validators.NewUserValidator(userRepository)
+	eventBus := eventbus.NewEventPublisher(logrus.New())
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+
+	// Ensure UserUpdate permission exists in database
+	err := permissionRepository.Save(f.Ctx, permissions.UserUpdate)
+	require.NoError(t, err)
+
 	t.Run("Any_Authenticated_User_Can_Update_Self_Via_UpdateSelf", func(t *testing.T) {
-		// Setup test environment without any special permissions
-		// Self-updates are allowed for all authenticated users via UpdateSelf method
-		f := setupTestWithPermissions(t)
-
-		uploadRepository := persistence.NewUploadRepository()
-		userRepository := persistence.NewUserRepository(uploadRepository)
-		userValidator := validators.NewUserValidator(userRepository)
-		eventBus := eventbus.NewEventPublisher(logrus.New())
-		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
-
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
 
@@ -263,16 +267,6 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	})
 
 	t.Run("User_Without_Admin_Permission_Cannot_Update_Others", func(t *testing.T) {
-		// Setup test environment without UserUpdate permission
-		f := setupTestWithPermissions(t)
-
-		uploadRepository := persistence.NewUploadRepository()
-		userRepository := persistence.NewUserRepository(uploadRepository)
-		userValidator := validators.NewUserValidator(userRepository)
-		eventBus := eventbus.NewEventPublisher(logrus.New())
-		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
-
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
 
@@ -306,17 +300,11 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	})
 
 	t.Run("User_With_Update_Can_Update_Others", func(t *testing.T) {
-		// Setup test environment with UserUpdate permission (admin)
-		f := setupTestWithPermissions(t, permissions.UserUpdate)
-
-		uploadRepository := persistence.NewUploadRepository()
-		userRepository := persistence.NewUserRepository(uploadRepository)
-		userValidator := validators.NewUserValidator(userRepository)
-		eventBus := eventbus.NewEventPublisher(logrus.New())
-		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
-
 		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+		
+		// Ensure UserUpdate permission exists (it should from setup, but be safe)
+		err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
 		require.NoError(t, err)
 
 		// Create two users
@@ -324,7 +312,8 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		require.NoError(t, err)
 		adminUser := user.New("Admin", "User", email1, user.UILanguageEN,
 			user.WithType(user.TypeUser),
-			user.WithTenantID(tenant))
+			user.WithTenantID(tenant),
+			user.WithPermissions([]permission.Permission{permissions.UserUpdate}))
 
 		email2, err := internet.NewEmail("targetuser@test.com")
 		require.NoError(t, err)
@@ -350,17 +339,11 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	})
 
 	t.Run("User_With_Update_Can_Also_Update_Self", func(t *testing.T) {
-		// Setup test environment with UserUpdate permission (admin)
-		f := setupTestWithPermissions(t, permissions.UserUpdate)
-
-		uploadRepository := persistence.NewUploadRepository()
-		userRepository := persistence.NewUserRepository(uploadRepository)
-		userValidator := validators.NewUserValidator(userRepository)
-		eventBus := eventbus.NewEventPublisher(logrus.New())
-		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
-
 		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+		
+		// Ensure UserUpdate permission exists (it should from setup, but be safe)
+		err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
 		require.NoError(t, err)
 
 		// Create admin user
@@ -368,7 +351,8 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 		require.NoError(t, err)
 		adminUser := user.New("Admin", "Self", email, user.UILanguageEN,
 			user.WithType(user.TypeUser),
-			user.WithTenantID(tenant))
+			user.WithTenantID(tenant),
+			user.WithPermissions([]permission.Permission{permissions.UserUpdate}))
 
 		createdAdmin, err := userRepository.Create(f.Ctx, adminUser)
 		require.NoError(t, err)
@@ -385,16 +369,6 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 	})
 
 	t.Run("User_With_Only_Read_Permission_Can_Still_Update_Self_Via_UpdateSelf", func(t *testing.T) {
-		// Setup test environment with only UserRead permission (no UserUpdate)
-		f := setupTestWithPermissions(t, permissions.UserRead)
-
-		uploadRepository := persistence.NewUploadRepository()
-		userRepository := persistence.NewUserRepository(uploadRepository)
-		userValidator := validators.NewUserValidator(userRepository)
-		eventBus := eventbus.NewEventPublisher(logrus.New())
-		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
-
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
 
@@ -424,16 +398,25 @@ func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
 func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 	t.Parallel()
 
+	f := setupTestWithPermissions(t)
+
+	permissionRepository := persistence.NewPermissionRepository()
+	uploadRepository := persistence.NewUploadRepository()
+	userRepository := persistence.NewUserRepository(uploadRepository)
+	userValidator := validators.NewUserValidator(userRepository)
+	eventBus := eventbus.NewEventPublisher(logrus.New())
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+
+	// Ensure required permissions exist in database
+	err := permissionRepository.Save(f.Ctx, permissions.UserRead)
+	require.NoError(t, err)
+	err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
+	require.NoError(t, err)
+	err = permissionRepository.Save(f.Ctx, permissions.UserDelete)
+	require.NoError(t, err)
+
 	t.Run("UpdateSelf_Prevents_Cross_User_Updates", func(t *testing.T) {
-		f := setupTestWithPermissions(t)
-
-		uploadRepository := persistence.NewUploadRepository()
-		userRepository := persistence.NewUserRepository(uploadRepository)
-		userValidator := validators.NewUserValidator(userRepository)
-		eventBus := eventbus.NewEventPublisher(logrus.New())
-		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
-
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
 
@@ -467,15 +450,6 @@ func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
 	})
 
 	t.Run("UpdateSelf_Preserves_Roles_And_Permissions", func(t *testing.T) {
-		f := setupTestWithPermissions(t, permissions.UserRead)
-
-		uploadRepository := persistence.NewUploadRepository()
-		userRepository := persistence.NewUserRepository(uploadRepository)
-		userValidator := validators.NewUserValidator(userRepository)
-		eventBus := eventbus.NewEventPublisher(logrus.New())
-		sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
-		userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
-
 		tenant, err := composables.UseTenantID(f.Ctx)
 		require.NoError(t, err)
 
