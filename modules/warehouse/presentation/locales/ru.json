@@ -46,6 +46,11 @@
     "ERR_ORDER_IS_ALREADY_COMPLETE": "Заявка уже завершена",
     "ERR_PRODUCT_IS_SHIPPED": "Продукт уже отгружен"
   },
+  "Error": {
+    "ValidationError": "Обнаружены ошибки валидации",
+    "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Это поле обязательно и не может быть пустым",
+    "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (найденное значение: '{{.Value}}')"
+  },
   "NavigationLinks": {
     "Warehouse": "Склад",
     "Products": "Продукты",
@@ -165,6 +170,22 @@
         "ERR_INVALID_CELL": "{{.Col}}:{{.Row}} - Это поле обязательно и не может быть пустым",
         "ERR_VALIDATION": "{{.Col}}:{{.RowNum}} - {{.Message}} (найденное значение: '{{.Value}}')"
       }
+    },
+    "Upload": {
+      "Title": "Загрузка наименований",
+      "_Description": "Импорт наименований из Excel файла",
+      "Example": {
+        "Title": "Загрузка Excel",
+        "_Description": "Последовательность ячеек в Excel должна быть следующая:",
+        "ItemName": "Наименование",
+        "ItemCode": "Артикул",
+        "Unit": "Ед. измерения",
+        "Quantity": "Кол-во",
+        "Below": "Ниже приведен пример файла Excel для загрузки"
+      },
+      "UploadLabel": "Выбрать файл",
+      "UploadPlaceholder": "Выберите файл",
+      "Submit": "Загрузить"
     }
   },
   "WarehouseUnits": {

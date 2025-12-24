@@ -4,6 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -15,9 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
-	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // userCommittedCtx returns a context without the test transaction, so data saved
@@ -52,7 +53,8 @@ func TestUserService_CanUserBeDeleted(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	userValidator := validators.NewUserValidator(userRepository)
 	eventBus := eventbus.NewEventPublisher(logrus.New())
-	userService := services.NewUserService(userRepository, userValidator, eventBus)
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
@@ -140,7 +142,8 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 	userRepository := persistence.NewUserRepository(uploadRepository)
 	userValidator := validators.NewUserValidator(userRepository)
 	eventBus := eventbus.NewEventPublisher(logrus.New())
-	userService := services.NewUserService(userRepository, userValidator, eventBus)
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
 
 	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
@@ -216,5 +219,271 @@ func TestUserService_Delete_SelfDeletionPrevention(t *testing.T) {
 		_, err = userService.Delete(f.Ctx, createdSystemUser.ID())
 		require.Error(t, err)
 		assert.Equal(t, composables.ErrForbidden, err, "System user deletion should return ErrForbidden")
+	})
+}
+
+func TestUserService_Update_SelfUpdatePermission(t *testing.T) {
+	t.Parallel()
+
+	f := setupTestWithPermissions(t)
+
+	permissionRepository := persistence.NewPermissionRepository()
+	uploadRepository := persistence.NewUploadRepository()
+	userRepository := persistence.NewUserRepository(uploadRepository)
+	userValidator := validators.NewUserValidator(userRepository)
+	eventBus := eventbus.NewEventPublisher(logrus.New())
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+
+	// Ensure UserUpdate permission exists in database
+	err := permissionRepository.Save(f.Ctx, permissions.UserUpdate)
+	require.NoError(t, err)
+
+	t.Run("Any_Authenticated_User_Can_Update_Self_Via_UpdateSelf", func(t *testing.T) {
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create a user
+		email, err := internet.NewEmail("selfupdate@test.com")
+		require.NoError(t, err)
+		testUser := user.New("Self", "Update", email, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdUser, err := userRepository.Create(f.Ctx, testUser)
+		require.NoError(t, err)
+
+		// Set the created user as the current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser)
+
+		// Update the user's own information via UpdateSelf
+		updatedUser := createdUser.SetName("NewFirst", "NewLast", createdUser.MiddleName())
+
+		// Should succeed without any special permission when using UpdateSelf
+		result, err := userService.UpdateSelf(ctx, updatedUser)
+		require.NoError(t, err)
+		assert.Equal(t, "NewFirst", result.FirstName())
+		assert.Equal(t, "NewLast", result.LastName())
+	})
+
+	t.Run("User_Without_Admin_Permission_Cannot_Update_Others", func(t *testing.T) {
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create two users
+		email1, err := internet.NewEmail("user1@test.com")
+		require.NoError(t, err)
+		user1 := user.New("User", "One", email1, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		email2, err := internet.NewEmail("user2@test.com")
+		require.NoError(t, err)
+		user2 := user.New("User", "Two", email2, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdUser1, err := userRepository.Create(f.Ctx, user1)
+		require.NoError(t, err)
+		createdUser2, err := userRepository.Create(f.Ctx, user2)
+		require.NoError(t, err)
+
+		// Set user1 as current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser1)
+
+		// Try to update user2's information (should fail)
+		updatedUser2 := createdUser2.SetName("Hacked", createdUser2.LastName(), createdUser2.MiddleName())
+
+		_, err = userService.Update(ctx, updatedUser2)
+		require.Error(t, err)
+		assert.Equal(t, composables.ErrForbidden, err)
+	})
+
+	t.Run("User_With_Update_Can_Update_Others", func(t *testing.T) {
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Ensure UserUpdate permission exists (it should from setup, but be safe)
+		err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
+		require.NoError(t, err)
+
+		// Create two users
+		email1, err := internet.NewEmail("admin@test.com")
+		require.NoError(t, err)
+		adminUser := user.New("Admin", "User", email1, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant),
+			user.WithPermissions([]permission.Permission{permissions.UserUpdate}))
+
+		email2, err := internet.NewEmail("targetuser@test.com")
+		require.NoError(t, err)
+		targetUser := user.New("Target", "User", email2, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdAdmin, err := userRepository.Create(f.Ctx, adminUser)
+		require.NoError(t, err)
+		createdTarget, err := userRepository.Create(f.Ctx, targetUser)
+		require.NoError(t, err)
+
+		// Set admin as current user in context
+		ctx := composables.WithUser(f.Ctx, createdAdmin)
+
+		// Admin updates target user's information (should succeed)
+		updatedTarget := createdTarget.SetName("Modified", "ByAdmin", createdTarget.MiddleName())
+
+		result, err := userService.Update(ctx, updatedTarget)
+		require.NoError(t, err)
+		assert.Equal(t, "Modified", result.FirstName())
+		assert.Equal(t, "ByAdmin", result.LastName())
+	})
+
+	t.Run("User_With_Update_Can_Also_Update_Self", func(t *testing.T) {
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Ensure UserUpdate permission exists (it should from setup, but be safe)
+		err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
+		require.NoError(t, err)
+
+		// Create admin user
+		email, err := internet.NewEmail("selfadmin@test.com")
+		require.NoError(t, err)
+		adminUser := user.New("Admin", "Self", email, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant),
+			user.WithPermissions([]permission.Permission{permissions.UserUpdate}))
+
+		createdAdmin, err := userRepository.Create(f.Ctx, adminUser)
+		require.NoError(t, err)
+
+		// Set admin as current user in context
+		ctx := composables.WithUser(f.Ctx, createdAdmin)
+
+		// Admin updates their own information (should succeed with UserUpdate permission)
+		updatedAdmin := createdAdmin.SetName("SelfModified", createdAdmin.LastName(), createdAdmin.MiddleName())
+
+		result, err := userService.Update(ctx, updatedAdmin)
+		require.NoError(t, err)
+		assert.Equal(t, "SelfModified", result.FirstName())
+	})
+
+	t.Run("User_With_Only_Read_Permission_Can_Still_Update_Self_Via_UpdateSelf", func(t *testing.T) {
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create user
+		email, err := internet.NewEmail("readonly@test.com")
+		require.NoError(t, err)
+		testUser := user.New("Read", "Only", email, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdUser, err := userRepository.Create(f.Ctx, testUser)
+		require.NoError(t, err)
+
+		// Set user as current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser)
+
+		// Update own information via UpdateSelf - should succeed even without UserUpdate permission
+		updatedUser := createdUser.SetName("Updated", "Successfully", createdUser.MiddleName())
+
+		result, err := userService.UpdateSelf(ctx, updatedUser)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated", result.FirstName())
+		assert.Equal(t, "Successfully", result.LastName())
+	})
+}
+
+func TestUserService_UpdateSelf_SecurityValidation(t *testing.T) {
+	t.Parallel()
+
+	f := setupTestWithPermissions(t)
+
+	permissionRepository := persistence.NewPermissionRepository()
+	uploadRepository := persistence.NewUploadRepository()
+	userRepository := persistence.NewUserRepository(uploadRepository)
+	userValidator := validators.NewUserValidator(userRepository)
+	eventBus := eventbus.NewEventPublisher(logrus.New())
+	sessionService := services.NewSessionService(persistence.NewSessionRepository(), eventBus)
+	userService := services.NewUserService(userRepository, userValidator, eventBus, sessionService)
+
+	// Ensure required permissions exist in database
+	err := permissionRepository.Save(f.Ctx, permissions.UserRead)
+	require.NoError(t, err)
+	err = permissionRepository.Save(f.Ctx, permissions.UserUpdate)
+	require.NoError(t, err)
+	err = permissionRepository.Save(f.Ctx, permissions.UserDelete)
+	require.NoError(t, err)
+
+	t.Run("UpdateSelf_Prevents_Cross_User_Updates", func(t *testing.T) {
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create two users
+		email1, err := internet.NewEmail("user1@test.com")
+		require.NoError(t, err)
+		user1 := user.New("User", "One", email1, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		email2, err := internet.NewEmail("user2@test.com")
+		require.NoError(t, err)
+		user2 := user.New("User", "Two", email2, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant))
+
+		createdUser1, err := userRepository.Create(f.Ctx, user1)
+		require.NoError(t, err)
+		createdUser2, err := userRepository.Create(f.Ctx, user2)
+		require.NoError(t, err)
+
+		// Set user1 as current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser1)
+
+		// Try to update user2's information using UpdateSelf (should fail)
+		updatedUser2 := createdUser2.SetName("Hacked", "Name", createdUser2.MiddleName())
+
+		_, err = userService.UpdateSelf(ctx, updatedUser2)
+		require.Error(t, err)
+		assert.Equal(t, composables.ErrForbidden, err)
+	})
+
+	t.Run("UpdateSelf_Preserves_Roles_And_Permissions", func(t *testing.T) {
+		tenant, err := composables.UseTenantID(f.Ctx)
+		require.NoError(t, err)
+
+		// Create a user with specific permissions
+		email, err := internet.NewEmail("testuser@test.com")
+		require.NoError(t, err)
+		testUser := user.New("Test", "User", email, user.UILanguageEN,
+			user.WithType(user.TypeUser),
+			user.WithTenantID(tenant),
+			user.WithPermissions([]permission.Permission{permissions.UserRead}))
+
+		createdUser, err := userRepository.Create(f.Ctx, testUser)
+		require.NoError(t, err)
+
+		// Set user as current user in context
+		ctx := composables.WithUser(f.Ctx, createdUser)
+
+		// Try to escalate privileges by modifying permissions
+		// Create an admin permission to attempt privilege escalation
+		adminPermissions := []permission.Permission{permissions.UserUpdate, permissions.UserDelete}
+		maliciousUpdate := createdUser.
+			SetName("Hacker", "User", createdUser.MiddleName()).
+			SetPermissions(adminPermissions)
+
+		// UpdateSelf should preserve original permissions
+		result, err := userService.UpdateSelf(ctx, maliciousUpdate)
+		require.NoError(t, err)
+
+		// Name should be updated
+		assert.Equal(t, "Hacker", result.FirstName())
+		assert.Equal(t, "User", result.LastName())
+
+		// But permissions should remain original (UserRead only)
+		assert.Len(t, result.Permissions(), 1)
+		assert.Equal(t, permissions.UserRead.ID(), result.Permissions()[0].ID())
 	})
 }

@@ -6,11 +6,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 
 	"github.com/go-playground/validator/v10"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
@@ -24,7 +26,7 @@ type CreateUserDTO struct {
 	LastName   string   `validate:"required"`
 	MiddleName string   `validate:"omitempty"`
 	Email      string   `validate:"required,email"`
-	Phone      string   `validate:"omitempty"`
+	Phone      string   `validate:"required"`
 	Password   string   `validate:"omitempty"`
 	RoleIDs    []uint   `validate:"omitempty,dive,required"`
 	GroupIDs   []string `validate:"omitempty,dive,required"`
@@ -37,7 +39,7 @@ type UpdateUserDTO struct {
 	LastName   string   `validate:"required"`
 	MiddleName string   `validate:"omitempty"`
 	Email      string   `validate:"required,email"`
-	Phone      string   `validate:"omitempty"`
+	Phone      string   `validate:"required"`
 	Password   string   `validate:"omitempty"`
 	RoleIDs    []uint   `validate:"omitempty,dive,required"`
 	GroupIDs   []string `validate:"omitempty,dive,required"`
@@ -116,6 +118,11 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		return nil, err
 	}
 
+	p, err := phone.NewFromE164(dto.Phone)
+	if err != nil {
+		return nil, err
+	}
+
 	options := []user.Option{
 		user.WithTenantID(tenantID),
 		user.WithMiddleName(dto.MiddleName),
@@ -123,14 +130,7 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		user.WithRoles(roles),
 		user.WithGroupIDs(groupUUIDs),
 		user.WithAvatarID(dto.AvatarID),
-	}
-
-	if dto.Phone != "" {
-		p, err := phone.NewFromE164(dto.Phone)
-		if err != nil {
-			return nil, err
-		}
-		options = append(options, user.WithPhone(p))
+		user.WithPhone(p),
 	}
 
 	u := user.New(
@@ -161,6 +161,11 @@ func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []pe
 		return nil, err
 	}
 
+	p, err := phone.NewFromE164(dto.Phone)
+	if err != nil {
+		return nil, err
+	}
+
 	groupUUIDs := make([]uuid.UUID, len(dto.GroupIDs))
 	for i, gID := range dto.GroupIDs {
 		groupUUID, err := uuid.Parse(gID)
@@ -172,18 +177,11 @@ func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []pe
 
 	u = u.SetName(dto.FirstName, dto.LastName, dto.MiddleName).
 		SetEmail(email).
+		SetPhone(p).
 		SetUILanguage(user.UILanguage(dto.Language)).
 		SetRoles(roles).
 		SetGroupIDs(groupUUIDs).
 		SetPermissions(permissions)
-
-	if dto.Phone != "" {
-		p, err := phone.NewFromE164(dto.Phone)
-		if err != nil {
-			return nil, err
-		}
-		u = u.SetPhone(p)
-	}
 
 	if dto.Password != "" {
 		u, err = u.SetPassword(dto.Password)

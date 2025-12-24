@@ -8,10 +8,13 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/sirupsen/logrus"
+
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -33,7 +36,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/iota-uz/iota-sdk/pkg/validators"
-	"github.com/sirupsen/logrus"
 )
 
 type UserRealtimeUpdates struct {
@@ -184,6 +186,9 @@ func (c *UsersController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Delete)).Methods(http.MethodDelete)
+	router.HandleFunc("/{id:[0-9]+}/block/drawer", di.H(c.GetBlockDrawer)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}/block", di.H(c.BlockUser)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}/unblock", di.H(c.UnblockUser)).Methods(http.MethodPost)
 
 	c.realtime.Register()
 }
@@ -192,6 +197,84 @@ func (c *UsersController) resourcePermissionGroups(
 	selected ...permission.Permission,
 ) []*viewmodels.ResourcePermissionGroup {
 	return BuildResourcePermissionGroups(c.permissionSchema, selected...)
+}
+
+// buildEditFormProps is a helper method that fetches all necessary data
+// and builds the EditFormProps for rendering the edit form.
+// This eliminates code duplication between GetEdit, BlockUser, and UnblockUser.
+func (c *UsersController) buildEditFormProps(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+	roleService *services.RoleService,
+	groupQueryService *services.GroupQueryService,
+	userID uint,
+) (*users.EditFormProps, error) {
+	// Fetch roles
+	roles, err := roleService.GetAll(r.Context())
+	if err != nil {
+		logger.Errorf("Error retrieving roles: %v", err)
+		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Fetch groups
+	groupParams := &query.GroupFindParams{
+		Limit:   1000,
+		Offset:  0,
+		Filters: []query.GroupFilter{},
+	}
+	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
+	if err != nil {
+		logger.Errorf("Error retrieving groups: %v", err)
+		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Fetch user
+	us, err := userService.GetByID(r.Context(), userID)
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v", err)
+		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Check if user can be deleted
+	canDelete, err := userService.CanUserBeDeleted(r.Context(), userID)
+	if err != nil {
+		logger.Errorf("Error checking if user can be deleted: %v", err)
+		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
+		return nil, err
+	}
+
+	// Map user to view model
+	userViewModel := mappers.UserToViewModel(us)
+	userViewModel.CanDelete = canDelete
+
+	// If user is blocked, fetch the blocker's name
+	if userViewModel.IsBlocked && userViewModel.BlockedBy != "" && userViewModel.BlockedBy != "0" {
+		blockedByID, parseErr := strconv.ParseUint(userViewModel.BlockedBy, 10, 64)
+		if parseErr == nil {
+			blockerUser, fetchErr := userService.GetByID(r.Context(), uint(blockedByID))
+			if fetchErr == nil {
+				blockerVM := mappers.UserToViewModel(blockerUser)
+				userViewModel.BlockedByUser = blockerVM.Title()
+			}
+		}
+	}
+
+	// Build and return EditFormProps
+	props := &users.EditFormProps{
+		User:                     userViewModel,
+		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
+		Groups:                   groups,
+		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
+		Errors:                   map[string]string{},
+		CanDelete:                canDelete,
+	}
+
+	return props, nil
 }
 
 func (c *UsersController) Users(
@@ -338,51 +421,12 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	roles, err := roleService.GetAll(r.Context())
+	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
 	if err != nil {
-		logger.Errorf("Error retrieving roles: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		// Error already logged and response sent by buildEditFormProps
 		return
 	}
 
-	// Use GroupQueryService to fetch all groups
-	groupParams := &query.GroupFindParams{
-		Limit:   1000, // Large limit to fetch all groups
-		Offset:  0,
-		Filters: []query.GroupFilter{},
-	}
-	groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
-	if err != nil {
-		logger.Errorf("Error retrieving groups: %v", err)
-		http.Error(w, "Error retrieving groups", http.StatusInternalServerError)
-		return
-	}
-
-	us, err := userService.GetByID(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error retrieving user: %v", err)
-		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
-		return
-	}
-
-	canDelete, err := userService.CanUserBeDeleted(r.Context(), id)
-	if err != nil {
-		logger.Errorf("Error checking if user can be deleted: %v", err)
-		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
-		return
-	}
-
-	userViewModel := mappers.UserToViewModel(us)
-	userViewModel.CanDelete = canDelete
-
-	props := &users.EditFormProps{
-		User:                     userViewModel,
-		Roles:                    mapping.MapViewModels(roles, mappers.RoleToViewModel),
-		Groups:                   groups, // Already viewmodels from query service
-		ResourcePermissionGroups: c.resourcePermissionGroups(us.Permissions()...),
-		Errors:                   map[string]string{},
-		CanDelete:                canDelete,
-	}
 	templ.Handler(users.Edit(props), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
@@ -706,4 +750,191 @@ func (c *UsersController) Delete(
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
+}
+
+func (c *UsersController) GetBlockDrawer(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		logger.Errorf("Error parsing user ID: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	u, err := userService.GetByID(r.Context(), id)
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	userVM := mappers.UserToViewModel(u)
+	component := users.BlockDrawer(&users.BlockDrawerProps{
+		User:   userVM,
+		Errors: make(map[string]string),
+	})
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Error rendering block drawer: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (c *UsersController) BlockUser(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+	roleService *services.RoleService,
+	groupQueryService *services.GroupQueryService,
+) {
+	pageCtx := composables.UsePageCtx(r.Context())
+	id, err := shared.ParseID(r)
+	if err != nil {
+		logger.Errorf("Error parsing user ID: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		logger.Errorf("Error parsing form: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	blockReason := r.FormValue("BlockReason")
+
+	// Validate
+	errors := make(map[string]string)
+	if strings.TrimSpace(blockReason) == "" {
+		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonRequired")
+	} else if len(blockReason) < 3 {
+		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonTooShort")
+	} else if len(blockReason) > 1024 {
+		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonTooLong")
+	}
+
+	if len(errors) > 0 {
+		u, err := userService.GetByID(r.Context(), id)
+		if err != nil {
+			logger.Errorf("Error fetching user: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		userVM := mappers.UserToViewModel(u)
+		component := users.BlockDrawer(&users.BlockDrawerProps{
+			User:   userVM,
+			Errors: errors,
+		})
+		if err := component.Render(r.Context(), w); err != nil {
+			logger.Errorf("Error rendering block drawer: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	// Block user
+	_, err = userService.BlockUser(r.Context(), id, blockReason)
+	if err != nil {
+		logger.Errorf("Error blocking user: %v", err)
+		errors["BlockReason"] = err.Error()
+		u, err := userService.GetByID(r.Context(), id)
+		if err != nil {
+			logger.Errorf("Error fetching user: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		userVM := mappers.UserToViewModel(u)
+		component := users.BlockDrawer(&users.BlockDrawerProps{
+			User:   userVM,
+			Errors: errors,
+		})
+		if err := component.Render(r.Context(), w); err != nil {
+			logger.Errorf("Error rendering block drawer: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
+	}
+
+	// Build props first before any writes to avoid partial responses
+	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
+	if err != nil {
+		// Error already logged and response sent by buildEditFormProps
+		return
+	}
+
+	// Buffer all output to write atomically
+	var buf bytes.Buffer
+
+	if _, err := fmt.Fprintf(&buf, `<div id="block-user-drawer-%d"></div>`, id); err != nil {
+		logger.Errorf("Error writing block-user-drawer div: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := buf.WriteString(`<div id="edit-content" hx-swap-oob="true">`); err != nil {
+		logger.Errorf("Error writing edit-content opening div: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
+	}
+
+	if err := users.EditForm(props).Render(r.Context(), &buf); err != nil {
+		logger.Errorf("Error rendering edit form: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err := buf.WriteString(`</div>`); err != nil {
+		logger.Errorf("Error writing edit-content closing div: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
+	}
+
+	// Write all buffered content at once
+	if _, err := buf.WriteTo(w); err != nil {
+		logger.Errorf("Error writing response: %v", err)
+		return
+	}
+}
+
+func (c *UsersController) UnblockUser(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+	roleService *services.RoleService,
+	groupQueryService *services.GroupQueryService,
+) {
+	id, err := shared.ParseID(r)
+	if err != nil {
+		logger.Errorf("Error parsing user ID: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	_, err = userService.UnblockUser(r.Context(), id)
+	if err != nil {
+		logger.Errorf("Error unblocking user: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Success - return updated EditForm
+	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
+	if err != nil {
+		// Error already logged and response sent by buildEditFormProps
+		return
+	}
+
+	if err := users.EditForm(props).Render(r.Context(), w); err != nil {
+		logger.Errorf("Error rendering edit form: %v", err)
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		return
+	}
 }

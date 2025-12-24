@@ -60,7 +60,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 				})
 				<div class="flex items-center gap-2">
 					<span>
-						{ user.FullName() }
+						{ user.Title() }
 					</span>
 					if user.Type == "system" {
 						@badge.New(badge.Props{
@@ -69,6 +69,15 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 							Size:    badge.SizeNormal,
 						}) {
 							{ pageCtx.T("System") }
+						}
+					}
+					if user.IsBlocked {
+						@badge.New(badge.Props{
+							Class:   templ.Classes("px-2"),
+							Variant: badge.VariantPink,
+							Size:    badge.SizeNormal,
+						}) {
+							{ pageCtx.T("Users.Blocked") }
 						}
 					}
 				</div>
@@ -84,7 +93,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			}
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="relativeformat">
+			<div x-data="dateTimeFormat">
 				<span x-text={ fmt.Sprintf("format('%s')", user.CreatedAt) }></span>
 			</div>
 		}

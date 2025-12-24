@@ -6,7 +6,9 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -15,6 +17,7 @@ import (
 type SaveAccountDTO struct {
 	FirstName  string `validate:"required"`
 	LastName   string `validate:"required"`
+	Email      string `validate:"omitempty,email"`
 	Phone      string
 	MiddleName string
 	Language   string `validate:"required"`
@@ -57,6 +60,15 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 		// set to empty without hashing because an account cannot change its password and empty
 		// password is ignored by UserService.Update
 		SetPasswordUnsafe("")
+
+	if d.Email != "" {
+		email, err := internet.NewEmail(d.Email)
+		if err != nil {
+			return nil, err
+		}
+		updated = updated.SetEmail(email)
+	}
+
 	if d.Phone != "" {
 		p, err := phone.NewFromE164(d.Phone)
 		if err != nil {
@@ -64,6 +76,7 @@ func (d *SaveAccountDTO) Apply(u user.User) (user.User, error) {
 		}
 		updated = updated.SetPhone(p)
 	}
+
 	return updated, nil
 }
 

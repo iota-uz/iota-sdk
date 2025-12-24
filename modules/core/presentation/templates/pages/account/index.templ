@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -20,7 +21,11 @@ type ProfilePageProps struct {
 }
 
 templ ProfileForm(props *ProfilePageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+	pageCtx := composables.UsePageCtx(ctx)
+
+	isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
+	}}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post={ props.PostPath }
@@ -72,15 +77,40 @@ templ ProfileForm(props *ProfilePageProps) {
 					},
 					Error: props.Errors["MiddleName"],
 				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Account.Phone.Label"),
-					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":  "Phone",
-						"value": props.User.Phone,
-					},
-					Error: props.Errors["Phone"],
-				})
+				<div class="w-full">
+					{{ isEmailDisabled := props.User.Email != "" && !isUpdatable }}
+					@input.Text(&input.Props{
+						Label:       pageCtx.T("Account.Email.Label"),
+						Placeholder: pageCtx.T("Account.Email.Placeholder"),
+						Attrs: templ.Attributes{
+							"name":     "Email",
+							"value":    props.User.Email,
+							"type":     "email",
+							"disabled": isEmailDisabled,
+							"readonly": isEmailDisabled,
+						},
+						Error: props.Errors["Email"],
+					})
+				</div>
+				<div class="w-full">
+					{{ isPhoneDisabled := props.User.Phone != "" && !isUpdatable }}
+					@input.Text(&input.Props{
+						Label:       pageCtx.T("Account.Phone.Label"),
+						Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+						Attrs: templ.Attributes{
+							"name":      "Phone",
+							"value":     props.User.Phone,
+							"disabled":  isPhoneDisabled,
+							"readonly":  isPhoneDisabled,
+							"minlength": "16",
+							"maxlength": "16",
+							"pattern":   "^\\+998.{12}",
+							"x-mask":    "+999 99 999 9999",
+						},
+						Error: props.Errors["Phone"],
+					})
+					<span class="text-gray-500 pr-2 text-xs">+998 XX XXX XXXX</span>
+				</div>
 				@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 					Label:       pageCtx.T("Users.Single.Language"),
 					Placeholder: pageCtx.T("Users.Single.SelectLanguage"),

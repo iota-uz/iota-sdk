@@ -56,11 +56,11 @@ templ InventoryTable(props *IndexPageProps) {
 							</div>
 						}
 						@base.TableCell(base.TableCellProps{}) {
-							{ check.CreatedBy.FullName() }
+							{ check.CreatedBy.Title() }
 						}
 						@base.TableCell(base.TableCellProps{}) {
 							if check.FinishedBy != nil {
-								{ check.FinishedBy.FullName() }
+								{ check.FinishedBy.Title() }
 							}
 						}
 						@base.TableCell(base.TableCellProps{}) {

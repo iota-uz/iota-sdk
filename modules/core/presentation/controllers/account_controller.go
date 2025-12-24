@@ -3,18 +3,18 @@ package controllers
 import (
 	"net/http"
 
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
-
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/account"
-
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 type AccountController struct {
@@ -87,6 +87,7 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	templ.Handler(account.Index(props)).ServeHTTP(w, r)
 }
 
@@ -121,11 +122,28 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if _, err := c.userService.Update(r.Context(), entity); err != nil {
+
+	if cannot := composables.CanUser(r.Context(), permissions.UserUpdate); cannot != nil {
+		if u.Email() != nil && u.Email().Value() != "" && u.Email().Value() != entity.Email().Value() {
+			logger.Error("normal user can not change non empty email")
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+
+		if u.Phone() != nil && u.Phone().Value() != "" && u.Phone().Value() != entity.Phone().Value() {
+			logger.Error("normal user can not change non empty phone")
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+	}
+
+	if _, err := c.userService.UpdateSelf(r.Context(), entity); err != nil {
 		logger.WithError(err).Error("failed to update user")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set("HX-Refresh", "true")
 
 	// Get supported languages for the response
 	supportedLanguages := c.app.GetSupportedLanguages()
