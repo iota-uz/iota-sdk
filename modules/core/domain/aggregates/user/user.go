@@ -150,6 +150,12 @@ func WithBlockedBy(userID uint) Option {
 	}
 }
 
+func WithBlockedByTenantID(tenantID uuid.UUID) Option {
+	return func(u *user) {
+		u.blockedByTenantID = tenantID
+	}
+}
+
 // ---- Interfaces ----
 
 type User interface {
@@ -204,8 +210,9 @@ type User interface {
 	BlockReason() string
 	BlockedAt() time.Time
 	BlockedBy() uint
+	BlockedByTenantID() uuid.UUID
 	CanBeBlocked() bool
-	Block(reason string, blockedBy uint) User
+	Block(reason string, blockedBy uint, blockedByTenantID uuid.UUID) User
 	Unblock() User
 }
 
@@ -246,31 +253,32 @@ func New(
 }
 
 type user struct {
-	id          uint
-	tenantID    uuid.UUID
-	type_       Type
-	firstName   string
-	lastName    string
-	middleName  string
-	password    string
-	email       internet.Email
-	phone       phone.Phone
-	avatarID    uint
-	avatar      upload.Upload
-	lastIP      string
-	uiLanguage  UILanguage
-	roles       []role.Role
-	groupIDs    []uuid.UUID
-	permissions []permission.Permission
-	lastLogin   time.Time
-	lastAction  time.Time
-	createdAt   time.Time
-	updatedAt   time.Time
-	isBlocked   bool
-	blockReason string
-	blockedAt   time.Time
-	blockedBy   uint
-	events      []interface{}
+	id                uint
+	tenantID          uuid.UUID
+	type_             Type
+	firstName         string
+	lastName          string
+	middleName        string
+	password          string
+	email             internet.Email
+	phone             phone.Phone
+	avatarID          uint
+	avatar            upload.Upload
+	lastIP            string
+	uiLanguage        UILanguage
+	roles             []role.Role
+	groupIDs          []uuid.UUID
+	permissions       []permission.Permission
+	lastLogin         time.Time
+	lastAction        time.Time
+	createdAt         time.Time
+	updatedAt         time.Time
+	isBlocked         bool
+	blockReason       string
+	blockedAt         time.Time
+	blockedBy         uint
+	blockedByTenantID uuid.UUID
+	events            []interface{}
 }
 
 func (u *user) ID() uint {
@@ -572,11 +580,15 @@ func (u *user) BlockedBy() uint {
 	return u.blockedBy
 }
 
+func (u *user) BlockedByTenantID() uuid.UUID {
+	return u.blockedByTenantID
+}
+
 func (u *user) CanBeBlocked() bool {
 	return u.type_ != TypeSystem
 }
 
-func (u *user) Block(reason string, blockedBy uint) User {
+func (u *user) Block(reason string, blockedBy uint, blockedByTenantID uuid.UUID) User {
 	if !u.CanBeBlocked() {
 		return u
 	}
@@ -585,6 +597,7 @@ func (u *user) Block(reason string, blockedBy uint) User {
 	result.blockReason = reason
 	result.blockedAt = time.Now()
 	result.blockedBy = blockedBy
+	result.blockedByTenantID = blockedByTenantID
 	result.updatedAt = time.Now()
 	return &result
 }
@@ -595,6 +608,7 @@ func (u *user) Unblock() User {
 	result.blockReason = ""
 	result.blockedAt = time.Time{}
 	result.blockedBy = 0
+	result.blockedByTenantID = uuid.Nil
 	result.updatedAt = time.Now()
 	return &result
 }

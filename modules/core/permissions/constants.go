@@ -43,7 +43,7 @@ var (
 		permission.ModifierAll,
 	)
 	UserUpdateBlockStatus = permission.MustCreate(
-		uuid.MustParse("e5f6a7b8-c9d0-1234-efab-567890123456"),
+		uuid.MustParse("6aec630b-be56-4a34-ae65-7958d693ecb9"),
 		"User.UpdateBlockStatus",
 		ResourceUser,
 		permission.ActionUpdate,

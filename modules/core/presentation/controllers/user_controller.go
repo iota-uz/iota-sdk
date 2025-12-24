@@ -750,7 +750,11 @@ func (c *UsersController) GetBlockDrawer(
 		User:   userVM,
 		Errors: make(map[string]string),
 	})
-	component.Render(r.Context(), w)
+	if err := component.Render(r.Context(), w); err != nil {
+		logger.Errorf("Error rendering block drawer: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func (c *UsersController) BlockUser(
@@ -788,13 +792,22 @@ func (c *UsersController) BlockUser(
 	}
 
 	if len(errors) > 0 {
-		u, _ := userService.GetByID(r.Context(), id)
+		u, err := userService.GetByID(r.Context(), id)
+		if err != nil {
+			logger.Errorf("Error fetching user: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		userVM := mappers.UserToViewModel(u)
 		component := users.BlockDrawer(&users.BlockDrawerProps{
 			User:   userVM,
 			Errors: errors,
 		})
-		component.Render(r.Context(), w)
+		if err := component.Render(r.Context(), w); err != nil {
+			logger.Errorf("Error rendering block drawer: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
@@ -803,13 +816,22 @@ func (c *UsersController) BlockUser(
 	if err != nil {
 		logger.Errorf("Error blocking user: %v", err)
 		errors["BlockReason"] = err.Error()
-		u, _ := userService.GetByID(r.Context(), id)
+		u, err := userService.GetByID(r.Context(), id)
+		if err != nil {
+			logger.Errorf("Error fetching user: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		userVM := mappers.UserToViewModel(u)
 		component := users.BlockDrawer(&users.BlockDrawerProps{
 			User:   userVM,
 			Errors: errors,
 		})
-		component.Render(r.Context(), w)
+		if err := component.Render(r.Context(), w); err != nil {
+			logger.Errorf("Error rendering block drawer: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 

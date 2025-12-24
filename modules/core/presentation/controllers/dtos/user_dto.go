@@ -118,6 +118,11 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		return nil, err
 	}
 
+	p, err := phone.NewFromE164(dto.Phone)
+	if err != nil {
+		return nil, err
+	}
+
 	options := []user.Option{
 		user.WithTenantID(tenantID),
 		user.WithMiddleName(dto.MiddleName),
@@ -125,14 +130,7 @@ func (dto *CreateUserDTO) ToEntity(tenantID uuid.UUID) (user.User, error) {
 		user.WithRoles(roles),
 		user.WithGroupIDs(groupUUIDs),
 		user.WithAvatarID(dto.AvatarID),
-	}
-
-	if dto.Phone != "" {
-		p, err := phone.NewFromE164(dto.Phone)
-		if err != nil {
-			return nil, err
-		}
-		options = append(options, user.WithPhone(p))
+		user.WithPhone(p),
 	}
 
 	u := user.New(
@@ -163,6 +161,11 @@ func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []pe
 		return nil, err
 	}
 
+	p, err := phone.NewFromE164(dto.Phone)
+	if err != nil {
+		return nil, err
+	}
+
 	groupUUIDs := make([]uuid.UUID, len(dto.GroupIDs))
 	for i, gID := range dto.GroupIDs {
 		groupUUID, err := uuid.Parse(gID)
@@ -174,18 +177,11 @@ func (dto *UpdateUserDTO) Apply(u user.User, roles []role.Role, permissions []pe
 
 	u = u.SetName(dto.FirstName, dto.LastName, dto.MiddleName).
 		SetEmail(email).
+		SetPhone(p).
 		SetUILanguage(user.UILanguage(dto.Language)).
 		SetRoles(roles).
 		SetGroupIDs(groupUUIDs).
 		SetPermissions(permissions)
-
-	if dto.Phone != "" {
-		p, err := phone.NewFromE164(dto.Phone)
-		if err != nil {
-			return nil, err
-		}
-		u = u.SetPhone(p)
-	}
 
 	if dto.Password != "" {
 		u, err = u.SetPassword(dto.Password)
