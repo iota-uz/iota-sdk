@@ -235,66 +235,70 @@ templ EditForm(props *EditFormProps) {
 					</button>
 				}
 			}
-			<form
-				id="delete-form"
-				hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
-				hx-trigger="submit"
-				hx-target="closest .content"
-				hx-swap="innerHTML"
-				hx-indicator="#delete-user-btn"
-				hx-disabled-elt="find button"
-			>
-				if !props.CanDelete {
-					@button.Danger(button.Props{
-						Disabled: true,
+			if composables.CanUser(ctx, permissions.UserDelete) == nil {
+				<form
+					id="delete-form"
+					hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
+					hx-trigger="submit"
+					hx-target="closest .content"
+					hx-swap="innerHTML"
+					hx-indicator="#delete-user-btn"
+					hx-disabled-elt="find button"
+				>
+					if !props.CanDelete {
+						@button.Danger(button.Props{
+							Disabled: true,
+							Size:     button.SizeMD,
+							Attrs: templ.Attributes{
+								"name":          "_action",
+								"value":         "delete",
+								"type":          "button",
+								"@click":        "$dispatch('open-delete-user-confirmation')",
+								"id":            "delete-user-btn",
+								"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
+							},
+						}) {
+							{ pageCtx.T("Delete") }
+						}
+					} else {
+						@button.Danger(button.Props{
+							Disabled: false,
+							Size:     button.SizeMD,
+							Attrs: templ.Attributes{
+								"name":   "_action",
+								"value":  "delete",
+								"type":   "button",
+								"@click": "$dispatch('open-delete-user-confirmation')",
+								"id":     "delete-user-btn",
+							},
+						}) {
+							{ pageCtx.T("Delete") }
+						}
+					}
+				</form>
+			}
+			if composables.CanUser(ctx, permissions.UserUpdate) == nil {
+				<form
+					id="save-form"
+					method="post"
+					hx-post={ fmt.Sprintf("/users/%s", props.User.ID) }
+					hx-indicator="#save-btn"
+					hx-target="#edit-content"
+					hx-swap="outerHTML"
+				>
+					@button.Primary(button.Props{
+						Disabled: !props.User.CanUpdate,
 						Size:     button.SizeMD,
 						Attrs: templ.Attributes{
-							"name":          "_action",
-							"value":         "delete",
-							"type":          "button",
-							"@click":        "$dispatch('open-delete-user-confirmation')",
-							"id":            "delete-user-btn",
-							"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
+							"name":  "_action",
+							"value": "save",
+							"id":    "save-btn",
 						},
 					}) {
-						{ pageCtx.T("Delete") }
+						{ pageCtx.T("Save") }
 					}
-				} else {
-					@button.Danger(button.Props{
-						Disabled: false,
-						Size:     button.SizeMD,
-						Attrs: templ.Attributes{
-							"name":   "_action",
-							"value":  "delete",
-							"type":   "button",
-							"@click": "$dispatch('open-delete-user-confirmation')",
-							"id":     "delete-user-btn",
-						},
-					}) {
-						{ pageCtx.T("Delete") }
-					}
-				}
-			</form>
-			<form
-				id="save-form"
-				method="post"
-				hx-post={ fmt.Sprintf("/users/%s", props.User.ID) }
-				hx-indicator="#save-btn"
-				hx-target="#edit-content"
-				hx-swap="outerHTML"
-			>
-				@button.Primary(button.Props{
-					Disabled: !props.User.CanUpdate,
-					Size:     button.SizeMD,
-					Attrs: templ.Attributes{
-						"name":  "_action",
-						"value": "save",
-						"id":    "save-btn",
-					},
-				}) {
-					{ pageCtx.T("Save") }
-				}
-			</form>
+				</form>
+			}
 		</div>
 	</div>
 }
