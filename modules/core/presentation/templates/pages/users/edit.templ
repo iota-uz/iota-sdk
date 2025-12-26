@@ -10,10 +10,10 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
-	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -209,30 +209,29 @@ templ EditForm(props *EditFormProps) {
 			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
 			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil {
-                if !props.User.IsBlocked {
-                    <button
-                        type="button"
-                        class="btn btn-warning flex items-center gap-2"
-                        hx-get={ fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }
-                        hx-target="#view-drawer"
-                        hx-swap="innerHTML"
-                        disabled?={ !props.User.CanBeBlocked }
-                    >
-                        @icons.Prohibit(icons.Props{Size: "20"})
-                        <span>{ pageCtx.T("Users.Block.Button") }</span>
-                    </button>
-                } else {
-                    <button
-                        type="button"
-                        class="btn btn-success flex items-center gap-2"
-                        @click="$dispatch('open-unblock-user-confirmation')"
-                    >
-                        @icons.Check(icons.Props{Size: "20"})
-                        <span>{ pageCtx.T("Users.Unblock.Button") }</span>
-                    </button>
-                }
+				if !props.User.IsBlocked {
+					<button
+						type="button"
+						class="btn btn-warning flex items-center gap-2"
+						hx-get={ fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }
+						hx-target="#view-drawer"
+						hx-swap="innerHTML"
+						disabled?={ !props.User.CanBeBlocked }
+					>
+						@icons.Prohibit(icons.Props{Size: "20"})
+						<span>{ pageCtx.T("Users.Block.Button") }</span>
+					</button>
+				} else {
+					<button
+						type="button"
+						class="btn btn-success flex items-center gap-2"
+						@click="$dispatch('open-unblock-user-confirmation')"
+					>
+						@icons.Check(icons.Props{Size: "20"})
+						<span>{ pageCtx.T("Users.Unblock.Button") }</span>
+					</button>
+				}
 			}
-
 			<form
 				id="delete-form"
 				hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
