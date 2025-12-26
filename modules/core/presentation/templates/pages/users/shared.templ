@@ -45,11 +45,11 @@ templ RoleSelect(props *RoleSelectProps) {
 }
 
 type SharedProps struct {
-	Value string
-	Form  string
-	Error string
+	Value       string
+	Form        string
+	Error       string
 	Placeholder string
-	Required bool
+	Required    bool
 }
 
 type GroupSelectProps struct {
@@ -99,7 +99,7 @@ templ EmailInput(props SharedProps) {
 			attrs["form"] = props.Form
 		}
 		if props.Required {
-		    attrs["required"] = props.Required
+			attrs["required"] = props.Required
 		}
 	}}
 	@input.Email(&input.Props{
@@ -112,6 +112,6 @@ templ EmailInput(props SharedProps) {
 			}),
 		},
 		Placeholder: props.Placeholder,
-		Error: props.Error,
+		Error:       props.Error,
 	})
 }
