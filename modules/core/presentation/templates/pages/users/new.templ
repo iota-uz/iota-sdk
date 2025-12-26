@@ -21,6 +21,12 @@ type CreateFormProps struct {
 
 templ CreateForm(props *CreateFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+	language := string(composables.MustUseUser(ctx).UILanguage())
+	if props.User.Language != "" {
+		language = props.User.Language
+	}
+	}}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post="/users"
@@ -54,8 +60,9 @@ templ CreateForm(props *CreateFormProps) {
 						Error: props.Errors["MiddleName"],
 					})
 					@EmailInput(SharedProps{
-						Value: props.User.Email,
-						Error: props.Errors["Email"],
+						Value:       props.User.Email,
+						Error:       props.Errors["Email"],
+						Placeholder: "email@gmail.com",
 					})
 					@input.Text(&input.Props{
 						Label: pageCtx.T("Users.Single.Phone"),
@@ -65,10 +72,11 @@ templ CreateForm(props *CreateFormProps) {
 							"minlength": "16",
 							"maxlength": "16",
 							"pattern":   "^\\+998.{12}",
-							"x-mask":    "+999 99 999 9999",
+							"x-mask":    "+998 99 999 9999",
 							"required":  true,
 						},
-						Error: props.Errors["Phone"],
+						Placeholder: "+998 12 345 6789",
+						Error:       props.Errors["Phone"],
 					})
 				}
 				@card.Card(card.Props{
@@ -93,12 +101,13 @@ templ CreateForm(props *CreateFormProps) {
 						Attrs: templ.Attributes{
 							"autocomplete": "new-password",
 							"name":         "Password",
+							"required":     true,
 						},
 					})
 					@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 						Label:       pageCtx.T("Users.Single.Language"),
 						Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-						Value:       string(props.User.Language),
+						Value:       string(language),
 						Error:       props.Errors["Language"],
 						Attrs:       templ.Attributes{"name": "Language"},
 					})

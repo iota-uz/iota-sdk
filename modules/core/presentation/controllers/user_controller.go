@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
@@ -758,6 +759,12 @@ func (c *UsersController) GetBlockDrawer(
 	logger *logrus.Entry,
 	userService *services.UserService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.UserUpdateBlockStatus); err != nil {
+		logger.Errorf("Error lacks permission: %s: %v", permissions.UserUpdateBlockStatus.Name(), err)
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing user ID: %v", err)
@@ -792,6 +799,12 @@ func (c *UsersController) BlockUser(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.UserUpdateBlockStatus); err != nil {
+		logger.Errorf("Error lacks permission: %s: %v", permissions.UserUpdateBlockStatus.Name(), err)
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
 	pageCtx := composables.UsePageCtx(r.Context())
 	id, err := shared.ParseID(r)
 	if err != nil {
@@ -862,6 +875,13 @@ func (c *UsersController) BlockUser(
 		return
 	}
 
+	logger.
+		WithField("block_reason", blockReason).
+		WithField("blocked_by", composables.MustUseUser(r.Context()).ID()).
+		WithField("target_id", id).
+		WithField("action", "block").
+		Info("user blocked")
+
 	// Build props first before any writes to avoid partial responses
 	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
 	if err != nil {
@@ -911,6 +931,12 @@ func (c *UsersController) UnblockUser(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.UserUpdateBlockStatus); err != nil {
+		logger.Errorf("Error lacks permission: %s: %v", permissions.UserUpdateBlockStatus.Name(), err)
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
+	}
+
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing user ID: %v", err)
@@ -924,6 +950,12 @@ func (c *UsersController) UnblockUser(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	logger.
+		WithField("unblocked_by", composables.MustUseUser(r.Context()).ID()).
+		WithField("target_id", id).
+		WithField("action", "unblock").
+		Info("user unblocked")
 
 	// Success - return updated EditForm
 	props, err := c.buildEditFormProps(r, w, logger, userService, roleService, groupQueryService, id)
