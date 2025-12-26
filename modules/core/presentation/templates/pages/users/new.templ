@@ -21,12 +21,12 @@ type CreateFormProps struct {
 
 templ CreateForm(props *CreateFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-    {{
-        language := string(composables.MustUseUser(ctx).UILanguage())
-        if props.User.Language != "" {
-            language = props.User.Language
-        }
-    }}
+	{{
+	language := string(composables.MustUseUser(ctx).UILanguage())
+	if props.User.Language != "" {
+		language = props.User.Language
+	}
+	}}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post="/users"
@@ -60,8 +60,8 @@ templ CreateForm(props *CreateFormProps) {
 						Error: props.Errors["MiddleName"],
 					})
 					@EmailInput(SharedProps{
-						Value: props.User.Email,
-						Error: props.Errors["Email"],
+						Value:       props.User.Email,
+						Error:       props.Errors["Email"],
 						Placeholder: "email@gmail.com",
 					})
 					@input.Text(&input.Props{
@@ -76,7 +76,7 @@ templ CreateForm(props *CreateFormProps) {
 							"required":  true,
 						},
 						Placeholder: "+998 12 345 6789",
-						Error: props.Errors["Phone"],
+						Error:       props.Errors["Phone"],
 					})
 				}
 				@card.Card(card.Props{

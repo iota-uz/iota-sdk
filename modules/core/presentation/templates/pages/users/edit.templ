@@ -121,14 +121,14 @@ templ EditForm(props *EditFormProps) {
 								Error: props.Errors["MiddleName"],
 							})
 							@EmailInput(SharedProps{
-								Value: props.User.Email,
-								Error: props.Errors["Email"],
-								Form:  "save-form",
+								Value:       props.User.Email,
+								Error:       props.Errors["Email"],
+								Form:        "save-form",
 								Placeholder: "email@gmail.com",
-								Required: true,
+								Required:    true,
 							})
 							@input.Text(&input.Props{
-								Label: pageCtx.T("Users.Single.Phone"),
+								Label:       pageCtx.T("Users.Single.Phone"),
 								Placeholder: "+998 12 345 6789",
 								Attrs: templ.Attributes{
 									"value":     props.User.Phone,
