@@ -48,6 +48,8 @@ type SharedProps struct {
 	Value string
 	Form  string
 	Error string
+	Placeholder string
+	Required bool
 }
 
 type GroupSelectProps struct {
@@ -96,6 +98,9 @@ templ EmailInput(props SharedProps) {
 		if props.Form != "" {
 			attrs["form"] = props.Form
 		}
+		if props.Required {
+		    attrs["required"] = props.Required
+		}
 	}}
 	@input.Email(&input.Props{
 		Label: pageCtx.T("Users.Single.Email"),
@@ -106,6 +111,7 @@ templ EmailInput(props SharedProps) {
 				Class: "text-gray-400",
 			}),
 		},
+		Placeholder: props.Placeholder,
 		Error: props.Error,
 	})
 }

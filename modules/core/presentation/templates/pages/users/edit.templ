@@ -124,9 +124,12 @@ templ EditForm(props *EditFormProps) {
 								Value: props.User.Email,
 								Error: props.Errors["Email"],
 								Form:  "save-form",
+								Placeholder: "email@gmail.com",
+								Required: true,
 							})
 							@input.Text(&input.Props{
 								Label: pageCtx.T("Users.Single.Phone"),
+								Placeholder: "+998 12 345 6789",
 								Attrs: templ.Attributes{
 									"value":     props.User.Phone,
 									"name":      "Phone",
@@ -134,7 +137,7 @@ templ EditForm(props *EditFormProps) {
 									"minlength": "16",
 									"maxlength": "16",
 									"pattern":   "^\\+998.{12}",
-									"x-mask":    "+999 99 999 9999",
+									"x-mask":    "+998 99 999 9999",
 									"required":  true,
 								},
 								Error: props.Errors["Phone"],
