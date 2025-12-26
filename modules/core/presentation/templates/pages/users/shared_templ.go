@@ -149,9 +149,11 @@ func RoleSelect(props *RoleSelectProps) templ.Component {
 }
 
 type SharedProps struct {
-	Value string
-	Form  string
-	Error string
+	Value       string
+	Form        string
+	Error       string
+	Placeholder string
+	Required    bool
 }
 
 type GroupSelectProps struct {
@@ -214,7 +216,7 @@ func GroupSelect(props *GroupSelectProps) templ.Component {
 					var templ_7745c5c3_Var9 string
 					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(group.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 81, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 83, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 					if templ_7745c5c3_Err != nil {
@@ -227,7 +229,7 @@ func GroupSelect(props *GroupSelectProps) templ.Component {
 					var templ_7745c5c3_Var10 string
 					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(group.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 81, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 83, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
@@ -245,7 +247,7 @@ func GroupSelect(props *GroupSelectProps) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(group.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 83, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 85, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -258,7 +260,7 @@ func GroupSelect(props *GroupSelectProps) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(group.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 83, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/shared.templ`, Line: 85, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -316,6 +318,9 @@ func EmailInput(props SharedProps) templ.Component {
 		if props.Form != "" {
 			attrs["form"] = props.Form
 		}
+		if props.Required {
+			attrs["required"] = props.Required
+		}
 		templ_7745c5c3_Err = input.Email(&input.Props{
 			Label: pageCtx.T("Users.Single.Email"),
 			Attrs: attrs,
@@ -325,7 +330,8 @@ func EmailInput(props SharedProps) templ.Component {
 					Class: "text-gray-400",
 				}),
 			},
-			Error: props.Error,
+			Placeholder: props.Placeholder,
+			Error:       props.Error,
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

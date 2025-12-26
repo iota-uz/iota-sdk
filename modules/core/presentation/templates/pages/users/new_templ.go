@@ -49,6 +49,11 @@ func CreateForm(props *CreateFormProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
+
+		language := string(composables.MustUseUser(ctx).UILanguage())
+		if props.User.Language != "" {
+			language = props.User.Language
+		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form class=\"flex flex-col justify-between h-full\" hx-post=\"/users\" hx-swap=\"outerHTML\" hx-indicator=\"#save-btn\"><div class=\"flex gap-5 p-6\"><div class=\"flex-1 space-y-5\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -108,8 +113,9 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			templ_7745c5c3_Err = EmailInput(SharedProps{
-				Value: props.User.Email,
-				Error: props.Errors["Email"],
+				Value:       props.User.Email,
+				Error:       props.Errors["Email"],
+				Placeholder: "email@gmail.com",
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -126,10 +132,11 @@ func CreateForm(props *CreateFormProps) templ.Component {
 					"minlength": "16",
 					"maxlength": "16",
 					"pattern":   "^\\+998.{12}",
-					"x-mask":    "+999 99 999 9999",
+					"x-mask":    "+998 99 999 9999",
 					"required":  true,
 				},
-				Error: props.Errors["Phone"],
+				Placeholder: "+998 12 345 6789",
+				Error:       props.Errors["Phone"],
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -186,6 +193,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 				Attrs: templ.Attributes{
 					"autocomplete": "new-password",
 					"name":         "Password",
+					"required":     true,
 				},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -198,7 +206,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			templ_7745c5c3_Err = usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 				Label:       pageCtx.T("Users.Single.Language"),
 				Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-				Value:       string(props.User.Language),
+				Value:       string(language),
 				Error:       props.Errors["Language"],
 				Attrs:       templ.Attributes{"name": "Language"},
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -266,7 +274,7 @@ func CreateForm(props *CreateFormProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Save"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 125, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/new.templ`, Line: 134, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

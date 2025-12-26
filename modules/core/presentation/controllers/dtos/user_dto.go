@@ -27,7 +27,7 @@ type CreateUserDTO struct {
 	MiddleName string   `validate:"omitempty"`
 	Email      string   `validate:"required,email"`
 	Phone      string   `validate:"required"`
-	Password   string   `validate:"omitempty"`
+	Password   string   `validate:"required"`
 	RoleIDs    []uint   `validate:"omitempty,dive,required"`
 	GroupIDs   []string `validate:"omitempty,dive,required"`
 	AvatarID   uint     `validate:"omitempty,gt=0"`
