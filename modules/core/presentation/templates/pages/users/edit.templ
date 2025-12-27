@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -120,12 +121,15 @@ templ EditForm(props *EditFormProps) {
 								Error: props.Errors["MiddleName"],
 							})
 							@EmailInput(SharedProps{
-								Value: props.User.Email,
-								Error: props.Errors["Email"],
-								Form:  "save-form",
+								Value:       props.User.Email,
+								Error:       props.Errors["Email"],
+								Form:        "save-form",
+								Placeholder: "email@gmail.com",
+								Required:    true,
 							})
 							@input.Text(&input.Props{
-								Label: pageCtx.T("Users.Single.Phone"),
+								Label:       pageCtx.T("Users.Single.Phone"),
+								Placeholder: "+998 12 345 6789",
 								Attrs: templ.Attributes{
 									"value":     props.User.Phone,
 									"name":      "Phone",
@@ -133,7 +137,7 @@ templ EditForm(props *EditFormProps) {
 									"minlength": "16",
 									"maxlength": "16",
 									"pattern":   "^\\+998.{12}",
-									"x-mask":    "+999 99 999 9999",
+									"x-mask":    "+998 99 999 9999",
 									"required":  true,
 								},
 								Error: props.Errors["Phone"],
@@ -207,88 +211,94 @@ templ EditForm(props *EditFormProps) {
 		<div
 			class="h-20 shadow-t-lg border-t w-full flex items-center justify-end px-8 bg-surface-300 border-t-primary mt-auto gap-4"
 		>
-			if !props.User.IsBlocked {
-				<button
-					type="button"
-					class="btn btn-warning flex items-center gap-2"
-					hx-get={ fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }
-					hx-target="#view-drawer"
-					hx-swap="innerHTML"
-					disabled?={ !props.User.CanBeBlocked }
-				>
-					@icons.Prohibit(icons.Props{Size: "20"})
-					<span>{ pageCtx.T("Users.Block.Button") }</span>
-				</button>
-			} else {
-				<button
-					type="button"
-					class="btn btn-success flex items-center gap-2"
-					@click="$dispatch('open-unblock-user-confirmation')"
-				>
-					@icons.Check(icons.Props{Size: "20"})
-					<span>{ pageCtx.T("Users.Unblock.Button") }</span>
-				</button>
-			}
-			<form
-				id="delete-form"
-				hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
-				hx-trigger="submit"
-				hx-target="closest .content"
-				hx-swap="innerHTML"
-				hx-indicator="#delete-user-btn"
-				hx-disabled-elt="find button"
-			>
-				if !props.CanDelete {
-					@button.Danger(button.Props{
-						Disabled: true,
-						Size:     button.SizeMD,
-						Attrs: templ.Attributes{
-							"name":          "_action",
-							"value":         "delete",
-							"type":          "button",
-							"@click":        "$dispatch('open-delete-user-confirmation')",
-							"id":            "delete-user-btn",
-							"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
-						},
-					}) {
-						{ pageCtx.T("Delete") }
-					}
+			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil {
+				if !props.User.IsBlocked {
+					<button
+						type="button"
+						class="btn btn-warning flex items-center gap-2"
+						hx-get={ fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }
+						hx-target="#view-drawer"
+						hx-swap="innerHTML"
+						disabled?={ !props.User.CanBeBlocked }
+					>
+						@icons.Prohibit(icons.Props{Size: "20"})
+						<span>{ pageCtx.T("Users.Block.Button") }</span>
+					</button>
 				} else {
-					@button.Danger(button.Props{
-						Disabled: false,
+					<button
+						type="button"
+						class="btn btn-success flex items-center gap-2"
+						@click="$dispatch('open-unblock-user-confirmation')"
+					>
+						@icons.Check(icons.Props{Size: "20"})
+						<span>{ pageCtx.T("Users.Unblock.Button") }</span>
+					</button>
+				}
+			}
+			if composables.CanUser(ctx, permissions.UserDelete) == nil {
+				<form
+					id="delete-form"
+					hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
+					hx-trigger="submit"
+					hx-target="closest .content"
+					hx-swap="innerHTML"
+					hx-indicator="#delete-user-btn"
+					hx-disabled-elt="find button"
+				>
+					if !props.CanDelete {
+						@button.Danger(button.Props{
+							Disabled: true,
+							Size:     button.SizeMD,
+							Attrs: templ.Attributes{
+								"name":          "_action",
+								"value":         "delete",
+								"type":          "button",
+								"@click":        "$dispatch('open-delete-user-confirmation')",
+								"id":            "delete-user-btn",
+								"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
+							},
+						}) {
+							{ pageCtx.T("Delete") }
+						}
+					} else {
+						@button.Danger(button.Props{
+							Disabled: false,
+							Size:     button.SizeMD,
+							Attrs: templ.Attributes{
+								"name":   "_action",
+								"value":  "delete",
+								"type":   "button",
+								"@click": "$dispatch('open-delete-user-confirmation')",
+								"id":     "delete-user-btn",
+							},
+						}) {
+							{ pageCtx.T("Delete") }
+						}
+					}
+				</form>
+			}
+			if composables.CanUser(ctx, permissions.UserUpdate) == nil {
+				<form
+					id="save-form"
+					method="post"
+					hx-post={ fmt.Sprintf("/users/%s", props.User.ID) }
+					hx-indicator="#save-btn"
+					hx-target="#edit-content"
+					hx-swap="outerHTML"
+				>
+					@button.Primary(button.Props{
+						Disabled: !props.User.CanUpdate,
 						Size:     button.SizeMD,
 						Attrs: templ.Attributes{
-							"name":   "_action",
-							"value":  "delete",
-							"type":   "button",
-							"@click": "$dispatch('open-delete-user-confirmation')",
-							"id":     "delete-user-btn",
+							"name":  "_action",
+							"value": "save",
+							"id":    "save-btn",
 						},
 					}) {
-						{ pageCtx.T("Delete") }
+						{ pageCtx.T("Save") }
 					}
-				}
-			</form>
-			<form
-				id="save-form"
-				method="post"
-				hx-post={ fmt.Sprintf("/users/%s", props.User.ID) }
-				hx-indicator="#save-btn"
-				hx-target="#edit-content"
-				hx-swap="outerHTML"
-			>
-				@button.Primary(button.Props{
-					Disabled: !props.User.CanUpdate,
-					Size:     button.SizeMD,
-					Attrs: templ.Attributes{
-						"name":  "_action",
-						"value": "save",
-						"id":    "save-btn",
-					},
-				}) {
-					{ pageCtx.T("Save") }
-				}
-			</form>
+				</form>
+			}
 		</div>
 	</div>
 }
