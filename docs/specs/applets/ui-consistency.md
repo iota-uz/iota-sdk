@@ -1,3 +1,12 @@
+---
+layout: default
+title: UI Consistency
+parent: Applet System
+grand_parent: Specifications
+nav_order: 5
+description: "UI component library and design system strategy for applets"
+---
+
 # UI Consistency Specification
 
 **Status:** Draft
@@ -6,10 +15,26 @@
 
 Applets must look native to IOTA SDK. Users should not perceive applet pages as "third-party" or "foreign." This requires:
 
-1. Consistent visual design (colors, typography, spacing)
-2. Consistent interaction patterns (forms, tables, navigation)
-3. Consistent component behavior (buttons, inputs, modals)
-4. Consistent layout structure (page containers, cards, sidebars)
+```mermaid
+mindmap
+  root((UI Consistency))
+    Visual Design
+      Colors
+      Typography
+      Spacing
+    Interaction Patterns
+      Forms
+      Tables
+      Navigation
+    Component Behavior
+      Buttons
+      Inputs
+      Modals
+    Layout Structure
+      Page containers
+      Cards
+      Sidebars
+```
 
 ## Current SDK Design System
 
@@ -70,6 +95,43 @@ Applets must look native to IOTA SDK. Users should not perceive applet pages as 
 
 ### Existing Components
 
+```mermaid
+graph TB
+    subgraph "Form Components"
+        BTN[Button]
+        INPUT[Input]
+        TEXTAREA[Textarea]
+        SELECT[Select]
+        COMBO[Combobox]
+        CHECK[Checkbox]
+        RADIO[Radio]
+        TOGGLE[Toggle]
+    end
+
+    subgraph "Layout Components"
+        CARD[Card]
+        TABLE[Table]
+        MODAL[Modal]
+        DRAWER[Drawer]
+        TABS[Tabs]
+    end
+
+    subgraph "Feedback Components"
+        TOAST[Toast]
+        BADGE[Badge]
+        AVATAR[Avatar]
+        SKELETON[Skeleton]
+    end
+
+    subgraph "Navigation"
+        PAGINATION[Pagination]
+    end
+
+    style BTN fill:#3b82f6,stroke:#1e40af,color:#fff
+    style CARD fill:#10b981,stroke:#047857,color:#fff
+    style TOAST fill:#f59e0b,stroke:#d97706,color:#fff
+```
+
 | Component | Description | Used For |
 |-----------|-------------|----------|
 | Button | Primary, secondary, ghost, danger variants | Actions |
@@ -116,15 +178,10 @@ Export CSS variables that applets must use:
 - Linter warns on hardcoded colors/fonts
 - Review process checks visual consistency
 
-**Pros:**
-- Simple to implement
-- Flexible for applet developers
-- Automatic theme support
-
-**Cons:**
-- Relies on developer discipline
-- Can't enforce layout patterns
-- Different component implementations
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Simple to implement, flexible for developers, automatic theme support |
+| **Cons** | Relies on developer discipline, can't enforce layout patterns |
 
 ---
 
@@ -200,23 +257,30 @@ export function Button({
 }
 ```
 
-**Pros:**
-- Guaranteed visual consistency
-- Consistent behavior (accessibility, keyboard nav)
-- Automatic theme support
-- TypeScript types
-- Version controlled
-
-**Cons:**
-- Requires maintaining React library
-- Bundle size impact
-- Framework lock-in (React only)
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Guaranteed visual consistency, consistent behavior, automatic theme support, TypeScript types |
+| **Cons** | Requires maintaining React library, bundle size impact, framework lock-in |
 
 ---
 
 ### Strategy 3: Web Components Library
 
 Framework-agnostic components using Web Components:
+
+```mermaid
+graph LR
+    subgraph "@iota/web-components"
+        WC[Web Components]
+    end
+
+    WC --> REACT[React Apps]
+    WC --> VUE[Vue Apps]
+    WC --> ALPINE[Alpine.js]
+    WC --> VANILLA[Vanilla HTML]
+
+    style WC fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
 ```typescript
 // @iota/web-components
@@ -250,68 +314,10 @@ export function ConfigPage() {
 }
 ```
 
-**Implementation:**
-```typescript
-// web-components/button.ts
-class IotaButton extends HTMLElement {
-  static get observedAttributes() {
-    return ['variant', 'size', 'disabled', 'loading'];
-  }
-
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-  }
-
-  connectedCallback() {
-    this.render();
-  }
-
-  attributeChangedCallback() {
-    this.render();
-  }
-
-  private render() {
-    const variant = this.getAttribute('variant') || 'secondary';
-    const size = this.getAttribute('size') || 'md';
-
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: inline-block;
-        }
-        button {
-          font-family: var(--iota-font-family);
-          border-radius: var(--iota-radius-md);
-          /* ... all styles using CSS variables */
-        }
-        button.primary {
-          background: var(--iota-color-primary);
-          color: white;
-        }
-      </style>
-      <button class="${variant} ${size}">
-        <slot></slot>
-      </button>
-    `;
-  }
-}
-
-customElements.define('iota-button', IotaButton);
-```
-
-**Pros:**
-- Framework agnostic
-- Works with React, Vue, Alpine, vanilla JS
-- Style encapsulation
-- Native browser support
-- Lighter than React library
-
-**Cons:**
-- SSR is complex
-- React integration has quirks
-- Less developer familiarity
-- State management manual
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Framework agnostic, native browser support, style encapsulation |
+| **Cons** | SSR is complex, React integration has quirks, state management manual |
 
 ---
 
@@ -369,18 +375,10 @@ func renderPage(definition PageDefinition, ctx context.Context) templ.Component 
 }
 ```
 
-**Pros:**
-- Guaranteed consistency
-- No frontend code needed for simple UIs
-- Easy to validate
-- Automatic accessibility
-- Theme support built-in
-
-**Cons:**
-- Limited flexibility
-- Complex UIs impossible
-- Learning curve for schema
-- Custom components blocked
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Guaranteed consistency, no frontend code needed for simple UIs, automatic accessibility |
+| **Cons** | Limited flexibility, complex UIs impossible, custom components blocked |
 
 ---
 
@@ -388,42 +386,39 @@ func renderPage(definition PageDefinition, ctx context.Context) templ.Component 
 
 ### Layered Strategy
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      UI Consistency Layers                       │
-│                                                                  │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Layer 4: Declarative UI Schema                            │  │
-│  │ - Simple pages (config, settings)                         │  │
-│  │ - 100% consistent, zero frontend code                     │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Layer 3: React Component Library                          │  │
-│  │ - Complex interactive UIs                                 │  │
-│  │ - Full TypeScript support                                 │  │
-│  │ - Must use @iota/components                               │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Layer 2: Web Components                                   │  │
-│  │ - Widgets for embedding anywhere                          │  │
-│  │ - Cross-framework compatibility                           │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Layer 1: Design Tokens                                    │  │
-│  │ - CSS variables for colors, typography, spacing           │  │
-│  │ - All layers inherit these                                │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "UI Consistency Layers"
+        L4[Layer 4: Declarative UI Schema<br/>Simple pages, 100% consistent]
+        L3[Layer 3: React Component Library<br/>Complex interactive UIs]
+        L2[Layer 2: Web Components<br/>Widgets for embedding anywhere]
+        L1[Layer 1: Design Tokens<br/>CSS variables for all layers]
+    end
+
+    L4 --> L3
+    L3 --> L2
+    L2 --> L1
+
+    style L4 fill:#8b5cf6,stroke:#5b21b6,color:#fff
+    style L3 fill:#3b82f6,stroke:#1e40af,color:#fff
+    style L2 fill:#10b981,stroke:#047857,color:#fff
+    style L1 fill:#f59e0b,stroke:#d97706,color:#fff
 ```
 
 ### Implementation Priority
+
+```mermaid
+timeline
+    title Implementation Phases
+    section Phase 1
+        Design Tokens : Extract CSS variables : Document usage : Create validation
+    section Phase 2
+        React Components : Port SDK components : TypeScript definitions : Storybook docs
+    section Phase 3
+        Web Components : Embeddable widgets : Cross-framework cases
+    section Phase 4
+        Declarative UI : Schema language : Build renderer
+```
 
 1. **Phase 1: Design Tokens**
    - Extract current SDK styles to CSS variables
@@ -486,6 +481,17 @@ const result = await validateAppletUI('./dist');
 
 ### Theme Support
 
+```mermaid
+graph LR
+    subgraph "Theme Flow"
+        TENANT[Tenant Theme] --> PROVIDER[ThemeProvider]
+        PROVIDER --> APPLET[Applet Root]
+        APPLET --> COMPONENTS[Components]
+    end
+
+    style PROVIDER fill:#3b82f6,stroke:#1e40af,color:#fff
+```
+
 ```typescript
 // @iota/components supports theming
 import { ThemeProvider } from '@iota/components';
@@ -502,3 +508,11 @@ import { ThemeProvider } from '@iota/components';
   --iota-color-primary: var(--tenant-primary, #3b82f6);
 }
 ```
+
+---
+
+## Next Steps
+
+- Review [Frontend](./frontend.md) for framework options
+- See [Manifest](./manifest.md) for configuration schema
+- Check [Examples](./examples.md) for reference implementations

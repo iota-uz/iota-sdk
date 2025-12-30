@@ -1,3 +1,12 @@
+---
+layout: default
+title: Frontend Framework
+parent: Applet System
+grand_parent: Specifications
+nav_order: 4
+description: "Frontend framework options for building applet user interfaces"
+---
+
 # Frontend Specification: Applet UI Development
 
 **Status:** Draft
@@ -8,13 +17,25 @@ This document covers frontend framework options for building applet user interfa
 
 ## Current SDK Frontend Stack
 
-```
-IOTA SDK Frontend
-├── Templ (Go templates) → Server-side HTML generation
-├── HTMX → Dynamic updates without full page reloads
-├── Alpine.js → Client-side interactivity
-├── Tailwind CSS → Utility-first styling
-└── Custom components → Button, Input, Select, Table, etc.
+```mermaid
+graph TB
+    subgraph "IOTA SDK Frontend"
+        TEMPL[Templ<br/>Go templates]
+        HTMX[HTMX<br/>Dynamic updates]
+        ALPINE[Alpine.js<br/>Interactivity]
+        TW[Tailwind CSS<br/>Styling]
+        COMP[Custom Components<br/>Button, Input, etc.]
+    end
+
+    TEMPL --> HTML[Server-rendered HTML]
+    HTMX --> HTML
+    ALPINE --> HTML
+    TW --> HTML
+    COMP --> HTML
+
+    style TEMPL fill:#3b82f6,stroke:#1e40af,color:#fff
+    style HTMX fill:#10b981,stroke:#047857,color:#fff
+    style ALPINE fill:#f59e0b,stroke:#d97706,color:#fff
 ```
 
 **Key Characteristics:**
@@ -29,19 +50,20 @@ IOTA SDK Frontend
 
 **Description:** Applets written in React, server-rendered by Bun, integrated into SDK pages
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Request Flow                              │
-│                                                                  │
-│  Browser ──► Go SDK ──► Bun Runtime ──► React SSR ──► HTML      │
-│                                                                  │
-│  1. Request hits Go route                                        │
-│  2. Go proxies to Bun runtime                                   │
-│  3. Bun renders React component to HTML                         │
-│  4. HTML returned to browser                                    │
-│  5. React hydrates for interactivity                            │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Go as Go SDK
+    participant Bun as Bun Runtime
+    participant React as React SSR
+
+    Browser->>Go: Request page
+    Go->>Bun: Proxy to runtime
+    Bun->>React: Render component
+    React-->>Bun: HTML string
+    Bun-->>Go: HTML response
+    Go-->>Browser: Complete page
+    Browser->>Browser: Hydrate React
 ```
 
 **Project Structure:**
@@ -111,18 +133,10 @@ export function ConfigPage() {
 }
 ```
 
-**Pros:**
-- Full React ecosystem
-- TypeScript support
-- Component reusability
-- Rich developer tools
-- Familiar to most web developers
-
-**Cons:**
-- Larger bundle sizes
-- Hydration complexity
-- Different paradigm from SDK's HTMX approach
-- Potential styling conflicts
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Full React ecosystem, TypeScript support, component reusability, rich developer tools |
+| **Cons** | Larger bundle sizes, hydration complexity, different paradigm from SDK's HTMX approach |
 
 ---
 
@@ -130,56 +144,36 @@ export function ConfigPage() {
 
 **Description:** Each applet is a mini Next.js application
 
-```
-applet/
-├── app/                    # Next.js App Router
-│   ├── layout.tsx
-│   ├── page.tsx           # Main page
-│   └── config/
-│       └── page.tsx       # Config page
-├── components/
-├── lib/
-├── next.config.js
-└── package.json
-```
+```mermaid
+graph TB
+    subgraph "Integration Options"
+        subgraph "B1: Iframe"
+            SDK1[SDK Page]
+            IFRAME[iframe]
+            NEXT1[Next.js App]
+            SDK1 --> IFRAME
+            IFRAME --> NEXT1
+        end
 
-**Integration Mode:**
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  Option B1: Iframe Integration                                   │
-│                                                                   │
-│  SDK Page                                                         │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │  <iframe src="http://localhost:3001/applet/ai-chat">      │  │
-│  │    ┌──────────────────────────────────────────────────┐   │  │
-│  │    │           Next.js Applet                          │   │  │
-│  │    │                                                   │   │  │
-│  │    └──────────────────────────────────────────────────┘   │  │
-│  │  </iframe>                                                 │  │
-│  └────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
+        subgraph "B2: Static Export"
+            NEXT2[Next.js]
+            BUILD[Build & Export]
+            STATIC[Static HTML/JS/CSS]
+            SDK2[SDK serves files]
+            NEXT2 --> BUILD
+            BUILD --> STATIC
+            STATIC --> SDK2
+        end
+    end
 
-┌──────────────────────────────────────────────────────────────────┐
-│  Option B2: Static Export + Integration                          │
-│                                                                   │
-│  Build: next build && next export                                │
-│  Output: Static HTML/JS/CSS                                      │
-│  SDK serves these files, injects into page                       │
-│                                                                   │
-└──────────────────────────────────────────────────────────────────┘
+    style NEXT1 fill:#000,stroke:#333,color:#fff
+    style NEXT2 fill:#000,stroke:#333,color:#fff
 ```
 
-**Pros:**
-- Full Next.js features (routing, SSR, API routes)
-- Independent deployment possible
-- Familiar to Next.js developers
-- Built-in optimization
-
-**Cons:**
-- Heavy for simple applets
-- Iframe isolation issues (B1)
-- Complex integration
-- Overkill for most use cases
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Full Next.js features (routing, SSR, API routes), independent deployment possible |
+| **Cons** | Heavy for simple applets, iframe isolation issues, overkill for most use cases |
 
 ---
 
@@ -193,16 +187,10 @@ import { h, render } from 'preact';
 import { useState } from 'preact/hooks';
 ```
 
-**Pros:**
-- React-compatible API
-- Tiny bundle size (3KB vs 40KB)
-- Fast execution
-- Good for widgets
-
-**Cons:**
-- Some React features missing
-- Fewer libraries guaranteed compatible
-- Less IDE support
+| Aspect | Details |
+|--------|---------|
+| **Pros** | React-compatible API, tiny bundle size (3KB vs 40KB), fast execution |
+| **Cons** | Some React features missing, fewer libraries guaranteed compatible |
 
 ---
 
@@ -255,22 +243,32 @@ async function save() {
 </script>
 ```
 
-**Pros:**
-- Excellent TypeScript support
-- SFC (Single File Components) are clean
-- Good performance
-- Strong ecosystem
-
-**Cons:**
-- Different from React (team needs to know both)
-- Different tooling (Vite)
-- Less common in Go ecosystem
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Excellent TypeScript support, SFC (Single File Components) are clean, strong ecosystem |
+| **Cons** | Different from React (team needs to know both), different tooling (Vite) |
 
 ---
 
 ### Option E: Web Components (Framework Agnostic)
 
 **Description:** Native browser components, usable anywhere
+
+```mermaid
+graph LR
+    subgraph "Web Components"
+        WC[Custom Element]
+        SHADOW[Shadow DOM]
+        STYLE[Scoped Styles]
+    end
+
+    WC --> REACT[React]
+    WC --> VUE[Vue]
+    WC --> ALPINE[Alpine.js]
+    WC --> VANILLA[Vanilla JS]
+
+    style WC fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
 ```typescript
 // chat-widget.ts
@@ -317,18 +315,10 @@ customElements.define('applet-chat-widget', ChatWidget);
 ></applet-chat-widget>
 ```
 
-**Pros:**
-- Framework agnostic
-- Native browser support
-- Works with HTMX
-- Style encapsulation
-- Consistent with any framework
-
-**Cons:**
-- Lower-level than React/Vue
-- Less developer tooling
-- State management is manual
-- SSR is complex
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Framework agnostic, native browser support, works with HTMX, style encapsulation |
+| **Cons** | Lower-level than React/Vue, less developer tooling, state management is manual |
 
 ---
 
@@ -393,18 +383,10 @@ function configPage() {
 </script>
 ```
 
-**Pros:**
-- Matches SDK's existing stack exactly
-- No build step needed
-- Small bundle size
-- Easy to integrate
-- Progressive enhancement
-
-**Cons:**
-- No TypeScript
-- Limited component reusability
-- Less powerful than React
-- Harder to build complex UIs
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Matches SDK's existing stack exactly, no build step needed, small bundle size |
+| **Cons** | No TypeScript, limited component reusability, harder to build complex UIs |
 
 ---
 
@@ -426,6 +408,26 @@ frontend:
 
 ### Tier System
 
+```mermaid
+graph TB
+    subgraph "Frontend Tiers"
+        T1[Simple<br/>HTML + Alpine.js]
+        T2[Standard<br/>React + TypeScript]
+        T3[Advanced<br/>Next.js]
+        T4[Portable<br/>Web Components]
+    end
+
+    T1 -->|Config pages| USE1[Simple forms]
+    T2 -->|Rich UIs| USE2[Interactive pages]
+    T3 -->|Full apps| USE3[Complete applications]
+    T4 -->|Widgets| USE4[Embeddable anywhere]
+
+    style T1 fill:#22c55e,stroke:#15803d,color:#fff
+    style T2 fill:#3b82f6,stroke:#1e40af,color:#fff
+    style T3 fill:#8b5cf6,stroke:#5b21b6,color:#fff
+    style T4 fill:#f59e0b,stroke:#d97706,color:#fff
+```
+
 | Tier | Framework | Use Case | Build |
 |------|-----------|----------|-------|
 | **Simple** | HTML + Alpine.js | Config pages, simple forms | None |
@@ -444,42 +446,28 @@ frontend:
 
 ### Build Pipeline
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Applet Build Pipeline                        │
-│                                                                  │
-│  src/                                                            │
-│  ├── frontend/                                                   │
-│  │   ├── pages/*.tsx                                            │
-│  │   └── components/*.tsx                                       │
-│  └── backend/                                                    │
-│      └── handlers/*.ts                                          │
-│                                                                  │
-│          │                                                       │
-│          ▼                                                       │
-│                                                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                    Bun Build                             │    │
-│  │                                                          │    │
-│  │  bun build src/frontend --outdir dist/frontend          │    │
-│  │  bun build src/backend --outdir dist/backend            │    │
-│  │                                                          │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│                                                                  │
-│          │                                                       │
-│          ▼                                                       │
-│                                                                  │
-│  dist/                                                           │
-│  ├── frontend/                                                   │
-│  │   ├── pages/                                                 │
-│  │   │   ├── config.js      # Page bundle                       │
-│  │   │   └── config.css     # Page styles                       │
-│  │   └── components/                                            │
-│  │       └── chat-widget.js  # Widget bundle                    │
-│  └── backend/                                                    │
-│      └── server.js          # Backend bundle                    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph "Source"
+        SRC_FE[src/frontend/]
+        SRC_BE[src/backend/]
+    end
+
+    subgraph "Bun Build"
+        BUILD[bun build]
+    end
+
+    subgraph "Output"
+        DIST_FE[dist/frontend/]
+        DIST_BE[dist/backend/]
+    end
+
+    SRC_FE --> BUILD
+    SRC_BE --> BUILD
+    BUILD --> DIST_FE
+    BUILD --> DIST_BE
+
+    style BUILD fill:#10b981,stroke:#047857,color:#fff
 ```
 
 ### SSR Integration
@@ -535,6 +523,17 @@ hydrateRoot(
 
 ## Development Workflow
 
+```mermaid
+flowchart LR
+    CREATE[create-iota-applet] --> DEV[bun dev]
+    DEV --> BUILD[bun build]
+    BUILD --> PACKAGE[bun package]
+    PACKAGE --> ZIP[applet-1.0.0.zip]
+
+    style CREATE fill:#3b82f6,stroke:#1e40af,color:#fff
+    style ZIP fill:#10b981,stroke:#047857,color:#fff
+```
+
 ```bash
 # Create new applet
 npx create-iota-applet my-applet
@@ -578,3 +577,11 @@ interface AppletHooks {
   useToast(): { success: (msg: string) => void; error: (msg: string) => void };
 }
 ```
+
+---
+
+## Next Steps
+
+- Review [UI Consistency](./ui-consistency.md) for component library strategy
+- See [Manifest](./manifest.md) for configuration schema
+- Check [Examples](./examples.md) for reference implementations
