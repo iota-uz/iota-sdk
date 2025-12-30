@@ -1,3 +1,12 @@
+---
+layout: default
+title: Business Requirements
+parent: Applet System
+grand_parent: Specifications
+nav_order: 1
+description: "Use cases, target audience, and success criteria for the Applet System"
+---
+
 # Business Specification: Applet System
 
 **Status:** Draft
@@ -5,6 +14,21 @@
 ## Problem Statement
 
 IOTA SDK provides robust multi-tenant business management capabilities, but adding new functionality currently requires:
+
+```mermaid
+graph TD
+    subgraph "Current Pain Points"
+        A[Write Go code] -->|High barrier| B[Web developers blocked]
+        C[SDK recompilation] -->|Complex| D[Deployment issues]
+        E[Core SDK changes] -->|Bottleneck| F[Slow features]
+        G[Fork SDK] -->|Maintenance| H[Merge conflicts]
+    end
+
+    style A fill:#ef4444,stroke:#b91c1c,color:#fff
+    style C fill:#ef4444,stroke:#b91c1c,color:#fff
+    style E fill:#ef4444,stroke:#b91c1c,color:#fff
+    style G fill:#ef4444,stroke:#b91c1c,color:#fff
+```
 
 1. **Writing Go code** - High barrier for web developers
 2. **SDK recompilation** - Deployment complexity, version management
@@ -20,12 +44,46 @@ IOTA SDK provides robust multi-tenant business management capabilities, but addi
 
 **Business Impact:**
 
-- **Lost Revenue:** Potential customers need features SDK doesn't provide
-- **Slow Time-to-Market:** Custom features take weeks/months to implement
-- **High Development Cost:** Every integration requires Go expertise
-- **Limited Ecosystem:** No third-party developer community
+```mermaid
+mindmap
+  root((Business Impact))
+    Lost Revenue
+      Customers need missing features
+      Competitors win deals
+    Slow Time-to-Market
+      Weeks to implement
+      Complex deployment
+    High Development Cost
+      Go expertise required
+      Limited developer pool
+    Limited Ecosystem
+      No third-party developers
+      No marketplace
+```
 
 ## Target Audience
+
+```mermaid
+graph LR
+    subgraph "Primary"
+        A[Internal Team<br/>Full-stack developers]
+    end
+
+    subgraph "Secondary"
+        B[Partner Developers<br/>Web developers]
+    end
+
+    subgraph "Future"
+        C[Third-Party Developers<br/>Marketplace publishers]
+    end
+
+    A -->|Phase 1| B
+    B -->|Phase 2| C
+
+    style A fill:#3b82f6,stroke:#1e40af,color:#fff
+    style B fill:#10b981,stroke:#047857,color:#fff
+    style C fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
 ### Primary: Internal Development Team
 
@@ -57,25 +115,33 @@ IOTA SDK provides robust multi-tenant business management capabilities, but addi
 - CRM integration (creates clients, routes messages to chats)
 - AI response generation via external APIs (OpenAI, custom)
 
-**Applet Structure:**
-```
-ai-website-chat/
-├── manifest.yaml
-├── backend/
-│   ├── handlers/
-│   │   ├── config.ts      # CRUD for AI configuration
-│   │   ├── threads.ts     # Thread management
-│   │   └── messages.ts    # Message handling + AI response
-│   └── services/
-│       └── ai-service.ts  # OpenAI/LLM integration
-├── frontend/
-│   ├── pages/
-│   │   └── config.tsx     # Configuration page (React)
-│   └── components/
-│       └── ChatWidget.tsx # Embeddable widget
-└── locales/
-    ├── en.json
-    └── ru.json
+```mermaid
+graph TB
+    subgraph "AI Website Chat Applet"
+        direction TB
+        MAN[manifest.yaml]
+
+        subgraph "Backend"
+            CFG[handlers/config.ts]
+            THR[handlers/threads.ts]
+            MSG[handlers/messages.ts]
+            SVC[services/ai-service.ts]
+        end
+
+        subgraph "Frontend"
+            CFGP[pages/config.tsx]
+            CHAT[components/ChatWidget.tsx]
+        end
+
+        subgraph "Locales"
+            EN[en.json]
+            RU[ru.json]
+        end
+    end
+
+    style MAN fill:#f59e0b,stroke:#d97706,color:#fff
+    style Backend fill:#3b82f6,stroke:#1e40af,color:#fff
+    style Frontend fill:#10b981,stroke:#047857,color:#fff
 ```
 
 ### UC2: Shyona-Style AI Analytics (Reference: shy-trucks/modules/shyona)
@@ -100,6 +166,26 @@ ai-website-chat/
 - Applet provides UI for chat interface
 
 ### UC3: Custom CRM Integration
+
+```mermaid
+sequenceDiagram
+    participant SF as Salesforce
+    participant APP as CRM Applet
+    participant SDK as IOTA SDK
+    participant DB as Database
+
+    Note over APP: Event Handler
+    SDK->>APP: client.created event
+    APP->>SF: Create contact
+    SF-->>APP: Success
+    APP->>DB: Log sync status
+
+    Note over APP: Scheduled Sync
+    APP->>DB: Get modified clients
+    APP->>SF: Batch update
+    SF-->>APP: Results
+    APP->>DB: Update sync timestamps
+```
 
 **Scenario:** Partner wants to sync clients with Salesforce
 
@@ -131,6 +217,35 @@ ai-website-chat/
 ## Requirements
 
 ### In Scope
+
+```mermaid
+mindmap
+  root((Requirements))
+    Runtime
+      HTTP handlers
+      Event handlers
+      Scheduled tasks
+      External HTTP
+      Database access
+      Secret management
+    UI
+      Navigation items
+      Full pages
+      Widgets
+      SDK components
+      Localization
+    DX
+      TypeScript
+      React/Next.js
+      Hot reload
+      CLI tools
+      Clear errors
+    Admin
+      Install/uninstall
+      Enable/disable
+      Configuration
+      Logs & metrics
+```
 
 **Runtime Capabilities:**
 - [ ] HTTP endpoint handlers (GET, POST, PUT, DELETE)
@@ -188,6 +303,22 @@ ai-website-chat/
 
 ## Success Criteria
 
+```mermaid
+graph LR
+    subgraph "Success Metrics"
+        A[Website/Ali<br/>extracted] --> B[Partner builds<br/>integration]
+        B --> C[UI looks<br/>native]
+        C --> D[Install in<br/>< 5 min]
+        D --> E[Security<br/>maintained]
+    end
+
+    style A fill:#10b981,stroke:#047857,color:#fff
+    style B fill:#10b981,stroke:#047857,color:#fff
+    style C fill:#10b981,stroke:#047857,color:#fff
+    style D fill:#10b981,stroke:#047857,color:#fff
+    style E fill:#10b981,stroke:#047857,color:#fff
+```
+
 1. **Website/Ali can be extracted** from SDK core into an installable applet
 2. **Partner can build** a custom integration in TypeScript without Go knowledge
 3. **UI looks native** - applet pages indistinguishable from SDK pages
@@ -211,3 +342,11 @@ ai-website-chat/
 | **UI inconsistency** | Medium | Mandatory component library, design tokens |
 | **Maintenance burden** | Medium | Clear versioning, deprecation policy |
 | **Complex debugging** | Medium | Good logging, error traces, dev tools |
+
+---
+
+## Next Steps
+
+- Review [Architecture](./architecture.md) for system design
+- See [Runtime Options](./runtime-options.md) for engine comparison
+- Check [Permissions](./permissions.md) for security model

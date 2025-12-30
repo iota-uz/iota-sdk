@@ -1,3 +1,12 @@
+---
+layout: default
+title: Runtime Options
+parent: Applet System
+grand_parent: Specifications
+nav_order: 3
+description: "JavaScript runtime comparison: Goja, Bun, Node.js, Deno, and V8"
+---
+
 # Runtime Options: JavaScript Execution Engines
 
 **Status:** Draft
@@ -11,6 +20,25 @@ This document compares JavaScript runtime options for executing applet backend c
 - Deployment complexity
 - Security (sandboxing capabilities)
 - Ecosystem access (npm packages)
+
+```mermaid
+graph TB
+    subgraph "Runtime Decision Factors"
+        DX[Developer Experience]
+        PERF[Performance]
+        DEPLOY[Deployment]
+        SEC[Security]
+        ECO[Ecosystem]
+    end
+
+    DX --> |TypeScript, debugging| CHOICE[Runtime Choice]
+    PERF --> |Startup, speed| CHOICE
+    DEPLOY --> |Complexity| CHOICE
+    SEC --> |Sandboxing| CHOICE
+    ECO --> |npm packages| CHOICE
+
+    style CHOICE fill:#3b82f6,stroke:#1e40af,color:#fff
+```
 
 ## Comparison Matrix
 
@@ -34,6 +62,17 @@ This document compares JavaScript runtime options for executing applet backend c
 ### Option 1: Goja (Embedded)
 
 **What it is:** Pure Go JavaScript interpreter, no external dependencies
+
+```mermaid
+graph LR
+    subgraph "Go Process"
+        SDK[IOTA SDK] --> GOJA[Goja VM]
+        GOJA --> SCRIPT[JS Script]
+    end
+
+    style SDK fill:#3b82f6,stroke:#1e40af,color:#fff
+    style GOJA fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
 ```go
 import "github.com/dop251/goja"
@@ -61,36 +100,22 @@ func executeScript(source string, context map[string]interface{}) (interface{}, 
 - No native modules (require/import)
 
 **TypeScript Workflow:**
+```mermaid
+flowchart LR
+    TS[TypeScript] --> TSC[tsc/esbuild]
+    TSC --> ES5[ES5 bundle]
+    ES5 --> GOJA[Goja execution]
+
+    style TS fill:#3178c6,stroke:#1e40af,color:#fff
+    style GOJA fill:#f59e0b,stroke:#d97706,color:#fff
 ```
-TypeScript → tsc/esbuild → ES5 bundle → Goja execution
-```
 
-**Pros:**
-- Zero external dependencies
-- Single binary deployment
-- Direct Go function calls
-- Memory managed by Go GC
-- Already have jsruntime spec
-
-**Cons:**
-- Limited ES6+ features
-- No async/await (major DX issue)
-- Slow execution (10-100x slower than V8)
-- Complex bundling for TypeScript
-- No npm package ecosystem
-- React SSR is impractical
-
-**Best Use Cases:**
-- Simple webhook handlers
-- Data transformations
-- Scheduled tasks
-- Event handlers with simple logic
-
-**Not Suitable For:**
-- Complex React UIs
-- Heavy computation
-- Async-heavy code
-- npm package dependencies
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Zero external dependencies, single binary deployment, direct Go function calls, memory managed by Go GC |
+| **Cons** | Limited ES6+ features, no async/await (major DX issue), slow execution (10-100x slower than V8), no npm packages |
+| **Best For** | Simple webhook handlers, data transformations, scheduled tasks |
+| **Not For** | Complex React UIs, heavy computation, async-heavy code |
 
 ---
 
@@ -98,12 +123,26 @@ TypeScript → tsc/esbuild → ES5 bundle → Goja execution
 
 **What it is:** Modern JavaScript runtime built on JavaScriptCore (Safari's engine)
 
-```bash
-# Install
-curl -fsSL https://bun.sh/install | bash
+```mermaid
+graph LR
+    subgraph "Go Process"
+        SDK[IOTA SDK]
+    end
 
-# Run applet
-bun run applet-server.ts
+    subgraph "Bun Process"
+        BUN[Bun Runtime]
+        TS[TypeScript]
+        REACT[React SSR]
+        NPM[npm packages]
+    end
+
+    SDK <-->|Unix Socket| BUN
+    BUN --> TS
+    BUN --> REACT
+    BUN --> NPM
+
+    style SDK fill:#3b82f6,stroke:#1e40af,color:#fff
+    style BUN fill:#10b981,stroke:#047857,color:#fff
 ```
 
 **Capabilities:**
@@ -113,14 +152,6 @@ bun run applet-server.ts
 - Built-in bundler, test runner, package manager
 - npm compatible
 - Web-standard APIs (fetch, WebSocket, etc.)
-
-**Architecture:**
-```
-Go SDK ──Unix Socket──► Bun Process
-                        ├── TypeScript execution
-                        ├── React SSR
-                        └── npm packages
-```
 
 **Applet Server Example:**
 ```typescript
@@ -147,28 +178,11 @@ serve({
 });
 ```
 
-**Pros:**
-- Native TypeScript support
-- Fastest startup among sidecars (~25ms)
-- Built-in bundler (no webpack/esbuild needed)
-- Full npm compatibility
-- Native React SSR
-- Web-standard APIs
-- Excellent developer experience
-- Active development, modern architecture
-
-**Cons:**
-- External process to manage
-- IPC overhead
-- Newer runtime (less battle-tested than Node)
-- Requires Bun installation
-- Resource isolation per-process
-
-**Best Use Cases:**
-- React-based applet UIs
-- Complex TypeScript services
-- External API integrations
-- Any applet needing npm packages
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Native TypeScript, fastest startup (~25ms), built-in bundler, full npm compatibility, native React SSR |
+| **Cons** | External process to manage, IPC overhead, newer runtime (less battle-tested) |
+| **Best For** | React-based applet UIs, complex TypeScript services, external API integrations |
 
 ---
 
@@ -176,35 +190,57 @@ serve({
 
 **What it is:** The established JavaScript runtime
 
+```mermaid
+graph TB
+    subgraph "Node.js Characteristics"
+        A[Universal compatibility]
+        B[Massive ecosystem]
+        C[Well-documented]
+        D[Production proven]
+        E[Easy to hire]
+    end
+
+    style A fill:#22c55e,stroke:#15803d,color:#fff
+    style B fill:#22c55e,stroke:#15803d,color:#fff
+    style C fill:#22c55e,stroke:#15803d,color:#fff
+    style D fill:#22c55e,stroke:#15803d,color:#fff
+    style E fill:#22c55e,stroke:#15803d,color:#fff
+```
+
 **Capabilities:**
 - Full ES2024 support
 - TypeScript via ts-node or pre-compilation
 - Largest ecosystem (npm)
 - Battle-tested, stable
 
-**Pros:**
-- Universal compatibility
-- Massive ecosystem
-- Well-documented
-- Production proven
-- Easy to find developers
-
-**Cons:**
-- Slower startup than Bun (~50ms)
-- Requires TypeScript compilation step
-- Legacy APIs alongside modern ones
-- Larger memory footprint
-
-**Best Use Cases:**
-- When npm compatibility is critical
-- Complex applications with many dependencies
-- When hiring/familiarity matters
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Universal compatibility, massive ecosystem, well-documented, production proven |
+| **Cons** | Slower startup than Bun (~50ms), requires TypeScript compilation step, larger memory footprint |
+| **Best For** | When npm compatibility is critical, complex applications with many dependencies |
 
 ---
 
 ### Option 4: Deno (Sidecar)
 
 **What it is:** Secure-by-default JavaScript runtime by Node's creator
+
+```mermaid
+graph TB
+    subgraph "Deno Security Model"
+        A[--allow-net=api.openai.com]
+        B[--allow-read=/data]
+        C[--allow-env]
+        D[No implicit permissions]
+    end
+
+    A --> SEC[Security First]
+    B --> SEC
+    C --> SEC
+    D --> SEC
+
+    style SEC fill:#10b981,stroke:#047857,color:#fff
+```
 
 **Capabilities:**
 - Native TypeScript
@@ -218,22 +254,11 @@ serve({
 deno run --allow-net=api.openai.com --allow-read=/data applet.ts
 ```
 
-**Pros:**
-- Security-first design (explicit permissions)
-- Native TypeScript
-- Web-standard APIs
-- Good sandboxing
-
-**Cons:**
-- npm compatibility requires compatibility layer
-- Smaller ecosystem
-- Different module resolution
-- Less widespread adoption
-
-**Best Use Cases:**
-- Security-critical applets
-- When sandboxing is paramount
-- Modern, standards-focused development
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Security-first design, native TypeScript, web-standard APIs, good sandboxing |
+| **Cons** | npm compatibility requires compatibility layer, smaller ecosystem |
+| **Best For** | Security-critical applets, when sandboxing is paramount |
 
 ---
 
@@ -251,26 +276,26 @@ func executeScript(source string) (string, error) {
 }
 ```
 
-**Pros:**
-- Fast execution (native V8)
-- Full ES2024 support
-- Embedded in Go process
-
-**Cons:**
-- Requires cgo (complicates cross-compilation)
-- Large binary size (~20MB for V8)
-- Complex memory management
-- Debugging is harder
-- React SSR still needs work
-
-**Best Use Cases:**
-- When embedded + fast execution is required
-- Compute-intensive applets
-- Not recommended as primary choice
+| Aspect | Details |
+|--------|---------|
+| **Pros** | Fast execution (native V8), full ES2024 support, embedded in Go process |
+| **Cons** | Requires cgo (complicates cross-compilation), large binary size (~20MB), complex memory management |
+| **Best For** | When embedded + fast execution is required, compute-intensive applets |
 
 ---
 
 ## Recommendation
+
+```mermaid
+timeline
+    title Runtime Strategy
+    section Short-term (MVP)
+        Bun Sidecar : Full TypeScript/React support from day one
+    section Medium-term
+        Keep Goja : For simple jsruntime scripts
+    section Long-term
+        Hybrid : Applets declare runtime preference in manifest
+```
 
 ### Primary Runtime: Bun
 
@@ -293,9 +318,30 @@ Keep existing jsruntime spec for simple scripts:
 
 **Migration Path:**
 
-1. **Phase 1:** Implement Bun sidecar for complex applets
-2. **Phase 2:** Keep Goja for simple scripts (jsruntime)
-3. **Phase 3:** Allow applets to declare runtime preference in manifest
+```mermaid
+flowchart LR
+    subgraph "Phase 1"
+        BUN1[Bun for complex applets]
+    end
+
+    subgraph "Phase 2"
+        GOJA2[Goja for simple scripts]
+        BUN2[Bun for complex applets]
+    end
+
+    subgraph "Phase 3"
+        MANIFEST[Runtime in manifest]
+        GOJA3[Goja]
+        BUN3[Bun]
+    end
+
+    BUN1 --> GOJA2
+    BUN1 --> BUN2
+    GOJA2 --> MANIFEST
+    BUN2 --> MANIFEST
+    MANIFEST --> GOJA3
+    MANIFEST --> BUN3
+```
 
 ```yaml
 # manifest.yaml
@@ -307,6 +353,25 @@ runtime:
 ## Implementation Details
 
 ### Bun Process Management
+
+```mermaid
+sequenceDiagram
+    participant SDK as Go SDK
+    participant PM as Process Manager
+    participant Bun as Bun Runtime
+    participant Handler as Applet Handler
+
+    SDK->>PM: Start(applet)
+    PM->>Bun: exec("bun run server.ts")
+    Bun-->>PM: Ready (socket created)
+
+    SDK->>PM: Execute(request)
+    PM->>Bun: JSON over Unix Socket
+    Bun->>Handler: Process request
+    Handler-->>Bun: Result
+    Bun-->>PM: JSON response
+    PM-->>SDK: ExecutionResponse
+```
 
 ```go
 type BunRuntime struct {
@@ -366,6 +431,23 @@ func (r *BunRuntime) Health() (*HealthStatus, error) {
 
 ### Resource Limits
 
+```mermaid
+graph TB
+    subgraph "Resource Limits"
+        MEM[MaxMemoryMB: 256]
+        CPU[MaxCPUPercent: 50]
+        TIME[MaxExecutionMs: 30000]
+        CONC[MaxConcurrent: 10]
+    end
+
+    MEM --> CGROUPS[cgroups on Linux]
+    CPU --> CGROUPS
+    TIME --> TIMEOUT[Execution timeout]
+    CONC --> POOL[Connection pool]
+
+    style CGROUPS fill:#ef4444,stroke:#b91c1c,color:#fff
+```
+
 ```go
 type ResourceLimits struct {
     MaxMemoryMB     int           `yaml:"max_memory_mb"`
@@ -388,3 +470,11 @@ type ResourceLimits struct {
 4. **Crash Recovery:** Auto-restart crashed applets? How many retries? Circuit breaker?
 
 5. **Logging:** Capture stdout/stderr from Bun process? Structured logging format?
+
+---
+
+## Next Steps
+
+- Review [Architecture](./architecture.md) for system design
+- See [Frontend](./frontend.md) for UI framework options
+- Check [Permissions](./permissions.md) for security model
