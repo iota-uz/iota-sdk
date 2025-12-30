@@ -53,7 +53,11 @@ func useLocaleFromHeader(r *http.Request, defaultLocale language.Tag, supported 
 func useLocale(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
 	tag, err := useLocaleFromUser(r.Context())
 	if err == nil {
-		return tag
+		matcher := language.NewMatcher(supported)
+		_, idx, confidence := matcher.Match(tag)
+		if confidence >= language.High {
+			return supported[idx]
+		}
 	}
 	return useLocaleFromHeader(r, defaultLocale, supported)
 }
