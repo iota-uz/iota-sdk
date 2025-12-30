@@ -28,6 +28,8 @@ func languageTagsFromCodes(codes []string) []language.Tag {
 	return tags
 }
 
+// useLocaleFromUser obtains the current user's UI language from the context and parses it into a language.Tag.
+// If retrieving the user from the context or parsing the UI language fails, it returns language.Und and the encountered error.
 func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	user, err := composables.UseUser(ctx)
 	if err != nil {
@@ -40,6 +42,10 @@ func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	return tag, nil
 }
 
+// useLocaleFromHeader determines the best matching supported language.Tag for the request's
+// Accept-Language header. If the header is missing or cannot be parsed it returns
+// defaultLocale; otherwise it matches the parsed tags against the provided supported
+// list and returns the chosen supported tag.
 func useLocaleFromHeader(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
 	tags, _, err := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
 	if err != nil || len(tags) == 0 {
@@ -50,6 +56,9 @@ func useLocaleFromHeader(r *http.Request, defaultLocale language.Tag, supported 
 	return supported[idx]
 }
 
+// useLocale selects the locale for the request.
+// It first attempts to use the current user's UILanguage and, if that language matches one of the supported tags with confidence High or higher, returns the matched supported tag.
+// If no sufficiently confident user locale is found, it falls back to parsing the request's Accept-Language header and returns the best match or the provided defaultLocale.
 func useLocale(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
 	tag, err := useLocaleFromUser(r.Context())
 	if err == nil {
@@ -66,6 +75,15 @@ type LocaleOptions struct {
 	AcceptLanguageHighPriority bool
 }
 
+// ProvideLocalizer constructs a mux middleware that resolves a request locale and injects
+// an i18n localizer and the resolved language.Tag into the request context.
+//
+// ProvideLocalizer uses the application's i18n bundle and supported languages to determine
+// the best locale for each request. By default the middleware prefers a locale derived
+// from the authenticated user when available; if opts is provided and opts[0].AcceptLanguageHighPriority
+// is true, the middleware instead favors the request's Accept-Language header. When no suitable
+// match is found the middleware falls back to English. The resolved locale is stored in the
+// context alongside an i18n.Localizer for use by downstream handlers.
 func ProvideLocalizer(app Application, opts ...LocaleOptions) mux.MiddlewareFunc {
 	bundle := app.Bundle()
 	supportedLanguages := languageTagsFromCodes(app.GetSupportedLanguages())
