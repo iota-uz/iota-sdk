@@ -1,18 +1,79 @@
+---
+layout: default
+title: Examples
+parent: Applet System
+grand_parent: Specifications
+nav_order: 10
+description: "Reference implementations and example applets"
+---
+
 # Example Applets
 
 **Status:** Draft
 
 ## Overview
 
-This document provides reference implementations based on existing IOTA SDK modules that would be good candidates for applets. These examples demonstrate the full applet development workflow.
+This document provides reference implementations based on existing IOTA SDK modules that would be good candidates for applets.
+
+```mermaid
+mindmap
+  root((Example Applets))
+    AI Website Chat
+      OpenAI integration
+      Chat widget
+      CRM integration
+    Business Analytics AI
+      Report generation
+      Agent framework
+      Knowledge base
+    Webhook Forwarder
+      Minimal example
+      HTTP forwarding
+```
 
 ## Example 1: AI Website Chat (Based on Website Module)
 
-The Website module's AI chat functionality is an ideal applet candidate. It provides:
-- Embeddable chat widget for external websites
-- AI-powered responses using OpenAI/Dify
-- CRM integration for client tracking
-- Message routing and thread management
+The Website module's AI chat functionality is an ideal applet candidate.
+
+```mermaid
+graph TB
+    subgraph "AI Website Chat Applet"
+        subgraph "Backend"
+            CONFIG[handlers/config.ts]
+            WIDGET[handlers/widget.ts]
+            MESSAGE[handlers/on-message.ts]
+            AI[services/ai-service.ts]
+        end
+
+        subgraph "Frontend"
+            CONFIG_PAGE[pages/ConfigPage.tsx]
+            CHAT[components/ChatWidget.tsx]
+        end
+
+        subgraph "External"
+            OPENAI[api.openai.com]
+            DIFY[*.dify.ai]
+        end
+    end
+
+    CONFIG --> AI
+    WIDGET --> AI
+    AI --> OPENAI
+    AI --> DIFY
+
+    style CONFIG fill:#3b82f6,stroke:#1e40af,color:#fff
+    style CHAT fill:#10b981,stroke:#047857,color:#fff
+    style AI fill:#f59e0b,stroke:#d97706,color:#fff
+```
+
+### Capabilities
+
+| Feature | Description |
+|---------|-------------|
+| Embeddable chat widget | For external websites |
+| AI-powered responses | Using OpenAI/Dify |
+| CRM integration | Client tracking |
+| Message routing | Thread management |
 
 ### Manifest
 
@@ -226,6 +287,8 @@ dependencies:
 
 ### Backend Implementation
 
+#### Server Entry Point
+
 ```typescript
 // src/backend/server.ts
 import { serve } from "bun";
@@ -247,6 +310,8 @@ serve({
   fetch: server.handleRequest,
 });
 ```
+
+#### Configuration Handler
 
 ```typescript
 // src/backend/handlers/config.ts
@@ -319,6 +384,27 @@ function getDefaultConfig(): AIConfig {
     widgetColor: "#3b82f6",
   };
 }
+```
+
+#### Widget Handler
+
+```mermaid
+sequenceDiagram
+    participant Widget as Chat Widget
+    participant Handler as Widget Handler
+    participant DB as Database
+    participant AI as OpenAI API
+
+    Widget->>Handler: POST /widget {message, threadId}
+    Handler->>DB: Get config
+    Handler->>DB: Get/create thread
+    Handler->>DB: Store user message
+    Handler->>DB: Get conversation history
+    Handler->>AI: chat.completions.create()
+    AI-->>Handler: AI response
+    Handler->>DB: Store AI message
+    Handler->>Handler: Publish event
+    Handler-->>Widget: {threadId, response}
 ```
 
 ```typescript
@@ -414,6 +500,8 @@ export const widgetHandler: Handler = async (ctx: Context) => {
 ```
 
 ### Frontend Implementation
+
+#### Configuration Page
 
 ```tsx
 // src/frontend/pages/ConfigPage.tsx
@@ -563,6 +651,8 @@ export function ConfigPage() {
 }
 ```
 
+#### Chat Widget Component
+
 ```tsx
 // src/frontend/components/ChatWidget.tsx
 import { useState, useRef, useEffect } from "react";
@@ -685,74 +775,57 @@ export function ChatWidget({ tenantId, theme = "auto", position = "bottom-right"
 }
 ```
 
-### Embeddable Script
-
-```typescript
-// src/backend/handlers/embed-script.ts
-import { Handler, Context } from "@iota/applet-sdk";
-
-export const embedScriptHandler: Handler = async (ctx: Context) => {
-  const tenantId = ctx.request.query.get("tenant");
-
-  if (!tenantId) {
-    return ctx.badRequest("Missing tenant parameter");
-  }
-
-  // Get widget config
-  const config = await ctx.sdk.db.table("applet_ai_chat_configs")
-    .where("tenant_id", tenantId)
-    .first();
-
-  const script = `
-(function() {
-  const TENANT_ID = "${tenantId}";
-  const WIDGET_COLOR = "${config?.widget_color || "#3b82f6"}";
-  const API_BASE = "${ctx.request.origin}";
-
-  // Create widget container
-  const container = document.createElement("div");
-  container.id = "iota-chat-widget";
-  document.body.appendChild(container);
-
-  // Load widget styles
-  const styles = document.createElement("link");
-  styles.rel = "stylesheet";
-  styles.href = API_BASE + "/api/applets/ai-chat/widget.css";
-  document.head.appendChild(styles);
-
-  // Load React and widget bundle
-  const script = document.createElement("script");
-  script.src = API_BASE + "/api/applets/ai-chat/widget-bundle.js";
-  script.onload = function() {
-    window.IOTAChatWidget.init({
-      container: "#iota-chat-widget",
-      tenantId: TENANT_ID,
-      color: WIDGET_COLOR,
-      apiBase: API_BASE,
-    });
-  };
-  document.body.appendChild(script);
-})();
-`;
-
-  return new Response(script, {
-    headers: {
-      "Content-Type": "application/javascript",
-      "Cache-Control": "public, max-age=3600",
-    },
-  });
-};
-```
-
 ---
 
-## Example 2: Shyona-Style Business Analytics (Conceptual)
+## Example 2: Business Analytics AI (Conceptual)
 
-Based on the Shyona module in shy-trucks, this represents a more complex applet with:
-- AI-powered business analytics
-- Agent framework for autonomous tasks
-- Knowledge base management
-- GraphQL API extensions
+Based on the Shyona module, this represents a more complex applet.
+
+```mermaid
+graph TB
+    subgraph "Business Analytics AI"
+        subgraph "Frontend"
+            DASHBOARD[Dashboard Page]
+            REPORTS[Reports Page]
+            ASK[Ask AI Page]
+            AGENTS[Agents Page]
+        end
+
+        subgraph "Backend Services"
+            ENGINE[Analytics Engine]
+            FRAMEWORK[Agent Framework]
+            KB[Knowledge Base]
+        end
+
+        subgraph "Data"
+            ALL_TABLES[Read: All Tables]
+            REPORTS_TABLE[Write: analytics_reports]
+            CACHE[Write: analytics_cache]
+        end
+    end
+
+    DASHBOARD --> ENGINE
+    REPORTS --> ENGINE
+    ASK --> ENGINE
+    AGENTS --> FRAMEWORK
+
+    ENGINE --> ALL_TABLES
+    ENGINE --> REPORTS_TABLE
+    FRAMEWORK --> KB
+
+    style ENGINE fill:#3b82f6,stroke:#1e40af,color:#fff
+    style FRAMEWORK fill:#10b981,stroke:#047857,color:#fff
+    style KB fill:#f59e0b,stroke:#d97706,color:#fff
+```
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| Natural language queries | Ask business questions in plain English |
+| SQL generation | AI generates and executes safe queries |
+| Agent orchestration | Multi-agent task automation |
+| Knowledge base | Vector search for business context |
 
 ### Manifest (Condensed)
 
@@ -789,148 +862,22 @@ permissions:
     publish:
       - "analytics.report.generated"
       - "analytics.insight.discovered"
-  ui:
-    navigation: true
-    pages: true
-    widgets: true
-  secrets:
-    - name: "OPENAI_API_KEY"
-      required: true
-
-tables:
-  - name: "reports"
-    columns:
-      - name: id
-        type: bigserial
-        primary: true
-      - name: tenant_id
-        type: uuid
-        required: true
-      - name: report_type
-        type: varchar(50)
-      - name: parameters
-        type: jsonb
-      - name: result
-        type: jsonb
-      - name: generated_at
-        type: timestamptz
-
-  - name: "agents"
-    columns:
-      - name: id
-        type: uuid
-        primary: true
-      - name: tenant_id
-        type: uuid
-        required: true
-      - name: name
-        type: varchar(100)
-      - name: type
-        type: varchar(50)
-      - name: config
-        type: jsonb
-      - name: status
-        type: varchar(20)
-
-  - name: "knowledge_base"
-    columns:
-      - name: id
-        type: uuid
-        primary: true
-      - name: tenant_id
-        type: uuid
-        required: true
-      - name: title
-        type: varchar(255)
-      - name: content
-        type: text
-      - name: embedding
-        type: vector(1536)  # pgvector
-      - name: metadata
-        type: jsonb
-
-backend:
-  handlers:
-    - type: http
-      path: "/api/applets/analytics/dashboard"
-      methods: [GET]
-      handler: "handlers/dashboard.ts"
-
-    - type: http
-      path: "/api/applets/analytics/reports"
-      methods: [GET, POST]
-      handler: "handlers/reports.ts"
-
-    - type: http
-      path: "/api/applets/analytics/ask"
-      methods: [POST]
-      handler: "handlers/ask.ts"
-
-    - type: http
-      path: "/api/applets/analytics/agents"
-      methods: [GET, POST, PUT, DELETE]
-      handler: "handlers/agents.ts"
-
-    - type: scheduled
-      cron: "0 6 * * *"  # Daily at 6 AM
-      handler: "handlers/daily-report.ts"
-
-    - type: event
-      events:
-        - "payment.created"
-        - "expense.created"
-        - "order.completed"
-      handler: "handlers/event-tracker.ts"
-      async: true
-
-  services:
-    - name: "analyticsEngine"
-      handler: "services/analytics-engine.ts"
-
-    - name: "agentFramework"
-      handler: "services/agent-framework.ts"
-
-    - name: "knowledgeBase"
-      handler: "services/knowledge-base.ts"
-
-frontend:
-  navigation:
-    - label:
-        en: "Analytics AI"
-      icon: "chart-bar"
-      path: "/analytics"
-      parent: "dashboard"
-
-  pages:
-    - path: "/analytics"
-      component: "pages/Dashboard"
-
-    - path: "/analytics/reports"
-      component: "pages/Reports"
-
-    - path: "/analytics/ask"
-      component: "pages/AskAI"
-
-    - path: "/analytics/agents"
-      component: "pages/Agents"
-
-  widgets:
-    - target: "dashboard.overview"
-      position: "card"
-      component: "widgets/InsightsCard"
-
-appletPermissions:
-  - key: "analytics.view"
-    name: { en: "View Analytics" }
-  - key: "analytics.reports"
-    name: { en: "Generate Reports" }
-  - key: "analytics.ask"
-    name: { en: "Ask AI Questions" }
-  - key: "analytics.agents"
-    name: { en: "Manage AI Agents" }
 ```
 
-### Key Backend Services
+### Analytics Engine Service
+
+```mermaid
+flowchart TB
+    REQUEST[Report Request] --> GATHER[Gather Data]
+    GATHER --> SQL[Execute SQL Queries]
+    SQL --> ANALYZE[AI Analysis]
+    ANALYZE --> INSIGHTS[Generate Insights]
+    INSIGHTS --> STORE[Store Report]
+    STORE --> RETURN[Return Results]
+
+    style ANALYZE fill:#3b82f6,stroke:#1e40af,color:#fff
+    style INSIGHTS fill:#10b981,stroke:#047857,color:#fff
+```
 
 ```typescript
 // src/backend/services/analytics-engine.ts
@@ -1045,108 +992,21 @@ Respond in JSON format with sections: summary, metrics, trends, anomalies, recom
 }
 ```
 
-```typescript
-// src/backend/services/agent-framework.ts
-import { Context } from "@iota/applet-sdk";
-
-interface Agent {
-  id: string;
-  name: string;
-  type: "monitor" | "reporter" | "optimizer";
-  config: AgentConfig;
-  status: "active" | "paused" | "error";
-}
-
-interface AgentConfig {
-  trigger: "schedule" | "event" | "threshold";
-  triggerConfig: any;
-  actions: AgentAction[];
-}
-
-interface AgentAction {
-  type: "notify" | "report" | "execute";
-  config: any;
-}
-
-export class AgentFramework {
-  private ctx: Context;
-  private runningAgents: Map<string, NodeJS.Timeout> = new Map();
-
-  constructor(ctx: Context) {
-    this.ctx = ctx;
-  }
-
-  async startAgent(agentId: string) {
-    const agent = await this.loadAgent(agentId);
-
-    if (agent.config.trigger === "schedule") {
-      // Set up scheduled execution
-      const interval = this.parseScheduleInterval(agent.config.triggerConfig.cron);
-      const timer = setInterval(() => this.executeAgent(agent), interval);
-      this.runningAgents.set(agentId, timer);
-    }
-
-    await this.updateAgentStatus(agentId, "active");
-  }
-
-  async stopAgent(agentId: string) {
-    const timer = this.runningAgents.get(agentId);
-    if (timer) {
-      clearInterval(timer);
-      this.runningAgents.delete(agentId);
-    }
-    await this.updateAgentStatus(agentId, "paused");
-  }
-
-  private async executeAgent(agent: Agent) {
-    try {
-      for (const action of agent.config.actions) {
-        await this.executeAction(action);
-      }
-    } catch (error) {
-      await this.updateAgentStatus(agent.id, "error");
-      console.error(`Agent ${agent.id} failed:`, error);
-    }
-  }
-
-  private async executeAction(action: AgentAction) {
-    switch (action.type) {
-      case "notify":
-        // Send notification via SDK
-        break;
-      case "report":
-        // Generate and send report
-        break;
-      case "execute":
-        // Execute custom logic
-        break;
-    }
-  }
-
-  private async loadAgent(agentId: string): Promise<Agent> {
-    return this.ctx.sdk.db.table("applet_analytics_agents")
-      .where("id", agentId)
-      .first();
-  }
-
-  private async updateAgentStatus(agentId: string, status: string) {
-    await this.ctx.sdk.db.table("applet_analytics_agents")
-      .where("id", agentId)
-      .update({ status });
-  }
-
-  private parseScheduleInterval(cron: string): number {
-    // Simplified - in production use a proper cron parser
-    return 60 * 60 * 1000; // 1 hour default
-  }
-}
-```
-
 ---
 
-## Example 3: Simple Webhook Handler (Minimal Applet)
+## Example 3: Webhook Forwarder (Minimal Applet)
 
-A minimal applet demonstrating the simplest possible implementation:
+A minimal applet demonstrating the simplest possible implementation.
+
+```mermaid
+graph LR
+    WEBHOOK[Incoming Webhook] --> APPLET[Webhook Forwarder]
+    APPLET --> FORWARD[Forward URL]
+
+    style APPLET fill:#3b82f6,stroke:#1e40af,color:#fff
+```
+
+### Manifest
 
 ```yaml
 # manifest.yaml
@@ -1176,6 +1036,8 @@ backend:
       handler: "handlers/receive.ts"
       auth: none
 ```
+
+### Handler
 
 ```typescript
 // src/handlers/receive.ts
@@ -1211,53 +1073,46 @@ export const receiveHandler: Handler = async (ctx: Context) => {
 
 ## Development Workflow Summary
 
-### 1. Create New Applet
+```mermaid
+flowchart LR
+    CREATE[1. Create] --> DEV[2. Develop]
+    DEV --> BUILD[3. Build]
+    BUILD --> PACKAGE[4. Package]
+    PACKAGE --> PUBLISH[5. Publish]
+    PUBLISH --> INSTALL[6. Install]
+
+    style CREATE fill:#3b82f6,stroke:#1e40af,color:#fff
+    style INSTALL fill:#10b981,stroke:#047857,color:#fff
+```
+
+### Commands
 
 ```bash
+# 1. Create new applet
 npx create-iota-applet my-applet
 cd my-applet
-```
 
-### 2. Development
+# 2. Development
+bun dev          # Start dev server with hot reload
+bun test         # Run tests
+bun tsc --noEmit # Type check
 
-```bash
-# Start dev server with hot reload
-bun dev
+# 3. Build & Package
+bun run build    # Production build
+bun run package  # Creates: my-applet-1.0.0.zip
 
-# Run tests
-bun test
-
-# Type check
-bun tsc --noEmit
-```
-
-### 3. Build & Package
-
-```bash
-# Production build
-bun run build
-
-# Package for distribution
-bun run package
-# Creates: my-applet-1.0.0.zip
-```
-
-### 4. Publish
-
-```bash
-# Login to registry
+# 4. Publish
 iota-applet login
-
-# Publish
 iota-applet publish
+
+# 5. Install in SDK (via Admin UI)
+# Settings > Applets > Browse > Search > Install
 ```
 
-### 5. Install in SDK
+---
 
-Via Admin UI:
-1. Go to Settings > Applets > Browse
-2. Search for applet
-3. Click Install
-4. Review permissions
-5. Configure secrets
-6. Enable for tenants
+## Next Steps
+
+- Review [Manifest](./manifest.md) for configuration details
+- See [Distribution](./distribution.md) for publishing flow
+- Check [Permissions](./permissions.md) for security model

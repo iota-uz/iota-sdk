@@ -1,3 +1,12 @@
+---
+layout: default
+title: JS Runtime
+parent: Specifications
+has_children: true
+nav_order: 2
+description: "JavaScript Runtime for user-defined code execution in IOTA SDK"
+---
+
 # JavaScript Runtime
 
 **Status:** Draft
@@ -5,38 +14,84 @@
 
 ## Overview
 
-The JavaScript Runtime feature enables IOTA SDK users to extend platform functionality through user-defined JavaScript code execution in a secure, multi-tenant sandboxed environment. This feature supports scheduled scripts (cron), HTTP endpoint scripts, event-triggered scripts, one-off scripts, and embedded scripts, providing a flexible plugin architecture for custom business logic.
+The JavaScript Runtime feature enables IOTA SDK users to extend platform functionality through user-defined JavaScript code execution in a secure, multi-tenant sandboxed environment.
+
+```mermaid
+mindmap
+  root((JS Runtime))
+    Script Types
+      Scheduled (Cron)
+      HTTP Endpoints
+      Event-Triggered
+      One-Off
+      Embedded
+    Core Features
+      Goja VM Engine
+      Multi-tenant Isolation
+      Resource Limits
+      Version Control
+    APIs
+      Database Access
+      HTTP Client
+      Cache
+      Events
+      Logging
+```
 
 ## Documents
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| [00-overview.md](./00-overview.md) | Executive summary, glossary, feature capabilities | Complete |
-| [business.md](./business.md) | Business requirements and use cases | Draft |
-| [decisions.md](./decisions.md) | Technology and architecture decisions | Draft |
-| [01-architecture.md](./01-architecture.md) | System design and component diagrams | Complete |
-| [02-domain-model.md](./02-domain-model.md) | DDD entities, aggregates, value objects | Complete |
-| [03-database-schema.md](./03-database-schema.md) | PostgreSQL schema, indexes, constraints | Complete |
-| [04-repository-layer.md](./04-repository-layer.md) | Repository interfaces and patterns | Complete |
-| [05-service-layer.md](./05-service-layer.md) | Business logic and orchestration | Complete |
-| [06-runtime-engine.md](./06-runtime-engine.md) | VM pooling and execution engine | Complete |
-| [07-api-bindings.md](./07-api-bindings.md) | JavaScript SDK APIs | Complete |
-| [08-event-integration.md](./08-event-integration.md) | Event-driven architecture | Complete |
-| [09-presentation-layer.md](./09-presentation-layer.md) | UI, controllers, templates | Complete |
-| [10-security-model.md](./10-security-model.md) | Sandboxing, isolation, limits | Complete |
-| [11-advanced-features.md](./11-advanced-features.md) | Monitoring, optimization, health checks | Complete |
-| [12-implementation-plan.md](./12-implementation-plan.md) | Phased rollout strategy | Complete |
+| [Business](./business.md) | Business requirements and use cases | Draft |
+| [Decisions](./decisions.md) | Technology and architecture decisions | Draft |
+| [Technical](./technical.md) | System design and implementation | Ready |
+| [Data Model](./data-model.md) | Database schema and entities | Draft |
+| [API Schema](./api-schema.md) | HTMX endpoints and SDK APIs | Draft |
+| [UX](./ux.md) | User interface and workflows | Draft |
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    subgraph "IOTA SDK"
+        subgraph "JS Runtime Module"
+            UI[Web UI<br/>Monaco Editor]
+            SVC[Services]
+            DOM[Domain]
+            REPO[Repositories]
+        end
+
+        subgraph "Execution Engine"
+            POOL[VM Pool]
+            SCHED[Scheduler]
+            EVENTS[Event Handler]
+        end
+
+        EB[EventBus]
+        DB[(PostgreSQL)]
+    end
+
+    UI --> SVC
+    SVC --> DOM
+    DOM --> REPO
+    REPO --> DB
+
+    SCHED --> SVC
+    EVENTS --> SVC
+    EB --> EVENTS
+    SVC --> POOL
+
+    style POOL fill:#10b981,stroke:#047857,color:#fff
+    style UI fill:#3b82f6,stroke:#1e40af,color:#fff
+```
 
 ## Quick Links
 
 - **Problem Statement:** [business.md#problem-statement](./business.md#problem-statement)
 - **Use Cases:** [business.md#use-cases](./business.md#use-cases)
-- **Architecture:** [01-architecture.md](./01-architecture.md)
 - **Technology Decisions:** [decisions.md#decisions](./decisions.md#decisions)
-- **Domain Model:** [02-domain-model.md](./02-domain-model.md)
-- **Database Schema:** [03-database-schema.md](./03-database-schema.md)
-- **Security Model:** [10-security-model.md](./10-security-model.md)
-- **Implementation Plan:** [12-implementation-plan.md](./12-implementation-plan.md)
+- **Domain Model:** [data-model.md](./data-model.md)
+- **Security Model:** [technical.md#security-considerations](./technical.md#security-considerations)
 
 ## Related GitHub Issues
 
@@ -64,3 +119,11 @@ The JavaScript Runtime feature enables IOTA SDK users to extend platform functio
 - **From decisions.md:** Event retry backoff parameters (exponential base, max attempts)
 - **From technical:** HTTP endpoint path conflict resolution strategy
 - **From security:** Rate limiting per tenant (requests/minute, concurrent executions)
+
+---
+
+## Next Steps
+
+- Review [Business Requirements](./business.md) for use cases
+- See [Technical Spec](./technical.md) for implementation details
+- Check [Data Model](./data-model.md) for database schema

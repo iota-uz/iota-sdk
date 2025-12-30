@@ -1,3 +1,12 @@
+---
+layout: default
+title: Database Access
+parent: Applet System
+grand_parent: Specifications
+nav_order: 8
+description: "Database access patterns and tenant isolation for applets"
+---
+
 # Database Access Specification
 
 **Status:** Draft
@@ -5,15 +14,48 @@
 ## Overview
 
 Applets need controlled access to the SDK database for:
-1. Reading existing SDK data (users, clients, chats, etc.)
-2. Writing to existing SDK tables (with permissions)
-3. Creating custom tables for applet-specific data
+
+```mermaid
+mindmap
+  root((Database Access))
+    Read
+      SDK tables
+      Custom tables
+      Filtered by tenant
+    Write
+      Insert records
+      Update records
+      Soft delete
+    Custom Tables
+      Manifest defined
+      Auto tenant_id
+      Migration support
+```
 
 All access must maintain tenant isolation and security boundaries.
 
 ## Access Patterns
 
 ### 1. Read Access to SDK Tables
+
+```mermaid
+sequenceDiagram
+    participant Applet
+    participant Proxy as Database Proxy
+    participant Pool as Connection Pool
+    participant DB as PostgreSQL
+
+    Applet->>Proxy: query(sql, args)
+    Proxy->>Proxy: Parse tables from SQL
+    Proxy->>Proxy: Verify read permission
+    Proxy->>Proxy: Inject tenant_id filter
+    Proxy->>Proxy: Add row limit (1000)
+    Proxy->>Pool: Execute with timeout
+    Pool->>DB: SELECT ... WHERE tenant_id = ?
+    DB-->>Pool: Results
+    Pool-->>Proxy: Rows
+    Proxy-->>Applet: Filtered data
+```
 
 Applets can request read access to specific SDK tables:
 
@@ -80,15 +122,13 @@ permissions:
       - chat_messages  # Can create messages
 ```
 
-**Allowed Operations:**
-- INSERT new records
-- UPDATE existing records (owned by tenant)
-- Soft DELETE (if table supports it)
-
-**Blocked Operations:**
-- Hard DELETE without explicit permission
-- UPDATE records from other tenants
-- Modifying system columns (id, tenant_id, created_at)
+| Operation | Allowed | Notes |
+|-----------|---------|-------|
+| INSERT | ✓ | tenant_id auto-injected |
+| UPDATE | ✓ | Only own tenant's records |
+| Soft DELETE | ✓ | If table supports it |
+| Hard DELETE | ✗ | Requires explicit permission |
+| Modify system columns | ✗ | id, tenant_id, created_at blocked |
 
 **Implementation:**
 
@@ -102,42 +142,23 @@ const message = await sdk.db.insert('chat_messages', {
 });
 ```
 
-**Under the Hood:**
-
-```go
-func (proxy *DatabaseProxy) Insert(ctx context.Context, table string, data map[string]interface{}) (*Row, error) {
-    // 1. Verify write permission
-    if !proxy.permissions.CanWrite(table) {
-        return nil, ErrTableNotAllowed{Table: table, Operation: "write"}
-    }
-
-    // 2. Inject tenant_id (MANDATORY)
-    tenantID := composables.UseTenantID(ctx)
-    data["tenant_id"] = tenantID
-
-    // 3. Block protected columns
-    protectedColumns := []string{"id", "tenant_id", "created_at", "updated_at"}
-    for _, col := range protectedColumns {
-        if _, exists := data[col]; exists && col != "tenant_id" {
-            delete(data, col) // Silently remove, or error
-        }
-    }
-
-    // 4. Audit log
-    proxy.auditLog.Log(AuditEntry{
-        AppletID:  ctx.Value("applet_id").(string),
-        TenantID:  tenantID,
-        Operation: "INSERT",
-        Table:     table,
-        Data:      data,
-    })
-
-    // 5. Execute
-    return proxy.pool.Insert(ctx, table, data)
-}
-```
-
 ### 3. Custom Applet Tables
+
+```mermaid
+flowchart TB
+    subgraph "Custom Table Creation"
+        MANIFEST[Declare in manifest.yaml] --> APPROVAL[Admin Approval]
+        APPROVAL --> MIGRATE[Run Migrations]
+        MIGRATE --> TABLE[Table Created]
+    end
+
+    TABLE --> PREFIX[Prefixed: applet_id_tablename]
+    TABLE --> TENANT[Auto tenant_id column]
+    TABLE --> AUDIT[Auto created_at/updated_at]
+
+    style APPROVAL fill:#f59e0b,stroke:#d97706,color:#fff
+    style TABLE fill:#10b981,stroke:#047857,color:#fff
+```
 
 Applets can declare custom tables in their manifest:
 
@@ -191,117 +212,47 @@ applet_{applet_id}_{table_name}
 Example: applet_ai_chat_ai_chat_configs
 ```
 
-**Automatic Columns:**
-
-Every applet table automatically gets:
-- `tenant_id` (uuid, NOT NULL, indexed)
-- `created_at` (timestamptz, default now())
-- `updated_at` (timestamptz, auto-updated)
-
 ## Migration Strategy
 
 ### Installation Migration
 
-When applet is installed, migrations run:
+```mermaid
+sequenceDiagram
+    participant PM as Package Manager
+    participant MR as Migration Runner
+    participant DB as Database
 
-```go
-func (m *MigrationRunner) InstallApplet(applet *Applet) error {
-    for _, table := range applet.Manifest.Tables {
-        // 1. Generate CREATE TABLE SQL
-        sql := generateCreateTableSQL(applet.ID, table)
-
-        // 2. Validate SQL (no dangerous operations)
-        if err := validateMigrationSQL(sql); err != nil {
-            return err
-        }
-
-        // 3. Execute in transaction
-        if err := m.pool.Exec(ctx, sql); err != nil {
-            return err
-        }
-
-        // 4. Record migration
-        m.recordMigration(applet.ID, table.Name, "create")
-    }
-    return nil
-}
+    PM->>MR: InstallApplet(applet)
+    loop For each table
+        MR->>MR: Generate CREATE TABLE SQL
+        MR->>MR: Validate SQL (no dangerous ops)
+        MR->>DB: Execute in transaction
+        MR->>MR: Record migration
+    end
+    MR-->>PM: Success
 ```
 
 ### Schema Updates
 
-Applet updates can modify schema:
+```mermaid
+flowchart LR
+    OLD[Old Version] --> DIFF[Diff Columns]
+    NEW[New Version] --> DIFF
+    DIFF --> ADDED[Add new columns]
+    DIFF --> REMOVED[Mark deprecated]
+    ADDED --> MIGRATE[Apply Migration]
+    REMOVED --> MIGRATE
 
-```yaml
-# manifest.yaml (v1.1.0)
-tables:
-  - name: "ai_chat_configs"
-    columns:
-      # ... existing columns ...
-      - name: max_tokens        # NEW COLUMN
-        type: integer
-        default: 2000
+    style MIGRATE fill:#10b981,stroke:#047857,color:#fff
 ```
 
-**Update Migration:**
+### Uninstallation Options
 
-```go
-func (m *MigrationRunner) UpdateApplet(oldVersion, newVersion *Applet) error {
-    oldTables := indexTables(oldVersion.Manifest.Tables)
-    newTables := indexTables(newVersion.Manifest.Tables)
-
-    for tableName, newTable := range newTables {
-        oldTable, exists := oldTables[tableName]
-        if !exists {
-            // New table - create it
-            m.createTable(newVersion.ID, newTable)
-            continue
-        }
-
-        // Compare columns
-        diff := diffColumns(oldTable.Columns, newTable.Columns)
-
-        for _, added := range diff.Added {
-            // Add new columns (with defaults only, for safety)
-            m.addColumn(newVersion.ID, tableName, added)
-        }
-
-        // Removed columns are NOT deleted automatically
-        // They are marked as deprecated
-        for _, removed := range diff.Removed {
-            m.markColumnDeprecated(newVersion.ID, tableName, removed)
-        }
-    }
-
-    return nil
-}
-```
-
-### Uninstallation
-
-When applet is uninstalled:
-
-```go
-func (m *MigrationRunner) UninstallApplet(applet *Applet) error {
-    // Option 1: Soft delete (default)
-    // Rename tables with _deleted_ prefix, keep data for recovery
-
-    // Option 2: Hard delete (if explicitly requested)
-    // DROP TABLE IF EXISTS ...
-
-    // Option 3: Export and delete
-    // Export data to JSON/CSV, then drop
-}
-```
-
-**Admin Configuration:**
-
-```yaml
-# SDK settings
-applets:
-  uninstall:
-    behavior: soft_delete  # soft_delete | hard_delete | export_and_delete
-    retention_days: 30     # For soft delete
-```
+| Option | Description |
+|--------|-------------|
+| **Soft Delete** | Rename tables with `_deleted_` prefix, keep for 30 days |
+| **Hard Delete** | `DROP TABLE IF EXISTS` immediately |
+| **Export & Delete** | Export to JSON/CSV, then drop |
 
 ## Query Builder API
 
@@ -339,89 +290,28 @@ await sdk.db.table('clients')
   });
 ```
 
-**Query Builder Implementation:**
-
-```typescript
-// @iota/applet-sdk/db.ts
-class QueryBuilder {
-  private tableName: string;
-  private selects: string[] = [];
-  private wheres: WhereClause[] = [];
-  private joins: JoinClause[] = [];
-  private orderBys: OrderByClause[] = [];
-  private limitValue?: number;
-
-  constructor(private sdk: AppletSDK, table: string) {
-    this.tableName = table;
-  }
-
-  select(...columns: string[]): this {
-    this.selects.push(...columns);
-    return this;
-  }
-
-  where(column: string, operator: string, value: any): this {
-    this.wheres.push({ column, operator, value });
-    return this;
-  }
-
-  async get(): Promise<Row[]> {
-    const { sql, params } = this.build();
-    return this.sdk.execute('query', { sql, params });
-  }
-
-  private build(): { sql: string; params: any[] } {
-    // Build parameterized SQL
-    // All values become parameters, never interpolated
-  }
-}
-```
-
 ## Tenant Isolation Enforcement
 
 ### Automatic Filtering
 
-Every query is automatically filtered by tenant:
+```mermaid
+flowchart LR
+    subgraph "Query Transformation"
+        ORIG["SELECT * FROM clients<br/>WHERE status = 'active'"]
+        TRANS["SELECT * FROM clients<br/>WHERE status = 'active'<br/>AND tenant_id = $TENANT_ID"]
+    end
 
-```sql
--- Original applet query
-SELECT * FROM clients WHERE status = 'active'
+    ORIG --> TRANS
 
--- After tenant filter injection
-SELECT * FROM clients WHERE status = 'active' AND tenant_id = $TENANT_ID
+    style TRANS fill:#10b981,stroke:#047857,color:#fff
 ```
 
 **Implementation Strategies:**
 
-```go
-// Strategy 1: SQL Rewriting
-func injectTenantFilter(sql string, tenantID uuid.UUID) string {
-    // Parse SQL AST
-    ast := parseSQL(sql)
-
-    // Find all table references
-    tables := findTableReferences(ast)
-
-    // Add tenant_id condition for each table
-    for _, table := range tables {
-        addWhereCondition(ast, fmt.Sprintf("%s.tenant_id = '%s'", table.Alias, tenantID))
-    }
-
-    return ast.String()
-}
-
-// Strategy 2: Row-Level Security (RLS)
-// Set session variable before query
-func (proxy *DatabaseProxy) Query(ctx context.Context, sql string, args ...interface{}) ([]Row, error) {
-    tenantID := composables.UseTenantID(ctx)
-
-    // Set RLS context
-    proxy.pool.Exec(ctx, "SET app.tenant_id = $1", tenantID)
-
-    // Execute query (RLS policies handle filtering)
-    return proxy.pool.Query(ctx, sql, args...)
-}
-```
+| Strategy | Description |
+|----------|-------------|
+| **SQL Rewriting** | Parse SQL AST, inject tenant_id conditions |
+| **Row-Level Security** | Use PostgreSQL RLS policies |
 
 ### Cross-Tenant Prevention
 
@@ -459,42 +349,24 @@ type QueryLimits struct {
     MaxJoins          int           // 3 default
     MaxSubqueries     int           // 2 default
 }
-
-func (proxy *DatabaseProxy) enforceLimit(sql string, limits QueryLimits) string {
-    // Add LIMIT if not present
-    if !hasLimit(sql) {
-        sql = addLimit(sql, limits.MaxRows)
-    }
-
-    // Clamp existing LIMIT
-    existingLimit := extractLimit(sql)
-    if existingLimit > limits.MaxRows {
-        sql = replaceLimit(sql, limits.MaxRows)
-    }
-
-    return sql
-}
 ```
 
 ### Connection Pooling
 
-```go
-// Applets share a limited connection pool
-type AppletConnectionPool struct {
-    pool          *pgxpool.Pool
-    maxPerApplet  int           // Max connections per applet
-    totalMax      int           // Total connections for all applets
-}
+```mermaid
+graph TB
+    subgraph "Connection Pool"
+        POOL[Shared Pool]
+        A1[Applet A: max 5]
+        A2[Applet B: max 5]
+        A3[Applet C: max 5]
+    end
 
-func (p *AppletConnectionPool) Acquire(ctx context.Context, appletID string) (*pgxpool.Conn, error) {
-    // Check per-applet limit
-    if p.activeConnections[appletID] >= p.maxPerApplet {
-        return nil, ErrTooManyConnections
-    }
+    POOL --> A1
+    POOL --> A2
+    POOL --> A3
 
-    // Acquire from pool
-    return p.pool.Acquire(ctx)
-}
+    style POOL fill:#3b82f6,stroke:#1e40af,color:#fff
 ```
 
 ### Query Caching
@@ -509,15 +381,7 @@ type QueryCache struct {
 
 func (c *QueryCache) Get(ctx context.Context, sql string, args []interface{}) ([]Row, bool) {
     key := hashQuery(sql, args, composables.UseTenantID(ctx))
-
-    cached, err := c.cache.Get(ctx, key).Bytes()
-    if err != nil {
-        return nil, false
-    }
-
-    var rows []Row
-    json.Unmarshal(cached, &rows)
-    return rows, true
+    // Cache key includes tenant_id for isolation
 }
 ```
 
@@ -539,30 +403,6 @@ type DatabaseAuditLog struct {
     DurationMs  int
     Success     bool
     Error       *string
-}
-
-// Logged on every operation
-func (proxy *DatabaseProxy) logOperation(ctx context.Context, op DatabaseOperation) {
-    log := DatabaseAuditLog{
-        ID:         uuid.New(),
-        Timestamp:  time.Now(),
-        AppletID:   ctx.Value("applet_id").(string),
-        TenantID:   composables.UseTenantID(ctx),
-        UserID:     composables.UseUserID(ctx),
-        Operation:  op.Type,
-        Table:      op.Table,
-        SQL:        sanitizeSQL(op.SQL),
-        RowCount:   op.RowCount,
-        DurationMs: int(op.Duration.Milliseconds()),
-        Success:    op.Error == nil,
-    }
-
-    if op.Error != nil {
-        errStr := op.Error.Error()
-        log.Error = &errStr
-    }
-
-    proxy.auditStore.Save(log)
 }
 ```
 
@@ -586,41 +426,32 @@ func (proxy *DatabaseProxy) logOperation(ctx context.Context, op DatabaseOperati
 
 ## Schema Validation
 
-Before installation, table schemas are validated:
+```mermaid
+flowchart TB
+    TABLE[Table Definition] --> PK{Has Primary Key?}
+    PK -->|No| ERR1[❌ Missing PK]
+    PK -->|Yes| TENANT{Has tenant_id?}
+    TENANT -->|No| ERR2[❌ Missing tenant_id]
+    TENANT -->|Yes| TYPES{Valid column types?}
+    TYPES -->|No| ERR3[❌ Invalid type]
+    TYPES -->|Yes| FK{Valid foreign keys?}
+    FK -->|No| ERR4[❌ Invalid FK]
+    FK -->|Yes| NAME{Reserved name?}
+    NAME -->|Yes| ERR5[❌ Reserved name]
+    NAME -->|No| PASS[✓ Valid Schema]
 
-```go
-func validateTableSchema(table TableDefinition) error {
-    // Must have primary key
-    if !hasPrimaryKey(table) {
-        return ErrMissingPrimaryKey
-    }
-
-    // Must have tenant_id
-    if !hasTenantID(table) {
-        return ErrMissingTenantID
-    }
-
-    // Validate column types
-    for _, col := range table.Columns {
-        if !isValidColumnType(col.Type) {
-            return ErrInvalidColumnType{Column: col.Name, Type: col.Type}
-        }
-    }
-
-    // Validate foreign keys point to allowed tables
-    for _, col := range table.Columns {
-        if col.ForeignKey != nil {
-            if !canReferenceTo(col.ForeignKey.Table) {
-                return ErrCannotReferenceTable{Table: col.ForeignKey.Table}
-            }
-        }
-    }
-
-    // Check reserved names
-    if isReservedTableName(table.Name) {
-        return ErrReservedTableName{Name: table.Name}
-    }
-
-    return nil
-}
+    style PASS fill:#10b981,stroke:#047857,color:#fff
+    style ERR1 fill:#ef4444,stroke:#b91c1c,color:#fff
+    style ERR2 fill:#ef4444,stroke:#b91c1c,color:#fff
+    style ERR3 fill:#ef4444,stroke:#b91c1c,color:#fff
+    style ERR4 fill:#ef4444,stroke:#b91c1c,color:#fff
+    style ERR5 fill:#ef4444,stroke:#b91c1c,color:#fff
 ```
+
+---
+
+## Next Steps
+
+- Review [Distribution](./distribution.md) for packaging
+- See [Permissions](./permissions.md) for security model
+- Check [Architecture](./architecture.md) for system design

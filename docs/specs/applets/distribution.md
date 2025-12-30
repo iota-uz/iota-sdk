@@ -1,3 +1,12 @@
+---
+layout: default
+title: Distribution
+parent: Applet System
+grand_parent: Specifications
+nav_order: 9
+description: "Packaging, registry, installation, and update flow for applets"
+---
+
 # Distribution Specification: Packaging, Registry, and Installation
 
 **Status:** Draft
@@ -5,40 +14,72 @@
 ## Overview
 
 This document covers how applets are:
-1. **Packaged** - Built and bundled for distribution
-2. **Published** - Uploaded to a registry
-3. **Discovered** - Found by administrators
-4. **Installed** - Deployed to SDK instances
-5. **Updated** - Upgraded to new versions
-6. **Uninstalled** - Removed cleanly
+
+```mermaid
+mindmap
+  root((Distribution))
+    Packaged
+      Build & bundle
+      Checksums
+      Signatures
+    Published
+      Registry upload
+      Validation
+      Security scan
+    Discovered
+      Browse catalog
+      Search & filter
+      Reviews
+    Installed
+      Download
+      Permissions
+      Migrations
+    Updated
+      Version check
+      Rollback
+    Uninstalled
+      Data handling
+      Cleanup
+```
 
 ## Package Format
 
 ### Applet Package Structure
 
-```
-my-applet-1.0.0.zip
-├── manifest.yaml           # Package manifest (required)
-├── dist/
-│   ├── backend/
-│   │   └── server.js       # Bundled backend code
-│   └── frontend/
-│       ├── pages/
-│       │   └── config.js   # Page bundles
-│       └── widgets/
-│           └── chat.js     # Widget bundles
-├── assets/
-│   ├── icon.svg            # Applet icon
-│   └── screenshots/        # Gallery images
-├── locales/
-│   ├── en.json
-│   ├── ru.json
-│   └── uz.json
-├── migrations/             # Database migrations
-│   ├── 001_initial.sql
-│   └── 002_add_column.sql
-├── checksums.json          # File integrity hashes
-└── signature.sig           # Package signature (optional)
+```mermaid
+graph TB
+    subgraph "my-applet-1.0.0.zip"
+        MANIFEST[manifest.yaml]
+
+        subgraph "dist/"
+            BACKEND[backend/server.js]
+            FRONTEND[frontend/pages/*.js]
+            WIDGETS[frontend/widgets/*.js]
+        end
+
+        subgraph "assets/"
+            ICON[icon.svg]
+            SCREENSHOTS[screenshots/]
+        end
+
+        subgraph "locales/"
+            EN[en.json]
+            RU[ru.json]
+            UZ[uz.json]
+        end
+
+        subgraph "migrations/"
+            MIG1[001_initial.sql]
+            MIG2[002_add_column.sql]
+        end
+
+        CHECKSUMS[checksums.json]
+        SIG[signature.sig]
+    end
+
+    style MANIFEST fill:#f59e0b,stroke:#d97706,color:#fff
+    style CHECKSUMS fill:#10b981,stroke:#047857,color:#fff
+    style SIG fill:#8b5cf6,stroke:#5b21b6,color:#fff
 ```
 
 ### Manifest Requirements
@@ -57,18 +98,35 @@ runtime:
 
 ### Build Process
 
-```bash
-# Development build
-iota-applet build --dev
+```mermaid
+flowchart LR
+    subgraph "Source"
+        SRC[src/]
+        TS[TypeScript]
+        TSX[React TSX]
+    end
 
-# Production build
-iota-applet build --prod
+    subgraph "Build"
+        BUILD[bun build]
+        MINIFY[Minify]
+        TREE[Tree-shake]
+    end
 
-# Build output
-dist/
-├── backend/server.js     # Minified, tree-shaken
-├── frontend/             # Code-split bundles
-└── package.zip           # Ready for upload
+    subgraph "Output"
+        DIST[dist/]
+        PKG[package.zip]
+    end
+
+    SRC --> BUILD
+    TS --> BUILD
+    TSX --> BUILD
+    BUILD --> MINIFY
+    MINIFY --> TREE
+    TREE --> DIST
+    DIST --> PKG
+
+    style BUILD fill:#3b82f6,stroke:#1e40af,color:#fff
+    style PKG fill:#10b981,stroke:#047857,color:#fff
 ```
 
 **Build Pipeline:**
@@ -100,6 +158,21 @@ export default defineConfig({
 ```
 
 ### Checksums & Integrity
+
+```mermaid
+flowchart TB
+    PKG[Package Files] --> HASH[SHA-256 Hash]
+    HASH --> CHECKSUMS[checksums.json]
+
+    subgraph "Verification"
+        CHECKSUMS --> COMPARE{Compare Hashes}
+        COMPARE -->|Match| PASS[✓ Integrity Verified]
+        COMPARE -->|Mismatch| FAIL[✗ Corrupted/Tampered]
+    end
+
+    style PASS fill:#10b981,stroke:#047857,color:#fff
+    style FAIL fill:#ef4444,stroke:#b91c1c,color:#fff
+```
 
 ```json
 // checksums.json
@@ -140,35 +213,28 @@ func verifyPackageIntegrity(pkg *Package) error {
 
 ### Registry Types
 
+```mermaid
+graph TB
+    subgraph "Registry Hierarchy"
+        OFFICIAL[Official Registry<br/>registry.iota.uz]
+        PRIVATE[Private Registry<br/>your-company.registry.io]
+        LOCAL[Local Installation<br/>Direct .zip upload]
+    end
+
+    OFFICIAL -->|Curated & Verified| SDK1[SDK Instance]
+    PRIVATE -->|Organization-specific| SDK2[SDK Instance]
+    LOCAL -->|Development/Air-gapped| SDK3[SDK Instance]
+
+    style OFFICIAL fill:#3b82f6,stroke:#1e40af,color:#fff
+    style PRIVATE fill:#10b981,stroke:#047857,color:#fff
+    style LOCAL fill:#f59e0b,stroke:#d97706,color:#fff
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Registry Architecture                        │
-│                                                                  │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Official Registry (registry.iota.uz)                      │  │
-│  │ - Curated, verified applets                               │  │
-│  │ - Security reviewed                                        │  │
-│  │ - Signed packages                                          │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Private Registry (your-company.registry.io)               │  │
-│  │ - Organization-specific applets                           │  │
-│  │ - Internal tools                                          │  │
-│  │ - Custom integrations                                     │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                              │                                   │
-│                              ▼                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │ Local Installation                                        │  │
-│  │ - Direct .zip upload                                       │  │
-│  │ - Development/testing                                     │  │
-│  │ - Air-gapped environments                                 │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+| Registry Type | Description | Use Case |
+|---------------|-------------|----------|
+| **Official** | Curated, verified, signed | Public applets |
+| **Private** | Organization-specific | Internal tools |
+| **Local** | Direct upload | Development, air-gapped |
 
 ### Registry API
 
@@ -193,135 +259,52 @@ paths:
           in: query
         - name: limit
           in: query
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/AppletSummary'
-                  total:
-                    type: integer
 
   /api/v1/applets/{id}:
     get:
       summary: Get applet details
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppletDetail'
 
   /api/v1/applets/{id}/versions:
     get:
       summary: List versions
     post:
       summary: Publish new version
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                package:
-                  type: string
-                  format: binary
 
   /api/v1/applets/{id}/versions/{version}/download:
     get:
       summary: Download package
-
-components:
-  schemas:
-    AppletSummary:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: object
-        description:
-          type: object
-        version:
-          type: string
-        author:
-          $ref: '#/components/schemas/Author'
-        downloads:
-          type: integer
-        rating:
-          type: number
-        icon:
-          type: string
-
-    AppletDetail:
-      allOf:
-        - $ref: '#/components/schemas/AppletSummary'
-        - type: object
-          properties:
-            permissions:
-              type: object
-            screenshots:
-              type: array
-            changelog:
-              type: string
-            documentation:
-              type: string
 ```
 
 ### Publishing Flow
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Publishing Flow                              │
-│                                                                  │
-│  Developer                                                       │
-│      │                                                           │
-│      ▼                                                           │
-│  1. iota-applet build --prod                                    │
-│      │                                                           │
-│      ▼                                                           │
-│  2. iota-applet publish                                         │
-│      │                                                           │
-│      ├── Authenticate with registry                             │
-│      ├── Upload package.zip                                     │
-│      └── Wait for processing                                    │
-│                                                                  │
-│  Registry                                                        │
-│      │                                                           │
-│      ▼                                                           │
-│  3. Package Validation                                          │
-│      │                                                           │
-│      ├── Verify checksums                                       │
-│      ├── Validate manifest schema                               │
-│      ├── Check version conflicts                                │
-│      ├── Scan for vulnerabilities                               │
-│      └── Verify signature (if signed)                           │
-│                                                                  │
-│      ▼                                                           │
-│  4. Automated Review                                            │
-│      │                                                           │
-│      ├── Static analysis                                        │
-│      ├── Permission audit                                       │
-│      └── License check                                          │
-│                                                                  │
-│      ▼                                                           │
-│  5. Manual Review (for official registry)                       │
-│      │                                                           │
-│      ├── Security review                                        │
-│      ├── Code quality check                                     │
-│      └── Functionality test                                     │
-│                                                                  │
-│      ▼                                                           │
-│  6. Published                                                    │
-│      │                                                           │
-│      └── Available for installation                             │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant CLI as iota-applet CLI
+    participant Reg as Registry
+    participant Review as Review System
+
+    Dev->>CLI: iota-applet build --prod
+    CLI-->>Dev: package.zip created
+
+    Dev->>CLI: iota-applet publish
+    CLI->>Reg: Authenticate
+    CLI->>Reg: Upload package.zip
+
+    Reg->>Reg: Verify checksums
+    Reg->>Reg: Validate manifest
+    Reg->>Reg: Check version conflicts
+    Reg->>Reg: Scan for vulnerabilities
+
+    alt Official Registry
+        Reg->>Review: Queue for review
+        Review->>Review: Security review
+        Review->>Review: Code quality check
+        Review-->>Reg: Approved
+    end
+
+    Reg-->>CLI: Published successfully
+    CLI-->>Dev: Applet available for installation
 ```
 
 **CLI Publishing:**
@@ -344,105 +327,64 @@ iota-applet publish --sign --key ~/.iota/signing-key.pem
 
 ### Discovery UI
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  SDK Admin Panel > Applets > Browse                             │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  [Search applets...]                    [Category ▼] [Sort ▼]   │
-│                                                                  │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-│  │ ┌───┐           │  │ ┌───┐           │  │ ┌───┐           │  │
-│  │ │ 🤖│ AI Chat   │  │ │ 📊│ Analytics │  │ │ 📦│ Inventory │  │
-│  │ └───┘           │  │ └───┘           │  │ └───┘           │  │
-│  │                 │  │                 │  │                 │  │
-│  │ Website chatbot │  │ Business        │  │ Extended        │  │
-│  │ with AI         │  │ intelligence    │  │ warehouse       │  │
-│  │                 │  │                 │  │                 │  │
-│  │ ★★★★☆ (4.5)    │  │ ★★★★★ (5.0)    │  │ ★★★☆☆ (3.2)    │  │
-│  │ 1.2K installs   │  │ 5.6K installs   │  │ 890 installs    │  │
-│  │                 │  │                 │  │                 │  │
-│  │ [Install]       │  │ [Install]       │  │ [Install]       │  │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph "Admin Panel > Applets > Browse"
+        SEARCH[Search applets...]
+        FILTERS[Category / Sort]
+
+        subgraph "Results"
+            A1[🤖 AI Chat<br/>★★★★☆ 4.5<br/>1.2K installs]
+            A2[📊 Analytics<br/>★★★★★ 5.0<br/>5.6K installs]
+            A3[📦 Inventory<br/>★★★☆☆ 3.2<br/>890 installs]
+        end
+
+        A1 --> I1[Install]
+        A2 --> I2[Install]
+        A3 --> I3[Install]
+    end
+
+    style A1 fill:#3b82f6,stroke:#1e40af,color:#fff
+    style A2 fill:#10b981,stroke:#047857,color:#fff
+    style A3 fill:#f59e0b,stroke:#d97706,color:#fff
 ```
 
 ### Installation Steps
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Installation Flow                            │
-│                                                                  │
-│  Admin clicks [Install]                                          │
-│      │                                                           │
-│      ▼                                                           │
-│  1. Download Package                                            │
-│      │                                                           │
-│      ├── Fetch from registry                                    │
-│      ├── Verify checksums                                       │
-│      └── Extract to temp directory                              │
-│                                                                  │
-│      ▼                                                           │
-│  2. Permission Review                                           │
-│      │                                                           │
-│      ┌─────────────────────────────────────────────────────┐    │
-│      │ AI Website Chat requests:                            │    │
-│      │                                                      │    │
-│      │ ⚠️ DATABASE                                          │    │
-│      │   Read: clients, chats, chat_messages               │    │
-│      │   Write: clients, chats                             │    │
-│      │   Create Tables: YES                                │    │
-│      │                                                      │    │
-│      │ 🌐 EXTERNAL HTTP                                     │    │
-│      │   api.openai.com, *.dify.ai                         │    │
-│      │                                                      │    │
-│      │ 🔐 SECRETS REQUIRED                                  │    │
-│      │   OPENAI_API_KEY                                    │    │
-│      │                                                      │    │
-│      │ [Review Tables] [Approve] [Cancel]                  │    │
-│      └─────────────────────────────────────────────────────┘    │
-│                                                                  │
-│      ▼                                                           │
-│  3. Configuration                                               │
-│      │                                                           │
-│      ├── Enter required secrets                                 │
-│      ├── Configure tenant settings                              │
-│      └── Set initial permissions                                │
-│                                                                  │
-│      ▼                                                           │
-│  4. Database Migration                                          │
-│      │                                                           │
-│      ├── Create applet tables                                   │
-│      ├── Run initial migrations                                 │
-│      └── Seed default data (if any)                             │
-│                                                                  │
-│      ▼                                                           │
-│  5. Runtime Initialization                                      │
-│      │                                                           │
-│      ├── Start Bun process (if needed)                          │
-│      ├── Register HTTP handlers                                 │
-│      ├── Subscribe to events                                    │
-│      └── Register scheduled tasks                               │
-│                                                                  │
-│      ▼                                                           │
-│  6. UI Registration                                             │
-│      │                                                           │
-│      ├── Add navigation items                                   │
-│      ├── Register page routes                                   │
-│      └── Initialize widgets                                     │
-│                                                                  │
-│      ▼                                                           │
-│  7. Lifecycle Hook: onInstall                                   │
-│      │                                                           │
-│      └── Run applet's installation hook                         │
-│                                                                  │
-│      ▼                                                           │
-│  8. Complete                                                    │
-│      │                                                           │
-│      └── Applet is now active                                   │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    START[Admin clicks Install] --> DOWNLOAD[1. Download Package]
+    DOWNLOAD --> VERIFY[Verify checksums]
+    VERIFY --> EXTRACT[Extract to temp]
+
+    EXTRACT --> REVIEW[2. Permission Review]
+    REVIEW --> APPROVE{Admin Approves?}
+    APPROVE -->|No| CANCEL[Cancel]
+    APPROVE -->|Yes| CONFIG[3. Configuration]
+
+    CONFIG --> SECRETS[Enter required secrets]
+    SECRETS --> SETTINGS[Configure settings]
+
+    SETTINGS --> MIGRATE[4. Database Migration]
+    MIGRATE --> CREATE_TABLES[Create applet tables]
+    CREATE_TABLES --> RUN_MIGRATIONS[Run initial migrations]
+
+    RUN_MIGRATIONS --> RUNTIME[5. Runtime Init]
+    RUNTIME --> START_BUN[Start Bun process]
+    START_BUN --> REGISTER_HTTP[Register HTTP handlers]
+    REGISTER_HTTP --> SUBSCRIBE[Subscribe to events]
+
+    SUBSCRIBE --> UI[6. UI Registration]
+    UI --> NAV[Add navigation items]
+    NAV --> ROUTES[Register routes]
+    ROUTES --> WIDGETS[Initialize widgets]
+
+    WIDGETS --> HOOK[7. Run onInstall hook]
+    HOOK --> COMPLETE[8. Complete ✓]
+
+    style START fill:#3b82f6,stroke:#1e40af,color:#fff
+    style COMPLETE fill:#10b981,stroke:#047857,color:#fff
+    style CANCEL fill:#ef4444,stroke:#b91c1c,color:#fff
 ```
 
 ### Installation API
@@ -505,7 +447,6 @@ func (m *InstallationManager) Install(ctx context.Context, req InstallRequest) e
     // 9. Run onInstall hook
     if manifest.Lifecycle.OnInstall != "" {
         if err := m.runtimeMgr.Execute(ctx, manifest.ID, manifest.Lifecycle.OnInstall); err != nil {
-            // Log warning but don't fail installation
             log.Warn("onInstall hook failed", "error", err)
         }
     }
@@ -518,82 +459,55 @@ func (m *InstallationManager) Install(ctx context.Context, req InstallRequest) e
 
 ### Update Detection
 
-```go
-type UpdateChecker struct {
-    registry RegistryClient
-    storage  PackageStorage
-}
+```mermaid
+sequenceDiagram
+    participant Checker as Update Checker
+    participant Storage as Package Storage
+    participant Registry as Registry
+    participant Admin as Admin UI
 
-func (c *UpdateChecker) CheckUpdates(ctx context.Context) ([]UpdateAvailable, error) {
-    installed := c.storage.ListInstalled()
-    var updates []UpdateAvailable
+    loop Periodic Check
+        Checker->>Storage: List installed applets
+        Storage-->>Checker: [applet_a@1.0, applet_b@2.1]
 
-    for _, applet := range installed {
-        latest, err := c.registry.GetLatestVersion(applet.ID)
-        if err != nil {
-            continue
-        }
+        Checker->>Registry: Get latest versions
+        Registry-->>Checker: [applet_a@1.2, applet_b@2.1]
 
-        if semver.Compare(latest.Version, applet.Version) > 0 {
-            updates = append(updates, UpdateAvailable{
-                AppletID:       applet.ID,
-                CurrentVersion: applet.Version,
-                LatestVersion:  latest.Version,
-                Changelog:      latest.Changelog,
-                Breaking:       latest.Breaking,
-            })
-        }
-    }
-
-    return updates, nil
-}
+        Checker->>Checker: Compare versions
+        Checker-->>Admin: Updates available: applet_a
+    end
 ```
 
 ### Update Process
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       Update Flow                                │
-│                                                                  │
-│  1. Download new version                                        │
-│      │                                                           │
-│      ▼                                                           │
-│  2. Compare permissions                                         │
-│      │                                                           │
-│      ├── New permissions? → Require approval                    │
-│      └── Removed permissions? → Automatic                       │
-│                                                                  │
-│      ▼                                                           │
-│  3. Run onUpdate hook (from OLD version)                        │
-│      │                                                           │
-│      └── Prepare for update                                     │
-│                                                                  │
-│      ▼                                                           │
-│  4. Stop running instance                                       │
-│      │                                                           │
-│      └── Graceful shutdown                                      │
-│                                                                  │
-│      ▼                                                           │
-│  5. Run migrations                                              │
-│      │                                                           │
-│      └── Apply schema changes                                   │
-│                                                                  │
-│      ▼                                                           │
-│  6. Replace package files                                       │
-│      │                                                           │
-│      └── Atomic swap                                            │
-│                                                                  │
-│      ▼                                                           │
-│  7. Start new version                                           │
-│      │                                                           │
-│      └── Initialize runtime                                     │
-│                                                                  │
-│      ▼                                                           │
-│  8. Run onUpdate hook (from NEW version)                        │
-│      │                                                           │
-│      └── Post-update setup                                      │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    START[Update Available] --> DOWNLOAD[1. Download new version]
+    DOWNLOAD --> COMPARE[2. Compare permissions]
+
+    COMPARE --> NEW{New permissions?}
+    NEW -->|Yes| APPROVAL[Require approval]
+    NEW -->|No| CONTINUE[Continue]
+    APPROVAL --> CONTINUE
+
+    CONTINUE --> OLD_HOOK[3. Run onUpdate OLD version]
+    OLD_HOOK --> STOP[4. Stop running instance]
+    STOP --> GRACEFUL[Graceful shutdown]
+
+    GRACEFUL --> MIGRATE[5. Run migrations]
+    MIGRATE --> SCHEMA[Apply schema changes]
+
+    SCHEMA --> REPLACE[6. Replace package files]
+    REPLACE --> ATOMIC[Atomic swap]
+
+    ATOMIC --> START_NEW[7. Start new version]
+    START_NEW --> INIT[Initialize runtime]
+
+    INIT --> NEW_HOOK[8. Run onUpdate NEW version]
+    NEW_HOOK --> COMPLETE[Update Complete ✓]
+
+    style START fill:#f59e0b,stroke:#d97706,color:#fff
+    style COMPLETE fill:#10b981,stroke:#047857,color:#fff
 ```
 
 **Rollback Support:**
@@ -630,76 +544,72 @@ func (m *InstallationManager) Update(ctx context.Context, appletID string, newVe
 
 ### Uninstall Flow
 
+```mermaid
+flowchart TB
+    START[Admin clicks Uninstall] --> CONFIRM[1. Confirmation Dialog]
+
+    CONFIRM --> CHOICE{Data handling?}
+    CHOICE -->|Keep 30 days| SOFT[Soft delete]
+    CHOICE -->|Export & delete| EXPORT[Export to file]
+    CHOICE -->|Delete now| HARD[Hard delete]
+
+    SOFT --> DISABLE[2. Run onDisable hook]
+    EXPORT --> DISABLE
+    HARD --> DISABLE
+
+    DISABLE --> STOP[3. Stop runtime]
+    STOP --> CANCEL_TASKS[Cancel scheduled tasks]
+    CANCEL_TASKS --> UNSUB[Unsubscribe events]
+    UNSUB --> STOP_BUN[Stop Bun process]
+
+    STOP_BUN --> UNREG[4. Unregister UI]
+    UNREG --> REMOVE_NAV[Remove navigation]
+    REMOVE_NAV --> UNREG_ROUTES[Unregister routes]
+    UNREG_ROUTES --> REMOVE_WIDGETS[Remove widgets]
+
+    REMOVE_WIDGETS --> HOOK[5. Run onUninstall hook]
+
+    HOOK --> DATA[6. Handle data]
+    DATA --> CLEAN[7. Remove package files]
+    CLEAN --> COMPLETE[8. Complete ✓]
+
+    style START fill:#ef4444,stroke:#b91c1c,color:#fff
+    style COMPLETE fill:#10b981,stroke:#047857,color:#fff
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Uninstallation Flow                           │
-│                                                                  │
-│  Admin clicks [Uninstall]                                        │
-│      │                                                           │
-│      ▼                                                           │
-│  1. Confirmation                                                │
-│      │                                                           │
-│      ┌─────────────────────────────────────────────────────┐    │
-│      │ Uninstall AI Website Chat?                          │    │
-│      │                                                      │    │
-│      │ ⚠️ This will:                                        │    │
-│      │   • Remove all applet data                          │    │
-│      │   • Disable chat widget on your website             │    │
-│      │   • Remove navigation items                         │    │
-│      │                                                      │    │
-│      │ Data handling:                                       │    │
-│      │ ○ Keep data for 30 days (can reinstall)             │    │
-│      │ ○ Export data and delete                            │    │
-│      │ ○ Delete immediately                                │    │
-│      │                                                      │    │
-│      │ [Cancel] [Uninstall]                                │    │
-│      └─────────────────────────────────────────────────────┘    │
-│                                                                  │
-│      ▼                                                           │
-│  2. Run onDisable hook                                          │
-│      │                                                           │
-│      └── Prepare for disable                                    │
-│                                                                  │
-│      ▼                                                           │
-│  3. Stop runtime                                                │
-│      │                                                           │
-│      ├── Cancel scheduled tasks                                 │
-│      ├── Unsubscribe from events                                │
-│      └── Stop Bun process                                       │
-│                                                                  │
-│      ▼                                                           │
-│  4. Unregister UI                                               │
-│      │                                                           │
-│      ├── Remove navigation items                                │
-│      ├── Unregister routes                                      │
-│      └── Remove widgets                                         │
-│                                                                  │
-│      ▼                                                           │
-│  5. Run onUninstall hook                                        │
-│      │                                                           │
-│      └── Final cleanup                                          │
-│                                                                  │
-│      ▼                                                           │
-│  6. Handle data                                                 │
-│      │                                                           │
-│      ├── soft_delete: Rename tables, keep for 30 days          │
-│      ├── export: Export to JSON, then drop                     │
-│      └── hard_delete: DROP TABLE immediately                   │
-│                                                                  │
-│      ▼                                                           │
-│  7. Remove package files                                        │
-│      │                                                           │
-│      └── Clean storage                                          │
-│                                                                  │
-│      ▼                                                           │
-│  8. Complete                                                    │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+### Data Handling Options
+
+| Option | Description | Use Case |
+|--------|-------------|----------|
+| **Soft Delete** | Rename tables with `_deleted_` prefix, keep 30 days | Can reinstall |
+| **Export & Delete** | Export to JSON/CSV, then drop | Data backup |
+| **Hard Delete** | `DROP TABLE IF EXISTS` immediately | Clean removal |
 
 ## Multi-Tenant Considerations
 
 ### Tenant-Specific Installation
+
+```mermaid
+graph TB
+    subgraph "Global Installation"
+        APPLET[AI Chat Applet v1.0]
+    end
+
+    subgraph "Tenant Configurations"
+        T1[Tenant A<br/>Enabled, GPT-4]
+        T2[Tenant B<br/>Enabled, Claude-3]
+        T3[Tenant C<br/>Disabled]
+    end
+
+    APPLET --> T1
+    APPLET --> T2
+    APPLET --> T3
+
+    style APPLET fill:#3b82f6,stroke:#1e40af,color:#fff
+    style T1 fill:#10b981,stroke:#047857,color:#fff
+    style T2 fill:#10b981,stroke:#047857,color:#fff
+    style T3 fill:#9ca3af,stroke:#6b7280,color:#fff
+```
 
 ```go
 type TenantAppletInstallation struct {
@@ -714,68 +624,28 @@ type TenantAppletInstallation struct {
 }
 ```
 
-### Per-Tenant Configuration
-
-```yaml
-# Admin can configure per tenant
-applet_config:
-  ai-chat:
-    tenant_a:
-      model: "gpt-4"
-      temperature: 0.7
-    tenant_b:
-      model: "claude-3"
-      temperature: 0.5
-```
-
-### Enable/Disable Per Tenant
-
-```go
-func (m *InstallationManager) EnableForTenant(appletID string, tenantID uuid.UUID) error {
-    // 1. Verify applet is installed globally
-    // 2. Run onEnable hook with tenant context
-    // 3. Apply tenant-specific migrations (if any)
-    // 4. Mark as enabled for tenant
-}
-
-func (m *InstallationManager) DisableForTenant(appletID string, tenantID uuid.UUID) error {
-    // 1. Run onDisable hook with tenant context
-    // 2. Mark as disabled (keep data)
-}
-```
-
 ## Security Considerations
 
 ### Package Signing
 
-```bash
-# Sign package with developer key
-iota-applet sign --key ~/.iota/developer-key.pem
+```mermaid
+flowchart LR
+    subgraph "Signing"
+        PKG[Package] --> HASH[SHA-256 Hash]
+        HASH --> SIGN[Sign with Private Key]
+        SIGN --> SIG[signature.sig]
+    end
 
-# Verify signature
-iota-applet verify my-applet-1.0.0.zip
-```
+    subgraph "Verification"
+        SIG --> VERIFY[Verify with Public Key]
+        PKG --> VERIFY
+        VERIFY --> RESULT{Valid?}
+        RESULT -->|Yes| TRUSTED[✓ Trusted]
+        RESULT -->|No| UNTRUSTED[✗ Untrusted]
+    end
 
-**Signature Verification:**
-
-```go
-func verifySignature(pkg *Package, trustedKeys []PublicKey) error {
-    sig := pkg.GetFile("signature.sig")
-    if sig == nil {
-        return ErrNotSigned
-    }
-
-    content := pkg.GetContentForSigning()
-    hash := sha256.Sum256(content)
-
-    for _, key := range trustedKeys {
-        if verifyWithKey(hash[:], sig, key) {
-            return nil
-        }
-    }
-
-    return ErrInvalidSignature
-}
+    style TRUSTED fill:#10b981,stroke:#047857,color:#fff
+    style UNTRUSTED fill:#ef4444,stroke:#b91c1c,color:#fff
 ```
 
 ### Vulnerability Scanning
@@ -821,3 +691,11 @@ type InstallationPolicy struct {
     RequireReview      bool      // Manual review required
 }
 ```
+
+---
+
+## Next Steps
+
+- Review [Manifest](./manifest.md) for package configuration
+- See [Permissions](./permissions.md) for security model
+- Check [Examples](./examples.md) for reference implementations

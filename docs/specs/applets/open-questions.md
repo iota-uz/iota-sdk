@@ -1,10 +1,44 @@
+---
+layout: default
+title: Open Questions
+parent: Applet System
+grand_parent: Specifications
+nav_order: 11
+description: "Unresolved decisions and trade-offs for the Applet System"
+---
+
 # Open Questions & Unresolved Decisions
 
 **Status:** Draft
 
 ## Overview
 
-This document captures unresolved decisions, trade-offs requiring input, and open questions for the Applet System. These should be addressed before implementation begins.
+This document captures unresolved decisions, trade-offs requiring input, and open questions for the Applet System.
+
+```mermaid
+mindmap
+  root((Open Questions))
+    Runtime
+      Process isolation
+      Goja vs Bun
+      Hot reload
+    Frontend
+      Component scope
+      Web Components
+      Styling
+    Database
+      Table prefixes
+      Migration versioning
+      Data retention
+    Security
+      Permission granularity
+      HTTP wildcards
+      Secret storage
+    Distribution
+      Registry hosting
+      Package signing
+      Update notifications
+```
 
 ---
 
@@ -14,7 +48,25 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Should each applet run in its own Bun process, or share a process pool?
 
-**Options:**
+```mermaid
+graph TB
+    subgraph "Option A: One per applet"
+        SDK1[SDK] --> P1[Bun Process]
+        SDK1 --> P2[Bun Process]
+        SDK1 --> P3[Bun Process]
+    end
+
+    subgraph "Option B: Shared pool"
+        SDK2[SDK] --> POOL[Process Pool]
+        POOL --> W1[Worker]
+        POOL --> W2[Worker]
+    end
+
+    style P1 fill:#10b981,stroke:#047857,color:#fff
+    style P2 fill:#10b981,stroke:#047857,color:#fff
+    style P3 fill:#10b981,stroke:#047857,color:#fff
+    style POOL fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -22,9 +74,7 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 | **Shared process pool** | Lower memory usage, faster startup | Cross-applet interference risk, complex isolation |
 | **Hybrid** | Best of both (separate for heavy, shared for light) | Complex management logic |
 
-**Recommendation:** Start with one process per applet for simplicity and isolation. Optimize later if memory becomes an issue.
-
-**Decision Required:** Which approach to implement?
+**Recommendation:** Start with one process per applet for simplicity and isolation.
 
 ---
 
@@ -32,19 +82,13 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Should we maintain Goja for simple scripts, or go Bun-only?
 
-**Context:** We have existing jsruntime spec using Goja. Applets could use either.
-
-**Options:**
-
 | Option | Pros | Cons |
 |--------|------|------|
 | **Bun only** | Simpler, one runtime to maintain, full TypeScript | Heavier for simple scripts |
 | **Goja for scripts, Bun for applets** | Lighter for simple cases, embedded | Two runtimes to maintain |
 | **Goja first, Bun optional** | Backward compatible | Two code paths |
 
-**Recommendation:** Bun-only for applets, keep Goja for existing jsruntime scripts (separate feature).
-
-**Decision Required:** Final runtime strategy?
+**Recommendation:** Bun-only for applets, keep Goja for existing jsruntime scripts.
 
 ---
 
@@ -52,18 +96,17 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How should applet code updates work during development?
 
-**Options:**
-1. Full process restart on changes
-2. Bun's built-in hot reload
-3. File watcher with graceful reload
-4. Manual reload only
+| Option | Description |
+|--------|-------------|
+| Full process restart | Stop and restart on changes |
+| Bun's built-in hot reload | Use native HMR |
+| File watcher with graceful reload | Custom implementation |
+| Manual reload only | Developer triggers |
 
 **Considerations:**
 - Development experience vs complexity
 - State preservation during reload
 - Connection handling during restart
-
-**Decision Required:** Development workflow approach?
 
 ---
 
@@ -73,17 +116,22 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How comprehensive should `@iota/components` be?
 
-**Options:**
+```mermaid
+graph LR
+    subgraph "Scope Options"
+        MIN[Minimal<br/>2-4 weeks]
+        STD[Standard<br/>6-8 weeks]
+        COMP[Comprehensive<br/>12-16 weeks]
+    end
 
-| Scope | Components | Effort |
-|-------|------------|--------|
-| **Minimal** | Button, Input, Select, Card, Table | 2-4 weeks |
-| **Standard** | Above + Modal, Drawer, Toast, Tabs, etc. | 6-8 weeks |
-| **Comprehensive** | Above + Charts, DatePicker, RichText, etc. | 12-16 weeks |
+    MIN --> |Button, Input, Select, Card, Table| MIN_C[5 components]
+    STD --> |+ Modal, Drawer, Toast, Tabs| STD_C[15 components]
+    COMP --> |+ Charts, DatePicker, RichText| COMP_C[30+ components]
+
+    style STD fill:#10b981,stroke:#047857,color:#fff
+```
 
 **Recommendation:** Start with Standard scope, add more as needed.
-
-**Decision Required:** Initial component library scope?
 
 ---
 
@@ -91,24 +139,19 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Should we build Web Components alongside React components?
 
-**Context:** Web Components enable framework-agnostic widgets, useful for embedding.
+| Option | Use Case |
+|--------|----------|
+| React only | Simpler, faster to build |
+| Web Components for embeddables only | Chat widgets, buttons |
+| Full parallel library | React + Web Components |
 
-**Options:**
-1. React only (simpler, faster to build)
-2. Web Components for embeddables only (chat widgets, etc.)
-3. Full parallel library (React + Web Components)
-
-**Recommendation:** Option 2 - Web Components for embeddables only.
-
-**Decision Required:** Web Components strategy?
+**Recommendation:** Web Components for embeddables only.
 
 ---
 
 ### Q6: Styling Strategy
 
 **Question:** How should applet styles be handled?
-
-**Options:**
 
 | Strategy | Approach | Isolation |
 |----------|----------|-----------|
@@ -117,15 +160,7 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 | **CSS Modules** | Scoped CSS files | High |
 | **Shadow DOM** | Web Component encapsulation | Complete |
 
-**Considerations:**
-- SDK uses Tailwind currently
-- Style conflicts between applets
-- Bundle size impact
-- Developer familiarity
-
 **Recommendation:** Tailwind with CSS Modules for applet-specific styles.
-
-**Decision Required:** Final styling approach?
 
 ---
 
@@ -135,20 +170,26 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How should applet tables be named?
 
-**Options:**
-1. `applet_{id}_{table}` - e.g., `applet_ai_chat_configs`
-2. `app_{id}_{table}` - shorter
-3. Separate schema per applet - `ai_chat.configs`
-4. No prefix, validate uniqueness - `ai_chat_configs`
+```mermaid
+graph LR
+    subgraph "Naming Options"
+        O1[applet_ai_chat_configs]
+        O2[app_ai_chat_configs]
+        O3[ai_chat.configs]
+        O4[ai_chat_configs]
+    end
 
-**Considerations:**
-- PostgreSQL identifier length limits (63 chars)
-- Query readability
-- Schema management complexity
+    style O1 fill:#10b981,stroke:#047857,color:#fff
+```
+
+| Option | Example | Notes |
+|--------|---------|-------|
+| `applet_{id}_{table}` | `applet_ai_chat_configs` | Clear prefix |
+| `app_{id}_{table}` | `app_ai_chat_configs` | Shorter |
+| Separate schema | `ai_chat.configs` | Schema isolation |
+| No prefix | `ai_chat_configs` | Requires uniqueness validation |
 
 **Recommendation:** Option 1 with underscore-separated ID.
-
-**Decision Required:** Final naming convention?
 
 ---
 
@@ -156,20 +197,14 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How should applet database migrations be versioned?
 
-**Options:**
-1. Sequential numbers (001, 002, 003)
-2. Timestamps (20241201120000)
-3. Semantic versions (1.0.0, 1.1.0)
-4. Manifest version + sequential
-
-**Considerations:**
-- Applet version != migration version
-- Rollback scenarios
-- Team collaboration
+| Option | Example | Notes |
+|--------|---------|-------|
+| Sequential numbers | 001, 002, 003 | Simple |
+| Timestamps | 20241201120000 | Unique |
+| Semantic versions | 1.0.0, 1.1.0 | Version-aligned |
+| Manifest version + sequential | 1.0.0_001 | Combined |
 
 **Recommendation:** Timestamps for uniqueness.
-
-**Decision Required:** Migration versioning scheme?
 
 ---
 
@@ -177,15 +212,18 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Default behavior when applet is uninstalled?
 
-**Options:**
-1. Hard delete immediately
-2. Soft delete (rename tables) with 30-day retention
-3. Export to file then delete
-4. Admin chooses per uninstallation
+```mermaid
+flowchart TB
+    UNINSTALL[Uninstall Applet] --> CHOICE{Data handling?}
+    CHOICE -->|Hard delete| HARD[DROP TABLE immediately]
+    CHOICE -->|Soft delete| SOFT[Rename tables, keep 30 days]
+    CHOICE -->|Export| EXPORT[Export to file, then delete]
+    CHOICE -->|Admin choice| ADMIN[Show options dialog]
 
-**Recommendation:** Option 4 (admin choice) with soft delete as default.
+    style ADMIN fill:#10b981,stroke:#047857,color:#fff
+```
 
-**Decision Required:** Default uninstall behavior?
+**Recommendation:** Admin chooses per uninstallation, soft delete as default.
 
 ---
 
@@ -194,8 +232,6 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 ### Q10: Permission Granularity
 
 **Question:** How granular should database permissions be?
-
-**Options:**
 
 | Level | Example | Complexity |
 |-------|---------|------------|
@@ -206,26 +242,29 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Recommendation:** Table-level initially, column-level as Phase 2.
 
-**Decision Required:** Initial permission granularity?
-
 ---
 
 ### Q11: External HTTP Wildcards
 
 **Question:** Should wildcard domains be allowed in external HTTP permissions?
 
-**Example:** `*.openai.com` would allow any subdomain.
+```mermaid
+graph TB
+    subgraph "Wildcard Options"
+        NONE[No wildcards]
+        SINGLE[Single-level: *.openai.com]
+        FULL[Full: *.*.com]
+    end
 
-**Options:**
-1. No wildcards - explicit domains only
-2. Single-level wildcards - `*.openai.com` but not `*.*.com`
-3. Full wildcards - any pattern
+    NONE --> |Explicit only| SAFE[Most secure]
+    SINGLE --> |Controlled| BALANCED[Balanced]
+    FULL --> |Flexible| RISKY[Security risk]
 
-**Security Concern:** Wildcards could be exploited if domain ownership changes.
+    style BALANCED fill:#10b981,stroke:#047857,color:#fff
+    style RISKY fill:#ef4444,stroke:#b91c1c,color:#fff
+```
 
-**Recommendation:** Option 2 - single-level wildcards only.
-
-**Decision Required:** Wildcard policy?
+**Recommendation:** Single-level wildcards only.
 
 ---
 
@@ -233,21 +272,14 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Where and how should applet secrets be stored?
 
-**Options:**
-1. Database (encrypted column)
-2. Environment variables
-3. External secret manager (Vault, AWS Secrets Manager)
-4. SDK settings table with encryption
-
-**Considerations:**
-- Multi-tenant isolation
-- Rotation support
-- Development vs production
-- Self-hosted deployments
+| Option | Description | Multi-tenant |
+|--------|-------------|--------------|
+| Database (encrypted) | Encrypted column | ✓ |
+| Environment variables | .env files | Limited |
+| External manager | Vault, AWS Secrets | ✓ |
+| SDK settings table | With encryption | ✓ |
 
 **Recommendation:** Database with encryption for simplicity, external integration as option.
-
-**Decision Required:** Secret storage approach?
 
 ---
 
@@ -257,21 +289,21 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Should IOTA host an official applet registry?
 
-**Options:**
-1. Yes - central registry at `registry.iota.uz`
-2. No - only private/local installations
-3. Optional - SDK works without registry, registry as add-on
-4. Federated - multiple registries can be configured
+```mermaid
+graph TB
+    subgraph "Registry Options"
+        OFFICIAL[Official: registry.iota.uz]
+        PRIVATE[Private only]
+        OPTIONAL[Optional official]
+        FEDERATED[Federated]
+    end
 
-**Considerations:**
-- Infrastructure cost
-- Moderation responsibility
-- Community building
-- Enterprise requirements
+    FEDERATED --> |Multiple sources| FLEX[Most flexible]
 
-**Recommendation:** Option 4 - federated, with optional official registry.
+    style FEDERATED fill:#10b981,stroke:#047857,color:#fff
+```
 
-**Decision Required:** Registry strategy?
+**Recommendation:** Federated, with optional official registry.
 
 ---
 
@@ -279,15 +311,14 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Should applet packages be signed?
 
-**Options:**
-1. Required - all packages must be signed
-2. Optional - signing available but not required
-3. Registry-dependent - official registry requires, private doesn't
-4. Verification levels - unsigned, signed, verified
+| Option | Description |
+|--------|-------------|
+| Required | All packages must be signed |
+| Optional | Signing available but not required |
+| Registry-dependent | Official requires, private doesn't |
+| Verification levels | Unsigned, signed, verified |
 
-**Recommendation:** Option 4 - multiple verification levels.
-
-**Decision Required:** Signing requirements?
+**Recommendation:** Multiple verification levels.
 
 ---
 
@@ -295,16 +326,15 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How should admins be notified of applet updates?
 
-**Options:**
-1. In-app notification badge
-2. Email digest
-3. Dashboard widget
-4. No notification (manual check)
-5. All of the above (configurable)
+| Option | Description |
+|--------|-------------|
+| In-app badge | Notification indicator |
+| Email digest | Periodic summary |
+| Dashboard widget | Visual card |
+| Manual check | No automatic notification |
+| Configurable | All of the above |
 
-**Recommendation:** Option 5 - configurable notifications.
-
-**Decision Required:** Update notification approach?
+**Recommendation:** Configurable notifications.
 
 ---
 
@@ -314,20 +344,25 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How should widget injection points be defined?
 
-**Options:**
-1. Fixed slots (predefined by SDK)
-2. Dynamic slots (components declare injection points)
-3. CSS-selector-based (applets target any element)
-4. Named regions with priorities
+```mermaid
+graph TB
+    subgraph "Slot Examples"
+        D[dashboard.overview.cards]
+        C[crm.clients.detail.sidebar]
+        F[finance.payments.actions]
+    end
 
-**Example Slots:**
-- `dashboard.overview.cards`
-- `crm.clients.detail.sidebar`
-- `finance.payments.actions`
+    subgraph "Slot Types"
+        FIXED[Fixed slots]
+        DYNAMIC[Dynamic slots]
+        CSS[CSS selector-based]
+        NAMED[Named regions + priorities]
+    end
 
-**Recommendation:** Named regions with priorities (Option 4).
+    style NAMED fill:#10b981,stroke:#047857,color:#fff
+```
 
-**Decision Required:** Widget slot architecture?
+**Recommendation:** Named regions with priorities.
 
 ---
 
@@ -335,20 +370,14 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How deep can applet navigation be nested?
 
-**Options:**
-1. Top-level only
-2. One level under existing items
-3. Multiple levels (applet manages sub-navigation)
-4. Flat with grouping
+| Option | Description |
+|--------|-------------|
+| Top-level only | Applets get main nav items |
+| One level under | Nest under existing items |
+| Multiple levels | Applet manages sub-nav |
+| Flat with grouping | Flat list with categories |
 
-**Considerations:**
-- UX consistency
-- Navigation complexity
-- Mobile responsiveness
-
-**Recommendation:** One level under existing items (Option 2).
-
-**Decision Required:** Navigation depth limit?
+**Recommendation:** One level under existing items.
 
 ---
 
@@ -356,15 +385,14 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** Can applets customize beyond design tokens?
 
-**Options:**
-1. Tokens only - colors, spacing, fonts
-2. Component overrides - custom Button styles
-3. Full CSS access - complete styling control
-4. Sandboxed CSS - scoped to applet container
+| Option | Description | Risk |
+|--------|-------------|------|
+| Tokens only | Colors, spacing, fonts | Low |
+| Component overrides | Custom Button styles | Medium |
+| Full CSS access | Complete control | High |
+| Sandboxed CSS | Scoped to applet | Low |
 
-**Recommendation:** Option 4 - sandboxed CSS with token inheritance.
-
-**Decision Required:** Customization boundaries?
+**Recommendation:** Sandboxed CSS with token inheritance.
 
 ---
 
@@ -373,8 +401,6 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 ### Q19: CLI Tooling
 
 **Question:** What CLI tools should be provided?
-
-**Options:**
 
 | Tool | Purpose | Priority |
 |------|---------|----------|
@@ -388,15 +414,12 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Recommendation:** High priority tools first, others in Phase 2.
 
-**Decision Required:** Initial CLI scope?
-
 ---
 
 ### Q20: TypeScript SDK Package
 
 **Question:** What should be included in `@iota/applet-sdk`?
 
-**Proposed Contents:**
 ```
 @iota/applet-sdk/
 ├── server       # Backend utilities (Context, Handler types)
@@ -406,24 +429,20 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 └── cli          # CLI tooling
 ```
 
-**Decision Required:** Package structure and contents?
-
 ---
 
 ### Q21: Documentation Strategy
 
 **Question:** Where should applet documentation live?
 
-**Options:**
-1. This spec directory (developer reference)
-2. Separate docs site (user-facing)
-3. In-code JSDoc (API reference)
-4. Storybook (component documentation)
-5. All of the above
+| Location | Purpose |
+|----------|---------|
+| Spec directory | Developer reference |
+| Separate docs site | User-facing |
+| In-code JSDoc | API reference |
+| Storybook | Component documentation |
 
 **Recommendation:** All of the above, with clear purposes.
-
-**Decision Required:** Documentation approach?
 
 ---
 
@@ -433,20 +452,27 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How to handle applet cold starts?
 
-**Options:**
-1. Pre-warm all applets on SDK startup
-2. Lazy start on first request
-3. Keep-alive with timeout (warm for N minutes after use)
-4. Admin configures per-applet
+```mermaid
+flowchart TB
+    REQUEST[Request arrives] --> CHECK{Applet running?}
+    CHECK -->|Yes| HANDLE[Handle request]
+    CHECK -->|No| START[Cold start]
+    START --> INIT[Initialize runtime]
+    INIT --> HANDLE
+    HANDLE --> KEEPALIVE[Keep alive timer]
+    KEEPALIVE -->|Timeout| SHUTDOWN[Shutdown]
 
-**Considerations:**
-- Memory usage vs latency
-- Rarely used applets
-- Server restart time
+    style KEEPALIVE fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
-**Recommendation:** Lazy start with keep-alive (Option 3).
+| Option | Description |
+|--------|-------------|
+| Pre-warm all | Start all applets on SDK boot |
+| Lazy start | Start on first request |
+| Keep-alive | Warm for N minutes after use |
+| Admin configures | Per-applet setting |
 
-**Decision Required:** Cold start strategy?
+**Recommendation:** Lazy start with keep-alive.
 
 ---
 
@@ -454,23 +480,20 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** What happens when an applet request times out?
 
-**Options:**
-1. Kill request, return 504
-2. Kill request, restart applet process
-3. Queue for retry
-4. Fail open (return cached/default response)
+| Option | Action |
+|--------|--------|
+| Kill and 504 | Return gateway timeout |
+| Kill and restart | Restart applet process |
+| Queue for retry | Retry later |
+| Fail open | Return cached/default |
 
-**Recommendation:** Option 1 with circuit breaker pattern.
-
-**Decision Required:** Timeout handling?
+**Recommendation:** Kill and return 504 with circuit breaker pattern.
 
 ---
 
 ### Q24: Resource Limit Enforcement
 
 **Question:** How strictly should resource limits be enforced?
-
-**Options:**
 
 | Level | CPU | Memory | Action |
 |-------|-----|--------|--------|
@@ -480,8 +503,6 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Recommendation:** Medium limits with escalation to hard after threshold.
 
-**Decision Required:** Enforcement level?
-
 ---
 
 ## Compatibility & Migration
@@ -490,14 +511,13 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** What SDK version should support applets?
 
-**Options:**
-1. Current version only (clean start)
-2. Backport to last major version
-3. Feature flag in multiple versions
+| Option | Description |
+|--------|-------------|
+| Current only | Clean start |
+| Backport | Last major version |
+| Feature flag | Multiple versions |
 
 **Recommendation:** Current version only (clean start).
-
-**Decision Required:** Minimum SDK version?
 
 ---
 
@@ -505,15 +525,14 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 **Question:** How should applet API breaking changes be handled?
 
-**Options:**
-1. Semantic versioning - major version for breaking
-2. Deprecation period - warn for N months before breaking
-3. API versioning - `/api/v1/`, `/api/v2/`
-4. Feature flags - opt-in to new behavior
+| Option | Description |
+|--------|-------------|
+| Semver | Major version for breaking |
+| Deprecation | Warn for N months |
+| API versioning | `/api/v1/`, `/api/v2/` |
+| Feature flags | Opt-in to new behavior |
 
 **Recommendation:** API versioning with deprecation warnings.
-
-**Decision Required:** Breaking change policy?
 
 ---
 
@@ -521,40 +540,36 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 ### Q27: Implementation Phases
 
-**Proposed Phases:**
-
-**Phase 1: Foundation (4-6 weeks)**
-- Manifest schema validation
-- Bun runtime integration
-- Basic permission enforcement
-- Database access with tenant isolation
-- Simple HTTP handlers
-
-**Phase 2: Frontend (3-4 weeks)**
-- React component library (minimal scope)
-- Page registration
-- Navigation integration
-- Design tokens export
-
-**Phase 3: Distribution (3-4 weeks)**
-- Package format
-- Installation flow
-- Update mechanism
-- Local registry
-
-**Phase 4: Advanced (4-6 weeks)**
-- Event system integration
-- Widget slots
-- Scheduled tasks
-- Embeddables
-
-**Phase 5: Ecosystem (ongoing)**
-- Official registry
-- CLI tooling
-- Documentation
-- Example applets
-
-**Decision Required:** Phase priorities and timeline?
+```mermaid
+timeline
+    title Implementation Phases
+    section Phase 1: Foundation (4-6 weeks)
+        Manifest validation
+        Bun runtime
+        Basic permissions
+        Database access
+        HTTP handlers
+    section Phase 2: Frontend (3-4 weeks)
+        React components
+        Page registration
+        Navigation
+        Design tokens
+    section Phase 3: Distribution (3-4 weeks)
+        Package format
+        Installation flow
+        Update mechanism
+        Local registry
+    section Phase 4: Advanced (4-6 weeks)
+        Event system
+        Widget slots
+        Scheduled tasks
+        Embeddables
+    section Phase 5: Ecosystem (ongoing)
+        Official registry
+        CLI tooling
+        Documentation
+        Examples
+```
 
 ---
 
@@ -573,7 +588,7 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 ---
 
-## Notes & Additional Considerations
+## Additional Considerations
 
 ### Multi-Tenancy Edge Cases
 - Applet enabled for some tenants but not others
@@ -607,8 +622,8 @@ This document captures unresolved decisions, trade-offs requiring input, and ope
 
 ---
 
-## Change Log
+## Next Steps
 
-| Date | Change | Author |
-|------|--------|--------|
-| 2024-12-31 | Initial draft | Claude |
+- Review [Architecture](./architecture.md) for system design
+- See [Permissions](./permissions.md) for security details
+- Check [Examples](./examples.md) for implementation patterns

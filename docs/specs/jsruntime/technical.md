@@ -1,3 +1,12 @@
+---
+layout: default
+title: Technical Spec
+parent: JS Runtime
+grand_parent: Specifications
+nav_order: 3
+description: "Technical architecture and implementation details for the JavaScript Runtime"
+---
+
 # Technical Spec: JavaScript Runtime
 
 **Status:** Implementation Ready
@@ -81,6 +90,46 @@ graph TB
 
 ### Domain Layer
 
+```mermaid
+classDiagram
+    class Script {
+        +UUID ID
+        +UUID TenantID
+        +String Name
+        +String Source
+        +ScriptType Type
+        +ScriptStatus Status
+        +ResourceLimits Limits
+        +Create()
+        +Update()
+        +Activate()
+        +Pause()
+    }
+
+    class Execution {
+        +UUID ID
+        +UUID ScriptID
+        +ExecutionStatus Status
+        +TriggerType Trigger
+        +JSONB Input
+        +JSONB Output
+        +Start()
+        +Complete()
+        +Fail()
+    }
+
+    class Version {
+        +UUID ID
+        +UUID ScriptID
+        +Int VersionNumber
+        +String Source
+        +Timestamp CreatedAt
+    }
+
+    Script "1" --> "*" Execution
+    Script "1" --> "*" Version
+```
+
 **Aggregates:**
 - **Script**: Root entity with execution triggers, resource limits, status
   - Functional options pattern for construction
@@ -110,6 +159,28 @@ graph TB
 - `VersionRepository`: retrieval, auto-increment versioning
 
 ### Service Layer
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant ExecutionSvc as Execution Service
+    participant VMPool as VM Pool
+    participant Sandbox
+    participant Script
+
+    Client->>ExecutionSvc: Execute(scriptID, input)
+    ExecutionSvc->>ExecutionSvc: Create Execution (pending)
+    ExecutionSvc->>VMPool: Acquire VM
+    VMPool-->>ExecutionSvc: VM instance
+    ExecutionSvc->>ExecutionSvc: Update status (running)
+    ExecutionSvc->>Sandbox: Execute with timeout
+    Sandbox->>Script: Run JavaScript
+    Script-->>Sandbox: Result/Error
+    Sandbox-->>ExecutionSvc: Output + Metrics
+    ExecutionSvc->>VMPool: Release VM
+    ExecutionSvc->>ExecutionSvc: Update status (completed/failed)
+    ExecutionSvc-->>Client: Execution result
+```
 
 **Script Service:**
 - CRUD operations with business validation
@@ -156,6 +227,19 @@ graph TB
 - Mappers: database rows → domain entities (handle JSONB, arrays, nullables)
 
 **VM Pool:**
+
+```mermaid
+stateDiagram-v2
+    [*] --> Available: Create
+    Available --> Acquired: Acquire
+    Acquired --> Executing: Start Execution
+    Executing --> Released: Complete
+    Released --> Available: Reset
+    Released --> Destroyed: Idle Timeout
+    Available --> Destroyed: Idle Timeout
+    Destroyed --> [*]
+```
+
 - Pre-warmed Goja VMs for reduced latency (100ms+ → <10ms)
 - VM states: available → acquired → executing → released → destroyed
 - Dynamic expansion under load, contraction during idle
@@ -230,6 +314,21 @@ graph TB
 
 ## Performance Considerations
 
+```mermaid
+graph LR
+    subgraph "Performance Targets"
+        COLD[Cold Start<br/>&lt;500ms]
+        WARM[Warm Start<br/>&lt;100ms]
+        CACHED[Cached<br/>&lt;50ms]
+        POOL[Pool Hit<br/>&gt;95%]
+        THROUGHPUT[Throughput<br/>1000+ concurrent]
+    end
+
+    style COLD fill:#f59e0b,stroke:#d97706,color:#fff
+    style WARM fill:#10b981,stroke:#047857,color:#fff
+    style CACHED fill:#3b82f6,stroke:#1e40af,color:#fff
+```
+
 **VM Pool Optimization:**
 - Target pool hit rate: >95%
 - Pool size: 2x CPU cores (starting point)
@@ -262,13 +361,27 @@ graph TB
 - Invalidation on script updates
 - Optional bytecode persistence to database
 
-**Metrics Targets:**
-- Cold start (new VM): <500ms
-- Warm start (pooled VM): <100ms
-- Cached execution: <50ms
-- Throughput: 1000+ concurrent executions
-
 ## Security Considerations
+
+```mermaid
+graph TB
+    subgraph "Defense in Depth"
+        L1[Input Validation]
+        L2[RBAC Permissions]
+        L3[Tenant Isolation]
+        L4[VM Sandboxing]
+        L5[Resource Limits]
+        L6[SSRF Protection]
+        L7[Audit Trail]
+    end
+
+    L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7
+
+    style L1 fill:#3b82f6,stroke:#1e40af,color:#fff
+    style L3 fill:#10b981,stroke:#047857,color:#fff
+    style L4 fill:#f59e0b,stroke:#d97706,color:#fff
+    style L6 fill:#ef4444,stroke:#b91c1c,color:#fff
+```
 
 **Defense in Depth Layers:**
 
@@ -336,50 +449,14 @@ graph TB
 
 ## Testing Strategy
 
-**Unit Tests:**
-- Domain entities: validation, business rules, immutability
-- Value objects: cron parsing, resource limits validation
-- Mappers: database row to domain entity conversion
-
-**Repository Tests:**
-- CRUD operations with tenant isolation
-- Unique constraint violations (name, HTTP path)
-- Pagination and filtering
-- Event/HTTP routing queries
-- Transaction support
-
-**Service Tests:**
-- Script CRUD with versioning
-- Execution lifecycle (pending → running → completed)
-- Permission checks (authorized/unauthorized)
-- Business rule validation (name uniqueness, type requirements)
-- VM pool acquisition/release
-
-**Integration Tests:**
-- Cron scheduler triggers execution
-- HTTP endpoint routes to script
-- Event bus triggers matching scripts
-- Retry logic and dead letter queue
-- End-to-end script execution flow
-
-**Performance Tests:**
-- VM pool hit rate >95%
-- Execution latency <100ms (warm pool)
-- Throughput 1000+ concurrent executions
-- Memory leak detection (long-running tests)
-
-**Security Tests:**
-- Cross-tenant access blocked
-- SSRF attempts blocked
-- Resource limit enforcement
-- Sandbox escape attempts fail
-- RBAC permission enforcement
-
-**Manual Testing:**
-- Monaco Editor integration
-- UI responsiveness (HTMX)
-- Error messages clarity
-- Metrics dashboard accuracy
+| Test Type | Focus | Coverage |
+|-----------|-------|----------|
+| **Unit** | Domain entities, value objects, mappers | Validation, business rules |
+| **Repository** | CRUD, tenant isolation, constraints | Data access patterns |
+| **Service** | Business logic, permissions, versioning | End-to-end workflows |
+| **Integration** | Cron scheduler, event bus, HTTP endpoints | System interactions |
+| **Performance** | VM pool, latency, throughput | SLO compliance |
+| **Security** | Cross-tenant, SSRF, sandbox escape | Threat mitigation |
 
 ## Open Questions
 
@@ -388,3 +465,11 @@ graph TB
 - Should we allow user-defined npm packages (with sandboxing)?
 - How to handle long-running scripts (>30s)?
 - Should we support WebAssembly execution in addition to JavaScript?
+
+---
+
+## Next Steps
+
+- Review [Data Model](./data-model.md) for database schema
+- See [API Schema](./api-schema.md) for endpoint definitions
+- Check [Decisions](./decisions.md) for technology choices

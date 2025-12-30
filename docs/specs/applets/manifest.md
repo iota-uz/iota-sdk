@@ -1,3 +1,12 @@
+---
+layout: default
+title: Manifest Schema
+parent: Applet System
+grand_parent: Specifications
+nav_order: 6
+description: "Manifest file schema and configuration for applet packages"
+---
+
 # Manifest Specification: Applet Package Definition
 
 **Status:** Draft
@@ -6,10 +15,71 @@
 
 The manifest file (`manifest.yaml` or `manifest.json`) is the central configuration file for an applet. It declares metadata, permissions, entry points, and integration requirements.
 
+```mermaid
+mindmap
+  root((manifest.yaml))
+    Metadata
+      id, version
+      name, description
+      author, license
+      icon, screenshots
+    Runtime
+      engine
+      entrypoint
+      resources
+      healthCheck
+    Permissions
+      database
+      http
+      events
+      ui
+      secrets
+    Backend
+      handlers
+      services
+    Frontend
+      framework
+      navigation
+      pages
+      widgets
+    Locales
+      supported
+      files
+```
+
 ## Schema Version
 
 ```yaml
 manifestVersion: "1.0"
+```
+
+## Schema Structure
+
+```mermaid
+graph TB
+    subgraph "Manifest Sections"
+        META[Metadata<br/>id, version, name]
+        RUNTIME[Runtime<br/>engine, entrypoint]
+        PERM[Permissions<br/>database, http, events]
+        TABLES[Tables<br/>custom schemas]
+        BACKEND[Backend<br/>handlers, services]
+        FRONTEND[Frontend<br/>pages, widgets]
+        LOCALE[Locales<br/>translations]
+        LIFE[Lifecycle<br/>hooks]
+    end
+
+    META --> RUNTIME
+    RUNTIME --> PERM
+    PERM --> TABLES
+    TABLES --> BACKEND
+    BACKEND --> FRONTEND
+    FRONTEND --> LOCALE
+    LOCALE --> LIFE
+
+    style META fill:#3b82f6,stroke:#1e40af,color:#fff
+    style PERM fill:#ef4444,stroke:#b91c1c,color:#fff
+    style BACKEND fill:#10b981,stroke:#047857,color:#fff
+    style FRONTEND fill:#f59e0b,stroke:#d97706,color:#fff
 ```
 
 ## Full Schema
@@ -74,18 +144,15 @@ runtime:
 permissions:
   # Database access
   database:
-    # Read access to existing SDK tables
     read:
       - clients                           # CRM clients
       - chats                             # CRM chats
       - chat_messages                     # CRM messages
       - users                             # Core users
-    # Write access to existing SDK tables
     write:
       - clients
       - chats
       - chat_messages
-    # Permission to create custom tables
     createTables: true                    # Requires admin approval
 
   # External HTTP access
@@ -94,7 +161,6 @@ permissions:
       - "api.openai.com"
       - "*.dify.ai"
       - "api.anthropic.com"
-    # Blocked by default: private IPs, localhost, cloud metadata
 
   # Event bus access
   events:
@@ -107,9 +173,9 @@ permissions:
 
   # UI integration
   ui:
-    navigation: true                      # Can add nav items
-    pages: true                           # Can register pages
-    widgets: true                         # Can inject widgets
+    navigation: true
+    pages: true
+    widgets: true
 
   # Secret access
   secrets:
@@ -121,7 +187,7 @@ permissions:
       required: false
 
 # -----------------------------------------------------------------------------
-# DATABASE TABLES (if createTables: true)
+# DATABASE TABLES
 # -----------------------------------------------------------------------------
 tables:
   - name: "applet_ai_chat_configs"
@@ -141,18 +207,12 @@ tables:
       - name: model_name
         type: varchar(100)
         default: "gpt-4"
-      - name: base_url
-        type: varchar(500)
-        nullable: true
       - name: system_prompt
         type: text
         nullable: true
       - name: temperature
         type: decimal(3,2)
         default: 0.7
-      - name: max_tokens
-        type: integer
-        default: 2000
       - name: created_at
         type: timestamptz
         default: now()
@@ -161,37 +221,13 @@ tables:
         default: now()
     indexes:
       - columns: [tenant_id]
-        unique: true                      # One config per tenant
-
-  - name: "applet_ai_chat_threads"
-    description: "Chat thread tracking"
-    columns:
-      - name: id
-        type: uuid
-        primary: true
-        default: gen_random_uuid()
-      - name: tenant_id
-        type: uuid
-        required: true
-      - name: chat_id
-        type: bigint
-        required: true
-        foreignKey:
-          table: chats
-          column: id
-          onDelete: CASCADE
-      - name: created_at
-        type: timestamptz
-        default: now()
-    indexes:
-      - columns: [tenant_id, chat_id]
+        unique: true
 
 # -----------------------------------------------------------------------------
 # BACKEND HANDLERS
 # -----------------------------------------------------------------------------
 backend:
   handlers:
-    # HTTP handlers
     - type: http
       path: "/api/applets/ai-chat/config"
       methods: [GET, POST, PUT]
@@ -201,133 +237,64 @@ backend:
         - "ai-chat.config.read"
         - "ai-chat.config.write"
 
-    - type: http
-      path: "/api/applets/ai-chat/models"
-      methods: [GET]
-      handler: "handlers/models.ts"
-      auth: required
-      permissions:
-        - "ai-chat.config.read"
-
-    - type: http
-      path: "/api/applets/ai-chat/threads"
-      methods: [POST]
-      handler: "handlers/threads.ts"
-      auth: optional                       # Public API for widget
-      rateLimit:
-        requests: 60
-        window: 60                         # seconds
-
-    - type: http
-      path: "/api/applets/ai-chat/threads/:threadId/messages"
-      methods: [GET, POST]
-      handler: "handlers/messages.ts"
-      auth: optional
-
-    # Event handlers
     - type: event
       events:
         - "chat.message.created"
       handler: "handlers/on-message.ts"
-      async: true                          # Don't block event bus
-      retry:
-        maxAttempts: 3
-        backoffMs: 1000
+      async: true
 
-    # Scheduled tasks
     - type: scheduled
-      cron: "0 * * * *"                    # Every hour
+      cron: "0 * * * *"
       handler: "handlers/cleanup.ts"
       timezone: "UTC"
 
-  # Service definitions (for dependency injection)
   services:
     - name: "aiConfigService"
       handler: "services/ai-config-service.ts"
-
-    - name: "chatService"
-      handler: "services/chat-service.ts"
-      dependencies:
-        - "aiConfigService"
 
 # -----------------------------------------------------------------------------
 # FRONTEND CONFIGURATION
 # -----------------------------------------------------------------------------
 frontend:
-  framework: react                         # Options: react, vue, alpine
+  framework: react
   build:
-    bundler: bun                          # Options: bun, vite, esbuild
+    bundler: bun
     entrypoint: "src/frontend/index.tsx"
     outdir: "dist/frontend"
 
-  # Navigation items
   navigation:
     - label:
         en: "AI Chat"
         ru: "AI Чат"
-      icon: "chat"                        # Icon name from SDK icon set
+      icon: "chat"
       path: "/website/ai-chat"
       permissions:
         - "ai-chat.config.read"
-      parent: "website"                   # Nest under existing nav item
+      parent: "website"
       order: 10
 
-  # Page definitions
   pages:
     - path: "/website/ai-chat"
       title:
         en: "AI Chat Configuration"
         ru: "Настройка AI Чата"
       component: "pages/ConfigPage"
-      layout: "standard"                  # SDK layout
+      layout: "standard"
       permissions:
         - "ai-chat.config.read"
 
-    - path: "/website/ai-chat/embed"
-      title:
-        en: "Chat Widget"
-        ru: "Виджет чата"
-      component: "pages/EmbedPage"
-      layout: "minimal"                   # No sidebar
-      public: true                        # No auth required
-
-  # Widget injections
   widgets:
-    - target: "crm.chats.detail"          # Inject into CRM chat detail
+    - target: "crm.chats.detail"
       position: "sidebar-right"
       component: "widgets/AiAssistButton"
       permissions:
         - "ai-chat.assist"
 
-    - target: "dashboard.overview"
-      position: "card"
-      component: "widgets/ChatStatsCard"
-      permissions:
-        - "ai-chat.stats.view"
-
-  # Embeddable components (for external websites)
-  embeddables:
-    - name: "chat-widget"
-      component: "components/ChatWidget"
-      description: "Embeddable chat widget for external websites"
-      config:
-        - name: "theme"
-          type: "string"
-          options: ["light", "dark", "auto"]
-          default: "auto"
-        - name: "position"
-          type: "string"
-          options: ["bottom-right", "bottom-left"]
-          default: "bottom-right"
-
 # -----------------------------------------------------------------------------
 # LOCALIZATION
 # -----------------------------------------------------------------------------
 locales:
-  supported:
-    - en
-    - ru
-    - uz
+  supported: [en, ru, uz]
   default: en
   files:
     en: "locales/en.json"
@@ -342,51 +309,52 @@ appletPermissions:
     name:
       en: "View AI Chat Configuration"
       ru: "Просмотр настроек AI Чата"
-    description:
-      en: "Can view AI chat settings and models"
-      ru: "Может просматривать настройки AI чата"
-
   - key: "ai-chat.config.write"
     name:
       en: "Edit AI Chat Configuration"
       ru: "Редактирование настроек AI Чата"
-    description:
-      en: "Can modify AI chat settings"
-      ru: "Может изменять настройки AI чата"
-
-  - key: "ai-chat.assist"
-    name:
-      en: "Use AI Assistant"
-      ru: "Использование AI Ассистента"
-    description:
-      en: "Can use AI to generate responses in chats"
-      ru: "Может использовать AI для генерации ответов"
-
-  - key: "ai-chat.stats.view"
-    name:
-      en: "View AI Chat Statistics"
-      ru: "Просмотр статистики AI Чата"
 
 # -----------------------------------------------------------------------------
 # DEPENDENCIES
 # -----------------------------------------------------------------------------
 dependencies:
   modules:
-    - "crm"                               # Requires CRM module
-  applets: []                             # Other applet dependencies
+    - "crm"
+  applets: []
 
 # -----------------------------------------------------------------------------
 # LIFECYCLE HOOKS
 # -----------------------------------------------------------------------------
 lifecycle:
-  onInstall: "hooks/on-install.ts"        # Run after installation
-  onUninstall: "hooks/on-uninstall.ts"    # Run before uninstallation
-  onUpdate: "hooks/on-update.ts"          # Run on version update
-  onEnable: "hooks/on-enable.ts"          # Run when enabled for tenant
-  onDisable: "hooks/on-disable.ts"        # Run when disabled for tenant
+  onInstall: "hooks/on-install.ts"
+  onUninstall: "hooks/on-uninstall.ts"
+  onUpdate: "hooks/on-update.ts"
+  onEnable: "hooks/on-enable.ts"
+  onDisable: "hooks/on-disable.ts"
 ```
 
 ## Validation Rules
+
+```mermaid
+flowchart TB
+    subgraph "Manifest Validation"
+        ID[ID Format Check] --> VER[Version Format]
+        VER --> PERM[Permission Validation]
+        PERM --> FILE[File References]
+        FILE --> PASS[✓ Valid]
+    end
+
+    ID -->|Invalid| FAIL1[❌ Invalid ID]
+    VER -->|Invalid| FAIL2[❌ Invalid Version]
+    PERM -->|Invalid| FAIL3[❌ Permission Error]
+    FILE -->|Missing| FAIL4[❌ Missing Files]
+
+    style PASS fill:#10b981,stroke:#047857,color:#fff
+    style FAIL1 fill:#ef4444,stroke:#b91c1c,color:#fff
+    style FAIL2 fill:#ef4444,stroke:#b91c1c,color:#fff
+    style FAIL3 fill:#ef4444,stroke:#b91c1c,color:#fff
+    style FAIL4 fill:#ef4444,stroke:#b91c1c,color:#fff
+```
 
 ### ID Format
 - Lowercase letters, numbers, hyphens
@@ -431,3 +399,11 @@ frontend:
       title: { en: "Hello World" }
       component: "pages/HelloPage"
 ```
+
+---
+
+## Next Steps
+
+- Review [Permissions](./permissions.md) for security model
+- See [Database](./database.md) for data access patterns
+- Check [Distribution](./distribution.md) for packaging

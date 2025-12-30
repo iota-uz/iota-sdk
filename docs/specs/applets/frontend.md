@@ -198,6 +198,7 @@ import { useState } from 'preact/hooks';
 
 **Description:** Vue as an alternative to React
 
+{% raw %}
 ```vue
 <!-- ConfigPage.vue -->
 <template>
@@ -242,6 +243,7 @@ async function save() {
 }
 </script>
 ```
+{% endraw %}
 
 | Aspect | Details |
 |--------|---------|
