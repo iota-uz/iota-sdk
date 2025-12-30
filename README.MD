@@ -4,6 +4,7 @@
 
 ## 🔗 Links
 
+- [Documentation](https://iota-uz.github.io/iota-sdk/): Official documentation and guides
 - [Discord Community](https://discord.gg/zKeTEZAQqF): Join our community for support and Q&A
 - [Contribution Guide](docs/CONTRIBUTING.MD): Learn how to contribute to the project
 - [Setup Demo](https://github.com/iota-uz/sdk-demo): Learn how to setup IOTA-SDK
@@ -62,8 +63,6 @@ various industries. Here's what's in the pipeline:
 - **Logging**: Implement a logging system for tracking user actions and system events.
 - **Invoice and Document Generation**: Leverage [GOBL](https://github.com/invopop/gobl) for generating and managing
   invoices and other essential business documents.
-- **Documentation Website**: Launch a comprehensive docs website to streamline onboarding and provide detailed guidance
-  for developers and users.
 - **Open Source Designs and Documentation**: Share Figma designs and other internal documentation to help the community
   understand the vision and contribute more effectively.
 
@@ -106,7 +105,7 @@ docker run -p 3000:3000 \
   iota-sdk-superadmin
 ```
 
-For detailed documentation, deployment guides, and authentication flow, see [Super Admin Documentation](docs/SUPERADMIN.md).
+For detailed documentation, deployment guides, and authentication flow, see [Super Admin Documentation](https://iota-uz.github.io/iota-sdk/superadmin/).
 
 ---
 
@@ -114,7 +113,7 @@ For detailed documentation, deployment guides, and authentication flow, see [Sup
 
 Apache 2.0 
 
-Updated at Jan 6, 2025
+Updated at Dec 31, 2025
 
 ## 🌟 Join Us
 

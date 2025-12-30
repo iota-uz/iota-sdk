@@ -382,6 +382,7 @@ Role Details Expand:
 
 ### Inline Role Assignment
 
+{% raw %}
 ```html
 <!-- Button to open assignment modal -->
 <button
@@ -393,9 +394,11 @@ Role Details Expand:
   Assign Role
 </button>
 ```
+{% endraw %}
 
 ### Toggle User Status
 
+{% raw %}
 ```html
 <!-- Status toggle with HTMX -->
 <button
@@ -407,9 +410,11 @@ Role Details Expand:
   {{ if .IsActive }}Active{{ else }}Inactive{{ end }}
 </button>
 ```
+{% endraw %}
 
 ### Delete Confirmation
 
+{% raw %}
 ```html
 <!-- Delete with confirmation -->
 <button
@@ -421,6 +426,7 @@ Role Details Expand:
   Delete
 </button>
 ```
+{% endraw %}
 
 ## Alpine.js Patterns
 
@@ -483,6 +489,7 @@ Role Details Expand:
 
 ### Text Input with Validation
 
+{% raw %}
 ```html
 <div class="form-group">
   <label for="firstName">First Name *</label>
@@ -499,6 +506,7 @@ Role Details Expand:
   {{ end }}
 </div>
 ```
+{% endraw %}
 
 ### Select with Dynamic Loading
 

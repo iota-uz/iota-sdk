@@ -31,6 +31,8 @@ type ComboboxProps struct {
 	Trigger      *Trigger
 	Disabled     bool
 	Attrs        templ.Attributes
+	CanCreateNew bool
+	CreateProps  templ.Attributes
 }
 
 type ComboboxOption struct {
@@ -82,7 +84,7 @@ func isDisabled(props ComboboxProps) bool {
 
 templ Combobox(props ComboboxProps) {
 	<div
-		x-data={ fmt.Sprintf("combobox(%t)", props.Searchable) }
+		x-data={ fmt.Sprintf("combobox(%t, %t)", props.Searchable, props.CanCreateNew) }
 		class={ "w-full flex flex-col", props.Class }
 		x-on:keydown.esc.window="open = false, openedWithKeyboard = false"
 		x-id="['combobox']"
@@ -184,7 +186,8 @@ templ Combobox(props ComboboxProps) {
 						"autocomplete":               "off",
 						"x-on:keydown.enter.prevent": "setValue(activeValue)",
 						"@input.debounce":            "onSearch",
-						"size":                       "this.searchQuery.length",
+						"@input":                     "searchQuery = $event.target.value",
+						":size":                      "searchQuery.length + 1",
 					},
 					Class: "w-auto min-w-0",
 					AddonRight: &input.Addon{
@@ -227,7 +230,11 @@ templ Combobox(props ComboboxProps) {
 						}})
 					</li>
 				</template>
-				<li x-show="options.length == 0" class="px-4 py-2 text-sm text-200">
+				<li x-ref="createOption" x-show={ fmt.Sprintf("options.length == 0 && %t", props.CanCreateNew) } class="cursor-pointer px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none" { props.CreateProps... }>
+					<input type="hidden" name="_SearchQuery" :value="searchQuery"/>
+					<span class="whitespace-nowrap" x-text="searchQuery"></span>
+				</li>
+				<li x-show={ fmt.Sprintf("options.length == 0 && %t", !props.CanCreateNew) } class="px-4 py-2 text-sm text-200">
 					{ props.NotFoundText }
 				</li>
 			</ul>

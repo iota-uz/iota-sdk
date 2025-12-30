@@ -427,6 +427,7 @@ Account Detail View:
 
 ### Live Debt Settlement
 
+{% raw %}
 ```html
 <!-- Settle debt with confirmation -->
 <button
@@ -438,6 +439,7 @@ Account Detail View:
   Settle
 </button>
 ```
+{% endraw %}
 
 ### Dynamic Report Generation
 
@@ -460,6 +462,7 @@ Account Detail View:
 
 ### Real-time Balance Update
 
+{% raw %}
 ```html
 <!-- Display real-time account balance -->
 <div
@@ -470,6 +473,7 @@ Account Detail View:
   Loading balance...
 </div>
 ```
+{% endraw %}
 
 ## Alpine.js Patterns
 
