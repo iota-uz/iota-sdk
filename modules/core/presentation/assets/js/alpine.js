@@ -190,7 +190,7 @@ let dialog = (initialState) => ({
   },
 });
 
-let combobox = (searchable = false) => ({
+let combobox = (searchable = false, canCreateNew = false) => ({
   open: false,
   openedWithKeyboard: false,
   options: [],
@@ -203,7 +203,12 @@ let combobox = (searchable = false) => ({
   observer: null,
   searchQuery: '',
   searchable,
+  canCreateNew,
   setValue(value) {
+    if (!this.options.length && this.canCreateNew && this.searchQuery.length) {
+      this.$refs.createOption.click();
+      return;
+    }
     if (value == null || !(this.open || this.openedWithKeyboard)) return;
     let index, option
     for (let i = 0, len = this.allOptions.length; i < len; i++) {
@@ -280,15 +285,15 @@ let combobox = (searchable = false) => ({
   },
   onSearch(e) {
     if (!this.open) this.open = true
-    this.searchQuery = e.target.value.toLowerCase();
+    let searchValue = e.target.value.trim();
     this.options = Array.from(this.allOptions).filter((o) => {
-      return o.textContent.toLowerCase().includes(this.searchQuery);
+      return o.textContent.toLowerCase().includes(searchValue.toLowerCase());
     });
     if (this.options.length > 0) {
       let option = this.options[0];
       this.activeValue = option.value;
     }
-    if (!this.searchQuery) {
+    if (!searchValue) {
       this.options = this.$el.querySelectorAll("option");
     }
   },
@@ -367,7 +372,7 @@ let filtersDropdown = () => ({
     // We use 'filter-changed' custom event instead of 'change' to avoid race condition
     // where HTMX collects form data before Alpine updates checkbox state
     this.$nextTick(() => {
-      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
     });
   }
 });
@@ -784,7 +789,7 @@ let moneyInput = (config = {}) => ({
     if (hiddenInput) {
       hiddenInput.dispatchEvent(new CustomEvent('money-changed', {
         bubbles: true,
-        detail: { amountInCents: this.amountInCents }
+        detail: {amountInCents: this.amountInCents}
       }));
     }
   },
@@ -845,7 +850,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
 
     const form = document.getElementById(formID);
     if (form) {
-      const event = new Event('change', { bubbles: true });
+      const event = new Event('change', {bubbles: true});
       form.dispatchEvent(event);
     }
   },

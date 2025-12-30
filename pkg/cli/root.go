@@ -19,7 +19,6 @@ func NewRootCommand() *cobra.Command {
 
 	// Add all command groups
 	rootCmd.AddCommand(commands.NewUtilityCommands()...)
-	rootCmd.AddCommand(commands.NewDocCommand())
 	rootCmd.AddCommand(commands.NewE2ECommand())
 	rootCmd.AddCommand(commands.NewMigrateCommand())
 

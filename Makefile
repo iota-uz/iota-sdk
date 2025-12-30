@@ -6,9 +6,17 @@ TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 deps:
 	go get ./...
 
-# Generate code documentation
+# Documentation management with subcommands (serve, install)
 docs:
-	go run cmd/command/main.go doc --dir . --out docs/LLMS.md --recursive --exclude "vendor,node_modules,tmp,e2e,cmd"
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "serve" ]; then \
+		cd docs && bundle exec jekyll serve --livereload; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "install" ]; then \
+		cd docs && bundle install; \
+	else \
+		echo "Usage: make docs [serve|install]"; \
+		echo "  serve   - Start local Jekyll server with live reload"; \
+		echo "  install - Install Ruby/Jekyll dependencies"; \
+	fi
 
 # Template generation with optional subcommands (generate, watch)
 generate:
@@ -228,7 +236,7 @@ setup: deps css
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose docker score report linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports:
+watch coverage verbose docker score report linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports serve:
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check fix superadmin \

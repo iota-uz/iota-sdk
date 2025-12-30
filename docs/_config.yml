@@ -1,8 +1,13 @@
 title: IOTA SDK Documentation
 description: Multi-tenant business management platform SDK
-remote_theme: just-the-docs/just-the-docs
+theme: just-the-docs # Local development
+remote_theme: just-the-docs/just-the-docs # GitHub Pages
 url: https://iota-uz.github.io
 baseurl: /iota-sdk
+
+# Sass configuration - suppress deprecation warnings from theme dependencies
+sass:
+  quiet_deps: true
 
 search_enabled: true
 search_heading_level: 3
