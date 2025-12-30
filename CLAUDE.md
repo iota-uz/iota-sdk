@@ -94,7 +94,10 @@ IOTA SDK is a multi-tenant business management platform providing modular soluti
 
 ### Other Commands:
 - Generate dependency graph: `make graph`
-- Generate documentation: `make docs`
+
+### Documentation Commands:
+- Serve docs locally: `make docs serve` (Jekyll server with live reload)
+- Install docs dependencies: `make docs install` (Ruby/Jekyll deps)
 
 ## E2E Testing Commands
 Playwright E2E tests use separate `iota_erp_e2e` database (vs `iota_erp` for dev). Config: `/e2e/.env.e2e`, `/e2e/playwright.config.ts`
