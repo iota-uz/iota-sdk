@@ -1,3 +1,12 @@
+---
+layout: default
+title: Permissions & Security
+parent: Applet System
+grand_parent: Specifications
+nav_order: 7
+description: "Permission model and security boundaries for applets"
+---
+
 # Permission & Security Model
 
 **Status:** Draft
@@ -6,11 +15,45 @@
 
 The permission model defines what applets can and cannot do. It operates at three levels:
 
-1. **Installation Permissions:** What the applet declares it needs
-2. **Tenant Permissions:** What tenants allow for their organization
-3. **User Permissions:** What individual users can do within the applet
+```mermaid
+graph TB
+    subgraph "Permission Levels"
+        L1[Installation Permissions<br/>What applet declares it needs]
+        L2[Tenant Permissions<br/>What tenants allow]
+        L3[User Permissions<br/>What users can do]
+    end
+
+    L1 --> L2
+    L2 --> L3
+
+    style L1 fill:#3b82f6,stroke:#1e40af,color:#fff
+    style L2 fill:#10b981,stroke:#047857,color:#fff
+    style L3 fill:#f59e0b,stroke:#d97706,color:#fff
+```
 
 ## Permission Categories
+
+```mermaid
+mindmap
+  root((Permissions))
+    Database
+      Read tables
+      Write tables
+      Create tables
+    HTTP
+      External hosts
+      Blocked IPs
+    Events
+      Subscribe
+      Publish
+    UI
+      Navigation
+      Pages
+      Widgets
+    Secrets
+      API keys
+      Tokens
+```
 
 ### 1. Database Permissions
 
@@ -27,23 +70,11 @@ permissions:
     createTables: true
 ```
 
-**Read Access:**
-- SELECT queries only
-- Automatic tenant_id filtering (cannot access other tenants)
-- Row limit (max 1000 per query)
-- Query timeout (5 seconds)
-
-**Write Access:**
-- INSERT, UPDATE, DELETE
-- Automatic tenant_id injection
-- Audit logging of all changes
-- Transaction support
-
-**Create Tables:**
-- Requires explicit admin approval
-- Tables prefixed with `applet_{applet_id}_`
-- Automatic tenant_id column enforcement
-- Migration review before execution
+| Access Type | Capabilities |
+|-------------|--------------|
+| **Read** | SELECT queries only, automatic tenant_id filtering, row limit (1000), query timeout (5s) |
+| **Write** | INSERT, UPDATE, DELETE, automatic tenant_id injection, audit logging |
+| **Create Tables** | Requires admin approval, prefixed with `applet_{id}_`, automatic tenant_id column |
 
 ### 2. External HTTP Permissions
 
@@ -67,11 +98,6 @@ permissions:
 - Cloud metadata endpoints (169.254.169.254)
 - Non-HTTPS connections (configurable)
 
-**Validation:**
-- DNS resolution checked before request
-- All resolved IPs validated
-- Redirect following validates each hop
-
 ### 3. Event Permissions
 
 ```yaml
@@ -84,16 +110,6 @@ permissions:
       - "ai.response.generated"
 ```
 
-**Subscribe:**
-- Receives events matching declared patterns
-- Events filtered by tenant_id
-- Async execution (doesn't block event bus)
-
-**Publish:**
-- Can only publish declared event types
-- Events tagged with applet source
-- Rate limited (30 events/minute default)
-
 ### 4. UI Permissions
 
 ```yaml
@@ -103,21 +119,6 @@ permissions:
     pages: true
     widgets: true
 ```
-
-**Navigation:**
-- Can add items to sidebar
-- Can nest under existing sections
-- Cannot override core navigation
-
-**Pages:**
-- Can register new routes
-- Routes prefixed: `/applets/{applet-id}/...`
-- Cannot override existing SDK routes
-
-**Widgets:**
-- Can inject into declared slots
-- Cannot access DOM outside widget
-- Size/position constraints apply
 
 ### 5. Secret Permissions
 
@@ -130,56 +131,25 @@ permissions:
       required: false
 ```
 
-**Handling:**
-- Secrets stored encrypted per-tenant
-- Injected into runtime context
-- Never logged or exposed in errors
-- Admin-only configuration
-
 ## Permission Enforcement
 
 ### Installation Flow
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Permission Review Flow                        │
-│                                                                  │
-│  1. Upload/Select Applet Package                                │
-│                    │                                             │
-│                    ▼                                             │
-│  2. Parse Manifest, Extract Permissions                         │
-│                    │                                             │
-│                    ▼                                             │
-│  3. Display Permission Summary to Admin                         │
-│     ┌─────────────────────────────────────────────────────┐    │
-│     │ This applet requests:                                │    │
-│     │                                                      │    │
-│     │ ⚠️ DATABASE                                          │    │
-│     │   Read: clients, chats, chat_messages               │    │
-│     │   Write: clients, chats                             │    │
-│     │   Create Tables: YES (requires review)              │    │
-│     │                                                      │    │
-│     │ 🌐 EXTERNAL HTTP                                     │    │
-│     │   api.openai.com, *.dify.ai                         │    │
-│     │                                                      │    │
-│     │ 📡 EVENTS                                            │    │
-│     │   Subscribe: chat.message.created, client.created   │    │
-│     │   Publish: ai.response.generated                    │    │
-│     │                                                      │    │
-│     │ 🔐 SECRETS                                           │    │
-│     │   OPENAI_API_KEY (required)                         │    │
-│     │   DIFY_API_KEY (optional)                           │    │
-│     │                                                      │    │
-│     │ [Approve] [Reject] [Review Tables]                  │    │
-│     └─────────────────────────────────────────────────────┘    │
-│                    │                                             │
-│                    ▼                                             │
-│  4. Admin Approves (possibly with restrictions)                 │
-│                    │                                             │
-│                    ▼                                             │
-│  5. Install with Approved Permissions                           │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    START[Upload Applet Package] --> PARSE[Parse Manifest]
+    PARSE --> EXTRACT[Extract Permissions]
+    EXTRACT --> DISPLAY[Display Permission Summary]
+
+    DISPLAY --> REVIEW{Admin Review}
+    REVIEW -->|Approve| INSTALL[Install with Approved Permissions]
+    REVIEW -->|Reject| CANCEL[Cancel Installation]
+    REVIEW -->|Review Tables| TABLES[Review Table Definitions]
+    TABLES --> REVIEW
+
+    style START fill:#3b82f6,stroke:#1e40af,color:#fff
+    style INSTALL fill:#10b981,stroke:#047857,color:#fff
+    style CANCEL fill:#ef4444,stroke:#b91c1c,color:#fff
 ```
 
 ### Runtime Enforcement
@@ -215,31 +185,26 @@ func (e *PermissionEnforcer) CheckHTTPAccess(host string) error {
 
 ### Database Query Interception
 
-```go
-func (proxy *DatabaseProxy) Query(ctx context.Context, sql string, args ...interface{}) ([]Row, error) {
-    // 1. Parse SQL to extract table names
-    tables := parseTables(sql)
+```mermaid
+sequenceDiagram
+    participant Applet
+    participant Proxy as Database Proxy
+    participant Enforcer as Permission Enforcer
+    participant DB as Database
 
-    // 2. Check permissions for each table
-    for _, table := range tables {
-        if err := proxy.enforcer.CheckDatabaseAccess(table, "read"); err != nil {
-            return nil, err
-        }
-    }
+    Applet->>Proxy: Query(sql, args)
+    Proxy->>Enforcer: CheckDatabaseAccess(tables)
+    Enforcer-->>Proxy: OK / Error
 
-    // 3. Inject tenant_id filter
-    tenantID := composables.UseTenantID(ctx)
-    sql = injectTenantFilter(sql, tenantID)
-
-    // 4. Add row limit
-    sql = addRowLimit(sql, 1000)
-
-    // 5. Execute with timeout
-    ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-    defer cancel()
-
-    return proxy.pool.Query(ctx, sql, args...)
-}
+    alt Permission Denied
+        Proxy-->>Applet: Error: Table not allowed
+    else Permission OK
+        Proxy->>Proxy: Inject tenant_id filter
+        Proxy->>Proxy: Add row limit
+        Proxy->>DB: Execute with timeout
+        DB-->>Proxy: Results
+        Proxy-->>Applet: Filtered results
+    end
 ```
 
 ## User-Level Permissions
@@ -287,27 +252,35 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 ### Sandboxing Layers
 
+```mermaid
+graph TB
+    subgraph "Security Layers"
+        L5[Layer 5: User Permissions - RBAC]
+        L4[Layer 4: Tenant Isolation]
+        L3[Layer 3: Permission Enforcement]
+        L2[Layer 2: Runtime Sandboxing]
+        L1[Layer 1: Input Validation]
+    end
+
+    L5 --> L4
+    L4 --> L3
+    L3 --> L2
+    L2 --> L1
+
+    style L5 fill:#8b5cf6,stroke:#5b21b6,color:#fff
+    style L4 fill:#3b82f6,stroke:#1e40af,color:#fff
+    style L3 fill:#10b981,stroke:#047857,color:#fff
+    style L2 fill:#f59e0b,stroke:#d97706,color:#fff
+    style L1 fill:#ef4444,stroke:#b91c1c,color:#fff
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Security Layers                             │
-│                                                                  │
-│  Layer 5: User Permissions (RBAC)                               │
-│  └─ What can this user do within the applet?                    │
-│                                                                  │
-│  Layer 4: Tenant Isolation                                      │
-│  └─ All data queries filtered by tenant_id                      │
-│                                                                  │
-│  Layer 3: Permission Enforcement                                │
-│  └─ Applet can only access declared resources                   │
-│                                                                  │
-│  Layer 2: Runtime Sandboxing                                    │
-│  └─ Process isolation, resource limits                          │
-│                                                                  │
-│  Layer 1: Input Validation                                      │
-│  └─ All inputs sanitized, SQL parameterized                     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+
+| Layer | Purpose |
+|-------|---------|
+| **Layer 5** | What can this user do within the applet? |
+| **Layer 4** | All data queries filtered by tenant_id |
+| **Layer 3** | Applet can only access declared resources |
+| **Layer 2** | Process isolation, resource limits |
+| **Layer 1** | All inputs sanitized, SQL parameterized |
 
 ### Threat Model
 
@@ -359,6 +332,24 @@ rateLimits:
 
 ## Emergency Controls
 
+```mermaid
+flowchart LR
+    ERROR[Errors Detected] --> THRESHOLD{Threshold Exceeded?}
+    THRESHOLD -->|Yes| TRIP[Trip Circuit Breaker]
+    THRESHOLD -->|No| CONTINUE[Continue]
+    TRIP --> COOLDOWN[Cooldown Period]
+    COOLDOWN --> RETRY[Retry]
+    RETRY --> THRESHOLD
+
+    ADMIN[Admin Action] --> DISABLE[Emergency Disable]
+    DISABLE --> STOP[Stop All Handlers]
+    STOP --> LOG[Log Incident]
+    LOG --> NOTIFY[Notify Admins]
+
+    style TRIP fill:#ef4444,stroke:#b91c1c,color:#fff
+    style DISABLE fill:#ef4444,stroke:#b91c1c,color:#fff
+```
+
 ```go
 // Circuit breaker for misbehaving applets
 type CircuitBreaker struct {
@@ -375,3 +366,11 @@ func (m *Manager) EmergencyDisable(appletID string, reason string) error {
     // Preserve state for investigation
 }
 ```
+
+---
+
+## Next Steps
+
+- Review [Database](./database.md) for data access patterns
+- See [Distribution](./distribution.md) for packaging
+- Check [Architecture](./architecture.md) for system design
