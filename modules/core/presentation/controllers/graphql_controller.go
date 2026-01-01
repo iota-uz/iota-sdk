@@ -10,6 +10,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
+
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -42,7 +43,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	router.Use(
 		middleware.Authorize(),
 		middleware.ProvideUser(),
-		middleware.ProvideLocalizer(g.app),
+		middleware.ProvideLocalizer(g.app, middleware.LocaleOptions{AcceptLanguageHighPriority: true}),
 	)
 
 	router.Handle("/query", srv)

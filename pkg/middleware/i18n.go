@@ -40,11 +40,7 @@ func useLocaleFromUser(ctx context.Context) (language.Tag, error) {
 	return tag, nil
 }
 
-func useLocale(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
-	tag, err := useLocaleFromUser(r.Context())
-	if err == nil {
-		return tag
-	}
+func useLocaleFromHeader(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
 	tags, _, err := language.ParseAcceptLanguage(r.Header.Get("Accept-Language"))
 	if err != nil || len(tags) == 0 {
 		return defaultLocale
@@ -54,13 +50,40 @@ func useLocale(r *http.Request, defaultLocale language.Tag, supported []language
 	return supported[idx]
 }
 
-func ProvideLocalizer(app Application) mux.MiddlewareFunc {
+func useLocale(r *http.Request, defaultLocale language.Tag, supported []language.Tag) language.Tag {
+	tag, err := useLocaleFromUser(r.Context())
+	if err == nil {
+		matcher := language.NewMatcher(supported)
+		_, idx, confidence := matcher.Match(tag)
+		if confidence >= language.High {
+			return supported[idx]
+		}
+	}
+	return useLocaleFromHeader(r, defaultLocale, supported)
+}
+
+type LocaleOptions struct {
+	AcceptLanguageHighPriority bool
+}
+
+func ProvideLocalizer(app Application, opts ...LocaleOptions) mux.MiddlewareFunc {
 	bundle := app.Bundle()
 	supportedLanguages := languageTagsFromCodes(app.GetSupportedLanguages())
+
+	acceptLanguageHighPriority := false
+	if len(opts) > 0 {
+		acceptLanguageHighPriority = opts[0].AcceptLanguageHighPriority
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				locale := useLocale(r, language.English, supportedLanguages)
+				var locale language.Tag
+				if acceptLanguageHighPriority {
+					locale = useLocaleFromHeader(r, language.English, supportedLanguages)
+				} else {
+					locale = useLocale(r, language.English, supportedLanguages)
+				}
 				ctx := intl.WithLocalizer(
 					r.Context(),
 					i18n.NewLocalizer(bundle, locale.String()),
