@@ -3,6 +3,9 @@ import { login, logout, waitForAlpine } from '../../fixtures/auth';
 import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 test.describe('role management flows', () => {
+	// Tests MUST run serially - some tests depend on data created by previous tests
+	test.describe.configure({ mode: 'serial' });
+
 	// Reset database once for entire suite
 	test.beforeAll(async ({ request }) => {
 		await resetTestDatabase(request, { reseedMinimal: false });
