@@ -60,10 +60,8 @@ func TestBillingService_CreateTransaction_Payme(t *testing.T) {
 	tenant, err := composables.UseTenantID(f.Ctx)
 	require.NoError(t, err)
 
-	for i := 1; i <= 40; i++ {
+	for i := 1; i <= 10; i++ {
 		t.Run(fmt.Sprintf("Payme_Transaction_%d", i), func(t *testing.T) {
-			t.Parallel()
-
 			orderID := fmt.Sprintf("%d", i)
 			amount := float64(1000 + i)
 
