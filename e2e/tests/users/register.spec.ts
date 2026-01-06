@@ -52,6 +52,9 @@ test.describe('user auth and registration flow', () => {
 		// Save the form
 		await page.locator('[id=save-btn]').click();
 
+		// Wait for redirect after save
+		await page.waitForURL(/\/users$/);
+
 		// Verify user appears in table (comprehensive seed creates 2 users + 1 new = 3 total)
 		await expect(page.locator('tbody tr')).toHaveCount(3);
 
