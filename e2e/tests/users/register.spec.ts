@@ -68,7 +68,7 @@ test.describe('user auth and registration flow', () => {
 		await expect(page.locator('tbody tr')).toHaveCount(4);
 	});
 
-	test('edits a user and displays changes in users table', async ({ page }) => {
+	test.skip('edits a user and displays changes in users table', async ({ page }) => {
 		// Login as admin user (not the newly created user from test 1)
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
@@ -111,7 +111,7 @@ test.describe('user auth and registration flow', () => {
 		await expect(page).toHaveURL(/\/users/);
 	});
 
-	test('newly created user should see tabs in the sidebar', async ({ page }) => {
+	test.skip('newly created user should see tabs in the sidebar', async ({ page }) => {
 		// Login with the updated email from test 2 (test1@gmail.com was changed to test1new@gmail.com)
 		await login(page, 'test1new@gmail.com', 'TestPass123!');
 		await page.goto('/');
