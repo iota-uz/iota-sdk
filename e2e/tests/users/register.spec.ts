@@ -55,8 +55,8 @@ test.describe('user auth and registration flow', () => {
 		// Wait for redirect after save
 		await page.waitForURL(/\/users$/);
 
-		// Verify user appears in table (comprehensive seed creates 2 users + 1 new = 3 total)
-		await expect(page.locator('tbody tr')).toHaveCount(3);
+		// Verify user appears in table (comprehensive seed creates 3 users + 1 new = 4 total)
+		await expect(page.locator('tbody tr')).toHaveCount(4);
 
 		await logout(page);
 
@@ -65,7 +65,7 @@ test.describe('user auth and registration flow', () => {
 		await page.goto('/users');
 
 		await expect(page).toHaveURL(/\/users/);
-		await expect(page.locator('tbody tr')).toHaveCount(3);
+		await expect(page.locator('tbody tr')).toHaveCount(4);
 	});
 
 	test('edits a user and displays changes in users table', async ({ page }) => {
@@ -93,8 +93,8 @@ test.describe('user auth and registration flow', () => {
 		// Wait for redirect after save
 		await page.waitForURL(/\/users$/);
 
-		// Verify changes in the users list (still 3 users total)
-		await expect(page.locator('tbody tr')).toHaveCount(3);
+		// Verify changes in the users list (still 4 users total)
+		await expect(page.locator('tbody tr')).toHaveCount(4);
 		await expect(page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' })).toBeVisible();
 
 		// Verify phone number persists by checking the edit page
