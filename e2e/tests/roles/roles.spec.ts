@@ -345,15 +345,15 @@ test.describe('role management flows', () => {
 		await page.goto('/users');
 
 		// Get current URL and page state
-		const currentUrl = page.url();
+		const rbacUrl = page.url();
 
 		// The limited user's access depends on their permissions
 		// They should either:
 		// 1. See the users page (if they have read permission), or
 		// 2. Be redirected/blocked (if they don't)
 		// Either outcome validates that RBAC is working
-		const isOnUsersPage = currentUrl.includes('/users');
-		const isRedirectedAway = currentUrl.includes('/login') || currentUrl === '/' || currentUrl.endsWith('/');
+		const isOnUsersPage = rbacUrl.includes('/users');
+		const isRedirectedAway = rbacUrl.includes('/login') || rbacUrl === '/' || rbacUrl.endsWith('/');
 
 		// One of these must be true - RBAC is enforcing something
 		expect(isOnUsersPage || isRedirectedAway).toBe(true);
