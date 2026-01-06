@@ -35,7 +35,7 @@ test.describe('user auth and registration flow', () => {
 		await page.locator('[name=LastName]').fill('User');
 		await page.locator('[name=MiddleName]').fill('Mid');
 		await page.locator('[name=Email]').fill('test1@gmail.com');
-		await page.locator('[name=Phone]').fill('+14155551234');
+		await page.locator('[name=Phone]').fill('+998901234567');
 		await page.locator('[name=Password]').fill('TestPass123!');
 		await page.locator('[name=Language]').selectOption({ index: 2 });
 
@@ -86,7 +86,7 @@ test.describe('user auth and registration flow', () => {
 		await page.locator('[name=LastName]').fill('UserNew');
 		await page.locator('[name=MiddleName]').fill('MidNew');
 		await page.locator('[name=Email]').fill('test1new@gmail.com');
-		await page.locator('[name=Phone]').fill('+14155559876');
+		await page.locator('[name=Phone]').fill('+998909876543');
 		await page.locator('[name=Language]').selectOption({ index: 1 });
 		await page.locator('[id=save-btn]').click();
 
@@ -101,7 +101,7 @@ test.describe('user auth and registration flow', () => {
 		const updatedUserRow = page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' });
 		await updatedUserRow.locator('td a').click();
 		await expect(page).toHaveURL(/\/users\/.+/);
-		await expect(page.locator('[name=Phone]')).toHaveValue('14155559876');
+		await expect(page.locator('[name=Phone]')).toHaveValue('998909876543');
 
 		await logout(page);
 

@@ -275,6 +275,7 @@ test.describe('role management flows', () => {
 		await page.locator('[name=FirstName]').fill('Limited');
 		await page.locator('[name=LastName]').fill('User');
 		await page.locator('[name=Email]').fill(limitedUserEmail);
+		await page.locator('[name=Phone]').fill('+998901112233');
 		await page.locator('[name=Password]').fill(limitedUserPassword);
 		// Select first enabled option (index 0 might be a disabled placeholder)
 		const languageSelect = page.locator('[name=Language]');
