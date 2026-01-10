@@ -171,6 +171,39 @@ params := &crud.FindParams{
 - Maintains full backward compatibility
 - Works with existing sorting, filtering, and pagination
 
+## Get Single Entity with JOINs
+
+Use `GetWithJoins()` to fetch a single entity with joined data:
+
+```go
+// Get user by ID with role information
+params := &crud.FindParams{
+    Joins: &crud.JoinOptions{
+        Joins: []crud.JoinClause{
+            {
+                Type:        crud.JoinTypeInner,
+                Table:       "roles",
+                TableAlias:  "r",
+                LeftColumn:  "users.role_id",
+                RightColumn: "r.id",
+            },
+        },
+        SelectColumns: []string{"users.*", "r.name as role_name"},
+    },
+}
+
+idField := schema.Fields().KeyField()
+user, err := repo.GetWithJoins(ctx, idField.Value(123), params)
+```
+
+### Fallback Behavior
+
+`GetWithJoins()` automatically falls back to the regular `Get()` method when:
+- `params.Joins` is `nil`
+- `params.Joins.Joins` is empty
+
+This allows for flexible code that can conditionally include joins without separate logic branches.
+
 ## Examples
 
 See `pkg/crud/examples/join_example.go` for complete working examples.

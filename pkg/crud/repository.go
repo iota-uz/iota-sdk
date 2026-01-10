@@ -25,6 +25,7 @@ type FindParams struct {
 type Repository[TEntity any] interface {
 	GetAll(ctx context.Context) ([]TEntity, error)
 	Get(ctx context.Context, value FieldValue) (TEntity, error)
+	GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error)
 	Exists(ctx context.Context, value FieldValue) (bool, error)
 	Count(ctx context.Context, filters *FindParams) (int64, error)
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
@@ -69,6 +70,32 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue) (TEntit
 	entities, err := r.queryEntities(ctx, query, value.Value())
 	if err != nil {
 		return zero, errors.Wrap(err, fmt.Sprintf("failed to get entity by %s", value.Field().Name()))
+	}
+	if len(entities) == 0 {
+		return zero, errors.New("entity not found")
+	}
+
+	return entities[0], nil
+}
+
+func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error) {
+	var zero TEntity
+
+	// If no joins specified, fall back to regular Get
+	if params.Joins == nil || len(params.Joins.Joins) == 0 {
+		return r.Get(ctx, value)
+	}
+
+	// Build join query
+	query, err := r.buildGetWithJoinsQuery(value, params)
+	if err != nil {
+		return zero, err
+	}
+
+	// Execute query
+	entities, err := r.queryEntities(ctx, query, value.Value())
+	if err != nil {
+		return zero, errors.Wrap(err, fmt.Sprintf("failed to get entity by %s with joins", value.Field().Name()))
 	}
 	if len(entities) == 0 {
 		return zero, errors.New("entity not found")
@@ -340,6 +367,34 @@ func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error)
 	joinClauses := params.Joins.ToSQL()
 	parts := []string{baseQuery}
 	parts = append(parts, joinClauses...)
+
+	return repo.Join(parts...), nil
+}
+
+// buildGetWithJoinsQuery builds a SELECT query with JOIN clauses for a single entity
+func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
+	// Validate join options
+	if err := params.Joins.Validate(); err != nil {
+		return "", errors.Wrap(err, "invalid join options")
+	}
+
+	// Build SELECT clause
+	selectClause := "*"
+	if len(params.Joins.SelectColumns) > 0 {
+		selectClause = strings.Join(params.Joins.SelectColumns, ", ")
+	}
+
+	// Build base query
+	baseQuery := fmt.Sprintf("SELECT %s FROM %s", selectClause, r.schema.Name())
+
+	// Add JOIN clauses
+	joinClauses := params.Joins.ToSQL()
+	parts := []string{baseQuery}
+	parts = append(parts, joinClauses...)
+
+	// Add WHERE clause for the specific field
+	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	parts = append(parts, repo.JoinWhere(whereClause))
 
 	return repo.Join(parts...), nil
 }

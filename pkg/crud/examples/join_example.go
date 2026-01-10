@@ -91,3 +91,30 @@ func ExampleJoinWithFilters(ctx context.Context, repo crud.Repository[UserWithRo
 
 	return repo.List(ctx, params)
 }
+
+// ExampleGetWithJoins demonstrates fetching a single entity with JOINs
+func ExampleGetWithJoins(ctx context.Context, repo crud.Repository[UserWithRole], schema crud.Schema[UserWithRole], userID int) (UserWithRole, error) {
+	params := &crud.FindParams{
+		Joins: &crud.JoinOptions{
+			Joins: []crud.JoinClause{
+				{
+					Type:        crud.JoinTypeInner,
+					Table:       "roles",
+					TableAlias:  "r",
+					LeftColumn:  "users.role_id",
+					RightColumn: "r.id",
+				},
+			},
+			SelectColumns: []string{
+				"users.*",
+				"r.name as role_name",
+			},
+		},
+	}
+
+	// Get the ID field from the schema
+	idField := schema.Fields().KeyField()
+
+	// Fetch the user with role information
+	return repo.GetWithJoins(ctx, idField.Value(userID), params)
+}

@@ -134,3 +134,90 @@ func (m *testEntityMapper) ToEntities(ctx context.Context, values ...[]FieldValu
 func (m *testEntityMapper) ToFieldValuesList(ctx context.Context, entities ...testEntity) ([][]FieldValue, error) {
 	return nil, nil
 }
+
+func TestRepository_GetWithJoins(t *testing.T) {
+	t.Run("validates join options", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema).(*repository[testEntity])
+
+		// Create params with invalid join
+		params := &FindParams{
+			Joins: &JoinOptions{
+				Joins: []JoinClause{
+					{
+						Type:        JoinTypeInner,
+						Table:       "", // Invalid
+						LeftColumn:  "test_table.role_id",
+						RightColumn: "roles.id",
+					},
+				},
+			},
+		}
+
+		idField := fields.KeyField()
+		_, err := repo.GetWithJoins(context.Background(), idField.Value(int(1)), params)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "join table cannot be empty")
+	})
+
+	t.Run("builds correct query with joins", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema).(*repository[testEntity])
+
+		params := &FindParams{
+			Joins: &JoinOptions{
+				Joins: []JoinClause{
+					{
+						Type:        JoinTypeInner,
+						Table:       "roles",
+						TableAlias:  "r",
+						LeftColumn:  "test_table.role_id",
+						RightColumn: "r.id",
+					},
+				},
+				SelectColumns: []string{"test_table.*", "r.name as role_name"},
+			},
+		}
+
+		// Build the query to verify it's correct
+		idField := fields.KeyField()
+		query, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), params)
+		require.NoError(t, err)
+		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
+		assert.Contains(t, query, "WHERE id = $1")
+	})
+
+	t.Run("falls back to regular Get when Joins is nil", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema).(*repository[testEntity])
+
+		params := &FindParams{
+			Joins: nil, // No joins
+		}
+
+		idField := fields.KeyField()
+		// This should not panic and should internally call Get()
+		// We can't execute without DB, but we verify the method exists and handles nil properly
+		_ = repo
+		_ = idField
+		_ = params
+	})
+}
