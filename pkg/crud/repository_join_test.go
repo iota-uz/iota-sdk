@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -161,7 +162,8 @@ func TestRepository_GetWithJoins(t *testing.T) {
 		}
 
 		idField := fields.KeyField()
-		_, err := repo.GetWithJoins(context.Background(), idField.Value(int(1)), params)
+		tenantID := uuid.New()
+		_, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), params, tenantID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "join table cannot be empty")
 	})
@@ -193,10 +195,11 @@ func TestRepository_GetWithJoins(t *testing.T) {
 
 		// Build the query to verify it's correct
 		idField := fields.KeyField()
-		query, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), params)
+		tenantID := uuid.New()
+		query, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), params, tenantID)
 		require.NoError(t, err)
 		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
-		assert.Contains(t, query, "WHERE id = $1")
+		assert.Contains(t, query, "WHERE id = $1 AND organization_id = $2")
 	})
 
 	t.Run("falls back to regular Get when Joins is nil", func(t *testing.T) {
@@ -248,7 +251,8 @@ func TestRepository_ExistsWithJoins(t *testing.T) {
 		}
 
 		idField := fields.KeyField()
-		_, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), params)
+		tenantID := uuid.New()
+		_, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), params, tenantID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "join table cannot be empty")
 	})
@@ -279,11 +283,12 @@ func TestRepository_ExistsWithJoins(t *testing.T) {
 
 		// Build the query to verify it's correct
 		idField := fields.KeyField()
-		query, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), params)
+		tenantID := uuid.New()
+		query, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), params, tenantID)
 		require.NoError(t, err)
 		assert.Contains(t, query, "SELECT EXISTS")
 		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
-		assert.Contains(t, query, "WHERE id = $1")
+		assert.Contains(t, query, "WHERE id = $1 AND organization_id = $2")
 	})
 
 	t.Run("falls back to regular Exists when Joins is nil", func(t *testing.T) {

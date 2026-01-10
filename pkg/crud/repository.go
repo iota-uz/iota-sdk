@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-faster/errors"
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -88,14 +89,17 @@ func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue
 		return r.Get(ctx, value)
 	}
 
-	// Build join query
-	query, err := r.buildGetWithJoinsQuery(value, params)
+	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return zero, err
+		return zero, serrors.E(op, err)
 	}
 
-	// Execute query
-	entities, err := r.queryEntities(ctx, query, value.Value())
+	query, err := r.buildGetWithJoinsQuery(value, params, tenantID)
+	if err != nil {
+		return zero, serrors.E(op, err)
+	}
+
+	entities, err := r.queryEntities(ctx, query, value.Value(), tenantID)
 	if err != nil {
 		return zero, serrors.E(op, err)
 	}
@@ -126,50 +130,49 @@ func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue) (boo
 	return exists, nil
 }
 
-// buildExistsWithJoinsQuery builds a SELECT EXISTS query with JOIN clauses
-func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
-	// Validate join options
+func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params *FindParams, tenantID uuid.UUID) (string, error) {
 	if err := params.Joins.Validate(); err != nil {
 		return "", errors.Wrap(err, "invalid join options")
 	}
 
-	// Build base SELECT 1 query
 	baseQuery := fmt.Sprintf("SELECT 1 FROM %s", r.schema.Name())
 
-	// Add JOIN clauses
 	joinClauses := params.Joins.ToSQL()
 	parts := []string{baseQuery}
 	parts = append(parts, joinClauses...)
 
-	// Add WHERE clause for the specific field
-	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	whereClause := fmt.Sprintf("%s = $1 AND organization_id = $2", value.Field().Name())
 	parts = append(parts, repo.JoinWhere(whereClause))
 
-	// Wrap in SELECT EXISTS
 	innerQuery := repo.Join(parts...)
 	return repo.Exists(innerQuery), nil
 }
 
 func (r *repository[TEntity]) ExistsWithJoins(ctx context.Context, value FieldValue, params *FindParams) (bool, error) {
+	const op = serrors.Op("repository.ExistsWithJoins")
+
 	if params == nil || params.Joins == nil || len(params.Joins.Joins) == 0 {
 		return r.Exists(ctx, value)
 	}
 
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get transaction")
+		return false, serrors.E(op, err)
 	}
 
-	// Build join query
-	query, err := r.buildExistsWithJoinsQuery(value, params)
+	query, err := r.buildExistsWithJoinsQuery(value, params, tenantID)
 	if err != nil {
-		return false, err
+		return false, serrors.E(op, err)
 	}
 
-	// Execute query
 	exists := false
-	if err := tx.QueryRow(ctx, query, value.Value()).Scan(&exists); err != nil {
-		return false, errors.Wrap(err, fmt.Sprintf("failed to check if %s exists with joins", value.Field().Name()))
+	if err := tx.QueryRow(ctx, query, value.Value(), tenantID).Scan(&exists); err != nil {
+		return false, serrors.E(op, err)
 	}
 
 	return exists, nil
@@ -234,35 +237,40 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 }
 
 func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindParams) ([]TEntity, error) {
-	// Build join query
+	const op = serrors.Op("repository.listWithJoins")
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
 	baseQuery, err := r.buildJoinQuery(params)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
-	// Build filters
 	whereClauses, args, err := r.buildFilters(params)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to build filters for list with joins")
+		return nil, serrors.E(op, err)
 	}
 
-	// Combine base query with filters
+	whereClauses = append(whereClauses, fmt.Sprintf("organization_id = $%d", len(args)+1))
+	args = append(args, tenantID)
+
 	query := baseQuery
 	if len(whereClauses) > 0 {
 		query = repo.Join(query, repo.JoinWhere(whereClauses...))
 	}
 
-	// Add sorting and pagination
 	query = repo.Join(
 		query,
 		params.SortBy.ToSQL(r.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
 
-	// Execute query
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute join query")
+		return nil, serrors.E(op, err)
 	}
 
 	return entities, nil
@@ -398,25 +406,23 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 	return where, args, nil
 }
 
-// buildJoinQueryBase builds the base SELECT query with JOIN clauses
-// Returns the base query string without WHERE, ORDER BY, or LIMIT/OFFSET
+// buildJoinQueryBase builds the base SELECT query with JOIN clauses.
+// Returns the base query string without WHERE, ORDER BY, or LIMIT/OFFSET.
+// SECURITY WARNING: This method does NOT apply tenant/organization_id filtering.
+// This is a PRIVATE helper method. Callers MUST add organization_id filtering via WHERE clause before executing the query.
+// NEVER call this method directly from outside repositories - use the public methods that enforce tenant isolation.
 func (r *repository[TEntity]) buildJoinQueryBase(params *FindParams) (string, error) {
-	// Validate join options (includes SelectColumns validation)
 	if err := params.Joins.Validate(); err != nil {
 		return "", errors.Wrap(err, "invalid join options")
 	}
 
-	// Build SELECT clause
 	selectClause := "*"
 	if len(params.Joins.SelectColumns) > 0 {
-		// Safe to join now because validated above
 		selectClause = strings.Join(params.Joins.SelectColumns, ", ")
 	}
 
-	// Build base query
 	baseQuery := fmt.Sprintf("SELECT %s FROM %s", selectClause, r.schema.Name())
 
-	// Add JOIN clauses
 	joinClauses := params.Joins.ToSQL()
 	parts := []string{baseQuery}
 	parts = append(parts, joinClauses...)
@@ -429,16 +435,13 @@ func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error)
 	return r.buildJoinQueryBase(params)
 }
 
-// buildGetWithJoinsQuery builds a SELECT query with JOIN clauses for a single entity
-func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
-	// Build base query with JOINs
+func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *FindParams, tenantID uuid.UUID) (string, error) {
 	baseQuery, err := r.buildJoinQueryBase(params)
 	if err != nil {
 		return "", err
 	}
 
-	// Add WHERE clause for the specific field
-	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	whereClause := fmt.Sprintf("%s = $1 AND organization_id = $2", value.Field().Name())
 	return repo.Join(baseQuery, repo.JoinWhere(whereClause)), nil
 }
 
