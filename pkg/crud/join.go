@@ -11,8 +11,9 @@ import (
 
 var (
 	// validColumnPattern allows column specifications with 0-2 dots (e.g., "column", "table.column", "schema.table.column")
-	// with optional " AS alias" suffix
-	validColumnPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*){0,2}(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
+	// with optional JSONB extraction (->>'key') and " AS alias" suffix
+	// Examples: "column", "table.column", "table.jsonb_col->>'key' as name"
+	validColumnPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*){0,2}(->>?'[a-zA-Z0-9_]+')?(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 
 	dangerousKeywords = []string{
 		"union", "select", "insert", "update", "delete", "drop",
