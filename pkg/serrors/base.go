@@ -1,6 +1,11 @@
 package serrors
 
-import "github.com/iota-uz/go-i18n/v2/i18n"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/iota-uz/go-i18n/v2/i18n"
+)
 
 type BaseError struct {
 	Code         string            `json:"code"`
@@ -42,4 +47,75 @@ func NewError(code string, message string, localeKey string) *BaseError {
 func (b *BaseError) WithTemplateData(data map[string]string) *BaseError {
 	b.TemplateData = data
 	return b
+}
+
+type Op string
+
+type Kind int
+
+const (
+	Other Kind = iota
+	Invalid
+	KindValidation
+	NotFound
+	PermissionDenied
+	Internal
+)
+
+type Error struct {
+	Op      Op
+	Kind    Kind
+	Context string
+	Err     error
+}
+
+func (e *Error) Error() string {
+	var b strings.Builder
+	if e.Op != "" {
+		b.WriteString(string(e.Op))
+		b.WriteString(": ")
+	}
+	if e.Context != "" {
+		b.WriteString(e.Context)
+		b.WriteString(": ")
+	}
+	if e.Err != nil {
+		b.WriteString(e.Err.Error())
+	}
+	return b.String()
+}
+
+func (e *Error) Unwrap() error {
+	return e.Err
+}
+
+func E(args ...interface{}) error {
+	e := &Error{}
+	var hasError bool
+	for _, arg := range args {
+		switch arg := arg.(type) {
+		case Op:
+			e.Op = arg
+		case Kind:
+			e.Kind = arg
+		case string:
+			if !hasError {
+				e.Context = arg
+			} else {
+				e.Context = arg
+			}
+		case error:
+			if e.Context == "" && !hasError {
+				e.Err = arg
+			} else {
+				e.Err = arg
+			}
+			hasError = true
+		}
+	}
+	if e.Context != "" && !hasError {
+		e.Err = fmt.Errorf("%s", e.Context)
+		e.Context = ""
+	}
+	return e
 }

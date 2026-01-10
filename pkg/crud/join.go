@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // JoinType represents the type of SQL JOIN operation
@@ -46,16 +47,16 @@ type JoinClause struct {
 	RightColumn string
 }
 
-// Validate checks if the JoinClause has all required fields
 func (jc *JoinClause) Validate() error {
+	op := serrors.Op("JoinClause.Validate")
 	if jc.Table == "" {
-		return fmt.Errorf("join table cannot be empty")
+		return serrors.E(op, serrors.Invalid, "join table cannot be empty")
 	}
 	if jc.LeftColumn == "" {
-		return fmt.Errorf("join left column cannot be empty")
+		return serrors.E(op, serrors.Invalid, "join left column cannot be empty")
 	}
 	if jc.RightColumn == "" {
-		return fmt.Errorf("join right column cannot be empty")
+		return serrors.E(op, serrors.Invalid, "join right column cannot be empty")
 	}
 	return nil
 }
@@ -73,11 +74,11 @@ type JoinOptions struct {
 	SelectColumns []string
 }
 
-// Validate checks if all join clauses are valid
 func (jo *JoinOptions) Validate() error {
+	op := serrors.Op("JoinOptions.Validate")
 	for i, join := range jo.Joins {
 		if err := join.Validate(); err != nil {
-			return fmt.Errorf("join clause %d: %w", i, err)
+			return serrors.E(op, fmt.Sprintf("join clause %d", i), err)
 		}
 	}
 	return nil
