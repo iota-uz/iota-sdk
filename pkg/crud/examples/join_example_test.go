@@ -39,4 +39,26 @@ func TestExampleCompiles(t *testing.T) {
 			t.Errorf("Valid join options failed validation: %v", err)
 		}
 	})
+
+	t.Run("functional options pattern", func(t *testing.T) {
+		// Demonstrate WithJoins functional option
+		joins := &crud.JoinOptions{
+			Joins: []crud.JoinClause{
+				{
+					Type:        crud.JoinTypeInner,
+					Table:       "roles",
+					TableAlias:  "r",
+					LeftColumn:  "users.role_id",
+					RightColumn: "r.id",
+				},
+			},
+			SelectColumns: []string{"users.*", "r.name as role_name"},
+		}
+
+		// Create the option
+		option := crud.WithJoins(joins)
+		if option == nil {
+			t.Error("WithJoins should return a non-nil QueryOption")
+		}
+	})
 }

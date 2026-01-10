@@ -24,11 +24,35 @@ type FindParams struct {
 	Joins   *JoinOptions
 }
 
+// QueryOption configures optional query parameters
+type QueryOption func(*queryOptions)
+
+// queryOptions holds optional query configuration
+type queryOptions struct {
+	joins *JoinOptions
+}
+
+// WithJoins adds JOIN clauses to the query
+func WithJoins(joins *JoinOptions) QueryOption {
+	return func(opts *queryOptions) {
+		opts.joins = joins
+	}
+}
+
+// applyOptions applies query options and returns the effective queryOptions
+func applyOptions(options []QueryOption) *queryOptions {
+	opts := &queryOptions{}
+	for _, option := range options {
+		option(opts)
+	}
+	return opts
+}
+
 type Repository[TEntity any] interface {
 	GetAll(ctx context.Context) ([]TEntity, error)
-	Get(ctx context.Context, value FieldValue) (TEntity, error)
+	Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error)
 	GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error)
-	Exists(ctx context.Context, value FieldValue) (bool, error)
+	Exists(ctx context.Context, value FieldValue, options ...QueryOption) (bool, error)
 	ExistsWithJoins(ctx context.Context, value FieldValue, params *FindParams) (bool, error)
 	Count(ctx context.Context, filters *FindParams) (int64, error)
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
@@ -61,9 +85,18 @@ func (r *repository[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
 	return r.queryEntities(ctx, query)
 }
 
-func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue) (TEntity, error) {
+func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error) {
+	const op = serrors.Op("repository.Get")
 	var zero TEntity
 
+	opts := applyOptions(options)
+
+	// If JOINs requested, use JOIN query path
+	if opts.joins != nil && len(opts.joins.Joins) > 0 {
+		return r.getWithJoins(ctx, value, opts.joins)
+	}
+
+	// Original implementation
 	query := fmt.Sprintf(
 		"SELECT * FROM %s WHERE %s = $1",
 		r.schema.Name(),
@@ -76,6 +109,32 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue) (TEntit
 	}
 	if len(entities) == 0 {
 		return zero, errors.New("entity not found")
+	}
+
+	return entities[0], nil
+}
+
+// getWithJoins is the internal implementation for Get with JOINs
+func (r *repository[TEntity]) getWithJoins(ctx context.Context, value FieldValue, joins *JoinOptions) (TEntity, error) {
+	const op = serrors.Op("repository.getWithJoins")
+	var zero TEntity
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return zero, serrors.E(op, err)
+	}
+
+	query, err := r.buildGetWithJoinsQuery(value, &FindParams{Joins: joins}, tenantID)
+	if err != nil {
+		return zero, serrors.E(op, err)
+	}
+
+	entities, err := r.queryEntities(ctx, query, value.Value(), tenantID)
+	if err != nil {
+		return zero, serrors.E(op, err)
+	}
+	if len(entities) == 0 {
+		return zero, serrors.E(op, serrors.NotFound, "entity not found")
 	}
 
 	return entities[0], nil
@@ -110,7 +169,17 @@ func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue
 	return entities[0], nil
 }
 
-func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue) (bool, error) {
+func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue, options ...QueryOption) (bool, error) {
+	const op = serrors.Op("repository.Exists")
+
+	opts := applyOptions(options)
+
+	// If JOINs requested, use JOIN query path
+	if opts.joins != nil && len(opts.joins.Joins) > 0 {
+		return r.existsWithJoins(ctx, value, opts.joins)
+	}
+
+	// Original implementation
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to get transaction")
@@ -127,6 +196,33 @@ func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue) (boo
 	if err := tx.QueryRow(ctx, query, value.Value()).Scan(&exists); err != nil {
 		return false, errors.Wrap(err, fmt.Sprintf("failed to check if %s exists", value.Field().Name()))
 	}
+	return exists, nil
+}
+
+// existsWithJoins is the internal implementation for Exists with JOINs
+func (r *repository[TEntity]) existsWithJoins(ctx context.Context, value FieldValue, joins *JoinOptions) (bool, error) {
+	const op = serrors.Op("repository.existsWithJoins")
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	query, err := r.buildExistsWithJoinsQuery(value, &FindParams{Joins: joins}, tenantID)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	exists := false
+	if err := tx.QueryRow(ctx, query, value.Value(), tenantID).Scan(&exists); err != nil {
+		return false, serrors.E(op, err)
+	}
+
 	return exists, nil
 }
 

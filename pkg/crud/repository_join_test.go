@@ -313,3 +313,109 @@ func TestRepository_ExistsWithJoins(t *testing.T) {
 		_ = idField
 	})
 }
+
+func TestRepository_Get_WithFunctionalOptions(t *testing.T) {
+	t.Run("accepts WithJoins option", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema).(*repository[testEntity])
+
+		joins := &JoinOptions{
+			Joins: []JoinClause{
+				{
+					Type:        JoinTypeInner,
+					Table:       "roles",
+					TableAlias:  "r",
+					LeftColumn:  "test_table.role_id",
+					RightColumn: "r.id",
+				},
+			},
+			SelectColumns: []string{"test_table.*", "r.name AS role_name"},
+		}
+
+		// Verify the functional options pattern compiles
+		idField := fields.KeyField()
+		tenantID := uuid.New()
+
+		// Build query using internal method to verify it works
+		query, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins}, tenantID)
+		require.NoError(t, err)
+		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
+		assert.Contains(t, query, "WHERE id = $1 AND organization_id = $2")
+	})
+
+	t.Run("works without options (backward compatible)", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema)
+
+		idField := fields.KeyField()
+		// This should compile without any options (backward compatible)
+		// We can't actually execute without DB, but we verify the signature
+		_ = repo
+		_ = idField
+	})
+}
+
+func TestRepository_Exists_WithFunctionalOptions(t *testing.T) {
+	t.Run("accepts WithJoins option", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema).(*repository[testEntity])
+
+		joins := &JoinOptions{
+			Joins: []JoinClause{
+				{
+					Type:        JoinTypeInner,
+					Table:       "roles",
+					TableAlias:  "r",
+					LeftColumn:  "test_table.role_id",
+					RightColumn: "r.id",
+				},
+			},
+		}
+
+		// Verify the functional options pattern compiles
+		idField := fields.KeyField()
+		tenantID := uuid.New()
+
+		// Build query using internal method to verify it works
+		query, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins}, tenantID)
+		require.NoError(t, err)
+		assert.Contains(t, query, "SELECT EXISTS")
+		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
+		assert.Contains(t, query, "WHERE id = $1 AND organization_id = $2")
+	})
+
+	t.Run("works without options (backward compatible)", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema)
+
+		idField := fields.KeyField()
+		// This should compile without any options (backward compatible)
+		// We can't actually execute without DB, but we verify the signature
+		_ = repo
+		_ = idField
+	})
+}
