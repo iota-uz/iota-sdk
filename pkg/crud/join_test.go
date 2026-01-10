@@ -708,3 +708,79 @@ func TestJoinOptions_ToSQL(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeJoinOptions(t *testing.T) {
+	t.Run("both nil returns nil", func(t *testing.T) {
+		result := MergeJoinOptions(nil, nil)
+		if result != nil {
+			t.Errorf("expected nil, got %v", result)
+		}
+	})
+
+	t.Run("default nil returns request", func(t *testing.T) {
+		request := &JoinOptions{
+			Joins: []JoinClause{{Table: "test"}},
+		}
+		result := MergeJoinOptions(nil, request)
+		if result != request {
+			t.Errorf("expected request, got %v", result)
+		}
+	})
+
+	t.Run("request nil returns default", func(t *testing.T) {
+		defaults := &JoinOptions{
+			Joins: []JoinClause{{Table: "test"}},
+		}
+		result := MergeJoinOptions(defaults, nil)
+		if result != defaults {
+			t.Errorf("expected defaults, got %v", result)
+		}
+	})
+
+	t.Run("merges joins from both", func(t *testing.T) {
+		defaults := &JoinOptions{
+			Joins: []JoinClause{
+				{Table: "default_table", LeftColumn: "a.id", RightColumn: "b.id"},
+			},
+			SelectColumns: []string{"a.*", "b.name"},
+		}
+		request := &JoinOptions{
+			Joins: []JoinClause{
+				{Table: "request_table", LeftColumn: "c.id", RightColumn: "d.id"},
+			},
+		}
+
+		result := MergeJoinOptions(defaults, request)
+
+		if len(result.Joins) != 2 {
+			t.Errorf("expected 2 joins, got %d", len(result.Joins))
+		}
+		if result.Joins[0].Table != "default_table" {
+			t.Errorf("expected default join first, got %s", result.Joins[0].Table)
+		}
+		if result.Joins[1].Table != "request_table" {
+			t.Errorf("expected request join second, got %s", result.Joins[1].Table)
+		}
+		if len(result.SelectColumns) != 2 {
+			t.Errorf("expected default SelectColumns when request doesn't specify, got %v", result.SelectColumns)
+		}
+	})
+
+	t.Run("request SelectColumns override defaults", func(t *testing.T) {
+		defaults := &JoinOptions{
+			SelectColumns: []string{"a.*", "b.name"},
+		}
+		request := &JoinOptions{
+			SelectColumns: []string{"c.*", "d.name"},
+		}
+
+		result := MergeJoinOptions(defaults, request)
+
+		if len(result.SelectColumns) != 2 {
+			t.Errorf("expected 2 select columns, got %d", len(result.SelectColumns))
+		}
+		if result.SelectColumns[0] != "c.*" {
+			t.Errorf("expected request SelectColumns to override, got %s", result.SelectColumns[0])
+		}
+	})
+}

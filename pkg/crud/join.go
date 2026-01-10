@@ -177,3 +177,32 @@ func (jo *JoinOptions) ToSQL() []string {
 	}
 	return clauses
 }
+
+// MergeJoinOptions combines default schema JOINs with request-specific JOINs.
+// Request JOINs are appended after defaults, allowing for additional joins.
+// If request specifies SelectColumns, they take precedence over defaults.
+func MergeJoinOptions(defaultJoins, requestJoins *JoinOptions) *JoinOptions {
+	if defaultJoins == nil {
+		return requestJoins
+	}
+	if requestJoins == nil {
+		return defaultJoins
+	}
+
+	merged := &JoinOptions{
+		Joins: make([]JoinClause, 0, len(defaultJoins.Joins)+len(requestJoins.Joins)),
+	}
+
+	// Combine JOIN clauses: defaults first, then request-specific
+	merged.Joins = append(merged.Joins, defaultJoins.Joins...)
+	merged.Joins = append(merged.Joins, requestJoins.Joins...)
+
+	// SelectColumns: request takes precedence if specified, otherwise use defaults
+	if len(requestJoins.SelectColumns) > 0 {
+		merged.SelectColumns = requestJoins.SelectColumns
+	} else {
+		merged.SelectColumns = defaultJoins.SelectColumns
+	}
+
+	return merged
+}
