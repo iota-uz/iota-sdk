@@ -82,8 +82,7 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue) (TEntit
 func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error) {
 	var zero TEntity
 
-	// If no joins specified, fall back to regular Get
-	if params.Joins == nil || len(params.Joins.Joins) == 0 {
+	if params == nil || params.Joins == nil || len(params.Joins.Joins) == 0 {
 		return r.Get(ctx, value)
 	}
 
