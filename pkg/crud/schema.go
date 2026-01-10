@@ -19,6 +19,7 @@ type Schema[TEntity any] interface {
 	Mapper() FlatMapper[TEntity]
 	Validators() []Validator[TEntity]
 	Hooks() Hooks[TEntity]
+	DefaultJoins() *JoinOptions
 }
 
 func WithValidators[TEntity any](validators []Validator[TEntity]) SchemaOption[TEntity] {
@@ -48,6 +49,12 @@ func WithUpdateHook[TEntity any](hook Hook[TEntity]) SchemaOption[TEntity] {
 func WithDeleteHook[TEntity any](hook Hook[TEntity]) SchemaOption[TEntity] {
 	return func(s *schema[TEntity]) {
 		s.hooks.deleteHook = hook
+	}
+}
+
+func WithDefaultJoins[TEntity any](joins *JoinOptions) SchemaOption[TEntity] {
+	return func(s *schema[TEntity]) {
+		s.defaultJoins = joins
 	}
 }
 
@@ -83,11 +90,12 @@ func NewSchema[TEntity any](
 }
 
 type schema[TEntity any] struct {
-	name       string
-	fields     Fields
-	mapper     FlatMapper[TEntity]
-	validators []Validator[TEntity]
-	hooks      *hooks[TEntity]
+	name         string
+	fields       Fields
+	mapper       FlatMapper[TEntity]
+	validators   []Validator[TEntity]
+	hooks        *hooks[TEntity]
+	defaultJoins *JoinOptions
 }
 
 func (s *schema[TEntity]) Name() string {
@@ -108,6 +116,10 @@ func (s *schema[TEntity]) Validators() []Validator[TEntity] {
 
 func (s *schema[TEntity]) Hooks() Hooks[TEntity] {
 	return s.hooks
+}
+
+func (s *schema[TEntity]) DefaultJoins() *JoinOptions {
+	return s.defaultJoins
 }
 
 type hooks[TEntity any] struct {
