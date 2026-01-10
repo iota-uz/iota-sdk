@@ -139,34 +139,32 @@ Fetch a single entity by ID with joined data:
 
 ```go
 func ExampleGetWithJoins(ctx context.Context, repo crud.Repository[UserWithRole], schema crud.Schema[UserWithRole], userID int) (UserWithRole, error) {
-    params := &crud.FindParams{
-        Joins: &crud.JoinOptions{
-            Joins: []crud.JoinClause{
-                {
-                    Type:        crud.JoinTypeInner,
-                    Table:       "roles",
-                    TableAlias:  "r",
-                    LeftColumn:  "users.role_id",
-                    RightColumn: "r.id",
-                },
+    joins := &crud.JoinOptions{
+        Joins: []crud.JoinClause{
+            {
+                Type:        crud.JoinTypeInner,
+                Table:       "roles",
+                TableAlias:  "r",
+                LeftColumn:  "users.role_id",
+                RightColumn: "r.id",
             },
-            SelectColumns: []string{
-                "users.*",
-                "r.name as role_name",
-            },
+        },
+        SelectColumns: []string{
+            "users.*",
+            "r.name as role_name",
         },
     }
 
     // Get the ID field from the schema
     idField := schema.Fields().KeyField()
 
-    // Fetch the user with role information
-    return repo.GetWithJoins(ctx, idField.Value(userID), params)
+    // Fetch the user with role information using WithJoins option
+    return repo.Get(ctx, idField.Value(userID), crud.WithJoins(joins))
 }
 ```
 
 **Explanation:**
-- `GetWithJoins` is used for fetching a single entity
+- `Get` with `WithJoins()` option is used for fetching a single entity with JOINs
 - The primary key field is obtained from the schema
 - Returns an error if the entity is not found
 
@@ -176,16 +174,14 @@ Check if an entity exists with specific JOIN conditions:
 
 ```go
 func ExampleExistsWithJoins(ctx context.Context, repo crud.Repository[UserWithRole], schema crud.Schema[UserWithRole], userID int) (bool, error) {
-    params := &crud.FindParams{
-        Joins: &crud.JoinOptions{
-            Joins: []crud.JoinClause{
-                {
-                    Type:        crud.JoinTypeInner,
-                    Table:       "roles",
-                    TableAlias:  "r",
-                    LeftColumn:  "users.role_id",
-                    RightColumn: "r.id",
-                },
+    joins := &crud.JoinOptions{
+        Joins: []crud.JoinClause{
+            {
+                Type:        crud.JoinTypeInner,
+                Table:       "roles",
+                TableAlias:  "r",
+                LeftColumn:  "users.role_id",
+                RightColumn: "r.id",
             },
         },
     }
@@ -194,12 +190,12 @@ func ExampleExistsWithJoins(ctx context.Context, repo crud.Repository[UserWithRo
     idField := schema.Fields().KeyField()
 
     // Check if user exists with a role (INNER JOIN means only users with roles will exist)
-    return repo.ExistsWithJoins(ctx, idField.Value(userID), params)
+    return repo.Exists(ctx, idField.Value(userID), crud.WithJoins(joins))
 }
 ```
 
 **Explanation:**
-- `ExistsWithJoins` returns `true` if an entity exists matching both the ID and JOIN conditions
+- `Exists` with `WithJoins()` option returns `true` if an entity exists matching both the ID and JOIN conditions
 - With `JoinTypeInner`, existence requires a matching joined record
 - More efficient than fetching the full entity when you only need to check existence
 
@@ -269,7 +265,7 @@ err := params.Joins.Validate()
 // Returns: "JoinOptions.Validate: column specification contains dangerous SQL keyword: \"users.id; DROP TABLE users;\""
 ```
 
-**Important:** The validation happens automatically when you call `List()`, `GetWithJoins()`, or `ExistsWithJoins()`, so you don't need to manually validate unless you want to check for errors before executing the query.
+**Important:** The validation happens automatically when you call `List()`, `Get()`, or `Exists()` with JOINs, so you don't need to manually validate unless you want to check for errors before executing the query.
 
 ## Best Practices
 

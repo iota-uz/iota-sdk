@@ -51,9 +51,7 @@ func applyOptions(options []QueryOption) *queryOptions {
 type Repository[TEntity any] interface {
 	GetAll(ctx context.Context) ([]TEntity, error)
 	Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error)
-	GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error)
 	Exists(ctx context.Context, value FieldValue, options ...QueryOption) (bool, error)
-	ExistsWithJoins(ctx context.Context, value FieldValue, params *FindParams) (bool, error)
 	Count(ctx context.Context, filters *FindParams) (int64, error)
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
 	Create(ctx context.Context, values []FieldValue) (TEntity, error)
@@ -124,35 +122,6 @@ func (r *repository[TEntity]) getWithJoins(ctx context.Context, value FieldValue
 	}
 
 	query, err := r.buildGetWithJoinsQuery(value, &FindParams{Joins: joins}, tenantID)
-	if err != nil {
-		return zero, serrors.E(op, err)
-	}
-
-	entities, err := r.queryEntities(ctx, query, value.Value(), tenantID)
-	if err != nil {
-		return zero, serrors.E(op, err)
-	}
-	if len(entities) == 0 {
-		return zero, serrors.E(op, serrors.NotFound, "entity not found")
-	}
-
-	return entities[0], nil
-}
-
-func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error) {
-	const op = serrors.Op("repository.GetWithJoins")
-	var zero TEntity
-
-	if params == nil || params.Joins == nil || len(params.Joins.Joins) == 0 {
-		return r.Get(ctx, value)
-	}
-
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return zero, serrors.E(op, err)
-	}
-
-	query, err := r.buildGetWithJoinsQuery(value, params, tenantID)
 	if err != nil {
 		return zero, serrors.E(op, err)
 	}
@@ -239,36 +208,6 @@ func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params
 
 	innerQuery := repo.Join(parts...)
 	return repo.Exists(innerQuery), nil
-}
-
-func (r *repository[TEntity]) ExistsWithJoins(ctx context.Context, value FieldValue, params *FindParams) (bool, error) {
-	const op = serrors.Op("repository.ExistsWithJoins")
-
-	if params == nil || params.Joins == nil || len(params.Joins.Joins) == 0 {
-		return r.Exists(ctx, value)
-	}
-
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return false, serrors.E(op, err)
-	}
-
-	tx, err := composables.UseTx(ctx)
-	if err != nil {
-		return false, serrors.E(op, err)
-	}
-
-	query, err := r.buildExistsWithJoinsQuery(value, params, tenantID)
-	if err != nil {
-		return false, serrors.E(op, err)
-	}
-
-	exists := false
-	if err := tx.QueryRow(ctx, query, value.Value(), tenantID).Scan(&exists); err != nil {
-		return false, serrors.E(op, err)
-	}
-
-	return exists, nil
 }
 
 func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (int64, error) {

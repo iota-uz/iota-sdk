@@ -173,8 +173,6 @@ params := &crud.FindParams{
 
 ## Get Single Entity with JOINs
 
-### Using Functional Options Pattern (Recommended)
-
 Use the `WithJoins()` option with the `Get()` method:
 
 ```go
@@ -196,41 +194,15 @@ idField := schema.Fields().KeyField()
 user, err := repo.Get(ctx, idField.Value(123), crud.WithJoins(joins))
 ```
 
-### Legacy Method (Deprecated)
-
-The `GetWithJoins()` method is still available for backward compatibility:
-
-```go
-params := &crud.FindParams{
-    Joins: &crud.JoinOptions{
-        Joins: []crud.JoinClause{
-            {
-                Type:        crud.JoinTypeInner,
-                Table:       "roles",
-                TableAlias:  "r",
-                LeftColumn:  "users.role_id",
-                RightColumn: "r.id",
-            },
-        },
-        SelectColumns: []string{"users.*", "r.name as role_name"},
-    },
-}
-
-idField := schema.Fields().KeyField()
-user, err := repo.GetWithJoins(ctx, idField.Value(123), params)
-```
-
 ### Fallback Behavior
 
-Both methods automatically fall back to the regular `Get()` query when:
+The `Get()` method automatically falls back to a regular query (without JOINs) when:
 - No JOIN options are provided
 - `Joins` is `nil` or empty
 
 This allows for flexible code that can conditionally include joins without separate logic branches.
 
 ## Check Existence with JOINs
-
-### Using Functional Options Pattern (Recommended)
 
 Use the `WithJoins()` option with the `Exists()` method:
 
@@ -254,32 +226,9 @@ exists, err := repo.Exists(ctx, idField.Value(123), crud.WithJoins(joins))
 
 This is useful for checking if an entity exists with specific joined relationships, such as verifying a user has access to a resource through a role.
 
-### Legacy Method (Deprecated)
-
-The `ExistsWithJoins()` method is still available for backward compatibility:
-
-```go
-params := &crud.FindParams{
-    Joins: &crud.JoinOptions{
-        Joins: []crud.JoinClause{
-            {
-                Type:        crud.JoinTypeInner,
-                Table:       "roles",
-                TableAlias:  "r",
-                LeftColumn:  "users.role_id",
-                RightColumn: "r.id",
-            },
-        },
-    },
-}
-
-idField := schema.Fields().KeyField()
-exists, err := repo.ExistsWithJoins(ctx, idField.Value(123), params)
-```
-
 ### Fallback Behavior
 
-Both methods automatically fall back to the regular `Exists()` query when:
+The `Exists()` method automatically falls back to a regular query (without JOINs) when:
 - No JOIN options are provided
 - `Joins` is `nil` or empty
 
