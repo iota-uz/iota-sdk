@@ -8,6 +8,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type SortBy = repo.SortBy[string]
@@ -80,6 +81,7 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue) (TEntit
 }
 
 func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error) {
+	const op = serrors.Op("repository.GetWithJoins")
 	var zero TEntity
 
 	if params == nil || params.Joins == nil || len(params.Joins.Joins) == 0 {
@@ -95,10 +97,10 @@ func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue
 	// Execute query
 	entities, err := r.queryEntities(ctx, query, value.Value())
 	if err != nil {
-		return zero, errors.Wrap(err, fmt.Sprintf("failed to get entity by %s with joins", value.Field().Name()))
+		return zero, serrors.E(op, err)
 	}
 	if len(entities) == 0 {
-		return zero, errors.New("entity not found")
+		return zero, serrors.E(op, serrors.NotFound, "entity not found")
 	}
 
 	return entities[0], nil
