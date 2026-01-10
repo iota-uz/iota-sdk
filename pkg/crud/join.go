@@ -2,9 +2,20 @@ package crud
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+)
+
+var (
+	validColumnPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*)?(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
+
+	dangerousKeywords = []string{
+		"union", "select", "insert", "update", "delete", "drop",
+		"create", "alter", "exec", "execute", "--", "/*", "*/", ";",
+	}
 )
 
 // JoinType represents the type of SQL JOIN operation
@@ -76,11 +87,51 @@ type JoinOptions struct {
 
 func (jo *JoinOptions) Validate() error {
 	op := serrors.Op("JoinOptions.Validate")
+
+	// Validate each join clause
 	for i, join := range jo.Joins {
 		if err := join.Validate(); err != nil {
 			return serrors.E(op, fmt.Sprintf("join clause %d", i), err)
 		}
 	}
+
+	// Validate SelectColumns for SQL injection
+	if err := validateSelectColumns(jo.SelectColumns); err != nil {
+		return serrors.E(op, serrors.Invalid, err)
+	}
+
+	return nil
+}
+
+// validateSelectColumns checks that column specifications are safe
+func validateSelectColumns(columns []string) error {
+	if len(columns) == 0 {
+		return nil
+	}
+
+	for _, col := range columns {
+		col = strings.TrimSpace(col)
+		if col == "" {
+			return fmt.Errorf("empty column specification")
+		}
+
+		if col == "*" {
+			continue
+		}
+
+		lowerCol := strings.ToLower(col)
+		for _, keyword := range dangerousKeywords {
+			if strings.Contains(lowerCol, keyword) {
+				return fmt.Errorf("column specification contains dangerous SQL keyword: %q", col)
+			}
+		}
+
+		// Check against pattern
+		if !validColumnPattern.MatchString(col) {
+			return fmt.Errorf("invalid column specification: %q (must be 'table.column', 'column AS alias', or similar)", col)
+		}
+	}
+
 	return nil
 }
 

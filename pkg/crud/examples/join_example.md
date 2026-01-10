@@ -203,6 +203,74 @@ func ExampleExistsWithJoins(ctx context.Context, repo crud.Repository[UserWithRo
 - With `JoinTypeInner`, existence requires a matching joined record
 - More efficient than fetching the full entity when you only need to check existence
 
+## Security: SelectColumns Validation
+
+The CRUD package **automatically validates** `SelectColumns` to prevent SQL injection attacks. This validation ensures that only safe column specifications are allowed.
+
+### Allowed Column Specifications
+
+Valid column specifications include:
+- Simple columns: `"id"`, `"name"`, `"email"`
+- Table-qualified columns: `"users.id"`, `"users.email"`
+- Aliased columns: `"users.name AS user_name"`, `"roles.name as role_name"`
+- Wildcards: `"*"`, `"users.*"`, `"roles.*"`
+
+### Blocked Patterns
+
+The validation **rejects** column specifications containing:
+- SQL keywords: `UNION`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `DROP`, `CREATE`, `ALTER`, `EXEC`, `EXECUTE`
+- SQL comments: `--`, `/*`, `*/`
+- Statement terminators: `;`
+- Function calls: `COUNT(*)`, `SUM(amount)` (use raw SQL queries for aggregations)
+- Special characters that could enable injection
+
+### Example of Safe Usage
+
+```go
+// ✓ SAFE - All valid column specifications
+params := &crud.FindParams{
+    Joins: &crud.JoinOptions{
+        Joins: []crud.JoinClause{
+            {
+                Type:        crud.JoinTypeInner,
+                Table:       "roles",
+                TableAlias:  "r",
+                LeftColumn:  "users.role_id",
+                RightColumn: "r.id",
+            },
+        },
+        SelectColumns: []string{
+            "users.*",                // ✓ Wildcard
+            "r.name AS role_name",    // ✓ Aliased column
+            "users.id",               // ✓ Table-qualified
+            "email",                  // ✓ Simple column
+        },
+    },
+}
+
+// ✗ REJECTED - SQL injection attempts will be caught
+params := &crud.FindParams{
+    Joins: &crud.JoinOptions{
+        SelectColumns: []string{
+            "users.id; DROP TABLE users;",     // ✗ Contains semicolon
+            "users.id UNION SELECT password",  // ✗ Contains UNION
+            "COUNT(users.id)",                 // ✗ Contains function call
+        },
+    },
+}
+```
+
+### Validation Errors
+
+If validation fails, you'll receive a clear error message:
+
+```go
+err := params.Joins.Validate()
+// Returns: "JoinOptions.Validate: column specification contains dangerous SQL keyword: \"users.id; DROP TABLE users;\""
+```
+
+**Important:** The validation happens automatically when you call `List()`, `GetWithJoins()`, or `ExistsWithJoins()`, so you don't need to manually validate unless you want to check for errors before executing the query.
+
 ## Best Practices
 
 1. **Always use table aliases** for clarity and to avoid column name conflicts
@@ -212,3 +280,6 @@ func ExampleExistsWithJoins(ctx context.Context, repo crud.Repository[UserWithRo
 5. **Validate your JoinOptions** - the package will return errors for invalid configurations
 6. **Consider performance** - JOINs can be expensive on large tables
 7. **Index your JOIN columns** - ensure foreign key columns are indexed for optimal performance
+8. **Trust the validation** - SelectColumns are automatically validated to prevent SQL injection
+9. **Use simple column names** - avoid special characters, functions, or SQL keywords in column specifications
+10. **For aggregations** - use raw SQL queries instead of trying to include functions in SelectColumns

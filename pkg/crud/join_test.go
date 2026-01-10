@@ -208,6 +208,190 @@ func TestJoinOptions_Validate(t *testing.T) {
 	}
 }
 
+func TestJoinOptions_Validate_SelectColumns(t *testing.T) {
+	tests := []struct {
+		name          string
+		selectColumns []string
+		expectErr     bool
+		errMsg        string
+	}{
+		{
+			name:          "valid columns",
+			selectColumns: []string{"users.*", "roles.name AS role_name", "departments.name"},
+			expectErr:     false,
+		},
+		{
+			name:          "valid wildcard",
+			selectColumns: []string{"*"},
+			expectErr:     false,
+		},
+		{
+			name:          "valid simple columns",
+			selectColumns: []string{"id", "name", "email"},
+			expectErr:     false,
+		},
+		{
+			name:          "valid table.column",
+			selectColumns: []string{"users.id", "users.email", "roles.name"},
+			expectErr:     false,
+		},
+		{
+			name:          "valid with aliases",
+			selectColumns: []string{"users.id AS user_id", "roles.name as role_name"},
+			expectErr:     false,
+		},
+		{
+			name:          "valid table wildcard",
+			selectColumns: []string{"users.*", "roles.*"},
+			expectErr:     false,
+		},
+		{
+			name:          "SQL injection - UNION",
+			selectColumns: []string{"users.id, (SELECT password FROM admin UNION SELECT 1)"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - comment",
+			selectColumns: []string{"users.id -- DROP TABLE users"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - semicolon",
+			selectColumns: []string{"users.*; DROP TABLE users; --"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - block comment start",
+			selectColumns: []string{"users.id /* comment */"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - block comment end",
+			selectColumns: []string{"users.id */ DROP TABLE users /*"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - SELECT keyword",
+			selectColumns: []string{"users.id, (SELECT 1)"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - INSERT keyword",
+			selectColumns: []string{"users.id; INSERT INTO admin VALUES(1)"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - UPDATE keyword",
+			selectColumns: []string{"users.id; UPDATE users SET role='admin'"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - DELETE keyword",
+			selectColumns: []string{"users.id; DELETE FROM users"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - DROP keyword",
+			selectColumns: []string{"users.id; DROP TABLE users"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - CREATE keyword",
+			selectColumns: []string{"users.id; CREATE TABLE malicious"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - ALTER keyword",
+			selectColumns: []string{"users.id; ALTER TABLE users"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - EXEC keyword",
+			selectColumns: []string{"users.id; EXEC sp_executesql"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "SQL injection - EXECUTE keyword",
+			selectColumns: []string{"users.id; EXECUTE sp_executesql"},
+			expectErr:     true,
+			errMsg:        "dangerous SQL keyword",
+		},
+		{
+			name:          "invalid syntax - parentheses",
+			selectColumns: []string{"COUNT(users.id)"},
+			expectErr:     true,
+			errMsg:        "invalid column specification",
+		},
+		{
+			name:          "invalid syntax - special chars",
+			selectColumns: []string{"users.id@admin"},
+			expectErr:     true,
+			errMsg:        "invalid column specification",
+		},
+		{
+			name:          "empty column",
+			selectColumns: []string{"users.id", "", "roles.name"},
+			expectErr:     true,
+			errMsg:        "empty column specification",
+		},
+		{
+			name:          "whitespace only column",
+			selectColumns: []string{"users.id", "   ", "roles.name"},
+			expectErr:     true,
+			errMsg:        "empty column specification",
+		},
+		{
+			name:          "invalid column name - starts with number",
+			selectColumns: []string{"123column"},
+			expectErr:     true,
+			errMsg:        "invalid column specification",
+		},
+		{
+			name:          "invalid column name - special characters",
+			selectColumns: []string{"user$name"},
+			expectErr:     true,
+			errMsg:        "invalid column specification",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options := &JoinOptions{
+				Joins: []JoinClause{
+					{
+						Type:        JoinTypeInner,
+						Table:       "roles",
+						LeftColumn:  "users.role_id",
+						RightColumn: "roles.id",
+					},
+				},
+				SelectColumns: tt.selectColumns,
+			}
+
+			err := options.Validate()
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestJoinOptions_ToSQL(t *testing.T) {
 	tests := []struct {
 		name     string
