@@ -88,12 +88,15 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options
 
 	opts := applyOptions(options)
 
-	// If JOINs requested, use JOIN query path
-	if opts.joins != nil && len(opts.joins.Joins) > 0 {
-		return r.getWithJoins(ctx, value, opts.joins)
+	// Merge schema default JOINs with request JOINs
+	effectiveJoins := MergeJoinOptions(r.schema.DefaultJoins(), opts.joins)
+
+	// If JOINs present, use JOIN query path
+	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
+		return r.getWithJoins(ctx, value, effectiveJoins)
 	}
 
-	// Original implementation
+	// Original implementation for queries without JOINs
 	query := fmt.Sprintf(
 		"SELECT * FROM %s WHERE %s = $1",
 		r.schema.Name(),
