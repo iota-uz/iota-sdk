@@ -19,6 +19,7 @@ type FindParams struct {
 	Limit   int
 	Offset  int
 	SortBy  SortBy
+	Joins   *JoinOptions
 }
 
 type Repository[TEntity any] interface {
