@@ -118,3 +118,26 @@ func ExampleGetWithJoins(ctx context.Context, repo crud.Repository[UserWithRole]
 	// Fetch the user with role information
 	return repo.GetWithJoins(ctx, idField.Value(userID), params)
 }
+
+// ExampleExistsWithJoins demonstrates checking existence with JOINs
+func ExampleExistsWithJoins(ctx context.Context, repo crud.Repository[UserWithRole], schema crud.Schema[UserWithRole], userID int) (bool, error) {
+	params := &crud.FindParams{
+		Joins: &crud.JoinOptions{
+			Joins: []crud.JoinClause{
+				{
+					Type:        crud.JoinTypeInner,
+					Table:       "roles",
+					TableAlias:  "r",
+					LeftColumn:  "users.role_id",
+					RightColumn: "r.id",
+				},
+			},
+		},
+	}
+
+	// Get the ID field from the schema
+	idField := schema.Fields().KeyField()
+
+	// Check if user exists with a role (INNER JOIN means only users with roles will exist)
+	return repo.ExistsWithJoins(ctx, idField.Value(userID), params)
+}

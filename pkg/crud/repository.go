@@ -27,6 +27,7 @@ type Repository[TEntity any] interface {
 	Get(ctx context.Context, value FieldValue) (TEntity, error)
 	GetWithJoins(ctx context.Context, value FieldValue, params *FindParams) (TEntity, error)
 	Exists(ctx context.Context, value FieldValue) (bool, error)
+	ExistsWithJoins(ctx context.Context, value FieldValue, params *FindParams) (bool, error)
 	Count(ctx context.Context, filters *FindParams) (int64, error)
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
 	Create(ctx context.Context, values []FieldValue) (TEntity, error)
@@ -121,6 +122,56 @@ func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue) (boo
 	if err := tx.QueryRow(ctx, query, value.Value()).Scan(&exists); err != nil {
 		return false, errors.Wrap(err, fmt.Sprintf("failed to check if %s exists", value.Field().Name()))
 	}
+	return exists, nil
+}
+
+// buildExistsWithJoinsQuery builds a SELECT EXISTS query with JOIN clauses
+func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
+	// Validate join options
+	if err := params.Joins.Validate(); err != nil {
+		return "", errors.Wrap(err, "invalid join options")
+	}
+
+	// Build base SELECT 1 query
+	baseQuery := fmt.Sprintf("SELECT 1 FROM %s", r.schema.Name())
+
+	// Add JOIN clauses
+	joinClauses := params.Joins.ToSQL()
+	parts := []string{baseQuery}
+	parts = append(parts, joinClauses...)
+
+	// Add WHERE clause for the specific field
+	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	parts = append(parts, repo.JoinWhere(whereClause))
+
+	// Wrap in SELECT EXISTS
+	innerQuery := repo.Join(parts...)
+	return repo.Exists(innerQuery), nil
+}
+
+func (r *repository[TEntity]) ExistsWithJoins(ctx context.Context, value FieldValue, params *FindParams) (bool, error) {
+	// If no joins specified, fall back to regular Exists
+	if params.Joins == nil || len(params.Joins.Joins) == 0 {
+		return r.Exists(ctx, value)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to get transaction")
+	}
+
+	// Build join query
+	query, err := r.buildExistsWithJoinsQuery(value, params)
+	if err != nil {
+		return false, err
+	}
+
+	// Execute query
+	exists := false
+	if err := tx.QueryRow(ctx, query, value.Value()).Scan(&exists); err != nil {
+		return false, errors.Wrap(err, fmt.Sprintf("failed to check if %s exists with joins", value.Field().Name()))
+	}
+
 	return exists, nil
 }
 

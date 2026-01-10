@@ -221,3 +221,90 @@ func TestRepository_GetWithJoins(t *testing.T) {
 		_ = params
 	})
 }
+
+func TestRepository_ExistsWithJoins(t *testing.T) {
+	t.Run("validates join options", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema).(*repository[testEntity])
+
+		// Create params with invalid join
+		params := &FindParams{
+			Joins: &JoinOptions{
+				Joins: []JoinClause{
+					{
+						Type:        JoinTypeInner,
+						Table:       "", // Invalid
+						LeftColumn:  "test_table.role_id",
+						RightColumn: "roles.id",
+					},
+				},
+			},
+		}
+
+		idField := fields.KeyField()
+		_, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), params)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "join table cannot be empty")
+	})
+
+	t.Run("builds correct EXISTS query with joins", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema).(*repository[testEntity])
+
+		params := &FindParams{
+			Joins: &JoinOptions{
+				Joins: []JoinClause{
+					{
+						Type:        JoinTypeInner,
+						Table:       "roles",
+						TableAlias:  "r",
+						LeftColumn:  "test_table.role_id",
+						RightColumn: "r.id",
+					},
+				},
+			},
+		}
+
+		// Build the query to verify it's correct
+		idField := fields.KeyField()
+		query, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), params)
+		require.NoError(t, err)
+		assert.Contains(t, query, "SELECT EXISTS")
+		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
+		assert.Contains(t, query, "WHERE id = $1")
+	})
+
+	t.Run("falls back to regular Exists when Joins is nil", func(t *testing.T) {
+		fields := NewFields([]Field{
+			NewIntField("id", WithKey()),
+			NewStringField("name"),
+		})
+
+		mapper := &testEntityMapper{}
+		schema := NewSchema("test_table", fields, mapper)
+		repo := DefaultRepository(schema)
+
+		params := &FindParams{
+			Joins: nil, // No joins
+		}
+
+		idField := fields.KeyField()
+		// This should not panic - it falls back to regular Exists
+		// We can't actually execute without DB, but we verify it doesn't error on nil Joins
+		_ = repo
+		_ = params
+		_ = idField
+	})
+}

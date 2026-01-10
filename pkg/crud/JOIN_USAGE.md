@@ -204,6 +204,38 @@ user, err := repo.GetWithJoins(ctx, idField.Value(123), params)
 
 This allows for flexible code that can conditionally include joins without separate logic branches.
 
+## Check Existence with JOINs
+
+Use `ExistsWithJoins()` to check if an entity exists with joined conditions:
+
+```go
+// Check if user exists with a specific role
+params := &crud.FindParams{
+    Joins: &crud.JoinOptions{
+        Joins: []crud.JoinClause{
+            {
+                Type:        crud.JoinTypeInner,
+                Table:       "roles",
+                TableAlias:  "r",
+                LeftColumn:  "users.role_id",
+                RightColumn: "r.id",
+            },
+        },
+    },
+}
+
+idField := schema.Fields().KeyField()
+exists, err := repo.ExistsWithJoins(ctx, idField.Value(123), params)
+```
+
+This is useful for checking if an entity exists with specific joined relationships, such as verifying a user has access to a resource through a role.
+
+### Fallback Behavior
+
+`ExistsWithJoins()` automatically falls back to the regular `Exists()` method when:
+- `params.Joins` is `nil`
+- `params.Joins.Joins` is empty
+
 ## Examples
 
 See `pkg/crud/examples/join_example.go` for complete working examples.
