@@ -73,6 +73,52 @@ func TestJoinClause_Validate(t *testing.T) {
 			expectErr: true,
 			errMsg:    "join right column cannot be empty",
 		},
+		{
+			name: "invalid table alias format - starts with number",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				TableAlias:  "1role",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "invalid table alias specification",
+		},
+		{
+			name: "invalid table alias format - special characters",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				TableAlias:  "r@le",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "invalid table alias specification",
+		},
+		{
+			name: "invalid table alias format - contains space",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				TableAlias:  "r ole",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "invalid table alias specification",
+		},
+		{
+			name: "valid clause without table alias",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: false,
+		},
 	}
 
 	for _, tt := range tests {

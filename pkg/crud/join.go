@@ -99,6 +99,10 @@ func (jc *JoinClause) Validate() error {
 		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid right column specification: %q", jc.RightColumn))
 	}
 
+	if jc.TableAlias != "" && !validColumnPattern.MatchString(jc.TableAlias) {
+		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid table alias specification: %q", jc.TableAlias))
+	}
+
 	return nil
 }
 
