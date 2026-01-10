@@ -48,6 +48,15 @@ func applyOptions(options []QueryOption) *queryOptions {
 	return opts
 }
 
+// getSchemaDefaultJoins safely retrieves default JOINs from a schema
+// that may or may not implement SchemaWithJoins
+func getSchemaDefaultJoins[TEntity any](schema Schema[TEntity]) *JoinOptions {
+	if schemaWithJoins, ok := schema.(SchemaWithJoins[TEntity]); ok {
+		return schemaWithJoins.DefaultJoins()
+	}
+	return nil
+}
+
 type Repository[TEntity any] interface {
 	GetAll(ctx context.Context) ([]TEntity, error)
 	Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error)
@@ -89,7 +98,7 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options
 	opts := applyOptions(options)
 
 	// Merge schema default JOINs with request JOINs
-	effectiveJoins := MergeJoinOptions(r.schema.DefaultJoins(), opts.joins)
+	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), opts.joins)
 
 	// If JOINs present, use JOIN query path
 	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
@@ -144,7 +153,7 @@ func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue, opti
 	opts := applyOptions(options)
 
 	// Merge schema default JOINs with request JOINs
-	effectiveJoins := MergeJoinOptions(r.schema.DefaultJoins(), opts.joins)
+	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), opts.joins)
 
 	// If JOINs present, use JOIN query path
 	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
@@ -250,7 +259,7 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 	}
 
 	// Merge schema default JOINs with request params.Joins
-	effectiveJoins := MergeJoinOptions(r.schema.DefaultJoins(), params.Joins)
+	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), params.Joins)
 
 	// Update params with merged JOINs if we have any
 	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {

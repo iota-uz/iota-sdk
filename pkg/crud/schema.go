@@ -19,6 +19,13 @@ type Schema[TEntity any] interface {
 	Mapper() FlatMapper[TEntity]
 	Validators() []Validator[TEntity]
 	Hooks() Hooks[TEntity]
+}
+
+// SchemaWithJoins is an optional interface that schemas can implement
+// to provide default JOIN configurations for queries.
+// Only schemas that need JOINs should implement this interface.
+type SchemaWithJoins[TEntity any] interface {
+	Schema[TEntity]
 	DefaultJoins() *JoinOptions
 }
 
@@ -49,12 +56,6 @@ func WithUpdateHook[TEntity any](hook Hook[TEntity]) SchemaOption[TEntity] {
 func WithDeleteHook[TEntity any](hook Hook[TEntity]) SchemaOption[TEntity] {
 	return func(s *schema[TEntity]) {
 		s.hooks.deleteHook = hook
-	}
-}
-
-func WithDefaultJoins[TEntity any](joins *JoinOptions) SchemaOption[TEntity] {
-	return func(s *schema[TEntity]) {
-		s.defaultJoins = joins
 	}
 }
 
@@ -90,12 +91,11 @@ func NewSchema[TEntity any](
 }
 
 type schema[TEntity any] struct {
-	name         string
-	fields       Fields
-	mapper       FlatMapper[TEntity]
-	validators   []Validator[TEntity]
-	hooks        *hooks[TEntity]
-	defaultJoins *JoinOptions
+	name       string
+	fields     Fields
+	mapper     FlatMapper[TEntity]
+	validators []Validator[TEntity]
+	hooks      *hooks[TEntity]
 }
 
 func (s *schema[TEntity]) Name() string {
@@ -116,10 +116,6 @@ func (s *schema[TEntity]) Validators() []Validator[TEntity] {
 
 func (s *schema[TEntity]) Hooks() Hooks[TEntity] {
 	return s.hooks
-}
-
-func (s *schema[TEntity]) DefaultJoins() *JoinOptions {
-	return s.defaultJoins
 }
 
 type hooks[TEntity any] struct {
