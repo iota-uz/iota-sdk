@@ -244,6 +244,20 @@ func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (in
 }
 
 func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	if params == nil {
+		params = &FindParams{}
+	}
+
+	// Merge schema default JOINs with request params.Joins
+	effectiveJoins := MergeJoinOptions(r.schema.DefaultJoins(), params.Joins)
+
+	// Update params with merged JOINs if we have any
+	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
+		paramsCopy := *params
+		paramsCopy.Joins = effectiveJoins
+		params = &paramsCopy
+	}
+
 	// Handle JOIN queries if Joins is present
 	if params.Joins != nil && len(params.Joins.Joins) > 0 {
 		return r.listWithJoins(ctx, params)
