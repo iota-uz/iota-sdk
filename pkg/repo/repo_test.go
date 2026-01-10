@@ -143,3 +143,80 @@ func TestBatchInsertQueryN(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinClause(t *testing.T) {
+	tests := []struct {
+		name     string
+		joinType string
+		table    string
+		alias    string
+		leftCol  string
+		rightCol string
+		expected string
+	}{
+		{
+			name:     "inner join with alias",
+			joinType: "INNER JOIN",
+			table:    "roles",
+			alias:    "r",
+			leftCol:  "users.role_id",
+			rightCol: "r.id",
+			expected: "INNER JOIN roles r ON users.role_id = r.id",
+		},
+		{
+			name:     "left join without alias",
+			joinType: "LEFT JOIN",
+			table:    "roles",
+			alias:    "",
+			leftCol:  "users.role_id",
+			rightCol: "roles.id",
+			expected: "LEFT JOIN roles ON users.role_id = roles.id",
+		},
+		{
+			name:     "right join with alias",
+			joinType: "RIGHT JOIN",
+			table:    "departments",
+			alias:    "d",
+			leftCol:  "users.dept_id",
+			rightCol: "d.id",
+			expected: "RIGHT JOIN departments d ON users.dept_id = d.id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := JoinClause(tt.joinType, tt.table, tt.alias, tt.leftCol, tt.rightCol)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestJoinInner(t *testing.T) {
+	result := JoinInner("roles", "r", "users.role_id", "r.id")
+	expected := "INNER JOIN roles r ON users.role_id = r.id"
+	assert.Equal(t, expected, result)
+}
+
+func TestJoinLeft(t *testing.T) {
+	result := JoinLeft("roles", "r", "users.role_id", "r.id")
+	expected := "LEFT JOIN roles r ON users.role_id = r.id"
+	assert.Equal(t, expected, result)
+}
+
+func TestJoinRight(t *testing.T) {
+	result := JoinRight("departments", "d", "users.dept_id", "d.id")
+	expected := "RIGHT JOIN departments d ON users.dept_id = d.id"
+	assert.Equal(t, expected, result)
+}
+
+func TestMultipleJoins(t *testing.T) {
+	// Test combining multiple joins with the Join utility
+	baseQuery := "SELECT * FROM users"
+	join1 := JoinInner("roles", "r", "users.role_id", "r.id")
+	join2 := JoinLeft("departments", "d", "users.dept_id", "d.id")
+
+	query := Join(baseQuery, join1, join2)
+	expected := "SELECT * FROM users INNER JOIN roles r ON users.role_id = r.id LEFT JOIN departments d ON users.dept_id = d.id"
+
+	assert.Equal(t, expected, query)
+}

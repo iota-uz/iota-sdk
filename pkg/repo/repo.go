@@ -145,6 +145,50 @@ func Update(tableName string, fields []string, where ...string) string {
 	return q
 }
 
+// JoinClause creates a SQL JOIN clause with ON condition.
+//
+// Example usage:
+//
+//	join := repo.JoinClause("INNER JOIN", "roles", "r", "users.role_id", "r.id")
+//	// Returns: "INNER JOIN roles r ON users.role_id = r.id"
+func JoinClause(joinType, table, alias, leftCol, rightCol string) string {
+	tableExpr := table
+	if alias != "" {
+		tableExpr = fmt.Sprintf("%s %s", table, alias)
+	}
+	return fmt.Sprintf("%s %s ON %s = %s", joinType, tableExpr, leftCol, rightCol)
+}
+
+// JoinInner creates an INNER JOIN clause.
+//
+// Example usage:
+//
+//	join := repo.JoinInner("roles", "r", "users.role_id", "r.id")
+//	// Returns: "INNER JOIN roles r ON users.role_id = r.id"
+func JoinInner(table, alias, leftCol, rightCol string) string {
+	return JoinClause("INNER JOIN", table, alias, leftCol, rightCol)
+}
+
+// JoinLeft creates a LEFT JOIN (LEFT OUTER JOIN) clause.
+//
+// Example usage:
+//
+//	join := repo.JoinLeft("roles", "r", "users.role_id", "r.id")
+//	// Returns: "LEFT JOIN roles r ON users.role_id = r.id"
+func JoinLeft(table, alias, leftCol, rightCol string) string {
+	return JoinClause("LEFT JOIN", table, alias, leftCol, rightCol)
+}
+
+// JoinRight creates a RIGHT JOIN (RIGHT OUTER JOIN) clause.
+//
+// Example usage:
+//
+//	join := repo.JoinRight("roles", "r", "users.role_id", "r.id")
+//	// Returns: "RIGHT JOIN roles r ON users.role_id = r.id"
+func JoinRight(table, alias, leftCol, rightCol string) string {
+	return JoinClause("RIGHT JOIN", table, alias, leftCol, rightCol)
+}
+
 // BatchInsertQueryN creates a parameterized SQL query for batch inserting multiple rows.
 // It takes a base query like "INSERT INTO users (name, email) VALUES" and appends
 // the parameterized values for each row, returning both the query and the flattened arguments.
