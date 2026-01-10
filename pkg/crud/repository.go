@@ -86,7 +86,6 @@ func (r *repository[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
 }
 
 func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error) {
-	const op = serrors.Op("repository.Get")
 	var zero TEntity
 
 	opts := applyOptions(options)
@@ -170,8 +169,6 @@ func (r *repository[TEntity]) GetWithJoins(ctx context.Context, value FieldValue
 }
 
 func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue, options ...QueryOption) (bool, error) {
-	const op = serrors.Op("repository.Exists")
-
 	opts := applyOptions(options)
 
 	// If JOINs requested, use JOIN query path
