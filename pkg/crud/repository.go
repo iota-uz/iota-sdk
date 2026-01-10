@@ -209,7 +209,8 @@ func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params
 	parts := []string{baseQuery}
 	parts = append(parts, joinClauses...)
 
-	whereClause := fmt.Sprintf("%s = $1 AND organization_id = $2", value.Field().Name())
+	tenantColumn := r.detectTenantColumn()
+	whereClause := fmt.Sprintf("%s = $1 AND %s = $2", value.Field().Name(), tenantColumn)
 	parts = append(parts, repo.JoinWhere(whereClause))
 
 	innerQuery := repo.Join(parts...)
@@ -306,7 +307,9 @@ func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindPar
 		return nil, serrors.E(op, err)
 	}
 
-	whereClauses = append(whereClauses, fmt.Sprintf("organization_id = $%d", len(args)+1))
+	// Detect tenant column name from schema fields (tenant_id or organization_id)
+	tenantColumn := r.detectTenantColumn()
+	whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", tenantColumn, len(args)+1))
 	args = append(args, tenantID)
 
 	query := baseQuery
@@ -419,6 +422,22 @@ func (r *repository[TEntity]) Delete(ctx context.Context, value FieldValue) (TEn
 	return entities[0], nil
 }
 
+// detectTenantColumn finds the tenant ID column name in the schema
+// Returns "tenant_id" or "organization_id" based on what exists in the schema
+func (r *repository[TEntity]) detectTenantColumn() string {
+	// Try common tenant column names in order of preference
+	tenantColumns := []string{"tenant_id", "organization_id"}
+
+	for _, colName := range tenantColumns {
+		if _, err := r.schema.Fields().Field(colName); err == nil {
+			return colName
+		}
+	}
+
+	// Default fallback to organization_id for backward compatibility
+	return "organization_id"
+}
+
 func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any, error) {
 	where := make([]string, 0)
 	args := make([]any, 0)
@@ -460,8 +479,8 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 
 // buildJoinQueryBase builds the base SELECT query with JOIN clauses.
 // Returns the base query string without WHERE, ORDER BY, or LIMIT/OFFSET.
-// SECURITY WARNING: This method does NOT apply tenant/organization_id filtering.
-// This is a PRIVATE helper method. Callers MUST add organization_id filtering via WHERE clause before executing the query.
+// SECURITY WARNING: This method does NOT apply tenant filtering.
+// This is a PRIVATE helper method. Callers MUST add tenant filtering (tenant_id/organization_id) via WHERE clause before executing the query.
 // NEVER call this method directly from outside repositories - use the public methods that enforce tenant isolation.
 func (r *repository[TEntity]) buildJoinQueryBase(params *FindParams) (string, error) {
 	if err := params.Joins.Validate(); err != nil {
@@ -493,7 +512,8 @@ func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *F
 		return "", err
 	}
 
-	whereClause := fmt.Sprintf("%s = $1 AND organization_id = $2", value.Field().Name())
+	tenantColumn := r.detectTenantColumn()
+	whereClause := fmt.Sprintf("%s = $1 AND %s = $2", value.Field().Name(), tenantColumn)
 	return repo.Join(baseQuery, repo.JoinWhere(whereClause)), nil
 }
 
