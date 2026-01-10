@@ -398,9 +398,10 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 	return where, args, nil
 }
 
-// buildJoinQuery builds a SELECT query with JOIN clauses
-func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error) {
-	// Validate join options
+// buildJoinQueryBase builds the base SELECT query with JOIN clauses
+// Returns the base query string without WHERE, ORDER BY, or LIMIT/OFFSET
+func (r *repository[TEntity]) buildJoinQueryBase(params *FindParams) (string, error) {
+	// Validate join options (includes SelectColumns validation)
 	if err := params.Joins.Validate(); err != nil {
 		return "", errors.Wrap(err, "invalid join options")
 	}
@@ -408,6 +409,7 @@ func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error)
 	// Build SELECT clause
 	selectClause := "*"
 	if len(params.Joins.SelectColumns) > 0 {
+		// Safe to join now because validated above
 		selectClause = strings.Join(params.Joins.SelectColumns, ", ")
 	}
 
@@ -422,32 +424,22 @@ func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error)
 	return repo.Join(parts...), nil
 }
 
+// buildJoinQuery builds a SELECT query with JOIN clauses
+func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error) {
+	return r.buildJoinQueryBase(params)
+}
+
 // buildGetWithJoinsQuery builds a SELECT query with JOIN clauses for a single entity
 func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
-	// Validate join options
-	if err := params.Joins.Validate(); err != nil {
-		return "", errors.Wrap(err, "invalid join options")
+	// Build base query with JOINs
+	baseQuery, err := r.buildJoinQueryBase(params)
+	if err != nil {
+		return "", err
 	}
-
-	// Build SELECT clause
-	selectClause := "*"
-	if len(params.Joins.SelectColumns) > 0 {
-		selectClause = strings.Join(params.Joins.SelectColumns, ", ")
-	}
-
-	// Build base query
-	baseQuery := fmt.Sprintf("SELECT %s FROM %s", selectClause, r.schema.Name())
-
-	// Add JOIN clauses
-	joinClauses := params.Joins.ToSQL()
-	parts := []string{baseQuery}
-	parts = append(parts, joinClauses...)
 
 	// Add WHERE clause for the specific field
 	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
-	parts = append(parts, repo.JoinWhere(whereClause))
-
-	return repo.Join(parts...), nil
+	return repo.Join(baseQuery, repo.JoinWhere(whereClause)), nil
 }
 
 func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, args ...any) ([]TEntity, error) {
