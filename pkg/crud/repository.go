@@ -149,8 +149,7 @@ func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params
 }
 
 func (r *repository[TEntity]) ExistsWithJoins(ctx context.Context, value FieldValue, params *FindParams) (bool, error) {
-	// If no joins specified, fall back to regular Exists
-	if params.Joins == nil || len(params.Joins.Joins) == 0 {
+	if params == nil || params.Joins == nil || len(params.Joins.Joins) == 0 {
 		return r.Exists(ctx, value)
 	}
 
