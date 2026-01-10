@@ -88,6 +88,218 @@ func TestJoinClause_Validate(t *testing.T) {
 	}
 }
 
+func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
+	tests := []struct {
+		name      string
+		clause    JoinClause
+		expectErr bool
+		errMsg    string
+	}{
+		{
+			name: "valid clause",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				TableAlias:  "r",
+				LeftColumn:  "users.role_id",
+				RightColumn: "r.id",
+			},
+			expectErr: false,
+		},
+		{
+			name: "SQL injection in table name",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles; DROP TABLE users--",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "SQL injection in left column",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.id UNION SELECT password",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "SQL injection in right column",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id; DELETE FROM users--",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "SQL injection in table alias",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				TableAlias:  "r; DROP TABLE users--",
+				LeftColumn:  "users.role_id",
+				RightColumn: "r.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "invalid table name format",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "123invalid",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "invalid table specification",
+		},
+		{
+			name: "invalid column format",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.role_id",
+				RightColumn: "COUNT(roles.id)",
+			},
+			expectErr: true,
+			errMsg:    "invalid right column specification",
+		},
+		{
+			name: "comment injection in table",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles--",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "comment injection in left column",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.role_id--",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "block comment injection",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id /* DROP TABLE users */",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "union injection in column",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id UNION ALL SELECT password FROM admin",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "insert injection in table",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles; INSERT INTO admin VALUES(1)",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "update injection in alias",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				TableAlias:  "r; UPDATE users SET role='admin'",
+				LeftColumn:  "users.role_id",
+				RightColumn: "r.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "create injection",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles; CREATE TABLE malicious",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "alter injection",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id; ALTER TABLE users",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "exec injection",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles",
+				TableAlias:  "r; EXEC sp_executesql",
+				LeftColumn:  "users.role_id",
+				RightColumn: "r.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+		{
+			name: "execute injection",
+			clause: JoinClause{
+				Type:        JoinTypeInner,
+				Table:       "roles; EXECUTE malicious_proc",
+				LeftColumn:  "users.role_id",
+				RightColumn: "roles.id",
+			},
+			expectErr: true,
+			errMsg:    "dangerous SQL keyword",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.clause.Validate()
+			if tt.expectErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestJoinClause_ToSQL(t *testing.T) {
 	tests := []struct {
 		name     string
