@@ -125,6 +125,12 @@ func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (in
 }
 
 func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	// Handle JOIN queries if Joins is present
+	if params.Joins != nil && len(params.Joins.Joins) > 0 {
+		return r.listWithJoins(ctx, params)
+	}
+
+	// Original implementation for non-JOIN queries
 	whereClauses, args, err := r.buildFilters(params)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build filters for list")
@@ -144,6 +150,41 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list entities")
+	}
+
+	return entities, nil
+}
+
+func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	// Build join query
+	baseQuery, err := r.buildJoinQuery(params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build filters
+	whereClauses, args, err := r.buildFilters(params)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build filters for list with joins")
+	}
+
+	// Combine base query with filters
+	query := baseQuery
+	if len(whereClauses) > 0 {
+		query = repo.Join(query, repo.JoinWhere(whereClauses...))
+	}
+
+	// Add sorting and pagination
+	query = repo.Join(
+		query,
+		params.SortBy.ToSQL(r.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+
+	// Execute query
+	entities, err := r.queryEntities(ctx, query, args...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute join query")
 	}
 
 	return entities, nil
@@ -277,6 +318,30 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 	}
 
 	return where, args, nil
+}
+
+// buildJoinQuery builds a SELECT query with JOIN clauses
+func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error) {
+	// Validate join options
+	if err := params.Joins.Validate(); err != nil {
+		return "", errors.Wrap(err, "invalid join options")
+	}
+
+	// Build SELECT clause
+	selectClause := "*"
+	if len(params.Joins.SelectColumns) > 0 {
+		selectClause = strings.Join(params.Joins.SelectColumns, ", ")
+	}
+
+	// Build base query
+	baseQuery := fmt.Sprintf("SELECT %s FROM %s", selectClause, r.schema.Name())
+
+	// Add JOIN clauses
+	joinClauses := params.Joins.ToSQL()
+	parts := []string{baseQuery}
+	parts = append(parts, joinClauses...)
+
+	return repo.Join(parts...), nil
 }
 
 func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, args ...any) ([]TEntity, error) {
