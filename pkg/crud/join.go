@@ -10,7 +10,9 @@ import (
 )
 
 var (
-	validColumnPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*)?(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
+	// validColumnPattern allows column specifications with 0-2 dots (e.g., "column", "table.column", "schema.table.column")
+	// with optional " AS alias" suffix
+	validColumnPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*){0,2}(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 
 	dangerousKeywords = []string{
 		"union", "select", "insert", "update", "delete", "drop",
