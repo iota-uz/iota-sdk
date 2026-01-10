@@ -285,4 +285,4 @@ Both methods automatically fall back to the regular `Exists()` query when:
 
 ## Examples
 
-See `pkg/crud/examples/join_example.go` for complete working examples.
+See `pkg/crud/examples/join_example_test.go` for complete working examples.

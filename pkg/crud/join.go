@@ -60,15 +60,45 @@ type JoinClause struct {
 
 func (jc *JoinClause) Validate() error {
 	op := serrors.Op("JoinClause.Validate")
+
 	if jc.Table == "" {
 		return serrors.E(op, serrors.Invalid, "join table cannot be empty")
 	}
+
 	if jc.LeftColumn == "" {
 		return serrors.E(op, serrors.Invalid, "join left column cannot be empty")
 	}
+
 	if jc.RightColumn == "" {
 		return serrors.E(op, serrors.Invalid, "join right column cannot be empty")
 	}
+
+	// Check for dangerous SQL keywords FIRST (security priority)
+	for _, val := range []string{jc.Table, jc.TableAlias, jc.LeftColumn, jc.RightColumn} {
+		if val == "" {
+			continue
+		}
+		lowerVal := strings.ToLower(val)
+		for _, keyword := range dangerousKeywords {
+			if strings.Contains(lowerVal, keyword) {
+				return serrors.E(op, serrors.Invalid, fmt.Sprintf("join specification contains dangerous SQL keyword: %q", val))
+			}
+		}
+	}
+
+	// Then validate format patterns
+	if !validColumnPattern.MatchString(jc.Table) {
+		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid table specification: %q", jc.Table))
+	}
+
+	if !validColumnPattern.MatchString(jc.LeftColumn) {
+		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid left column specification: %q", jc.LeftColumn))
+	}
+
+	if !validColumnPattern.MatchString(jc.RightColumn) {
+		return serrors.E(op, serrors.Invalid, fmt.Sprintf("invalid right column specification: %q", jc.RightColumn))
+	}
+
 	return nil
 }
 
