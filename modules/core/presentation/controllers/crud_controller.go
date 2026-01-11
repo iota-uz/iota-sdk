@@ -501,19 +501,6 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Add tenant filtering if tenant context exists
-	tenantID, err := composables.UseTenantID(ctx)
-	if err == nil {
-		// Tenant context exists, add filter
-		if params.Filters == nil {
-			params.Filters = []crud.Filter{}
-		}
-		params.Filters = append(params.Filters, crud.Filter{
-			Column: "tenant_id",
-			Filter: repo.Eq(tenantID),
-		})
-	}
-
 	// Fetch entities and count in parallel for better performance
 	type listResult struct {
 		entities []TEntity
@@ -537,16 +524,6 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		countParams := &crud.FindParams{
 			Query: params.Query, // Include search query in count
-		}
-		// Add tenant filtering to count params
-		if err == nil {
-			if countParams.Filters == nil {
-				countParams.Filters = []crud.Filter{}
-			}
-			countParams.Filters = append(countParams.Filters, crud.Filter{
-				Column: "tenant_id",
-				Filter: repo.Eq(tenantID),
-			})
 		}
 		count, err := c.service.Count(ctx, countParams)
 		countCh <- countResult{count: count, err: err}
