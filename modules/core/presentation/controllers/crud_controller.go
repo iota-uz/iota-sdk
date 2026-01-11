@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
@@ -525,7 +526,9 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err := g.Wait(); err != nil {
-		log.Printf("[CrudController.List] Failed to list entities: %v", err)
+		const op = serrors.Op("CrudController.List")
+		wrappedErr := serrors.E(op, err)
+		log.Printf("[CrudController.List] Failed to list entities: %v", wrappedErr)
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
