@@ -7,7 +7,40 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
+
+// addTenantFilterIfPresent adds tenant_id filter to params if tenant context exists.
+// This ensures multi-tenant applications filter data by tenant automatically.
+func addTenantFilterIfPresent(ctx context.Context, params *FindParams) *FindParams {
+	// Try to get tenant ID from context
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		// No tenant context - return params unchanged (single-tenant or no tenant)
+		return params
+	}
+
+	// Clone params to avoid modifying caller's original
+	if params == nil {
+		params = &FindParams{}
+	} else {
+		paramsCopy := *params
+		params = &paramsCopy
+	}
+
+	// Initialize Filters if nil
+	if params.Filters == nil {
+		params.Filters = []Filter{}
+	}
+
+	// Add tenant_id filter
+	params.Filters = append(params.Filters, Filter{
+		Column: "tenant_id",
+		Filter: repo.Eq(tenantID),
+	})
+
+	return params
+}
 
 type Service[TEntity any] interface {
 	GetAll(ctx context.Context) ([]TEntity, error)
@@ -62,6 +95,7 @@ func (s *service[TEntity]) Exists(ctx context.Context, value FieldValue) (bool, 
 }
 
 func (s *service[TEntity]) Count(ctx context.Context, params *FindParams) (int64, error) {
+	params = addTenantFilterIfPresent(ctx, params)
 	count, err := s.repository.Count(ctx, params)
 	if err != nil {
 		return 0, errors.Wrap(err, "service failed to count entities")
@@ -70,6 +104,7 @@ func (s *service[TEntity]) Count(ctx context.Context, params *FindParams) (int64
 }
 
 func (s *service[TEntity]) List(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	params = addTenantFilterIfPresent(ctx, params)
 	entities, err := s.repository.List(ctx, params)
 	if err != nil {
 		return nil, errors.Wrap(err, "service failed to list entities")
