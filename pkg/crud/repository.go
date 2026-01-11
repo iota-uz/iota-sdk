@@ -301,11 +301,6 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindParams) ([]TEntity, error) {
 	const op = serrors.Op("repository.listWithJoins")
 
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
 	baseQuery, err := r.buildJoinQuery(params)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -315,11 +310,6 @@ func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindPar
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	// Detect tenant column name from schema fields (tenant_id or organization_id)
-	tenantColumn := r.detectTenantColumn()
-	whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", tenantColumn, len(args)+1))
-	args = append(args, tenantID)
 
 	query := baseQuery
 	if len(whereClauses) > 0 {
