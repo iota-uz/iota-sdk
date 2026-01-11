@@ -521,12 +521,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		}
 		var err error
 		totalCount, err = c.service.Count(gCtx, countParams)
-		if err != nil {
-			log.Printf("[CrudController.List] Failed to count entities: %v", err)
-			totalCount = 0
-			return nil
-		}
-		return nil
+		return err
 	})
 
 	if err := g.Wait(); err != nil {
