@@ -10,10 +10,21 @@ import (
 )
 
 var (
-	// validColumnPattern allows column specifications with 0-2 dots (e.g., "column", "table.column", "schema.table.column")
-	// with optional JSONB extraction (->>'key') and " AS alias" suffix
-	// Examples: "column", "table.column", "table.jsonb_col->>'key' as name"
+	// validColumnPattern allows simple column references (no functions)
+	// Used for JOIN clause validation (LeftColumn, RightColumn, TableAlias)
+	// - Simple columns: "column", "table.column", "schema.table.column"
+	// - JSONB extraction: "table.jsonb_col->>'key'"
+	// - Optional AS alias: " AS alias_name"
+	// Examples: "table.column", "col->>'key' AS name"
 	validColumnPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*){0,2}(->>?'[a-zA-Z0-9_]+')?(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
+
+	// validSelectColumnPattern allows column references with optional function calls
+	// Used for SELECT columns validation in JoinOptions
+	// - Simple columns: "column", "table.column", "schema.table.column"
+	// - JSONB extraction: "table.jsonb_col->>'key'"
+	// - PostgreSQL functions (must have AS alias): "row_to_json(table.*) AS alias_name"
+	// Examples: "table.column", "row_to_json(t.*) AS data", "col->>'key' AS name"
+	validSelectColumnPattern = regexp.MustCompile(`^([a-zA-Z_][a-zA-Z0-9_]*\([^)]+\)\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*|[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*){0,2}(->>?'[a-zA-Z0-9_]+')?)(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 
 	dangerousKeywords = []string{
 		"union", "select", "insert", "update", "delete", "drop",
@@ -163,8 +174,8 @@ func validateSelectColumns(columns []string) error {
 			}
 		}
 
-		// Check against pattern
-		if !validColumnPattern.MatchString(col) {
+		// Check against pattern (allows functions in SELECT columns)
+		if !validSelectColumnPattern.MatchString(col) {
 			return fmt.Errorf("invalid column specification: %q (must be 'table.column', 'column AS alias', or similar)", col)
 		}
 	}
