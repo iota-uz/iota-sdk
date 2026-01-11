@@ -18,6 +18,10 @@ type FlatMapper[TEntity any] interface {
 	ToFieldValues(ctx context.Context, entity TEntity) ([]FieldValue, error)
 }
 
+type JSONDeserializer[TEntity any] interface {
+	FromJSON(jsonData any) (TEntity, error)
+}
+
 func newFlatMapper[TEntity any](mapper Mapper[TEntity]) FlatMapper[TEntity] {
 	return &flatMapper[TEntity]{Mapper: mapper}
 }
@@ -48,4 +52,14 @@ func (m *flatMapper[TEntity]) ToFieldValues(ctx context.Context, entity TEntity)
 		return nil, ErrEmptyResult
 	}
 	return values[0], nil
+}
+
+func (m *flatMapper[TEntity]) FromJSON(jsonData any) (TEntity, error) {
+	var zero TEntity
+
+	if deserializer, ok := m.Mapper.(JSONDeserializer[TEntity]); ok {
+		return deserializer.FromJSON(jsonData)
+	}
+
+	return zero, errors.New("mapper does not support JSON deserialization")
 }
