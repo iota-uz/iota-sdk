@@ -3,7 +3,6 @@ package crud
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/go-faster/errors"
@@ -310,9 +309,6 @@ func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindPar
 		params.SortBy.ToSQL(r.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
 	)
-
-	log.Printf("[DEBUG] listWithJoins SQL query: %s", query)
-	log.Printf("[DEBUG] listWithJoins SQL args: %+v", args)
 
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
