@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/iota-uz/iota-sdk/components/multilang"
 
 	"github.com/a-h/templ"
@@ -501,51 +503,36 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fetch entities and count in parallel for better performance
-	type listResult struct {
-		entities []TEntity
-		err      error
-	}
-	type countResult struct {
-		count int64
-		err   error
-	}
+	var entities []TEntity
+	var totalCount int64
 
-	listCh := make(chan listResult, 1)
-	countCh := make(chan countResult, 1)
+	g, ctx := errgroup.WithContext(ctx)
 
-	// Fetch entities
-	go func() {
-		entities, err := c.service.List(ctx, params)
-		listCh <- listResult{entities: entities, err: err}
-	}()
+	g.Go(func() error {
+		var err error
+		entities, err = c.service.List(ctx, params)
+		return err
+	})
 
-	// Count total items
-	go func() {
+	g.Go(func() error {
 		countParams := &crud.FindParams{
-			Query: params.Query, // Include search query in count
+			Query: params.Query,
 		}
-		count, err := c.service.Count(ctx, countParams)
-		countCh <- countResult{count: count, err: err}
-	}()
+		var err error
+		totalCount, err = c.service.Count(ctx, countParams)
+		if err != nil {
+			log.Printf("[CrudController.List] Failed to count entities: %v", err)
+			totalCount = 0
+			return nil
+		}
+		return nil
+	})
 
-	// Wait for results
-	listRes := <-listCh
-	countRes := <-countCh
-
-	if listRes.err != nil {
-		log.Printf("[CrudController.List] Failed to list entities: %v", listRes.err)
+	if err := g.Wait(); err != nil {
+		log.Printf("[CrudController.List] Failed to list entities: %v", err)
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
-	}
-
-	entities := listRes.entities
-	totalCount := countRes.count
-	if countRes.err != nil {
-		log.Printf("[CrudController.List] Failed to count entities: %v", countRes.err)
-		// Non-critical error, continue without infinity scroll
-		totalCount = 0
 	}
 
 	// Calculate if there are more items
