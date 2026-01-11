@@ -315,18 +315,18 @@ func newDynamicField(name string) Field {
 	return &dynamicField{name: name}
 }
 
-func (d *dynamicField) Key() bool                        { return false }
-func (d *dynamicField) Name() string                     { return d.name }
-func (d *dynamicField) Type() FieldType                  { return JSONFieldType }
-func (d *dynamicField) Readonly() bool                   { return false }
-func (d *dynamicField) Searchable() bool                 { return false }
-func (d *dynamicField) Sortable() bool                   { return false }
-func (d *dynamicField) Hidden() bool                     { return true }
-func (d *dynamicField) Rules() []FieldRule               { return nil }
-func (d *dynamicField) Attrs() map[string]any            { return nil }
+func (d *dynamicField) Key() bool                            { return false }
+func (d *dynamicField) Name() string                         { return d.name }
+func (d *dynamicField) Type() FieldType                      { return JSONFieldType }
+func (d *dynamicField) Readonly() bool                       { return false }
+func (d *dynamicField) Searchable() bool                     { return false }
+func (d *dynamicField) Sortable() bool                       { return false }
+func (d *dynamicField) Hidden() bool                         { return true }
+func (d *dynamicField) Rules() []FieldRule                   { return nil }
+func (d *dynamicField) Attrs() map[string]any                { return nil }
 func (d *dynamicField) InitialValue(ctx context.Context) any { return nil }
-func (d *dynamicField) RendererType() string             { return "" }
-func (d *dynamicField) LocalizationKey() string          { return "" }
+func (d *dynamicField) RendererType() string                 { return "" }
+func (d *dynamicField) LocalizationKey() string              { return "" }
 
 func (d *dynamicField) Value(value any) FieldValue {
 	return &fieldValue{
