@@ -503,7 +503,9 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 	for i, col := range columnDescriptions {
 		f, err := r.schema.Fields().Field(col.Name)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get field %q", col.Name)
+			// Column not in schema - this is a dynamic column from SelectColumns (e.g., row_to_json())
+			// Create a dynamic field that can still be added to the flatMap for mapper access
+			f = newDynamicField(col.Name)
 		}
 		columnOrder[i] = f
 	}
