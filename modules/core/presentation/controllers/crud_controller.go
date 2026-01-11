@@ -506,11 +506,11 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	var entities []TEntity
 	var totalCount int64
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, gCtx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
 		var err error
-		entities, err = c.service.List(ctx, params)
+		entities, err = c.service.List(gCtx, params)
 		return err
 	})
 
@@ -519,7 +519,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			Query: params.Query,
 		}
 		var err error
-		totalCount, err = c.service.Count(ctx, countParams)
+		totalCount, err = c.service.Count(gCtx, countParams)
 		if err != nil {
 			log.Printf("[CrudController.List] Failed to count entities: %v", err)
 			totalCount = 0
