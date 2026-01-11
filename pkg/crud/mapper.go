@@ -3,6 +3,8 @@ package crud
 import (
 	"context"
 	"errors"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type Mapper[TEntity any] interface {
@@ -61,5 +63,5 @@ func (m *flatMapper[TEntity]) FromJSON(jsonData any) (TEntity, error) {
 		return deserializer.FromJSON(jsonData)
 	}
 
-	return zero, errors.New("mapper does not support JSON deserialization")
+	return zero, serrors.E("mapper does not support JSON deserialization")
 }
