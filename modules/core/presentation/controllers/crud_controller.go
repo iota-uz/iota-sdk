@@ -516,12 +516,8 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 	})
 
 	g.Go(func() error {
-		countParams := &crud.FindParams{
-			Query:   params.Query,
-			Filters: params.Filters,
-		}
 		var err error
-		totalCount, err = c.service.Count(gCtx, countParams)
+		totalCount, err = c.service.Count(gCtx, params)
 		return err
 	})
 
