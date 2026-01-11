@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -162,13 +161,12 @@ func TestRepository_Get_WithFunctionalOptions(t *testing.T) {
 
 		// Verify the functional options pattern compiles
 		idField := fields.KeyField()
-		tenantID := uuid.New()
 
 		// Build query using internal method to verify it works
-		query, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins}, tenantID)
+		query, err := repo.buildGetWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins})
 		require.NoError(t, err)
 		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
-		assert.Contains(t, query, "WHERE id = $1 AND organization_id = $2")
+		assert.Contains(t, query, "WHERE id = $1")
 	})
 
 	t.Run("works without options (backward compatible)", func(t *testing.T) {
@@ -214,14 +212,13 @@ func TestRepository_Exists_WithFunctionalOptions(t *testing.T) {
 
 		// Verify the functional options pattern compiles
 		idField := fields.KeyField()
-		tenantID := uuid.New()
 
 		// Build query using internal method to verify it works
-		query, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins}, tenantID)
+		query, err := repo.buildExistsWithJoinsQuery(idField.Value(int(1)), &FindParams{Joins: joins})
 		require.NoError(t, err)
 		assert.Contains(t, query, "SELECT EXISTS")
 		assert.Contains(t, query, "INNER JOIN roles r ON test_table.role_id = r.id")
-		assert.Contains(t, query, "WHERE id = $1 AND organization_id = $2")
+		assert.Contains(t, query, "WHERE id = $1")
 	})
 
 	t.Run("works without options (backward compatible)", func(t *testing.T) {
