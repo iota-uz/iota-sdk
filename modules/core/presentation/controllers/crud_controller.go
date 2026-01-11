@@ -509,7 +509,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 			params.Filters = []crud.Filter{}
 		}
 		params.Filters = append(params.Filters, crud.Filter{
-			Column: c.schema.Name() + ".tenant_id",
+			Column: "tenant_id",
 			Filter: repo.Eq(tenantID),
 		})
 	}
@@ -544,7 +544,7 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 				countParams.Filters = []crud.Filter{}
 			}
 			countParams.Filters = append(countParams.Filters, crud.Filter{
-				Column: c.schema.Name() + ".tenant_id",
+				Column: "tenant_id",
 				Filter: repo.Eq(tenantID),
 			})
 		}
