@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/iota-uz/iota-sdk/components/multilang"
 
 	"github.com/a-h/templ"
@@ -25,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/actions"
 	"github.com/iota-uz/iota-sdk/components/scaffold/form"
@@ -501,51 +504,30 @@ func (c *CrudController[TEntity]) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Fetch entities and count in parallel for better performance
-	type listResult struct {
-		entities []TEntity
-		err      error
-	}
-	type countResult struct {
-		count int64
-		err   error
-	}
+	var entities []TEntity
+	var totalCount int64
 
-	listCh := make(chan listResult, 1)
-	countCh := make(chan countResult, 1)
+	g, gCtx := errgroup.WithContext(ctx)
 
-	// Fetch entities
-	go func() {
-		entities, err := c.service.List(ctx, params)
-		listCh <- listResult{entities: entities, err: err}
-	}()
+	g.Go(func() error {
+		var err error
+		entities, err = c.service.List(gCtx, params)
+		return err
+	})
 
-	// Count total items
-	go func() {
-		countParams := &crud.FindParams{
-			Query: params.Query, // Include search query in count
-		}
-		count, err := c.service.Count(ctx, countParams)
-		countCh <- countResult{count: count, err: err}
-	}()
+	g.Go(func() error {
+		var err error
+		totalCount, err = c.service.Count(gCtx, params)
+		return err
+	})
 
-	// Wait for results
-	listRes := <-listCh
-	countRes := <-countCh
-
-	if listRes.err != nil {
-		log.Printf("[CrudController.List] Failed to list entities: %v", listRes.err)
+	if err := g.Wait(); err != nil {
+		const op = serrors.Op("CrudController.List")
+		wrappedErr := serrors.E(op, err)
+		log.Printf("[CrudController.List] Failed to list entities: %v", wrappedErr)
 		errorMsg, _ := c.localize(ctx, errFailedToRetrieve, "Failed to retrieve data")
 		http.Error(w, errorMsg, http.StatusInternalServerError)
 		return
-	}
-
-	entities := listRes.entities
-	totalCount := countRes.count
-	if countRes.err != nil {
-		log.Printf("[CrudController.List] Failed to count entities: %v", countRes.err)
-		// Non-critical error, continue without infinity scroll
-		totalCount = 0
 	}
 
 	// Calculate if there are more items

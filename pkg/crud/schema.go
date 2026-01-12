@@ -21,6 +21,14 @@ type Schema[TEntity any] interface {
 	Hooks() Hooks[TEntity]
 }
 
+// SchemaWithJoins is an optional interface that schemas can implement
+// to provide default JOIN configurations for queries.
+// Only schemas that need JOINs should implement this interface.
+type SchemaWithJoins[TEntity any] interface {
+	Schema[TEntity]
+	DefaultJoins() *JoinOptions
+}
+
 func WithValidators[TEntity any](validators []Validator[TEntity]) SchemaOption[TEntity] {
 	return func(s *schema[TEntity]) {
 		s.validators = append(s.validators, validators...)
