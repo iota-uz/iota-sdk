@@ -41,20 +41,32 @@ func Migrate(mods ...application.Module) error {
 	}
 
 	command := os.Args[1]
-
-	app, pool, err := common.NewApplicationWithDefaults(mods...)
-	if err != nil {
-		return fmt.Errorf("failed to initialize application: %w", err)
-	}
-	defer pool.Close()
-
 	ctx := context.Background()
 
+	// For DDL migrations (up/down/redo), we only need a database pool and migration manager.
+	// Loading modules is not required and can cause issues if modules query the database
+	// during registration (e.g., before the schema exists).
 	switch command {
 	case "collect":
+		// Schema collection needs the full application to collect schemas from modules
+		app, pool, err := common.NewApplicationWithDefaults(mods...)
+		if err != nil {
+			return fmt.Errorf("failed to initialize application: %w", err)
+		}
+		defer pool.Close()
 		return handleSchemaCommands(ctx, command, app, conf.Logger().Level)
+
+	case "up", "down", "redo":
+		// DDL migrations only need database pool - don't load modules
+		pool, err := common.GetDefaultDatabasePool()
+		if err != nil {
+			return fmt.Errorf("failed to connect to database: %w", err)
+		}
+		defer pool.Close()
+		return handleMigrationCommands(ctx, command, application.NewMigrationManager(pool))
+
 	default:
-		return handleMigrationCommands(ctx, command, app.Migrations())
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'collect'", command)
 	}
 }
 
