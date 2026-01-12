@@ -8,6 +8,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type SortBy = repo.SortBy[string]
@@ -19,12 +20,46 @@ type FindParams struct {
 	Limit   int
 	Offset  int
 	SortBy  SortBy
+	Joins   *JoinOptions
+}
+
+// QueryOption configures optional query parameters
+type QueryOption func(*queryOptions)
+
+// queryOptions holds optional query configuration
+type queryOptions struct {
+	joins *JoinOptions
+}
+
+// WithJoins adds JOIN clauses to the query
+func WithJoins(joins *JoinOptions) QueryOption {
+	return func(opts *queryOptions) {
+		opts.joins = joins
+	}
+}
+
+// applyOptions applies query options and returns the effective queryOptions
+func applyOptions(options []QueryOption) *queryOptions {
+	opts := &queryOptions{}
+	for _, option := range options {
+		option(opts)
+	}
+	return opts
+}
+
+// getSchemaDefaultJoins safely retrieves default JOINs from a schema
+// that may or may not implement SchemaWithJoins
+func getSchemaDefaultJoins[TEntity any](schema Schema[TEntity]) *JoinOptions {
+	if schemaWithJoins, ok := schema.(SchemaWithJoins[TEntity]); ok {
+		return schemaWithJoins.DefaultJoins()
+	}
+	return nil
 }
 
 type Repository[TEntity any] interface {
 	GetAll(ctx context.Context) ([]TEntity, error)
-	Get(ctx context.Context, value FieldValue) (TEntity, error)
-	Exists(ctx context.Context, value FieldValue) (bool, error)
+	Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error)
+	Exists(ctx context.Context, value FieldValue, options ...QueryOption) (bool, error)
 	Count(ctx context.Context, filters *FindParams) (int64, error)
 	List(ctx context.Context, params *FindParams) ([]TEntity, error)
 	Create(ctx context.Context, values []FieldValue) (TEntity, error)
@@ -56,9 +91,20 @@ func (r *repository[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
 	return r.queryEntities(ctx, query)
 }
 
-func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue) (TEntity, error) {
+func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error) {
 	var zero TEntity
 
+	opts := applyOptions(options)
+
+	// Merge schema default JOINs with request JOINs
+	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), opts.joins)
+
+	// If JOINs present, use JOIN query path
+	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
+		return r.getWithJoins(ctx, value, effectiveJoins)
+	}
+
+	// Original implementation for queries without JOINs
 	query := fmt.Sprintf(
 		"SELECT * FROM %s WHERE %s = $1",
 		r.schema.Name(),
@@ -76,7 +122,39 @@ func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue) (TEntit
 	return entities[0], nil
 }
 
-func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue) (bool, error) {
+// getWithJoins is the internal implementation for Get with JOINs
+func (r *repository[TEntity]) getWithJoins(ctx context.Context, value FieldValue, joins *JoinOptions) (TEntity, error) {
+	const op = serrors.Op("repository.getWithJoins")
+	var zero TEntity
+
+	query, err := r.buildGetWithJoinsQuery(value, &FindParams{Joins: joins})
+	if err != nil {
+		return zero, serrors.E(op, err)
+	}
+
+	entities, err := r.queryEntities(ctx, query, value.Value())
+	if err != nil {
+		return zero, serrors.E(op, err)
+	}
+	if len(entities) == 0 {
+		return zero, serrors.E(op, serrors.NotFound, "entity not found")
+	}
+
+	return entities[0], nil
+}
+
+func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue, options ...QueryOption) (bool, error) {
+	opts := applyOptions(options)
+
+	// Merge schema default JOINs with request JOINs
+	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), opts.joins)
+
+	// If JOINs present, use JOIN query path
+	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
+		return r.existsWithJoins(ctx, value, effectiveJoins)
+	}
+
+	// Original implementation for queries without JOINs
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return false, errors.Wrap(err, "failed to get transaction")
@@ -94,6 +172,46 @@ func (r *repository[TEntity]) Exists(ctx context.Context, value FieldValue) (boo
 		return false, errors.Wrap(err, fmt.Sprintf("failed to check if %s exists", value.Field().Name()))
 	}
 	return exists, nil
+}
+
+// existsWithJoins is the internal implementation for Exists with JOINs
+func (r *repository[TEntity]) existsWithJoins(ctx context.Context, value FieldValue, joins *JoinOptions) (bool, error) {
+	const op = serrors.Op("repository.existsWithJoins")
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	query, err := r.buildExistsWithJoinsQuery(value, &FindParams{Joins: joins})
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	exists := false
+	if err := tx.QueryRow(ctx, query, value.Value()).Scan(&exists); err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	return exists, nil
+}
+
+func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
+	if err := params.Joins.Validate(); err != nil {
+		return "", errors.Wrap(err, "invalid join options")
+	}
+
+	baseQuery := fmt.Sprintf("SELECT 1 FROM %s", r.schema.Name())
+
+	joinClauses := params.Joins.ToSQL()
+	parts := []string{baseQuery}
+	parts = append(parts, joinClauses...)
+
+	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	parts = append(parts, repo.JoinWhere(whereClause))
+
+	innerQuery := repo.Join(parts...)
+	return repo.Exists(innerQuery), nil
 }
 
 func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (int64, error) {
@@ -124,6 +242,26 @@ func (r *repository[TEntity]) Count(ctx context.Context, params *FindParams) (in
 }
 
 func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	if params == nil {
+		params = &FindParams{}
+	}
+
+	// Merge schema default JOINs with request params.Joins
+	effectiveJoins := MergeJoinOptions(getSchemaDefaultJoins(r.schema), params.Joins)
+
+	// Update params with merged JOINs if we have any
+	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
+		paramsCopy := *params
+		paramsCopy.Joins = effectiveJoins
+		params = &paramsCopy
+	}
+
+	// Handle JOIN queries if Joins is present
+	if params.Joins != nil && len(params.Joins.Joins) > 0 {
+		return r.listWithJoins(ctx, params)
+	}
+
+	// Original implementation for non-JOIN queries
 	whereClauses, args, err := r.buildFilters(params)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build filters for list")
@@ -143,6 +281,38 @@ func (r *repository[TEntity]) List(ctx context.Context, params *FindParams) ([]T
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to list entities")
+	}
+
+	return entities, nil
+}
+
+func (r *repository[TEntity]) listWithJoins(ctx context.Context, params *FindParams) ([]TEntity, error) {
+	const op = serrors.Op("repository.listWithJoins")
+
+	baseQuery, err := r.buildJoinQuery(params)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	whereClauses, args, err := r.buildFilters(params)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	query := baseQuery
+	if len(whereClauses) > 0 {
+		query = repo.Join(query, repo.JoinWhere(whereClauses...))
+	}
+
+	query = repo.Join(
+		query,
+		params.SortBy.ToSQL(r.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+
+	entities, err := r.queryEntities(ctx, query, args...)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 
 	return entities, nil
@@ -278,6 +448,44 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 	return where, args, nil
 }
 
+// buildJoinQueryBase builds the base SELECT query with JOIN clauses.
+// Returns the base query string without WHERE, ORDER BY, or LIMIT/OFFSET.
+// SECURITY WARNING: This method does NOT apply filtering.
+// Callers are responsible for adding all necessary WHERE clauses via params.
+func (r *repository[TEntity]) buildJoinQueryBase(params *FindParams) (string, error) {
+	if err := params.Joins.Validate(); err != nil {
+		return "", errors.Wrap(err, "invalid join options")
+	}
+
+	selectClause := "*"
+	if len(params.Joins.SelectColumns) > 0 {
+		selectClause = strings.Join(params.Joins.SelectColumns, ", ")
+	}
+
+	baseQuery := fmt.Sprintf("SELECT %s FROM %s", selectClause, r.schema.Name())
+
+	joinClauses := params.Joins.ToSQL()
+	parts := []string{baseQuery}
+	parts = append(parts, joinClauses...)
+
+	return repo.Join(parts...), nil
+}
+
+// buildJoinQuery builds a SELECT query with JOIN clauses
+func (r *repository[TEntity]) buildJoinQuery(params *FindParams) (string, error) {
+	return r.buildJoinQueryBase(params)
+}
+
+func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *FindParams) (string, error) {
+	baseQuery, err := r.buildJoinQueryBase(params)
+	if err != nil {
+		return "", err
+	}
+
+	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	return repo.Join(baseQuery, repo.JoinWhere(whereClause)), nil
+}
+
 func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, args ...any) ([]TEntity, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
@@ -295,7 +503,9 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 	for i, col := range columnDescriptions {
 		f, err := r.schema.Fields().Field(col.Name)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to get field %q", col.Name)
+			// Column not in schema - this is a dynamic column from SelectColumns (e.g., row_to_json())
+			// Create a dynamic field that can still be added to the flatMap for mapper access
+			f = newDynamicField(col.Name)
 		}
 		columnOrder[i] = f
 	}
