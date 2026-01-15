@@ -850,8 +850,15 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
 
     const form = document.getElementById(formID);
     if (form) {
-      const event = new Event('change', {bubbles: true});
-      form.dispatchEvent(event);
+      // Small delay to ensure flatpickr has updated the form inputs
+      setTimeout(() => {
+        if (typeof htmx !== 'undefined') {
+          htmx.trigger(form, 'dateRangeChange');
+        } else {
+          const event = new Event('change', {bubbles: true});
+          form.dispatchEvent(event);
+        }
+      }, 50);
     }
   },
   applyDays(days) {
@@ -870,6 +877,12 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
     const today = new Date();
     const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const startDate = new Date(today.getFullYear(), 0, 1);
+    this.updateDateRange(startDate, endDate);
+  },
+  applyCurrentMonth() {
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
     this.updateDateRange(startDate, endDate);
   }
 });
