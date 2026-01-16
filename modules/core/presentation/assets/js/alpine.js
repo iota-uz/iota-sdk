@@ -884,6 +884,34 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
     const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const startDate = new Date(today.getFullYear(), today.getMonth(), 1);
     this.updateDateRange(startDate, endDate);
+  },
+  applyAllTime() {
+    // Clear hidden fields
+    const hiddenStart = document.getElementById(hiddenStartID);
+    const hiddenEnd = document.getElementById(hiddenEndID);
+    if (hiddenStart) hiddenStart.value = '';
+    if (hiddenEnd) hiddenEnd.value = '';
+
+    // Clear all flatpickr instances
+    const fpElements = document.querySelectorAll('.flatpickr-input');
+    fpElements.forEach(fp => {
+      if (fp._flatpickr) {
+        fp._flatpickr.clear();
+      }
+    });
+
+    // Trigger form update
+    const form = document.getElementById(formID);
+    if (form) {
+      setTimeout(() => {
+        if (typeof htmx !== 'undefined') {
+          htmx.trigger(form, 'dateRangeChange');
+        } else {
+          const event = new Event('change', {bubbles: true});
+          form.dispatchEvent(event);
+        }
+      }, 50);
+    }
   }
 });
 
