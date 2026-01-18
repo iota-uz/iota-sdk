@@ -368,7 +368,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 		assert.Contains(t, columns, "owner.first_name AS owner__first_name")
 	})
 
-	t.Run("handles nested relations with Through", func(t *testing.T) {
+	t.Run("handles nested relations with Through using scoped prefixes", func(t *testing.T) {
 		t.Parallel()
 
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name", "group_id"})
@@ -400,13 +400,13 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 
 		// vt has 3 fields, vg has 2 fields = 5 total
 		require.Len(t, columns, 5)
-		// vt columns use simple prefix
+		// vt columns use simple prefix (top-level)
 		assert.Contains(t, columns, "vt.id AS vt__id")
 		assert.Contains(t, columns, "vt.name AS vt__name")
 		assert.Contains(t, columns, "vt.group_id AS vt__group_id")
-		// vg columns use vg prefix (not vt__vg)
-		assert.Contains(t, columns, "vg.id AS vg__id")
-		assert.Contains(t, columns, "vg.name AS vg__name")
+		// vg columns use scoped prefix: vt__vg (nested through vt)
+		assert.Contains(t, columns, "vg.id AS vt__vg__id")
+		assert.Contains(t, columns, "vg.name AS vt__vg__name")
 	})
 
 	t.Run("skips relations with nil schema", func(t *testing.T) {
@@ -637,6 +637,52 @@ type mockSchemaWithRelations struct {
 func (m *mockSchemaWithRelations) Name() string          { return m.name }
 func (m *mockSchemaWithRelations) Fields() Fields        { return NewFields(nil) }
 func (m *mockSchemaWithRelations) Relations() []Relation { return m.relations }
+
+// mockSchemaWithFields implements RelationSchema for testing BuildRelationSelectColumns
+type mockSchemaWithFields struct {
+	name   string
+	fields Fields
+}
+
+func (m *mockSchemaWithFields) Name() string   { return m.name }
+func (m *mockSchemaWithFields) Fields() Fields { return m.fields }
+
+func TestBuildRelationSelectColumns_NestedPrefix(t *testing.T) {
+	t.Parallel()
+
+	vtSchema := &mockSchemaWithFields{
+		name:   "vehicle_types",
+		fields: NewFields([]Field{NewUUIDField("id", WithKey()), NewStringField("name")}),
+	}
+	vgSchema := &mockSchemaWithFields{
+		name:   "vehicle_groups",
+		fields: NewFields([]Field{NewUUIDField("id", WithKey()), NewStringField("name")}),
+	}
+
+	relations := []Relation{
+		{Alias: "vt", Schema: vtSchema},
+		{Alias: "vg", Schema: vgSchema, Through: "vt"}, // nested
+	}
+
+	columns := BuildRelationSelectColumns(relations)
+
+	expected := []string{
+		"vt.id AS vt__id",
+		"vt.name AS vt__name",
+		"vg.id AS vt__vg__id",
+		"vg.name AS vt__vg__name",
+	}
+
+	if len(columns) != len(expected) {
+		t.Fatalf("expected %d columns, got %d: %v", len(expected), len(columns), columns)
+	}
+
+	for i, col := range columns {
+		if col != expected[i] {
+			t.Errorf("column[%d] = %q, want %q", i, col, expected[i])
+		}
+	}
+}
 
 func TestBuildRelationsRecursive(t *testing.T) {
 	t.Parallel()

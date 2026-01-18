@@ -229,13 +229,14 @@ func TopologicalSortRelations(relations []Relation) []Relation {
 //	columns := BuildRelationSelectColumns(relations)
 //	// Returns: ["vt.id AS vt__id", "vt.name AS vt__name"]
 //
-// For nested relations (with Through), the alias is used directly (not nested):
+// For nested relations (with Through set), the column prefix includes the parent path
+// to prevent collisions when the same alias is used at different nesting levels:
 //
 //	relations := []Relation{
 //	    {Alias: "vt", Schema: vtSchema},
 //	    {Alias: "vg", Through: "vt", Schema: vgSchema},
 //	}
-//	// Returns: ["vt.id AS vt__id", ..., "vg.id AS vg__id", ...]
+//	// Returns: ["vt.id AS vt__id", ..., "vg.id AS vt__vg__id", ...]
 func BuildRelationSelectColumns(relations []Relation) []string {
 	if len(relations) == 0 {
 		return nil
@@ -255,11 +256,21 @@ func BuildRelationSelectColumns(relations []Relation) []string {
 			continue
 		}
 
+		// Determine the column prefix based on nesting
+		var columnPrefix string
+		if rel.Through != "" {
+			// Nested: parent__alias (e.g., "vt__vg")
+			columnPrefix = rel.Through + "__" + rel.Alias
+		} else {
+			// Top-level: just alias (e.g., "vt")
+			columnPrefix = rel.Alias
+		}
+
 		// Get all field names from the schema
 		for _, field := range schema.Fields().Fields() {
 			fieldName := field.Name()
-			// Format: alias.field AS alias__field
-			column := fmt.Sprintf("%s.%s AS %s__%s", rel.Alias, fieldName, rel.Alias, fieldName)
+			// Format: alias.field AS prefix__field
+			column := fmt.Sprintf("%s.%s AS %s__%s", rel.Alias, fieldName, columnPrefix, fieldName)
 			columns = append(columns, column)
 		}
 	}
