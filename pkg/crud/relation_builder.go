@@ -95,6 +95,18 @@ func (rc *RelationConfig) HasMany(alias string, schema any) *RelationConfig {
 	return rc.builder.HasMany(alias, schema)
 }
 
+// Mapper sets the mapper for the related entity.
+func (rc *RelationConfig) Mapper(mapper any) *RelationConfig {
+	rc.builder.relations[rc.index].Mapper = mapper
+	return rc
+}
+
+// SetOnParent sets the function that attaches child entity to parent.
+func (rc *RelationConfig) SetOnParent(fn func(parent, child any) any) *RelationConfig {
+	rc.builder.relations[rc.index].SetOnParent = fn
+	return rc
+}
+
 // Build returns the configured relations.
 func (rc *RelationConfig) Build() []Relation {
 	return rc.builder.Build()
