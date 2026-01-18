@@ -628,6 +628,256 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 	})
 }
 
+// mockSchemaWithRelations implements RelationsProvider for testing BuildRelationsRecursive
+type mockSchemaWithRelations struct {
+	name      string
+	relations []Relation
+}
+
+func (m *mockSchemaWithRelations) Name() string          { return m.name }
+func (m *mockSchemaWithRelations) Fields() Fields        { return NewFields(nil) }
+func (m *mockSchemaWithRelations) Relations() []Relation { return m.relations }
+
+func TestBuildRelationsRecursive(t *testing.T) {
+	t.Parallel()
+
+	t.Run("discovers nested relations from schema tree", func(t *testing.T) {
+		t.Parallel()
+
+		// Create mock schemas that implement RelationsProvider
+		// Child schema (VehicleGroup) - no nested relations
+		childSchema := &mockSchemaWithRelations{
+			name:      "vehicle_groups",
+			relations: nil, // leaf
+		}
+
+		// Parent schema (VehicleType) - has VehicleGroup relation
+		parentSchema := &mockSchemaWithRelations{
+			name: "vehicle_types",
+			relations: []Relation{
+				{
+					Alias:    "vg",
+					LocalKey: "group_id",
+					Schema:   childSchema,
+				},
+			},
+		}
+
+		// Root relations (Vehicle has VehicleType)
+		rootRelations := []Relation{
+			{
+				Alias:    "vt",
+				LocalKey: "vehicle_type_id",
+				Schema:   parentSchema,
+			},
+		}
+
+		// Discover all relations recursively
+		allRelations := BuildRelationsRecursive(rootRelations)
+
+		// Should have 2 relations: vt and vg (discovered through vt)
+		if len(allRelations) != 2 {
+			t.Fatalf("expected 2 relations, got %d", len(allRelations))
+		}
+
+		// First should be vt (no Through)
+		if allRelations[0].Alias != "vt" {
+			t.Errorf("first relation alias = %q, want 'vt'", allRelations[0].Alias)
+		}
+		if allRelations[0].Through != "" {
+			t.Errorf("first relation Through = %q, want ''", allRelations[0].Through)
+		}
+
+		// Second should be vg (Through = "vt")
+		if allRelations[1].Alias != "vg" {
+			t.Errorf("second relation alias = %q, want 'vg'", allRelations[1].Alias)
+		}
+		if allRelations[1].Through != "vt" {
+			t.Errorf("second relation Through = %q, want 'vt'", allRelations[1].Through)
+		}
+	})
+
+	t.Run("handles empty relations", func(t *testing.T) {
+		t.Parallel()
+
+		result := BuildRelationsRecursive(nil)
+		if result != nil {
+			t.Errorf("expected nil for empty input, got %v", result)
+		}
+
+		result = BuildRelationsRecursive([]Relation{})
+		if result != nil {
+			t.Errorf("expected nil for empty slice, got %v", result)
+		}
+	})
+
+	t.Run("handles relations without RelationsProvider", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a schema that does NOT implement RelationsProvider
+		simpleSchema := createTestRelationSchema("simple_table", []string{"id", "name"})
+
+		relations := []Relation{
+			{
+				Alias:    "st",
+				LocalKey: "simple_id",
+				Schema:   simpleSchema,
+			},
+		}
+
+		allRelations := BuildRelationsRecursive(relations)
+
+		// Should have only 1 relation since simpleSchema doesn't implement RelationsProvider
+		if len(allRelations) != 1 {
+			t.Fatalf("expected 1 relation, got %d", len(allRelations))
+		}
+		if allRelations[0].Alias != "st" {
+			t.Errorf("relation alias = %q, want 'st'", allRelations[0].Alias)
+		}
+	})
+
+	t.Run("handles nil schema in relation", func(t *testing.T) {
+		t.Parallel()
+
+		relations := []Relation{
+			{
+				Alias:    "invalid",
+				LocalKey: "invalid_id",
+				Schema:   nil,
+			},
+		}
+
+		allRelations := BuildRelationsRecursive(relations)
+
+		// Should still include the relation, just no nested discovery
+		if len(allRelations) != 1 {
+			t.Fatalf("expected 1 relation, got %d", len(allRelations))
+		}
+	})
+
+	t.Run("prevents infinite loops in cyclic schema references", func(t *testing.T) {
+		t.Parallel()
+
+		// Create schemas with a cycle: A -> B -> A (same alias "a")
+		// This tests that we don't infinitely loop when discovering relations
+		schemaA := &mockSchemaWithRelations{
+			name:      "table_a",
+			relations: nil, // Will be set after schemaB is created
+		}
+
+		schemaB := &mockSchemaWithRelations{
+			name: "table_b",
+			relations: []Relation{
+				{
+					Alias:    "a", // Same alias as root - creates a potential infinite loop
+					LocalKey: "a_id",
+					Schema:   schemaA,
+				},
+			},
+		}
+
+		// Complete the cycle
+		schemaA.relations = []Relation{
+			{
+				Alias:    "b",
+				LocalKey: "b_id",
+				Schema:   schemaB,
+			},
+		}
+
+		rootRelations := []Relation{
+			{
+				Alias:    "a",
+				LocalKey: "a_id",
+				Schema:   schemaA,
+			},
+		}
+
+		// Should not infinite loop - visited tracking prevents cycles
+		// The function completes without hanging is the main test
+		allRelations := BuildRelationsRecursive(rootRelations)
+
+		// Relations discovered: a (root), b (through a), a (through b) - 3 total
+		// Each path is unique: ".a", "a.b", "b.a"
+		// Without cycle detection on the same schema pointer, we'd loop forever
+		// With path-based detection, we get finite results
+		if len(allRelations) < 1 {
+			t.Fatalf("expected at least 1 relation, got %d", len(allRelations))
+		}
+
+		// Verify we got the root relation
+		if allRelations[0].Alias != "a" {
+			t.Errorf("first relation alias = %q, want 'a'", allRelations[0].Alias)
+		}
+	})
+
+	t.Run("discovers three-level deep relations", func(t *testing.T) {
+		t.Parallel()
+
+		// manufacturer -> vehicle_groups -> vehicle_types -> vehicles
+		manufacturerSchema := &mockSchemaWithRelations{
+			name:      "manufacturers",
+			relations: nil, // leaf
+		}
+
+		groupSchema := &mockSchemaWithRelations{
+			name: "vehicle_groups",
+			relations: []Relation{
+				{
+					Alias:    "mfr",
+					LocalKey: "manufacturer_id",
+					Schema:   manufacturerSchema,
+				},
+			},
+		}
+
+		typeSchema := &mockSchemaWithRelations{
+			name: "vehicle_types",
+			relations: []Relation{
+				{
+					Alias:    "vg",
+					LocalKey: "group_id",
+					Schema:   groupSchema,
+				},
+			},
+		}
+
+		rootRelations := []Relation{
+			{
+				Alias:    "vt",
+				LocalKey: "vehicle_type_id",
+				Schema:   typeSchema,
+			},
+		}
+
+		allRelations := BuildRelationsRecursive(rootRelations)
+
+		// Should have 3 relations: vt, vg (through vt), mfr (through vg)
+		if len(allRelations) != 3 {
+			t.Fatalf("expected 3 relations, got %d", len(allRelations))
+		}
+
+		// Verify order and Through fields
+		expected := []struct {
+			alias   string
+			through string
+		}{
+			{"vt", ""},
+			{"vg", "vt"},
+			{"mfr", "vg"},
+		}
+
+		for i, exp := range expected {
+			if allRelations[i].Alias != exp.alias {
+				t.Errorf("relation[%d] alias = %q, want %q", i, allRelations[i].Alias, exp.alias)
+			}
+			if allRelations[i].Through != exp.through {
+				t.Errorf("relation[%d] Through = %q, want %q", i, allRelations[i].Through, exp.through)
+			}
+		}
+	})
+}
+
 func TestTopologicalSortRelations(t *testing.T) {
 	t.Parallel()
 

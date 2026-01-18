@@ -13,6 +13,62 @@ type RelationSchema interface {
 	Fields() Fields
 }
 
+// RelationsProvider is implemented by schemas that declare their own relations.
+// Used by BuildRelationsRecursive to discover nested relations.
+type RelationsProvider interface {
+	Relations() []Relation
+}
+
+// BuildRelationsRecursive discovers all nested relations by walking the schema tree.
+// For each relation, if its Schema implements RelationsProvider, those nested relations
+// are also included with their Through field set to the parent alias.
+//
+// Example:
+//
+//	Vehicle declares: [{Alias: "vt", Schema: vehicleTypeSchema}]
+//	VehicleType declares: [{Alias: "vg", Schema: vehicleGroupSchema}]
+//	Result: [{Alias: "vt"}, {Alias: "vg", Through: "vt"}]
+//
+// This enables parent schemas to only declare direct relations while nested
+// relations are auto-discovered.
+func BuildRelationsRecursive(relations []Relation) []Relation {
+	if len(relations) == 0 {
+		return nil
+	}
+
+	var result []Relation
+	visited := make(map[string]bool)
+
+	var discover func(parentAlias string, rels []Relation)
+	discover = func(parentAlias string, rels []Relation) {
+		for _, rel := range rels {
+			// Create unique key for this relation path
+			key := parentAlias + "." + rel.Alias
+			if visited[key] {
+				continue // prevent cycles
+			}
+			visited[key] = true
+
+			// Copy relation and set Through if nested
+			r := rel
+			if parentAlias != "" {
+				r.Through = parentAlias
+			}
+			result = append(result, r)
+
+			// Recursively discover from child schema if it provides relations
+			if rel.Schema != nil {
+				if provider, ok := rel.Schema.(RelationsProvider); ok {
+					discover(rel.Alias, provider.Relations())
+				}
+			}
+		}
+	}
+
+	discover("", relations)
+	return result
+}
+
 // prefixedField wraps a Field with a different name (prefix stripped).
 // This is used when extracting prefixed fields to rename them.
 type prefixedField struct {
