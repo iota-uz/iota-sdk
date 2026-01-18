@@ -90,7 +90,14 @@ func (pf *prefixedField) Value(value any) FieldValue {
 // ExtractPrefixedFields filters FieldValues where field name starts with prefix + "__"
 // and returns new FieldValues with the prefix stripped from field names.
 //
-// Example: prefix="vt", field "vt__id" returns FieldValue with field named "id"
+// Examples with prefix="vt":
+//   - "vt__id" → "id" (direct field)
+//   - "vt__name" → "name" (direct field)
+//   - "vt__vg__id" → "vg__id" (nested field, preserved for child mapper)
+//   - "vt__vg__name" → "vg__name" (nested field, preserved for child mapper)
+//
+// Nested prefixes are preserved so child mappers can extract their own relations.
+// This enables auto-cascading: Vehicle → VehicleType → VehicleGroup
 func ExtractPrefixedFields(fvs []FieldValue, prefix string) []FieldValue {
 	if len(fvs) == 0 {
 		return nil
@@ -107,16 +114,8 @@ func ExtractPrefixedFields(fvs []FieldValue, prefix string) []FieldValue {
 			continue
 		}
 
-		// Get the part after the prefix
+		// Get the part after the prefix (includes nested prefixes)
 		remainder := strings.TrimPrefix(fieldName, fullPrefix)
-
-		// For nested prefixes like "vt__vg__id" when extracting with prefix "vt",
-		// we should only get fields that have exactly one level after the prefix.
-		// "vt__id" -> "id" (no more __)
-		// "vt__vg__id" -> "vg__id" (has more __, so skip for "vt" prefix)
-		if strings.Contains(remainder, "__") {
-			continue
-		}
 
 		// Create a wrapper field with the stripped name
 		wrappedField := &prefixedField{

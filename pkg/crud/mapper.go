@@ -12,18 +12,6 @@ type Mapper[TEntity any] interface {
 	ToFieldValuesList(ctx context.Context, entities ...TEntity) ([][]FieldValue, error)
 }
 
-// JoinableMapper extends Mapper with the ability to handle nested relations.
-// Implementations receive both their own prefixed fields and all fields from the query,
-// allowing them to extract and map nested relations.
-type JoinableMapper[TEntity any] interface {
-	Mapper[TEntity]
-
-	// ToEntitiesWithAllFields maps entities from field values and handles nested relations.
-	// myFields: fields for this entity (prefix already stripped)
-	// allFields: all fields from query (for passing to child mappers with nested prefixes)
-	ToEntitiesWithAllFields(ctx context.Context, myFields, allFields []FieldValue) ([]TEntity, error)
-}
-
 var ErrEmptyResult = errors.New("no entities returned from mapper")
 
 type FlatMapper[TEntity any] interface {
