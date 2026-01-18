@@ -36,6 +36,7 @@ const (
 	TimestampFieldType FieldType = "timestamp"
 	UUIDFieldType      FieldType = "uuid"
 	JSONFieldType      FieldType = "json"
+	EntityFieldType    FieldType = "entity" // holds pre-mapped related entity from JOIN
 )
 
 const (
@@ -297,6 +298,9 @@ func isValidType(fieldType FieldType, value any) bool {
 
 	case JSONFieldType:
 		return true
+
+	case EntityFieldType:
+		return true // entity fields can hold any mapped entity type
 
 	default:
 		return false
