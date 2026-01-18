@@ -49,6 +49,15 @@ type Relation struct {
 
 	// Through specifies the parent alias for nested relations (e.g., "vt" for group through vehicle_type)
 	Through string
+
+	// Mapper is the mapper for the related entity (type-erased for storage).
+	// Used by MapWithRelations to map prefixed fields to entities.
+	Mapper any
+
+	// SetOnParent attaches a mapped child entity to its parent entity.
+	// Returns the updated parent. Used by MapWithRelations.
+	// Example: func(parent, child any) any { return parent.ApplyOptions(WithChild(child)) }
+	SetOnParent func(parent, child any) any
 }
 
 // Validate checks that the relation has all required fields.
