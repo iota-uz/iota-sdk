@@ -29,6 +29,13 @@ type SchemaWithJoins[TEntity any] interface {
 	DefaultJoins() *JoinOptions
 }
 
+// SchemaWithRelations extends Schema with relation registry for type-safe JOINs.
+// Schemas implementing this interface can use the relation-aware repository methods.
+type SchemaWithRelations[TEntity any] interface {
+	Schema[TEntity]
+	Relations() []Relation
+}
+
 func WithValidators[TEntity any](validators []Validator[TEntity]) SchemaOption[TEntity] {
 	return func(s *schema[TEntity]) {
 		s.validators = append(s.validators, validators...)
@@ -134,4 +141,28 @@ func (h *hooks[TEntity]) OnUpdate() Hook[TEntity] {
 
 func (h *hooks[TEntity]) OnDelete() Hook[TEntity] {
 	return h.deleteHook
+}
+
+// NewSchemaWithRelations creates a new schema with relation declarations.
+func NewSchemaWithRelations[TEntity any](
+	name string,
+	fields Fields,
+	mapper Mapper[TEntity],
+	relations []Relation,
+	opts ...SchemaOption[TEntity],
+) SchemaWithRelations[TEntity] {
+	baseSchema := NewSchema(name, fields, mapper, opts...)
+	return &schemaWithRelations[TEntity]{
+		Schema:    baseSchema,
+		relations: relations,
+	}
+}
+
+type schemaWithRelations[TEntity any] struct {
+	Schema[TEntity]
+	relations []Relation
+}
+
+func (s *schemaWithRelations[TEntity]) Relations() []Relation {
+	return s.relations
 }
