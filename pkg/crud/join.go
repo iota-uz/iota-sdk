@@ -26,10 +26,24 @@ var (
 	// Examples: "table.column", "row_to_json(t.*) AS data", "col->>'key' AS name"
 	validSelectColumnPattern = regexp.MustCompile(`^([a-zA-Z_][a-zA-Z0-9_]*\([^)]+\)\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*|[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*){0,2}(->>?'[a-zA-Z0-9_]+')?)(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 
-	dangerousKeywords = []string{
-		"union", "select", "insert", "update", "delete", "drop",
-		"create", "alter", "exec", "execute", "--", "/*", "*/", ";",
+	// dangerousPatterns are regex patterns for SQL keywords that need word boundaries.
+	// Using word boundaries prevents false positives like "created_at" matching "create".
+	dangerousPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bunion\b`),
+		regexp.MustCompile(`(?i)\bselect\b`),
+		regexp.MustCompile(`(?i)\binsert\b`),
+		regexp.MustCompile(`(?i)\bupdate\b`),
+		regexp.MustCompile(`(?i)\bdelete\b`),
+		regexp.MustCompile(`(?i)\bdrop\b`),
+		regexp.MustCompile(`(?i)\bcreate\b`),
+		regexp.MustCompile(`(?i)\balter\b`),
+		regexp.MustCompile(`(?i)\bexec\b`),
+		regexp.MustCompile(`(?i)\bexecute\b`),
 	}
+
+	// dangerousLiterals are exact strings that indicate SQL injection attempts.
+	// These don't need word boundaries as they're always dangerous.
+	dangerousLiterals = []string{"--", "/*", "*/", ";"}
 )
 
 // JoinType represents the type of SQL JOIN operation
@@ -87,16 +101,13 @@ func (jc *JoinClause) Validate() error {
 		return serrors.E(op, serrors.Invalid, "join right column cannot be empty")
 	}
 
-	// Check for dangerous SQL keywords FIRST (security priority)
+	// Check for dangerous SQL keywords/patterns FIRST (security priority)
 	for _, val := range []string{jc.Table, jc.TableAlias, jc.LeftColumn, jc.RightColumn} {
 		if val == "" {
 			continue
 		}
-		lowerVal := strings.ToLower(val)
-		for _, keyword := range dangerousKeywords {
-			if strings.Contains(lowerVal, keyword) {
-				return serrors.E(op, serrors.Invalid, fmt.Sprintf("join specification contains dangerous SQL keyword: %q", val))
-			}
+		if err := checkDangerousSQL(val); err != nil {
+			return serrors.E(op, serrors.Invalid, fmt.Sprintf("join specification %s: %q", err, val))
 		}
 	}
 
@@ -151,6 +162,26 @@ func (jo *JoinOptions) Validate() error {
 	return nil
 }
 
+// checkDangerousSQL checks for dangerous SQL keywords and literals in a string.
+// Returns an error describing the issue, or nil if safe.
+func checkDangerousSQL(val string) error {
+	// Check for dangerous literals (no word boundaries needed)
+	for _, lit := range dangerousLiterals {
+		if strings.Contains(val, lit) {
+			return fmt.Errorf("contains dangerous SQL literal %q", lit)
+		}
+	}
+
+	// Check for dangerous keywords using word boundaries
+	for _, pattern := range dangerousPatterns {
+		if pattern.MatchString(val) {
+			return fmt.Errorf("contains dangerous SQL keyword")
+		}
+	}
+
+	return nil
+}
+
 // validateSelectColumns checks that column specifications are safe
 func validateSelectColumns(columns []string) error {
 	if len(columns) == 0 {
@@ -167,11 +198,9 @@ func validateSelectColumns(columns []string) error {
 			continue
 		}
 
-		lowerCol := strings.ToLower(col)
-		for _, keyword := range dangerousKeywords {
-			if strings.Contains(lowerCol, keyword) {
-				return fmt.Errorf("column specification contains dangerous SQL keyword: %q", col)
-			}
+		// Check for dangerous SQL patterns
+		if err := checkDangerousSQL(col); err != nil {
+			return fmt.Errorf("column specification %s: %q", err, col)
 		}
 
 		// Check against pattern (allows functions in SELECT columns)
