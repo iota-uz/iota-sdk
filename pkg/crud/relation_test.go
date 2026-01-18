@@ -186,3 +186,34 @@ type mockSchema struct {
 func (m mockSchema) Name() string {
 	return m.tableName
 }
+
+func TestRelation_WithMapperAndSetOnParent(t *testing.T) {
+	// Mock mapper (any type)
+	mockMapper := "mock_mapper"
+
+	// Mock SetOnParent function
+	setOnParent := func(parent, child any) any {
+		return parent
+	}
+
+	r := Relation{
+		Alias:       "vt",
+		LocalKey:    "vehicle_type_id",
+		EntityField: "vehicle_type_entity",
+		Mapper:      mockMapper,
+		SetOnParent: setOnParent,
+	}
+
+	if r.Mapper == nil {
+		t.Error("Mapper should not be nil")
+	}
+	if r.SetOnParent == nil {
+		t.Error("SetOnParent should not be nil")
+	}
+
+	// Test SetOnParent invocation
+	result := r.SetOnParent("parent", "child")
+	if result != "parent" {
+		t.Errorf("SetOnParent returned %v, want 'parent'", result)
+	}
+}
