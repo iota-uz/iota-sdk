@@ -161,7 +161,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "SQL injection in left column",
@@ -172,7 +172,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "SQL injection in right column",
@@ -183,7 +183,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id; DELETE FROM users--",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "SQL injection in table alias",
@@ -195,7 +195,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "r.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "invalid table name format",
@@ -228,7 +228,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "comment injection in left column",
@@ -239,7 +239,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "block comment injection",
@@ -250,7 +250,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id /* DROP TABLE users */",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "union injection in column",
@@ -261,7 +261,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id UNION ALL SELECT password FROM admin",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "insert injection in table",
@@ -272,7 +272,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "update injection in alias",
@@ -284,7 +284,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "r.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "create injection",
@@ -295,7 +295,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "alter injection",
@@ -306,7 +306,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id; ALTER TABLE users",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "exec injection",
@@ -318,7 +318,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "r.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 		{
 			name: "execute injection",
@@ -329,7 +329,7 @@ func TestJoinClause_Validate_SQLInjectionPrevention(t *testing.T) {
 				RightColumn: "roles.id",
 			},
 			expectErr: true,
-			errMsg:    "dangerous SQL keyword",
+			errMsg:    "dangerous SQL",
 		},
 	}
 
@@ -504,88 +504,93 @@ func TestJoinOptions_Validate_SelectColumns(t *testing.T) {
 			expectErr:     false,
 		},
 		{
+			name:          "valid prefixed columns with AS - should not match 'create' in 'created_at'",
+			selectColumns: []string{"vt.created_at AS vt__created_at", "vt.updated_at AS vt__updated_at"},
+			expectErr:     false,
+		},
+		{
 			name:          "SQL injection - UNION",
 			selectColumns: []string{"users.id, (SELECT password FROM admin UNION SELECT 1)"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - comment",
 			selectColumns: []string{"users.id -- DROP TABLE users"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - semicolon",
 			selectColumns: []string{"users.*; DROP TABLE users; --"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - block comment start",
 			selectColumns: []string{"users.id /* comment */"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - block comment end",
 			selectColumns: []string{"users.id */ DROP TABLE users /*"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - SELECT keyword",
 			selectColumns: []string{"users.id, (SELECT 1)"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - INSERT keyword",
 			selectColumns: []string{"users.id; INSERT INTO admin VALUES(1)"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - UPDATE keyword",
 			selectColumns: []string{"users.id; UPDATE users SET role='admin'"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - DELETE keyword",
 			selectColumns: []string{"users.id; DELETE FROM users"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - DROP keyword",
 			selectColumns: []string{"users.id; DROP TABLE users"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - CREATE keyword",
 			selectColumns: []string{"users.id; CREATE TABLE malicious"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - ALTER keyword",
 			selectColumns: []string{"users.id; ALTER TABLE users"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - EXEC keyword",
 			selectColumns: []string{"users.id; EXEC sp_executesql"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "SQL injection - EXECUTE keyword",
 			selectColumns: []string{"users.id; EXECUTE sp_executesql"},
 			expectErr:     true,
-			errMsg:        "dangerous SQL keyword",
+			errMsg:        "dangerous SQL",
 		},
 		{
 			name:          "invalid syntax - parentheses",
