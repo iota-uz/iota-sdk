@@ -105,6 +105,54 @@ func TestExtractPrefixedFields(t *testing.T) {
 	})
 }
 
+func TestExtractPrefixedFields_NestedPrefix(t *testing.T) {
+	t.Parallel()
+
+	// Create fields simulating a query result with nested prefixes
+	// vt__id, vt__name, vt__vg__id, vt__vg__name
+	vtIdField := NewIntField("vt__id")
+	vtNameField := NewStringField("vt__name")
+	vtVgIdField := NewIntField("vt__vg__id")
+	vtVgNameField := NewStringField("vt__vg__name")
+
+	fvs := []FieldValue{
+		vtIdField.Value(1),
+		vtNameField.Value("type1"),
+		vtVgIdField.Value(2),
+		vtVgNameField.Value("group1"),
+	}
+
+	// Extract vt__ fields - should get vt__id, vt__name (NOT vt__vg__*)
+	vtFields := ExtractPrefixedFields(fvs, "vt")
+
+	// Should have 2 fields: id, name (vg fields are nested, not direct)
+	if len(vtFields) != 2 {
+		t.Fatalf("expected 2 vt fields, got %d", len(vtFields))
+	}
+
+	// Check field names are stripped
+	for _, fv := range vtFields {
+		name := fv.Field().Name()
+		if name != "id" && name != "name" {
+			t.Errorf("unexpected field name: %s", name)
+		}
+	}
+
+	// Now extract vt__vg__ fields from original
+	vgFields := ExtractPrefixedFields(fvs, "vt__vg")
+
+	if len(vgFields) != 2 {
+		t.Fatalf("expected 2 vg fields, got %d", len(vgFields))
+	}
+
+	for _, fv := range vgFields {
+		name := fv.Field().Name()
+		if name != "id" && name != "name" {
+			t.Errorf("unexpected field name: %s", name)
+		}
+	}
+}
+
 func TestExtractNonPrefixedFields(t *testing.T) {
 	t.Parallel()
 
