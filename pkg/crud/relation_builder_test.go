@@ -116,6 +116,31 @@ func TestRelationBuilder_HasMany(t *testing.T) {
 	}
 }
 
+func TestRelationBuilder_MapperAndSetOnParent(t *testing.T) {
+	mockMapper := "mock"
+	setOnParent := func(parent, child any) any { return parent }
+
+	relations := NewRelationBuilder().
+		BelongsTo("vt", nil).
+		LocalKey("vehicle_type_id").
+		EntityField("vehicle_type_entity").
+		Mapper(mockMapper).
+		SetOnParent(setOnParent).
+		Build()
+
+	if len(relations) != 1 {
+		t.Fatalf("expected 1 relation, got %d", len(relations))
+	}
+
+	r := relations[0]
+	if r.Mapper != mockMapper {
+		t.Errorf("Mapper = %v, want %v", r.Mapper, mockMapper)
+	}
+	if r.SetOnParent == nil {
+		t.Error("SetOnParent should not be nil")
+	}
+}
+
 // Mock schema for testing
 type mockSchemaForRelation struct {
 	name string
