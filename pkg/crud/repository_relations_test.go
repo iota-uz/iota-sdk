@@ -65,8 +65,8 @@ func TestExtractPrefixedFields(t *testing.T) {
 	t.Run("handles nested prefixes correctly", func(t *testing.T) {
 		t.Parallel()
 
-		// vt__id should match "vt" but not "v"
-		// vt__vg__id should match "vt__vg" but not "vt" alone
+		// vt__id should match "vt"
+		// vt__vg__id should ALSO match "vt" (preserving nested prefix for cascading)
 		vtIdField := NewIntField("vt__id")
 		vtVgIdField := NewIntField("vt__vg__id")
 
@@ -75,14 +75,20 @@ func TestExtractPrefixedFields(t *testing.T) {
 			vtVgIdField.Value(10),
 		}
 
-		// Extract with "vt" prefix - should only get vt__id
+		// Extract with "vt" prefix - gets both vt__id and vt__vg__id (nested preserved)
 		vtResult := ExtractPrefixedFields(fvs, "vt")
-		require.Len(t, vtResult, 1)
-		assert.Equal(t, "id", vtResult[0].Field().Name())
-		assert.Equal(t, 5, vtResult[0].Value())
+		require.Len(t, vtResult, 2)
 
-		// Extract with "vt__vg" prefix - should get vt__vg__id
-		vgResult := ExtractPrefixedFields(fvs, "vt__vg")
+		// Build map for easier assertion
+		resultMap := make(map[string]any)
+		for _, fv := range vtResult {
+			resultMap[fv.Field().Name()] = fv.Value()
+		}
+		assert.Equal(t, 5, resultMap["id"])
+		assert.Equal(t, 10, resultMap["vg__id"]) // nested prefix preserved
+
+		// Child mapper can extract "vg" from vtResult to get its fields
+		vgResult := ExtractPrefixedFields(vtResult, "vg")
 		require.Len(t, vgResult, 1)
 		assert.Equal(t, "id", vgResult[0].Field().Name())
 		assert.Equal(t, 10, vgResult[0].Value())
@@ -122,24 +128,40 @@ func TestExtractPrefixedFields_NestedPrefix(t *testing.T) {
 		vtVgNameField.Value("group1"),
 	}
 
-	// Extract vt__ fields - should get vt__id, vt__name (NOT vt__vg__*)
+	// Extract vt__ fields - should get ALL vt__* fields including nested ones
+	// This enables auto-cascading: nested prefixes are preserved for child mappers
 	vtFields := ExtractPrefixedFields(fvs, "vt")
 
-	// Should have 2 fields: id, name (vg fields are nested, not direct)
-	if len(vtFields) != 2 {
-		t.Fatalf("expected 2 vt fields, got %d", len(vtFields))
+	// Should have 4 fields: id, name, vg__id, vg__name (nested preserved)
+	if len(vtFields) != 4 {
+		t.Fatalf("expected 4 vt fields, got %d", len(vtFields))
 	}
 
-	// Check field names are stripped
+	// Build a map of expected field names
+	expectedNames := map[string]bool{
+		"id":       false,
+		"name":     false,
+		"vg__id":   false,
+		"vg__name": false,
+	}
+
 	for _, fv := range vtFields {
 		name := fv.Field().Name()
-		if name != "id" && name != "name" {
+		if _, ok := expectedNames[name]; !ok {
 			t.Errorf("unexpected field name: %s", name)
+		}
+		expectedNames[name] = true
+	}
+
+	for name, found := range expectedNames {
+		if !found {
+			t.Errorf("missing expected field: %s", name)
 		}
 	}
 
-	// Now extract vt__vg__ fields from original
-	vgFields := ExtractPrefixedFields(fvs, "vt__vg")
+	// Now extract vg__ fields from vtFields (simulating child mapper)
+	// This is how auto-cascading works: VehicleType mapper extracts vg from its fields
+	vgFields := ExtractPrefixedFields(vtFields, "vg")
 
 	if len(vgFields) != 2 {
 		t.Fatalf("expected 2 vg fields, got %d", len(vgFields))
@@ -148,7 +170,7 @@ func TestExtractPrefixedFields_NestedPrefix(t *testing.T) {
 	for _, fv := range vgFields {
 		name := fv.Field().Name()
 		if name != "id" && name != "name" {
-			t.Errorf("unexpected field name: %s", name)
+			t.Errorf("unexpected vg field name: %s", name)
 		}
 	}
 }
