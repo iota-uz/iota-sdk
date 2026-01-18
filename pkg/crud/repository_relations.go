@@ -1,8 +1,17 @@
 package crud
 
 import (
+	"fmt"
 	"strings"
 )
+
+// RelationSchema is the interface used to extract schema metadata from type-erased
+// Schema[T] values stored in Relation.Schema. All Schema[T] types satisfy this
+// interface since they implement Name() and Fields().
+type RelationSchema interface {
+	Name() string
+	Fields() Fields
+}
 
 // prefixedField wraps a Field with a different name (prefix stripped).
 // This is used when extracting prefixed fields to rename them.
@@ -153,4 +162,111 @@ func TopologicalSortRelations(relations []Relation) []Relation {
 	}
 
 	return result
+}
+
+// BuildRelationSelectColumns generates SELECT column specifications for all relations.
+// Each relation's schema fields are prefixed with the relation alias.
+//
+// Example:
+//
+//	relations := []Relation{{Alias: "vt", Schema: vehicleTypeSchema}}
+//	columns := BuildRelationSelectColumns(relations)
+//	// Returns: ["vt.id AS vt__id", "vt.name AS vt__name"]
+//
+// For nested relations (with Through), the alias is used directly (not nested):
+//
+//	relations := []Relation{
+//	    {Alias: "vt", Schema: vtSchema},
+//	    {Alias: "vg", Through: "vt", Schema: vgSchema},
+//	}
+//	// Returns: ["vt.id AS vt__id", ..., "vg.id AS vg__id", ...]
+func BuildRelationSelectColumns(relations []Relation) []string {
+	if len(relations) == 0 {
+		return nil
+	}
+
+	var columns []string
+
+	for _, rel := range relations {
+		// Skip relations with nil schema
+		if rel.Schema == nil {
+			continue
+		}
+
+		// Type-assert to RelationSchema to access metadata
+		schema, ok := rel.Schema.(RelationSchema)
+		if !ok {
+			continue
+		}
+
+		// Get all field names from the schema
+		for _, field := range schema.Fields().Fields() {
+			fieldName := field.Name()
+			// Format: alias.field AS alias__field
+			column := fmt.Sprintf("%s.%s AS %s__%s", rel.Alias, fieldName, rel.Alias, fieldName)
+			columns = append(columns, column)
+		}
+	}
+
+	return columns
+}
+
+// BuildRelationJoinClauses converts relations to JoinClause slice for use with the Join system.
+//
+// For relations without Through, the join is from the main table:
+//
+//	{Alias: "vt", LocalKey: "vehicle_type_id"} ->
+//	JOIN vehicle_types vt ON mainTable.vehicle_type_id = vt.id
+//
+// For relations with Through, the join is from the Through table's alias:
+//
+//	{Alias: "vg", LocalKey: "group_id", Through: "vt"} ->
+//	JOIN vehicle_groups vg ON vt.group_id = vg.id
+func BuildRelationJoinClauses(mainTable string, relations []Relation) []JoinClause {
+	if len(relations) == 0 {
+		return nil
+	}
+
+	var clauses []JoinClause
+
+	for _, rel := range relations {
+		// Skip relations with nil schema
+		if rel.Schema == nil {
+			continue
+		}
+
+		// Type-assert to RelationSchema to get table name
+		schema, ok := rel.Schema.(RelationSchema)
+		if !ok {
+			continue
+		}
+
+		// Determine the left side of the join
+		var leftTable string
+		if rel.Through != "" {
+			// Join from the Through table's alias
+			leftTable = rel.Through
+		} else {
+			// Join from the main table
+			leftTable = mainTable
+		}
+
+		// Default RemoteKey to "id" if not specified
+		remoteKey := rel.RemoteKey
+		if remoteKey == "" {
+			remoteKey = "id"
+		}
+
+		clause := JoinClause{
+			Type:        rel.JoinType,
+			Table:       schema.Name(),
+			TableAlias:  rel.Alias,
+			LeftColumn:  fmt.Sprintf("%s.%s", leftTable, rel.LocalKey),
+			RightColumn: fmt.Sprintf("%s.%s", rel.Alias, remoteKey),
+		}
+
+		clauses = append(clauses, clause)
+	}
+
+	return clauses
 }

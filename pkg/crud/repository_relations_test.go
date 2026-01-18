@@ -1,6 +1,7 @@
 package crud
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -264,6 +265,366 @@ func TestAllFieldsNull(t *testing.T) {
 		}
 
 		assert.False(t, AllFieldsNull(fvs))
+	})
+}
+
+// Helper to create test schemas for relation tests
+func createTestRelationSchema(tableName string, fieldNames []string) Schema[any] {
+	fieldList := make([]Field, len(fieldNames))
+	for i, name := range fieldNames {
+		if i == 0 {
+			fieldList[i] = NewIntField(name, WithKey())
+		} else {
+			fieldList[i] = NewStringField(name)
+		}
+	}
+	fields := NewFields(fieldList)
+
+	return NewSchema(
+		tableName,
+		fields,
+		&testRelationMapper{},
+	)
+}
+
+// testRelationMapper is a minimal mapper for testing
+type testRelationMapper struct{}
+
+func (m *testRelationMapper) ToEntities(_ context.Context, values ...[]FieldValue) ([]any, error) {
+	return nil, nil
+}
+
+func (m *testRelationMapper) ToFieldValuesList(_ context.Context, entities ...any) ([][]FieldValue, error) {
+	return nil, nil
+}
+
+func TestBuildRelationSelectColumns(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns empty slice for empty relations", func(t *testing.T) {
+		t.Parallel()
+
+		columns := BuildRelationSelectColumns(nil)
+
+		assert.Empty(t, columns)
+	})
+
+	t.Run("builds prefixed columns for single relation", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+		}
+
+		columns := BuildRelationSelectColumns(relations)
+
+		require.Len(t, columns, 2)
+		assert.Contains(t, columns, "vt.id AS vt__id")
+		assert.Contains(t, columns, "vt.name AS vt__name")
+	})
+
+	t.Run("builds prefixed columns for multiple relations", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+		ownerSchema := createTestRelationSchema("insurance.persons", []string{"id", "first_name"})
+
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+			{
+				Type:        BelongsTo,
+				Alias:       "owner",
+				LocalKey:    "owner_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      ownerSchema,
+				EntityField: "owner_entity",
+			},
+		}
+
+		columns := BuildRelationSelectColumns(relations)
+
+		require.Len(t, columns, 4)
+		assert.Contains(t, columns, "vt.id AS vt__id")
+		assert.Contains(t, columns, "vt.name AS vt__name")
+		assert.Contains(t, columns, "owner.id AS owner__id")
+		assert.Contains(t, columns, "owner.first_name AS owner__first_name")
+	})
+
+	t.Run("handles nested relations with Through", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name", "group_id"})
+		vgSchema := createTestRelationSchema("insurance.vehicle_groups", []string{"id", "name"})
+
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+			{
+				Type:        BelongsTo,
+				Alias:       "vg",
+				LocalKey:    "group_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vgSchema,
+				EntityField: "vehicle_group_entity",
+				Through:     "vt",
+			},
+		}
+
+		columns := BuildRelationSelectColumns(relations)
+
+		// vt has 3 fields, vg has 2 fields = 5 total
+		require.Len(t, columns, 5)
+		// vt columns use simple prefix
+		assert.Contains(t, columns, "vt.id AS vt__id")
+		assert.Contains(t, columns, "vt.name AS vt__name")
+		assert.Contains(t, columns, "vt.group_id AS vt__group_id")
+		// vg columns use vg prefix (not vt__vg)
+		assert.Contains(t, columns, "vg.id AS vg__id")
+		assert.Contains(t, columns, "vg.name AS vg__name")
+	})
+
+	t.Run("skips relations with nil schema", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+			{
+				Type:        BelongsTo,
+				Alias:       "invalid",
+				LocalKey:    "invalid_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      nil, // nil schema
+				EntityField: "invalid_entity",
+			},
+		}
+
+		columns := BuildRelationSelectColumns(relations)
+
+		// Only vt columns should be present
+		require.Len(t, columns, 2)
+		assert.Contains(t, columns, "vt.id AS vt__id")
+		assert.Contains(t, columns, "vt.name AS vt__name")
+	})
+}
+
+func TestBuildRelationJoinClauses(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns empty slice for empty relations", func(t *testing.T) {
+		t.Parallel()
+
+		clauses := BuildRelationJoinClauses("insurance.vehicles", nil)
+
+		assert.Empty(t, clauses)
+	})
+
+	t.Run("builds join clause for single relation", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+		}
+
+		clauses := BuildRelationJoinClauses("insurance.vehicles", relations)
+
+		require.Len(t, clauses, 1)
+		assert.Equal(t, "insurance.vehicle_types", clauses[0].Table)
+		assert.Equal(t, "vt", clauses[0].TableAlias)
+		assert.Equal(t, "insurance.vehicles.vehicle_type_id", clauses[0].LeftColumn)
+		assert.Equal(t, "vt.id", clauses[0].RightColumn)
+		assert.Equal(t, JoinTypeLeft, clauses[0].Type)
+	})
+
+	t.Run("builds join clauses for multiple independent relations", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+		ownerSchema := createTestRelationSchema("insurance.persons", []string{"id", "first_name"})
+
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+			{
+				Type:        BelongsTo,
+				Alias:       "owner",
+				LocalKey:    "owner_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeInner,
+				Schema:      ownerSchema,
+				EntityField: "owner_entity",
+			},
+		}
+
+		clauses := BuildRelationJoinClauses("insurance.vehicles", relations)
+
+		require.Len(t, clauses, 2)
+
+		// First join (vt)
+		assert.Equal(t, "insurance.vehicle_types", clauses[0].Table)
+		assert.Equal(t, "vt", clauses[0].TableAlias)
+		assert.Equal(t, "insurance.vehicles.vehicle_type_id", clauses[0].LeftColumn)
+		assert.Equal(t, "vt.id", clauses[0].RightColumn)
+		assert.Equal(t, JoinTypeLeft, clauses[0].Type)
+
+		// Second join (owner)
+		assert.Equal(t, "insurance.persons", clauses[1].Table)
+		assert.Equal(t, "owner", clauses[1].TableAlias)
+		assert.Equal(t, "insurance.vehicles.owner_id", clauses[1].LeftColumn)
+		assert.Equal(t, "owner.id", clauses[1].RightColumn)
+		assert.Equal(t, JoinTypeInner, clauses[1].Type)
+	})
+
+	t.Run("builds join clauses for nested relations with Through", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name", "group_id"})
+		vgSchema := createTestRelationSchema("insurance.vehicle_groups", []string{"id", "name"})
+
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+			{
+				Type:        BelongsTo,
+				Alias:       "vg",
+				LocalKey:    "group_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vgSchema,
+				EntityField: "vehicle_group_entity",
+				Through:     "vt",
+			},
+		}
+
+		clauses := BuildRelationJoinClauses("insurance.vehicles", relations)
+
+		require.Len(t, clauses, 2)
+
+		// First join (vt) - from main table
+		assert.Equal(t, "insurance.vehicle_types", clauses[0].Table)
+		assert.Equal(t, "vt", clauses[0].TableAlias)
+		assert.Equal(t, "insurance.vehicles.vehicle_type_id", clauses[0].LeftColumn)
+		assert.Equal(t, "vt.id", clauses[0].RightColumn)
+
+		// Second join (vg) - from vt (Through)
+		assert.Equal(t, "insurance.vehicle_groups", clauses[1].Table)
+		assert.Equal(t, "vg", clauses[1].TableAlias)
+		assert.Equal(t, "vt.group_id", clauses[1].LeftColumn) // Uses vt alias, not main table
+		assert.Equal(t, "vg.id", clauses[1].RightColumn)
+	})
+
+	t.Run("skips relations with nil schema", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+			{
+				Type:        BelongsTo,
+				Alias:       "invalid",
+				LocalKey:    "invalid_id",
+				RemoteKey:   "id",
+				JoinType:    JoinTypeLeft,
+				Schema:      nil, // nil schema
+				EntityField: "invalid_entity",
+			},
+		}
+
+		clauses := BuildRelationJoinClauses("insurance.vehicles", relations)
+
+		// Only vt clause should be present
+		require.Len(t, clauses, 1)
+		assert.Equal(t, "vt", clauses[0].TableAlias)
+	})
+
+	t.Run("defaults RemoteKey to id when empty", func(t *testing.T) {
+		t.Parallel()
+
+		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+		relations := []Relation{
+			{
+				Type:        BelongsTo,
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				RemoteKey:   "", // Empty, should default to "id"
+				JoinType:    JoinTypeLeft,
+				Schema:      vtSchema,
+				EntityField: "vehicle_type_entity",
+			},
+		}
+
+		clauses := BuildRelationJoinClauses("insurance.vehicles", relations)
+
+		require.Len(t, clauses, 1)
+		assert.Equal(t, "vt.id", clauses[0].RightColumn)
 	})
 }
 
