@@ -1155,6 +1155,42 @@ func TestBuildHasManySubqueries_MixedRelationTypes(t *testing.T) {
 	assert.NotContains(t, subqueries[0], "owner")
 }
 
+func TestBuildHasManySubqueries_WithNestedBelongsTo(t *testing.T) {
+	t.Parallel()
+
+	// Document has DocumentAuthority (BelongsTo)
+	authoritySchema := createTestRelationSchema("insurance.document_authorities", []string{"id", "name"})
+	docsSchema := createTestSchemaWithRelations("insurance.person_documents", []string{"id", "seria", "authority_id"}, []RelationDescriptor{
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "da",
+			LocalKey:    "authority_id",
+			RemoteKey:   "id",
+			Schema:      authoritySchema,
+			EntityField: "authority_entity",
+		},
+	})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      docsSchema,
+			EntityField: "documents_entity",
+		},
+	}
+
+	subqueries := BuildHasManySubqueries("insurance.persons", "p", relations)
+
+	require.Len(t, subqueries, 1)
+	// Should contain nested json_build_object for authority
+	assert.Contains(t, subqueries[0], "'da', json_build_object('id', docs_da.id, 'name', docs_da.name)")
+	// Should contain LEFT JOIN for nested BelongsTo
+	assert.Contains(t, subqueries[0], "LEFT JOIN insurance.document_authorities docs_da ON docs.authority_id = docs_da.id")
+}
+
 func TestTopologicalSortRelations(t *testing.T) {
 	t.Parallel()
 
