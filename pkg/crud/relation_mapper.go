@@ -23,7 +23,7 @@ import (
 //	}, vMapOwn)
 type RelationMapper[T any] struct {
 	inner     Mapper[T]
-	relations []Relation
+	relations []RelationDescriptor
 	mapOwn    func([]FieldValue) T
 }
 
@@ -35,7 +35,7 @@ type RelationMapper[T any] struct {
 //   - mapOwn: function to map this entity's own fields (non-prefixed) to an entity
 func NewRelationMapper[T any](
 	inner Mapper[T],
-	relations []Relation,
+	relations []RelationDescriptor,
 	mapOwn func([]FieldValue) T,
 ) *RelationMapper[T] {
 	return &RelationMapper[T]{
@@ -45,48 +45,37 @@ func NewRelationMapper[T any](
 	}
 }
 
-// ToEntity maps a single row of field values to an entity, handling nested relations.
-// This is the primary method for mapping joined query results.
 func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValue) (T, error) {
-	// Extract this entity's own fields (non-prefixed)
-	myFields := ExtractNonPrefixedFields(allFields)
+	entity := rm.mapOwn(allFields)
 
-	// Map own fields
-	entity := rm.mapOwn(myFields)
-
-	// Handle each relation
 	for _, rel := range rm.relations {
-		if rel.Mapper == nil || rel.SetOnParent == nil {
+		mapper := rel.GetMapper()
+		setOnParent := rel.GetSetOnParent()
+		if mapper == nil || setOnParent == nil {
 			continue
 		}
 
-		// Extract child's prefixed fields (includes nested prefixes for cascading)
-		childFields := ExtractPrefixedFields(allFields, rel.Alias)
+		childFields := ExtractPrefixedFields(allFields, rel.GetAlias())
 		if AllFieldsNull(childFields) {
 			continue
 		}
 
-		// Type-assert to relationMapperAny interface
-		childMapper, ok := rel.Mapper.(relationMapperAny)
+		childMapper, ok := mapper.(RelationEntityMapper)
 		if !ok {
 			continue
 		}
 
-		// Call child mapper - childFields becomes its "allFields"
-		child, err := childMapper.toEntityAny(ctx, childFields)
+		child, err := childMapper.MapEntity(ctx, childFields)
 		if err != nil {
 			continue
 		}
 
-		// Attach child to parent
-		entity = rel.SetOnParent(entity, child).(T)
+		entity = setOnParent(entity, child).(T)
 	}
 
 	return entity, nil
 }
 
-// ToEntities maps multiple rows, each becoming a separate entity.
-// Implements Mapper[T] interface.
 func (rm *RelationMapper[T]) ToEntities(ctx context.Context, rows ...[]FieldValue) ([]T, error) {
 	result := make([]T, 0, len(rows))
 	for _, row := range rows {
@@ -99,8 +88,6 @@ func (rm *RelationMapper[T]) ToEntities(ctx context.Context, rows ...[]FieldValu
 	return result, nil
 }
 
-// ToFieldValuesList delegates to the inner mapper.
-// Implements Mapper[T] interface.
 func (rm *RelationMapper[T]) ToFieldValuesList(ctx context.Context, entities ...T) ([][]FieldValue, error) {
 	if rm.inner == nil {
 		return nil, nil
@@ -108,15 +95,19 @@ func (rm *RelationMapper[T]) ToFieldValuesList(ctx context.Context, entities ...
 	return rm.inner.ToFieldValuesList(ctx, entities...)
 }
 
-// toEntityAny is the type-erased version for use in nested relation mapping.
-// This allows RelationMapper[VehicleType] to be stored in Relation.Mapper
-// and called from RelationMapper[Vehicle].
-func (rm *RelationMapper[T]) toEntityAny(ctx context.Context, allFields []FieldValue) (any, error) {
-	return rm.ToEntity(ctx, allFields)
+func (rm *RelationMapper[T]) ToFieldValues(ctx context.Context, entity T) ([]FieldValue, error) {
+	fvsList, err := rm.ToFieldValuesList(ctx, entity)
+	if err != nil {
+		return nil, err
+	}
+	if len(fvsList) == 0 {
+		return nil, nil
+	}
+	return fvsList[0], nil
 }
 
-// relationMapperAny is the internal interface for type-erased relation mapping.
-// RelationMapper[T] implements this to enable nested cascading.
-type relationMapperAny interface {
-	toEntityAny(ctx context.Context, allFields []FieldValue) (any, error)
+func (rm *RelationMapper[T]) MapEntity(ctx context.Context, fields []FieldValue) (any, error) {
+	return rm.ToEntity(ctx, fields)
 }
+
+var _ RelationEntityMapper = (*RelationMapper[any])(nil)

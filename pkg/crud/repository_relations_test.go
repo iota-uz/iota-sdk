@@ -357,7 +357,7 @@ func createTestRelationSchema(tableName string, fieldNames []string) Schema[any]
 	)
 }
 
-// testRelationMapper is a minimal mapper for testing
+// testRelationMapper is a minimal mapper for testing that implements FlatMapper[any].
 type testRelationMapper struct{}
 
 func (m *testRelationMapper) ToEntities(_ context.Context, values ...[]FieldValue) ([]any, error) {
@@ -365,6 +365,14 @@ func (m *testRelationMapper) ToEntities(_ context.Context, values ...[]FieldValu
 }
 
 func (m *testRelationMapper) ToFieldValuesList(_ context.Context, entities ...any) ([][]FieldValue, error) {
+	return nil, nil
+}
+
+func (m *testRelationMapper) ToEntity(_ context.Context, _ []FieldValue) (any, error) {
+	return nil, nil
+}
+
+func (m *testRelationMapper) ToFieldValues(_ context.Context, _ any) ([]FieldValue, error) {
 	return nil, nil
 }
 
@@ -383,8 +391,8 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 		t.Parallel()
 
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -408,8 +416,8 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
 		ownerSchema := createTestRelationSchema("insurance.persons", []string{"id", "first_name"})
 
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -418,7 +426,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 				Schema:      vtSchema,
 				EntityField: "vehicle_type_entity",
 			},
-			{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "owner",
 				LocalKey:    "owner_id",
@@ -444,8 +452,8 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name", "group_id"})
 		vgSchema := createTestRelationSchema("insurance.vehicle_groups", []string{"id", "name"})
 
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -454,7 +462,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 				Schema:      vtSchema,
 				EntityField: "vehicle_type_entity",
 			},
-			{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vg",
 				LocalKey:    "group_id",
@@ -484,8 +492,8 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
 
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -494,7 +502,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 				Schema:      vtSchema,
 				EntityField: "vehicle_type_entity",
 			},
-			{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "invalid",
 				LocalKey:    "invalid_id",
@@ -529,8 +537,8 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 		t.Parallel()
 
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -557,8 +565,8 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
 		ownerSchema := createTestRelationSchema("insurance.persons", []string{"id", "first_name"})
 
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -567,7 +575,7 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 				Schema:      vtSchema,
 				EntityField: "vehicle_type_entity",
 			},
-			{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "owner",
 				LocalKey:    "owner_id",
@@ -603,8 +611,8 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name", "group_id"})
 		vgSchema := createTestRelationSchema("insurance.vehicle_groups", []string{"id", "name"})
 
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -613,7 +621,7 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 				Schema:      vtSchema,
 				EntityField: "vehicle_type_entity",
 			},
-			{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vg",
 				LocalKey:    "group_id",
@@ -642,13 +650,13 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 		assert.Equal(t, "vg.id", clauses[1].RightColumn)
 	})
 
-	t.Run("skips relations with nil schema", func(t *testing.T) {
+	t.Run("skips relations with no table source", func(t *testing.T) {
 		t.Parallel()
 
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
 
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -657,20 +665,21 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 				Schema:      vtSchema,
 				EntityField: "vehicle_type_entity",
 			},
-			{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "invalid",
 				LocalKey:    "invalid_id",
 				RemoteKey:   "id",
 				JoinType:    JoinTypeLeft,
-				Schema:      nil, // nil schema
+				Schema:      nil, // no schema
+				Manual:      nil, // no manual config - TableName() returns ""
 				EntityField: "invalid_entity",
 			},
 		}
 
 		clauses := BuildRelationJoinClauses("insurance.vehicles", relations)
 
-		// Only vt clause should be present
+		// Only vt clause should be present (invalid has no table source)
 		require.Len(t, clauses, 1)
 		assert.Equal(t, "vt", clauses[0].TableAlias)
 	})
@@ -679,8 +688,8 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 		t.Parallel()
 
 		vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Type:        BelongsTo,
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
@@ -698,17 +707,21 @@ func TestBuildRelationJoinClauses(t *testing.T) {
 	})
 }
 
-// mockSchemaWithRelations implements RelationsProvider for testing BuildRelationsRecursive
-type mockSchemaWithRelations struct {
-	name      string
-	relations []Relation
+// testSchemaWithRelations wraps a base Schema[any] and adds RelationsProvider.
+type testSchemaWithRelations struct {
+	Schema[any]
+	relations []RelationDescriptor
 }
 
-func (m *mockSchemaWithRelations) Name() string          { return m.name }
-func (m *mockSchemaWithRelations) Fields() Fields        { return NewFields(nil) }
-func (m *mockSchemaWithRelations) Relations() []Relation { return m.relations }
+func (s *testSchemaWithRelations) Relations() []RelationDescriptor { return s.relations }
 
-// mockSchemaWithFields implements RelationSchema for testing BuildRelationSelectColumns
+// createTestSchemaWithRelations creates a Schema[any] that also implements RelationsProvider.
+func createTestSchemaWithRelations(tableName string, fieldNames []string, relations []RelationDescriptor) Schema[any] {
+	base := createTestRelationSchema(tableName, fieldNames)
+	return &testSchemaWithRelations{Schema: base, relations: relations}
+}
+
+// mockSchemaWithFields implements RelationSchema for testing BuildRelationSelectColumns.
 type mockSchemaWithFields struct {
 	name   string
 	fields Fields
@@ -717,21 +730,36 @@ type mockSchemaWithFields struct {
 func (m *mockSchemaWithFields) Name() string   { return m.name }
 func (m *mockSchemaWithFields) Fields() Fields { return m.fields }
 
+// mutableSchemaWithRelations is a mutable schema for testing cyclic references.
+// Implements Schema[any] and RelationsProvider.
+type mutableSchemaWithRelations struct {
+	name      string
+	relations []RelationDescriptor
+}
+
+func (s *mutableSchemaWithRelations) Name() string                     { return s.name }
+func (s *mutableSchemaWithRelations) Fields() Fields                   { return NewFields(nil) }
+func (s *mutableSchemaWithRelations) Relations() []RelationDescriptor  { return s.relations }
+func (s *mutableSchemaWithRelations) Mapper() FlatMapper[any]          { return &testRelationMapper{} }
+func (s *mutableSchemaWithRelations) Validators() []Validator[any]     { return nil }
+func (s *mutableSchemaWithRelations) Hooks() Hooks[any]                { return &testHooks{} }
+
+// testHooks implements Hooks[any] for testing.
+type testHooks struct{}
+
+func (h *testHooks) OnCreate() Hook[any] { return nil }
+func (h *testHooks) OnUpdate() Hook[any] { return nil }
+func (h *testHooks) OnDelete() Hook[any] { return nil }
+
 func TestBuildRelationSelectColumns_NestedPrefix(t *testing.T) {
 	t.Parallel()
 
-	vtSchema := &mockSchemaWithFields{
-		name:   "vehicle_types",
-		fields: NewFields([]Field{NewUUIDField("id", WithKey()), NewStringField("name")}),
-	}
-	vgSchema := &mockSchemaWithFields{
-		name:   "vehicle_groups",
-		fields: NewFields([]Field{NewUUIDField("id", WithKey()), NewStringField("name")}),
-	}
+	vtSchema := createTestRelationSchema("vehicle_types", []string{"id", "name"})
+	vgSchema := createTestRelationSchema("vehicle_groups", []string{"id", "name"})
 
-	relations := []Relation{
-		{Alias: "vt", Schema: vtSchema},
-		{Alias: "vg", Schema: vgSchema, Through: "vt"}, // nested
+	relations := []RelationDescriptor{
+		&Relation[any]{Alias: "vt", LocalKey: "vehicle_type_id", Schema: vtSchema, EntityField: "vt_entity"},
+		&Relation[any]{Alias: "vg", LocalKey: "group_id", Schema: vgSchema, Through: "vt", EntityField: "vg_entity"}, // nested
 	}
 
 	columns := BuildRelationSelectColumns(relations)
@@ -760,31 +788,27 @@ func TestBuildRelationsRecursive(t *testing.T) {
 	t.Run("discovers nested relations from schema tree", func(t *testing.T) {
 		t.Parallel()
 
-		// Create mock schemas that implement RelationsProvider
+		// Create schemas that implement RelationsProvider
 		// Child schema (VehicleGroup) - no nested relations
-		childSchema := &mockSchemaWithRelations{
-			name:      "vehicle_groups",
-			relations: nil, // leaf
-		}
+		childSchema := createTestSchemaWithRelations("vehicle_groups", []string{"id", "name"}, nil)
 
 		// Parent schema (VehicleType) - has VehicleGroup relation
-		parentSchema := &mockSchemaWithRelations{
-			name: "vehicle_types",
-			relations: []Relation{
-				{
-					Alias:    "vg",
-					LocalKey: "group_id",
-					Schema:   childSchema,
-				},
+		parentSchema := createTestSchemaWithRelations("vehicle_types", []string{"id", "name", "group_id"}, []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "vg",
+				LocalKey:    "group_id",
+				Schema:      childSchema,
+				EntityField: "vg_entity",
 			},
-		}
+		})
 
 		// Root relations (Vehicle has VehicleType)
-		rootRelations := []Relation{
-			{
-				Alias:    "vt",
-				LocalKey: "vehicle_type_id",
-				Schema:   parentSchema,
+		rootRelations := []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				Schema:      parentSchema,
+				EntityField: "vt_entity",
 			},
 		}
 
@@ -797,19 +821,19 @@ func TestBuildRelationsRecursive(t *testing.T) {
 		}
 
 		// First should be vt (no Through)
-		if allRelations[0].Alias != "vt" {
-			t.Errorf("first relation alias = %q, want 'vt'", allRelations[0].Alias)
+		if allRelations[0].GetAlias() != "vt" {
+			t.Errorf("first relation alias = %q, want 'vt'", allRelations[0].GetAlias())
 		}
-		if allRelations[0].Through != "" {
-			t.Errorf("first relation Through = %q, want ''", allRelations[0].Through)
+		if allRelations[0].GetThrough() != "" {
+			t.Errorf("first relation Through = %q, want ''", allRelations[0].GetThrough())
 		}
 
 		// Second should be vg (Through = "vt")
-		if allRelations[1].Alias != "vg" {
-			t.Errorf("second relation alias = %q, want 'vg'", allRelations[1].Alias)
+		if allRelations[1].GetAlias() != "vg" {
+			t.Errorf("second relation alias = %q, want 'vg'", allRelations[1].GetAlias())
 		}
-		if allRelations[1].Through != "vt" {
-			t.Errorf("second relation Through = %q, want 'vt'", allRelations[1].Through)
+		if allRelations[1].GetThrough() != "vt" {
+			t.Errorf("second relation Through = %q, want 'vt'", allRelations[1].GetThrough())
 		}
 	})
 
@@ -821,7 +845,7 @@ func TestBuildRelationsRecursive(t *testing.T) {
 			t.Errorf("expected nil for empty input, got %v", result)
 		}
 
-		result = BuildRelationsRecursive([]Relation{})
+		result = BuildRelationsRecursive([]RelationDescriptor{})
 		if result != nil {
 			t.Errorf("expected nil for empty slice, got %v", result)
 		}
@@ -833,11 +857,12 @@ func TestBuildRelationsRecursive(t *testing.T) {
 		// Use a schema that does NOT implement RelationsProvider
 		simpleSchema := createTestRelationSchema("simple_table", []string{"id", "name"})
 
-		relations := []Relation{
-			{
-				Alias:    "st",
-				LocalKey: "simple_id",
-				Schema:   simpleSchema,
+		relations := []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "st",
+				LocalKey:    "simple_id",
+				Schema:      simpleSchema,
+				EntityField: "st_entity",
 			},
 		}
 
@@ -847,19 +872,20 @@ func TestBuildRelationsRecursive(t *testing.T) {
 		if len(allRelations) != 1 {
 			t.Fatalf("expected 1 relation, got %d", len(allRelations))
 		}
-		if allRelations[0].Alias != "st" {
-			t.Errorf("relation alias = %q, want 'st'", allRelations[0].Alias)
+		if allRelations[0].GetAlias() != "st" {
+			t.Errorf("relation alias = %q, want 'st'", allRelations[0].GetAlias())
 		}
 	})
 
 	t.Run("handles nil schema in relation", func(t *testing.T) {
 		t.Parallel()
 
-		relations := []Relation{
-			{
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Alias:    "invalid",
 				LocalKey: "invalid_id",
 				Schema:   nil,
+				Manual:   &ManualRelation{Table: "dummy", Columns: []string{"id"}},
 			},
 		}
 
@@ -876,36 +902,40 @@ func TestBuildRelationsRecursive(t *testing.T) {
 
 		// Create schemas with a cycle: A -> B -> A (same alias "a")
 		// This tests that we don't infinitely loop when discovering relations
-		schemaA := &mockSchemaWithRelations{
+		// Using mutable wrapper to create cycle after initial creation
+		schemaA := &mutableSchemaWithRelations{
 			name:      "table_a",
 			relations: nil, // Will be set after schemaB is created
 		}
 
-		schemaB := &mockSchemaWithRelations{
+		schemaB := &mutableSchemaWithRelations{
 			name: "table_b",
-			relations: []Relation{
-				{
-					Alias:    "a", // Same alias as root - creates a potential infinite loop
-					LocalKey: "a_id",
-					Schema:   schemaA,
+			relations: []RelationDescriptor{
+				&Relation[any]{
+					Alias:       "a", // Same alias as root - creates a potential infinite loop
+					LocalKey:    "a_id",
+					Schema:      schemaA,
+					EntityField: "a_entity",
 				},
 			},
 		}
 
 		// Complete the cycle
-		schemaA.relations = []Relation{
-			{
-				Alias:    "b",
-				LocalKey: "b_id",
-				Schema:   schemaB,
+		schemaA.relations = []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "b",
+				LocalKey:    "b_id",
+				Schema:      schemaB,
+				EntityField: "b_entity",
 			},
 		}
 
-		rootRelations := []Relation{
-			{
-				Alias:    "a",
-				LocalKey: "a_id",
-				Schema:   schemaA,
+		rootRelations := []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "a",
+				LocalKey:    "a_id",
+				Schema:      schemaA,
+				EntityField: "a_entity",
 			},
 		}
 
@@ -922,8 +952,8 @@ func TestBuildRelationsRecursive(t *testing.T) {
 		}
 
 		// Verify we got the root relation
-		if allRelations[0].Alias != "a" {
-			t.Errorf("first relation alias = %q, want 'a'", allRelations[0].Alias)
+		if allRelations[0].GetAlias() != "a" {
+			t.Errorf("first relation alias = %q, want 'a'", allRelations[0].GetAlias())
 		}
 	})
 
@@ -931,38 +961,32 @@ func TestBuildRelationsRecursive(t *testing.T) {
 		t.Parallel()
 
 		// manufacturer -> vehicle_groups -> vehicle_types -> vehicles
-		manufacturerSchema := &mockSchemaWithRelations{
-			name:      "manufacturers",
-			relations: nil, // leaf
-		}
+		manufacturerSchema := createTestSchemaWithRelations("manufacturers", []string{"id", "name"}, nil) // leaf
 
-		groupSchema := &mockSchemaWithRelations{
-			name: "vehicle_groups",
-			relations: []Relation{
-				{
-					Alias:    "mfr",
-					LocalKey: "manufacturer_id",
-					Schema:   manufacturerSchema,
-				},
+		groupSchema := createTestSchemaWithRelations("vehicle_groups", []string{"id", "name", "manufacturer_id"}, []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "mfr",
+				LocalKey:    "manufacturer_id",
+				Schema:      manufacturerSchema,
+				EntityField: "mfr_entity",
 			},
-		}
+		})
 
-		typeSchema := &mockSchemaWithRelations{
-			name: "vehicle_types",
-			relations: []Relation{
-				{
-					Alias:    "vg",
-					LocalKey: "group_id",
-					Schema:   groupSchema,
-				},
+		typeSchema := createTestSchemaWithRelations("vehicle_types", []string{"id", "name", "group_id"}, []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "vg",
+				LocalKey:    "group_id",
+				Schema:      groupSchema,
+				EntityField: "vg_entity",
 			},
-		}
+		})
 
-		rootRelations := []Relation{
-			{
-				Alias:    "vt",
-				LocalKey: "vehicle_type_id",
-				Schema:   typeSchema,
+		rootRelations := []RelationDescriptor{
+			&Relation[any]{
+				Alias:       "vt",
+				LocalKey:    "vehicle_type_id",
+				Schema:      typeSchema,
+				EntityField: "vt_entity",
 			},
 		}
 
@@ -984,11 +1008,11 @@ func TestBuildRelationsRecursive(t *testing.T) {
 		}
 
 		for i, exp := range expected {
-			if allRelations[i].Alias != exp.alias {
-				t.Errorf("relation[%d] alias = %q, want %q", i, allRelations[i].Alias, exp.alias)
+			if allRelations[i].GetAlias() != exp.alias {
+				t.Errorf("relation[%d] alias = %q, want %q", i, allRelations[i].GetAlias(), exp.alias)
 			}
-			if allRelations[i].Through != exp.through {
-				t.Errorf("relation[%d] Through = %q, want %q", i, allRelations[i].Through, exp.through)
+			if allRelations[i].GetThrough() != exp.through {
+				t.Errorf("relation[%d] Through = %q, want %q", i, allRelations[i].GetThrough(), exp.through)
 			}
 		}
 	})
@@ -1002,18 +1026,22 @@ func TestTopologicalSortRelations(t *testing.T) {
 
 		// VehicleGroup depends on VehicleType (through="vt")
 		// VehicleType has no dependencies
-		relations := []Relation{
-			{
+		vtSchema := createTestRelationSchema("vehicle_types", []string{"id", "name"})
+		vgSchema := createTestRelationSchema("vehicle_groups", []string{"id", "name"})
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Alias:       "vg",
 				LocalKey:    "group_id",
 				EntityField: "vehicle_group_entity",
 				Through:     "vt", // depends on vt
+				Schema:      vgSchema,
 			},
-			{
+			&Relation[any]{
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
 				EntityField: "vehicle_type_entity",
 				Through:     "", // no dependency
+				Schema:      vtSchema,
 			},
 		}
 
@@ -1021,26 +1049,30 @@ func TestTopologicalSortRelations(t *testing.T) {
 
 		require.Len(t, sorted, 2)
 		// vt should come first (no dependency)
-		assert.Equal(t, "vt", sorted[0].Alias)
+		assert.Equal(t, "vt", sorted[0].GetAlias())
 		// vg should come second (depends on vt)
-		assert.Equal(t, "vg", sorted[1].Alias)
+		assert.Equal(t, "vg", sorted[1].GetAlias())
 	})
 
 	t.Run("handles multiple independent relations", func(t *testing.T) {
 		t.Parallel()
 
-		relations := []Relation{
-			{
+		vtSchema := createTestRelationSchema("vehicle_types", []string{"id", "name"})
+		ownerSchema := createTestRelationSchema("persons", []string{"id", "name"})
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
 				EntityField: "vehicle_type_entity",
 				Through:     "",
+				Schema:      vtSchema,
 			},
-			{
+			&Relation[any]{
 				Alias:       "owner",
 				LocalKey:    "owner_id",
 				EntityField: "owner_entity",
 				Through:     "",
+				Schema:      ownerSchema,
 			},
 		}
 
@@ -1048,8 +1080,8 @@ func TestTopologicalSortRelations(t *testing.T) {
 
 		require.Len(t, sorted, 2)
 		// Both have no dependencies, order preserved
-		assert.Equal(t, "vt", sorted[0].Alias)
-		assert.Equal(t, "owner", sorted[1].Alias)
+		assert.Equal(t, "vt", sorted[0].GetAlias())
+		assert.Equal(t, "owner", sorted[1].GetAlias())
 	})
 
 	t.Run("handles chain of dependencies", func(t *testing.T) {
@@ -1057,24 +1089,30 @@ func TestTopologicalSortRelations(t *testing.T) {
 
 		// Chain: Manufacturer -> VehicleGroup -> VehicleType
 		// manufacturer depends on vg, vg depends on vt, vt has no dependency
-		relations := []Relation{
-			{
+		mfrSchema := createTestRelationSchema("manufacturers", []string{"id", "name"})
+		vgSchema := createTestRelationSchema("vehicle_groups", []string{"id", "name"})
+		vtSchema := createTestRelationSchema("vehicle_types", []string{"id", "name"})
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Alias:       "mfr",
 				LocalKey:    "manufacturer_id",
 				EntityField: "manufacturer_entity",
 				Through:     "vt__vg", // depends on vg (which is accessed via vt__vg)
+				Schema:      mfrSchema,
 			},
-			{
+			&Relation[any]{
 				Alias:       "vt__vg",
 				LocalKey:    "group_id",
 				EntityField: "vehicle_group_entity",
 				Through:     "vt", // depends on vt
+				Schema:      vgSchema,
 			},
-			{
+			&Relation[any]{
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
 				EntityField: "vehicle_type_entity",
 				Through:     "", // no dependency
+				Schema:      vtSchema,
 			},
 		}
 
@@ -1082,11 +1120,11 @@ func TestTopologicalSortRelations(t *testing.T) {
 
 		require.Len(t, sorted, 3)
 		// vt first (no dependency)
-		assert.Equal(t, "vt", sorted[0].Alias)
+		assert.Equal(t, "vt", sorted[0].GetAlias())
 		// vg second (depends on vt)
-		assert.Equal(t, "vt__vg", sorted[1].Alias)
+		assert.Equal(t, "vt__vg", sorted[1].GetAlias())
 		// mfr third (depends on vg)
-		assert.Equal(t, "mfr", sorted[2].Alias)
+		assert.Equal(t, "mfr", sorted[2].GetAlias())
 	})
 
 	t.Run("handles empty input", func(t *testing.T) {
@@ -1095,25 +1133,27 @@ func TestTopologicalSortRelations(t *testing.T) {
 		sorted := TopologicalSortRelations(nil)
 		assert.Empty(t, sorted)
 
-		sorted = TopologicalSortRelations([]Relation{})
+		sorted = TopologicalSortRelations([]RelationDescriptor{})
 		assert.Empty(t, sorted)
 	})
 
 	t.Run("handles single relation", func(t *testing.T) {
 		t.Parallel()
 
-		relations := []Relation{
-			{
+		vtSchema := createTestRelationSchema("vehicle_types", []string{"id", "name"})
+		relations := []RelationDescriptor{
+			&Relation[any]{
 				Alias:       "vt",
 				LocalKey:    "vehicle_type_id",
 				EntityField: "vehicle_type_entity",
 				Through:     "",
+				Schema:      vtSchema,
 			},
 		}
 
 		sorted := TopologicalSortRelations(relations)
 
 		require.Len(t, sorted, 1)
-		assert.Equal(t, "vt", sorted[0].Alias)
+		assert.Equal(t, "vt", sorted[0].GetAlias())
 	})
 }

@@ -16,50 +16,43 @@ type RelationSchema interface {
 // RelationsProvider is implemented by schemas that declare their own relations.
 // Used by BuildRelationsRecursive to discover nested relations.
 type RelationsProvider interface {
-	Relations() []Relation
+	Relations() []RelationDescriptor
 }
 
 // BuildRelationsRecursive discovers all nested relations by walking the schema tree.
 // For each relation, if its Schema implements RelationsProvider, those nested relations
 // are also included with their Through field set to the parent alias.
-//
-// Example:
-//
-//	Vehicle declares: [{Alias: "vt", Schema: vehicleTypeSchema}]
-//	VehicleType declares: [{Alias: "vg", Schema: vehicleGroupSchema}]
-//	Result: [{Alias: "vt"}, {Alias: "vg", Through: "vt"}]
-//
-// This enables parent schemas to only declare direct relations while nested
-// relations are auto-discovered.
-func BuildRelationsRecursive(relations []Relation) []Relation {
+func BuildRelationsRecursive(relations []RelationDescriptor) []RelationDescriptor {
 	if len(relations) == 0 {
 		return nil
 	}
 
-	var result []Relation
+	var result []RelationDescriptor
 	visited := make(map[string]bool)
 
-	var discover func(parentAlias string, rels []Relation)
-	discover = func(parentAlias string, rels []Relation) {
+	var discover func(parentAlias string, rels []RelationDescriptor)
+	discover = func(parentAlias string, rels []RelationDescriptor) {
 		for _, rel := range rels {
-			// Create unique key for this relation path
-			key := parentAlias + "." + rel.Alias
+			alias := rel.GetAlias()
+			key := parentAlias + "." + alias
 			if visited[key] {
-				continue // prevent cycles
+				continue
 			}
 			visited[key] = true
 
-			// Copy relation and set Through if nested
-			r := rel
+			// For nested relations, we need to create a copy with Through set
+			// Since RelationDescriptor is an interface, we create a wrapper
 			if parentAlias != "" {
-				r.Through = parentAlias
+				result = append(result, &relationWithThrough{rel, parentAlias})
+			} else {
+				result = append(result, rel)
 			}
-			result = append(result, r)
 
 			// Recursively discover from child schema if it provides relations
-			if rel.Schema != nil {
-				if provider, ok := rel.Schema.(RelationsProvider); ok {
-					discover(rel.Alias, provider.Relations())
+			schema := rel.GetSchema()
+			if schema != nil {
+				if provider, ok := schema.(RelationsProvider); ok {
+					discover(alias, provider.Relations())
 				}
 			}
 		}
@@ -69,8 +62,15 @@ func BuildRelationsRecursive(relations []Relation) []Relation {
 	return result
 }
 
+// relationWithThrough wraps a RelationDescriptor to override Through.
+type relationWithThrough struct {
+	RelationDescriptor
+	through string
+}
+
+func (r *relationWithThrough) GetThrough() string { return r.through }
+
 // prefixedField wraps a Field with a different name (prefix stripped).
-// This is used when extracting prefixed fields to rename them.
 type prefixedField struct {
 	Field
 	name string
@@ -89,15 +89,6 @@ func (pf *prefixedField) Value(value any) FieldValue {
 
 // ExtractPrefixedFields filters FieldValues where field name starts with prefix + "__"
 // and returns new FieldValues with the prefix stripped from field names.
-//
-// Examples with prefix="vt":
-//   - "vt__id" → "id" (direct field)
-//   - "vt__name" → "name" (direct field)
-//   - "vt__vg__id" → "vg__id" (nested field, preserved for child mapper)
-//   - "vt__vg__name" → "vg__name" (nested field, preserved for child mapper)
-//
-// Nested prefixes are preserved so child mappers can extract their own relations.
-// This enables auto-cascading: Vehicle → VehicleType → VehicleGroup
 func ExtractPrefixedFields(fvs []FieldValue, prefix string) []FieldValue {
 	if len(fvs) == 0 {
 		return nil
@@ -109,21 +100,17 @@ func ExtractPrefixedFields(fvs []FieldValue, prefix string) []FieldValue {
 	for _, fv := range fvs {
 		fieldName := fv.Field().Name()
 
-		// Check if field starts with the prefix
 		if !strings.HasPrefix(fieldName, fullPrefix) {
 			continue
 		}
 
-		// Get the part after the prefix (includes nested prefixes)
 		remainder := strings.TrimPrefix(fieldName, fullPrefix)
 
-		// Create a wrapper field with the stripped name
 		wrappedField := &prefixedField{
 			Field: fv.Field(),
 			name:  remainder,
 		}
 
-		// Create a new FieldValue with the wrapped field
 		result = append(result, &fieldValue{
 			field: wrappedField,
 			value: fv.Value(),
@@ -134,7 +121,6 @@ func ExtractPrefixedFields(fvs []FieldValue, prefix string) []FieldValue {
 }
 
 // ExtractNonPrefixedFields returns FieldValues where field name contains no "__" separator.
-// These are the parent entity's own fields (not from joined relations).
 func ExtractNonPrefixedFields(fvs []FieldValue) []FieldValue {
 	if len(fvs) == 0 {
 		return nil
@@ -145,7 +131,6 @@ func ExtractNonPrefixedFields(fvs []FieldValue) []FieldValue {
 	for _, fv := range fvs {
 		fieldName := fv.Field().Name()
 
-		// If the field name contains "__", it's a prefixed field from a join
 		if strings.Contains(fieldName, "__") {
 			continue
 		}
@@ -157,7 +142,6 @@ func ExtractNonPrefixedFields(fvs []FieldValue) []FieldValue {
 }
 
 // AllFieldsNull returns true if all FieldValue.Value() return nil or IsZero().
-// Used to detect NULL relations (LEFT JOIN with no match).
 func AllFieldsNull(fvs []FieldValue) bool {
 	if len(fvs) == 0 {
 		return true
@@ -173,24 +157,19 @@ func AllFieldsNull(fvs []FieldValue) bool {
 }
 
 // TopologicalSortRelations sorts relations so dependencies (Through) come before dependents.
-// Relations with no Through come first.
-// Returns sorted slice for bottom-up processing.
-func TopologicalSortRelations(relations []Relation) []Relation {
+func TopologicalSortRelations(relations []RelationDescriptor) []RelationDescriptor {
 	if len(relations) == 0 {
 		return nil
 	}
 
-	// Build a map from alias to relation for quick lookup
-	aliasToRelation := make(map[string]Relation)
+	aliasToRelation := make(map[string]RelationDescriptor)
 	for _, rel := range relations {
-		aliasToRelation[rel.Alias] = rel
+		aliasToRelation[rel.GetAlias()] = rel
 	}
 
-	// Track visited and result
 	visited := make(map[string]bool)
-	result := make([]Relation, 0, len(relations))
+	result := make([]RelationDescriptor, 0, len(relations))
 
-	// Recursive function to add relation and its dependencies
 	var visit func(alias string)
 	visit = func(alias string) {
 		if visited[alias] {
@@ -202,41 +181,24 @@ func TopologicalSortRelations(relations []Relation) []Relation {
 			return
 		}
 
-		// If this relation depends on another, visit that first
-		if rel.Through != "" {
-			visit(rel.Through)
+		through := rel.GetThrough()
+		if through != "" {
+			visit(through)
 		}
 
 		visited[alias] = true
 		result = append(result, rel)
 	}
 
-	// Visit all relations in their original order
 	for _, rel := range relations {
-		visit(rel.Alias)
+		visit(rel.GetAlias())
 	}
 
 	return result
 }
 
 // BuildRelationSelectColumns generates SELECT column specifications for all relations.
-// Each relation's schema fields are prefixed with the relation alias.
-//
-// Example:
-//
-//	relations := []Relation{{Alias: "vt", Schema: vehicleTypeSchema}}
-//	columns := BuildRelationSelectColumns(relations)
-//	// Returns: ["vt.id AS vt__id", "vt.name AS vt__name"]
-//
-// For nested relations (with Through set), the column prefix includes the parent path
-// to prevent collisions when the same alias is used at different nesting levels:
-//
-//	relations := []Relation{
-//	    {Alias: "vt", Schema: vtSchema},
-//	    {Alias: "vg", Through: "vt", Schema: vgSchema},
-//	}
-//	// Returns: ["vt.id AS vt__id", ..., "vg.id AS vt__vg__id", ...]
-func BuildRelationSelectColumns(relations []Relation) []string {
+func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 	if len(relations) == 0 {
 		return nil
 	}
@@ -244,32 +206,53 @@ func BuildRelationSelectColumns(relations []Relation) []string {
 	var columns []string
 
 	for _, rel := range relations {
-		// Skip relations with nil schema
-		if rel.Schema == nil {
+		// Handle manual relations first
+		manual := rel.GetManual()
+		if manual != nil && len(manual.Columns) > 0 {
+			alias := rel.GetAlias()
+			through := rel.GetThrough()
+
+			var columnPrefix string
+			if through != "" {
+				columnPrefix = through + "__" + alias
+			} else {
+				columnPrefix = alias
+			}
+
+			for _, col := range manual.Columns {
+				if strings.Contains(col, " AS ") || strings.Contains(col, " as ") {
+					columns = append(columns, col)
+				} else {
+					columns = append(columns, fmt.Sprintf("%s.%s AS %s__%s", alias, col, columnPrefix, col))
+				}
+			}
 			continue
 		}
 
-		// Type-assert to RelationSchema to access metadata
-		schema, ok := rel.Schema.(RelationSchema)
+		// Schema-based relations
+		schemaAny := rel.GetSchema()
+		if schemaAny == nil {
+			continue
+		}
+
+		schema, ok := schemaAny.(RelationSchema)
 		if !ok {
 			continue
 		}
 
-		// Determine the column prefix based on nesting
+		alias := rel.GetAlias()
+		through := rel.GetThrough()
+
 		var columnPrefix string
-		if rel.Through != "" {
-			// Nested: parent__alias (e.g., "vt__vg")
-			columnPrefix = rel.Through + "__" + rel.Alias
+		if through != "" {
+			columnPrefix = through + "__" + alias
 		} else {
-			// Top-level: just alias (e.g., "vt")
-			columnPrefix = rel.Alias
+			columnPrefix = alias
 		}
 
-		// Get all field names from the schema
 		for _, field := range schema.Fields().Fields() {
 			fieldName := field.Name()
-			// Format: alias.field AS prefix__field
-			column := fmt.Sprintf("%s.%s AS %s__%s", rel.Alias, fieldName, columnPrefix, fieldName)
+			column := fmt.Sprintf("%s.%s AS %s__%s", alias, fieldName, columnPrefix, fieldName)
 			columns = append(columns, column)
 		}
 	}
@@ -277,18 +260,8 @@ func BuildRelationSelectColumns(relations []Relation) []string {
 	return columns
 }
 
-// BuildRelationJoinClauses converts relations to JoinClause slice for use with the Join system.
-//
-// For relations without Through, the join is from the main table:
-//
-//	{Alias: "vt", LocalKey: "vehicle_type_id"} ->
-//	JOIN vehicle_types vt ON mainTable.vehicle_type_id = vt.id
-//
-// For relations with Through, the join is from the Through table's alias:
-//
-//	{Alias: "vg", LocalKey: "group_id", Through: "vt"} ->
-//	JOIN vehicle_groups vg ON vt.group_id = vg.id
-func BuildRelationJoinClauses(mainTable string, relations []Relation) []JoinClause {
+// BuildRelationJoinClauses converts relations to JoinClause slice.
+func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) []JoinClause {
 	if len(relations) == 0 {
 		return nil
 	}
@@ -296,39 +269,30 @@ func BuildRelationJoinClauses(mainTable string, relations []Relation) []JoinClau
 	var clauses []JoinClause
 
 	for _, rel := range relations {
-		// Skip relations with nil schema
-		if rel.Schema == nil {
+		tableName := rel.TableName()
+		if tableName == "" {
 			continue
 		}
 
-		// Type-assert to RelationSchema to get table name
-		schema, ok := rel.Schema.(RelationSchema)
-		if !ok {
-			continue
-		}
-
-		// Determine the left side of the join
+		through := rel.GetThrough()
 		var leftTable string
-		if rel.Through != "" {
-			// Join from the Through table's alias
-			leftTable = rel.Through
+		if through != "" {
+			leftTable = through
 		} else {
-			// Join from the main table
 			leftTable = mainTable
 		}
 
-		// Default RemoteKey to "id" if not specified
-		remoteKey := rel.RemoteKey
+		remoteKey := rel.GetRemoteKey()
 		if remoteKey == "" {
 			remoteKey = "id"
 		}
 
 		clause := JoinClause{
-			Type:        rel.JoinType,
-			Table:       schema.Name(),
-			TableAlias:  rel.Alias,
-			LeftColumn:  fmt.Sprintf("%s.%s", leftTable, rel.LocalKey),
-			RightColumn: fmt.Sprintf("%s.%s", rel.Alias, remoteKey),
+			Type:        rel.GetJoinType(),
+			Table:       tableName,
+			TableAlias:  rel.GetAlias(),
+			LeftColumn:  fmt.Sprintf("%s.%s", leftTable, rel.GetLocalKey()),
+			RightColumn: fmt.Sprintf("%s.%s", rel.GetAlias(), remoteKey),
 		}
 
 		clauses = append(clauses, clause)

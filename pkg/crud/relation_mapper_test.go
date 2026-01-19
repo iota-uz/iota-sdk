@@ -38,8 +38,8 @@ func TestRelationMapper_Basic(t *testing.T) {
 	// Parent mapper with child relation
 	parentMapper := NewRelationMapper[string](
 		nil,
-		[]Relation{
-			{
+		[]RelationDescriptor{
+			&Relation[any]{
 				Alias:  "vt",
 				Mapper: childMapper,
 				SetOnParent: func(parent, child any) any {
@@ -80,8 +80,8 @@ func TestRelationMapper_ThreeLevels(t *testing.T) {
 	// VehicleType mapper (has VehicleGroup relation)
 	vtMapper := NewRelationMapper[string](
 		nil,
-		[]Relation{
-			{
+		[]RelationDescriptor{
+			&Relation[any]{
 				Alias:  "vg",
 				Mapper: vgMapper,
 				SetOnParent: func(parent, child any) any {
@@ -95,8 +95,8 @@ func TestRelationMapper_ThreeLevels(t *testing.T) {
 	// Vehicle mapper (has VehicleType relation - doesn't know about VehicleGroup!)
 	vehicleMapper := NewRelationMapper[string](
 		nil,
-		[]Relation{
-			{
+		[]RelationDescriptor{
+			&Relation[any]{
 				Alias:  "vt",
 				Mapper: vtMapper,
 				SetOnParent: func(parent, child any) any {
@@ -136,8 +136,8 @@ func TestRelationMapper_NullChild(t *testing.T) {
 
 	parentMapper := NewRelationMapper[string](
 		nil,
-		[]Relation{
-			{
+		[]RelationDescriptor{
+			&Relation[any]{
 				Alias:  "vt",
 				Mapper: childMapper,
 				SetOnParent: func(parent, child any) any {
@@ -228,8 +228,8 @@ func TestRelationMapper_MissingSetOnParent(t *testing.T) {
 	// Relation without SetOnParent - should be skipped
 	parentMapper := NewRelationMapper[string](
 		nil,
-		[]Relation{
-			{
+		[]RelationDescriptor{
+			&Relation[any]{
 				Alias:       "vt",
 				Mapper:      childMapper,
 				SetOnParent: nil, // Missing!

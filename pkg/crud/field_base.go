@@ -378,3 +378,110 @@ func (d *dynamicField) AsTimestampField() (TimestampField, error) {
 func (d *dynamicField) AsUUIDField() (UUIDField, error) {
 	return nil, fmt.Errorf("%w: dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, d.name)
 }
+
+// typedDynamicField is a dynamic field that knows its actual type from PostgreSQL OID.
+// Used for JOINed columns where the schema doesn't know the column type,
+// but we can infer it from PostgreSQL metadata.
+type typedDynamicField struct {
+	name      string
+	fieldType FieldType
+}
+
+// newDynamicFieldFromOID creates a dynamic field with proper type based on PostgreSQL OID.
+// This is used for columns not in the schema (e.g., prefixed JOIN columns like vt__id).
+func newDynamicFieldFromOID(name string, oid uint32) Field {
+	return &typedDynamicField{
+		name:      name,
+		fieldType: fieldTypeFromOID(oid),
+	}
+}
+
+// fieldTypeFromOID maps PostgreSQL type OIDs to FieldType.
+// Common OIDs: https://github.com/postgres/postgres/blob/master/src/include/catalog/pg_type.dat
+func fieldTypeFromOID(oid uint32) FieldType {
+	switch oid {
+	case 2950: // UUID
+		return UUIDFieldType
+	case 1043, 25, 1042: // VARCHAR, TEXT, CHAR
+		return StringFieldType
+	case 23, 20, 21, 26: // INT4, INT8, INT2, OID
+		return IntFieldType
+	case 16: // BOOL
+		return BoolFieldType
+	case 700, 701: // FLOAT4, FLOAT8
+		return FloatFieldType
+	case 1700: // NUMERIC/DECIMAL
+		return DecimalFieldType
+	case 1082: // DATE
+		return DateFieldType
+	case 1083, 1266: // TIME, TIMETZ
+		return TimeFieldType
+	case 1114, 1184: // TIMESTAMP, TIMESTAMPTZ
+		return TimestampFieldType
+	case 114, 3802: // JSON, JSONB
+		return JSONFieldType
+	default:
+		// Unknown OID - fallback to JSON which accepts any value
+		return JSONFieldType
+	}
+}
+
+func (t *typedDynamicField) Key() bool                            { return false }
+func (t *typedDynamicField) Name() string                         { return t.name }
+func (t *typedDynamicField) Type() FieldType                      { return t.fieldType }
+func (t *typedDynamicField) Readonly() bool                       { return false }
+func (t *typedDynamicField) Searchable() bool                     { return false }
+func (t *typedDynamicField) Sortable() bool                       { return false }
+func (t *typedDynamicField) Hidden() bool                         { return true }
+func (t *typedDynamicField) Rules() []FieldRule                   { return nil }
+func (t *typedDynamicField) Attrs() map[string]any                { return nil }
+func (t *typedDynamicField) InitialValue(ctx context.Context) any { return nil }
+func (t *typedDynamicField) RendererType() string                 { return "" }
+func (t *typedDynamicField) LocalizationKey() string              { return "" }
+
+func (t *typedDynamicField) Value(value any) FieldValue {
+	return &fieldValue{
+		field: t,
+		value: value,
+	}
+}
+
+func (t *typedDynamicField) AsStringField() (StringField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsIntField() (IntField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsBoolField() (BoolField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsFloatField() (FloatField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsDecimalField() (DecimalField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsDateField() (DateField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsTimeField() (TimeField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsDateTimeField() (DateTimeField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsTimestampField() (TimestampField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}
+
+func (t *typedDynamicField) AsUUIDField() (UUIDField, error) {
+	return nil, fmt.Errorf("%w: typed dynamic field %q cannot be cast to specific type", ErrFieldTypeMismatch, t.name)
+}

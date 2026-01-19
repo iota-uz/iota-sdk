@@ -165,6 +165,23 @@ func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, e
 		return zero, errors.Wrap(err, "transaction failed during save operation")
 	}
 
+	// Re-fetch with JOINs to populate relations if schema has default joins
+	if schemaWithJoins, hasJoins := s.schema.(SchemaWithJoins[TEntity]); hasJoins {
+		if defaultJoins := schemaWithJoins.DefaultJoins(); defaultJoins != nil && len(defaultJoins.Joins) > 0 {
+			savedFieldValues, err := s.schema.Mapper().ToFieldValues(ctx, savedEntity)
+			if err == nil {
+				for _, fv := range savedFieldValues {
+					if fv.Field().Key() {
+						if refetched, err := s.repository.Get(ctx, fv); err == nil {
+							savedEntity = refetched
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
 	event.SetResult(savedEntity)
 	s.publisher.Publish(event)
 

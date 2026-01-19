@@ -2,6 +2,7 @@ package crud
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -267,11 +268,17 @@ func (fv *fieldValue) AsJSON() (string, error) {
 		return "", nil
 	}
 
-	jsonStr, ok := fv.value.(string)
-	if !ok {
-		return "", fv.valueCastError("string")
+	// If already a string, return directly
+	if jsonStr, ok := fv.value.(string); ok {
+		return jsonStr, nil
 	}
-	return jsonStr, nil
+
+	// pgx decodes JSONB as map[string]any or []any - marshal back to JSON string
+	jsonBytes, err := json.Marshal(fv.value)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON value: %w", err)
+	}
+	return string(jsonBytes), nil
 }
 
 func (fv *fieldValue) typeMismatch(expected string) error {
