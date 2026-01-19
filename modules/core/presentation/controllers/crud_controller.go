@@ -387,7 +387,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
 						case crud.TimestampFieldType:
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05", time.RFC3339}
-						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.UUIDFieldType, crud.JSONFieldType:
+						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.UUIDFieldType, crud.JSONFieldType, crud.EntityFieldType:
 							// These types are handled elsewhere
 							formats = []string{}
 						}
@@ -434,8 +434,9 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				} else {
 					continue // Skip empty JSON values
 				}
-			case crud.StringFieldType:
+			case crud.StringFieldType, crud.EntityFieldType:
 				// String fields are handled as strings from forms
+				// EntityFieldType is readonly and shouldn't appear in forms
 				value = formValue
 			}
 		}
@@ -794,7 +795,7 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 					case crud.UUIDFieldType:
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
-					case crud.JSONFieldType:
+					case crud.JSONFieldType, crud.EntityFieldType:
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
 					default:
