@@ -264,6 +264,9 @@ func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 // mainTable is the parent table name (e.g., "insurance.persons").
 // mainAlias is the parent table alias used in the query (e.g., "p").
 func BuildHasManySubqueries(mainTable, mainAlias string, relations []RelationDescriptor) []string {
+	if mainTable == "" || mainAlias == "" {
+		return nil
+	}
 	if len(relations) == 0 {
 		return nil
 	}
