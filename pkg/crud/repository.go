@@ -334,6 +334,9 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 	for _, fv := range values {
 		field := fv.Field()
 		value := fv.Value()
+		if field.Virtual() {
+			continue
+		}
 		if field.Key() && fv.IsZero() {
 			continue
 		}
@@ -370,6 +373,9 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 		val := fv.Value()
 		if field.Key() {
 			fieldKeyValue = fv
+			continue
+		}
+		if field.Virtual() {
 			continue
 		}
 		updates = append(updates, field.Name())

@@ -1161,6 +1161,7 @@ func (m *mockField) Readonly() bool                       { return false }
 func (m *mockField) Searchable() bool                     { return false }
 func (m *mockField) Sortable() bool                       { return false }
 func (m *mockField) Hidden() bool                         { return false }
+func (m *mockField) Virtual() bool                        { return false }
 func (m *mockField) Rules() []crud.FieldRule              { return nil }
 func (m *mockField) InitialValue(ctx context.Context) any { return nil }
 func (m *mockField) Attrs() map[string]any                { return map[string]any{} }
