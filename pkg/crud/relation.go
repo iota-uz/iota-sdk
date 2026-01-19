@@ -131,12 +131,10 @@ func (r *Relation[T]) Validate() error {
 		return serrors.E(op, serrors.Invalid, "entity field is required for schema relations")
 	}
 
-	// RemoteKey defaults to "id" if not specified
 	if r.RemoteKey == "" {
 		r.RemoteKey = "id"
 	}
-	// JoinType defaults to LEFT if not specified
-	if r.JoinType == 0 {
+	if !r.JoinType.IsValid() {
 		r.JoinType = JoinTypeLeft
 	}
 

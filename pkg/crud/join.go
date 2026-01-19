@@ -50,15 +50,18 @@ var (
 type JoinType int
 
 const (
+	// JoinTypeLeft represents a LEFT JOIN (LEFT OUTER JOIN) - default for optional relations
+	JoinTypeLeft JoinType = iota
 	// JoinTypeInner represents an INNER JOIN
-	JoinTypeInner JoinType = iota
-	// JoinTypeLeft represents a LEFT JOIN (LEFT OUTER JOIN)
-	JoinTypeLeft
+	JoinTypeInner
 	// JoinTypeRight represents a RIGHT JOIN (RIGHT OUTER JOIN)
 	JoinTypeRight
 )
 
-// String returns the SQL keyword for the join type
+func (jt JoinType) IsValid() bool {
+	return jt == JoinTypeInner || jt == JoinTypeLeft || jt == JoinTypeRight
+}
+
 func (jt JoinType) String() string {
 	switch jt {
 	case JoinTypeInner:

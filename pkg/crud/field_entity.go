@@ -120,9 +120,14 @@ func (f *EntityField[T]) AsDateTimeField() (DateTimeField, error)   { return nil
 func (f *EntityField[T]) AsTimestampField() (TimestampField, error) { return nil, ErrFieldTypeMismatch }
 func (f *EntityField[T]) AsUUIDField() (UUIDField, error)           { return nil, ErrFieldTypeMismatch }
 
-// Value creates an EntityFieldValue holding the given entity with type safety.
-// This is the type-safe method for creating field values.
-func (f *EntityField[T]) Value(entity T) FieldValue {
+// Value implements the Field interface and creates a FieldValue from any value.
+// For type-safe entity wrapping, use TypedValue instead.
+func (f *EntityField[T]) Value(value any) FieldValue {
+	return f.base.Value(value)
+}
+
+// TypedValue creates an EntityFieldValue holding the given entity with type safety.
+func (f *EntityField[T]) TypedValue(entity T) FieldValue {
 	return &entityFieldValue[T]{
 		base:   f.base,
 		entity: entity,
@@ -139,7 +144,11 @@ func (fv *entityFieldValue[T]) Field() Field { return fv.base }
 func (fv *entityFieldValue[T]) Value() any   { return fv.entity }
 
 func (fv *entityFieldValue[T]) IsZero() bool {
-	return reflect.ValueOf(fv.entity).IsZero()
+	v := reflect.ValueOf(fv.entity)
+	if !v.IsValid() {
+		return true
+	}
+	return v.IsZero()
 }
 
 // FieldValue interface methods - return errors since entity isn't a primitive type

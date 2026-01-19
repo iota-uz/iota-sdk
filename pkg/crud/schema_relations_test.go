@@ -27,14 +27,8 @@ func TestNewSchemaWithRelations(t *testing.T) {
 		relations,
 	)
 
-	// Check it implements SchemaWithRelations
-	swr, ok := schema.(SchemaWithRelations[any])
-	if !ok {
-		t.Fatal("expected schema to implement SchemaWithRelations")
-	}
-
 	// Check relations are accessible
-	rels := swr.Relations()
+	rels := schema.Relations()
 	if len(rels) != 1 {
 		t.Fatalf("expected 1 relation, got %d", len(rels))
 	}
@@ -62,9 +56,8 @@ func TestSchemaWithRelations_EmptyRelations(t *testing.T) {
 		[]RelationDescriptor{}, // empty relations
 	)
 
-	swr := schema.(SchemaWithRelations[any])
-	if len(swr.Relations()) != 0 {
-		t.Errorf("expected 0 relations, got %d", len(swr.Relations()))
+	if len(schema.Relations()) != 0 {
+		t.Errorf("expected 0 relations, got %d", len(schema.Relations()))
 	}
 }
 
@@ -94,8 +87,7 @@ func TestSchemaWithRelations_MultipleRelations(t *testing.T) {
 		relations,
 	)
 
-	swr := schema.(SchemaWithRelations[any])
-	rels := swr.Relations()
+	rels := schema.Relations()
 
 	if len(rels) != 2 {
 		t.Fatalf("expected 2 relations, got %d", len(rels))
@@ -187,8 +179,9 @@ func (m *mockMapperForSchema) ToFieldValuesList(ctx context.Context, entities ..
 	return nil, nil
 }
 
-func (m *mockMapperForSchema) ToEntity(ctx context.Context, values []FieldValue) (any, error) {
-	return nil, nil
+func (m *mockMapperForSchema) ToEntity(_ context.Context, _ []FieldValue) (any, error) {
+	var zero any
+	return zero, nil
 }
 
 func (m *mockMapperForSchema) ToFieldValues(ctx context.Context, entity any) ([]FieldValue, error) {

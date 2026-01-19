@@ -241,7 +241,7 @@ func (c *CrudController[TEntity]) validateID(id string) error {
 		if _, err := uuid.Parse(id); err != nil {
 			return fmt.Errorf("invalid UUID: %s", id)
 		}
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 		// These types don't need special validation for ID format
 	}
 	return nil
@@ -267,7 +267,7 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 		}
 		// If parsing fails, return nil UUID instead of nil
 		return uuid.Nil
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 		// For all other types, return the string as-is
 		return id
 	}
@@ -340,10 +340,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					continue // Skip empty values
 				}
 			case crud.StringFieldType, crud.DecimalFieldType, crud.DateFieldType,
-				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
-				value = formValue
-			default:
-				// Default to string for any unknown types
+				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 				value = formValue
 			}
 		} else {
