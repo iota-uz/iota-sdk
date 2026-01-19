@@ -2,6 +2,9 @@ package crud
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -125,3 +128,44 @@ func (rm *RelationMapper[T]) MapEntity(ctx context.Context, fields []FieldValue)
 }
 
 var _ RelationEntityMapper = (*RelationMapper[any])(nil)
+
+// parseHasManyJSON parses JSON array data into a slice of T.
+// Handles nil, "null", "[]", []byte, and string inputs.
+func parseHasManyJSON[T any](jsonData any) ([]T, error) {
+	if jsonData == nil {
+		return nil, nil
+	}
+
+	var data []byte
+
+	switch v := jsonData.(type) {
+	case []byte:
+		if len(v) == 0 {
+			return nil, nil
+		}
+		data = v
+	case string:
+		if v == "" {
+			return nil, nil
+		}
+		data = []byte(v)
+	default:
+		return nil, fmt.Errorf("parseHasManyJSON: unexpected type %T", jsonData)
+	}
+
+	// Handle null and empty array
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "null" {
+		return nil, nil
+	}
+	if trimmed == "[]" {
+		return []T{}, nil
+	}
+
+	var items []T
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil, fmt.Errorf("parseHasManyJSON: %w", err)
+	}
+
+	return items, nil
+}

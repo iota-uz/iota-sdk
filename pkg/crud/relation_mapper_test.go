@@ -249,3 +249,104 @@ func TestRelationMapper_MissingSetOnParent(t *testing.T) {
 		t.Errorf("result = %q, want %q", result, expected)
 	}
 }
+
+func TestParseHasManyJSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("parses valid JSON array", func(t *testing.T) {
+		t.Parallel()
+
+		type Item struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		}
+
+		jsonData := []byte(`[{"id":"1","name":"first"},{"id":"2","name":"second"}]`)
+
+		items, err := parseHasManyJSON[Item](jsonData)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(items) != 2 {
+			t.Fatalf("expected 2 items, got %d", len(items))
+		}
+		if items[0].ID != "1" {
+			t.Errorf("items[0].ID = %q, want %q", items[0].ID, "1")
+		}
+		if items[0].Name != "first" {
+			t.Errorf("items[0].Name = %q, want %q", items[0].Name, "first")
+		}
+		if items[1].ID != "2" {
+			t.Errorf("items[1].ID = %q, want %q", items[1].ID, "2")
+		}
+		if items[1].Name != "second" {
+			t.Errorf("items[1].Name = %q, want %q", items[1].Name, "second")
+		}
+	})
+
+	t.Run("returns nil for nil input", func(t *testing.T) {
+		t.Parallel()
+
+		type Item struct{}
+		items, err := parseHasManyJSON[Item](nil)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if items != nil {
+			t.Errorf("expected nil, got %v", items)
+		}
+	})
+
+	t.Run("returns nil for null JSON", func(t *testing.T) {
+		t.Parallel()
+
+		type Item struct{}
+		items, err := parseHasManyJSON[Item]([]byte("null"))
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if items != nil {
+			t.Errorf("expected nil, got %v", items)
+		}
+	})
+
+	t.Run("returns empty slice for empty array", func(t *testing.T) {
+		t.Parallel()
+
+		type Item struct{}
+		items, err := parseHasManyJSON[Item]([]byte("[]"))
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if items == nil {
+			t.Errorf("expected empty slice, got nil")
+		}
+		if len(items) != 0 {
+			t.Errorf("expected 0 items, got %d", len(items))
+		}
+	})
+
+	t.Run("handles string input from database", func(t *testing.T) {
+		t.Parallel()
+
+		type Item struct {
+			ID string `json:"id"`
+		}
+
+		items, err := parseHasManyJSON[Item](`[{"id":"test"}]`)
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(items) != 1 {
+			t.Fatalf("expected 1 item, got %d", len(items))
+		}
+		if items[0].ID != "test" {
+			t.Errorf("items[0].ID = %q, want %q", items[0].ID, "test")
+		}
+	})
+}
