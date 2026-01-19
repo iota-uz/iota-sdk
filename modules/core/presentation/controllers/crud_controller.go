@@ -1734,6 +1734,10 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 
 		return builder.Build()
 
+	case crud.EntityFieldType:
+		// EntityField is readonly and hidden, should not appear in forms
+		return nil
+
 	default:
 		builder := form.Text(field.Name(), field.Name())
 		if currentValue != nil {
@@ -1896,6 +1900,9 @@ func (c *CrudController[TEntity]) convertValueToString(value any, fieldType crud
 			return t.Format(time.RFC3339)
 		}
 		return fmt.Sprintf("%v", value)
+	case crud.EntityFieldType:
+		// EntityField holds related entities, convert to string representation
+		return fmt.Sprintf("%v", value)
 	}
 
 	// Default: convert to string
@@ -2018,8 +2025,8 @@ func (c *CrudController[TEntity]) compareSelectValues(optionValue, fieldValue an
 		// Fallback to string comparison
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
 
-	case crud.JSONFieldType:
-		// For JSON fields, use string comparison
+	case crud.JSONFieldType, crud.EntityFieldType:
+		// For JSON and Entity fields, use string comparison
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
 
 	default:
