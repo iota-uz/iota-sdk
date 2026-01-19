@@ -261,6 +261,7 @@ func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 }
 
 // BuildRelationJoinClauses converts relations to JoinClause slice.
+// HasMany relations are skipped - they're handled via subqueries to avoid row duplication.
 func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) []JoinClause {
 	if len(relations) == 0 {
 		return nil
@@ -269,6 +270,11 @@ func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) 
 	clauses := make([]JoinClause, 0, len(relations))
 
 	for _, rel := range relations {
+		// Skip HasMany relations - they're handled via subqueries
+		if rel.GetType() == HasMany {
+			continue
+		}
+
 		tableName := rel.TableName()
 		if tableName == "" {
 			continue
