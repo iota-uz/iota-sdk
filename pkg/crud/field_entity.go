@@ -21,6 +21,7 @@ func (f *entityFieldBase) Readonly() bool                     { return true }
 func (f *entityFieldBase) Searchable() bool                   { return false }
 func (f *entityFieldBase) Sortable() bool                     { return false }
 func (f *entityFieldBase) Hidden() bool                       { return true }
+func (f *entityFieldBase) Virtual() bool                      { return true }
 func (f *entityFieldBase) Rules() []FieldRule                 { return nil }
 func (f *entityFieldBase) Attrs() map[string]any              { return nil }
 func (f *entityFieldBase) InitialValue(_ context.Context) any { return nil }
@@ -106,6 +107,7 @@ func (f *EntityField[T]) Readonly() bool                       { return f.base.R
 func (f *EntityField[T]) Searchable() bool                     { return f.base.Searchable() }
 func (f *EntityField[T]) Sortable() bool                       { return f.base.Sortable() }
 func (f *EntityField[T]) Hidden() bool                         { return f.base.Hidden() }
+func (f *EntityField[T]) Virtual() bool                        { return f.base.Virtual() }
 func (f *EntityField[T]) Rules() []FieldRule                   { return f.base.Rules() }
 func (f *EntityField[T]) Attrs() map[string]any                { return f.base.Attrs() }
 func (f *EntityField[T]) InitialValue(ctx context.Context) any { return f.base.InitialValue(ctx) }

@@ -238,7 +238,7 @@ func (s *service[TEntity]) validation(ctx context.Context, entity TEntity) error
 			keyFieldVal = fv
 		}
 
-		if fv.Field().Readonly() {
+		if fv.Field().Readonly() && !fv.Field().Virtual() {
 			readonlyFieldValues = append(readonlyFieldValues, fv)
 		}
 		for _, rule := range fv.Field().Rules() {

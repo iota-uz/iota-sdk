@@ -73,6 +73,7 @@ type Field interface {
 	Searchable() bool
 	Sortable() bool
 	Hidden() bool
+	Virtual() bool
 
 	Rules() []FieldRule
 
@@ -110,6 +111,7 @@ type field struct {
 	hidden          bool
 	searchable      bool
 	sortable        bool
+	virtual         bool
 	rendererType    string
 	localizationKey string
 	attrs           map[string]any
@@ -176,6 +178,10 @@ func (f *field) Sortable() bool {
 
 func (f *field) Hidden() bool {
 	return f.hidden
+}
+
+func (f *field) Virtual() bool {
+	return f.virtual
 }
 
 func (f *field) Attrs() map[string]any {
@@ -361,6 +367,7 @@ func (t *typedDynamicField) Readonly() bool                       { return false
 func (t *typedDynamicField) Searchable() bool                     { return false }
 func (t *typedDynamicField) Sortable() bool                       { return false }
 func (t *typedDynamicField) Hidden() bool                         { return true }
+func (t *typedDynamicField) Virtual() bool                        { return true }
 func (t *typedDynamicField) Rules() []FieldRule                   { return nil }
 func (t *typedDynamicField) Attrs() map[string]any                { return nil }
 func (t *typedDynamicField) InitialValue(ctx context.Context) any { return nil }
