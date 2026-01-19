@@ -2,7 +2,8 @@ package crud
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // RelationMapper wraps a Mapper[T] and handles nested relations automatically.
@@ -47,10 +48,11 @@ func NewRelationMapper[T any](
 }
 
 func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValue) (T, error) {
+	const op = serrors.Op("RelationMapper.ToEntity")
 	var zero T
 
 	if rm.mapOwn == nil {
-		return zero, fmt.Errorf("RelationMapper.ToEntity: mapOwn function is nil")
+		return zero, serrors.E(op, serrors.Invalid, "mapOwn function is nil")
 	}
 
 	entity := rm.mapOwn(allFields)
@@ -69,18 +71,18 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 
 		childMapper, ok := mapper.(RelationEntityMapper)
 		if !ok {
-			continue
+			return zero, serrors.E(op, serrors.Invalid, "relation %q mapper does not implement RelationEntityMapper", rel.GetAlias())
 		}
 
 		child, err := childMapper.MapEntity(ctx, childFields)
 		if err != nil {
-			return zero, fmt.Errorf("RelationMapper.ToEntity: failed to map child relation %q: %w", rel.GetAlias(), err)
+			return zero, serrors.E(op, "relation %q", rel.GetAlias(), err)
 		}
 
 		result := setOnParent(entity, child)
 		typedResult, ok := result.(T)
 		if !ok {
-			return zero, fmt.Errorf("RelationMapper.ToEntity: setOnParent for relation %q returned %T, expected %T", rel.GetAlias(), result, zero)
+			return zero, serrors.E(op, serrors.Invalid, "relation %q setOnParent returned %T, expected %T", rel.GetAlias(), result, zero)
 		}
 		entity = typedResult
 	}
