@@ -2,6 +2,7 @@ package crud
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1411,5 +1412,185 @@ func TestTopologicalSortRelations(t *testing.T) {
 
 		require.Len(t, sorted, 1)
 		assert.Equal(t, "vt", sorted[0].GetAlias())
+	})
+}
+
+func TestBuildRelations_ComplexScenario(t *testing.T) {
+	t.Parallel()
+
+	// === BelongsTo schemas (will create JOINs) ===
+	genderSchema := createTestRelationSchema("insurance.genders", []string{"id", "name"})
+	countrySchema := createTestRelationSchema("insurance.countries", []string{"id", "name", "code"})
+	regionSchema := createTestRelationSchema("insurance.regions", []string{"id", "name"})
+
+	// === HasMany #1: Documents with nested BelongsTo (DocumentAuthority) ===
+	authoritySchema := createTestRelationSchema("insurance.document_authorities", []string{"id", "name", "code"})
+	documentsSchema := createTestSchemaWithRelations(
+		"insurance.person_documents",
+		[]string{"id", "seria", "number", "authority_id"},
+		[]RelationDescriptor{
+			&Relation[any]{
+				Type:        BelongsTo,
+				Alias:       "da",
+				LocalKey:    "authority_id",
+				RemoteKey:   "id",
+				Schema:      authoritySchema,
+				EntityField: "authority_entity",
+			},
+		},
+	)
+
+	// === HasMany #2: PINFLs (simple, no nested relations) ===
+	pinflsSchema := createTestRelationSchema("insurance.person_pinfls", []string{"id", "value", "status"})
+
+	// === All relations ===
+	relations := []RelationDescriptor{
+		// 3 BelongsTo relations
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "g",
+			LocalKey:    "gender_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      genderSchema,
+			EntityField: "gender_entity",
+		},
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "c",
+			LocalKey:    "country_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      countrySchema,
+			EntityField: "country_entity",
+		},
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "r",
+			LocalKey:    "region_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      regionSchema,
+			EntityField: "region_entity",
+		},
+		// 2 HasMany relations
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      documentsSchema,
+			EntityField: "documents_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "pinfls",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      pinflsSchema,
+			EntityField: "pinfls_entity",
+		},
+	}
+
+	// === Test BuildRelationJoinClauses ===
+	t.Run("JoinClauses", func(t *testing.T) {
+		t.Parallel()
+
+		joinClauses := BuildRelationJoinClauses("insurance.persons", relations)
+
+		// Should only have 3 JOINs (BelongsTo), not HasMany
+		require.Len(t, joinClauses, 3, "expected 3 JOIN clauses for BelongsTo relations")
+
+		// Verify each BelongsTo generates a JOIN
+		aliases := make([]string, len(joinClauses))
+		for i, jc := range joinClauses {
+			aliases[i] = jc.TableAlias
+		}
+		assert.Contains(t, aliases, "g", "gender join missing")
+		assert.Contains(t, aliases, "c", "country join missing")
+		assert.Contains(t, aliases, "r", "region join missing")
+
+		// Verify HasMany aliases are NOT in joins
+		assert.NotContains(t, aliases, "docs", "docs should not be in JOINs")
+		assert.NotContains(t, aliases, "pinfls", "pinfls should not be in JOINs")
+	})
+
+	// === Test BuildRelationSelectColumns ===
+	t.Run("SelectColumns", func(t *testing.T) {
+		t.Parallel()
+
+		selectCols := BuildRelationSelectColumns(relations)
+
+		// Should have columns for BelongsTo only: gender(2) + country(3) + region(2) = 7
+		require.Len(t, selectCols, 7, "expected 7 SELECT columns for BelongsTo relations")
+
+		// Verify BelongsTo columns exist
+		assert.Contains(t, selectCols, "g.id AS g__id")
+		assert.Contains(t, selectCols, "g.name AS g__name")
+		assert.Contains(t, selectCols, "c.id AS c__id")
+		assert.Contains(t, selectCols, "c.name AS c__name")
+		assert.Contains(t, selectCols, "c.code AS c__code")
+		assert.Contains(t, selectCols, "r.id AS r__id")
+		assert.Contains(t, selectCols, "r.name AS r__name")
+
+		// Verify HasMany columns are NOT present
+		for _, col := range selectCols {
+			assert.NotContains(t, col, "docs.", "docs columns should not be in SELECT")
+			assert.NotContains(t, col, "pinfls.", "pinfls columns should not be in SELECT")
+		}
+	})
+
+	// === Test BuildHasManySubqueries ===
+	t.Run("HasManySubqueries", func(t *testing.T) {
+		t.Parallel()
+
+		subqueries := BuildHasManySubqueries("insurance.persons", "p", relations)
+
+		// Should have 2 subqueries (one per HasMany)
+		require.Len(t, subqueries, 2, "expected 2 subqueries for HasMany relations")
+
+		// Find docs and pinfls subqueries
+		var docsSubquery, pinflsSubquery string
+		for _, sq := range subqueries {
+			if strings.Contains(sq, "docs__json") {
+				docsSubquery = sq
+			}
+			if strings.Contains(sq, "pinfls__json") {
+				pinflsSubquery = sq
+			}
+		}
+
+		require.NotEmpty(t, docsSubquery, "docs subquery not found")
+		require.NotEmpty(t, pinflsSubquery, "pinfls subquery not found")
+
+		// === Verify docs subquery (has nested BelongsTo) ===
+		// Should have JSON_AGG
+		assert.Contains(t, docsSubquery, "JSON_AGG")
+		assert.Contains(t, docsSubquery, "json_build_object")
+
+		// Should have own fields
+		assert.Contains(t, docsSubquery, "'id', docs.id")
+		assert.Contains(t, docsSubquery, "'seria', docs.seria")
+		assert.Contains(t, docsSubquery, "'number', docs.number")
+
+		// Should have nested BelongsTo (DocumentAuthority) as json_build_object
+		assert.Contains(t, docsSubquery, "'da', json_build_object('id', docs_da.id, 'name', docs_da.name, 'code', docs_da.code)")
+
+		// Should have LEFT JOIN inside subquery for nested BelongsTo
+		assert.Contains(t, docsSubquery, "LEFT JOIN insurance.document_authorities docs_da ON docs.authority_id = docs_da.id")
+
+		// Should have WHERE clause linking to parent
+		assert.Contains(t, docsSubquery, "WHERE docs.person_id = p.id")
+
+		// === Verify pinfls subquery (simple, no nested) ===
+		assert.Contains(t, pinflsSubquery, "JSON_AGG")
+		assert.Contains(t, pinflsSubquery, "json_build_object")
+		assert.Contains(t, pinflsSubquery, "'id', pinfls.id")
+		assert.Contains(t, pinflsSubquery, "'value', pinfls.value")
+		assert.Contains(t, pinflsSubquery, "'status', pinfls.status")
+		assert.Contains(t, pinflsSubquery, "WHERE pinfls.person_id = p.id")
+
+		// pinfls should NOT have any JOINs inside
+		assert.NotContains(t, pinflsSubquery, "LEFT JOIN")
 	})
 }
