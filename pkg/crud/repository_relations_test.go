@@ -1191,6 +1191,54 @@ func TestBuildHasManySubqueries_WithNestedBelongsTo(t *testing.T) {
 	assert.Contains(t, subqueries[0], "LEFT JOIN insurance.document_authorities docs_da ON docs.authority_id = docs_da.id")
 }
 
+func TestBuildHasManySubqueries_NestedHasMany(t *testing.T) {
+	t.Parallel()
+
+	// Authority has Regions (HasMany)
+	regionsSchema := createTestRelationSchema("insurance.authority_regions", []string{"id", "name"})
+	authoritySchema := createTestSchemaWithRelations("insurance.document_authorities", []string{"id", "name"}, []RelationDescriptor{
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "regions",
+			LocalKey:    "id",
+			RemoteKey:   "authority_id",
+			Schema:      regionsSchema,
+			EntityField: "regions_entity",
+		},
+	})
+
+	// Document has Authority (BelongsTo)
+	docsSchema := createTestSchemaWithRelations("insurance.person_documents", []string{"id", "seria"}, []RelationDescriptor{
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "da",
+			LocalKey:    "authority_id",
+			RemoteKey:   "id",
+			Schema:      authoritySchema,
+			EntityField: "authority_entity",
+		},
+	})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      docsSchema,
+			EntityField: "documents_entity",
+		},
+	}
+
+	subqueries := BuildHasManySubqueries("insurance.persons", "p", relations)
+
+	require.Len(t, subqueries, 1)
+	// Should contain nested subquery for regions inside authority
+	assert.Contains(t, subqueries[0], "'regions', (SELECT COALESCE(JSON_AGG")
+	assert.Contains(t, subqueries[0], "FROM insurance.authority_regions")
+	assert.Contains(t, subqueries[0], "WHERE docs_da_regions.authority_id = docs_da.id")
+}
+
 func TestTopologicalSortRelations(t *testing.T) {
 	t.Parallel()
 
