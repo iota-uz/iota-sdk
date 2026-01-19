@@ -2,6 +2,7 @@ package crud
 
 import (
 	"context"
+	"fmt"
 )
 
 // RelationMapper wraps a Mapper[T] and handles nested relations automatically.
@@ -46,6 +47,12 @@ func NewRelationMapper[T any](
 }
 
 func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValue) (T, error) {
+	var zero T
+
+	if rm.mapOwn == nil {
+		return zero, fmt.Errorf("RelationMapper.ToEntity: mapOwn function is nil")
+	}
+
 	entity := rm.mapOwn(allFields)
 
 	for _, rel := range rm.relations {
@@ -67,10 +74,15 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 
 		child, err := childMapper.MapEntity(ctx, childFields)
 		if err != nil {
-			continue
+			return zero, fmt.Errorf("RelationMapper.ToEntity: failed to map child relation %q: %w", rel.GetAlias(), err)
 		}
 
-		entity = setOnParent(entity, child).(T)
+		result := setOnParent(entity, child)
+		typedResult, ok := result.(T)
+		if !ok {
+			return zero, fmt.Errorf("RelationMapper.ToEntity: setOnParent for relation %q returned %T, expected %T", rel.GetAlias(), result, zero)
+		}
+		entity = typedResult
 	}
 
 	return entity, nil

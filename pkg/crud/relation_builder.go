@@ -100,8 +100,8 @@ func (rc *RelationConfig) HasMany(alias string, schema Schema[any]) *RelationCon
 }
 
 // Mapper sets the mapper for the related entity.
-func (rc *RelationConfig) Mapper(mapper any) *RelationConfig {
-	rc.relation().Mapper = nil // Can't set typed mapper on Relation[any]
+func (rc *RelationConfig) Mapper(mapper RelationEntityMapper) *RelationConfig {
+	rc.relation().Mapper = mapper
 	return rc
 }
 

@@ -2,21 +2,28 @@ package crud
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRelationType_String(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
+		name     string
 		rt       RelationType
 		expected string
 	}{
-		{BelongsTo, "belongs_to"},
-		{HasMany, "has_many"},
+		{"BelongsTo returns belongs_to", BelongsTo, "belongs_to"},
+		{"HasMany returns has_many", HasMany, "has_many"},
+		{"Unknown returns unknown", RelationType(99), "unknown"},
 	}
 
 	for _, tt := range tests {
-		if got := tt.rt.String(); got != tt.expected {
-			t.Errorf("RelationType.String() = %q, want %q", got, tt.expected)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expected, tt.rt.String())
+		})
 	}
 }
 

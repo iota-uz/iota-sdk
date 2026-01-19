@@ -169,14 +169,17 @@ func (s *service[TEntity]) Save(ctx context.Context, entity TEntity) (TEntity, e
 	if schemaWithJoins, hasJoins := s.schema.(SchemaWithJoins[TEntity]); hasJoins {
 		if defaultJoins := schemaWithJoins.DefaultJoins(); defaultJoins != nil && len(defaultJoins.Joins) > 0 {
 			savedFieldValues, err := s.schema.Mapper().ToFieldValues(ctx, savedEntity)
-			if err == nil {
-				for _, fv := range savedFieldValues {
-					if fv.Field().Key() {
-						if refetched, err := s.repository.Get(ctx, fv); err == nil {
-							savedEntity = refetched
-						}
-						break
+			if err != nil {
+				return zero, errors.Wrap(err, "ToFieldValues for refetch failed")
+			}
+			for _, fv := range savedFieldValues {
+				if fv.Field().Key() {
+					refetched, err := s.repository.Get(ctx, fv)
+					if err != nil {
+						return zero, errors.Wrap(err, "repository.Get during refetch failed")
 					}
+					savedEntity = refetched
+					break
 				}
 			}
 		}
