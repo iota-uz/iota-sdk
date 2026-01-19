@@ -260,6 +260,81 @@ func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 	return columns
 }
 
+// buildJSONFields recursively builds json_build_object fields for a schema.
+// Returns (jsonFields, joins) where joins are needed for nested BelongsTo relations.
+func buildJSONFields(schema RelationSchema, alias string) ([]string, []string) {
+	var jsonFields []string
+	var joins []string
+
+	// Add own fields
+	for _, field := range schema.Fields().Fields() {
+		fieldName := field.Name()
+		jsonFields = append(jsonFields, fmt.Sprintf("'%s', %s.%s", fieldName, alias, fieldName))
+	}
+
+	// Process nested relations if schema implements RelationsProvider
+	if provider, ok := schema.(RelationsProvider); ok {
+		for _, nested := range provider.Relations() {
+			nestedAlias := alias + "_" + nested.GetAlias()
+
+			switch nested.GetType() {
+			case BelongsTo:
+				nestedSchema, ok := nested.GetSchema().(RelationSchema)
+				if !ok {
+					continue
+				}
+
+				// Add JOIN for this BelongsTo
+				remoteKey := nested.GetRemoteKey()
+				if remoteKey == "" {
+					remoteKey = "id"
+				}
+				join := fmt.Sprintf("LEFT JOIN %s %s ON %s.%s = %s.%s",
+					nested.TableName(),
+					nestedAlias,
+					alias, nested.GetLocalKey(),
+					nestedAlias, remoteKey,
+				)
+				joins = append(joins, join)
+
+				// Recursively build nested fields
+				nestedFields, nestedJoins := buildJSONFields(nestedSchema, nestedAlias)
+				joins = append(joins, nestedJoins...)
+
+				// Add nested json_build_object
+				jsonFields = append(jsonFields,
+					fmt.Sprintf("'%s', json_build_object(%s)", nested.GetAlias(), strings.Join(nestedFields, ", ")))
+
+			case HasMany:
+				// Nested HasMany - add subquery
+				nestedSchema, ok := nested.GetSchema().(RelationSchema)
+				if !ok {
+					continue
+				}
+				nestedFields, nestedJoins := buildJSONFields(nestedSchema, nestedAlias)
+
+				nestedRemoteKey := nested.GetRemoteKey()
+				if nestedRemoteKey == "" {
+					nestedRemoteKey = "id"
+				}
+
+				nestedSubquery := fmt.Sprintf(
+					"SELECT COALESCE(JSON_AGG(json_build_object(%s)), '[]'::json) FROM %s %s %s WHERE %s.%s = %s.%s",
+					strings.Join(nestedFields, ", "),
+					nested.TableName(),
+					nestedAlias,
+					strings.Join(nestedJoins, " "),
+					nestedAlias, nestedRemoteKey,
+					alias, nested.GetLocalKey(),
+				)
+				jsonFields = append(jsonFields, fmt.Sprintf("'%s', (%s)", nested.GetAlias(), nestedSubquery))
+			}
+		}
+	}
+
+	return jsonFields, joins
+}
+
 // BuildHasManySubqueries generates JSON_AGG subquery SELECT columns for HasMany relations.
 // mainTable is the parent table name (e.g., "insurance.persons").
 // mainAlias is the parent table alias used in the query (e.g., "p").
@@ -296,18 +371,20 @@ func BuildHasManySubqueries(mainTable, mainAlias string, relations []RelationDes
 		}
 		localKey := rel.GetLocalKey()
 
-		// Build json_build_object fields
-		var jsonFields []string
-		for _, field := range schema.Fields().Fields() {
-			fieldName := field.Name()
-			jsonFields = append(jsonFields, fmt.Sprintf("'%s', %s.%s", fieldName, alias, fieldName))
+		// Build fields and joins recursively
+		jsonFields, joins := buildJSONFields(schema, alias)
+
+		joinClause := ""
+		if len(joins) > 0 {
+			joinClause = " " + strings.Join(joins, " ")
 		}
 
 		subquery := fmt.Sprintf(
-			"(SELECT COALESCE(JSON_AGG(json_build_object(%s)), '[]'::json) FROM %s %s WHERE %s.%s = %s.%s) AS %s__json",
+			"(SELECT COALESCE(JSON_AGG(json_build_object(%s)), '[]'::json) FROM %s %s%s WHERE %s.%s = %s.%s) AS %s__json",
 			strings.Join(jsonFields, ", "),
 			tableName,
 			alias,
+			joinClause,
 			alias, remoteKey,
 			mainAlias, localKey,
 			alias,
