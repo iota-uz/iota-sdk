@@ -63,7 +63,11 @@ func (fv *entityFieldValueAny) IsZero() bool {
 	if fv.value == nil {
 		return true
 	}
-	return reflect.ValueOf(fv.value).IsZero()
+	v := reflect.ValueOf(fv.value)
+	if !v.IsValid() {
+		return true
+	}
+	return v.IsZero()
 }
 
 func (fv *entityFieldValueAny) AsString() (string, error)   { return "", ErrFieldTypeMismatch }
