@@ -3,39 +3,65 @@ package crud
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRelationBuilder_BelongsTo(t *testing.T) {
-	mockSchema := newMockSchemaForBuilder("test_types")
+	t.Parallel()
 
-	relations := NewRelationBuilder().
-		BelongsTo("vt", mockSchema).
-		LocalKey("type_id").
-		EntityField("type_entity").
-		Build()
-
-	if len(relations) != 1 {
-		t.Fatalf("expected 1 relation, got %d", len(relations))
+	tests := []struct {
+		name        string
+		alias       string
+		schemaName  string
+		localKey    string
+		entityField string
+		remoteKey   string
+		joinType    JoinType
+	}{
+		{
+			name:        "basic BelongsTo with defaults",
+			alias:       "vt",
+			schemaName:  "test_types",
+			localKey:    "type_id",
+			entityField: "type_entity",
+			remoteKey:   "id",
+			joinType:    JoinTypeLeft,
+		},
+		{
+			name:        "BelongsTo with different alias",
+			alias:       "cat",
+			schemaName:  "categories",
+			localKey:    "category_id",
+			entityField: "category_entity",
+			remoteKey:   "id",
+			joinType:    JoinTypeLeft,
+		},
 	}
 
-	rel := relations[0]
-	if rel.GetType() != BelongsTo {
-		t.Errorf("expected BelongsTo, got %v", rel.GetType())
-	}
-	if rel.GetAlias() != "vt" {
-		t.Errorf("expected alias 'vt', got %q", rel.GetAlias())
-	}
-	if rel.GetLocalKey() != "type_id" {
-		t.Errorf("expected local key 'type_id', got %q", rel.GetLocalKey())
-	}
-	if rel.GetEntityField() != "type_entity" {
-		t.Errorf("expected entity field 'type_entity', got %q", rel.GetEntityField())
-	}
-	if rel.GetRemoteKey() != "id" {
-		t.Errorf("expected default remote key 'id', got %q", rel.GetRemoteKey())
-	}
-	if rel.GetJoinType() != JoinTypeLeft {
-		t.Errorf("expected default JoinTypeLeft, got %v", rel.GetJoinType())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockSchema := newMockSchemaForBuilder(tt.schemaName)
+
+			relations := NewRelationBuilder().
+				BelongsTo(tt.alias, mockSchema).
+				LocalKey(tt.localKey).
+				EntityField(tt.entityField).
+				Build()
+
+			require.Len(t, relations, 1)
+
+			rel := relations[0]
+			assert.Equal(t, BelongsTo, rel.GetType())
+			assert.Equal(t, tt.alias, rel.GetAlias())
+			assert.Equal(t, tt.localKey, rel.GetLocalKey())
+			assert.Equal(t, tt.entityField, rel.GetEntityField())
+			assert.Equal(t, tt.remoteKey, rel.GetRemoteKey())
+			assert.Equal(t, tt.joinType, rel.GetJoinType())
+		})
 	}
 }
 
