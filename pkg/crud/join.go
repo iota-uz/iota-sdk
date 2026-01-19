@@ -139,12 +139,28 @@ func (jc *JoinClause) ToSQL() string {
 	return repo.JoinClause(jc.Type.String(), jc.Table, jc.TableAlias, jc.LeftColumn, jc.RightColumn)
 }
 
-// JoinOptions contains configuration for joins in a List query
+// JoinOptions contains configuration for joins in a List query.
+//
+// SECURITY WARNING: SelectColumns must NEVER contain user input.
+// Expressions with " AS " bypass validation to allow complex SQL like ARRAY_AGG.
+// This is safe only when columns are defined in code, not from external sources.
 type JoinOptions struct {
 	// Joins is the list of JOIN clauses to apply
 	Joins []JoinClause
+
 	// SelectColumns specifies which columns to select (if empty, uses default SELECT).
-	// Columns with " AS " are treated as trusted expressions and skip validation.
+	//
+	// SECURITY: This field must contain only trusted, code-defined values.
+	// NEVER pass user input, query parameters, or external data to this field.
+	// Expressions containing " AS " bypass SQL injection validation to support
+	// complex aggregations (ARRAY_AGG, JSON_AGG, subqueries). This bypass is
+	// safe only when the caller guarantees the values are from trusted sources.
+	//
+	// Safe usage:
+	//   SelectColumns: []string{"t.id", "t.name", "COUNT(*) AS total"}
+	//
+	// UNSAFE - DO NOT DO THIS:
+	//   SelectColumns: []string{userProvidedColumn}  // SQL INJECTION RISK
 	SelectColumns []string
 }
 
@@ -186,7 +202,12 @@ func checkDangerousSQL(val string) error {
 	return nil
 }
 
-// validateSelectColumns checks that column specifications are safe
+// validateSelectColumns checks that column specifications are safe.
+//
+// IMPORTANT: This validation is NOT sufficient to prevent SQL injection for
+// expressions with " AS " aliases. Such expressions are trusted and bypass
+// validation to support complex SQL (aggregations, subqueries). Callers MUST
+// ensure SelectColumns contains only code-defined values, never user input.
 func validateSelectColumns(columns []string) error {
 	if len(columns) == 0 {
 		return nil
@@ -202,7 +223,9 @@ func validateSelectColumns(columns []string) error {
 			continue
 		}
 
-		// Allow expressions with explicit AS alias (trusted subqueries like ARRAY_AGG)
+		// SECURITY: Expressions with AS alias bypass validation to support complex SQL.
+		// This is safe ONLY because SelectColumns must never contain user input.
+		// See JoinOptions.SelectColumns documentation for security requirements.
 		if strings.Contains(col, " AS ") || strings.Contains(col, " as ") {
 			continue
 		}
