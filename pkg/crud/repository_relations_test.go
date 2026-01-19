@@ -2,6 +2,7 @@ package crud
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -1593,4 +1594,134 @@ func TestBuildRelations_ComplexScenario(t *testing.T) {
 		// pinfls should NOT have any JOINs inside
 		assert.NotContains(t, pinflsSubquery, "LEFT JOIN")
 	})
+}
+
+func TestBuildRelations_FullSQLQuery(t *testing.T) {
+	t.Parallel()
+
+	// === Setup same schemas as complex scenario ===
+	genderSchema := createTestRelationSchema("insurance.genders", []string{"id", "name"})
+	countrySchema := createTestRelationSchema("insurance.countries", []string{"id", "name", "code"})
+	regionSchema := createTestRelationSchema("insurance.regions", []string{"id", "name"})
+
+	authoritySchema := createTestRelationSchema("insurance.document_authorities", []string{"id", "name", "code"})
+	documentsSchema := createTestSchemaWithRelations(
+		"insurance.person_documents",
+		[]string{"id", "seria", "number", "authority_id"},
+		[]RelationDescriptor{
+			&Relation[any]{
+				Type:        BelongsTo,
+				Alias:       "da",
+				LocalKey:    "authority_id",
+				RemoteKey:   "id",
+				Schema:      authoritySchema,
+				EntityField: "authority_entity",
+			},
+		},
+	)
+
+	pinflsSchema := createTestRelationSchema("insurance.person_pinfls", []string{"id", "value", "status"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "g",
+			LocalKey:    "gender_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      genderSchema,
+			EntityField: "gender_entity",
+		},
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "c",
+			LocalKey:    "country_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      countrySchema,
+			EntityField: "country_entity",
+		},
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "r",
+			LocalKey:    "region_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      regionSchema,
+			EntityField: "region_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      documentsSchema,
+			EntityField: "documents_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "pinfls",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      pinflsSchema,
+			EntityField: "pinfls_entity",
+		},
+	}
+
+	mainTable := "insurance.persons"
+	mainAlias := "p"
+
+	// === Build all components ===
+	selectCols := BuildRelationSelectColumns(relations)
+	joinClauses := BuildRelationJoinClauses(mainTable, relations)
+	hasManySubqueries := BuildHasManySubqueries(mainTable, mainAlias, relations)
+
+	// === Construct full SELECT clause ===
+	allSelectParts := []string{mainTable + ".*"}
+	allSelectParts = append(allSelectParts, selectCols...)
+	allSelectParts = append(allSelectParts, hasManySubqueries...)
+	selectClause := strings.Join(allSelectParts, ", ")
+
+	// === Construct full JOIN clause ===
+	var joinParts []string
+	for _, jc := range joinClauses {
+		joinParts = append(joinParts, fmt.Sprintf("%s %s %s ON %s = %s",
+			jc.Type, jc.Table, jc.TableAlias,
+			strings.Replace(jc.LeftColumn, mainTable+".", mainAlias+".", 1), jc.RightColumn))
+	}
+	joinClause := strings.Join(joinParts, " ")
+
+	// === Construct full SQL ===
+	fullSQL := fmt.Sprintf("SELECT %s FROM %s %s %s",
+		selectClause, mainTable, mainAlias, joinClause)
+
+	// === Expected SQL (the monstrous query) ===
+	expectedSQL := `SELECT insurance.persons.*, ` +
+		// BelongsTo SELECT columns
+		`g.id AS g__id, g.name AS g__name, ` +
+		`c.id AS c__id, c.name AS c__name, c.code AS c__code, ` +
+		`r.id AS r__id, r.name AS r__name, ` +
+		// HasMany #1: docs with nested BelongsTo
+		`(SELECT COALESCE(JSON_AGG(json_build_object(` +
+		`'id', docs.id, 'seria', docs.seria, 'number', docs.number, 'authority_id', docs.authority_id, ` +
+		`'da', json_build_object('id', docs_da.id, 'name', docs_da.name, 'code', docs_da.code)` +
+		`)), '[]'::json) FROM insurance.person_documents docs ` +
+		`LEFT JOIN insurance.document_authorities docs_da ON docs.authority_id = docs_da.id ` +
+		`WHERE docs.person_id = p.id) AS docs__json, ` +
+		// HasMany #2: pinfls (simple)
+		`(SELECT COALESCE(JSON_AGG(json_build_object(` +
+		`'id', pinfls.id, 'value', pinfls.value, 'status', pinfls.status` +
+		`)), '[]'::json) FROM insurance.person_pinfls pinfls ` +
+		`WHERE pinfls.person_id = p.id) AS pinfls__json ` +
+		// FROM and JOINs
+		`FROM insurance.persons p ` +
+		`LEFT JOIN insurance.genders g ON p.gender_id = g.id ` +
+		`LEFT JOIN insurance.countries c ON p.country_id = c.id ` +
+		`LEFT JOIN insurance.regions r ON p.region_id = r.id`
+
+	// === Compare ===
+	assert.Equal(t, expectedSQL, fullSQL, "Generated SQL should match expected monstrous query")
+
+	// === Print for visual inspection ===
+	t.Logf("\n=== GENERATED SQL ===\n%s\n", fullSQL)
 }
