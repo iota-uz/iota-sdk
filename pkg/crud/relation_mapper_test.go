@@ -250,6 +250,101 @@ func TestRelationMapper_MissingSetOnParent(t *testing.T) {
 	}
 }
 
+func TestRelationMapper_ToEntity_HasManyJSON(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// Track children added via SetOnParent
+	var addedChildren []map[string]any
+
+	// Create a simple mapper that extracts name from fields
+	baseMapper := &mockBaseMapper{
+		mapFn: func(fvs []FieldValue) string {
+			for _, fv := range fvs {
+				if fv.Field().Name() == "name" {
+					v, _ := fv.AsString()
+					return v
+				}
+			}
+			return ""
+		},
+	}
+
+	parentMapper := NewRelationMapper[string](
+		baseMapper,
+		[]RelationDescriptor{
+			&Relation[any]{
+				Type:  HasMany,
+				Alias: "docs",
+				SetOnParent: func(parent, child any) any {
+					if c, ok := child.(map[string]any); ok {
+						addedChildren = append(addedChildren, c)
+					}
+					return parent
+				},
+			},
+		},
+		func(fvs []FieldValue) string {
+			for _, fv := range fvs {
+				if fv.Field().Name() == "name" {
+					v, _ := fv.AsString()
+					return v
+				}
+			}
+			return ""
+		},
+	)
+
+	// Simulate query result with HasMany JSON field
+	// JSON from PostgreSQL comes as []byte, but parseHasManyJSON handles both string and []byte
+	allFields := []FieldValue{
+		NewStringField("name").Value("parent"),
+		NewStringField("docs__json").Value(`[{"id":"c1","name":"child1"},{"id":"c2","name":"child2"}]`),
+	}
+
+	result, err := parentMapper.ToEntity(ctx, allFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result != "parent" {
+		t.Errorf("result = %q, want %q", result, "parent")
+	}
+
+	// Should have called SetOnParent twice (once per child)
+	if len(addedChildren) != 2 {
+		t.Fatalf("expected 2 children, got %d", len(addedChildren))
+	}
+	if addedChildren[0]["id"] != "c1" {
+		t.Errorf("addedChildren[0][\"id\"] = %q, want %q", addedChildren[0]["id"], "c1")
+	}
+	if addedChildren[0]["name"] != "child1" {
+		t.Errorf("addedChildren[0][\"name\"] = %q, want %q", addedChildren[0]["name"], "child1")
+	}
+	if addedChildren[1]["id"] != "c2" {
+		t.Errorf("addedChildren[1][\"id\"] = %q, want %q", addedChildren[1]["id"], "c2")
+	}
+	if addedChildren[1]["name"] != "child2" {
+		t.Errorf("addedChildren[1][\"name\"] = %q, want %q", addedChildren[1]["name"], "child2")
+	}
+}
+
+type mockBaseMapper struct {
+	mapFn func([]FieldValue) string
+}
+
+func (m *mockBaseMapper) ToEntities(ctx context.Context, values ...[]FieldValue) ([]string, error) {
+	result := make([]string, len(values))
+	for i, fvs := range values {
+		result[i] = m.mapFn(fvs)
+	}
+	return result, nil
+}
+
+func (m *mockBaseMapper) ToFieldValuesList(ctx context.Context, entities ...string) ([][]FieldValue, error) {
+	return nil, nil
+}
+
 func TestParseHasManyJSON(t *testing.T) {
 	t.Parallel()
 
