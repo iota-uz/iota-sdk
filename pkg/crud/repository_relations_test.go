@@ -1073,6 +1073,88 @@ func TestBuildHasManySubqueries_Simple(t *testing.T) {
 	assert.Contains(t, subqueries[0], "AS docs__json")
 }
 
+func TestBuildHasManySubqueries_EmptyParameters(t *testing.T) {
+	t.Parallel()
+
+	docsSchema := createTestRelationSchema("insurance.person_documents", []string{"id", "seria", "number"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      docsSchema,
+			EntityField: "documents_entity",
+		},
+	}
+
+	t.Run("empty mainTable returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		result := BuildHasManySubqueries("", "p", relations)
+		assert.Nil(t, result)
+	})
+
+	t.Run("empty mainAlias returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		result := BuildHasManySubqueries("insurance.persons", "", relations)
+		assert.Nil(t, result)
+	})
+
+	t.Run("both empty returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		result := BuildHasManySubqueries("", "", relations)
+		assert.Nil(t, result)
+	})
+}
+
+func TestBuildHasManySubqueries_MixedRelationTypes(t *testing.T) {
+	t.Parallel()
+
+	docsSchema := createTestRelationSchema("insurance.person_documents", []string{"id", "seria", "number"})
+	vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "vt",
+			LocalKey:    "vehicle_type_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      vtSchema,
+			EntityField: "vehicle_type_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      docsSchema,
+			EntityField: "documents_entity",
+		},
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "owner",
+			LocalKey:    "owner_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      vtSchema,
+			EntityField: "owner_entity",
+		},
+	}
+
+	subqueries := BuildHasManySubqueries("insurance.persons", "p", relations)
+
+	// Should only include HasMany relation (docs), not BelongsTo relations (vt, owner)
+	require.Len(t, subqueries, 1)
+	assert.Contains(t, subqueries[0], "docs__json")
+	assert.NotContains(t, subqueries[0], "vt")
+	assert.NotContains(t, subqueries[0], "owner")
+}
+
 func TestTopologicalSortRelations(t *testing.T) {
 	t.Parallel()
 
