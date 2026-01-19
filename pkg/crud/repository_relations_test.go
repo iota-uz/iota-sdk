@@ -774,6 +774,41 @@ func TestBuildRelationSelectColumns_NestedPrefix(t *testing.T) {
 	}
 }
 
+func TestBuildRelationSelectColumns_SkipsHasMany(t *testing.T) {
+	t.Parallel()
+
+	vtSchema := createTestRelationSchema("vehicle_types", []string{"id", "name"})
+	docsSchema := createTestRelationSchema("person_documents", []string{"id", "seria"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "vt",
+			LocalKey:    "vehicle_type_id",
+			Schema:      vtSchema,
+			EntityField: "vt_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			Schema:      docsSchema,
+			EntityField: "docs_entity",
+		},
+	}
+
+	columns := BuildRelationSelectColumns(relations)
+
+	// Should only have vt columns (2), not docs columns
+	require.Len(t, columns, 2)
+	assert.Contains(t, columns, "vt.id AS vt__id")
+	assert.Contains(t, columns, "vt.name AS vt__name")
+	// Should NOT contain docs columns
+	for _, col := range columns {
+		assert.NotContains(t, col, "docs.")
+	}
+}
+
 func TestBuildRelationsRecursive(t *testing.T) {
 	t.Parallel()
 
