@@ -14,18 +14,18 @@ type entityFieldBase struct {
 	name string
 }
 
-func (f *entityFieldBase) Key() bool                            { return false }
-func (f *entityFieldBase) Name() string                         { return f.name }
-func (f *entityFieldBase) Type() FieldType                      { return EntityFieldType }
-func (f *entityFieldBase) Readonly() bool                       { return true }
-func (f *entityFieldBase) Searchable() bool                     { return false }
-func (f *entityFieldBase) Sortable() bool                       { return false }
-func (f *entityFieldBase) Hidden() bool                         { return true }
-func (f *entityFieldBase) Rules() []FieldRule                   { return nil }
-func (f *entityFieldBase) Attrs() map[string]any                { return nil }
-func (f *entityFieldBase) InitialValue(_ context.Context) any   { return nil }
-func (f *entityFieldBase) RendererType() string                 { return "" }
-func (f *entityFieldBase) LocalizationKey() string              { return "" }
+func (f *entityFieldBase) Key() bool                          { return false }
+func (f *entityFieldBase) Name() string                       { return f.name }
+func (f *entityFieldBase) Type() FieldType                    { return EntityFieldType }
+func (f *entityFieldBase) Readonly() bool                     { return true }
+func (f *entityFieldBase) Searchable() bool                   { return false }
+func (f *entityFieldBase) Sortable() bool                     { return false }
+func (f *entityFieldBase) Hidden() bool                       { return true }
+func (f *entityFieldBase) Rules() []FieldRule                 { return nil }
+func (f *entityFieldBase) Attrs() map[string]any              { return nil }
+func (f *entityFieldBase) InitialValue(_ context.Context) any { return nil }
+func (f *entityFieldBase) RendererType() string               { return "" }
+func (f *entityFieldBase) LocalizationKey() string            { return "" }
 
 // Value creates a FieldValue from an any value.
 // For EntityField, this wraps the value in an entityFieldValueAny.
@@ -37,16 +37,18 @@ func (f *entityFieldBase) Value(value any) FieldValue {
 }
 
 // Type assertion methods - EntityField doesn't support casting to other field types
-func (f *entityFieldBase) AsStringField() (StringField, error)       { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsIntField() (IntField, error)             { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsBoolField() (BoolField, error)           { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsFloatField() (FloatField, error)         { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsDecimalField() (DecimalField, error)     { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsDateField() (DateField, error)           { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsTimeField() (TimeField, error)           { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsDateTimeField() (DateTimeField, error)   { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsTimestampField() (TimestampField, error) { return nil, ErrFieldTypeMismatch }
-func (f *entityFieldBase) AsUUIDField() (UUIDField, error)           { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsStringField() (StringField, error)     { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsIntField() (IntField, error)           { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsBoolField() (BoolField, error)         { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsFloatField() (FloatField, error)       { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsDecimalField() (DecimalField, error)   { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsDateField() (DateField, error)         { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsTimeField() (TimeField, error)         { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsDateTimeField() (DateTimeField, error) { return nil, ErrFieldTypeMismatch }
+func (f *entityFieldBase) AsTimestampField() (TimestampField, error) {
+	return nil, ErrFieldTypeMismatch
+}
+func (f *entityFieldBase) AsUUIDField() (UUIDField, error) { return nil, ErrFieldTypeMismatch }
 
 // entityFieldValueAny is a non-generic FieldValue for entity fields.
 type entityFieldValueAny struct {

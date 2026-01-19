@@ -737,12 +737,12 @@ type mutableSchemaWithRelations struct {
 	relations []RelationDescriptor
 }
 
-func (s *mutableSchemaWithRelations) Name() string                     { return s.name }
-func (s *mutableSchemaWithRelations) Fields() Fields                   { return NewFields(nil) }
-func (s *mutableSchemaWithRelations) Relations() []RelationDescriptor  { return s.relations }
-func (s *mutableSchemaWithRelations) Mapper() FlatMapper[any]          { return &testRelationMapper{} }
-func (s *mutableSchemaWithRelations) Validators() []Validator[any]     { return nil }
-func (s *mutableSchemaWithRelations) Hooks() Hooks[any]                { return &testHooks{} }
+func (s *mutableSchemaWithRelations) Name() string                    { return s.name }
+func (s *mutableSchemaWithRelations) Fields() Fields                  { return NewFields(nil) }
+func (s *mutableSchemaWithRelations) Relations() []RelationDescriptor { return s.relations }
+func (s *mutableSchemaWithRelations) Mapper() FlatMapper[any]         { return &testRelationMapper{} }
+func (s *mutableSchemaWithRelations) Validators() []Validator[any]    { return nil }
+func (s *mutableSchemaWithRelations) Hooks() Hooks[any]               { return &testHooks{} }
 
 // testHooks implements Hooks[any] for testing.
 type testHooks struct{}
