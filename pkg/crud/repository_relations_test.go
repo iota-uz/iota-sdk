@@ -369,7 +369,8 @@ func (m *testRelationMapper) ToFieldValuesList(_ context.Context, entities ...an
 }
 
 func (m *testRelationMapper) ToEntity(_ context.Context, _ []FieldValue) (any, error) {
-	return nil, nil
+	var zero any
+	return zero, nil
 }
 
 func (m *testRelationMapper) ToFieldValues(_ context.Context, _ any) ([]FieldValue, error) {
@@ -720,15 +721,6 @@ func createTestSchemaWithRelations(tableName string, fieldNames []string, relati
 	base := createTestRelationSchema(tableName, fieldNames)
 	return &testSchemaWithRelations{Schema: base, relations: relations}
 }
-
-// mockSchemaWithFields implements RelationSchema for testing BuildRelationSelectColumns.
-type mockSchemaWithFields struct {
-	name   string
-	fields Fields
-}
-
-func (m *mockSchemaWithFields) Name() string   { return m.name }
-func (m *mockSchemaWithFields) Fields() Fields { return m.fields }
 
 // mutableSchemaWithRelations is a mutable schema for testing cyclic references.
 // Implements Schema[any] and RelationsProvider.

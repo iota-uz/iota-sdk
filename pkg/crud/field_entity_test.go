@@ -1,6 +1,7 @@
 package crud_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/crud"
@@ -56,7 +57,7 @@ func TestAsEntity_Success(t *testing.T) {
 
 	field := crud.NewEntityField[testRelatedEntity]("related_entity")
 	entity := testRelatedEntity{ID: 42, Name: "extracted"}
-	fv := field.Value(entity)
+	fv := field.TypedValue(entity)
 
 	extracted, ok := crud.AsEntity[testRelatedEntity](fv)
 	require.True(t, ok, "AsEntity should return true for EntityFieldValue")
@@ -70,7 +71,7 @@ func TestAsEntity_WrongType(t *testing.T) {
 
 	field := crud.NewEntityField[testRelatedEntity]("related_entity")
 	entity := testRelatedEntity{ID: 1, Name: "test"}
-	fv := field.Value(entity)
+	fv := field.TypedValue(entity)
 
 	type otherEntity struct{ Value int }
 	_, ok := crud.AsEntity[otherEntity](fv)
@@ -220,7 +221,7 @@ func TestEntityField_InitialValue(t *testing.T) {
 	field := crud.NewEntityField[testRelatedEntity]("related_entity")
 
 	// InitialValue should return nil for EntityField
-	assert.Nil(t, field.InitialValue(nil))
+	assert.Nil(t, field.InitialValue(context.TODO()))
 }
 
 func TestEntityField_OtherMethods(t *testing.T) {

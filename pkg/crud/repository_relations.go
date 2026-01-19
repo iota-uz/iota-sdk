@@ -175,6 +175,7 @@ func TopologicalSortRelations(relations []RelationDescriptor) []RelationDescript
 		if visited[alias] {
 			return
 		}
+		visited[alias] = true
 
 		rel, exists := aliasToRelation[alias]
 		if !exists {
@@ -186,7 +187,6 @@ func TopologicalSortRelations(relations []RelationDescriptor) []RelationDescript
 			visit(through)
 		}
 
-		visited[alias] = true
 		result = append(result, rel)
 	}
 
@@ -266,7 +266,7 @@ func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) 
 		return nil
 	}
 
-	var clauses []JoinClause
+	clauses := make([]JoinClause, 0, len(relations))
 
 	for _, rel := range relations {
 		tableName := rel.TableName()
