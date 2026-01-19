@@ -150,11 +150,11 @@ func newMockSchemaForBuilder(name string) Schema[any] {
 	}
 }
 
-func (m *mockSchemaForBuilder) Name() string                   { return m.name }
-func (m *mockSchemaForBuilder) Fields() Fields                 { return m.fields }
-func (m *mockSchemaForBuilder) Mapper() FlatMapper[any]        { return nil }
-func (m *mockSchemaForBuilder) Validators() []Validator[any]   { return nil }
-func (m *mockSchemaForBuilder) Hooks() Hooks[any]              { return nil }
+func (m *mockSchemaForBuilder) Name() string                 { return m.name }
+func (m *mockSchemaForBuilder) Fields() Fields               { return m.fields }
+func (m *mockSchemaForBuilder) Mapper() FlatMapper[any]      { return nil }
+func (m *mockSchemaForBuilder) Validators() []Validator[any] { return nil }
+func (m *mockSchemaForBuilder) Hooks() Hooks[any]            { return nil }
 func (m *mockSchemaForBuilder) ToEntities(ctx context.Context, values ...[]FieldValue) ([]any, error) {
 	return nil, nil
 }
