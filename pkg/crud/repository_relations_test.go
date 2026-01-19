@@ -1044,6 +1044,35 @@ func TestBuildRelationJoinClauses_SkipsHasMany(t *testing.T) {
 	assert.Equal(t, "vt", clauses[0].TableAlias)
 }
 
+func TestBuildHasManySubqueries_Simple(t *testing.T) {
+	t.Parallel()
+
+	docsSchema := createTestRelationSchema("insurance.person_documents", []string{"id", "seria", "number"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      docsSchema,
+			EntityField: "documents_entity",
+		},
+	}
+
+	subqueries := BuildHasManySubqueries("insurance.persons", "p", relations)
+
+	require.Len(t, subqueries, 1)
+	// Should contain JSON_AGG with json_build_object
+	assert.Contains(t, subqueries[0], "JSON_AGG")
+	assert.Contains(t, subqueries[0], "json_build_object")
+	assert.Contains(t, subqueries[0], "'id', docs.id")
+	assert.Contains(t, subqueries[0], "'seria', docs.seria")
+	assert.Contains(t, subqueries[0], "'number', docs.number")
+	assert.Contains(t, subqueries[0], "WHERE docs.person_id = p.id")
+	assert.Contains(t, subqueries[0], "AS docs__json")
+}
+
 func TestTopologicalSortRelations(t *testing.T) {
 	t.Parallel()
 

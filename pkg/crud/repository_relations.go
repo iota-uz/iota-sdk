@@ -260,6 +260,62 @@ func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 	return columns
 }
 
+// BuildHasManySubqueries generates JSON_AGG subquery SELECT columns for HasMany relations.
+// mainTable is the parent table name (e.g., "insurance.persons").
+// mainAlias is the parent table alias used in the query (e.g., "p").
+func BuildHasManySubqueries(mainTable, mainAlias string, relations []RelationDescriptor) []string {
+	if len(relations) == 0 {
+		return nil
+	}
+
+	var subqueries []string
+
+	for _, rel := range relations {
+		if rel.GetType() != HasMany {
+			continue
+		}
+
+		schemaAny := rel.GetSchema()
+		if schemaAny == nil {
+			continue
+		}
+
+		schema, ok := schemaAny.(RelationSchema)
+		if !ok {
+			continue
+		}
+
+		alias := rel.GetAlias()
+		tableName := rel.TableName()
+		remoteKey := rel.GetRemoteKey()
+		if remoteKey == "" {
+			remoteKey = "id"
+		}
+		localKey := rel.GetLocalKey()
+
+		// Build json_build_object fields
+		var jsonFields []string
+		for _, field := range schema.Fields().Fields() {
+			fieldName := field.Name()
+			jsonFields = append(jsonFields, fmt.Sprintf("'%s', %s.%s", fieldName, alias, fieldName))
+		}
+
+		subquery := fmt.Sprintf(
+			"(SELECT COALESCE(JSON_AGG(json_build_object(%s)), '[]'::json) FROM %s %s WHERE %s.%s = %s.%s) AS %s__json",
+			strings.Join(jsonFields, ", "),
+			tableName,
+			alias,
+			alias, remoteKey,
+			mainAlias, localKey,
+			alias,
+		)
+
+		subqueries = append(subqueries, subquery)
+	}
+
+	return subqueries
+}
+
 // BuildRelationJoinClauses converts relations to JoinClause slice.
 // HasMany relations are skipped - they're handled via subqueries to avoid row duplication.
 func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) []JoinClause {
