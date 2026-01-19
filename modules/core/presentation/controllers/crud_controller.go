@@ -2174,6 +2174,10 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 		}
 		return templ.Raw(jsonStr)
 
+	case crud.EntityFieldType:
+		// EntityField holds related entities, display as string
+		return templ.Raw(fmt.Sprintf("%v", value.Value()))
+
 	default:
 		return templ.Raw(fmt.Sprintf("%v", value.Value()))
 	}

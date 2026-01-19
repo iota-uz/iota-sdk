@@ -38,6 +38,8 @@ func createField(name string, fieldType crud.FieldType, opts ...crud.FieldOption
 		return crud.NewUUIDField(name, opts...)
 	case crud.JSONFieldType:
 		return crud.NewJSONField[any](name, crud.JSONFieldConfig[any]{}, opts...)
+	case crud.EntityFieldType:
+		return crud.NewEntityField[any](name)
 	default:
 		panic("unknown field type")
 	}
