@@ -140,7 +140,8 @@ func (jc *JoinClause) ToSQL() string {
 type JoinOptions struct {
 	// Joins is the list of JOIN clauses to apply
 	Joins []JoinClause
-	// SelectColumns specifies which columns to select (if empty, uses default SELECT)
+	// SelectColumns specifies which columns to select (if empty, uses default SELECT).
+	// Columns with " AS " are treated as trusted expressions and skip validation.
 	SelectColumns []string
 }
 
@@ -195,6 +196,11 @@ func validateSelectColumns(columns []string) error {
 		}
 
 		if col == "*" {
+			continue
+		}
+
+		// Allow expressions with explicit AS alias (trusted subqueries like ARRAY_AGG)
+		if strings.Contains(col, " AS ") || strings.Contains(col, " as ") {
 			continue
 		}
 

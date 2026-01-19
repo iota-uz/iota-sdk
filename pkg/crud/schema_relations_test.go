@@ -13,7 +13,7 @@ func TestNewSchemaWithRelations(t *testing.T) {
 
 	mapper := &mockMapperForSchema{}
 
-	relatedSchema := &mockSchemaForRelation{name: "related_table"}
+	relatedSchema := newMockSchemaForBuilder("related_table")
 	relations := NewRelationBuilder().
 		BelongsTo("r", relatedSchema).
 		LocalKey("related_id").
@@ -39,8 +39,8 @@ func TestNewSchemaWithRelations(t *testing.T) {
 		t.Fatalf("expected 1 relation, got %d", len(rels))
 	}
 
-	if rels[0].Alias != "r" {
-		t.Errorf("expected alias 'r', got %q", rels[0].Alias)
+	if rels[0].GetAlias() != "r" {
+		t.Errorf("expected alias 'r', got %q", rels[0].GetAlias())
 	}
 
 	// Check it still implements Schema
@@ -59,7 +59,7 @@ func TestSchemaWithRelations_EmptyRelations(t *testing.T) {
 		"simple_table",
 		fields,
 		mapper,
-		[]Relation{}, // empty relations
+		[]RelationDescriptor{}, // empty relations
 	)
 
 	swr := schema.(SchemaWithRelations[any])
@@ -75,8 +75,8 @@ func TestSchemaWithRelations_MultipleRelations(t *testing.T) {
 	})
 	mapper := &mockMapperForSchema{}
 
-	relatedSchema1 := &mockSchemaForRelation{name: "types"}
-	relatedSchema2 := &mockSchemaForRelation{name: "categories"}
+	relatedSchema1 := newMockSchemaForBuilder("types")
+	relatedSchema2 := newMockSchemaForBuilder("categories")
 
 	relations := NewRelationBuilder().
 		BelongsTo("t", relatedSchema1).
@@ -101,11 +101,11 @@ func TestSchemaWithRelations_MultipleRelations(t *testing.T) {
 		t.Fatalf("expected 2 relations, got %d", len(rels))
 	}
 
-	if rels[0].Alias != "t" {
-		t.Errorf("expected first alias 't', got %q", rels[0].Alias)
+	if rels[0].GetAlias() != "t" {
+		t.Errorf("expected first alias 't', got %q", rels[0].GetAlias())
 	}
-	if rels[1].Alias != "c" {
-		t.Errorf("expected second alias 'c', got %q", rels[1].Alias)
+	if rels[1].GetAlias() != "c" {
+		t.Errorf("expected second alias 'c', got %q", rels[1].GetAlias())
 	}
 }
 
@@ -120,7 +120,7 @@ func TestSchemaWithRelations_SchemaMethodsWork(t *testing.T) {
 		"test_table",
 		fields,
 		mapper,
-		[]Relation{},
+		[]RelationDescriptor{},
 	)
 
 	// Verify all Schema interface methods work
@@ -161,7 +161,7 @@ func TestSchemaWithRelations_WithOptions(t *testing.T) {
 		"test_table",
 		fields,
 		mapper,
-		[]Relation{},
+		[]RelationDescriptor{},
 		WithValidator(validator),
 	)
 
@@ -187,4 +187,12 @@ func (m *mockMapperForSchema) ToFieldValuesList(ctx context.Context, entities ..
 	return nil, nil
 }
 
-// Note: mockSchemaForRelation is defined in relation_builder_test.go and is shared across tests
+func (m *mockMapperForSchema) ToEntity(ctx context.Context, values []FieldValue) (any, error) {
+	return nil, nil
+}
+
+func (m *mockMapperForSchema) ToFieldValues(ctx context.Context, entity any) ([]FieldValue, error) {
+	return nil, nil
+}
+
+// Note: newMockSchemaForBuilder is defined in relation_builder_test.go and is shared across tests

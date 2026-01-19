@@ -33,7 +33,7 @@ type SchemaWithJoins[TEntity any] interface {
 // Schemas implementing this interface can use the relation-aware repository methods.
 type SchemaWithRelations[TEntity any] interface {
 	Schema[TEntity]
-	Relations() []Relation
+	Relations() []RelationDescriptor
 }
 
 func WithValidators[TEntity any](validators []Validator[TEntity]) SchemaOption[TEntity] {
@@ -148,7 +148,7 @@ func NewSchemaWithRelations[TEntity any](
 	name string,
 	fields Fields,
 	mapper Mapper[TEntity],
-	relations []Relation,
+	relations []RelationDescriptor,
 	opts ...SchemaOption[TEntity],
 ) SchemaWithRelations[TEntity] {
 	baseSchema := NewSchema(name, fields, mapper, opts...)
@@ -160,9 +160,9 @@ func NewSchemaWithRelations[TEntity any](
 
 type schemaWithRelations[TEntity any] struct {
 	Schema[TEntity]
-	relations []Relation
+	relations []RelationDescriptor
 }
 
-func (s *schemaWithRelations[TEntity]) Relations() []Relation {
+func (s *schemaWithRelations[TEntity]) Relations() []RelationDescriptor {
 	return s.relations
 }
