@@ -198,6 +198,7 @@ func TopologicalSortRelations(relations []RelationDescriptor) []RelationDescript
 }
 
 // BuildRelationSelectColumns generates SELECT column specifications for all relations.
+// HasMany relations are skipped - they're handled via subqueries to avoid row duplication.
 func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 	if len(relations) == 0 {
 		return nil
@@ -206,6 +207,11 @@ func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 	var columns []string
 
 	for _, rel := range relations {
+		// Skip HasMany relations - they're handled via subqueries
+		if rel.GetType() == HasMany {
+			continue
+		}
+
 		// Handle manual relations first
 		manual := rel.GetManual()
 		if manual != nil && len(manual.Columns) > 0 {
