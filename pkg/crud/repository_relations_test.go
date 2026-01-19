@@ -3,9 +3,12 @@ package crud
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1724,4 +1727,362 @@ func TestBuildRelations_FullSQLQuery(t *testing.T) {
 
 	// === Print for visual inspection ===
 	t.Logf("\n=== GENERATED SQL ===\n%s\n", fullSQL)
+}
+
+// newTestPool creates a database pool for integration tests using environment variables.
+// Required env vars: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (optional, defaults to "postgres")
+func newTestPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+
+	host := os.Getenv("DB_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	port := os.Getenv("DB_PORT")
+	if port == "" {
+		port = "5432"
+	}
+	user := os.Getenv("DB_USER")
+	if user == "" {
+		user = "postgres"
+	}
+	password := os.Getenv("DB_PASSWORD")
+	if password == "" {
+		password = "postgres"
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "postgres"
+	}
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	config, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		t.Skipf("skipping integration test: failed to parse connection config: %v", err)
+	}
+
+	config.MaxConns = 2
+	config.MinConns = 1
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Skipf("skipping integration test: failed to connect to database: %v", err)
+	}
+
+	// Verify connection
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		t.Skipf("skipping integration test: failed to ping database: %v", err)
+	}
+
+	t.Cleanup(func() {
+		pool.Close()
+	})
+
+	return pool
+}
+
+func TestBuildRelations_FullSQLQuery_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	// Create a pool directly (will skip if no database available)
+	pool := newTestPool(t)
+	ctx := context.Background()
+
+	// === Create test tables ===
+	createTablesSQL := `
+		CREATE SCHEMA IF NOT EXISTS test_hasmany;
+
+		DROP TABLE IF EXISTS test_hasmany.person_pinfls CASCADE;
+		DROP TABLE IF EXISTS test_hasmany.person_documents CASCADE;
+		DROP TABLE IF EXISTS test_hasmany.document_authorities CASCADE;
+		DROP TABLE IF EXISTS test_hasmany.persons CASCADE;
+		DROP TABLE IF EXISTS test_hasmany.regions CASCADE;
+		DROP TABLE IF EXISTS test_hasmany.countries CASCADE;
+		DROP TABLE IF EXISTS test_hasmany.genders CASCADE;
+
+		CREATE TABLE test_hasmany.genders (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT NOT NULL
+		);
+
+		CREATE TABLE test_hasmany.countries (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT NOT NULL,
+			code TEXT NOT NULL
+		);
+
+		CREATE TABLE test_hasmany.regions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT NOT NULL
+		);
+
+		CREATE TABLE test_hasmany.document_authorities (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT NOT NULL,
+			code TEXT NOT NULL
+		);
+
+		CREATE TABLE test_hasmany.persons (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			first_name TEXT NOT NULL,
+			last_name TEXT NOT NULL,
+			gender_id UUID REFERENCES test_hasmany.genders(id),
+			country_id UUID REFERENCES test_hasmany.countries(id),
+			region_id UUID REFERENCES test_hasmany.regions(id)
+		);
+
+		CREATE TABLE test_hasmany.person_documents (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			person_id UUID NOT NULL REFERENCES test_hasmany.persons(id),
+			seria TEXT NOT NULL,
+			number TEXT NOT NULL,
+			authority_id UUID REFERENCES test_hasmany.document_authorities(id)
+		);
+
+		CREATE TABLE test_hasmany.person_pinfls (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			person_id UUID NOT NULL REFERENCES test_hasmany.persons(id),
+			value TEXT NOT NULL,
+			status INT NOT NULL DEFAULT 1
+		);
+	`
+	_, err := pool.Exec(ctx, createTablesSQL)
+	require.NoError(t, err)
+
+	// Cleanup
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, "DROP SCHEMA test_hasmany CASCADE")
+	})
+
+	// === Insert test data ===
+	insertDataSQL := `
+		-- BelongsTo data
+		INSERT INTO test_hasmany.genders (id, name) VALUES
+			('11111111-1111-1111-1111-111111111111', 'Male');
+
+		INSERT INTO test_hasmany.countries (id, name, code) VALUES
+			('22222222-2222-2222-2222-222222222222', 'Uzbekistan', 'UZ');
+
+		INSERT INTO test_hasmany.regions (id, name) VALUES
+			('33333333-3333-3333-3333-333333333333', 'Tashkent');
+
+		INSERT INTO test_hasmany.document_authorities (id, name, code) VALUES
+			('44444444-4444-4444-4444-444444444444', 'Ministry of Internal Affairs', 'MIA'),
+			('55555555-5555-5555-5555-555555555555', 'Tax Authority', 'TAX');
+
+		-- Person
+		INSERT INTO test_hasmany.persons (id, first_name, last_name, gender_id, country_id, region_id) VALUES
+			('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'John', 'Doe',
+			 '11111111-1111-1111-1111-111111111111',
+			 '22222222-2222-2222-2222-222222222222',
+			 '33333333-3333-3333-3333-333333333333');
+
+		-- HasMany: 3 documents (would cause 3x duplication with JOIN)
+		INSERT INTO test_hasmany.person_documents (id, person_id, seria, number, authority_id) VALUES
+			('dddddddd-dddd-dddd-dddd-dddddddddd01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'AA', '1234567', '44444444-4444-4444-4444-444444444444'),
+			('dddddddd-dddd-dddd-dddd-dddddddddd02', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'BB', '7654321', '55555555-5555-5555-5555-555555555555'),
+			('dddddddd-dddd-dddd-dddd-dddddddddd03', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'CC', '9999999', '44444444-4444-4444-4444-444444444444');
+
+		-- HasMany: 2 pinfls (would cause 2x duplication with JOIN)
+		INSERT INTO test_hasmany.person_pinfls (id, person_id, value, status) VALUES
+			('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '12345678901234', 1),
+			('eeeeeeee-eeee-eeee-eeee-eeeeeeeeee02', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '98765432109876', 2);
+	`
+	_, err = pool.Exec(ctx, insertDataSQL)
+	require.NoError(t, err)
+
+	// === Build the monstrous query ===
+	// Setup schemas (same as unit test but with test_hasmany schema)
+	genderSchema := createTestRelationSchema("test_hasmany.genders", []string{"id", "name"})
+	countrySchema := createTestRelationSchema("test_hasmany.countries", []string{"id", "name", "code"})
+	regionSchema := createTestRelationSchema("test_hasmany.regions", []string{"id", "name"})
+
+	authoritySchema := createTestRelationSchema("test_hasmany.document_authorities", []string{"id", "name", "code"})
+	documentsSchema := createTestSchemaWithRelations(
+		"test_hasmany.person_documents",
+		[]string{"id", "seria", "number", "authority_id"},
+		[]RelationDescriptor{
+			&Relation[any]{
+				Type:        BelongsTo,
+				Alias:       "da",
+				LocalKey:    "authority_id",
+				RemoteKey:   "id",
+				Schema:      authoritySchema,
+				EntityField: "authority_entity",
+			},
+		},
+	)
+
+	pinflsSchema := createTestRelationSchema("test_hasmany.person_pinfls", []string{"id", "value", "status"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "g",
+			LocalKey:    "gender_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      genderSchema,
+			EntityField: "gender_entity",
+		},
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "c",
+			LocalKey:    "country_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      countrySchema,
+			EntityField: "country_entity",
+		},
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "r",
+			LocalKey:    "region_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      regionSchema,
+			EntityField: "region_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      documentsSchema,
+			EntityField: "documents_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "pinfls",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			Schema:      pinflsSchema,
+			EntityField: "pinfls_entity",
+		},
+	}
+
+	mainTable := "test_hasmany.persons"
+	mainAlias := "p"
+
+	// Build components
+	selectCols := BuildRelationSelectColumns(relations)
+	joinClauses := BuildRelationJoinClauses(mainTable, relations)
+	hasManySubqueries := BuildHasManySubqueries(mainTable, mainAlias, relations)
+
+	// Construct full SELECT clause
+	// When using table alias, must use alias.* not schema.table.*
+	allSelectParts := []string{mainAlias + ".*"}
+	allSelectParts = append(allSelectParts, selectCols...)
+	allSelectParts = append(allSelectParts, hasManySubqueries...)
+	selectClause := strings.Join(allSelectParts, ", ")
+
+	// Construct full JOIN clause
+	var joinParts []string
+	for _, jc := range joinClauses {
+		joinParts = append(joinParts, fmt.Sprintf("%s %s %s ON %s = %s",
+			jc.Type, jc.Table, jc.TableAlias,
+			strings.Replace(jc.LeftColumn, mainTable+".", mainAlias+".", 1), jc.RightColumn))
+	}
+	joinClause := strings.Join(joinParts, " ")
+
+	// Full SQL
+	fullSQL := fmt.Sprintf("SELECT %s FROM %s %s %s",
+		selectClause, mainTable, mainAlias, joinClause)
+
+	t.Logf("\n=== EXECUTING SQL ===\n%s\n", fullSQL)
+
+	// === Execute query ===
+	rows, err := pool.Query(ctx, fullSQL)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	// === Verify results ===
+	var rowCount int
+	var docsData, pinflsData any
+	var genderName, countryName, countryCode, regionName string
+
+	for rows.Next() {
+		rowCount++
+
+		// Scan all columns - we need to handle the dynamic columns
+		values, err := rows.Values()
+		require.NoError(t, err)
+
+		t.Logf("Row %d has %d columns", rowCount, len(values))
+
+		// Find the JSON columns by column names
+		fieldDescs := rows.FieldDescriptions()
+		for i, fd := range fieldDescs {
+			colName := string(fd.Name)
+			switch colName {
+			case "g__name":
+				if values[i] != nil {
+					genderName = values[i].(string)
+				}
+			case "c__name":
+				if values[i] != nil {
+					countryName = values[i].(string)
+				}
+			case "c__code":
+				if values[i] != nil {
+					countryCode = values[i].(string)
+				}
+			case "r__name":
+				if values[i] != nil {
+					regionName = values[i].(string)
+				}
+			case "docs__json":
+				docsData = values[i]
+			case "pinfls__json":
+				pinflsData = values[i]
+			}
+		}
+	}
+	require.NoError(t, rows.Err())
+
+	// === KEY ASSERTION: Only 1 row returned (no duplication!) ===
+	assert.Equal(t, 1, rowCount, "Should return exactly 1 row, not duplicated by HasMany relations")
+
+	// === Verify BelongsTo data ===
+	assert.Equal(t, "Male", genderName)
+	assert.Equal(t, "Uzbekistan", countryName)
+	assert.Equal(t, "UZ", countryCode)
+	assert.Equal(t, "Tashkent", regionName)
+
+	// === Verify HasMany JSON: docs (3 documents with nested authority) ===
+	// pgx returns JSON_AGG result as []interface{} directly, not as bytes
+	docs, ok := docsData.([]interface{})
+	require.True(t, ok, "docs__json should be []interface{}, got %T", docsData)
+	assert.Len(t, docs, 3, "Should have 3 documents in JSON array")
+
+	// Verify nested BelongsTo (authority) is included
+	for _, docRaw := range docs {
+		doc, ok := docRaw.(map[string]interface{})
+		require.True(t, ok, "Document should be a map")
+		da, ok := doc["da"].(map[string]interface{})
+		require.True(t, ok, "Document should have nested 'da' (authority), got %T", doc["da"])
+		assert.NotEmpty(t, da["name"], "Authority should have name")
+		assert.NotEmpty(t, da["code"], "Authority should have code")
+	}
+
+	// === Verify HasMany JSON: pinfls (2 pinfls) ===
+	pinfls, ok := pinflsData.([]interface{})
+	require.True(t, ok, "pinfls__json should be []interface{}, got %T", pinflsData)
+	assert.Len(t, pinfls, 2, "Should have 2 pinfls in JSON array")
+
+	t.Logf("\n=== SUCCESS ===")
+	t.Logf("Rows returned: %d (would be %d with JOINs)", rowCount, 3*2) // 3 docs * 2 pinfls = 6
+	t.Logf("Documents: %d", len(docs))
+	t.Logf("PINFLs: %d", len(pinfls))
+	t.Logf("Gender: %s", genderName)
+	t.Logf("Country: %s (%s)", countryName, countryCode)
+	t.Logf("Region: %s", regionName)
 }
