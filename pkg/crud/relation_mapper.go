@@ -61,31 +61,69 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 	entity := rm.mapOwn(allFields)
 
 	for _, rel := range rm.relations {
-		mapper := rel.GetMapper()
+		alias := rel.GetAlias()
 		setOnParent := rel.GetSetOnParent()
-		if mapper == nil || setOnParent == nil {
+		if setOnParent == nil {
 			continue
 		}
 
-		childFields := ExtractPrefixedFields(allFields, rel.GetAlias())
+		// Handle HasMany relations via JSON
+		if rel.GetType() == HasMany {
+			jsonFieldName := alias + "__json"
+			var jsonData any
+			for _, fv := range allFields {
+				if fv.Field().Name() == jsonFieldName {
+					jsonData = fv.Value()
+					break
+				}
+			}
+			if jsonData == nil {
+				continue
+			}
+
+			// Parse JSON and call SetOnParent for each child
+			// We use map[string]any since we don't know the concrete type
+			items, err := parseHasManyJSON[map[string]any](jsonData)
+			if err != nil {
+				return zero, serrors.E(op, err, "parsing "+jsonFieldName)
+			}
+
+			for _, item := range items {
+				result := setOnParent(entity, item)
+				typedResult, ok := result.(T)
+				if !ok {
+					return zero, serrors.E(op, serrors.Invalid, "relation %q setOnParent returned unexpected type", alias)
+				}
+				entity = typedResult
+			}
+			continue
+		}
+
+		// Handle BelongsTo relations
+		mapper := rel.GetMapper()
+		if mapper == nil {
+			continue
+		}
+
+		childFields := ExtractPrefixedFields(allFields, alias)
 		if AllFieldsNull(childFields) {
 			continue
 		}
 
 		childMapper, ok := mapper.(RelationEntityMapper)
 		if !ok {
-			return zero, serrors.E(op, serrors.Invalid, "relation %q mapper does not implement RelationEntityMapper", rel.GetAlias())
+			return zero, serrors.E(op, serrors.Invalid, "relation %q mapper does not implement RelationEntityMapper", alias)
 		}
 
 		child, err := childMapper.MapEntity(ctx, childFields)
 		if err != nil {
-			return zero, serrors.E(op, "relation %q", rel.GetAlias(), err)
+			return zero, serrors.E(op, "relation %q", alias, err)
 		}
 
 		result := setOnParent(entity, child)
 		typedResult, ok := result.(T)
 		if !ok {
-			return zero, serrors.E(op, serrors.Invalid, "relation %q setOnParent returned %T, expected %T", rel.GetAlias(), result, zero)
+			return zero, serrors.E(op, serrors.Invalid, "relation %q setOnParent returned %T, expected %T", alias, result, zero)
 		}
 		entity = typedResult
 	}
