@@ -197,18 +197,36 @@ func TopologicalSortRelations(relations []RelationDescriptor) []RelationDescript
 	return result
 }
 
+// collectHasManyAliases returns a set of aliases that are HasMany relations.
+// Used to filter out relations nested under HasMany (they're handled via subqueries).
+func collectHasManyAliases(relations []RelationDescriptor) map[string]bool {
+	aliases := make(map[string]bool)
+	for _, rel := range relations {
+		if rel.GetType() == HasMany {
+			aliases[rel.GetAlias()] = true
+		}
+	}
+	return aliases
+}
+
 // BuildRelationSelectColumns generates SELECT column specifications for all relations.
-// HasMany relations are skipped - they're handled via subqueries to avoid row duplication.
+// HasMany relations and relations nested under HasMany are skipped - they're handled via subqueries.
 func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 	if len(relations) == 0 {
 		return nil
 	}
 
+	hasManyAliases := collectHasManyAliases(relations)
 	var columns []string
 
 	for _, rel := range relations {
 		// Skip HasMany relations - they're handled via subqueries
 		if rel.GetType() == HasMany {
+			continue
+		}
+
+		// Skip relations nested under HasMany (e.g., BelongsTo with through=HasMany alias)
+		if through := rel.GetThrough(); through != "" && hasManyAliases[through] {
 			continue
 		}
 
@@ -403,12 +421,13 @@ func BuildHasManySubqueries(mainTable, mainAlias string, relations []RelationDes
 }
 
 // BuildRelationJoinClauses converts relations to JoinClause slice.
-// HasMany relations are skipped - they're handled via subqueries to avoid row duplication.
+// HasMany relations and relations nested under HasMany are skipped - they're handled via subqueries.
 func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) []JoinClause {
 	if len(relations) == 0 {
 		return nil
 	}
 
+	hasManyAliases := collectHasManyAliases(relations)
 	clauses := make([]JoinClause, 0, len(relations))
 
 	for _, rel := range relations {
@@ -417,12 +436,18 @@ func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) 
 			continue
 		}
 
+		through := rel.GetThrough()
+
+		// Skip relations nested under HasMany (e.g., BelongsTo with through=HasMany alias)
+		if through != "" && hasManyAliases[through] {
+			continue
+		}
+
 		tableName := rel.TableName()
 		if tableName == "" {
 			continue
 		}
 
-		through := rel.GetThrough()
 		var leftTable string
 		if through != "" {
 			leftTable = through
