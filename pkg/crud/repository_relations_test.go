@@ -1010,6 +1010,40 @@ func TestBuildRelationsRecursive(t *testing.T) {
 	})
 }
 
+func TestBuildRelationJoinClauses_SkipsHasMany(t *testing.T) {
+	t.Parallel()
+
+	vtSchema := createTestRelationSchema("insurance.vehicle_types", []string{"id", "name"})
+	docsSchema := createTestRelationSchema("insurance.person_documents", []string{"id", "seria"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{
+			Type:        BelongsTo,
+			Alias:       "vt",
+			LocalKey:    "vehicle_type_id",
+			RemoteKey:   "id",
+			JoinType:    JoinTypeLeft,
+			Schema:      vtSchema,
+			EntityField: "vehicle_type_entity",
+		},
+		&Relation[any]{
+			Type:        HasMany,
+			Alias:       "docs",
+			LocalKey:    "id",
+			RemoteKey:   "person_id",
+			JoinType:    JoinTypeLeft,
+			Schema:      docsSchema,
+			EntityField: "documents_entity",
+		},
+	}
+
+	clauses := BuildRelationJoinClauses("insurance.persons", relations)
+
+	// Should only have vt join, not docs (HasMany)
+	require.Len(t, clauses, 1)
+	assert.Equal(t, "vt", clauses[0].TableAlias)
+}
+
 func TestTopologicalSortRelations(t *testing.T) {
 	t.Parallel()
 
