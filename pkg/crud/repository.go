@@ -47,11 +47,21 @@ func applyOptions(options []QueryOption) *queryOptions {
 	return opts
 }
 
-// getSchemaDefaultJoins safely retrieves default JOINs from a schema
-// that may or may not implement SchemaWithJoins
 func getSchemaDefaultJoins[TEntity any](schema Schema[TEntity]) *JoinOptions {
 	if schemaWithJoins, ok := schema.(SchemaWithJoins[TEntity]); ok {
 		return schemaWithJoins.DefaultJoins()
+	}
+	if schemaWithRelations, ok := schema.(SchemaWithRelations[TEntity]); ok {
+		relations := schemaWithRelations.Relations()
+		if len(relations) > 0 {
+			// Recursively discover all nested relations (including nested BelongsTo and HasMany)
+			allRelations := BuildRelationsRecursive(relations)
+			tableName := schema.Name()
+			return &JoinOptions{
+				Joins:         BuildRelationJoinClauses(tableName, allRelations),
+				SelectColumns: append([]string{tableName + ".*"}, BuildRelationSelectColumns(tableName, allRelations)...),
+			}
+		}
 	}
 	return nil
 }
@@ -207,7 +217,7 @@ func (r *repository[TEntity]) buildExistsWithJoinsQuery(value FieldValue, params
 	parts := []string{baseQuery}
 	parts = append(parts, joinClauses...)
 
-	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	whereClause := fmt.Sprintf("%s.%s = $1", r.schema.Name(), value.Field().Name())
 	parts = append(parts, repo.JoinWhere(whereClause))
 
 	innerQuery := repo.Join(parts...)
@@ -327,6 +337,9 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 	for _, fv := range values {
 		field := fv.Field()
 		value := fv.Value()
+		if field.Virtual() {
+			continue
+		}
 		if field.Key() && fv.IsZero() {
 			continue
 		}
@@ -363,6 +376,9 @@ func (r *repository[TEntity]) Update(ctx context.Context, values []FieldValue) (
 		val := fv.Value()
 		if field.Key() {
 			fieldKeyValue = fv
+			continue
+		}
+		if field.Virtual() {
 			continue
 		}
 		updates = append(updates, field.Name())
@@ -414,10 +430,16 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 	args := make([]any, 0)
 	currentArgIdx := 1
 
+	hasJoins := params.Joins != nil && len(params.Joins.Joins) > 0
+
 	for _, filter := range params.Filters {
 		column, ok := r.fieldMap[filter.Column]
 		if !ok {
 			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
+		}
+
+		if hasJoins {
+			column = fmt.Sprintf("%s.%s", r.schema.Name(), column)
 		}
 
 		where = append(where, filter.Filter.String(column, currentArgIdx))
@@ -430,12 +452,16 @@ func (r *repository[TEntity]) buildFilters(params *FindParams) ([]string, []any,
 		searchClauses := make([]string, 0)
 		for _, sf := range r.schema.Fields().Searchable() {
 			var searchClause string
+			fieldName := sf.Name()
+			if hasJoins {
+				fieldName = fmt.Sprintf("%s.%s", r.schema.Name(), fieldName)
+			}
 			if sf.Type() == JSONFieldType {
 				// Cast JSONB to text before applying LOWER for JSON fields
-				searchClause = fmt.Sprintf("LOWER(%s::text) LIKE $%d", sf.Name(), currentArgIdx)
+				searchClause = fmt.Sprintf("LOWER(%s::text) LIKE $%d", fieldName, currentArgIdx)
 			} else {
 				// Use regular LOWER for string fields
-				searchClause = fmt.Sprintf("LOWER(%s) LIKE $%d", sf.Name(), currentArgIdx)
+				searchClause = fmt.Sprintf("LOWER(%s) LIKE $%d", fieldName, currentArgIdx)
 			}
 			searchClauses = append(searchClauses, searchClause)
 		}
@@ -482,7 +508,7 @@ func (r *repository[TEntity]) buildGetWithJoinsQuery(value FieldValue, params *F
 		return "", err
 	}
 
-	whereClause := fmt.Sprintf("%s = $1", value.Field().Name())
+	whereClause := fmt.Sprintf("%s.%s = $1", r.schema.Name(), value.Field().Name())
 	return repo.Join(baseQuery, repo.JoinWhere(whereClause)), nil
 }
 
@@ -503,9 +529,7 @@ func (r *repository[TEntity]) queryEntities(ctx context.Context, query string, a
 	for i, col := range columnDescriptions {
 		f, err := r.schema.Fields().Field(col.Name)
 		if err != nil {
-			// Column not in schema - this is a dynamic column from SelectColumns (e.g., row_to_json())
-			// Create a dynamic field that can still be added to the flatMap for mapper access
-			f = newDynamicField(col.Name)
+			f = newDynamicFieldFromOID(col.Name, col.DataTypeOID)
 		}
 		columnOrder[i] = f
 	}

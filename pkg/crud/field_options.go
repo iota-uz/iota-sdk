@@ -23,6 +23,12 @@ func WithHidden() FieldOption {
 	}
 }
 
+func WithVirtual() FieldOption {
+	return func(field *field) {
+		field.virtual = true
+	}
+}
+
 func WithSearchable() FieldOption {
 	return func(field *field) {
 		field.searchable = true

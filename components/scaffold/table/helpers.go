@@ -88,6 +88,8 @@ func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType
 			return t.Format(time.RFC3339)
 		}
 		return fmt.Sprintf("%v", value)
+	case crud.EntityFieldType:
+		return fmt.Sprintf("%v", value)
 	}
 
 	// Default: convert to string
@@ -598,6 +600,10 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			}
 
 			return builder.Attrs(fieldAttrs).Build().Component()
+
+		case crud.EntityFieldType:
+			// EntityField is readonly and hidden, should not appear in forms
+			return nil
 
 		default:
 			builder := form.Text(field.Name(), field.Name())

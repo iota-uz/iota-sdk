@@ -241,7 +241,7 @@ func (c *CrudController[TEntity]) validateID(id string) error {
 		if _, err := uuid.Parse(id); err != nil {
 			return fmt.Errorf("invalid UUID: %s", id)
 		}
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 		// These types don't need special validation for ID format
 	}
 	return nil
@@ -267,7 +267,7 @@ func (c *CrudController[TEntity]) parseIDValue(id string) any {
 		}
 		// If parsing fails, return nil UUID instead of nil
 		return uuid.Nil
-	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
+	case crud.StringFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.DateFieldType, crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 		// For all other types, return the string as-is
 		return id
 	}
@@ -340,10 +340,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 					continue // Skip empty values
 				}
 			case crud.StringFieldType, crud.DecimalFieldType, crud.DateFieldType,
-				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType:
-				value = formValue
-			default:
-				// Default to string for any unknown types
+				crud.TimeFieldType, crud.DateTimeFieldType, crud.TimestampFieldType, crud.JSONFieldType, crud.EntityFieldType:
 				value = formValue
 			}
 		} else {
@@ -390,7 +387,7 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05"}
 						case crud.TimestampFieldType:
 							formats = []string{"2006-01-02T15:04", "2006-01-02T15:04:05", time.RFC3339}
-						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.UUIDFieldType, crud.JSONFieldType:
+						case crud.StringFieldType, crud.IntFieldType, crud.BoolFieldType, crud.FloatFieldType, crud.DecimalFieldType, crud.UUIDFieldType, crud.JSONFieldType, crud.EntityFieldType:
 							// These types are handled elsewhere
 							formats = []string{}
 						}
@@ -437,8 +434,9 @@ func (c *CrudController[TEntity]) buildFieldValuesFromForm(r *http.Request) ([]c
 				} else {
 					continue // Skip empty JSON values
 				}
-			case crud.StringFieldType:
+			case crud.StringFieldType, crud.EntityFieldType:
 				// String fields are handled as strings from forms
+				// EntityFieldType is readonly and shouldn't appear in forms
 				value = formValue
 			}
 		}
@@ -797,7 +795,7 @@ func (c *CrudController[TEntity]) Details(w http.ResponseWriter, r *http.Request
 					case crud.UUIDFieldType:
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
-					case crud.JSONFieldType:
+					case crud.JSONFieldType, crud.EntityFieldType:
 						valueStr = fmt.Sprintf("%v", fv.Value())
 						fieldType = table.DetailFieldTypeText
 					default:
@@ -1736,6 +1734,10 @@ func (c *CrudController[TEntity]) fieldToFormFieldWithValue(ctx context.Context,
 
 		return builder.Build()
 
+	case crud.EntityFieldType:
+		// EntityField is readonly and hidden, should not appear in forms
+		return nil
+
 	default:
 		builder := form.Text(field.Name(), field.Name())
 		if currentValue != nil {
@@ -1898,6 +1900,9 @@ func (c *CrudController[TEntity]) convertValueToString(value any, fieldType crud
 			return t.Format(time.RFC3339)
 		}
 		return fmt.Sprintf("%v", value)
+	case crud.EntityFieldType:
+		// EntityField holds related entities, convert to string representation
+		return fmt.Sprintf("%v", value)
 	}
 
 	// Default: convert to string
@@ -2020,8 +2025,8 @@ func (c *CrudController[TEntity]) compareSelectValues(optionValue, fieldValue an
 		// Fallback to string comparison
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
 
-	case crud.JSONFieldType:
-		// For JSON fields, use string comparison
+	case crud.JSONFieldType, crud.EntityFieldType:
+		// For JSON and Entity fields, use string comparison
 		return fmt.Sprintf("%v", optionValue) == fmt.Sprintf("%v", fieldValue)
 
 	default:
@@ -2168,6 +2173,10 @@ func (c *CrudController[TEntity]) fieldValueToTableCell(ctx context.Context, fie
 			return templ.Raw(jsonStr[:100] + "...")
 		}
 		return templ.Raw(jsonStr)
+
+	case crud.EntityFieldType:
+		// EntityField holds related entities, display as string
+		return templ.Raw(fmt.Sprintf("%v", value.Value()))
 
 	default:
 		return templ.Raw(fmt.Sprintf("%v", value.Value()))
