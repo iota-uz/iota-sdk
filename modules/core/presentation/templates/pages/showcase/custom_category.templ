@@ -1,0 +1,30 @@
+package showcase
+
+import (
+	"github.com/iota-uz/iota-sdk/components/sidebar"
+	sdkshowcase "github.com/iota-uz/iota-sdk/pkg/showcase"
+)
+
+type CustomCategoryPageProps struct {
+	SidebarProps sidebar.Props
+	Category     *sdkshowcase.Category
+}
+
+templ CustomCategoryPage(props CustomCategoryPageProps) {
+	@Layout(LayoutProps{
+		Title:        props.Category.Name,
+		SidebarProps: props.SidebarProps,
+	}) {
+		<div class="flex flex-col gap-5 p-5">
+			<h1 class="text-3xl font-bold">{ props.Category.Name }</h1>
+			for _, component := range props.Category.Components {
+				@ComponentShowcase(ShowcaseProps{
+					Title: component.Name,
+					Code:  component.Source,
+				}) {
+					@component.Template
+				}
+			}
+		</div>
+	}
+}
