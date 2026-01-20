@@ -200,6 +200,38 @@ FROM persons
 3. **JSON aggregation** - Results are aggregated as JSON arrays using `JSON_AGG`
 4. **Null handling** - Empty arrays return `'[]'::json` instead of NULL
 
+### JSON Unmarshaling Requirement
+
+**Important:** The child entity type must be JSON-deserializable. The SDK uses `json.Unmarshal` to parse the aggregated JSON array into a slice of entities.
+
+**Option 1: Use JSON struct tags (recommended)**
+
+```go
+type Document struct {
+    ID       uuid.UUID `json:"id"`
+    PersonID uuid.UUID `json:"person_id"`
+    Type     string    `json:"type"`
+    Seria    string    `json:"seria"`
+    Number   string    `json:"number"`
+}
+```
+
+**Option 2: Implement `json.Unmarshaler` for custom parsing**
+
+```go
+func (d *Document) UnmarshalJSON(data []byte) error {
+    // Custom unmarshaling logic
+    var raw map[string]any
+    if err := json.Unmarshal(data, &raw); err != nil {
+        return err
+    }
+    // Map fields...
+    return nil
+}
+```
+
+**Note:** The JSON keys in your struct tags must match the column names in the database exactly (as specified in `json_build_object`). The SDK builds JSON with column names as keys.
+
 ---
 
 ## Nested Relations
