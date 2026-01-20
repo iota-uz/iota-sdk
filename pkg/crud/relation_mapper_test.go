@@ -445,3 +445,226 @@ func TestParseHasManyJSON(t *testing.T) {
 		}
 	})
 }
+
+// TestRelationMapper_NullChildWithHasManyDefaults tests the scenario where:
+// - A parent has a BelongsTo relation to a child
+// - The child has a HasMany relation
+// - When the parent's foreign key is NULL (LEFT JOIN returns no match),
+//   the child's own fields are NULL but the HasMany JSON field has "[]" (not NULL due to COALESCE)
+// This verifies that the null check only looks at own fields, not nested HasMany defaults.
+func TestRelationMapper_NullChildWithHasManyDefaults(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	childSetOnParentCalled := false
+
+	// Child mapper (Person) that would panic if called with nil data
+	childMapper := NewRelationMapper[string](
+		nil,
+		[]RelationDescriptor{
+			&Relation[any]{
+				Type:  HasMany,
+				Alias: "docs",
+				SetOnParent: func(parent, child any) any {
+					return parent
+				},
+			},
+		},
+		func(fvs []FieldValue) string {
+			// Extract "id" to create entity - this would panic if called with nil
+			for _, fv := range fvs {
+				if fv.Field().Name() == "id" {
+					if v := fv.Value(); v != nil {
+						return v.(string)
+					}
+					// If id is nil, this means null relation - should not happen with fix
+					panic("child mapper called with nil id - relation should have been skipped")
+				}
+			}
+			return ""
+		},
+	)
+
+	// Parent mapper (Vehicle) with BelongsTo relation to Person
+	parentMapper := NewRelationMapper[string](
+		nil,
+		[]RelationDescriptor{
+			&Relation[any]{
+				Alias:  "p",
+				Mapper: childMapper,
+				SetOnParent: func(parent, child any) any {
+					childSetOnParentCalled = true
+					return parent.(string) + "+" + child.(string)
+				},
+			},
+		},
+		func(fvs []FieldValue) string {
+			for _, fv := range fvs {
+				if fv.Field().Name() == "id" {
+					if v := fv.Value(); v != nil {
+						return v.(string)
+					}
+				}
+			}
+			return ""
+		},
+	)
+
+	// Simulate LEFT JOIN result where owner_person_id is NULL:
+	// - Vehicle's own fields are present
+	// - Person's own fields (p__id, p__first_name) are NULL from LEFT JOIN
+	// - Person's HasMany JSON (p__docs__json) is "[]" because of COALESCE in subquery
+	allFields := []FieldValue{
+		NewStringField("id").Value("vehicle-123"),
+		NewStringField("plate_number").Value("01A123BC"),
+		NewStringField("p__id").Value(nil),          // Person's id is NULL
+		NewStringField("p__first_name").Value(nil),  // Person's first_name is NULL
+		NewStringField("p__docs__json").Value("[]"), // HasMany has non-null default!
+	}
+
+	result, err := parentMapper.ToEntity(ctx, allFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Parent should be mapped correctly
+	if result != "vehicle-123" {
+		t.Errorf("result = %q, want %q", result, "vehicle-123")
+	}
+
+	// Child SetOnParent should NOT have been called because person is null
+	if childSetOnParentCalled {
+		t.Error("child SetOnParent was called, but should have been skipped for null relation")
+	}
+}
+
+// TestRelationMapper_NullChildWithNestedBelongsToAndHasMany tests the scenario from the actual panic:
+// - Vehicle has BelongsTo Person
+// - Person has BelongsTo Gender AND HasMany docs
+// - When Vehicle.owner_person_id is NULL:
+//   - Person's own fields (p__id, p__first_name) are NULL
+//   - Person's Gender fields (p__g__id, p__g__name) are NULL
+//   - Person's HasMany JSON (p__docs__json) is "[]" (not NULL due to COALESCE)
+// Without the fix, Person mapper is still called (because docs__json isn't null),
+// mapOwn returns nil Person, then Gender's SetOnParent panics on nil.(Person) assertion.
+func TestRelationMapper_NullChildWithNestedBelongsToAndHasMany(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	personSetOnParentCalled := false
+	genderSetOnParentCalled := false
+
+	// Gender mapper (leaf level)
+	genderMapper := NewRelationMapper[string](
+		nil,
+		nil,
+		func(fvs []FieldValue) string {
+			for _, fv := range fvs {
+				if fv.Field().Name() == "name" {
+					if v := fv.Value(); v != nil {
+						return v.(string)
+					}
+				}
+			}
+			return ""
+		},
+	)
+
+	// Person mapper - has Gender (BelongsTo) and docs (HasMany)
+	personMapper := NewRelationMapper[string](
+		nil,
+		[]RelationDescriptor{
+			&Relation[any]{
+				Alias:  "g",
+				Mapper: genderMapper,
+				SetOnParent: func(parent, child any) any {
+					genderSetOnParentCalled = true
+					// This is where the real panic happens - parent is nil
+					p := parent.(string)
+					if child == nil {
+						return p
+					}
+					return p + "+gender:" + child.(string)
+				},
+			},
+			&Relation[any]{
+				Type:  HasMany,
+				Alias: "docs",
+				SetOnParent: func(parent, child any) any {
+					return parent
+				},
+			},
+		},
+		func(fvs []FieldValue) string {
+			// This mapOwn returns empty string when id is nil
+			for _, fv := range fvs {
+				if fv.Field().Name() == "id" {
+					if v := fv.Value(); v != nil {
+						return "person:" + v.(string)
+					}
+				}
+			}
+			return "" // Returns empty when person doesn't exist
+		},
+	)
+
+	// Vehicle mapper - has Person (BelongsTo)
+	vehicleMapper := NewRelationMapper[string](
+		nil,
+		[]RelationDescriptor{
+			&Relation[any]{
+				Alias:  "p",
+				Mapper: personMapper,
+				SetOnParent: func(parent, child any) any {
+					personSetOnParentCalled = true
+					v := parent.(string)
+					if child == nil {
+						return v
+					}
+					return v + "+" + child.(string)
+				},
+			},
+		},
+		func(fvs []FieldValue) string {
+			for _, fv := range fvs {
+				if fv.Field().Name() == "id" {
+					if v := fv.Value(); v != nil {
+						return "vehicle:" + v.(string)
+					}
+				}
+			}
+			return ""
+		},
+	)
+
+	// Simulate LEFT JOIN result where owner_person_id is NULL:
+	allFields := []FieldValue{
+		NewStringField("id").Value("123"),             // Vehicle ID
+		NewStringField("plate_number").Value("ABC"),   // Vehicle field
+		NewStringField("p__id").Value(nil),            // Person ID is NULL
+		NewStringField("p__first_name").Value(nil),    // Person first_name is NULL
+		NewStringField("p__g__id").Value(nil),         // Person's Gender ID is NULL
+		NewStringField("p__g__name").Value(nil),       // Person's Gender name is NULL
+		NewStringField("p__docs__json").Value("[]"),   // HasMany has non-null default!
+	}
+
+	result, err := vehicleMapper.ToEntity(ctx, allFields)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Vehicle should be mapped correctly
+	if result != "vehicle:123" {
+		t.Errorf("result = %q, want %q", result, "vehicle:123")
+	}
+
+	// Person SetOnParent should NOT have been called because person is null
+	if personSetOnParentCalled {
+		t.Error("person SetOnParent was called, but should have been skipped for null relation")
+	}
+
+	// Gender SetOnParent should definitely NOT have been called
+	if genderSetOnParentCalled {
+		t.Error("gender SetOnParent was called, but should have been skipped when person is null")
+	}
+}

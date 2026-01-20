@@ -54,9 +54,12 @@ func getSchemaDefaultJoins[TEntity any](schema Schema[TEntity]) *JoinOptions {
 	if schemaWithRelations, ok := schema.(SchemaWithRelations[TEntity]); ok {
 		relations := schemaWithRelations.Relations()
 		if len(relations) > 0 {
+			// Recursively discover all nested relations (including nested BelongsTo and HasMany)
+			allRelations := BuildRelationsRecursive(relations)
+			tableName := schema.Name()
 			return &JoinOptions{
-				Joins:         BuildRelationJoinClauses(schema.Name(), relations),
-				SelectColumns: append([]string{schema.Name() + ".*"}, BuildRelationSelectColumns(relations)...),
+				Joins:         BuildRelationJoinClauses(tableName, allRelations),
+				SelectColumns: append([]string{tableName + ".*"}, BuildRelationSelectColumns(tableName, allRelations)...),
 			}
 		}
 	}

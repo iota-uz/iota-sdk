@@ -1,9 +1,13 @@
 package crud
 
 import (
-	"context"
 	"testing"
 )
+
+// newTestRelMapper creates a *RelationMapper[any] for testing
+func newTestRelMapper() *RelationMapper[any] {
+	return NewRelationMapper[any](nil, nil, func(fvs []FieldValue) any { return nil })
+}
 
 func TestNewSchemaWithRelations(t *testing.T) {
 	fields := NewFields([]Field{
@@ -11,7 +15,7 @@ func TestNewSchemaWithRelations(t *testing.T) {
 		NewStringField("name"),
 	})
 
-	mapper := &mockMapperForSchema{}
+	mapper := newTestRelMapper()
 
 	relatedSchema := newMockSchemaForBuilder("related_table")
 	relations := NewRelationBuilder().
@@ -47,7 +51,7 @@ func TestSchemaWithRelations_EmptyRelations(t *testing.T) {
 	fields := NewFields([]Field{
 		NewUUIDField("id", WithKey()),
 	})
-	mapper := &mockMapperForSchema{}
+	mapper := newTestRelMapper()
 
 	schema := NewSchemaWithRelations(
 		"simple_table",
@@ -66,7 +70,7 @@ func TestSchemaWithRelations_MultipleRelations(t *testing.T) {
 		NewUUIDField("id", WithKey()),
 		NewStringField("name"),
 	})
-	mapper := &mockMapperForSchema{}
+	mapper := newTestRelMapper()
 
 	relatedSchema1 := newMockSchemaForBuilder("types")
 	relatedSchema2 := newMockSchemaForBuilder("categories")
@@ -106,7 +110,7 @@ func TestSchemaWithRelations_SchemaMethodsWork(t *testing.T) {
 		NewUUIDField("id", WithKey()),
 		NewStringField("name"),
 	})
-	mapper := &mockMapperForSchema{}
+	mapper := newTestRelMapper()
 
 	schema := NewSchemaWithRelations(
 		"test_table",
@@ -141,7 +145,7 @@ func TestSchemaWithRelations_WithOptions(t *testing.T) {
 	fields := NewFields([]Field{
 		NewUUIDField("id", WithKey()),
 	})
-	mapper := &mockMapperForSchema{}
+	mapper := newTestRelMapper()
 
 	validatorCalled := false
 	validator := func(entity any) error {
@@ -167,25 +171,6 @@ func TestSchemaWithRelations_WithOptions(t *testing.T) {
 	if !validatorCalled {
 		t.Error("validator was not called")
 	}
-}
-
-type mockMapperForSchema struct{}
-
-func (m *mockMapperForSchema) ToEntities(ctx context.Context, values ...[]FieldValue) ([]any, error) {
-	return nil, nil
-}
-
-func (m *mockMapperForSchema) ToFieldValuesList(ctx context.Context, entities ...any) ([][]FieldValue, error) {
-	return nil, nil
-}
-
-func (m *mockMapperForSchema) ToEntity(_ context.Context, _ []FieldValue) (any, error) {
-	var zero any
-	return zero, nil
-}
-
-func (m *mockMapperForSchema) ToFieldValues(ctx context.Context, entity any) ([]FieldValue, error) {
-	return nil, nil
 }
 
 // Note: newMockSchemaForBuilder is defined in relation_builder_test.go and is shared across tests
