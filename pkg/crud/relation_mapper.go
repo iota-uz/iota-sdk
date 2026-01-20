@@ -193,6 +193,8 @@ func isNilEntity[T any](entity T) bool {
 // parseHasManyJSON parses JSON array data into a slice of T.
 // Handles nil, "null", "[]", []byte, and string inputs.
 func parseHasManyJSON[T any](jsonData any) ([]T, error) {
+	const op = serrors.Op("parseHasManyJSON")
+
 	if jsonData == nil {
 		return nil, nil
 	}
@@ -208,7 +210,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 			if typed, ok := item.(T); ok {
 				result[i] = typed
 			} else {
-				return nil, fmt.Errorf("parseHasManyJSON: item %d has unexpected type %T", i, item)
+				return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("item %d has unexpected type %T", i, item))
 			}
 		}
 		return result, nil
@@ -220,7 +222,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 			if typed, ok := any(item).(T); ok {
 				result[i] = typed
 			} else {
-				return nil, fmt.Errorf("parseHasManyJSON: item %d cannot be converted to target type", i)
+				return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("item %d cannot be converted to target type", i))
 			}
 		}
 		return result, nil
@@ -240,7 +242,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 		}
 		data = []byte(v)
 	default:
-		return nil, fmt.Errorf("parseHasManyJSON: unexpected type %T", jsonData)
+		return nil, serrors.E(op, serrors.Invalid, fmt.Sprintf("unexpected type %T", jsonData))
 	}
 
 	// Handle null and empty array
@@ -254,7 +256,7 @@ func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 
 	var items []T
 	if err := json.Unmarshal(data, &items); err != nil {
-		return nil, fmt.Errorf("parseHasManyJSON: %w", err)
+		return nil, serrors.E(op, err)
 	}
 
 	return items, nil
