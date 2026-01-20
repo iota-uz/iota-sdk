@@ -209,9 +209,66 @@ func collectHasManyAliases(relations []RelationDescriptor) map[string]bool {
 	return aliases
 }
 
+// buildHasManySubquery generates a JSON_AGG subquery for a single HasMany relation.
+// parentAlias is the alias of the parent table to correlate with.
+func buildHasManySubquery(parentAlias string, rel RelationDescriptor) string {
+	schemaAny := rel.GetSchema()
+	if schemaAny == nil {
+		return ""
+	}
+
+	schema, ok := schemaAny.(RelationSchema)
+	if !ok {
+		return ""
+	}
+
+	// Determine parent alias: use Through if set, else use the provided parentAlias
+	through := rel.GetThrough()
+	if through != "" {
+		parentAlias = through
+	}
+
+	alias := rel.GetAlias()
+	tableName := rel.TableName()
+	localKey := rel.GetLocalKey()
+	remoteKey := rel.GetRemoteKey()
+	if remoteKey == "" {
+		remoteKey = "id"
+	}
+
+	// Build fields and joins recursively (handles nested BelongsTo and HasMany)
+	jsonFields, joins := buildJSONFields(schema, alias)
+
+	joinClause := ""
+	if len(joins) > 0 {
+		joinClause = " " + strings.Join(joins, " ")
+	}
+
+	// Build output alias with through prefix (matches BelongsTo convention)
+	var outputAlias string
+	if through != "" {
+		outputAlias = through + "__" + alias
+	} else {
+		outputAlias = alias
+	}
+
+	return fmt.Sprintf(
+		"(SELECT COALESCE(JSON_AGG(json_build_object(%s)), '[]'::json) FROM %s %s%s WHERE %s.%s = %s.%s) AS %s__json",
+		strings.Join(jsonFields, ", "),
+		tableName,
+		alias,
+		joinClause,
+		alias, remoteKey,
+		parentAlias, localKey,
+		outputAlias,
+	)
+}
+
 // BuildRelationSelectColumns generates SELECT column specifications for all relations.
-// HasMany relations and relations nested under HasMany are skipped - they're handled via subqueries.
-func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
+// mainAlias is the alias of the main table (used for top-level HasMany subqueries).
+// HasMany relations generate JSON subqueries. Relations nested under HasMany are skipped
+// (they're included in the parent HasMany's subquery via buildJSONFields).
+func BuildRelationSelectColumns(mainAlias string, relations []RelationDescriptor) []string {
 	if len(relations) == 0 {
 		return nil
 	}
@@ -220,13 +277,17 @@ func BuildRelationSelectColumns(relations []RelationDescriptor) []string {
 	var columns []string
 
 	for _, rel := range relations {
-		// Skip HasMany relations - they're handled via subqueries
-		if rel.GetType() == HasMany {
+		// Skip relations nested under HasMany (they're handled inside the HasMany subquery)
+		if through := rel.GetThrough(); through != "" && hasManyAliases[through] {
 			continue
 		}
 
-		// Skip relations nested under HasMany (e.g., BelongsTo with through=HasMany alias)
-		if through := rel.GetThrough(); through != "" && hasManyAliases[through] {
+		// Handle HasMany relations - generate JSON subquery
+		if rel.GetType() == HasMany {
+			subquery := buildHasManySubquery(mainAlias, rel)
+			if subquery != "" {
+				columns = append(columns, subquery)
+			}
 			continue
 		}
 

@@ -388,7 +388,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 	t.Run("returns empty slice for empty relations", func(t *testing.T) {
 		t.Parallel()
 
-		columns := BuildRelationSelectColumns(nil)
+		columns := BuildRelationSelectColumns("", nil)
 
 		assert.Empty(t, columns)
 	})
@@ -409,7 +409,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 			},
 		}
 
-		columns := BuildRelationSelectColumns(relations)
+		columns := BuildRelationSelectColumns("main", relations)
 
 		require.Len(t, columns, 2)
 		assert.Contains(t, columns, "vt.id AS vt__id")
@@ -443,7 +443,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 			},
 		}
 
-		columns := BuildRelationSelectColumns(relations)
+		columns := BuildRelationSelectColumns("main", relations)
 
 		require.Len(t, columns, 4)
 		assert.Contains(t, columns, "vt.id AS vt__id")
@@ -480,7 +480,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 			},
 		}
 
-		columns := BuildRelationSelectColumns(relations)
+		columns := BuildRelationSelectColumns("main", relations)
 
 		// vt has 3 fields, vg has 2 fields = 5 total
 		require.Len(t, columns, 5)
@@ -519,7 +519,7 @@ func TestBuildRelationSelectColumns(t *testing.T) {
 			},
 		}
 
-		columns := BuildRelationSelectColumns(relations)
+		columns := BuildRelationSelectColumns("main", relations)
 
 		// Only vt columns should be present
 		require.Len(t, columns, 2)
@@ -759,7 +759,7 @@ func TestBuildRelationSelectColumns_NestedPrefix(t *testing.T) {
 		&Relation[any]{Alias: "vg", LocalKey: "group_id", Schema: vgSchema, Through: "vt", EntityField: "vg_entity"}, // nested
 	}
 
-	columns := BuildRelationSelectColumns(relations)
+	columns := BuildRelationSelectColumns("main", relations)
 
 	expected := []string{
 		"vt.id AS vt__id",
@@ -779,7 +779,7 @@ func TestBuildRelationSelectColumns_NestedPrefix(t *testing.T) {
 	}
 }
 
-func TestBuildRelationSelectColumns_SkipsHasMany(t *testing.T) {
+func TestBuildRelationSelectColumns_HandlesHasManyAsSubquery(t *testing.T) {
 	t.Parallel()
 
 	vtSchema := createTestRelationSchema("vehicle_types", []string{"id", "name"})
@@ -797,21 +797,30 @@ func TestBuildRelationSelectColumns_SkipsHasMany(t *testing.T) {
 			Type:        HasMany,
 			Alias:       "docs",
 			LocalKey:    "id",
+			RemoteKey:   "person_id",
 			Schema:      docsSchema,
 			EntityField: "docs_entity",
 		},
 	}
 
-	columns := BuildRelationSelectColumns(relations)
+	columns := BuildRelationSelectColumns("main", relations)
 
-	// Should only have vt columns (2), not docs columns
-	require.Len(t, columns, 2)
+	// Should have vt columns (2) + docs subquery (1)
+	require.Len(t, columns, 3)
 	assert.Contains(t, columns, "vt.id AS vt__id")
 	assert.Contains(t, columns, "vt.name AS vt__name")
-	// Should NOT contain docs columns
+
+	// HasMany should be included as JSON subquery, not as regular columns
+	var foundDocsSubquery bool
 	for _, col := range columns {
-		assert.NotContains(t, col, "docs.")
+		if strings.Contains(col, "docs__json") && strings.Contains(col, "JSON_AGG") {
+			foundDocsSubquery = true
+			// Should correlate with parent using main.id = docs.person_id
+			assert.Contains(t, col, "main.id")
+			assert.Contains(t, col, "docs.person_id")
+		}
 	}
+	assert.True(t, foundDocsSubquery, "HasMany should generate JSON subquery")
 }
 
 func TestBuildRelationsRecursive(t *testing.T) {
@@ -1523,10 +1532,12 @@ func TestBuildRelations_ComplexScenario(t *testing.T) {
 	t.Run("SelectColumns", func(t *testing.T) {
 		t.Parallel()
 
-		selectCols := BuildRelationSelectColumns(relations)
+		selectCols := BuildRelationSelectColumns("p", relations)
 
-		// Should have columns for BelongsTo only: gender(2) + country(3) + region(2) = 7
-		require.Len(t, selectCols, 7, "expected 7 SELECT columns for BelongsTo relations")
+		// Should have columns for BelongsTo: gender(2) + country(3) + region(2) = 7
+		// Plus HasMany subqueries: docs(1) + pinfls(1) = 2
+		// Total: 9
+		require.Len(t, selectCols, 9, "expected 9 SELECT columns (7 BelongsTo + 2 HasMany subqueries)")
 
 		// Verify BelongsTo columns exist
 		assert.Contains(t, selectCols, "g.id AS g__id")
@@ -1537,11 +1548,20 @@ func TestBuildRelations_ComplexScenario(t *testing.T) {
 		assert.Contains(t, selectCols, "r.id AS r__id")
 		assert.Contains(t, selectCols, "r.name AS r__name")
 
-		// Verify HasMany columns are NOT present
+		// Verify HasMany subqueries are present
+		var foundDocsSubquery, foundPinflsSubquery bool
 		for _, col := range selectCols {
-			assert.NotContains(t, col, "docs.", "docs columns should not be in SELECT")
-			assert.NotContains(t, col, "pinfls.", "pinfls columns should not be in SELECT")
+			if strings.Contains(col, "docs__json") && strings.Contains(col, "JSON_AGG") {
+				foundDocsSubquery = true
+				assert.Contains(t, col, "p.id", "docs subquery should correlate with parent alias p")
+			}
+			if strings.Contains(col, "pinfls__json") && strings.Contains(col, "JSON_AGG") {
+				foundPinflsSubquery = true
+				assert.Contains(t, col, "p.id", "pinfls subquery should correlate with parent alias p")
+			}
 		}
+		assert.True(t, foundDocsSubquery, "docs HasMany subquery should be present")
+		assert.True(t, foundPinflsSubquery, "pinfls HasMany subquery should be present")
 	})
 
 	// === Test BuildHasManySubqueries ===
@@ -1675,14 +1695,13 @@ func TestBuildRelations_FullSQLQuery(t *testing.T) {
 	mainAlias := "p"
 
 	// === Build all components ===
-	selectCols := BuildRelationSelectColumns(relations)
+	// BuildRelationSelectColumns handles both BelongsTo (SELECT columns) and HasMany (JSON subqueries)
+	selectCols := BuildRelationSelectColumns(mainAlias, relations)
 	joinClauses := BuildRelationJoinClauses(mainTable, relations)
-	hasManySubqueries := BuildHasManySubqueries(mainTable, mainAlias, relations)
 
 	// === Construct full SELECT clause ===
 	allSelectParts := []string{mainTable + ".*"}
 	allSelectParts = append(allSelectParts, selectCols...)
-	allSelectParts = append(allSelectParts, hasManySubqueries...)
 	selectClause := strings.Join(allSelectParts, ", ")
 
 	// === Construct full JOIN clause ===
@@ -1973,15 +1992,14 @@ func TestBuildRelations_FullSQLQuery_Integration(t *testing.T) {
 	mainAlias := "p"
 
 	// Build components
-	selectCols := BuildRelationSelectColumns(relations)
+	// BuildRelationSelectColumns handles both BelongsTo (SELECT columns) and HasMany (JSON subqueries)
+	selectCols := BuildRelationSelectColumns(mainAlias, relations)
 	joinClauses := BuildRelationJoinClauses(mainTable, relations)
-	hasManySubqueries := BuildHasManySubqueries(mainTable, mainAlias, relations)
 
 	// Construct full SELECT clause
 	// When using table alias, must use alias.* not schema.table.*
 	allSelectParts := []string{mainAlias + ".*"}
 	allSelectParts = append(allSelectParts, selectCols...)
-	allSelectParts = append(allSelectParts, hasManySubqueries...)
 	selectClause := strings.Join(allSelectParts, ", ")
 
 	// Construct full JOIN clause

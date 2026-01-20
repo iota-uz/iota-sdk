@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -60,6 +61,12 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 
 	entity := rm.mapOwn(allFields)
 
+	// If mapOwn returns nil (e.g., when all fields are null for an interface type),
+	// skip relation processing entirely and return the zero value
+	if isNilEntity(entity) {
+		return zero, nil
+	}
+
 	for _, rel := range rm.relations {
 		alias := rel.GetAlias()
 		setOnParent := rel.GetSetOnParent()
@@ -106,7 +113,9 @@ func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValu
 		}
 
 		childFields := ExtractPrefixedFields(allFields, alias)
-		if AllFieldsNull(childFields) {
+		// Check only non-prefixed fields (own fields) for null - nested relations like HasMany
+		// have default non-null values (e.g., "[]" for empty arrays) that shouldn't affect this check
+		if AllFieldsNull(ExtractNonPrefixedFields(childFields)) {
 			continue
 		}
 
@@ -167,11 +176,54 @@ func (rm *RelationMapper[T]) MapEntity(ctx context.Context, fields []FieldValue)
 
 var _ RelationEntityMapper = (*RelationMapper[any])(nil)
 
+// isNilEntity checks if an entity value is nil.
+// Handles both nil interfaces and nil pointers.
+func isNilEntity[T any](entity T) bool {
+	v := reflect.ValueOf(entity)
+	if !v.IsValid() {
+		return true
+	}
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		return v.IsNil()
+	}
+	return false
+}
+
 // parseHasManyJSON parses JSON array data into a slice of T.
 // Handles nil, "null", "[]", []byte, and string inputs.
 func parseHasManyJSON[T any](jsonData any) ([]T, error) {
 	if jsonData == nil {
 		return nil, nil
+	}
+
+	// Handle already-parsed data (e.g., from pgx driver that auto-parses JSON)
+	if items, ok := jsonData.([]T); ok {
+		return items, nil
+	}
+	// Handle []any (common when JSON is auto-parsed)
+	if anySlice, ok := jsonData.([]any); ok {
+		result := make([]T, len(anySlice))
+		for i, item := range anySlice {
+			if typed, ok := item.(T); ok {
+				result[i] = typed
+			} else {
+				return nil, fmt.Errorf("parseHasManyJSON: item %d has unexpected type %T", i, item)
+			}
+		}
+		return result, nil
+	}
+	// Handle []map[string]any directly
+	if mapSlice, ok := jsonData.([]map[string]any); ok {
+		result := make([]T, len(mapSlice))
+		for i, item := range mapSlice {
+			if typed, ok := any(item).(T); ok {
+				result[i] = typed
+			} else {
+				return nil, fmt.Errorf("parseHasManyJSON: item %d cannot be converted to target type", i)
+			}
+		}
+		return result, nil
 	}
 
 	var data []byte
