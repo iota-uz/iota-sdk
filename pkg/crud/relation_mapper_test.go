@@ -447,10 +447,11 @@ func TestParseHasManyJSON(t *testing.T) {
 }
 
 // TestRelationMapper_NullChildWithHasManyDefaults tests the scenario where:
-// - A parent has a BelongsTo relation to a child
-// - The child has a HasMany relation
-// - When the parent's foreign key is NULL (LEFT JOIN returns no match),
-//   the child's own fields are NULL but the HasMany JSON field has "[]" (not NULL due to COALESCE)
+//   - A parent has a BelongsTo relation to a child
+//   - The child has a HasMany relation
+//   - When the parent's foreign key is NULL (LEFT JOIN returns no match),
+//     the child's own fields are NULL but the HasMany JSON field has "[]" (not NULL due to COALESCE)
+//
 // This verifies that the null check only looks at own fields, not nested HasMany defaults.
 func TestRelationMapper_NullChildWithHasManyDefaults(t *testing.T) {
 	t.Parallel()
@@ -545,6 +546,7 @@ func TestRelationMapper_NullChildWithHasManyDefaults(t *testing.T) {
 //   - Person's own fields (p__id, p__first_name) are NULL
 //   - Person's Gender fields (p__g__id, p__g__name) are NULL
 //   - Person's HasMany JSON (p__docs__json) is "[]" (not NULL due to COALESCE)
+//
 // Without the fix, Person mapper is still called (because docs__json isn't null),
 // mapOwn returns nil Person, then Gender's SetOnParent panics on nil.(Person) assertion.
 func TestRelationMapper_NullChildWithNestedBelongsToAndHasMany(t *testing.T) {
@@ -639,13 +641,13 @@ func TestRelationMapper_NullChildWithNestedBelongsToAndHasMany(t *testing.T) {
 
 	// Simulate LEFT JOIN result where owner_person_id is NULL:
 	allFields := []FieldValue{
-		NewStringField("id").Value("123"),             // Vehicle ID
-		NewStringField("plate_number").Value("ABC"),   // Vehicle field
-		NewStringField("p__id").Value(nil),            // Person ID is NULL
-		NewStringField("p__first_name").Value(nil),    // Person first_name is NULL
-		NewStringField("p__g__id").Value(nil),         // Person's Gender ID is NULL
-		NewStringField("p__g__name").Value(nil),       // Person's Gender name is NULL
-		NewStringField("p__docs__json").Value("[]"),   // HasMany has non-null default!
+		NewStringField("id").Value("123"),           // Vehicle ID
+		NewStringField("plate_number").Value("ABC"), // Vehicle field
+		NewStringField("p__id").Value(nil),          // Person ID is NULL
+		NewStringField("p__first_name").Value(nil),  // Person first_name is NULL
+		NewStringField("p__g__id").Value(nil),       // Person's Gender ID is NULL
+		NewStringField("p__g__name").Value(nil),     // Person's Gender name is NULL
+		NewStringField("p__docs__json").Value("[]"), // HasMany has non-null default!
 	}
 
 	result, err := vehicleMapper.ToEntity(ctx, allFields)
