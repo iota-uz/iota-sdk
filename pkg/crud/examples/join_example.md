@@ -340,6 +340,23 @@ FROM insurance.persons p
 | Result Type | Single entity | Slice of entities |
 | Row Multiplication | No | No (avoided via subquery) |
 
+### JSON Unmarshaling Requirement
+
+**Important:** HasMany child entities must be JSON-deserializable. The SDK uses `json.Unmarshal` to parse the aggregated JSON.
+
+```go
+// Child entity MUST have JSON tags matching database column names
+type Document struct {
+    ID       uuid.UUID `json:"id"`
+    PersonID uuid.UUID `json:"person_id"`
+    Type     string    `json:"type"`
+    Seria    string    `json:"seria"`
+    Number   string    `json:"number"`
+}
+```
+
+Alternatively, implement `json.Unmarshaler` for custom parsing logic.
+
 ---
 
 ## Nested Relations
