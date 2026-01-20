@@ -67,6 +67,291 @@ users, err := repo.List(ctx, params)
 
 ---
 
+## Core Types
+
+### Relation[T] Struct
+
+The `Relation[T]` struct defines a relationship between two schemas:
+
+```go
+type Relation[T any] struct {
+    // Type is the cardinality: BelongsTo (many-to-one) or HasMany (one-to-many)
+    Type RelationType
+
+    // Alias is the prefix for columns in SELECT (e.g., "vt" -> vt__id, vt__name)
+    Alias string
+
+    // LocalKey is the foreign key column in this table (e.g., "vehicle_type_id")
+    LocalKey string
+
+    // RemoteKey is the primary key column in the related table (default: "id")
+    RemoteKey string
+
+    // JoinType specifies LEFT or INNER JOIN (default: LEFT)
+    JoinType JoinType
+
+    // Schema is the related entity's schema
+    Schema Schema[T]
+
+    // EntityField is the name used for EntityFieldValue in mapper
+    EntityField string
+
+    // Through specifies parent alias for nested relations (e.g., "vt" for group through vehicle_type)
+    Through string
+
+    // Mapper converts prefixed fields to child entity
+    Mapper RelationEntityMapper
+
+    // SetOnParent attaches mapped child to parent entity
+    SetOnParent func(parent, child any) any
+}
+```
+
+### RelationType Constants
+
+```go
+const (
+    // BelongsTo: many-to-one (FK on current table, uses JOIN)
+    BelongsTo RelationType = iota
+
+    // HasMany: one-to-many (FK on related table, uses JSON subquery)
+    HasMany
+)
+```
+
+### RelationDescriptor Interface
+
+Non-generic interface for storing heterogeneous relations:
+
+```go
+type RelationDescriptor interface {
+    TableName() string
+    Validate() error
+    GetType() RelationType
+    GetAlias() string
+    GetLocalKey() string
+    GetRemoteKey() string
+    GetJoinType() JoinType
+    GetEntityField() string
+    GetThrough() string
+    GetSchema() any
+    GetMapper() any
+    GetSetOnParent() func(parent, child any) any
+}
+```
+
+### RelationEntityMapper Interface
+
+Maps child entity from prefixed fields:
+
+```go
+type RelationEntityMapper interface {
+    MapEntity(ctx context.Context, fields []FieldValue) (any, error)
+}
+```
+
+---
+
+## Full Usage Flow
+
+### Step 1: Define Child Entity with JSON Tags (for HasMany)
+
+```go
+// Document entity - JSON tags required for HasMany unmarshaling
+type Document struct {
+    id       uuid.UUID
+    personID uuid.UUID
+    docType  string
+    seria    string
+    number   string
+}
+
+func (d Document) ID() uuid.UUID       { return d.id }
+func (d Document) PersonID() uuid.UUID { return d.personID }
+func (d Document) Type() string        { return d.docType }
+func (d Document) Seria() string       { return d.seria }
+func (d Document) Number() string      { return d.number }
+
+// Required for HasMany JSON parsing
+func (d *Document) UnmarshalJSON(data []byte) error {
+    var raw struct {
+        ID       uuid.UUID `json:"id"`
+        PersonID uuid.UUID `json:"person_id"`
+        Type     string    `json:"type"`
+        Seria    string    `json:"seria"`
+        Number   string    `json:"number"`
+    }
+    if err := json.Unmarshal(data, &raw); err != nil {
+        return err
+    }
+    d.id = raw.ID
+    d.personID = raw.PersonID
+    d.docType = raw.Type
+    d.seria = raw.Seria
+    d.number = raw.Number
+    return nil
+}
+```
+
+### Step 2: Define Child Schema and Mapper
+
+```go
+// Document schema
+var DocumentSchema = crud.NewSchema[Document](
+    "insurance.person_documents",
+    crud.NewFields(
+        crud.NewUUIDField("id").Key(),
+        crud.NewUUIDField("person_id"),
+        crud.NewStringField("type"),
+        crud.NewStringField("seria"),
+        crud.NewStringField("number"),
+    ),
+    DocumentMapper,
+)
+
+// Document mapper
+var DocumentMapper = crud.MapperFunc[Document](func(doc Document) []crud.FieldValue {
+    return []crud.FieldValue{
+        DocumentSchema.Fields().Field("id").Value(doc.ID()),
+        DocumentSchema.Fields().Field("person_id").Value(doc.PersonID()),
+        DocumentSchema.Fields().Field("type").Value(doc.Type()),
+        DocumentSchema.Fields().Field("seria").Value(doc.Seria()),
+        DocumentSchema.Fields().Field("number").Value(doc.Number()),
+    }
+})
+```
+
+### Step 3: Define Parent Entity with Relation Setter
+
+```go
+type Person struct {
+    id        uuid.UUID
+    name      string
+    documents []Document  // HasMany relation
+}
+
+func (p Person) ID() uuid.UUID         { return p.id }
+func (p Person) Name() string          { return p.name }
+func (p Person) Documents() []Document { return p.documents }
+
+// Setter for relation - returns new instance (immutable pattern)
+func (p Person) SetDocuments(docs []Document) Person {
+    p.documents = docs
+    return p
+}
+```
+
+### Step 4: Define Relations with RelationBuilder
+
+```go
+// Create relation mapper for Person (handles relation field extraction)
+var PersonRelationMapper = crud.NewRelationMapper[Person](
+    PersonSchema.Fields(),
+    PersonMapper,
+)
+
+// Define relations
+var personRelations = crud.NewRelationBuilder().
+    HasMany("docs", DocumentSchema).
+        LocalKey("id").              // Person.id
+        RemoteKey("person_id").      // Document.person_id
+        EntityField("documents").    // Field name for mapper
+        Mapper(PersonRelationMapper).
+        SetOnParent(func(parent, child any) any {
+            p := parent.(Person)
+            if docs, ok := child.([]Document); ok {
+                return p.SetDocuments(docs)
+            }
+            return parent
+        }).
+    Build()
+
+// Register relations with mapper
+func init() {
+    for _, rel := range personRelations {
+        PersonRelationMapper.AddRelation(rel)
+    }
+}
+```
+
+### Step 5: Create Schema with Relations
+
+```go
+var PersonSchema = crud.NewSchemaWithRelations[Person](
+    "insurance.persons",
+    crud.NewFields(
+        crud.NewUUIDField("id").Key(),
+        crud.NewStringField("name"),
+    ),
+    PersonMapper,
+    personRelations,
+)
+```
+
+### Step 6: Build Query with Relations
+
+```go
+func (r *PersonRepository) FindWithRelations(ctx context.Context, id uuid.UUID) (Person, error) {
+    // Get schema with relations
+    schema := PersonSchema.(crud.SchemaWithRelations[Person])
+
+    // Build relations recursively (discovers nested relations)
+    allRelations := crud.BuildRelationsRecursive(schema.Relations())
+
+    // Build JOIN clauses (skips HasMany - they use subqueries)
+    joinClauses := crud.BuildRelationJoinClauses(schema.Name(), allRelations)
+
+    // Build SELECT columns (includes HasMany subqueries)
+    selectColumns := crud.BuildRelationSelectColumns("p", allRelations)
+
+    // Execute query...
+    // SELECT p.*, (SELECT COALESCE(JSON_AGG(...)) FROM ... WHERE ...) AS docs__json
+    // FROM insurance.persons p
+    // WHERE p.id = $1
+
+    // Map results using RelationMapper
+    entity, err := PersonRelationMapper.ToEntity(ctx, fieldValues)
+    return entity, err
+}
+```
+
+### Step 7: RelationMapper.ToEntity Flow
+
+The `ToEntity` method:
+
+1. Maps own fields to parent entity using the base mapper
+2. For each relation:
+   - **BelongsTo**: Extracts prefixed fields, maps to child entity, calls `SetOnParent`
+   - **HasMany**: Parses JSON from `alias__json` field, calls `SetOnParent` with slice
+3. Returns fully hydrated entity with all relations populated
+
+```go
+// Internal flow (simplified)
+func (rm *RelationMapper[T]) ToEntity(ctx context.Context, allFields []FieldValue) (T, error) {
+    // 1. Map own fields
+    entity := rm.mapOwn(allFields)
+
+    // 2. Process each relation
+    for _, rel := range rm.relations {
+        if rel.GetType() == HasMany {
+            // Parse JSON array from docs__json field
+            jsonData := getFieldValue(allFields, rel.GetAlias()+"__json")
+            items, _ := parseHasManyJSON[map[string]any](jsonData)
+            entity = rel.GetSetOnParent()(entity, items).(T)
+        } else {
+            // Extract prefixed fields (vt__id, vt__name, etc.)
+            childFields := ExtractPrefixedFields(allFields, rel.GetAlias())
+            childEntity, _ := rel.GetMapper().MapEntity(ctx, childFields)
+            entity = rel.GetSetOnParent()(entity, childEntity).(T)
+        }
+    }
+
+    return entity, nil
+}
+```
+
+---
+
 ## Relation Builder (Recommended)
 
 The `RelationBuilder` provides a fluent API for declaring relationships between schemas. This approach:
