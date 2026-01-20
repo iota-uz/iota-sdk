@@ -2,6 +2,12 @@
 
 This document provides comprehensive examples of using JOIN functionality and the Relation Builder in the IOTA SDK CRUD package.
 
+> **PostgreSQL Only:** All examples in this document are for PostgreSQL databases using the `pgx/v5` driver. The SQL snippets use PostgreSQL-specific functions and syntax:
+> - `JSON_AGG()` and `json_build_object()` for HasMany aggregation
+> - `COALESCE(..., '[]'::json)` type casts for null handling
+>
+> These queries will **not work** on non-PostgreSQL databases.
+
 ## Table of Contents
 
 1. [Manual JOINs](#manual-joins)

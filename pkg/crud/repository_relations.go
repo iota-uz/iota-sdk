@@ -209,6 +209,44 @@ func collectHasManyAliases(relations []RelationDescriptor) map[string]bool {
 	return aliases
 }
 
+// buildThroughMap creates a map of alias -> through for walking ancestor chains.
+func buildThroughMap(relations []RelationDescriptor) map[string]string {
+	throughMap := make(map[string]string)
+	for _, rel := range relations {
+		if through := rel.GetThrough(); through != "" {
+			throughMap[rel.GetAlias()] = through
+		}
+	}
+	return throughMap
+}
+
+// hasHasManyAncestor walks the ancestor chain via Through links and returns true
+// if any ancestor alias is present in hasManyAliases.
+func hasHasManyAncestor(rel RelationDescriptor, hasManyAliases map[string]bool, throughMap map[string]string) bool {
+	// Start with the direct through
+	current := rel.GetThrough()
+
+	// Walk up the chain
+	visited := make(map[string]bool)
+	for current != "" {
+		// Prevent infinite loops
+		if visited[current] {
+			break
+		}
+		visited[current] = true
+
+		// Check if this ancestor is a HasMany
+		if hasManyAliases[current] {
+			return true
+		}
+
+		// Move to the parent's through
+		current = throughMap[current]
+	}
+
+	return false
+}
+
 // buildHasManySubquery generates a JSON_AGG subquery for a single HasMany relation.
 // parentAlias is the alias of the parent table to correlate with.
 func buildHasManySubquery(parentAlias string, rel RelationDescriptor) string {
@@ -274,11 +312,12 @@ func BuildRelationSelectColumns(mainAlias string, relations []RelationDescriptor
 	}
 
 	hasManyAliases := collectHasManyAliases(relations)
+	throughMap := buildThroughMap(relations)
 	var columns []string
 
 	for _, rel := range relations {
-		// Skip relations nested under HasMany (they're handled inside the HasMany subquery)
-		if through := rel.GetThrough(); through != "" && hasManyAliases[through] {
+		// Skip relations nested under HasMany at any depth (they're handled inside the HasMany subquery)
+		if hasHasManyAncestor(rel, hasManyAliases, throughMap) {
 			continue
 		}
 
@@ -489,6 +528,7 @@ func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) 
 	}
 
 	hasManyAliases := collectHasManyAliases(relations)
+	throughMap := buildThroughMap(relations)
 	clauses := make([]JoinClause, 0, len(relations))
 
 	for _, rel := range relations {
@@ -497,12 +537,12 @@ func BuildRelationJoinClauses(mainTable string, relations []RelationDescriptor) 
 			continue
 		}
 
-		through := rel.GetThrough()
-
-		// Skip relations nested under HasMany (e.g., BelongsTo with through=HasMany alias)
-		if through != "" && hasManyAliases[through] {
+		// Skip relations nested under HasMany at any depth (they're handled inside the HasMany subquery)
+		if hasHasManyAncestor(rel, hasManyAliases, throughMap) {
 			continue
 		}
+
+		through := rel.GetThrough()
 
 		tableName := rel.TableName()
 		if tableName == "" {

@@ -2,6 +2,13 @@
 
 This document explains how to use SQL JOIN functionality in the CRUD package.
 
+> **PostgreSQL Only:** This package is designed exclusively for PostgreSQL databases using the `pgx/v5` driver. The SQL examples use PostgreSQL-specific syntax and functions including:
+> - `JSON_AGG()` and `json_build_object()` for HasMany JSON aggregation
+> - `COALESCE(..., '[]'::json)` for null handling with type casts
+> - PostgreSQL JSON operators and functions
+>
+> The generated queries will **not work** on MySQL, SQLite, SQL Server, or other databases.
+
 ## Overview
 
 The CRUD package supports two approaches for loading related data:
