@@ -26,25 +26,42 @@ var (
 	// Examples: "table.column", "row_to_json(t.*) AS data", "col->>'key' AS name"
 	validSelectColumnPattern = regexp.MustCompile(`^([a-zA-Z_][a-zA-Z0-9_]*\([^)]+\)\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*|[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_*][a-zA-Z0-9_]*){0,2}(->>?'[a-zA-Z0-9_]+')?)(\s+[Aa][Ss]\s+[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 
-	dangerousKeywords = []string{
-		"union", "select", "insert", "update", "delete", "drop",
-		"create", "alter", "exec", "execute", "--", "/*", "*/", ";",
+	// dangerousPatterns are regex patterns for SQL keywords that need word boundaries.
+	// Using word boundaries prevents false positives like "created_at" matching "create".
+	dangerousPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\bunion\b`),
+		regexp.MustCompile(`(?i)\bselect\b`),
+		regexp.MustCompile(`(?i)\binsert\b`),
+		regexp.MustCompile(`(?i)\bupdate\b`),
+		regexp.MustCompile(`(?i)\bdelete\b`),
+		regexp.MustCompile(`(?i)\bdrop\b`),
+		regexp.MustCompile(`(?i)\bcreate\b`),
+		regexp.MustCompile(`(?i)\balter\b`),
+		regexp.MustCompile(`(?i)\bexec\b`),
+		regexp.MustCompile(`(?i)\bexecute\b`),
 	}
+
+	// dangerousLiterals are exact strings that indicate SQL injection attempts.
+	// These don't need word boundaries as they're always dangerous.
+	dangerousLiterals = []string{"--", "/*", "*/", ";"}
 )
 
 // JoinType represents the type of SQL JOIN operation
 type JoinType int
 
 const (
+	// JoinTypeLeft represents a LEFT JOIN (LEFT OUTER JOIN) - default for optional relations
+	JoinTypeLeft JoinType = iota
 	// JoinTypeInner represents an INNER JOIN
-	JoinTypeInner JoinType = iota
-	// JoinTypeLeft represents a LEFT JOIN (LEFT OUTER JOIN)
-	JoinTypeLeft
+	JoinTypeInner
 	// JoinTypeRight represents a RIGHT JOIN (RIGHT OUTER JOIN)
 	JoinTypeRight
 )
 
-// String returns the SQL keyword for the join type
+func (jt JoinType) IsValid() bool {
+	return jt == JoinTypeInner || jt == JoinTypeLeft || jt == JoinTypeRight
+}
+
 func (jt JoinType) String() string {
 	switch jt {
 	case JoinTypeInner:
@@ -87,16 +104,13 @@ func (jc *JoinClause) Validate() error {
 		return serrors.E(op, serrors.Invalid, "join right column cannot be empty")
 	}
 
-	// Check for dangerous SQL keywords FIRST (security priority)
+	// Check for dangerous SQL keywords/patterns FIRST (security priority)
 	for _, val := range []string{jc.Table, jc.TableAlias, jc.LeftColumn, jc.RightColumn} {
 		if val == "" {
 			continue
 		}
-		lowerVal := strings.ToLower(val)
-		for _, keyword := range dangerousKeywords {
-			if strings.Contains(lowerVal, keyword) {
-				return serrors.E(op, serrors.Invalid, fmt.Sprintf("join specification contains dangerous SQL keyword: %q", val))
-			}
+		if err := checkDangerousSQL(val); err != nil {
+			return serrors.E(op, serrors.Invalid, fmt.Sprintf("join specification %s: %q", err, val))
 		}
 	}
 
@@ -125,11 +139,28 @@ func (jc *JoinClause) ToSQL() string {
 	return repo.JoinClause(jc.Type.String(), jc.Table, jc.TableAlias, jc.LeftColumn, jc.RightColumn)
 }
 
-// JoinOptions contains configuration for joins in a List query
+// JoinOptions contains configuration for joins in a List query.
+//
+// SECURITY WARNING: SelectColumns must NEVER contain user input.
+// Expressions with " AS " bypass validation to allow complex SQL like ARRAY_AGG.
+// This is safe only when columns are defined in code, not from external sources.
 type JoinOptions struct {
 	// Joins is the list of JOIN clauses to apply
 	Joins []JoinClause
-	// SelectColumns specifies which columns to select (if empty, uses default SELECT)
+
+	// SelectColumns specifies which columns to select (if empty, uses default SELECT).
+	//
+	// SECURITY: This field must contain only trusted, code-defined values.
+	// NEVER pass user input, query parameters, or external data to this field.
+	// Expressions containing " AS " bypass SQL injection validation to support
+	// complex aggregations (ARRAY_AGG, JSON_AGG, subqueries). This bypass is
+	// safe only when the caller guarantees the values are from trusted sources.
+	//
+	// Safe usage:
+	//   SelectColumns: []string{"t.id", "t.name", "COUNT(*) AS total"}
+	//
+	// UNSAFE - DO NOT DO THIS:
+	//   SelectColumns: []string{userProvidedColumn}  // SQL INJECTION RISK
 	SelectColumns []string
 }
 
@@ -151,7 +182,32 @@ func (jo *JoinOptions) Validate() error {
 	return nil
 }
 
-// validateSelectColumns checks that column specifications are safe
+// checkDangerousSQL checks for dangerous SQL keywords and literals in a string.
+// Returns an error describing the issue, or nil if safe.
+func checkDangerousSQL(val string) error {
+	// Check for dangerous literals (no word boundaries needed)
+	for _, lit := range dangerousLiterals {
+		if strings.Contains(val, lit) {
+			return fmt.Errorf("contains dangerous SQL literal %q", lit)
+		}
+	}
+
+	// Check for dangerous keywords using word boundaries
+	for _, pattern := range dangerousPatterns {
+		if pattern.MatchString(val) {
+			return fmt.Errorf("contains dangerous SQL keyword")
+		}
+	}
+
+	return nil
+}
+
+// validateSelectColumns checks that column specifications are safe.
+//
+// IMPORTANT: This validation is NOT sufficient to prevent SQL injection for
+// expressions with " AS " aliases. Such expressions are trusted and bypass
+// validation to support complex SQL (aggregations, subqueries). Callers MUST
+// ensure SelectColumns contains only code-defined values, never user input.
 func validateSelectColumns(columns []string) error {
 	if len(columns) == 0 {
 		return nil
@@ -167,11 +223,16 @@ func validateSelectColumns(columns []string) error {
 			continue
 		}
 
-		lowerCol := strings.ToLower(col)
-		for _, keyword := range dangerousKeywords {
-			if strings.Contains(lowerCol, keyword) {
-				return fmt.Errorf("column specification contains dangerous SQL keyword: %q", col)
-			}
+		// SECURITY: Expressions with AS alias bypass validation to support complex SQL.
+		// This is safe ONLY because SelectColumns must never contain user input.
+		// See JoinOptions.SelectColumns documentation for security requirements.
+		if strings.Contains(col, " AS ") || strings.Contains(col, " as ") {
+			continue
+		}
+
+		// Check for dangerous SQL patterns
+		if err := checkDangerousSQL(col); err != nil {
+			return fmt.Errorf("column specification %s: %q", err, col)
 		}
 
 		// Check against pattern (allows functions in SELECT columns)

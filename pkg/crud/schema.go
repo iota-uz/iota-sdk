@@ -29,6 +29,15 @@ type SchemaWithJoins[TEntity any] interface {
 	DefaultJoins() *JoinOptions
 }
 
+// SchemaWithRelations extends Schema with relation registry for type-safe JOINs.
+// Schemas implementing this interface can use the relation-aware repository methods.
+type SchemaWithRelations[TEntity any] interface {
+	Schema[TEntity]
+	Relations() []RelationDescriptor
+	// RelationMapper returns the original *RelationMapper passed to NewSchemaWithRelations.
+	RelationMapper() *RelationMapper[TEntity]
+}
+
 func WithValidators[TEntity any](validators []Validator[TEntity]) SchemaOption[TEntity] {
 	return func(s *schema[TEntity]) {
 		s.validators = append(s.validators, validators...)
@@ -134,4 +143,36 @@ func (h *hooks[TEntity]) OnUpdate() Hook[TEntity] {
 
 func (h *hooks[TEntity]) OnDelete() Hook[TEntity] {
 	return h.deleteHook
+}
+
+// NewSchemaWithRelations creates a new schema with relation declarations.
+// The mapper parameter must be a *RelationMapper[TEntity].
+func NewSchemaWithRelations[TEntity any](
+	name string,
+	fields Fields,
+	mapper *RelationMapper[TEntity],
+	relations []RelationDescriptor,
+	opts ...SchemaOption[TEntity],
+) SchemaWithRelations[TEntity] {
+	baseSchema := NewSchema(name, fields, mapper, opts...)
+	return &schemaWithRelations[TEntity]{
+		Schema:         baseSchema,
+		relations:      relations,
+		relationMapper: mapper,
+	}
+}
+
+type schemaWithRelations[TEntity any] struct {
+	Schema[TEntity]
+	relations      []RelationDescriptor
+	relationMapper *RelationMapper[TEntity]
+}
+
+func (s *schemaWithRelations[TEntity]) Relations() []RelationDescriptor {
+	return s.relations
+}
+
+// RelationMapper returns the *RelationMapper passed to NewSchemaWithRelations.
+func (s *schemaWithRelations[TEntity]) RelationMapper() *RelationMapper[TEntity] {
+	return s.relationMapper
 }

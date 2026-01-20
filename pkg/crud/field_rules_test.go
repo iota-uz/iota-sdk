@@ -38,6 +38,8 @@ func createField(name string, fieldType crud.FieldType, opts ...crud.FieldOption
 		return crud.NewUUIDField(name, opts...)
 	case crud.JSONFieldType:
 		return crud.NewJSONField[any](name, crud.JSONFieldConfig[any]{}, opts...)
+	case crud.EntityFieldType:
+		return crud.NewEntityField[any](name)
 	default:
 		panic("unknown field type")
 	}
@@ -1159,6 +1161,7 @@ func (m *mockField) Readonly() bool                       { return false }
 func (m *mockField) Searchable() bool                     { return false }
 func (m *mockField) Sortable() bool                       { return false }
 func (m *mockField) Hidden() bool                         { return false }
+func (m *mockField) Virtual() bool                        { return false }
 func (m *mockField) Rules() []crud.FieldRule              { return nil }
 func (m *mockField) InitialValue(ctx context.Context) any { return nil }
 func (m *mockField) Attrs() map[string]any                { return map[string]any{} }
