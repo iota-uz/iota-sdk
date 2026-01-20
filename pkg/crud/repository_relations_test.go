@@ -1705,7 +1705,7 @@ func TestBuildRelations_FullSQLQuery(t *testing.T) {
 	selectClause := strings.Join(allSelectParts, ", ")
 
 	// === Construct full JOIN clause ===
-	var joinParts []string
+	joinParts := make([]string, 0, len(joinClauses))
 	for _, jc := range joinClauses {
 		joinParts = append(joinParts, fmt.Sprintf("%s %s %s ON %s = %s",
 			jc.Type, jc.Table, jc.TableAlias,
@@ -2003,7 +2003,7 @@ func TestBuildRelations_FullSQLQuery_Integration(t *testing.T) {
 	selectClause := strings.Join(allSelectParts, ", ")
 
 	// Construct full JOIN clause
-	var joinParts []string
+	joinParts := make([]string, 0, len(joinClauses))
 	for _, jc := range joinClauses {
 		joinParts = append(joinParts, fmt.Sprintf("%s %s %s ON %s = %s",
 			jc.Type, jc.Table, jc.TableAlias,
@@ -2039,7 +2039,7 @@ func TestBuildRelations_FullSQLQuery_Integration(t *testing.T) {
 		// Find the JSON columns by column names
 		fieldDescs := rows.FieldDescriptions()
 		for i, fd := range fieldDescs {
-			colName := string(fd.Name)
+			colName := fd.Name
 			switch colName {
 			case "g__name":
 				if values[i] != nil {
