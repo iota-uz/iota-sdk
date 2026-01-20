@@ -387,11 +387,12 @@ func BuildRelationSelectColumns(mainAlias string, relations []RelationDescriptor
 // buildJSONFields recursively builds json_build_object fields for a schema.
 // Returns (jsonFields, joins) where joins are needed for nested BelongsTo relations.
 func buildJSONFields(schema RelationSchema, alias string) ([]string, []string) {
-	var jsonFields []string
+	fields := schema.Fields().Fields()
+	jsonFields := make([]string, 0, len(fields))
 	var joins []string
 
 	// Add own fields
-	for _, field := range schema.Fields().Fields() {
+	for _, field := range fields {
 		fieldName := field.Name()
 		jsonFields = append(jsonFields, fmt.Sprintf("'%s', %s.%s", fieldName, alias, fieldName))
 	}
@@ -470,7 +471,7 @@ func BuildHasManySubqueries(mainTable, mainAlias string, relations []RelationDes
 		return nil
 	}
 
-	var subqueries []string
+	var subqueries []string //nolint:prealloc // Size unknown due to type filtering
 
 	for _, rel := range relations {
 		if rel.GetType() != HasMany {
