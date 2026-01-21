@@ -96,6 +96,19 @@ type repository[TEntity any] struct {
 	fieldMap map[string]string
 }
 
+// persistableFieldNames returns field names that correspond to actual database columns,
+// excluding virtual fields that are computed or populated via JOINs.
+func (r *repository[TEntity]) persistableFieldNames() []string {
+	allFields := r.schema.Fields().Fields()
+	names := make([]string, 0, len(allFields))
+	for _, f := range allFields {
+		if !f.Virtual() {
+			names = append(names, f.Name())
+		}
+	}
+	return names
+}
+
 func (r *repository[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
 	query := fmt.Sprintf("SELECT * FROM %s", r.schema.Name())
 	return r.queryEntities(ctx, query)
@@ -351,7 +364,7 @@ func (r *repository[TEntity]) Create(ctx context.Context, values []FieldValue) (
 		return zero, errors.New("no fields to create for entity")
 	}
 
-	query := repo.Insert(r.schema.Name(), columns, r.schema.Fields().Names()...)
+	query := repo.Insert(r.schema.Name(), columns, r.persistableFieldNames()...)
 	entities, err := r.queryEntities(ctx, query, args...)
 	if err != nil {
 		return zero, errors.Wrap(err, "failed to create entity")
