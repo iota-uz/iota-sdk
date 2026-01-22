@@ -110,8 +110,34 @@ func (r *repository[TEntity]) persistableFieldNames() []string {
 }
 
 func (r *repository[TEntity]) GetAll(ctx context.Context) ([]TEntity, error) {
+	// Check if schema has relations that need to be loaded
+	effectiveJoins := getSchemaDefaultJoins(r.schema)
+
+	// If JOINs present, use JOIN query path
+	if effectiveJoins != nil && len(effectiveJoins.Joins) > 0 {
+		return r.getAllWithJoins(ctx, effectiveJoins)
+	}
+
+	// Simple query without JOINs
 	query := fmt.Sprintf("SELECT * FROM %s", r.schema.Name())
 	return r.queryEntities(ctx, query)
+}
+
+// getAllWithJoins is the internal implementation for GetAll with JOINs
+func (r *repository[TEntity]) getAllWithJoins(ctx context.Context, joins *JoinOptions) ([]TEntity, error) {
+	const op = serrors.Op("repository.getAllWithJoins")
+
+	baseQuery, err := r.buildJoinQuery(&FindParams{Joins: joins})
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	entities, err := r.queryEntities(ctx, baseQuery)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	return entities, nil
 }
 
 func (r *repository[TEntity]) Get(ctx context.Context, value FieldValue, options ...QueryOption) (TEntity, error) {
