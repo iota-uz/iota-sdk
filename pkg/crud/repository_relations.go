@@ -220,6 +220,27 @@ func buildThroughMap(relations []RelationDescriptor) map[string]string {
 	return throughMap
 }
 
+// buildFullPrefix computes the complete ancestor chain prefix for a relation.
+// For deeply nested relations (e.g., Vehicle -> Person -> District -> Region),
+// returns the full chain: "p__d__dr" instead of just "d__dr".
+func buildFullPrefix(alias string, throughMap map[string]string) string {
+	// Build the chain from alias up to root
+	chain := []string{alias}
+	current := throughMap[alias]
+
+	visited := make(map[string]bool)
+	for current != "" {
+		if visited[current] {
+			break // Prevent infinite loops
+		}
+		visited[current] = true
+		chain = append([]string{current}, chain...) // Prepend to maintain order
+		current = throughMap[current]
+	}
+
+	return strings.Join(chain, "__")
+}
+
 // hasHasManyAncestor walks the ancestor chain via Through links and returns true
 // if any ancestor alias is present in hasManyAliases.
 func hasHasManyAncestor(rel RelationDescriptor, hasManyAliases map[string]bool, throughMap map[string]string) bool {
@@ -334,14 +355,8 @@ func BuildRelationSelectColumns(mainAlias string, relations []RelationDescriptor
 		manual := rel.GetManual()
 		if manual != nil && len(manual.Columns) > 0 {
 			alias := rel.GetAlias()
-			through := rel.GetThrough()
-
-			var columnPrefix string
-			if through != "" {
-				columnPrefix = through + "__" + alias
-			} else {
-				columnPrefix = alias
-			}
+			// Use full ancestor chain for prefix to support deeply nested relations
+			columnPrefix := buildFullPrefix(alias, throughMap)
 
 			for _, col := range manual.Columns {
 				if strings.Contains(col, " AS ") || strings.Contains(col, " as ") {
@@ -365,14 +380,8 @@ func BuildRelationSelectColumns(mainAlias string, relations []RelationDescriptor
 		}
 
 		alias := rel.GetAlias()
-		through := rel.GetThrough()
-
-		var columnPrefix string
-		if through != "" {
-			columnPrefix = through + "__" + alias
-		} else {
-			columnPrefix = alias
-		}
+		// Use full ancestor chain for prefix to support deeply nested relations
+		columnPrefix := buildFullPrefix(alias, throughMap)
 
 		for _, field := range schema.Fields().Fields() {
 			fieldName := field.Name()

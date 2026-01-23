@@ -779,6 +779,50 @@ func TestBuildRelationSelectColumns_NestedPrefix(t *testing.T) {
 	}
 }
 
+func TestBuildRelationSelectColumns_ThreeLevelDeepNestedPrefix(t *testing.T) {
+	t.Parallel()
+
+	// Testing: Vehicle -> Person -> District -> Region
+	// This matches the real-world case of loading vehicle with owner's district's region
+	regionSchema := createTestRelationSchema("regions", []string{"id", "name"})
+	districtSchema := createTestRelationSchema("districts", []string{"id", "name", "region_id"})
+	personSchema := createTestRelationSchema("persons", []string{"id", "first_name", "district_id"})
+
+	relations := []RelationDescriptor{
+		&Relation[any]{Alias: "p", LocalKey: "owner_person_id", Schema: personSchema, EntityField: "owner_person_entity"},
+		&Relation[any]{Alias: "d", LocalKey: "district_id", Schema: districtSchema, Through: "p", EntityField: "district_entity"},
+		&Relation[any]{Alias: "dr", LocalKey: "region_id", Schema: regionSchema, Through: "d", EntityField: "region_entity"}, // 3 levels deep
+	}
+
+	columns := BuildRelationSelectColumns("main", relations)
+
+	// The region columns should have the FULL ancestor chain prefix: p__d__dr
+	// Not just the immediate through: d__dr
+	expected := []string{
+		// Person (top level)
+		"p.id AS p__id",
+		"p.first_name AS p__first_name",
+		"p.district_id AS p__district_id",
+		// District (nested under person)
+		"d.id AS p__d__id",
+		"d.name AS p__d__name",
+		"d.region_id AS p__d__region_id",
+		// Region (nested under district, which is under person)
+		"dr.id AS p__d__dr__id",
+		"dr.name AS p__d__dr__name",
+	}
+
+	if len(columns) != len(expected) {
+		t.Fatalf("expected %d columns, got %d:\n  got: %v\n  want: %v", len(expected), len(columns), columns, expected)
+	}
+
+	for i, col := range columns {
+		if col != expected[i] {
+			t.Errorf("column[%d] = %q, want %q", i, col, expected[i])
+		}
+	}
+}
+
 func TestBuildRelationSelectColumns_HandlesHasManyAsSubquery(t *testing.T) {
 	t.Parallel()
 
