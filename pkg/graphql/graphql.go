@@ -85,10 +85,12 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 	}
 
 	execsLen := len(execs)
+	var lastErr gqlerror.List
 	for i, ex := range execs {
 		rc, opErr := ex.CreateOperationContext(ctx, params)
 		if opErr != nil {
 			if i < execsLen && rc.Operation == nil {
+				lastErr = opErr
 				continue
 			}
 			w.WriteHeader(statusFor(opErr))
@@ -102,6 +104,19 @@ func (h MyPOST) Do(w http.ResponseWriter, r *http.Request, exec graphql.GraphExe
 		writeJson(w, responses(ctx))
 		return
 	}
+
+	// If no executor could handle the operation, return the last error (if any)
+	if lastErr != nil {
+		w.WriteHeader(statusFor(lastErr))
+		resp := exec.DispatchError(ctx, lastErr)
+		writeJson(w, resp)
+		return
+	}
+
+	// Fallback to a generic error to avoid empty responses
+	gqlErr := gqlerror.Errorf("no executable schema matched the operation")
+	resp := exec.DispatchError(ctx, gqlerror.List{gqlErr})
+	writeJson(w, resp)
 }
 
 type MyPOST struct {
