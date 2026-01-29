@@ -206,6 +206,8 @@ func UseRequest(ctx context.Context) (*http.Request, bool) {
 
 // GetSessionAudience determines the session audience based on the request origin.
 // Returns "website" for requests from website domain (eai.uz), otherwise returns "granite" for admin/internal apps.
+// Note: Origin/Host/Referer headers can be spoofed by malicious clients. This should be used alongside
+// token-based audience validation in middleware for security.
 func GetSessionAudience(r *http.Request) string {
 	// Check request origin/host to determine audience
 	origin := r.Header.Get("Origin")
@@ -216,7 +218,11 @@ func GetSessionAudience(r *http.Request) string {
 	websiteDomains := []string{"eai.uz", "eai-staging.uz"}
 
 	for _, domain := range websiteDomains {
-		if strings.Contains(origin, domain) || strings.Contains(host, domain) || strings.Contains(referer, domain) {
+		// Use suffix matching to avoid false positives (e.g., "noteai.uz" matching "eai.uz")
+		// Also check for ".domain" pattern to match subdomains
+		if strings.HasSuffix(origin, domain) || strings.HasSuffix(host, domain) ||
+			strings.Contains(origin, "."+domain) || strings.Contains(host, "."+domain) ||
+			strings.Contains(referer, domain) {
 			return "website"
 		}
 	}

@@ -97,7 +97,7 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user
 	if err != nil {
 		return nil, nil, err
 	}
-	sess, err := s.authenticate(ctx, u)
+	sess, err := s.authenticate(ctx, u, session.AudienceGranite)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -124,56 +124,11 @@ func (s *AuthService) AuthenticateGoogleWithAudience(ctx context.Context, code s
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Create session with specified audience
-	logger := configuration.Use().Logger()
-	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
-
-	ip, ok := composables.UseIP(ctx)
-	if !ok {
-		logger.Warnf("Could not get IP, using default")
-		ip = "0.0.0.0"
-	}
-
-	userAgent, ok := composables.UseUserAgent(ctx)
-	if !ok {
-		logger.Warnf("Could not get User-Agent, using default")
-		userAgent = "Unknown"
-	}
-
-	sessionToken, err := s.newSessionToken()
+	sess, err := s.authenticate(ctx, u, audience)
 	if err != nil {
-		logger.Errorf("Failed to generate session token: %v", err)
 		return nil, nil, err
 	}
-
-	sess := &session.CreateDTO{
-		Token:     sessionToken,
-		UserID:    u.ID(),
-		IP:        ip,
-		UserAgent: userAgent,
-		TenantID:  u.TenantID(),
-		Audience:  audience,
-	}
-
-	if err := s.usersService.UpdateLastLogin(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last login: %v", err)
-		return nil, nil, err
-	}
-
-	if err := s.usersService.UpdateLastAction(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last action: %v", err)
-		return nil, nil, err
-	}
-
-	logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), sessionToken[:5])
-	if err := s.sessionService.Create(ctx, sess); err != nil {
-		logger.Errorf("Failed to create session in DB: %v", err)
-		return nil, nil, err
-	}
-
-	logger.Infof("Session created successfully")
-	return u, sess.ToEntity(), nil
+	return u, sess, nil
 }
 
 func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string) (*http.Cookie, error) {
@@ -262,9 +217,9 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
-func (s *AuthService) authenticate(ctx context.Context, u user.User, opts ...session.Option) (session.Session, error) {
+func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
 	logger := configuration.Use().Logger()
-	logger.Infof("Creating session for user ID: %d, tenant ID: %d", u.ID(), u.TenantID())
+	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
 
 	// Get IP and user agent
 	ip, ok := composables.UseIP(ctx)
@@ -286,15 +241,14 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User, opts ...ses
 		return nil, err
 	}
 
-	// Create session DTO with optional parameters applied via functional options
-	// Options like WithAudience will be applied when ToEntity() is called
+	// Create session DTO with specified audience
 	sess := &session.CreateDTO{
 		Token:     token,
 		UserID:    u.ID(),
 		IP:        ip,
 		UserAgent: userAgent,
-		TenantID:  u.TenantID(),            // Ensure tenant ID is set in the session
-		Audience:  session.AudienceGranite, // Default audience
+		TenantID:  u.TenantID(),
+		Audience:  audience,
 	}
 
 	// Update user last login
@@ -328,7 +282,7 @@ func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, passw
 	if !u.CheckPassword(password) {
 		return nil, nil, composables.ErrInvalidPassword
 	}
-	sess, err := s.authenticate(ctx, u)
+	sess, err := s.authenticate(ctx, u, session.AudienceGranite)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -344,56 +298,11 @@ func (s *AuthService) AuthenticateWithUserIDAndAudience(ctx context.Context, id 
 	if !u.CheckPassword(password) {
 		return nil, nil, composables.ErrInvalidPassword
 	}
-
-	// Create session with specified audience
-	logger := configuration.Use().Logger()
-	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
-
-	ip, ok := composables.UseIP(ctx)
-	if !ok {
-		logger.Warnf("Could not get IP, using default")
-		ip = "0.0.0.0"
-	}
-
-	userAgent, ok := composables.UseUserAgent(ctx)
-	if !ok {
-		logger.Warnf("Could not get User-Agent, using default")
-		userAgent = "Unknown"
-	}
-
-	sessionToken, err := s.newSessionToken()
+	sess, err := s.authenticate(ctx, u, audience)
 	if err != nil {
-		logger.Errorf("Failed to generate session token: %v", err)
 		return nil, nil, err
 	}
-
-	sess := &session.CreateDTO{
-		Token:     sessionToken,
-		UserID:    u.ID(),
-		IP:        ip,
-		UserAgent: userAgent,
-		TenantID:  u.TenantID(),
-		Audience:  audience,
-	}
-
-	if err := s.usersService.UpdateLastLogin(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last login: %v", err)
-		return nil, nil, err
-	}
-
-	if err := s.usersService.UpdateLastAction(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last action: %v", err)
-		return nil, nil, err
-	}
-
-	logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), sessionToken[:5])
-	if err := s.sessionService.Create(ctx, sess); err != nil {
-		logger.Errorf("Failed to create session in DB: %v", err)
-		return nil, nil, err
-	}
-
-	logger.Infof("Session created successfully")
-	return u, sess.ToEntity(), nil
+	return u, sess, nil
 }
 
 func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint, password string) (*http.Cookie, error) {
@@ -430,7 +339,7 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 	}
 
 	logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
-	sess, err := s.authenticate(ctx, u)
+	sess, err := s.authenticate(ctx, u, session.AudienceGranite)
 	if err != nil {
 		logger.Errorf("Failed to create session: %v", err)
 		return nil, nil, err
@@ -456,54 +365,12 @@ func (s *AuthService) AuthenticateWithAudience(ctx context.Context, email, passw
 		return nil, nil, composables.ErrInvalidPassword
 	}
 
-	logger.Infof("User authenticated, creating session for user ID: %d, audience: %s", u.ID(), audience)
-
-	ip, ok := composables.UseIP(ctx)
-	if !ok {
-		logger.Warnf("Could not get IP, using default")
-		ip = "0.0.0.0"
-	}
-
-	userAgent, ok := composables.UseUserAgent(ctx)
-	if !ok {
-		logger.Warnf("Could not get User-Agent, using default")
-		userAgent = "Unknown"
-	}
-
-	sessionToken, err := s.newSessionToken()
+	sess, err := s.authenticate(ctx, u, audience)
 	if err != nil {
-		logger.Errorf("Failed to generate session token: %v", err)
 		return nil, nil, err
 	}
 
-	sess := &session.CreateDTO{
-		Token:     sessionToken,
-		UserID:    u.ID(),
-		IP:        ip,
-		UserAgent: userAgent,
-		TenantID:  u.TenantID(),
-		Audience:  audience,
-	}
-
-	if err := s.usersService.UpdateLastLogin(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last login: %v", err)
-		return nil, nil, err
-	}
-
-	if err := s.usersService.UpdateLastAction(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last action: %v", err)
-		return nil, nil, err
-	}
-
-	logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), sessionToken[:5])
-	if err := s.sessionService.Create(ctx, sess); err != nil {
-		logger.Errorf("Failed to create session in DB: %v", err)
-		return nil, nil, err
-	}
-
-	entity := sess.ToEntity()
-	logger.Infof("Session created successfully with token: %s (partial)", entity.Token()[:5])
-	return u, entity, nil
+	return u, sess, nil
 }
 
 func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password string) (*http.Cookie, error) {
