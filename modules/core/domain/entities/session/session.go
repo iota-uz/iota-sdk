@@ -7,6 +7,14 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
+// SessionAudience represents the audience/context for which the session is valid
+type SessionAudience string
+
+const (
+	AudienceGranite SessionAudience = "granite"
+	AudienceWebsite SessionAudience = "website"
+)
+
 // Option is a functional option for configuring Session
 type Option func(*session)
 
@@ -24,6 +32,12 @@ func WithCreatedAt(createdAt time.Time) Option {
 	}
 }
 
+func WithAudience(audience SessionAudience) Option {
+	return func(s *session) {
+		s.audience = audience
+	}
+}
+
 // --- Interface ---
 
 // Session represents a user session
@@ -35,6 +49,7 @@ type Session interface {
 	UserAgent() string
 	ExpiresAt() time.Time
 	CreatedAt() time.Time
+	Audience() SessionAudience
 
 	IsExpired() bool
 }
@@ -51,6 +66,7 @@ func New(token string, userID uint, tenantID uuid.UUID, ip, userAgent string, op
 		userAgent: userAgent,
 		expiresAt: time.Now().Add(configuration.Use().SessionDuration),
 		createdAt: time.Now(),
+		audience:  AudienceGranite,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -66,6 +82,7 @@ type session struct {
 	userAgent string
 	expiresAt time.Time
 	createdAt time.Time
+	audience  SessionAudience
 }
 
 func (s *session) Token() string {
@@ -96,6 +113,10 @@ func (s *session) CreatedAt() time.Time {
 	return s.createdAt
 }
 
+func (s *session) Audience() SessionAudience {
+	return s.audience
+}
+
 func (s *session) IsExpired() bool {
 	return s.expiresAt.Before(time.Now())
 }
@@ -108,8 +129,13 @@ type CreateDTO struct {
 	TenantID  uuid.UUID
 	IP        string
 	UserAgent string
+	Audience  SessionAudience
 }
 
 func (d *CreateDTO) ToEntity() Session {
-	return New(d.Token, d.UserID, d.TenantID, d.IP, d.UserAgent)
+	opts := []Option{}
+	if d.Audience != "" {
+		opts = append(opts, WithAudience(d.Audience))
+	}
+	return New(d.Token, d.UserID, d.TenantID, d.IP, d.UserAgent, opts...)
 }

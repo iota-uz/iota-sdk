@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -191,4 +192,35 @@ func GetLastQueryParams(r *http.Request, keys ...string) map[string]string {
 		}
 	}
 	return result
+}
+
+// UseRequest returns the HTTP request from the context.
+// If the request is not found, the second return value will be false.
+func UseRequest(ctx context.Context) (*http.Request, bool) {
+	params, ok := UseParams(ctx)
+	if !ok {
+		return nil, false
+	}
+	return params.Request, true
+}
+
+// GetSessionAudience determines the session audience based on the request origin.
+// Returns "website" for requests from website domain (eai.uz), otherwise returns "granite" for admin/internal apps.
+func GetSessionAudience(r *http.Request) string {
+	// Check request origin/host to determine audience
+	origin := r.Header.Get("Origin")
+	host := r.Host
+	referer := r.Header.Get("Referer")
+
+	// Check if this is a website request by looking at origin, host, or referer
+	websiteDomains := []string{"eai.uz", "eai-staging.uz"}
+
+	for _, domain := range websiteDomains {
+		if strings.Contains(origin, domain) || strings.Contains(host, domain) || strings.Contains(referer, domain) {
+			return "website"
+		}
+	}
+
+	// Default to granite for admin/internal applications
+	return "granite"
 }

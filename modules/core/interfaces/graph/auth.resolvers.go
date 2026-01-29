@@ -12,6 +12,7 @@ import (
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
@@ -22,23 +23,45 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
 	}
+	httpReq, ok := composables.UseRequest(ctx)
+	if !ok {
+		return nil, fmt.Errorf("request not found")
+	}
+
 	authService := r.app.Service(services.AuthService{}).(*services.AuthService)
-	_, session, err := authService.Authenticate(ctx, email, password)
+
+	// Determine audience based on request origin
+	var sessionAudience session.SessionAudience
+	audienceStr := composables.GetSessionAudience(httpReq)
+	if audienceStr == "website" {
+		sessionAudience = session.AudienceWebsite
+	} else {
+		sessionAudience = session.AudienceGranite
+	}
+
+	_, sess, err := authService.AuthenticateWithAudience(ctx, email, password, sessionAudience)
 	if err != nil {
 		return nil, err
 	}
 	conf := configuration.Use()
+
+	// Determine cookie name based on audience
+	cookieName := conf.SidCookieKey
+	if sessionAudience == session.AudienceWebsite {
+		cookieName = "website_sid"
+	}
+
 	cookie := &http.Cookie{
-		Path:     conf.SidCookieKey,
-		Value:    session.Token(),
-		Expires:  session.ExpiresAt(),
+		Name:     cookieName,
+		Value:    sess.Token(),
+		Expires:  sess.ExpiresAt(),
 		HttpOnly: false,
 		SameSite: http.SameSiteDefaultMode,
 		Secure:   false,
 		Domain:   conf.Domain,
 	}
 	http.SetCookie(writer, cookie)
-	return mappers.SessionToGraphModel(session), nil
+	return mappers.SessionToGraphModel(sess), nil
 }
 
 // GoogleAuthenticate is the resolver for the googleAuthenticate field.
