@@ -10,11 +10,6 @@ import (
 // SessionAudience represents the audience/context for which the session is valid
 type SessionAudience string
 
-const (
-	AudienceGranite SessionAudience = "granite"
-	AudienceWebsite SessionAudience = "website"
-)
-
 // Option is a functional option for configuring Session
 type Option func(*session)
 
@@ -66,7 +61,7 @@ func New(token string, userID uint, tenantID uuid.UUID, ip, userAgent string, op
 		userAgent: userAgent,
 		expiresAt: time.Now().Add(configuration.Use().SessionDuration),
 		createdAt: time.Now(),
-		audience:  AudienceGranite,
+		audience:  "",
 	}
 	for _, opt := range opts {
 		opt(s)

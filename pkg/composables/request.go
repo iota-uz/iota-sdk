@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/shared"
@@ -202,31 +201,4 @@ func UseRequest(ctx context.Context) (*http.Request, bool) {
 		return nil, false
 	}
 	return params.Request, true
-}
-
-// GetSessionAudience determines the session audience based on the request origin.
-// Returns "website" for requests from website domain (eai.uz), otherwise returns "granite" for admin/internal apps.
-// Note: Origin/Host/Referer headers can be spoofed by malicious clients. This should be used alongside
-// token-based audience validation in middleware for security.
-func GetSessionAudience(r *http.Request) string {
-	// Check request origin/host to determine audience
-	origin := r.Header.Get("Origin")
-	host := r.Host
-	referer := r.Header.Get("Referer")
-
-	// Check if this is a website request by looking at origin, host, or referer
-	websiteDomains := []string{"eai.uz", "eai-staging.uz"}
-
-	for _, domain := range websiteDomains {
-		// Use suffix matching to avoid false positives (e.g., "noteai.uz" matching "eai.uz")
-		// Also check for ".domain" pattern to match subdomains
-		if strings.HasSuffix(origin, domain) || strings.HasSuffix(host, domain) ||
-			strings.Contains(origin, "."+domain) || strings.Contains(host, "."+domain) ||
-			strings.Contains(referer, domain) {
-			return "website"
-		}
-	}
-
-	// Default to granite for admin/internal applications
-	return "granite"
 }

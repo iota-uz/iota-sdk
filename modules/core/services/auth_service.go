@@ -98,7 +98,7 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user
 	if err != nil {
 		return nil, nil, err
 	}
-	sess, err := s.authenticate(ctx, u, session.AudienceGranite)
+	sess, err := s.authenticate(ctx, u, "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -295,7 +295,7 @@ func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, passw
 	if !u.CheckPassword(password) {
 		return nil, nil, composables.ErrInvalidPassword
 	}
-	sess, err := s.authenticate(ctx, u, session.AudienceGranite)
+	sess, err := s.authenticate(ctx, u, "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -352,7 +352,7 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 	}
 
 	logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
-	sess, err := s.authenticate(ctx, u, session.AudienceGranite)
+	sess, err := s.authenticate(ctx, u, "")
 	if err != nil {
 		logger.Errorf("Failed to create session: %v", err)
 		return nil, nil, err
