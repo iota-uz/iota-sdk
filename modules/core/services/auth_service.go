@@ -34,6 +34,7 @@ const (
 var (
 	ErrAudienceMismatch = errors.New("session audience mismatch")
 	ErrIPMismatch       = errors.New("session IP address mismatch")
+	ErrIPUnavailable    = errors.New("client IP address unavailable for validation")
 )
 
 type AuthService struct {
@@ -190,12 +191,22 @@ func (s *AuthService) AuthorizeWithAudience(ctx context.Context, token string, e
 
 // validateIPBinding checks if the request IP matches the session IP
 func (s *AuthService) validateIPBinding(ctx context.Context, sess session.Session) error {
+	logger := configuration.Use().Logger()
 	currentIP, ok := composables.UseIP(ctx)
 	if !ok {
-		// If we can't get the current IP, we can't validate
+		// Handle case when current IP cannot be retrieved
+		if s.ipBindingMode == IPBindingStrict {
+			// In strict mode, fail if we can't get the IP
+			return ErrIPUnavailable
+		} else if s.ipBindingMode == IPBindingWarn {
+			// In warn mode, log warning and allow
+			logger.Warnf("IP binding validation: unable to retrieve current IP address")
+		}
+		// For disabled mode or after warning, allow the request
 		return nil
 	}
 
+	// Validate IP match
 	if currentIP != sess.IP() {
 		return ErrIPMismatch
 	}

@@ -26,6 +26,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
+const (
+	// WebsiteSidCookieKey is the cookie name for website sessions
+	WebsiteSidCookieKey = "website_sid"
+)
+
 type LoginDTO struct {
 	Email    string `validate:"required"`
 	Password string `validate:"required"`
@@ -140,7 +145,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		}
 		// Create cookie for website audience
 		cookie = &http.Cookie{
-			Name:     "website_sid",
+			Name:     WebsiteSidCookieKey,
 			Value:    sess.Token(),
 			Expires:  sess.ExpiresAt(),
 			HttpOnly: true,
@@ -231,13 +236,14 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		// Create cookie for website audience
 		conf := configuration.Use()
 		cookie = &http.Cookie{
-			Name:     "website_sid",
+			Name:     WebsiteSidCookieKey,
 			Value:    sess.Token(),
 			Expires:  sess.ExpiresAt(),
-			HttpOnly: false,
+			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
 			Secure:   conf.GoAppEnvironment == configuration.Production,
 			Domain:   conf.Domain,
+			Path:     "/",
 		}
 	} else {
 		// For granite audience, use the standard CookieAuthenticate method
