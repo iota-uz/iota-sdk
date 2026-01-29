@@ -119,6 +119,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
+
 	cookie, err := c.authService.CookieGoogleAuthenticate(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, persistence.ErrUserNotFound) {
@@ -129,6 +130,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
+
 	http.SetCookie(w, cookie)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
