@@ -28,6 +28,7 @@ type Repository interface {
 	GetAll(ctx context.Context) ([]Session, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Session, error)
 	GetByToken(ctx context.Context, token string) (Session, error)
+	GetByTokenAndAudience(ctx context.Context, token string, audience SessionAudience) (Session, error)
 	Create(ctx context.Context, user Session) error
 	Update(ctx context.Context, user Session) error
 	Delete(ctx context.Context, token string) error

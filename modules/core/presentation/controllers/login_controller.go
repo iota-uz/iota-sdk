@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -119,16 +120,49 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
-	cookie, err := c.authService.CookieGoogleAuthenticate(r.Context(), code)
-	if err != nil {
-		if errors.Is(err, persistence.ErrUserNotFound) {
-			queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.UserNotFound"))
-		} else {
-			queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
+
+	// Determine audience based on request origin
+	audienceStr := composables.GetSessionAudience(r)
+	var cookie *http.Cookie
+
+	if audienceStr == "website" {
+		// For website audience, use AuthenticateGoogleWithAudience
+		authService := c.app.Service(services.AuthService{}).(*services.AuthService)
+		_, sess, err := authService.AuthenticateGoogleWithAudience(r.Context(), code, session.AudienceWebsite)
+		if err != nil {
+			if errors.Is(err, persistence.ErrUserNotFound) {
+				queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.UserNotFound"))
+			} else {
+				queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
+			}
+			http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+			return
 		}
-		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
-		return
+		// Create cookie for website audience
+		cookie = &http.Cookie{
+			Name:     "website_sid",
+			Value:    sess.Token(),
+			Expires:  sess.ExpiresAt(),
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   conf.GoAppEnvironment == configuration.Production,
+			Domain:   conf.Domain,
+			Path:     "/",
+		}
+	} else {
+		// For granite audience, use the standard CookieGoogleAuthenticate method
+		cookie, err = c.authService.CookieGoogleAuthenticate(r.Context(), code)
+		if err != nil {
+			if errors.Is(err, persistence.ErrUserNotFound) {
+				queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.UserNotFound"))
+			} else {
+				queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
+			}
+			http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+			return
+		}
 	}
+
 	http.SetCookie(w, cookie)
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -173,18 +207,53 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
-	if err != nil {
-		logger.Error("Failed to authenticate user", "error", err)
-		if errors.Is(err, composables.ErrInvalidPassword) {
-			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
-		} else if errors.Is(err, persistence.ErrUserNotFound) {
-			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
-		} else {
-			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
+	// Determine audience based on request origin and get appropriate cookie
+	audienceStr := composables.GetSessionAudience(r)
+	var cookie *http.Cookie
+	var cookieErr error
+
+	if audienceStr == "website" {
+		// For website audience, use AuthenticateWithAudience directly
+		authService := c.app.Service(services.AuthService{}).(*services.AuthService)
+		_, sess, err := authService.AuthenticateWithAudience(r.Context(), dto.Email, dto.Password, session.AudienceWebsite)
+		if err != nil {
+			logger.Error("Failed to authenticate user", "error", err)
+			if errors.Is(err, composables.ErrInvalidPassword) {
+				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
+			} else if errors.Is(err, persistence.ErrUserNotFound) {
+				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
+			} else {
+				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
+			}
+			http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
+			return
 		}
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
-		return
+		// Create cookie for website audience
+		conf := configuration.Use()
+		cookie = &http.Cookie{
+			Name:     "website_sid",
+			Value:    sess.Token(),
+			Expires:  sess.ExpiresAt(),
+			HttpOnly: false,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   conf.GoAppEnvironment == configuration.Production,
+			Domain:   conf.Domain,
+		}
+	} else {
+		// For granite audience, use the standard CookieAuthenticate method
+		cookie, cookieErr = c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
+		if cookieErr != nil {
+			logger.Error("Failed to authenticate user", "error", cookieErr)
+			if errors.Is(cookieErr, composables.ErrInvalidPassword) {
+				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
+			} else if errors.Is(cookieErr, persistence.ErrUserNotFound) {
+				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
+			} else {
+				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
+			}
+			http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
+			return
+		}
 	}
 
 	redirectURL := r.URL.Query().Get("next")
