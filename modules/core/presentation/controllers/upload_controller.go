@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/multifs"
 )
 
 type UploadController struct {
@@ -53,7 +54,8 @@ func (c *UploadController) Register(r *mux.Router) {
 	}
 	fullPath := filepath.Join(workDir, conf.UploadsPath)
 	prefix := path.Join("/", conf.UploadsPath, "/")
-	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(http.Dir(fullPath))))
+	neuteredFS := multifs.NewNeuteredFileSystem(http.Dir(fullPath))
+	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(neuteredFS)))
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
