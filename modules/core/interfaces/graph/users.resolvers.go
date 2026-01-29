@@ -16,6 +16,11 @@ import (
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error) {
+	// Check authorization using injected authorizer
+	if err := r.usersAuthorizer.CanQueryUser(ctx, id); err != nil {
+		return nil, err
+	}
+
 	domainUser, err := r.userService.GetByID(ctx, uint(id))
 	if err != nil {
 		return nil, err
@@ -25,6 +30,11 @@ func (r *queryResolver) User(ctx context.Context, id int64) (*model.User, error)
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context, offset int, limit int, sortBy []int, ascending bool) (*model.PaginatedUsers, error) {
+	// Check authorization using injected authorizer
+	if err := r.usersAuthorizer.CanQueryUsers(ctx); err != nil {
+		return nil, err
+	}
+
 	fields := make([]repo.SortByField[user.Field], 0, len(sortBy))
 
 	for _, field := range sortBy {
