@@ -141,7 +141,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Authenticate with Google OAuth (bypasses 2FA for OAuth method)
-	_, sess, err := c.authService.AuthenticateGoogle(r.Context(), code)
+	u, sess, err := c.authService.AuthenticateGoogle(r.Context(), code)
 	if err != nil {
 		if errors.Is(err, persistence.ErrUserNotFound) {
 			queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.UserNotFound"))
@@ -150,6 +150,45 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		}
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
+	}
+
+	// Evaluate 2FA policy even for OAuth (should return false, but makes flow explicit)
+	if c.twoFactorPolicy != nil {
+		logger := composables.UseLogger(r.Context())
+
+		// Build auth attempt for 2FA policy evaluation with OAuth method
+		ip, _ := composables.UseIP(r.Context())
+		userAgent, _ := composables.UseUserAgent(r.Context())
+
+		// Convert user ID to UUID using tenant as namespace
+		// This creates a deterministic UUID from tenant ID + user ID
+		userIDData := make([]byte, 8)
+		for i := 0; i < 8; i++ {
+			userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
+		}
+		userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
+
+		attempt := pkgtwofactor.AuthAttempt{
+			UserID:    userUUID,
+			Method:    pkgtwofactor.AuthMethodOAuth,
+			IPAddress: ip,
+			UserAgent: userAgent,
+			Timestamp: time.Now(),
+		}
+
+		// Check if 2FA is required for OAuth (should always be false for now)
+		requires2FA, err := c.twoFactorPolicy.Requires(r.Context(), attempt)
+		if err != nil {
+			// Log but don't block OAuth flow
+			logger.Error("Failed to evaluate 2FA policy for OAuth", "error", err)
+		}
+
+		// OAuth should bypass 2FA even if policy says otherwise (for now)
+		if requires2FA {
+			// Future: Could require 2FA even for OAuth if policy changes
+			// For now, just log the unexpected result
+			logger.Warn("Unexpected: 2FA policy requires 2FA for OAuth method", "method", pkgtwofactor.AuthMethodOAuth)
+		}
 	}
 
 	// For OAuth, we bypass 2FA and create an active session directly
@@ -232,8 +271,17 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		// Build auth attempt for 2FA policy evaluation
 		ip, _ := composables.UseIP(r.Context())
 		userAgent, _ := composables.UseUserAgent(r.Context())
+
+		// Convert user ID to UUID using tenant as namespace
+		// This creates a deterministic UUID from tenant ID + user ID
+		userIDData := make([]byte, 8)
+		for i := 0; i < 8; i++ {
+			userIDData[i] = byte((u.ID() >> (i * 8)) & 0xFF)
+		}
+		userUUID := uuid.NewSHA1(u.TenantID(), userIDData)
+
 		attempt := pkgtwofactor.AuthAttempt{
-			UserID:    uuid.UUID{},
+			UserID:    userUUID,
 			Method:    pkgtwofactor.AuthMethodPassword,
 			IPAddress: ip,
 			UserAgent: userAgent,

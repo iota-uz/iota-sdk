@@ -44,11 +44,12 @@ type TwoFactorService struct {
 
 // setupChallengeData holds temporary data for a setup challenge
 type setupChallengeData struct {
-	UserID     uint
-	Method     pkgtf.Method
-	Secret     string // For TOTP
-	ExpiresAt  time.Time
+	UserID      uint
+	Method      pkgtf.Method
+	Secret      string // For TOTP
+	ExpiresAt   time.Time
 	Destination string // For OTP
+	AccountName string // For TOTP (user's email or identifier)
 }
 
 // NewTwoFactorService creates a new TwoFactorService with all dependencies
@@ -145,10 +146,11 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 
 		// Store challenge data
 		s.setupChallenges[challengeID] = &setupChallengeData{
-			UserID:    userID,
-			Method:    method,
-			Secret:    secret,
-			ExpiresAt: expiresAt,
+			UserID:      userID,
+			Method:      method,
+			Secret:      secret,
+			ExpiresAt:   expiresAt,
+			AccountName: accountName,
 		}
 
 		challenge = &SetupChallenge{
@@ -574,4 +576,48 @@ func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, userID u
 	}
 
 	return codes, nil
+}
+
+// GetSetupChallenge retrieves the QR code and other data for a TOTP setup challenge
+// This is used by the presentation layer to display the QR code without needing a separate endpoint
+func (s *TwoFactorService) GetSetupChallenge(challengeID string) (*SetupChallenge, error) {
+	// Get challenge data
+	challengeData, exists := s.setupChallenges[challengeID]
+	if !exists {
+		return nil, errors.New("invalid or expired challenge")
+	}
+
+	// Check expiration
+	if time.Now().After(challengeData.ExpiresAt) {
+		delete(s.setupChallenges, challengeID)
+		return nil, errors.New("challenge has expired")
+	}
+
+	// Only return challenge data for TOTP (which has QR code)
+	if challengeData.Method != pkgtf.MethodTOTP {
+		return nil, errors.New("this method is not supported for QR code retrieval")
+	}
+
+	// Regenerate QR code PNG for display
+	// (In production, you might want to cache this or store it in the challenge)
+	secret := challengeData.Secret
+	accountName := challengeData.AccountName
+
+	qrPNG, err := s.totpService.GenerateQRCodePNG(accountName, secret, s.qrCodeSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate QR code: %w", err)
+	}
+
+	qrURL, err := s.totpService.GenerateQRCodeURL(accountName, secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate QR URL: %w", err)
+	}
+
+	return &SetupChallenge{
+		ChallengeID: challengeID,
+		Method:      challengeData.Method,
+		QRCodeURL:   qrURL,
+		QRCodePNG:   qrPNG,
+		ExpiresAt:   challengeData.ExpiresAt,
+	}, nil
 }

@@ -54,7 +54,6 @@ func (c *TwoFactorSetupController) Register(r *mux.Router) {
 
 	// TOTP setup endpoints
 	setupRouter.HandleFunc("/totp", c.GetTOTPSetup).Methods(http.MethodGet)
-	setupRouter.HandleFunc("/totp/qr.png", c.GetTOTPQRImage).Methods(http.MethodGet)
 	setupRouter.HandleFunc("/totp/confirm", c.PostTOTPConfirm).Methods(http.MethodPost)
 
 	// OTP setup endpoints (SMS/Email)
@@ -154,33 +153,26 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Retrieve challenge data to get QR code
+	challenge, err := c.twoFactorService.GetSetupChallenge(challengeID)
+	if err != nil {
+		logger.Error("failed to get setup challenge", "error", err)
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Error")))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+		return
+	}
+
+	// Convert base64 PNG to data URL
+	qrImageURL := fmt.Sprintf("data:image/png;base64,%s", challenge.QRCodePNG)
+
 	if err := twofactorsetup.TOTPSetup(&twofactorsetup.TOTPSetupProps{
 		ChallengeID: challengeID,
 		NextURL:     nextURL,
-		QRImageURL:  fmt.Sprintf("/login/2fa/setup/totp/qr.png?challengeId=%s", url.QueryEscape(challengeID)),
+		QRImageURL:  qrImageURL,
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render TOTP setup template", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-}
-
-// GetTOTPQRImage returns the QR code PNG image
-func (c *TwoFactorSetupController) GetTOTPQRImage(w http.ResponseWriter, r *http.Request) {
-	challengeID := r.URL.Query().Get("challengeId")
-
-	if challengeID == "" {
-		http.Error(w, "missing challenge ID", http.StatusBadRequest)
-		return
-	}
-
-	// TODO: Implement secure challenge retrieval and QR code rendering
-	// Currently, the in-memory setupChallenges map in TwoFactorService is not accessible here.
-	// This would require either:
-	// 1. Adding a method to TwoFactorService to retrieve challenge and render QR code
-	// 2. Storing challenge data in encrypted session or Redis
-	// 3. Passing QR code data through template context
-
-	http.Error(w, "QR code retrieval not fully implemented", http.StatusInternalServerError)
 }
 
 // PostTOTPConfirm validates TOTP code and completes setup
