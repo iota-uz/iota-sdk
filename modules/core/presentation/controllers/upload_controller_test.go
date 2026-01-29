@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/core"
@@ -14,7 +15,14 @@ import (
 )
 
 func TestUploadController_DirectoryListing_Returns404(t *testing.T) {
-	t.Parallel()
+	// Create isolated temp directory for this test within working directory
+	// Use unique name based on test name to prevent conflicts
+	uploadsPath := "test-uploads-" + strings.ReplaceAll(t.Name(), "/", "-")
+	err := os.MkdirAll(uploadsPath, 0755)
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(uploadsPath) })
+
+	t.Setenv("UPLOADS_PATH", uploadsPath)
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -23,21 +31,23 @@ func TestUploadController_DirectoryListing_Returns404(t *testing.T) {
 	suite.Register(controller)
 
 	// Create a test file in the uploads directory
-	uploadsPath := filepath.Join("static")
-	err := os.MkdirAll(uploadsPath, 0755)
-	require.NoError(t, err)
-
 	testFile := filepath.Join(uploadsPath, "test.jpg")
 	err = os.WriteFile(testFile, []byte("fake image data"), 0644)
 	require.NoError(t, err)
-	defer os.Remove(testFile)
 
 	// Test that directory access returns 404
-	suite.GET("/static/").Expect(t).Status(http.StatusNotFound)
+	urlPath := "/" + uploadsPath + "/"
+	suite.GET(urlPath).Expect(t).Status(http.StatusNotFound)
 }
 
 func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
-	t.Parallel()
+	// Create isolated temp directory for this test within working directory
+	uploadsPath := "test-uploads-" + strings.ReplaceAll(t.Name(), "/", "-")
+	err := os.MkdirAll(uploadsPath, 0755)
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(uploadsPath) })
+
+	t.Setenv("UPLOADS_PATH", uploadsPath)
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -46,23 +56,31 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 	suite.Register(controller)
 
 	// Create a test file in the uploads directory
-	uploadsPath := filepath.Join("static")
-	err := os.MkdirAll(uploadsPath, 0755)
+	testContent := "test file content"
+
+	// Get absolute path to ensure file is created in the right location
+	workDir, err := os.Getwd()
 	require.NoError(t, err)
 
-	testContent := "test file content"
-	testFile := filepath.Join(uploadsPath, "document.txt")
+	absUploadsPath := filepath.Join(workDir, uploadsPath)
+	testFile := filepath.Join(absUploadsPath, "document.txt")
 	err = os.WriteFile(testFile, []byte(testContent), 0644)
 	require.NoError(t, err)
-	defer os.Remove(testFile)
 
 	// Test that file access works
-	response := suite.GET("/static/document.txt").Expect(t).Status(http.StatusOK)
+	urlPath := "/" + uploadsPath + "/document.txt"
+	response := suite.GET(urlPath).Expect(t).Status(http.StatusOK)
 	require.Contains(t, response.Body(), testContent)
 }
 
 func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
-	t.Parallel()
+	// Create isolated temp directory for this test within working directory
+	uploadsPath := "test-uploads-" + strings.ReplaceAll(t.Name(), "/", "-")
+	err := os.MkdirAll(uploadsPath, 0755)
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(uploadsPath) })
+
+	t.Setenv("UPLOADS_PATH", uploadsPath)
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -71,21 +89,27 @@ func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 	suite.Register(controller)
 
 	// Create a subdirectory with a file
-	subDir := filepath.Join("static", "images")
-	err := os.MkdirAll(subDir, 0755)
+	subDir := filepath.Join(uploadsPath, "images")
+	err = os.MkdirAll(subDir, 0755)
 	require.NoError(t, err)
-	defer os.RemoveAll(subDir)
 
 	testFile := filepath.Join(subDir, "photo.jpg")
 	err = os.WriteFile(testFile, []byte("fake image data"), 0644)
 	require.NoError(t, err)
 
 	// Test that subdirectory access returns 404
-	suite.GET("/static/images/").Expect(t).Status(http.StatusNotFound)
+	urlPath := "/" + uploadsPath + "/images/"
+	suite.GET(urlPath).Expect(t).Status(http.StatusNotFound)
 }
 
 func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
-	t.Parallel()
+	// Create isolated temp directory for this test within working directory
+	uploadsPath := "test-uploads-" + strings.ReplaceAll(t.Name(), "/", "-")
+	err := os.MkdirAll(uploadsPath, 0755)
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(uploadsPath) })
+
+	t.Setenv("UPLOADS_PATH", uploadsPath)
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -94,10 +118,13 @@ func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
 	suite.Register(controller)
 
 	// Create a subdirectory with a file
-	subDir := filepath.Join("static", "images")
-	err := os.MkdirAll(subDir, 0755)
+	workDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.RemoveAll(subDir)
+
+	absUploadsPath := filepath.Join(workDir, uploadsPath)
+	subDir := filepath.Join(absUploadsPath, "images")
+	err = os.MkdirAll(subDir, 0755)
+	require.NoError(t, err)
 
 	imageContent := "fake image data"
 	imageFile := filepath.Join(subDir, "photo.jpg")
@@ -105,12 +132,19 @@ func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test that file access works
-	response := suite.GET("/static/images/photo.jpg").Expect(t).Status(http.StatusOK)
+	urlPath := "/" + uploadsPath + "/images/photo.jpg"
+	response := suite.GET(urlPath).Expect(t).Status(http.StatusOK)
 	require.Contains(t, response.Body(), imageContent)
 }
 
 func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
-	t.Parallel()
+	// Create isolated temp directory for this test within working directory
+	uploadsPath := "test-uploads-" + strings.ReplaceAll(t.Name(), "/", "-")
+	err := os.MkdirAll(uploadsPath, 0755)
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(uploadsPath) })
+
+	t.Setenv("UPLOADS_PATH", uploadsPath)
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -119,5 +153,6 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 	suite.Register(controller)
 
 	// Test that non-existent file returns 404
-	suite.GET("/static/nonexistent.txt").Expect(t).Status(http.StatusNotFound)
+	urlPath := "/" + uploadsPath + "/nonexistent.txt"
+	suite.GET(urlPath).Expect(t).Status(http.StatusNotFound)
 }
