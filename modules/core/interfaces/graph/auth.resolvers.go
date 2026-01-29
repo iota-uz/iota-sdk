@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
@@ -23,36 +22,17 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	if !ok {
 		return nil, fmt.Errorf("request params not found")
 	}
-	httpReq, ok := composables.UseRequest(ctx)
-	if !ok {
-		return nil, fmt.Errorf("request not found")
-	}
 
 	authService := r.app.Service(services.AuthService{}).(*services.AuthService)
 
-	// Determine audience based on request origin
-	var sessionAudience session.SessionAudience
-	audienceStr := composables.GetSessionAudience(httpReq)
-	if audienceStr == "website" {
-		sessionAudience = session.AudienceWebsite
-	} else {
-		sessionAudience = session.AudienceGranite
-	}
-
-	_, sess, err := authService.AuthenticateWithAudience(ctx, email, password, sessionAudience)
+	_, sess, err := authService.Authenticate(ctx, email, password)
 	if err != nil {
 		return nil, err
 	}
 	conf := configuration.Use()
 
-	// Determine cookie name based on audience
-	cookieName := conf.SidCookieKey
-	if sessionAudience == session.AudienceWebsite {
-		cookieName = "website_sid"
-	}
-
 	cookie := &http.Cookie{
-		Name:     cookieName,
+		Name:     conf.SidCookieKey,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: false,
