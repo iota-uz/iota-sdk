@@ -21,6 +21,9 @@ const (
 
 	PageContext ContextKey = "pageContext"
 	TenantIDKey ContextKey = "tenant"
+
+	UploadSourceKey        ContextKey = "uploadSource"
+	UploadAccessCheckerKey ContextKey = "uploadAccessChecker"
 )
 
 var Validate = validator.New(validator.WithRequiredStructEnabled())

@@ -53,18 +53,21 @@ type Upload struct {
 	Slug     string            `json:"slug"`
 	Mimetype string            `json:"mimetype"`
 	Type     upload.UploadType `json:"type"`
+	Source   string            `json:"source"`
 	GeoPoint *GeoPoint         `json:"geoPoint"`
 	Size     int               `json:"size"`
 }
 
 type UploadFileOpts struct {
 	GeoPoint *GeoPointInput `json:"geoPoint,omitempty"`
+	Source   *string        `json:"source,omitempty"`
 }
 
 type UploadFilter struct {
 	MimeType       *string            `json:"mimeType,omitempty"`
 	MimeTypePrefix *string            `json:"mimeTypePrefix,omitempty"`
 	Type           *upload.UploadType `json:"type,omitempty"`
+	Source         *string            `json:"source,omitempty"`
 	Sort           *UploadSort        `json:"sort,omitempty"`
 }
 

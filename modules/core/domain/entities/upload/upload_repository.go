@@ -28,6 +28,7 @@ type FindParams struct {
 	SortBy   SortBy
 	Search   string
 	Type     UploadType
+	Source   string
 	Mimetype *mimetype.MIME
 }
 
@@ -42,5 +43,6 @@ type Repository interface {
 	Exists(ctx context.Context, id uint) (bool, error)
 	Create(ctx context.Context, data Upload) (Upload, error)
 	Update(ctx context.Context, data Upload) error
+	UpdateSource(ctx context.Context, id uint, source string) error
 	Delete(ctx context.Context, id uint) error
 }

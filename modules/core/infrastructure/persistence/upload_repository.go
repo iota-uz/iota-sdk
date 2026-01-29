@@ -16,12 +16,12 @@ var (
 )
 
 const (
-	selectUploadQuery = `SELECT id, hash, slug, path, name, size, type, mimetype, geopoint, created_at, updated_at, tenant_id FROM uploads`
+	selectUploadQuery = `SELECT id, hash, slug, path, name, size, type, source, mimetype, geopoint, created_at, updated_at, tenant_id FROM uploads`
 
 	countUploadsQuery = `SELECT COUNT(*) FROM uploads`
 
-	insertUploadQuery = `INSERT INTO uploads (hash, slug, path, name, size, type, mimetype, geopoint, created_at, updated_at, tenant_id)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+	insertUploadQuery = `INSERT INTO uploads (hash, slug, path, name, size, type, source, mimetype, geopoint, created_at, updated_at, tenant_id)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                          RETURNING id`
 
 	updatedUploadQuery = `UPDATE uploads
@@ -31,10 +31,11 @@ const (
                               name = $4,
                               size = $5,
                               type = $6,
-                              mimetype = $7,
-                              geopoint = $8,
-                              updated_at = $9
-                          WHERE id = $10 AND tenant_id = $11`
+                              source = $7,
+                              mimetype = $8,
+                              geopoint = $9,
+                              updated_at = $10
+                          WHERE id = $11 AND tenant_id = $12`
 
 	deleteUploadQuery = `DELETE FROM uploads WHERE id = $1 AND tenant_id = $2`
 
@@ -81,6 +82,7 @@ func (g *GormUploadRepository) queryUploads(
 			&dbUpload.Name,
 			&dbUpload.Size,
 			&dbUpload.Type,
+			&dbUpload.Source,
 			&dbUpload.Mimetype,
 			&dbUpload.GeoPoint,
 			&dbUpload.CreatedAt,
@@ -122,6 +124,9 @@ func (g *GormUploadRepository) GetPaginated(
 	}
 	if params.Type != "" {
 		where, args = append(where, fmt.Sprintf("type = $%d", len(args)+1)), append(args, params.Type.String())
+	}
+	if params.Source != "" {
+		where, args = append(where, fmt.Sprintf("source = $%d", len(args)+1)), append(args, params.Source)
 	}
 	if params.Mimetype != nil {
 		where, args = append(where, fmt.Sprintf("mimetype = $%d", len(args)+1)), append(args, params.Mimetype.String())
@@ -263,6 +268,7 @@ func (g *GormUploadRepository) Create(ctx context.Context, data upload.Upload) (
 		dbUpload.Name,
 		dbUpload.Size,
 		dbUpload.Type,
+		dbUpload.Source,
 		dbUpload.Mimetype,
 		dbUpload.GeoPoint,
 		dbUpload.CreatedAt,
@@ -297,12 +303,30 @@ func (g *GormUploadRepository) Update(ctx context.Context, data upload.Upload) e
 		dbUpload.Name,
 		dbUpload.Size,
 		dbUpload.Type,
+		dbUpload.Source,
 		dbUpload.Mimetype,
 		dbUpload.GeoPoint,
 		dbUpload.UpdatedAt,
 		dbUpload.ID,
 		dbUpload.TenantID,
 	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (g *GormUploadRepository) UpdateSource(ctx context.Context, id uint, source string) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, "UPDATE uploads SET source = $1, updated_at = NOW() WHERE id = $2 AND tenant_id = $3", source, id, tenantID.String()); err != nil {
 		return err
 	}
 	return nil

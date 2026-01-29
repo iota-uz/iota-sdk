@@ -51,6 +51,10 @@ func (m *mockUpload) Size() upload.Size {
 	return nil
 }
 
+func (m *mockUpload) Source() string {
+	return "general"
+}
+
 func (m *mockUpload) IsImage() bool {
 	return true
 }

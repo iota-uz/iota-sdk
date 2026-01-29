@@ -48,6 +48,7 @@ type Upload interface {
 	Path() string
 	Name() string
 	Size() Size
+	Source() string
 	IsImage() bool
 	PreviewURL() string
 	URL() *url.URL
@@ -60,6 +61,7 @@ type Upload interface {
 	SetSlug(slug string)
 	SetName(name string)
 	SetSize(size Size)
+	SetSource(source string)
 	SetGeoPoint(point geopoint.GeoPoint)
 	SetID(id uint)
 }
@@ -70,6 +72,7 @@ func New(
 	hash, path, name, slug string,
 	size int,
 	mimetype *mimetype.MIME,
+	source string,
 ) Upload {
 	var t UploadType
 	if mimetype != nil && strings.HasPrefix(mimetype.String(), "image") {
@@ -90,6 +93,7 @@ func New(
 		size:      NewSize(size),
 		mimetype:  mimetype,
 		_type:     t,
+		source:    source,
 		createdAt: time.Now(),
 		updatedAt: time.Now(),
 	}
@@ -102,6 +106,7 @@ func NewWithID(
 	size int,
 	mimetype *mimetype.MIME,
 	_type UploadType,
+	source string,
 	createdAt, updatedAt time.Time,
 ) Upload {
 	if slug == "" {
@@ -117,6 +122,7 @@ func NewWithID(
 		size:      NewSize(size),
 		mimetype:  mimetype,
 		_type:     _type,
+		source:    source,
 		createdAt: createdAt,
 		updatedAt: updatedAt,
 	}
@@ -130,6 +136,7 @@ type upload struct {
 	slug      string
 	name      string
 	size      Size
+	source    string
 	geoPoint  geopoint.GeoPoint
 	_type     UploadType
 	mimetype  *mimetype.MIME
@@ -169,6 +176,10 @@ func (u *upload) Size() Size {
 	return u.size
 }
 
+func (u *upload) Source() string {
+	return u.source
+}
+
 func (u *upload) GeoPoint() geopoint.GeoPoint {
 	return u.geoPoint
 }
@@ -194,6 +205,10 @@ func (u *upload) SetSize(size Size) {
 
 func (u *upload) SetGeoPoint(geoPoint geopoint.GeoPoint) {
 	u.geoPoint = geoPoint
+}
+
+func (u *upload) SetSource(source string) {
+	u.source = source
 }
 
 func (u *upload) SetID(id uint) {

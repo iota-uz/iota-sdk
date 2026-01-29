@@ -40,6 +40,7 @@ type Upload {
   slug: String!
   mimetype: String!
   type: UploadType!
+  source: String!
   geoPoint: GeoPoint!
   size: Int!
 }
@@ -48,6 +49,7 @@ input UploadFilter {
   mimeType: String
   mimeTypePrefix: String
   type: UploadType
+  source: String
   sort: UploadSort
 }
 
@@ -58,6 +60,7 @@ input GeoPointInput {
 
 input UploadFileOpts {
   geoPoint: GeoPointInput
+  source: String
 }
 
 extend type Mutation {

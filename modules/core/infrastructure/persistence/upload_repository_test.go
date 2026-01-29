@@ -27,6 +27,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			1024,
 			mime,
+			"general",
 		)
 
 		// Create upload
@@ -54,6 +55,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			2048,
 			mime,
+			"general",
 		)
 
 		// Create upload
@@ -84,6 +86,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			512,
 			mime,
+			"general",
 		)
 
 		// Create upload
@@ -106,7 +109,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 		slug := "unique-slug-" + time.Now().Format("20060102150405")
 		mime := mimetype.Lookup("text/plain")
 
-		uploadData := upload.New(uniqueHash, "uploads/unique-hash.txt", "text.txt", slug, 512, mime)
+		uploadData := upload.New(uniqueHash, "uploads/unique-hash.txt", "text.txt", slug, 512, mime, "general")
 
 		_, err := uploadRepository.Create(f.Ctx, uploadData)
 		require.NoError(t, err)
@@ -146,6 +149,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			4096,
 			mime,
+			"general",
 		)
 
 		// Create upload
@@ -164,6 +168,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			8192,
 			updatedMime,
 			upload.UploadTypeImage,
+			"general",
 			createdUpload.CreatedAt(),
 			time.Now(),
 		)
@@ -192,6 +197,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 				"",
 				1024*(i+1),
 				mime,
+				"general",
 			)
 			_, err := uploadRepository.Create(f.Ctx, uploadData)
 			require.NoError(t, err)
@@ -259,6 +265,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			2048,
 			mime,
+			"general",
 		)
 
 		// Create upload
@@ -304,6 +311,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			1024,
 			mime,
+			"general",
 		)
 
 		// Create upload
@@ -330,6 +338,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 				"",
 				1024*(i+1),
 				mime,
+				"general",
 			)
 			createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
 			require.NoError(t, err)
@@ -361,6 +370,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			1024,
 			mime,
+			"general",
 		)
 		createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
 		require.NoError(t, err)
@@ -385,6 +395,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			1024,
 			mime,
+			"general",
 		)
 		createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
 		require.NoError(t, err)
@@ -409,6 +420,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 			"",
 			1024,
 			mime,
+			"general",
 		)
 		createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
 		require.NoError(t, err)
@@ -432,6 +444,7 @@ func TestGormUploadRepository_CRUD(t *testing.T) {
 				"",
 				1024*(i%10+1),
 				mime,
+				"general",
 			)
 			createdUpload, err := uploadRepository.Create(f.Ctx, uploadData)
 			require.NoError(t, err)

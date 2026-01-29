@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/gorilla/mux"
@@ -42,5 +43,15 @@ func (s *HTTPServer) Start(socketAddress string) error {
 	}
 	r.NotFoundHandler = notFoundHandler
 	r.MethodNotAllowedHandler = notAllowedHandler
-	return http.ListenAndServe(socketAddress, gziphandler.GzipHandler(r))
+
+	server := &http.Server{
+		Addr:              socketAddress,
+		Handler:           gziphandler.GzipHandler(r),
+		ReadTimeout:       5 * time.Minute,
+		WriteTimeout:      5 * time.Minute,
+		IdleTimeout:       120 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	return server.ListenAndServe()
 }

@@ -14,6 +14,7 @@ func UploadToGraphModel(u upload.Upload) *model.Upload {
 		Slug:     u.Slug(),
 		Size:     u.Size().Bytes(),
 		Type:     u.Type(),
+		Source:   u.Source(),
 		URL:      u.URL().String(),
 		GeoPoint: &model.GeoPoint{},
 	}

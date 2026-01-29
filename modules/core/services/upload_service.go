@@ -6,6 +6,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
@@ -52,6 +53,11 @@ func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindPar
 }
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
+	// If source not specified in DTO, use source from context (set by middleware)
+	if data.Source == "" {
+		data.Source = composables.UseUploadSource(ctx)
+	}
+
 	entity, bytes, err := data.ToEntity()
 	if err != nil {
 		return nil, err
@@ -69,6 +75,13 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 		}
 	}
 	if up != nil {
+		// Update source if different (e.g., re-uploading with explicit source)
+		if entity.Source() != "" && up.Source() != entity.Source() {
+			if err := s.repo.UpdateSource(ctx, up.ID(), entity.Source()); err != nil {
+				return nil, err
+			}
+			up.SetSource(entity.Source())
+		}
 		if up.Hash() != entity.Hash() {
 			existing, err := s.repo.GetByHash(ctx, entity.Hash())
 			if err != nil && !errors.Is(err, persistence.ErrUploadNotFound) {
@@ -145,4 +158,15 @@ func (s *UploadService) Delete(ctx context.Context, id uint) (upload.Upload, err
 	}
 	s.publisher.Publish(deletedEvent)
 	return entity, nil
+}
+
+// UpdateSource updates the source of an upload.
+// Used when attaching uploads to entities that require a specific source.
+func (s *UploadService) UpdateSource(ctx context.Context, id uint, source string) error {
+	entity, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	entity.SetSource(source)
+	return s.repo.Update(ctx, entity)
 }

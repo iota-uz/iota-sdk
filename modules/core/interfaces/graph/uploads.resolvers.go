@@ -22,10 +22,22 @@ import (
 
 // UploadFile is the resolver for the uploadFile field.
 func (r *mutationResolver) UploadFile(ctx context.Context, file *graphql.Upload, opts *model.UploadFileOpts) (*model.Upload, error) {
+	// Get source from opts or context
+	source := composables.UseUploadSource(ctx)
+	if opts != nil && opts.Source != nil && *opts.Source != "" {
+		source = *opts.Source
+	}
+
+	// Check upload permission for this source
+	if err := composables.CheckUploadToSource(ctx, source, nil); err != nil {
+		return nil, err
+	}
+
 	dto := &upload.CreateDTO{
-		File: file.File,
-		Name: file.Filename,
-		Size: int(file.Size),
+		File:   file.File,
+		Name:   file.Filename,
+		Size:   int(file.Size),
+		Source: source,
 	}
 	if _, ok := dto.Ok(ctx); !ok {
 		return nil, errors.New("invalid file")
@@ -58,14 +70,34 @@ func (r *mutationResolver) UploadFileWithSlug(ctx context.Context, file *graphql
 		return nil, err
 	}
 
+	// Get source from opts or context
+	source := composables.UseUploadSource(ctx)
+	if opts != nil && opts.Source != nil && *opts.Source != "" {
+		source = *opts.Source
+	}
+
+	// Check upload permission for this source
+	if err := composables.CheckUploadToSource(ctx, source, nil); err != nil {
+		return nil, err
+	}
+
 	dto := &upload.CreateDTO{
-		File: file.File,
-		Name: file.Filename,
-		Size: int(file.Size),
-		Slug: slug,
+		File:   file.File,
+		Name:   file.Filename,
+		Size:   int(file.Size),
+		Slug:   slug,
+		Source: source,
 	}
 	if _, ok := dto.Ok(ctx); !ok {
 		return nil, errors.New("invalid file")
+	}
+	if opts != nil {
+		if opts.GeoPoint != nil {
+			dto.GeoPoint = &upload.GeoPoint{
+				Lat: opts.GeoPoint.Lat,
+				Lng: opts.GeoPoint.Lng,
+			}
+		}
 	}
 
 	uploadEntity, err := r.uploadService.Create(ctx, dto)
@@ -109,6 +141,15 @@ func (r *queryResolver) Uploads(ctx context.Context, filter model.UploadFilter) 
 	if filter.Type != nil {
 		params.Type = *filter.Type
 	}
+	// Source is required for listing uploads
+	if filter.Source == nil || *filter.Source == "" {
+		return nil, fmt.Errorf("source filter is required for listing uploads")
+	}
+	// Check access to this source
+	if err := composables.CheckUploadSourceAccess(ctx, *filter.Source, nil); err != nil {
+		return nil, err
+	}
+	params.Source = *filter.Source
 	if filter.MimeType != nil {
 		params.Mimetype = mimetype.Lookup(*filter.MimeType)
 	}

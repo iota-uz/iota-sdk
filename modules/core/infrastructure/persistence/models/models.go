@@ -31,6 +31,7 @@ type Upload struct {
 	Size      int
 	Mimetype  string
 	Type      string
+	Source    string
 	GeoPoint  *Point
 	CreatedAt time.Time
 	UpdatedAt time.Time

@@ -1,12 +1,14 @@
 package controllers
 
 import (
+	"context"
 	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
@@ -16,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -59,6 +62,11 @@ func (c *UploadController) Register(r *mux.Router) {
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
+	// Create context with 5-minute timeout for uploads
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
+	defer cancel()
+	r = r.WithContext(ctx)
+
 	conf := configuration.Use()
 	if err := r.ParseMultipartForm(conf.MaxUploadMemory); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -75,6 +83,18 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	formName := r.FormValue("_formName")
 	multiple := r.FormValue("_multiple") == "true"
 
+	// Get source from form or context
+	source := r.FormValue("_source")
+	if source == "" {
+		source = composables.UseUploadSource(r.Context())
+	}
+
+	// Check upload permission for this source
+	if err := composables.CheckUploadToSource(r.Context(), source, r); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
 	dtos := make([]*upload.CreateDTO, 0, len(files))
 	for _, header := range files {
 		file, err := header.Open()
@@ -89,9 +109,10 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		}(file)
 
 		dto := &upload.CreateDTO{
-			File: file,
-			Name: header.Filename,
-			Size: int(header.Size),
+			File:   file,
+			Name:   header.Filename,
+			Size:   int(header.Size),
+			Source: source,
 		}
 
 		// TODO: proper error handling

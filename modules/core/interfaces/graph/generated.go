@@ -101,6 +101,7 @@ type ComplexityRoot struct {
 		Path     func(childComplexity int) int
 		Size     func(childComplexity int) int
 		Slug     func(childComplexity int) int
+		Source   func(childComplexity int) int
 		Type     func(childComplexity int) int
 		URL      func(childComplexity int) int
 	}
@@ -421,6 +422,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Upload.Slug(childComplexity), true
+
+	case "Upload.source":
+		if e.complexity.Upload.Source == nil {
+			break
+		}
+
+		return e.complexity.Upload.Source(childComplexity), true
 
 	case "Upload.type":
 		if e.complexity.Upload.Type == nil {
@@ -1639,6 +1647,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFile(ctx context.Context
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "type":
 				return ec.fieldContext_Upload_type(ctx, field)
+			case "source":
+				return ec.fieldContext_Upload_source(ctx, field)
 			case "geoPoint":
 				return ec.fieldContext_Upload_geoPoint(ctx, field)
 			case "size":
@@ -1716,6 +1726,8 @@ func (ec *executionContext) fieldContext_Mutation_uploadFileWithSlug(ctx context
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "type":
 				return ec.fieldContext_Upload_type(ctx, field)
+			case "source":
+				return ec.fieldContext_Upload_source(ctx, field)
 			case "geoPoint":
 				return ec.fieldContext_Upload_geoPoint(ctx, field)
 			case "size":
@@ -2004,6 +2016,8 @@ func (ec *executionContext) fieldContext_Query_uploads(ctx context.Context, fiel
 				return ec.fieldContext_Upload_mimetype(ctx, field)
 			case "type":
 				return ec.fieldContext_Upload_type(ctx, field)
+			case "source":
+				return ec.fieldContext_Upload_source(ctx, field)
 			case "geoPoint":
 				return ec.fieldContext_Upload_geoPoint(ctx, field)
 			case "size":
@@ -3011,6 +3025,50 @@ func (ec *executionContext) fieldContext_Upload_type(_ context.Context, field gr
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type UploadType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Upload_source(ctx context.Context, field graphql.CollectedField, obj *model.Upload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Upload_source(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Source, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Upload_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Upload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5232,7 +5290,7 @@ func (ec *executionContext) unmarshalInputUploadFileOpts(ctx context.Context, ob
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"geoPoint"}
+	fieldsInOrder := [...]string{"geoPoint", "source"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5246,6 +5304,13 @@ func (ec *executionContext) unmarshalInputUploadFileOpts(ctx context.Context, ob
 				return it, err
 			}
 			it.GeoPoint = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
 		}
 	}
 
@@ -5259,7 +5324,7 @@ func (ec *executionContext) unmarshalInputUploadFilter(ctx context.Context, obj 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"mimeType", "mimeTypePrefix", "type", "sort"}
+	fieldsInOrder := [...]string{"mimeType", "mimeTypePrefix", "type", "source", "sort"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -5287,6 +5352,13 @@ func (ec *executionContext) unmarshalInputUploadFilter(ctx context.Context, obj 
 				return it, err
 			}
 			it.Type = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
 		case "sort":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sort"))
 			data, err := ec.unmarshalOUploadSort2ᚖgithubᚗcomᚋiotaᚑuzᚋiotaᚑsdkᚋmodulesᚋcoreᚋinterfacesᚋgraphᚋgqlmodelsᚐUploadSort(ctx, v)
@@ -5787,6 +5859,11 @@ func (ec *executionContext) _Upload(ctx context.Context, sel ast.SelectionSet, o
 			}
 		case "type":
 			out.Values[i] = ec._Upload_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "source":
+			out.Values[i] = ec._Upload_source(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

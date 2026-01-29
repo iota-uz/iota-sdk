@@ -27,6 +27,7 @@ type CreateDTO struct {
 	Name     string        `validate:"required"`
 	Size     int           `validate:"required"`
 	Slug     string        `validate:"omitempty,alphanum"`
+	Source   string
 	GeoPoint *GeoPoint
 }
 
@@ -71,6 +72,7 @@ func (d *CreateDTO) ToEntity() (Upload, []byte, error) {
 		d.Slug,
 		d.Size,
 		mimetype.Detect(bytes),
+		d.Source,
 	)
 	if d.GeoPoint != nil {
 		upload.SetGeoPoint(geopoint.New(d.GeoPoint.Lat, d.GeoPoint.Lng))
