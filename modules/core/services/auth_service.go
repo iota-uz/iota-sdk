@@ -195,14 +195,16 @@ func (s *AuthService) validateIPBinding(ctx context.Context, sess session.Sessio
 	currentIP, ok := composables.UseIP(ctx)
 	if !ok {
 		// Handle case when current IP cannot be retrieved
-		if s.ipBindingMode == IPBindingStrict {
+		switch s.ipBindingMode {
+		case IPBindingStrict:
 			// In strict mode, fail if we can't get the IP
 			return ErrIPUnavailable
-		} else if s.ipBindingMode == IPBindingWarn {
+		case IPBindingWarn:
 			// In warn mode, log warning and allow
 			logger.Warnf("IP binding validation: unable to retrieve current IP address")
+		case IPBindingDisabled:
+			// In disabled mode, allow the request
 		}
-		// For disabled mode or after warning, allow the request
 		return nil
 	}
 
