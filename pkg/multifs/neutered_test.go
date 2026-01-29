@@ -53,7 +53,7 @@ func TestNeuteredFileSystem_DirectoryWithIndex_ReturnsError(t *testing.T) {
 	indexFileHandle, err := fs.Open("/index.html")
 	require.NoError(t, err)
 	require.NotNil(t, indexFileHandle)
-	defer indexFileHandle.Close()
+	defer func() { _ = indexFileHandle.Close() }()
 
 	// Read content
 	content, err := io.ReadAll(indexFileHandle)
@@ -78,7 +78,7 @@ func TestNeuteredFileSystem_RegularFile_ReturnsFile(t *testing.T) {
 	file, err := fs.Open("/document.txt")
 	require.NoError(t, err)
 	require.NotNil(t, file)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Read content
 	content, err := io.ReadAll(file)
@@ -143,7 +143,7 @@ func TestNeuteredFileSystem_SubdirectoryWithIndex_ReturnsError(t *testing.T) {
 	indexFileHandle, err := fs.Open("/subdir/index.html")
 	require.NoError(t, err)
 	require.NotNil(t, indexFileHandle)
-	defer indexFileHandle.Close()
+	defer func() { _ = indexFileHandle.Close() }()
 
 	// Read content
 	content, err := io.ReadAll(indexFileHandle)
@@ -188,7 +188,7 @@ func TestNeuteredFileSystem_FileInSubdirectory_ReturnsFile(t *testing.T) {
 	file, err := fs.Open("/images/photo.jpg")
 	require.NoError(t, err)
 	require.NotNil(t, file)
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Read content
 	content, err := io.ReadAll(file)

@@ -33,13 +33,13 @@ func (nfs *NeuteredFileSystem) Open(name string) (http.File, error) {
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, err
 	}
 
 	// Block all directory access for security
 	if stat.IsDir() {
-		file.Close()
+		_ = file.Close()
 		return nil, os.ErrNotExist
 	}
 
