@@ -1,0 +1,357 @@
+package controllers
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+
+	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/twofactorsetup"
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
+	"github.com/iota-uz/iota-sdk/pkg/shared"
+)
+
+// NewTwoFactorSetupController creates a new TwoFactorSetupController
+func NewTwoFactorSetupController(app application.Application) application.Controller {
+	return &TwoFactorSetupController{
+		app:              app,
+		twoFactorService: app.Service(twofactor.TwoFactorService{}).(*twofactor.TwoFactorService),
+		sessionService:   app.Service(services.SessionService{}).(*services.SessionService),
+		userService:      app.Service(services.UserService{}).(*services.UserService),
+	}
+}
+
+type TwoFactorSetupController struct {
+	app              application.Application
+	twoFactorService *twofactor.TwoFactorService
+	sessionService   *services.SessionService
+	userService      *services.UserService
+}
+
+func (c *TwoFactorSetupController) Key() string {
+	return "/login/2fa/setup"
+}
+
+func (c *TwoFactorSetupController) Register(r *mux.Router) {
+	setupRouter := r.PathPrefix("/login/2fa/setup").Subrouter()
+	setupRouter.Use(
+		middleware.ProvideLocalizer(c.app),
+		middleware.WithTransaction(),
+		middleware.WithPageContext(),
+	)
+
+	// Method choice endpoints
+	setupRouter.HandleFunc("", c.GetMethodChoice).Methods(http.MethodGet)
+	setupRouter.HandleFunc("", c.PostMethodChoice).Methods(http.MethodPost)
+
+	// TOTP setup endpoints
+	setupRouter.HandleFunc("/totp", c.GetTOTPSetup).Methods(http.MethodGet)
+	setupRouter.HandleFunc("/totp/qr.png", c.GetTOTPQRImage).Methods(http.MethodGet)
+	setupRouter.HandleFunc("/totp/confirm", c.PostTOTPConfirm).Methods(http.MethodPost)
+
+	// OTP setup endpoints (SMS/Email)
+	setupRouter.HandleFunc("/otp/send", c.PostOTPSend).Methods(http.MethodPost)
+	setupRouter.HandleFunc("/otp/confirm", c.PostOTPConfirm).Methods(http.MethodPost)
+}
+
+// GetMethodChoice displays method selection page
+func (c *TwoFactorSetupController) GetMethodChoice(w http.ResponseWriter, r *http.Request) {
+	if err := twofactorsetup.MethodChoice(&twofactorsetup.MethodChoiceProps{
+		NextURL: r.URL.Query().Get("next"),
+	}).Render(r.Context(), w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// PostMethodChoice handles method selection and starts setup
+func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+
+	// Parse form
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	method := r.FormValue("Method")
+	nextURL := r.FormValue("NextURL")
+
+	// Validate method
+	validMethods := []string{string(pkgtwofactor.MethodTOTP), string(pkgtwofactor.MethodSMS), string(pkgtwofactor.MethodEmail)}
+	isValid := false
+	for _, valid := range validMethods {
+		if method == valid {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		http.Error(w, "invalid method", http.StatusBadRequest)
+		return
+	}
+
+	// Get session
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		logger.Error("failed to get session", "error", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Validate session status
+	if sess.Status() != session.StatusPending2FA {
+		logger.Error("session not in pending 2FA status", "status", sess.Status())
+		http.Error(w, "invalid session state", http.StatusBadRequest)
+		return
+	}
+
+	// Get user
+	u, err := c.userService.GetByID(r.Context(), sess.UserID())
+	if err != nil {
+		logger.Error("failed to get user", "error", err)
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	// Begin setup
+	methodType := pkgtwofactor.Method(method)
+	challenge, err := c.twoFactorService.BeginSetup(r.Context(), u.ID(), methodType)
+	if err != nil {
+		logger.Error("failed to begin 2FA setup", "error", err, "method", method)
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Error")))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+		return
+	}
+
+	// Redirect based on method
+	redirectURL := ""
+	switch methodType {
+	case pkgtwofactor.MethodTOTP:
+		redirectURL = fmt.Sprintf("/login/2fa/setup/totp?challengeId=%s&next=%s", challenge.ChallengeID, url.QueryEscape(nextURL))
+	case pkgtwofactor.MethodSMS, pkgtwofactor.MethodEmail:
+		redirectURL = fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, challenge.ChallengeID, url.QueryEscape(nextURL))
+	}
+
+	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+// GetTOTPSetup displays TOTP setup page with QR code
+func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+	challengeID := r.URL.Query().Get("challengeId")
+	nextURL := r.URL.Query().Get("next")
+
+	if challengeID == "" {
+		http.Error(w, "missing challenge ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := twofactorsetup.TOTPSetup(&twofactorsetup.TOTPSetupProps{
+		ChallengeID: challengeID,
+		NextURL:     nextURL,
+		QRImageURL:  fmt.Sprintf("/login/2fa/setup/totp/qr.png?challengeId=%s", url.QueryEscape(challengeID)),
+	}).Render(r.Context(), w); err != nil {
+		logger.Error("failed to render TOTP setup template", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// GetTOTPQRImage returns the QR code PNG image
+func (c *TwoFactorSetupController) GetTOTPQRImage(w http.ResponseWriter, r *http.Request) {
+	challengeID := r.URL.Query().Get("challengeId")
+
+	if challengeID == "" {
+		http.Error(w, "missing challenge ID", http.StatusBadRequest)
+		return
+	}
+
+	// TODO: Implement secure challenge retrieval and QR code rendering
+	// Currently, the in-memory setupChallenges map in TwoFactorService is not accessible here.
+	// This would require either:
+	// 1. Adding a method to TwoFactorService to retrieve challenge and render QR code
+	// 2. Storing challenge data in encrypted session or Redis
+	// 3. Passing QR code data through template context
+
+	http.Error(w, "QR code retrieval not fully implemented", http.StatusInternalServerError)
+}
+
+// PostTOTPConfirm validates TOTP code and completes setup
+func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+
+	// Parse form
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	challengeID := r.FormValue("ChallengeID")
+	code := r.FormValue("Code")
+	nextURL := r.FormValue("NextURL")
+
+	if challengeID == "" {
+		http.Error(w, "missing challenge ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get session
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		logger.Error("failed to get session", "error", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Confirm setup
+	result, err := c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
+	if err != nil {
+		logger.Error("failed to confirm 2FA setup", "error", err)
+		errorMsg := "TwoFactor.Setup.InvalidCode"
+		if errors.Is(err, pkgtwofactor.ErrInvalidCode) {
+			errorMsg = "TwoFactor.Setup.InvalidCode"
+		} else {
+			errorMsg = "TwoFactor.Setup.Error"
+		}
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), errorMsg)))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/totp?challengeId=%s&next=%s", url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
+		return
+	}
+
+	// Update session to Active status
+	updatedSession := session.New(
+		sess.Token(),
+		sess.UserID(),
+		sess.TenantID(),
+		sess.IP(),
+		sess.UserAgent(),
+		session.WithStatus(session.StatusActive),
+		session.WithAudience(sess.Audience()),
+		session.WithExpiresAt(sess.ExpiresAt()),
+		session.WithCreatedAt(sess.CreatedAt()),
+	)
+
+	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
+		logger.Error("failed to update session to active", "error", err)
+		http.Error(w, "failed to activate session", http.StatusInternalServerError)
+		return
+	}
+
+	// Show recovery codes
+	if err := twofactorsetup.SetupComplete(&twofactorsetup.SetupCompleteProps{
+		Method:        result.Method,
+		RecoveryCodes: result.RecoveryCodes,
+		NextURL:       nextURL,
+	}).Render(r.Context(), w); err != nil {
+		logger.Error("failed to render setup complete template", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// PostOTPSend sends OTP code via SMS or Email
+func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Request) {
+	// Parse form
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	method := r.FormValue("Method")
+	challengeID := r.FormValue("ChallengeID")
+	nextURL := r.FormValue("NextURL")
+
+	if challengeID == "" {
+		http.Error(w, "missing challenge ID", http.StatusBadRequest)
+		return
+	}
+
+	// For OTP methods, the code was already sent in BeginSetup
+	methodType := pkgtwofactor.Method(method)
+	successMsg := "TwoFactor.Setup.CodeSent"
+	switch methodType {
+	case pkgtwofactor.MethodSMS:
+		successMsg = "TwoFactor.Setup.SMSSent"
+	case pkgtwofactor.MethodEmail:
+		successMsg = "TwoFactor.Setup.EmailSent"
+	}
+
+	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), successMsg)))
+	http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
+}
+
+// PostOTPConfirm validates OTP code and completes setup
+func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+
+	// Parse form
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	challengeID := r.FormValue("ChallengeID")
+	code := r.FormValue("Code")
+	nextURL := r.FormValue("NextURL")
+
+	if challengeID == "" {
+		http.Error(w, "missing challenge ID", http.StatusBadRequest)
+		return
+	}
+
+	// Get session
+	sess, err := composables.UseSession(r.Context())
+	if err != nil {
+		logger.Error("failed to get session", "error", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Confirm setup
+	_, err = c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
+	if err != nil {
+		logger.Error("failed to confirm 2FA setup", "error", err)
+		errorMsg := "TwoFactor.Setup.InvalidCode"
+		if errors.Is(err, pkgtwofactor.ErrInvalidCode) {
+			errorMsg = "TwoFactor.Setup.InvalidCode"
+		} else {
+			errorMsg = "TwoFactor.Setup.Error"
+		}
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), errorMsg)))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?challengeId=%s&next=%s", url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
+		return
+	}
+
+	// Update session to Active status
+	updatedSession := session.New(
+		sess.Token(),
+		sess.UserID(),
+		sess.TenantID(),
+		sess.IP(),
+		sess.UserAgent(),
+		session.WithStatus(session.StatusActive),
+		session.WithAudience(sess.Audience()),
+		session.WithExpiresAt(sess.ExpiresAt()),
+		session.WithCreatedAt(sess.CreatedAt()),
+	)
+
+	if err := c.sessionService.Update(r.Context(), updatedSession); err != nil {
+		logger.Error("failed to update session to active", "error", err)
+		http.Error(w, "failed to activate session", http.StatusInternalServerError)
+		return
+	}
+
+	// For OTP methods, show success and redirect
+	if nextURL == "" {
+		nextURL = "/"
+	}
+
+	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Success")))
+	http.Redirect(w, r, nextURL, http.StatusFound)
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 )
 
@@ -58,6 +59,8 @@ func (m *Module) Register(app application.Application) error {
 	roleRepo := persistence.NewRoleRepository()
 	tenantRepo := persistence.NewTenantRepository()
 	permRepo := persistence.NewPermissionRepository()
+	otpRepo := persistence.NewOTPRepository()
+	recoveryCodeRepo := persistence.NewRecoveryCodeRepository()
 
 	// Create query repositories
 	userQueryRepo := query.NewPgUserQueryRepository()
@@ -81,6 +84,13 @@ func (m *Module) Register(app application.Application) error {
 		sessionService,
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
+	// Create 2FA service
+	twoFactorService := twofactor.NewTwoFactorService(
+		otpRepo,
+		recoveryCodeRepo,
+		userRepo,
+	)
+
 	app.RegisterServices(
 		services.NewAuthService(app),
 		services.NewCurrencyService(persistence.NewCurrencyRepository(), app.EventPublisher()),
@@ -88,6 +98,7 @@ func (m *Module) Register(app application.Application) error {
 		tenantService,
 		services.NewPermissionService(permRepo, app.EventPublisher()),
 		services.NewGroupService(persistence.NewGroupRepository(userRepo, roleRepo), app.EventPublisher()),
+		twoFactorService,
 	)
 
 	// handlers.RegisterUserHandler(app)
@@ -98,6 +109,8 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewDashboardController(app),
 		controllers.NewLensEventsController(app),
 		controllers.NewLoginController(app),
+		controllers.NewTwoFactorSetupController(app),
+		controllers.NewTwoFactorVerifyController(app),
 		controllers.NewSpotlightController(app),
 		controllers.NewAccountController(app),
 		controllers.NewLogoutController(app),

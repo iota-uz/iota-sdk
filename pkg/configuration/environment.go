@@ -124,6 +124,19 @@ type RateLimitOptions struct {
 	RedisURL  string `env:"RATE_LIMIT_REDIS_URL"`
 }
 
+// TwoFactorAuthOptions contains configuration for two-factor authentication and OTP
+type TwoFactorAuthOptions struct {
+	// Two-Factor Authentication
+	Enabled       bool   `env:"ENABLE_2FA" envDefault:"false"`
+	TOTPIssuer    string `env:"TOTP_ISSUER"` // No default - must be set by app if 2FA is enabled
+	GoogleEnabled bool   `env:"ENABLE_GOOGLE_OAUTH" envDefault:"false"`
+
+	// OTP Settings
+	OTPCodeLength  int `env:"OTP_CODE_LENGTH" envDefault:"6"`
+	OTPTTLSeconds  int `env:"OTP_TTL_SECONDS" envDefault:"300"`
+	OTPMaxAttempts int `env:"OTP_MAX_ATTEMPTS" envDefault:"3"`
+}
+
 // Validate checks the rate limit configuration for errors
 func (r *RateLimitOptions) Validate() error {
 	if r.GlobalRPS < 0 {
@@ -142,16 +155,17 @@ func (r *RateLimitOptions) Validate() error {
 }
 
 type Configuration struct {
-	Database      DatabaseOptions
-	Google        GoogleOptions
-	Twilio        TwilioOptions
-	Loki          LokiOptions
-	OpenTelemetry OpenTelemetryOptions
-	Click         ClickOptions
-	Payme         PaymeOptions
-	Octo          OctoOptions
-	Stripe        StripeOptions
-	RateLimit     RateLimitOptions
+	Database          DatabaseOptions
+	Google            GoogleOptions
+	Twilio            TwilioOptions
+	Loki              LokiOptions
+	OpenTelemetry     OpenTelemetryOptions
+	Click             ClickOptions
+	Payme             PaymeOptions
+	Octo              OctoOptions
+	Stripe            StripeOptions
+	RateLimit         RateLimitOptions
+	TwoFactorAuth     TwoFactorAuthOptions
 
 	RedisURL         string        `env:"REDIS_URL" envDefault:"localhost:6379"`
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`

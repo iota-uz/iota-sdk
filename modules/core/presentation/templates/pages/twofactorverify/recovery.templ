@@ -1,0 +1,105 @@
+package twofactorverify
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/alert"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type RecoveryProps struct {
+	NextURL        string
+	ErrorMessage   string
+	SuccessMessage string
+}
+
+templ Recovery(p *RecoveryProps) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+	}}
+	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("TwoFactor.Verify.Meta.Recovery")}) {
+		<div class="flex flex-col h-screen overflow-y-auto">
+			<div class="flex-1 flex items-center justify-center">
+				<div class="mx-4 max-w-md w-full p-6 md:p-11 flex flex-col gap-6">
+					<div class="text-center">
+						<h1 class="text-2xl text-100 mb-2">
+							{ pageCtx.T("TwoFactor.Verify.UseRecoveryCode") }
+						</h1>
+						<p class="text-200">{ pageCtx.T("TwoFactor.Verify.EnterRecoveryCode") }</p>
+					</div>
+
+					if p.ErrorMessage != "" {
+						@alert.Error() {
+							{ p.ErrorMessage }
+						}
+					}
+
+					if p.SuccessMessage != "" {
+						<div class="bg-green-100 text-green-600 py-2.5 px-4 text-sm font-medium rounded-md w-full text-center">
+							{ p.SuccessMessage }
+						</div>
+					}
+
+					<!-- Recovery Code Form -->
+					<form method="post" action="/login/2fa/verify/recovery" class="flex flex-col gap-4">
+						<input type="hidden" name="NextURL" value={ p.NextURL }/>
+
+						<div>
+							<label class="block text-sm font-medium text-100 mb-2">
+								{ pageCtx.T("TwoFactor.Verify.RecoveryCodeLabel") }
+							</label>
+							<input
+								type="text"
+								name="Code"
+								class="w-full px-4 py-2 text-center text-lg tracking-wider border border-primary rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+								placeholder="XXXX-XXXX-XXXX"
+								maxlength="14"
+								required
+								autocomplete="off"
+								autofocus
+							/>
+							<p class="text-xs text-200 mt-1">
+								{ pageCtx.T("TwoFactor.Verify.RecoveryCodeFormat") }
+							</p>
+						</div>
+
+						@button.Primary(button.Props{
+							Size:  button.SizeNormal,
+							Class: "justify-center",
+							Attrs: templ.Attributes{
+								"type": "submit",
+							},
+						}) {
+							{ pageCtx.T("TwoFactor.Verify.VerifyRecoveryCode") }
+						}
+					</form>
+
+					<!-- Back to Verification Link -->
+					<div class="text-center border-t border-primary/10 pt-4">
+						<p class="text-sm text-200 mb-3">
+							{ pageCtx.T("TwoFactor.Verify.BackToVerification") }
+						</p>
+						<a href={ templ.URL("/login/2fa/verify?next=" + p.NextURL) } class="text-primary hover:underline font-medium text-sm">
+							{ pageCtx.T("TwoFactor.Verify.EnterCode") }
+						</a>
+					</div>
+
+					<!-- Help Text -->
+					<div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+						<div class="flex gap-3">
+							<div class="text-blue-600 flex-shrink-0">
+								@icons.Info(icons.Props{Size: "20"})
+							</div>
+							<div>
+								<p class="text-sm text-blue-900">
+									{ pageCtx.T("TwoFactor.Verify.RecoveryCodeHelp") }
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
