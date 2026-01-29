@@ -21,7 +21,10 @@ func TestUploadController_DirectoryListing_Returns404(t *testing.T) {
 	testPath := filepath.Join(uploadsPath, testSubDir)
 	err := os.MkdirAll(testPath, 0755)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(testPath) })
+	t.Cleanup(func() {
+		err := os.RemoveAll(testPath)
+		require.NoError(t, err)
+	})
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -46,7 +49,10 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 	testPath := filepath.Join(uploadsPath, testSubDir)
 	err := os.MkdirAll(testPath, 0755)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(testPath) })
+	t.Cleanup(func() {
+		err := os.RemoveAll(testPath)
+		require.NoError(t, err)
+	})
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -79,7 +85,10 @@ func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 	testPath := filepath.Join(uploadsPath, testSubDir)
 	err := os.MkdirAll(testPath, 0755)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(testPath) })
+	t.Cleanup(func() {
+		err := os.RemoveAll(testPath)
+		require.NoError(t, err)
+	})
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -108,7 +117,10 @@ func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
 	testPath := filepath.Join(uploadsPath, testSubDir)
 	err := os.MkdirAll(testPath, 0755)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(testPath) })
+	t.Cleanup(func() {
+		err := os.RemoveAll(testPath)
+		require.NoError(t, err)
+	})
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
@@ -143,7 +155,10 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 	testPath := filepath.Join(uploadsPath, testSubDir)
 	err := os.MkdirAll(testPath, 0755)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = os.RemoveAll(testPath) })
+	t.Cleanup(func() {
+		err := os.RemoveAll(testPath)
+		require.NoError(t, err)
+	})
 
 	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
 		PermissionSchema: defaults.PermissionSchema(),
