@@ -37,11 +37,11 @@ var (
 )
 
 type AuthService struct {
-	app             application.Application
-	oAuthConfig     *oauth2.Config
-	usersService    *UserService
-	sessionService  *SessionService
-	ipBindingMode   IPBindingMode
+	app            application.Application
+	oAuthConfig    *oauth2.Config
+	usersService   *UserService
+	sessionService *SessionService
+	ipBindingMode  IPBindingMode
 }
 
 // AuthServiceOption is a functional option for configuring AuthService
@@ -293,7 +293,7 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User, opts ...ses
 		UserID:    u.ID(),
 		IP:        ip,
 		UserAgent: userAgent,
-		TenantID:  u.TenantID(), // Ensure tenant ID is set in the session
+		TenantID:  u.TenantID(),            // Ensure tenant ID is set in the session
 		Audience:  session.AudienceGranite, // Default audience
 	}
 
