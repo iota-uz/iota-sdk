@@ -18,7 +18,18 @@ import (
 )
 
 type GraphQLController struct {
-	app application.Application
+	app             application.Application
+	resolverOptions []graph.ResolverOption
+}
+
+// GraphQLControllerOption is a functional option for configuring the GraphQLController.
+type GraphQLControllerOption func(*GraphQLController)
+
+// WithResolverOptions sets custom resolver options (e.g., authorizers).
+func WithResolverOptions(opts ...graph.ResolverOption) GraphQLControllerOption {
+	return func(c *GraphQLController) {
+		c.resolverOptions = append(c.resolverOptions, opts...)
+	}
 }
 
 func (g *GraphQLController) Key() string {
@@ -28,7 +39,7 @@ func (g *GraphQLController) Key() string {
 func (g *GraphQLController) Register(r *mux.Router) {
 	schema := graph.NewExecutableSchema(
 		graph.Config{
-			Resolvers: graph.NewResolver(g.app),
+			Resolvers: graph.NewResolver(g.app, g.resolverOptions...),
 		},
 	)
 	srv := graphql.NewBaseServer(schema)
@@ -58,8 +69,23 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	log.Printf("See %s/playground for GraphQL playground", configuration.Use().Origin)
 }
 
-func NewGraphQLController(app application.Application) application.Controller {
-	return &GraphQLController{
+// NewGraphQLController creates a new GraphQL controller with optional configuration.
+// Use WithResolverOptions to provide custom authorizers.
+//
+// Example:
+//
+//	NewGraphQLController(app,
+//	    WithResolverOptions(
+//	        graph.WithUsersAuthorizer(customUsersAuthorizer),
+//	        graph.WithUploadsAuthorizer(customUploadsAuthorizer),
+//	    ),
+//	)
+func NewGraphQLController(app application.Application, opts ...GraphQLControllerOption) application.Controller {
+	c := &GraphQLController{
 		app: app,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
