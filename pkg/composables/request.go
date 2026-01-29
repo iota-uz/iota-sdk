@@ -192,3 +192,13 @@ func GetLastQueryParams(r *http.Request, keys ...string) map[string]string {
 	}
 	return result
 }
+
+// UseRequest returns the HTTP request from the context.
+// If the request is not found, the second return value will be false.
+func UseRequest(ctx context.Context) (*http.Request, bool) {
+	params, ok := UseParams(ctx)
+	if !ok {
+		return nil, false
+	}
+	return params.Request, true
+}

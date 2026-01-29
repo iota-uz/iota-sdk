@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"time"
 
@@ -18,16 +19,45 @@ import (
 	"google.golang.org/api/people/v1"
 )
 
+// IPBindingMode defines how strictly IP addresses are validated for sessions
+type IPBindingMode string
+
+const (
+	// IPBindingDisabled means IP binding validation is not performed
+	IPBindingDisabled IPBindingMode = "disabled"
+	// IPBindingWarn means IP mismatches are logged but allowed
+	IPBindingWarn IPBindingMode = "warn"
+	// IPBindingStrict means IP mismatches result in authorization failure
+	IPBindingStrict IPBindingMode = "strict"
+)
+
+var (
+	ErrAudienceMismatch = errors.New("session audience mismatch")
+	ErrIPMismatch       = errors.New("session IP address mismatch")
+	ErrIPUnavailable    = errors.New("client IP address unavailable for validation")
+)
+
 type AuthService struct {
 	app            application.Application
 	oAuthConfig    *oauth2.Config
 	usersService   *UserService
 	sessionService *SessionService
+	ipBindingMode  IPBindingMode
 }
 
-func NewAuthService(app application.Application) *AuthService {
+// AuthServiceOption is a functional option for configuring AuthService
+type AuthServiceOption func(*AuthService)
+
+// WithIPBindingMode sets the IP binding mode for session authorization
+func WithIPBindingMode(mode IPBindingMode) AuthServiceOption {
+	return func(s *AuthService) {
+		s.ipBindingMode = mode
+	}
+}
+
+func NewAuthService(app application.Application, opts ...AuthServiceOption) *AuthService {
 	conf := configuration.Use()
-	return &AuthService{
+	svc := &AuthService{
 		app: app,
 		oAuthConfig: &oauth2.Config{
 			RedirectURL:  conf.Google.RedirectURL,
@@ -41,7 +71,12 @@ func NewAuthService(app application.Application) *AuthService {
 		},
 		usersService:   app.Service(UserService{}).(*UserService),
 		sessionService: app.Service(SessionService{}).(*SessionService),
+		ipBindingMode:  IPBindingDisabled, // Default to disabled for backward compatibility
 	}
+	for _, opt := range opts {
+		opt(svc)
+	}
+	return svc
 }
 
 func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user.User, session.Session, error) {
@@ -63,7 +98,34 @@ func (s *AuthService) AuthenticateGoogle(ctx context.Context, code string) (user
 	if err != nil {
 		return nil, nil, err
 	}
-	sess, err := s.authenticate(ctx, u)
+	sess, err := s.authenticate(ctx, u, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return u, sess, nil
+}
+
+// AuthenticateGoogleWithAudience authenticates a user via Google OAuth and creates a session with a specific audience
+func (s *AuthService) AuthenticateGoogleWithAudience(ctx context.Context, code string, audience session.SessionAudience) (user.User, session.Session, error) {
+	// Use code to get token and get user info from Google.
+	token, err := s.oAuthConfig.Exchange(ctx, code)
+	if err != nil {
+		return nil, nil, err
+	}
+	client := s.oAuthConfig.Client(ctx, token)
+	svc, err := people.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, nil, err
+	}
+	p, err := svc.People.Get("people/me").PersonFields("emailAddresses,names").Do()
+	if err != nil {
+		return nil, nil, err
+	}
+	u, err := s.usersService.GetByEmail(ctx, p.EmailAddresses[0].Value)
+	if err != nil {
+		return nil, nil, err
+	}
+	sess, err := s.authenticate(ctx, u, audience)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,7 +152,68 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 }
 
 func (s *AuthService) Authorize(ctx context.Context, token string) (session.Session, error) {
-	return s.sessionService.GetByToken(ctx, token)
+	sess, err := s.sessionService.GetByToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate IP binding if configured
+	if s.ipBindingMode != IPBindingDisabled {
+		if err := s.validateIPBinding(ctx, sess); err != nil {
+			if s.ipBindingMode == IPBindingStrict {
+				return nil, err
+			}
+			// Log warning but allow access in warn mode
+			logger := configuration.Use().Logger()
+			logger.Warnf("IP binding validation warning for session: %v", err)
+		}
+	}
+
+	return sess, nil
+}
+
+// AuthorizeWithAudience validates a token and ensures the session audience matches the expected audience
+func (s *AuthService) AuthorizeWithAudience(ctx context.Context, token string, expectedAudience session.SessionAudience) (session.Session, error) {
+	sess, err := s.Authorize(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate audience
+	if sess.Audience() != expectedAudience {
+		logger := configuration.Use().Logger()
+		logger.Warnf("Session audience mismatch: expected %s, got %s", expectedAudience, sess.Audience())
+		return nil, ErrAudienceMismatch
+	}
+
+	return sess, nil
+}
+
+// validateIPBinding checks if the request IP matches the session IP
+func (s *AuthService) validateIPBinding(ctx context.Context, sess session.Session) error {
+	logger := configuration.Use().Logger()
+	currentIP, ok := composables.UseIP(ctx)
+	if !ok {
+		// Handle case when current IP cannot be retrieved
+		switch s.ipBindingMode {
+		case IPBindingStrict:
+			// In strict mode, fail if we can't get the IP
+			return ErrIPUnavailable
+		case IPBindingWarn:
+			// In warn mode, log warning and allow
+			logger.Warnf("IP binding validation: unable to retrieve current IP address")
+		case IPBindingDisabled:
+			// In disabled mode, allow the request
+		}
+		return nil
+	}
+
+	// Validate IP match
+	if currentIP != sess.IP() {
+		return ErrIPMismatch
+	}
+
+	return nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
@@ -107,9 +230,9 @@ func (s *AuthService) newSessionToken() (string, error) {
 	return encoded, nil
 }
 
-func (s *AuthService) authenticate(ctx context.Context, u user.User) (session.Session, error) {
+func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
 	logger := configuration.Use().Logger()
-	logger.Infof("Creating session for user ID: %d, tenant ID: %d", u.ID(), u.TenantID())
+	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
 
 	// Get IP and user agent
 	ip, ok := composables.UseIP(ctx)
@@ -131,13 +254,14 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User) (session.Se
 		return nil, err
 	}
 
-	// Create session DTO
+	// Create session DTO with specified audience
 	sess := &session.CreateDTO{
 		Token:     token,
 		UserID:    u.ID(),
 		IP:        ip,
 		UserAgent: userAgent,
-		TenantID:  u.TenantID(), // Ensure tenant ID is set in the session
+		TenantID:  u.TenantID(),
+		Audience:  audience,
 	}
 
 	// Update user last login
@@ -171,7 +295,23 @@ func (s *AuthService) AuthenticateWithUserID(ctx context.Context, id uint, passw
 	if !u.CheckPassword(password) {
 		return nil, nil, composables.ErrInvalidPassword
 	}
-	sess, err := s.authenticate(ctx, u)
+	sess, err := s.authenticate(ctx, u, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	return u, sess, nil
+}
+
+// AuthenticateWithUserIDAndAudience authenticates a user by ID and password, creating a session with a specific audience
+func (s *AuthService) AuthenticateWithUserIDAndAudience(ctx context.Context, id uint, password string, audience session.SessionAudience) (user.User, session.Session, error) {
+	u, err := s.usersService.GetByID(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !u.CheckPassword(password) {
+		return nil, nil, composables.ErrInvalidPassword
+	}
+	sess, err := s.authenticate(ctx, u, audience)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,13 +352,37 @@ func (s *AuthService) Authenticate(ctx context.Context, email, password string) 
 	}
 
 	logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
-	sess, err := s.authenticate(ctx, u)
+	sess, err := s.authenticate(ctx, u, "")
 	if err != nil {
 		logger.Errorf("Failed to create session: %v", err)
 		return nil, nil, err
 	}
 
 	logger.Infof("Session created successfully with token: %s (partial)", sess.Token()[:5])
+	return u, sess, nil
+}
+
+// AuthenticateWithAudience authenticates a user by email and password, creating a session with a specific audience
+func (s *AuthService) AuthenticateWithAudience(ctx context.Context, email, password string, audience session.SessionAudience) (user.User, session.Session, error) {
+	logger := configuration.Use().Logger()
+	logger.Infof("Authentication attempt for email: %s, audience: %s", email, audience)
+
+	u, err := s.usersService.GetByEmail(ctx, email)
+	if err != nil {
+		logger.Errorf("Failed to get user by email: %v", err)
+		return nil, nil, err
+	}
+
+	if !u.CheckPassword(password) {
+		logger.Errorf("Invalid password for user: %s", email)
+		return nil, nil, composables.ErrInvalidPassword
+	}
+
+	sess, err := s.authenticate(ctx, u, audience)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return u, sess, nil
 }
 
