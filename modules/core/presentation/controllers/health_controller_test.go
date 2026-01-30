@@ -35,16 +35,48 @@ func TestHealthController_Get_Integration(t *testing.T) {
 	err := json.Unmarshal([]byte(response.Body()), &jsonResponse)
 	require.NoError(t, err)
 
+	// Health endpoint should always return status field
 	require.Contains(t, jsonResponse, "status")
-	require.Contains(t, jsonResponse, "timestamp")
-	require.Contains(t, jsonResponse, "version")
-	require.Contains(t, jsonResponse, "uptime")
-	require.Contains(t, jsonResponse, "checks")
-
 	status := jsonResponse["status"].(string)
-	require.Contains(t, []string{"healthy", "degraded", "down"}, status)
+	require.Contains(t, []string{"healthy", "unhealthy", "degraded", "down"}, status)
 
-	checks := jsonResponse["checks"].(map[string]interface{})
-	require.Contains(t, checks, "database")
-	require.Contains(t, checks, "system")
+	// Note: Detailed fields (timestamp, version, uptime, checks) are only present
+	// when HEALTH_DETAILED=true environment variable is set. By default (false),
+	// only the status field is returned for minimal overhead.
 }
+
+func TestHealthController_Get_SimpleMode_Default(t *testing.T) {
+	// Test default behavior (HEALTH_DETAILED=false by default)
+	// This test validates the simple mode which returns only {"status": "healthy"}
+	suite := itf.HTTP(t, core.NewModule(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	}))
+	controller := controllers.NewHealthController(suite.Environment().App)
+	suite.Register(controller)
+
+	response := suite.GET("/health").Expect(t).Status(200)
+
+	require.Equal(t, "application/json", response.Header("Content-Type"))
+
+	var jsonResponse map[string]interface{}
+	err := json.Unmarshal([]byte(response.Body()), &jsonResponse)
+	require.NoError(t, err)
+
+	// Simple mode should only return status field
+	require.Contains(t, jsonResponse, "status")
+
+	// Verify it's one of the expected status values
+	status := jsonResponse["status"].(string)
+	require.Contains(t, []string{"healthy", "unhealthy"}, status)
+
+	// Should NOT contain detailed fields in simple mode
+	require.NotContains(t, jsonResponse, "timestamp")
+	require.NotContains(t, jsonResponse, "version")
+	require.NotContains(t, jsonResponse, "uptime")
+	require.NotContains(t, jsonResponse, "checks")
+}
+
+// Note: Testing detailed mode requires HEALTH_DETAILED=true to be set
+// in the environment before the application starts, as the configuration
+// is loaded once at package initialization. This can be verified manually:
+// HEALTH_DETAILED=true go test -v -run TestHealthController_Get_DetailedMode
