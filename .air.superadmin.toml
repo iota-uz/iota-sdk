@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 [build]
 args_bin = []
 bin = "./tmp/superadmin"
-cmd = "go build -o ./tmp/superadmin cmd/superadmin/main.go"
+cmd = "go build -tags dev -o ./tmp/superadmin cmd/superadmin/main.go"
 delay = 1000
 exclude_dir = [
   "tmp",

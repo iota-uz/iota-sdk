@@ -75,11 +75,11 @@ test:
 		exit 0; \
 	fi
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "watch" ]; then \
-		gow test -v ./...; \
+		gow test -tags dev -v ./...; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "coverage" ]; then \
-		go test -v ./... -coverprofile=./coverage/coverage.out; \
+		go test -tags dev -v ./... -coverprofile=./coverage/coverage.out; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "verbose" ]; then \
-		go test -v ./...; \
+		go test -tags dev -v ./...; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "docker" ]; then \
 		docker compose -f compose.testing.yml up --build erp_local; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "score" ]; then \
@@ -87,7 +87,7 @@ test:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "report" ]; then \
 		go tool cover -html=coverage.out -o ./coverage/cover.html; \
 	else \
-		go test ./...; \
+		go test -tags dev ./...; \
 	fi
 
 # Compile TailwindCSS with optional subcommands (css, watch, dev, clean)
@@ -134,7 +134,11 @@ e2e:
 
 # Build and release management
 build:
-	@if [ "$(word 2,$(MAKECMDGOALS))" = "local" ]; then \
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
+		go build -tags dev -ldflags="-s -w" -o run_server cmd/server/main.go; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "local" ]; then \
+		go build -ldflags="-s -w" -o run_server cmd/server/main.go; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "prod" ]; then \
 		go build -ldflags="-s -w" -o run_server cmd/server/main.go; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "linux" ]; then \
 		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /build/run_server cmd/server/main.go; \
@@ -143,8 +147,10 @@ build:
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "docker-prod" ]; then \
 		docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:$v --target production .; \
 	else \
-		echo "Usage: make build [local|linux|docker-base|docker-prod]"; \
-		echo "  local       - Build for local OS"; \
+		echo "Usage: make build [dev|local|prod|linux|docker-base|docker-prod]"; \
+		echo "  dev         - Build with dev tags for development"; \
+		echo "  local       - Build for local OS (production mode)"; \
+		echo "  prod        - Build for production (explicit)"; \
 		echo "  linux       - Build for Alpine Linux (production)"; \
 		echo "  docker-base - Build and push base Docker image"; \
 		echo "  docker-prod - Build and push production Docker image"; \
@@ -179,7 +185,7 @@ fix:
 # Code quality checks with subcommands (lint, tr)
 check:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "lint" ]; then \
-		golangci-lint run ./...; \
+		golangci-lint run --build-tags dev ./...; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "tr" ]; then \
 		go run cmd/command/main.go check_tr_keys; \
 	else \
@@ -236,7 +242,7 @@ setup: deps css
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose docker score report linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports serve:
+watch coverage verbose docker score report dev prod linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports serve:
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check fix superadmin \
