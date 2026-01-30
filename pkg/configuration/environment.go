@@ -181,6 +181,10 @@ type Configuration struct {
 	// Test endpoints - only enable in test environment
 	EnableTestEndpoints bool `env:"ENABLE_TEST_ENDPOINTS" envDefault:"false"`
 
+	// Health endpoint mode - when false, returns simple {status: "healthy"} response
+	// When true, returns detailed health checks with database, system metrics
+	HealthDetailed bool `env:"HEALTH_DETAILED" envDefault:"false"`
+
 	logFile *os.File
 	logger  *logrus.Logger
 }

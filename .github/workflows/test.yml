@@ -87,7 +87,7 @@ jobs:
           echo "All SQL files are properly formatted"
 
       - name: Run go vet
-        run: go vet ./...
+        run: go vet -tags dev ./...
 
       - name: Generate CSS files
         run: make css
@@ -189,7 +189,7 @@ jobs:
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
-        run: go test -v ./... -coverprofile=coverage.out -covermode=atomic
+        run: go test -tags dev -v ./... -coverprofile=coverage.out -covermode=atomic
 
       - name: Generate coverage report
         env:
@@ -319,7 +319,7 @@ jobs:
           GO_APP_ENV: production
           ENABLE_TEST_ENDPOINTS: true
         run: |
-          go run cmd/server/main.go &
+          go run -tags dev cmd/server/main.go &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
