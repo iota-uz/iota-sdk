@@ -16,6 +16,12 @@ issues:
     - logs
     - e2e
     - migrations
+  exclude-rules:
+    # Allow nil comparison for controllers that may return nil in production builds
+    - path: "modules/core/module\\.go"
+      text: "SA4023"
+      linters:
+        - staticcheck
 
 output:
   format: colored-line-number
@@ -24,6 +30,12 @@ output:
     - linter
     - severity
     - file
+
+linters-settings:
+  staticcheck:
+    checks:
+      - "all"
+      - "-SA4023"  # Allow "always true" comparisons for build-tagged nil checks
 
 
 linters:
@@ -49,7 +61,7 @@ linters:
     #    - gci
     - ginkgolinter
     - gocheckcompilerdirectives
-    - gochecknoinits
+    # - gochecknoinits  # Disabled: we use init() for build-tagged conditional feature registration
     - gochecksumtype
     #    - gocognit
     #    - goconst

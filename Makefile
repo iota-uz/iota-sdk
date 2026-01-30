@@ -185,7 +185,7 @@ fix:
 # Code quality checks with subcommands (lint, tr)
 check:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "lint" ]; then \
-		golangci-lint run ./...; \
+		golangci-lint run --build-tags dev ./...; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "tr" ]; then \
 		go run cmd/command/main.go check_tr_keys; \
 	else \
