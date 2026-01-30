@@ -1,21 +1,23 @@
 package controllers
 
 import (
-	"log"
 	"net/http"
 	"path"
 
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 
 	"github.com/99designs/gqlgen/graphql/executor"
-	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/graphql"
 )
+
+// registerPlaygroundHandler is a package-level variable that can be overridden by build tags.
+// In development builds, this will register the GraphQL playground handler.
+// In production builds, this will be a no-op.
+var registerPlaygroundHandler = func(r *mux.Router) {}
 
 type GraphQLController struct {
 	app             application.Application
@@ -58,7 +60,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	)
 
 	router.Handle("/query", srv)
-	router.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
+	registerPlaygroundHandler(router)
 	for _, schema := range g.app.GraphSchemas() {
 		exec := executor.New(schema.Value)
 		if schema.ExecutorCb != nil {
@@ -66,7 +68,6 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		}
 		router.Handle(path.Join("/query", schema.BasePath), graphql.NewHandler(exec))
 	}
-	log.Printf("See %s/playground for GraphQL playground", configuration.Use().Origin)
 }
 
 // NewGraphQLController creates a new GraphQL controller with optional configuration.
