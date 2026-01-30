@@ -136,19 +136,19 @@ func TestHealthController_QuickDBCheck_Timeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
 
-	// Wait for context to expire
-	time.Sleep(10 * time.Millisecond)
+	// Wait for context to actually expire
+	<-ctx.Done()
 
 	// Since quickDBCheck is a private method, we test the underlying behavior
 	// by verifying that database queries with expired contexts fail as expected
 	db := suite.Environment().App.DB()
 	require.NotNil(t, db, "database pool should be available")
 
-	// Test that a query with an expired context fails
+	// Test that a query with an expired context fails with DeadlineExceeded
 	var result int
 	err := db.QueryRow(ctx, "SELECT 1").Scan(&result)
 	require.Error(t, err, "query should fail with expired context")
-	require.Contains(t, err.Error(), "context", "error should mention context")
+	require.ErrorIs(t, err, context.DeadlineExceeded, "error should be context.DeadlineExceeded")
 }
 
 func TestHealthController_QuickDBCheck_ErrorHandling(t *testing.T) {
