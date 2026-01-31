@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, ReactNode } from 'react'
 import { useChat } from '../context/ChatContext'
-import { Message, MessageRole } from '../types'
+import { Message } from '../types'
 import { TurnBubble } from './TurnBubble'
 
 interface MessageListProps {
@@ -14,7 +14,7 @@ interface MessageListProps {
 }
 
 export function MessageList({ renderUserMessage, renderAssistantMessage }: MessageListProps) {
-  const { messages, streamingContent, isStreaming, pendingQuestion } = useChat()
+  const { messages, streamingContent, isStreaming } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom on new messages

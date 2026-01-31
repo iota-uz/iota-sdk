@@ -67,9 +67,13 @@
 //	executor.RegisterInterruptHandler(agents.ToolAskUserQuestion, handler)
 //
 // When the agent calls this tool, execution pauses and a checkpoint is saved.
-// Resume execution with the user's answer:
+// Resume execution with the user's answers (map from question ID to answer):
 //
-//	gen := executor.Resume(ctx, checkpointID, userAnswer)
+//	answers := map[string]string{
+//	    "question_1": "Q1 2024",
+//	    "question_2": "revenue",
+//	}
+//	gen := executor.Resume(ctx, checkpointID, answers)
 //	for {
 //	    event, err, hasMore := gen.Next()
 //	    if !hasMore { break }

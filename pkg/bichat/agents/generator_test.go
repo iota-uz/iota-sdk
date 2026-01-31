@@ -6,15 +6,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 func TestGenerator_Basic(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	// Create a generator that yields numbers 1-5
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		for i := 1; i <= 5; i++ {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			if !yield(i) {
 				return nil
 			}
@@ -28,12 +35,12 @@ func TestGenerator_Basic(t *testing.T) {
 	receivedValues := []int{}
 
 	for {
-		value, err, hasMore := gen.Next()
+		value, err := gen.Next(ctx)
 		if err != nil {
+			if errors.Is(err, types.ErrGeneratorDone) {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 		receivedValues = append(receivedValues, value)
 	}
@@ -53,15 +60,21 @@ func TestGenerator_Basic(t *testing.T) {
 func TestGenerator_Cancellation(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	producerStarted := make(chan struct{})
 	producerStopped := make(chan struct{})
 
 	// Create a generator that yields infinitely but respects cancellation
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		close(producerStarted)
 		defer close(producerStopped)
 
 		for i := 0; ; i++ {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			if !yield(i) {
 				return nil // Consumer stopped
 			}
@@ -74,12 +87,9 @@ func TestGenerator_Cancellation(t *testing.T) {
 
 	// Consume a few values
 	for i := 0; i < 3; i++ {
-		_, err, hasMore := gen.Next()
+		_, err := gen.Next(ctx)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			t.Fatal("Expected more values")
 		}
 	}
 
@@ -94,23 +104,21 @@ func TestGenerator_Cancellation(t *testing.T) {
 		t.Fatal("Producer did not stop after Close()")
 	}
 
-	// Subsequent calls to Next() should return closed error
-	_, err, hasMore := gen.Next()
-	if !errors.Is(err, agents.ErrGeneratorClosed) {
-		t.Errorf("Expected ErrGeneratorClosed, got: %v", err)
-	}
-	if hasMore {
-		t.Error("Expected hasMore=false after close")
+	// Subsequent calls to Next() should return error after close
+	_, err := gen.Next(ctx)
+	if err == nil {
+		t.Error("Expected error after close")
 	}
 }
 
 func TestGenerator_Error(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	expectedErr := errors.New("producer error")
 
 	// Create a generator that yields a few values then returns error
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		yield(1)
 		yield(2)
 		return expectedErr
@@ -119,12 +127,9 @@ func TestGenerator_Error(t *testing.T) {
 
 	// Consume first two values
 	for i := 1; i <= 2; i++ {
-		value, err, hasMore := gen.Next()
+		value, err := gen.Next(ctx)
 		if err != nil {
 			t.Fatalf("Unexpected error on value %d: %v", i, err)
-		}
-		if !hasMore {
-			t.Fatal("Expected more values")
 		}
 		if value != i {
 			t.Errorf("Expected value %d, got %d", i, value)
@@ -132,20 +137,24 @@ func TestGenerator_Error(t *testing.T) {
 	}
 
 	// Next call should return the error
-	_, err, hasMore := gen.Next()
+	_, err := gen.Next(ctx)
 	if !errors.Is(err, expectedErr) {
 		t.Errorf("Expected error %v, got: %v", expectedErr, err)
-	}
-	if hasMore {
-		t.Error("Expected hasMore=false when error occurs")
 	}
 }
 
 func TestGenerator_Close(t *testing.T) {
 	t.Parallel()
 
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	ctx := context.Background()
+
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		for i := 0; i < 100; i++ {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			if !yield(i) {
 				return nil
 			}
@@ -158,22 +167,26 @@ func TestGenerator_Close(t *testing.T) {
 	gen.Close()
 	gen.Close()
 
-	// After close, Next() should return closed error
-	_, err, hasMore := gen.Next()
-	if !errors.Is(err, agents.ErrGeneratorClosed) {
-		t.Errorf("Expected ErrGeneratorClosed, got: %v", err)
-	}
-	if hasMore {
-		t.Error("Expected hasMore=false after close")
+	// After close, Next() should return error
+	_, err := gen.Next(ctx)
+	if err == nil {
+		t.Error("Expected error after close")
 	}
 }
 
 func TestGenerator_Collect(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	// Create a generator that yields numbers 1-10
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		for i := 1; i <= 10; i++ {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			if !yield(i) {
 				return nil
 			}
@@ -182,7 +195,7 @@ func TestGenerator_Collect(t *testing.T) {
 	})
 
 	// Collect all values
-	values, err := agents.Collect(gen)
+	values, err := types.Collect(ctx, gen)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -202,10 +215,11 @@ func TestGenerator_Collect(t *testing.T) {
 func TestGenerator_CollectWithError(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	expectedErr := errors.New("collection error")
 
 	// Create a generator that yields a few values then errors
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		yield(1)
 		yield(2)
 		yield(3)
@@ -213,7 +227,7 @@ func TestGenerator_CollectWithError(t *testing.T) {
 	})
 
 	// Collect should return partial results and the error
-	values, err := agents.Collect(gen)
+	values, err := types.Collect(ctx, gen)
 	if !errors.Is(err, expectedErr) {
 		t.Errorf("Expected error %v, got: %v", expectedErr, err)
 	}
@@ -227,11 +241,17 @@ func TestGenerator_CollectWithError(t *testing.T) {
 func TestGenerator_EarlyStop(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	producerYieldCount := 0
 
 	// Create a generator
-	gen := agents.NewGenerator(func(yield func(string) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(string) bool) error {
 		for i := 0; i < 10; i++ {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			producerYieldCount++
 			if !yield("value") {
 				return nil // Consumer stopped early
@@ -243,12 +263,9 @@ func TestGenerator_EarlyStop(t *testing.T) {
 
 	// Consume only 3 values
 	for i := 0; i < 3; i++ {
-		_, err, hasMore := gen.Next()
+		_, err := gen.Next(ctx)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			t.Fatal("Expected more values")
 		}
 	}
 
@@ -267,19 +284,18 @@ func TestGenerator_EarlyStop(t *testing.T) {
 func TestGenerator_EmptyGenerator(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	// Create a generator that yields nothing
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		return nil
 	})
 	defer gen.Close()
 
-	// First call to Next() should return no values
-	_, err, hasMore := gen.Next()
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if hasMore {
-		t.Error("Expected hasMore=false for empty generator")
+	// First call to Next() should return ErrGeneratorDone
+	_, err := gen.Next(ctx)
+	if !errors.Is(err, types.ErrGeneratorDone) {
+		t.Errorf("Expected ErrGeneratorDone for empty generator, got: %v", err)
 	}
 }
 
@@ -290,7 +306,7 @@ func TestGenerator_ContextCancellation(t *testing.T) {
 	producerStopped := make(chan struct{})
 
 	// Create a generator that respects context cancellation
-	gen := agents.NewGenerator(func(yield func(int) bool) error {
+	gen := types.NewGenerator(ctx, func(ctx context.Context, yield func(int) bool) error {
 		defer close(producerStopped)
 
 		for i := 0; ; i++ {
@@ -309,12 +325,9 @@ func TestGenerator_ContextCancellation(t *testing.T) {
 
 	// Consume a few values
 	for i := 0; i < 3; i++ {
-		_, err, hasMore := gen.Next()
+		_, err := gen.Next(ctx)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			t.Fatal("Expected more values")
 		}
 	}
 

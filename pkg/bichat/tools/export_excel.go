@@ -3,30 +3,66 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/xuri/excelize/v2"
 )
-
-// ExcelExporter defines the interface for exporting data to Excel.
-// Consumers can implement this interface to customize Excel generation.
-type ExcelExporter interface {
-	// ExportToExcel exports query results to an Excel file and returns the file path or URL.
-	ExportToExcel(ctx context.Context, data *QueryResult, filename string) (string, error)
-}
 
 // ExportToExcelTool exports query results to Excel format.
 // It generates an Excel file with formatted data and returns the file path/URL.
 type ExportToExcelTool struct {
-	exporter ExcelExporter
+	outputDir  string
+	baseURL    string
+	exportOpts *excel.ExportOptions
+	styleOpts  *excel.StyleOptions
+}
+
+// ExcelToolOption configures the Excel export tool.
+type ExcelToolOption func(*ExportToExcelTool)
+
+// WithOutputDir sets the directory where Excel files will be saved.
+func WithOutputDir(dir string) ExcelToolOption {
+	return func(t *ExportToExcelTool) {
+		t.outputDir = dir
+	}
+}
+
+// WithBaseURL sets the base URL for download links.
+func WithBaseURL(url string) ExcelToolOption {
+	return func(t *ExportToExcelTool) {
+		t.baseURL = url
+	}
+}
+
+// WithExportOptions sets custom export options.
+func WithExportOptions(opts *excel.ExportOptions) ExcelToolOption {
+	return func(t *ExportToExcelTool) {
+		t.exportOpts = opts
+	}
+}
+
+// WithStyleOptions sets custom style options.
+func WithStyleOptions(opts *excel.StyleOptions) ExcelToolOption {
+	return func(t *ExportToExcelTool) {
+		t.styleOpts = opts
+	}
 }
 
 // NewExportToExcelTool creates a new export to Excel tool.
-func NewExportToExcelTool(exporter ExcelExporter) agents.Tool {
-	return &ExportToExcelTool{
-		exporter: exporter,
+func NewExportToExcelTool(opts ...ExcelToolOption) agents.Tool {
+	tool := &ExportToExcelTool{
+		exportOpts: excel.DefaultOptions(),
+		styleOpts:  excel.DefaultStyleOptions(),
 	}
+
+	for _, opt := range opts {
+		opt(tool)
+	}
+
+	return tool
 }
 
 // Name returns the tool name.
@@ -92,11 +128,26 @@ func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, err
 		filename = "export.xlsx"
 	}
 
-	// Export to Excel
-	url, err := t.exporter.ExportToExcel(ctx, params.Data, filename)
+	// Create datasource adapter
+	datasource := NewQueryResultDataSource(params.Data)
+
+	// Use SDK exporter with configured options
+	exporter := excel.NewExcelExporter(t.exportOpts, t.styleOpts)
+
+	// Export to bytes
+	bytes, err := exporter.Export(ctx, datasource)
 	if err != nil {
-		return "", serrors.E(op, err, "Excel export failed")
+		return "", serrors.E(op, err, "failed to export Excel")
 	}
+
+	// Save to file
+	filePath := filepath.Join(t.outputDir, filename)
+	if err := os.WriteFile(filePath, bytes, 0644); err != nil {
+		return "", serrors.E(op, err, "failed to save Excel file")
+	}
+
+	// Return download URL
+	url := fmt.Sprintf("%s/%s", t.baseURL, filename)
 
 	// Build response
 	response := excelExportOutput{
@@ -106,99 +157,4 @@ func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, err
 	}
 
 	return agents.FormatToolOutput(response)
-}
-
-// DefaultExcelExporter is a default implementation using excelize.
-// It creates Excel files with formatted headers and data.
-type DefaultExcelExporter struct {
-	outputDir string // Directory to save Excel files
-	baseURL   string // Base URL for download links
-}
-
-// NewDefaultExcelExporter creates a new default Excel exporter.
-// outputDir is the directory where Excel files will be saved.
-// baseURL is the base URL for download links (e.g., "https://example.com/exports").
-func NewDefaultExcelExporter(outputDir, baseURL string) ExcelExporter {
-	return &DefaultExcelExporter{
-		outputDir: outputDir,
-		baseURL:   baseURL,
-	}
-}
-
-// ExportToExcel exports query results to an Excel file.
-func (e *DefaultExcelExporter) ExportToExcel(ctx context.Context, data *QueryResult, filename string) (string, error) {
-	const op serrors.Op = "DefaultExcelExporter.ExportToExcel"
-
-	// Create new Excel file
-	f := excelize.NewFile()
-	defer func() {
-		if err := f.Close(); err != nil {
-			// TODO: log Excel file close error
-			_ = err
-		}
-	}()
-
-	sheetName := "Sheet1"
-	index, err := f.NewSheet(sheetName)
-	if err != nil {
-		return "", serrors.E(op, err, "failed to create sheet")
-	}
-
-	// Set headers
-	headerStyle, err := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{
-			Bold: true,
-		},
-		Fill: excelize.Fill{
-			Type:    "pattern",
-			Color:   []string{"#E0E0E0"},
-			Pattern: 1,
-		},
-	})
-	if err != nil {
-		return "", serrors.E(op, err, "failed to create header style")
-	}
-
-	// Write headers
-	for i, col := range data.Columns {
-		cell := fmt.Sprintf("%s1", string(rune('A'+i)))
-		if err := f.SetCellValue(sheetName, cell, col); err != nil {
-			return "", serrors.E(op, err, "failed to set header")
-		}
-		if err := f.SetCellStyle(sheetName, cell, cell, headerStyle); err != nil {
-			return "", serrors.E(op, err, "failed to set header style")
-		}
-	}
-
-	// Write data rows
-	for rowIdx, row := range data.Rows {
-		for colIdx, col := range data.Columns {
-			cell := fmt.Sprintf("%s%d", string(rune('A'+colIdx)), rowIdx+2)
-			value := row[col]
-			if err := f.SetCellValue(sheetName, cell, value); err != nil {
-				return "", serrors.E(op, err, "failed to set cell value")
-			}
-		}
-	}
-
-	// Auto-fit columns
-	for i := range data.Columns {
-		col := string(rune('A' + i))
-		if err := f.SetColWidth(sheetName, col, col, 15); err != nil {
-			return "", serrors.E(op, err, "failed to set column width")
-		}
-	}
-
-	// Set active sheet
-	f.SetActiveSheet(index)
-
-	// Save file
-	filePath := fmt.Sprintf("%s/%s", e.outputDir, filename)
-	if err := f.SaveAs(filePath); err != nil {
-		return "", serrors.E(op, err, "failed to save Excel file")
-	}
-
-	// Return download URL
-	url := fmt.Sprintf("%s/%s", e.baseURL, filename)
-	return url, nil
 }

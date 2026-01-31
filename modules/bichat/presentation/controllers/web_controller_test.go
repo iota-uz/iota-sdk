@@ -321,7 +321,7 @@ func TestWebController_RenderChatApp_RequiresAuthentication(t *testing.T) {
 	response := suite.GET("/bichat").Expect(t)
 
 	// Should redirect to login (302 or 303)
-	statusCode := response.StatusCode()
+	statusCode := response.Raw().StatusCode
 	require.Contains(t, []int{http.StatusFound, http.StatusSeeOther}, statusCode)
 }
 

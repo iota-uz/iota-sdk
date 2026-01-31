@@ -3,10 +3,10 @@
  * Displays session title and controls
  */
 
-import { ChatSession } from '../types'
+import { Session } from '../types'
 
 interface ChatHeaderProps {
-  session: ChatSession | null
+  session: Session | null
   onBack?: () => void
 }
 

@@ -541,26 +541,36 @@ func TestBaseAgent_ToolMapConcurrency(t *testing.T) {
 
 	// Simulate concurrent tool calls
 	ctx := context.Background()
-	done := make(chan bool, 10)
+
+	// Use channels to collect results from goroutines
+	type testResult struct {
+		err      error
+		result   string
+		expected string
+	}
+	results := make(chan testResult, 1000) // 10 goroutines * 100 iterations
 
 	for i := 0; i < 10; i++ {
 		toolName := string(rune('a' + i))
 		expectedResult := string(rune('A' + i))
 
 		go func(name, expected string) {
-			defer func() { done <- true }()
-
 			for j := 0; j < 100; j++ {
 				result, err := agent.OnToolCall(ctx, name, "")
-				require.NoError(t, err)
-				assert.Equal(t, expected, result)
+				results <- testResult{
+					err:      err,
+					result:   result,
+					expected: expected,
+				}
 			}
 		}(toolName, expectedResult)
 	}
 
-	// Wait for all goroutines to complete
-	for i := 0; i < 10; i++ {
-		<-done
+	// Collect and assert results in main goroutine
+	for i := 0; i < 1000; i++ {
+		res := <-results
+		require.NoError(t, res.err)
+		assert.Equal(t, res.expected, res.result)
 	}
 }
 

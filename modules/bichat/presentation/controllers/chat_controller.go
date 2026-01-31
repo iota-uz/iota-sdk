@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // ChatController handles HTTP endpoints for chat operations.
@@ -69,11 +70,11 @@ func (c *ChatController) Register(r *mux.Router) {
 
 // ListSessions returns all sessions for the current user.
 func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.ListSessions"
+	const op serrors.Op = "ChatController.ListSessions"
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusUnauthorized)
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
 
@@ -86,7 +87,7 @@ func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
 
 	sessions, err := c.chatService.ListUserSessions(r.Context(), int64(user.ID()), opts)
 	if err != nil {
-		c.sendError(w, err, http.StatusInternalServerError)
+		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -95,17 +96,17 @@ func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
 
 // CreateSession creates a new chat session.
 func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.CreateSession"
+	const op serrors.Op = "ChatController.CreateSession"
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusUnauthorized)
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
 
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
 
@@ -113,13 +114,13 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 		Title string `json:"title"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		c.sendError(w, err, http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
 
 	session, err := c.chatService.CreateSession(r.Context(), tenantID, int64(user.ID()), req.Title)
 	if err != nil {
-		c.sendError(w, err, http.StatusInternalServerError)
+		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -128,34 +129,34 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 
 // GetSession returns details for a specific session.
 func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.GetSession"
+	const op serrors.Op = "ChatController.GetSession"
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusUnauthorized)
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, errors.New("invalid session ID"), http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
 	session, err := c.chatService.GetSession(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, err, http.StatusNotFound)
+			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
 		} else {
-			c.sendError(w, err, http.StatusInternalServerError)
+			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		}
 		return
 	}
 
 	// Check permission (user owns session or has read_all permission)
 	if session.UserID != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
-		c.sendError(w, errors.New("access denied"), http.StatusForbidden)
+		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -164,18 +165,18 @@ func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
 
 // SendMessage sends a new message to a session.
 func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.SendMessage"
+	const op serrors.Op = "ChatController.SendMessage"
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusUnauthorized)
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, errors.New("invalid session ID"), http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -184,7 +185,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		Attachments []domain.Attachment `json:"attachments"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		c.sendError(w, err, http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
 
@@ -195,7 +196,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		Attachments: req.Attachments,
 	})
 	if err != nil {
-		c.sendError(w, err, http.StatusInternalServerError)
+		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -204,12 +205,12 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 // ResumeWithAnswer resumes execution after HITL interrupt.
 func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.ResumeWithAnswer"
+	const op serrors.Op = "ChatController.ResumeWithAnswer"
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, errors.New("invalid session ID"), http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -218,7 +219,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		Answers      map[string]string `json:"answers"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		c.sendError(w, err, http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, err), http.StatusBadRequest)
 		return
 	}
 
@@ -228,7 +229,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		Answers:      req.Answers,
 	})
 	if err != nil {
-		c.sendError(w, err, http.StatusInternalServerError)
+		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -237,18 +238,18 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 
 // ArchiveSession archives a session.
 func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.ArchiveSession"
+	const op serrors.Op = "ChatController.ArchiveSession"
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusUnauthorized)
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, errors.New("invalid session ID"), http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -256,21 +257,21 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 	session, err := c.chatService.GetSession(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, err, http.StatusNotFound)
+			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
 		} else {
-			c.sendError(w, err, http.StatusInternalServerError)
+			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		}
 		return
 	}
 
 	if session.UserID != int64(user.ID()) {
-		c.sendError(w, errors.New("access denied"), http.StatusForbidden)
+		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	updatedSession, err := c.chatService.ArchiveSession(r.Context(), sessionID)
 	if err != nil {
-		c.sendError(w, err, http.StatusInternalServerError)
+		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -279,18 +280,18 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 
 // TogglePin toggles the pinned status of a session.
 func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.TogglePin"
+	const op serrors.Op = "ChatController.TogglePin"
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusUnauthorized)
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, errors.New("invalid session ID"), http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -298,16 +299,16 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 	session, err := c.chatService.GetSession(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, err, http.StatusNotFound)
+			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
 		} else {
-			c.sendError(w, err, http.StatusInternalServerError)
+			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		}
 		return
 	}
 
 	// Check permission (user owns session)
 	if session.UserID != int64(user.ID()) {
-		c.sendError(w, errors.New("access denied"), http.StatusForbidden)
+		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
@@ -320,7 +321,7 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		c.sendError(w, err, http.StatusInternalServerError)
+		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -329,18 +330,18 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 
 // DeleteSession deletes a session and all its messages.
 func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
-	const op = "ChatController.DeleteSession"
+	const op serrors.Op = "ChatController.DeleteSession"
 
 	user, err := composables.UseUser(r.Context())
 	if err != nil {
-		c.sendError(w, err, http.StatusUnauthorized)
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
 		return
 	}
 
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
-		c.sendError(w, errors.New("invalid session ID"), http.StatusBadRequest)
+		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
 	}
 
@@ -348,21 +349,21 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 	session, err := c.chatService.GetSession(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
-			c.sendError(w, err, http.StatusNotFound)
+			c.sendError(w, serrors.E(op, err), http.StatusNotFound)
 		} else {
-			c.sendError(w, err, http.StatusInternalServerError)
+			c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		}
 		return
 	}
 
 	if session.UserID != int64(user.ID()) {
-		c.sendError(w, errors.New("access denied"), http.StatusForbidden)
+		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
 
 	// Delete session (cascades to messages/attachments)
 	if err := c.chatRepo.DeleteSession(r.Context(), sessionID); err != nil {
-		c.sendError(w, err, http.StatusInternalServerError)
+		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
 

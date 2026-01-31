@@ -1,13 +1,11 @@
 # BI-Chat GraphQL Schema
 # This schema defines the GraphQL API for chat operations
 
-# TODO: Generate resolvers using gqlgen when Phase 1 (Agent Framework) is complete
-# Run: go run github.com/99designs/gqlgen generate
-
 scalar UUID
 scalar Time
 scalar JSON
 scalar Upload
+scalar Int64
 
 # Session represents a chat conversation
 type Session {
@@ -64,7 +62,7 @@ type Attachment {
   messageID: UUID!
   fileName: String!
   mimeType: String!
-  sizeBytes: Int!
+  sizeBytes: Int64!
   storagePath: String!
   createdAt: Time!
 }
@@ -93,6 +91,7 @@ type Interrupt {
 
 # Question represents a question waiting for user answer
 type Question {
+  id: ID!
   question: String!
   header: String!
   multiSelect: Boolean!

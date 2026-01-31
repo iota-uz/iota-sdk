@@ -3,12 +3,29 @@ package interop
 import (
 	"context"
 
+	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/sirupsen/logrus"
 )
 
-// BuildInitialContext builds the initial context object for the React frontend
-func BuildInitialContext(ctx context.Context) (*InitialContext, error) {
+// ContextBuilder holds optional dependencies for building initial context
+type ContextBuilder struct {
+	tenantService *services.TenantService
+	logger        *logrus.Logger
+}
+
+// NewContextBuilder creates a new context builder with optional dependencies
+func NewContextBuilder(tenantService *services.TenantService, logger *logrus.Logger) *ContextBuilder {
+	return &ContextBuilder{
+		tenantService: tenantService,
+		logger:        logger,
+	}
+}
+
+// Build builds the initial context object for the React frontend
+func (b *ContextBuilder) Build(ctx context.Context) (*InitialContext, error) {
 	// Extract user
 	user, err := composables.UseUser(ctx)
 	if err != nil {
@@ -38,7 +55,7 @@ func BuildInitialContext(ctx context.Context) (*InitialContext, error) {
 		},
 		Tenant: TenantContext{
 			ID:   tenantID.String(),
-			Name: getTenantName(ctx),
+			Name: b.getTenantName(ctx, tenantID),
 		},
 		Locale: LocaleContext{
 			Language:     pageCtx.GetLocale().String(),
@@ -51,6 +68,13 @@ func BuildInitialContext(ctx context.Context) (*InitialContext, error) {
 	}
 
 	return initialContext, nil
+}
+
+// BuildInitialContext builds the initial context object for the React frontend
+// This is a backward-compatible wrapper that uses default behavior (no tenant service)
+func BuildInitialContext(ctx context.Context) (*InitialContext, error) {
+	builder := NewContextBuilder(nil, nil)
+	return builder.Build(ctx)
 }
 
 // getTranslations extracts all BiChat.* translation keys
@@ -80,10 +104,21 @@ func getTranslations(pageCtx types.PageContextProvider) map[string]string {
 	return translations
 }
 
-// getTenantName returns the tenant name (placeholder implementation)
-// TODO: Implement actual tenant name lookup when tenant service is available
-func getTenantName(ctx context.Context) string {
-	// For now, return a placeholder
-	// In a real implementation, this would query the tenant service
+// getTenantName returns the tenant name for the given tenant ID
+func (b *ContextBuilder) getTenantName(ctx context.Context, tenantID uuid.UUID) string {
+	// If tenant service is available, use it
+	if b.tenantService != nil {
+		tenant, err := b.tenantService.GetByID(ctx, tenantID)
+		if err != nil {
+			// Log warning but don't fail - use fallback
+			if b.logger != nil {
+				b.logger.Warnf("Failed to get tenant name for %s: %v", tenantID, err)
+			}
+			return "Unknown Tenant"
+		}
+		return tenant.Name()
+	}
+
+	// Fallback if service not configured
 	return "Default Tenant"
 }

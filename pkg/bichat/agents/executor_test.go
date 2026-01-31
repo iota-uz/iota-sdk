@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // mockModel is a test model that returns predefined responses.
@@ -23,7 +24,7 @@ type mockModel struct {
 
 type mockResponse struct {
 	content      string
-	toolCalls    []agents.ToolCall
+	toolCalls    []types.ToolCall
 	finishReason string
 	err          error
 }
@@ -56,12 +57,12 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 	}
 
 	return &agents.Response{
-		Message: agents.Message{
-			Role:      agents.RoleAssistant,
+		Message: types.Message{
+			Role:      types.RoleAssistant,
 			Content:   resp.content,
 			ToolCalls: resp.toolCalls,
 		},
-		Usage: agents.TokenUsage{
+		Usage: types.TokenUsage{
 			PromptTokens:     10,
 			CompletionTokens: 20,
 			TotalTokens:      30,
@@ -70,8 +71,8 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 	}, nil
 }
 
-func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) agents.Generator[agents.Chunk] {
-	return agents.NewGenerator(func(yield func(agents.Chunk) bool) error {
+func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk] {
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.currentIndex >= len(m.responses) {
 			return fmt.Errorf("no more mock responses")
 		}
@@ -107,7 +108,7 @@ func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 		finalChunk := agents.Chunk{
 			Delta:        "",
 			ToolCalls:    resp.toolCalls,
-			Usage:        &agents.TokenUsage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30},
+			Usage:        &types.TokenUsage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30},
 			FinishReason: resp.finishReason,
 			Done:         true,
 		}
@@ -229,8 +230,8 @@ func TestExecutor_SingleTurn(t *testing.T) {
 
 	// Execute
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Hello"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Hello"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -245,12 +246,12 @@ func TestExecutor_SingleTurn(t *testing.T) {
 	var doneCount int
 
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 
 		switch event.Type {
@@ -319,7 +320,7 @@ func TestExecutor_ToolCalls(t *testing.T) {
 	model := newMockModel(
 		mockResponse{
 			content: "Let me check the weather for you.",
-			toolCalls: []agents.ToolCall{
+			toolCalls: []types.ToolCall{
 				{
 					ID:        "call_1",
 					Name:      "get_weather",
@@ -339,8 +340,8 @@ func TestExecutor_ToolCalls(t *testing.T) {
 
 	// Execute
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "What's the weather in San Francisco?"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "What's the weather in San Francisco?"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -354,12 +355,12 @@ func TestExecutor_ToolCalls(t *testing.T) {
 	var toolStartEvent, toolEndEvent *agents.ToolEvent
 
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 
 		switch event.Type {
@@ -425,7 +426,7 @@ func TestExecutor_MultiTurn(t *testing.T) {
 		// Turn 1: Search
 		mockResponse{
 			content: "Let me search for that.",
-			toolCalls: []agents.ToolCall{
+			toolCalls: []types.ToolCall{
 				{ID: "call_1", Name: "search", Arguments: `{"query": "price"}`},
 			},
 			finishReason: "tool_calls",
@@ -433,7 +434,7 @@ func TestExecutor_MultiTurn(t *testing.T) {
 		// Turn 2: Calculate
 		mockResponse{
 			content: "Now let me calculate.",
-			toolCalls: []agents.ToolCall{
+			toolCalls: []types.ToolCall{
 				{ID: "call_2", Name: "calculator", Arguments: `{"expr": "100 * 2"}`},
 			},
 			finishReason: "tool_calls",
@@ -448,8 +449,8 @@ func TestExecutor_MultiTurn(t *testing.T) {
 	executor := agents.NewExecutor(agent, model)
 
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Calculate double the current price"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Calculate double the current price"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -461,12 +462,12 @@ func TestExecutor_MultiTurn(t *testing.T) {
 	// Collect events
 	toolExecutions := 0
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 
 		if event.Type == agents.EventTypeToolEnd {
@@ -493,11 +494,23 @@ func TestExecutor_Interrupt(t *testing.T) {
 	model := newMockModel(
 		mockResponse{
 			content: "I need to ask you a question.",
-			toolCalls: []agents.ToolCall{
+			toolCalls: []types.ToolCall{
 				{
-					ID:        "call_1",
-					Name:      agents.ToolAskUserQuestion,
-					Arguments: `{"question": "What is your favorite color?"}`,
+					ID:   "call_1",
+					Name: agents.ToolAskUserQuestion,
+					Arguments: `{
+						"questions": [
+							{
+								"question": "What is your favorite color?",
+								"header": "Color",
+								"multiSelect": false,
+								"options": [
+									{"label": "Red", "description": "Warm and vibrant"},
+									{"label": "Blue", "description": "Cool and calming"}
+								]
+							}
+						]
+					}`,
 				},
 			},
 			finishReason: "tool_calls",
@@ -513,8 +526,8 @@ func TestExecutor_Interrupt(t *testing.T) {
 	)
 
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Hello"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Hello"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -527,12 +540,12 @@ func TestExecutor_Interrupt(t *testing.T) {
 	// Collect events
 	var interruptEvent *agents.InterruptEvent
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 
 		if event.Type == agents.EventTypeInterrupt {
@@ -590,11 +603,11 @@ func TestExecutor_Resume(t *testing.T) {
 	checkpoint := agents.NewCheckpoint(
 		"thread-123",
 		"test-agent",
-		[]agents.Message{
-			{Role: agents.RoleUser, Content: "Hello"},
-			{Role: agents.RoleAssistant, Content: "I need to ask you something."},
+		[]types.Message{
+			{Role: types.RoleUser, Content: "Hello"},
+			{Role: types.RoleAssistant, Content: "I need to ask you something."},
 		},
-		agents.WithPendingTools([]agents.ToolCall{
+		agents.WithPendingTools([]types.ToolCall{
 			{
 				ID:   "call_1",
 				Name: agents.ToolAskUserQuestion,
@@ -636,18 +649,32 @@ func TestExecutor_Resume(t *testing.T) {
 	)
 
 	// Resume execution with user's answer
-	gen := executor.Resume(ctx, checkpointID, "blue")
+	// Parse the question ID from checkpoint to provide the correct answer
+	var questionsData struct {
+		Questions []struct {
+			ID   string `json:"id"`
+			Text string `json:"text"`
+		} `json:"questions"`
+	}
+	json.Unmarshal([]byte(checkpoint.PendingTools[0].Arguments), &questionsData)
+
+	answers := map[string]string{}
+	if len(questionsData.Questions) > 0 {
+		answers[questionsData.Questions[0].ID] = "blue"
+	}
+
+	gen := executor.Resume(ctx, checkpointID, answers)
 	defer gen.Close()
 
 	// Collect events
 	var finalResult *agents.Response
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 
 		if event.Type == agents.EventTypeDone {
@@ -667,6 +694,228 @@ func TestExecutor_Resume(t *testing.T) {
 	_, err = checkpointer.Load(ctx, checkpointID)
 	if !errors.Is(err, agents.ErrCheckpointNotFound) {
 		t.Error("Expected checkpoint to be deleted after resume")
+	}
+}
+
+// TestExecutor_Resume_MultipleQuestions tests resuming with multiple questions.
+func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Create checkpointer with a saved checkpoint containing multiple questions
+	checkpointer := agents.NewInMemoryCheckpointer()
+
+	// Create a checkpoint with 3 questions
+	checkpoint := agents.NewCheckpoint(
+		"thread-multi",
+		"test-agent",
+		[]types.Message{
+			{Role: types.RoleUser, Content: "I need to analyze data"},
+			{Role: types.RoleAssistant, Content: "I need some clarifications."},
+		},
+		agents.WithPendingTools([]types.ToolCall{
+			{
+				ID:   "call_multi",
+				Name: agents.ToolAskUserQuestion,
+				Arguments: `{
+					"questions": [
+						{
+							"id": "q1",
+							"text": "Which time period?",
+							"header": "Time Period",
+							"multiSelect": false,
+							"options": [
+								{"label": "Q1 2024", "description": "First quarter"},
+								{"label": "Q2 2024", "description": "Second quarter"}
+							]
+						},
+						{
+							"id": "q2",
+							"text": "Which metric?",
+							"header": "Metric",
+							"multiSelect": false,
+							"options": [
+								{"label": "Revenue", "description": "Total revenue"},
+								{"label": "Profit", "description": "Net profit"}
+							]
+						},
+						{
+							"id": "q3",
+							"text": "Which region?",
+							"header": "Region",
+							"multiSelect": false,
+							"options": [
+								{"label": "North America", "description": "US and Canada"},
+								{"label": "Europe", "description": "EU countries"}
+							]
+						}
+					]
+				}`,
+			},
+		}),
+		agents.WithInterruptType(agents.ToolAskUserQuestion),
+	)
+
+	checkpointID, err := checkpointer.Save(ctx, checkpoint)
+	if err != nil {
+		t.Fatalf("Failed to save checkpoint: %v", err)
+	}
+
+	// Create agent and model for resume
+	agent := newMockAgent("test-agent")
+
+	model := newMockModel(
+		mockResponse{
+			content:      "Analyzing Q1 2024 revenue for North America...",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model,
+		agents.WithCheckpointer(checkpointer),
+	)
+
+	// Resume execution with all 3 answers
+	answers := map[string]string{
+		"q1": "Q1 2024",
+		"q2": "Revenue",
+		"q3": "North America",
+	}
+
+	gen := executor.Resume(ctx, checkpointID, answers)
+	defer gen.Close()
+
+	// Collect events
+	var finalResult *agents.Response
+	for {
+		event, err := gen.Next(ctx)
+		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
+			t.Fatalf("Unexpected error: %v", err)
+		}
+
+		if event.Type == agents.EventTypeDone {
+			finalResult = event.Result
+		}
+	}
+
+	// Verify final result
+	if finalResult == nil {
+		t.Fatal("Expected final result, got nil")
+	}
+	if finalResult.Message.Content != "Analyzing Q1 2024 revenue for North America..." {
+		t.Errorf("Expected result 'Analyzing Q1 2024 revenue for North America...', got '%s'", finalResult.Message.Content)
+	}
+
+	// Verify checkpoint was deleted
+	_, err = checkpointer.Load(ctx, checkpointID)
+	if !errors.Is(err, agents.ErrCheckpointNotFound) {
+		t.Error("Expected checkpoint to be deleted after resume")
+	}
+}
+
+// TestExecutor_Resume_MissingAnswer tests resuming with missing answers fails.
+func TestExecutor_Resume_MissingAnswer(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// Create checkpointer with a saved checkpoint
+	checkpointer := agents.NewInMemoryCheckpointer()
+
+	// Create a checkpoint with 2 questions
+	checkpoint := agents.NewCheckpoint(
+		"thread-missing",
+		"test-agent",
+		[]types.Message{
+			{Role: types.RoleUser, Content: "Show me data"},
+			{Role: types.RoleAssistant, Content: "I need to ask you something."},
+		},
+		agents.WithPendingTools([]types.ToolCall{
+			{
+				ID:   "call_missing",
+				Name: agents.ToolAskUserQuestion,
+				Arguments: `{
+					"questions": [
+						{
+							"id": "q1",
+							"text": "Which year?",
+							"header": "Year",
+							"multiSelect": false,
+							"options": [
+								{"label": "2023", "description": "Last year"},
+								{"label": "2024", "description": "This year"}
+							]
+						},
+						{
+							"id": "q2",
+							"text": "Which quarter?",
+							"header": "Quarter",
+							"multiSelect": false,
+							"options": [
+								{"label": "Q1", "description": "First quarter"},
+								{"label": "Q2", "description": "Second quarter"}
+							]
+						}
+					]
+				}`,
+			},
+		}),
+		agents.WithInterruptType(agents.ToolAskUserQuestion),
+	)
+
+	checkpointID, err := checkpointer.Save(ctx, checkpoint)
+	if err != nil {
+		t.Fatalf("Failed to save checkpoint: %v", err)
+	}
+
+	// Create agent and model
+	agent := newMockAgent("test-agent")
+	model := newMockModel(
+		mockResponse{
+			content:      "This should not execute",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model,
+		agents.WithCheckpointer(checkpointer),
+	)
+
+	// Resume with only one answer (missing q2)
+	answers := map[string]string{
+		"q1": "2024",
+		// Missing "q2"
+	}
+
+	gen := executor.Resume(ctx, checkpointID, answers)
+	defer gen.Close()
+
+	// Expect error for missing answer
+	var gotError bool
+	for {
+		event, err := gen.Next(ctx)
+		if err != nil {
+			// Check if it's the expected missing answer error
+			if err != types.ErrGeneratorDone {
+				if errStr := err.Error(); errStr != "" {
+					gotError = true
+				}
+			}
+			break
+		}
+
+		if event.Type == agents.EventTypeError {
+			gotError = true
+			break
+		}
+	}
+
+	if !gotError {
+		t.Error("Expected error for missing answer, but got none")
 	}
 }
 
@@ -696,8 +945,8 @@ func TestExecutor_Cancellation(t *testing.T) {
 	executor := agents.NewExecutor(agent, model)
 
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Hello"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Hello"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -715,8 +964,8 @@ func TestExecutor_Cancellation(t *testing.T) {
 	// Try to consume events (should stop when context is cancelled)
 	eventCount := 0
 	for {
-		_, err, hasMore := gen.Next()
-		if err != nil || !hasMore {
+		_, err := gen.Next(ctx)
+		if err != nil {
 			break
 		}
 		eventCount++
@@ -739,7 +988,7 @@ func TestExecutor_MaxIterations(t *testing.T) {
 	for i := range responses {
 		responses[i] = mockResponse{
 			content: fmt.Sprintf("Iteration %d", i),
-			toolCalls: []agents.ToolCall{
+			toolCalls: []types.ToolCall{
 				{ID: fmt.Sprintf("call_%d", i), Name: "loop_tool", Arguments: "{}"},
 			},
 			finishReason: "tool_calls",
@@ -758,8 +1007,8 @@ func TestExecutor_MaxIterations(t *testing.T) {
 	)
 
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Start looping"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Start looping"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -771,14 +1020,14 @@ func TestExecutor_MaxIterations(t *testing.T) {
 	// Consume all events
 	var gotMaxIterationsError bool
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
 			if errors.Is(err, agents.ErrMaxIterations) {
 				gotMaxIterationsError = true
 			}
-			break
-		}
-		if !hasMore {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			break
 		}
 
@@ -811,8 +1060,8 @@ func TestExecutor_StreamingChunks(t *testing.T) {
 	executor := agents.NewExecutor(agent, model)
 
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Hello"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Hello"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -824,12 +1073,12 @@ func TestExecutor_StreamingChunks(t *testing.T) {
 	// Collect chunks in order
 	var chunks []string
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 
 		if event.Type == agents.EventTypeChunk && event.Chunk.Delta != "" {
@@ -868,7 +1117,7 @@ func TestExecutor_TerminationTool(t *testing.T) {
 	model := newMockModel(
 		mockResponse{
 			content: "Let me provide the answer.",
-			toolCalls: []agents.ToolCall{
+			toolCalls: []types.ToolCall{
 				{
 					ID:        "call_1",
 					Name:      agents.ToolFinalAnswer,
@@ -882,8 +1131,8 @@ func TestExecutor_TerminationTool(t *testing.T) {
 	executor := agents.NewExecutor(agent, model)
 
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "What is the answer?"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "What is the answer?"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -897,12 +1146,12 @@ func TestExecutor_TerminationTool(t *testing.T) {
 	toolExecutions := 0
 
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 
 		if event.Type == agents.EventTypeToolEnd {
@@ -939,7 +1188,7 @@ func TestExecutor_NoCheckpointerInterruptFails(t *testing.T) {
 	model := newMockModel(
 		mockResponse{
 			content: "I need to ask a question.",
-			toolCalls: []agents.ToolCall{
+			toolCalls: []types.ToolCall{
 				{
 					ID:   "call_1",
 					Name: agents.ToolAskUserQuestion,
@@ -966,8 +1215,8 @@ func TestExecutor_NoCheckpointerInterruptFails(t *testing.T) {
 	executor := agents.NewExecutor(agent, model)
 
 	input := agents.Input{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Hello"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Hello"},
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -979,14 +1228,14 @@ func TestExecutor_NoCheckpointerInterruptFails(t *testing.T) {
 	// Consume events - should get error
 	var gotCheckpointError bool
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
 			if errors.Is(err, agents.ErrCheckpointSaveFailed) {
 				gotCheckpointError = true
 			}
-			break
-		}
-		if !hasMore {
+			if err == types.ErrGeneratorDone {
+				break
+			}
 			break
 		}
 
@@ -1038,7 +1287,7 @@ func TestExecutor_ConcurrentExecution(t *testing.T) {
 			model := newMockModel(
 				mockResponse{
 					content: "Testing concurrency",
-					toolCalls: []agents.ToolCall{
+					toolCalls: []types.ToolCall{
 						{ID: fmt.Sprintf("call_%d", idx), Name: "concurrent_tool", Arguments: "{}"},
 					},
 					finishReason: "tool_calls",
@@ -1052,8 +1301,8 @@ func TestExecutor_ConcurrentExecution(t *testing.T) {
 			executor := agents.NewExecutor(agent, model)
 
 			input := agents.Input{
-				Messages: []agents.Message{
-					{Role: agents.RoleUser, Content: fmt.Sprintf("Test %d", idx)},
+				Messages: []types.Message{
+					{Role: types.RoleUser, Content: fmt.Sprintf("Test %d", idx)},
 				},
 				SessionID: uuid.New(),
 				TenantID:  uuid.New(),
@@ -1063,12 +1312,11 @@ func TestExecutor_ConcurrentExecution(t *testing.T) {
 			defer gen.Close()
 
 			for {
-				_, err, hasMore := gen.Next()
+				_, err := gen.Next(ctx)
 				if err != nil {
-					t.Errorf("Execution %d error: %v", idx, err)
-					break
-				}
-				if !hasMore {
+					if err != types.ErrGeneratorDone {
+						t.Errorf("Execution %d error: %v", idx, err)
+					}
 					break
 				}
 			}

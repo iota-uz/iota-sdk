@@ -3,6 +3,9 @@
  * Main export file
  */
 
+// Import styles (will be bundled as style.css)
+import './styles.css'
+
 // Components
 export { ChatSession } from './components/ChatSession'
 export { ChatHeader } from './components/ChatHeader'
@@ -20,19 +23,34 @@ export { MessageInput } from './components/MessageInput'
 // Context
 export { ChatSessionProvider, useChat } from './context/ChatContext'
 export { IotaContextProvider, useIotaContext, hasPermission } from './context/IotaContext'
+export {
+  ConfigProvider,
+  useConfig,
+  useRequiredConfig,
+  hasPermission as hasConfigPermission,
+} from './config/ConfigContext'
 
 // Hooks
 export { useStreaming } from './hooks/useStreaming'
 export { useTranslation } from './hooks/useTranslation'
 
+// Theme
+export { ThemeProvider, useTheme } from './theme/ThemeProvider'
+export { lightTheme, darkTheme } from './theme/themes'
+
 // API utilities
 export { getCSRFToken, addCSRFHeader, createHeadersWithCSRF } from './api/csrf'
 
+// Data sources
+export { HttpDataSource, createHttpDataSource } from './data/HttpDataSource'
+
+// Utilities
+export { RateLimiter } from './utils/RateLimiter'
+
 // Types
 export type {
-  ChatSession as ChatSessionType,
+  Session,
   Message,
-  MessageRole,
   ToolCall,
   Citation,
   Attachment,
@@ -45,6 +63,8 @@ export type {
   ChatSessionContextValue,
 } from './types'
 
+export type { Theme, ThemeColors, ThemeSpacing, ThemeBorderRadius } from './theme/types'
+
 export type {
   UserContext,
   TenantContext,
@@ -53,6 +73,11 @@ export type {
   IotaContext,
 } from './types/iota'
 
+export type { BiChatConfig } from './config/ConfigContext'
+export type { RateLimiterConfig } from './utils/RateLimiter'
+export type { HttpDataSourceConfig } from './data/HttpDataSource'
+
+// Enums
 export { MessageRole } from './types'
 
 // Styles (import separately)

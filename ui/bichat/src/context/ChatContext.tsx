@@ -3,49 +3,40 @@
  * Manages state for chat sessions including messages, loading, streaming, and HITL
  */
 
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react'
 import type {
   ChatDataSource,
-  ChatSession,
+  Session,
   Message,
   PendingQuestion,
   QuestionAnswers,
   Attachment,
-  StreamChunk,
   ChatSessionContextValue,
-  MessageRole,
 } from '../types'
+import { MessageRole } from '../types'
+import { RateLimiter } from '../utils/RateLimiter'
 
 const ChatSessionContext = createContext<ChatSessionContextValue | null>(null)
 
 interface ChatSessionProviderProps {
   dataSource: ChatDataSource
   sessionId?: string
+  rateLimiter?: RateLimiter
   children: ReactNode
 }
 
-const MAX_MESSAGES_PER_MINUTE = 20
-const RATE_LIMIT_WINDOW_MS = 60000
-
-class RateLimiter {
-  private timestamps: number[] = []
-
-  canMakeRequest(): boolean {
-    const now = Date.now()
-    this.timestamps = this.timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS)
-
-    if (this.timestamps.length >= MAX_MESSAGES_PER_MINUTE) {
-      return false
-    }
-
-    this.timestamps.push(now)
-    return true
-  }
+// Default rate limiter configuration
+const DEFAULT_RATE_LIMIT_CONFIG = {
+  maxRequests: 20,
+  windowMs: 60000, // 1 minute
 }
 
-const rateLimiter = new RateLimiter()
-
-export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSessionProviderProps) {
+export function ChatSessionProvider({
+  dataSource,
+  sessionId,
+  rateLimiter: externalRateLimiter,
+  children
+}: ChatSessionProviderProps) {
   // Form state
   const [message, setMessage] = useState('')
 
@@ -56,7 +47,7 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
 
   // Session state
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(sessionId)
-  const [session, setSession] = useState<ChatSession | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [fetching, setFetching] = useState(false)
 
   // Question state
@@ -65,6 +56,12 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
   // Streaming state
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Rate limiter (use provided or create default)
+  const rateLimiterRef = useRef<RateLimiter>(
+    externalRateLimiter || new RateLimiter(DEFAULT_RATE_LIMIT_CONFIG)
+  )
 
   // Update sessionId when prop changes
   useEffect(() => {
@@ -120,8 +117,10 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
       if (!content.trim() || loading) return
 
       // Check rate limit
-      if (!rateLimiter.canMakeRequest()) {
-        setError('Rate limit exceeded. Please wait before sending another message.')
+      if (!rateLimiterRef.current.canMakeRequest()) {
+        const timeUntilNext = rateLimiterRef.current.getTimeUntilNextRequest()
+        const seconds = Math.ceil(timeUntilNext / 1000)
+        setError(`Rate limit exceeded. Please wait ${seconds} seconds before sending another message.`)
         setTimeout(() => setError(null), 5000)
         return
       }
@@ -130,6 +129,9 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
       setLoading(true)
       setError(null)
       setStreamingContent('')
+
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController()
 
       // Add optimistic user message
       const tempUserMessage: Message = {
@@ -163,8 +165,14 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
         for await (const chunk of dataSource.sendMessage(
           activeSessionId || 'new',
           content,
-          attachments
+          attachments,
+          abortControllerRef.current?.signal
         )) {
+          // Check if cancelled
+          if (abortControllerRef.current?.signal.aborted) {
+            break
+          }
+
           if (chunk.type === 'chunk' && chunk.content) {
             accumulatedContent += chunk.content
             setStreamingContent(accumulatedContent)
@@ -195,6 +203,13 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
           dataSource.navigateToSession?.(targetSessionId)
         }
       } catch (err) {
+        // Check if error is due to cancellation
+        if (err instanceof Error && err.name === 'AbortError') {
+          // Stream was cancelled - restore input message
+          setMessage(content)
+          return
+        }
+
         // Remove optimistic message on error
         setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id))
 
@@ -205,10 +220,20 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
         setLoading(false)
         setStreamingContent('')
         setIsStreaming(false)
+        abortControllerRef.current = null
       }
     },
     [currentSessionId, loading, dataSource]
   )
+
+  const cancelStream = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      setIsStreaming(false)
+      setLoading(false)
+    }
+  }, [])
 
   const handleSubmit = useCallback(
     (e: React.FormEvent, attachments: Attachment[] = []) => {
@@ -368,6 +393,7 @@ export function ChatSessionProvider({ dataSource, sessionId, children }: ChatSes
     handleSubmitQuestionAnswers,
     handleCancelPendingQuestion,
     sendMessage: sendMessageDirect,
+    cancel: cancelStream,
   }
 
   return (

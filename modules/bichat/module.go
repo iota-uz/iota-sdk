@@ -5,6 +5,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -32,8 +34,9 @@ func (m *Module) Register(app application.Application) error {
 	// Register repository
 	chatRepo := persistence.NewPostgresChatRepository()
 
-	// TODO(Phase 1): Replace with real implementations when Agent Framework is complete
 	// Register stub services
+	// TODO: Replace with real AgentService when module configuration is wired
+	// See modules/bichat/config.go for production configuration pattern
 	chatService := services.NewChatServiceStub()
 
 	// Register controllers
@@ -41,6 +44,17 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewChatController(app, chatService, chatRepo),
 		controllers.NewStreamController(app, chatService),
 	)
+
+	// Register GraphQL schema
+	resolver := resolvers.NewResolver(app, chatService, nil) // agentService is nil for stub
+	schema := generated.NewExecutableSchema(generated.Config{
+		Resolvers: resolver,
+	})
+
+	app.RegisterGraphSchema(application.GraphSchema{
+		Value:    schema,
+		BasePath: "/bichat",
+	})
 
 	// Register quick links
 	app.QuickLinks().Add(

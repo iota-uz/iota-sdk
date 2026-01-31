@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,7 +17,7 @@ func TestWrap(t *testing.T) {
 	callOrder := []string{}
 	baseFunc := func(ctx context.Context, req Request) (*Response, error) {
 		callOrder = append(callOrder, "base")
-		return &Response{Message: NewAssistantMessage("test", nil)}, nil
+		return &Response{Message: *types.AssistantMessage("test")}, nil
 	}
 
 	middleware1 := func(next ModelFunc) ModelFunc {
@@ -38,7 +40,7 @@ func TestWrap(t *testing.T) {
 
 	wrapped := Wrap(baseFunc, middleware1, middleware2)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	_, err := wrapped(ctx, req)
 	if err != nil {
@@ -73,8 +75,8 @@ func TestWithLogging_Success(t *testing.T) {
 
 	baseFunc := func(ctx context.Context, req Request) (*Response, error) {
 		return &Response{
-			Message: NewAssistantMessage("test response", nil),
-			Usage: TokenUsage{
+			Message: *types.AssistantMessage("test response"),
+			Usage: types.TokenUsage{
 				PromptTokens:     10,
 				CompletionTokens: 20,
 				TotalTokens:      30,
@@ -86,7 +88,7 @@ func TestWithLogging_Success(t *testing.T) {
 	wrapped := WithLogging(logger)(baseFunc)
 	ctx := context.Background()
 	req := Request{
-		Messages: []Message{NewUserMessage("test")},
+		Messages: []types.Message{*types.UserMessage("test")},
 		Tools:    []Tool{},
 	}
 
@@ -113,7 +115,7 @@ func TestWithLogging_Error(t *testing.T) {
 
 	wrapped := WithLogging(logger)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err != expectedErr {
@@ -159,7 +161,7 @@ func TestWithRetry_Success(t *testing.T) {
 	callCount := 0
 	baseFunc := func(ctx context.Context, req Request) (*Response, error) {
 		callCount++
-		return &Response{Message: NewAssistantMessage("success", nil)}, nil
+		return &Response{Message: *types.AssistantMessage("success")}, nil
 	}
 
 	backoff := &ExponentialBackoff{
@@ -168,7 +170,7 @@ func TestWithRetry_Success(t *testing.T) {
 	}
 	wrapped := WithRetry(3, backoff)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err != nil {
@@ -193,7 +195,7 @@ func TestWithRetry_EventualSuccess(t *testing.T) {
 		if callCount < 3 {
 			return nil, errors.New("transient error")
 		}
-		return &Response{Message: NewAssistantMessage("success", nil)}, nil
+		return &Response{Message: *types.AssistantMessage("success")}, nil
 	}
 
 	backoff := &ExponentialBackoff{
@@ -202,7 +204,7 @@ func TestWithRetry_EventualSuccess(t *testing.T) {
 	}
 	wrapped := WithRetry(3, backoff)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err != nil {
@@ -234,7 +236,7 @@ func TestWithRetry_MaxAttemptsExceeded(t *testing.T) {
 	}
 	wrapped := WithRetry(3, backoff)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err == nil {
@@ -271,7 +273,7 @@ func TestWithRetry_ContextCanceled(t *testing.T) {
 	wrapped := WithRetry(5, backoff)(baseFunc)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	// Cancel context after first failure
 	go func() {
@@ -304,12 +306,12 @@ func TestWithRateLimit(t *testing.T) {
 	callCount := 0
 	baseFunc := func(ctx context.Context, req Request) (*Response, error) {
 		callCount++
-		return &Response{Message: NewAssistantMessage("test", nil)}, nil
+		return &Response{Message: *types.AssistantMessage("test")}, nil
 	}
 
 	wrapped := WithRateLimit(limiter)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err != nil {
@@ -344,7 +346,7 @@ func TestWithRateLimit_Error(t *testing.T) {
 
 	wrapped := WithRateLimit(limiter)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err == nil {
@@ -370,12 +372,12 @@ func TestWithTracing(t *testing.T) {
 	callCount := 0
 	baseFunc := func(ctx context.Context, req Request) (*Response, error) {
 		callCount++
-		return &Response{Message: NewAssistantMessage("test", nil)}, nil
+		return &Response{Message: *types.AssistantMessage("test")}, nil
 	}
 
 	wrapped := WithTracing(tracer)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err != nil {
@@ -411,7 +413,7 @@ func TestWithTracing_Error(t *testing.T) {
 
 	wrapped := WithTracing(tracer)(baseFunc)
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err != expectedErr {
@@ -446,8 +448,8 @@ func TestMiddlewareChain(t *testing.T) {
 
 	baseFunc := func(ctx context.Context, req Request) (*Response, error) {
 		return &Response{
-			Message: NewAssistantMessage("test", nil),
-			Usage: TokenUsage{
+			Message: *types.AssistantMessage("test"),
+			Usage: types.TokenUsage{
 				PromptTokens:     10,
 				CompletionTokens: 20,
 				TotalTokens:      30,
@@ -465,7 +467,7 @@ func TestMiddlewareChain(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	req := Request{Messages: []Message{NewUserMessage("test")}}
+	req := Request{Messages: []types.Message{*types.UserMessage("test")}}
 
 	resp, err := wrapped(ctx, req)
 	if err != nil {

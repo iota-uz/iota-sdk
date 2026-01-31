@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,11 +17,11 @@ import (
 func TestCheckpoint_JSONSerialization(t *testing.T) {
 	t.Parallel()
 
-	messages := []Message{
-		NewUserMessage("Hello"),
-		NewAssistantMessage("Hi there!", []ToolCall{
-			{ID: "call_1", Name: "search", Arguments: `{"query": "test"}`},
-		}),
+	messages := []types.Message{
+		*types.UserMessage("Hello"),
+		*types.AssistantMessage("Hi there!", types.WithToolCalls(types.ToolCall{
+			ID: "call_1", Name: "search", Arguments: `{"query": "test"}`,
+		})),
 	}
 
 	interruptData := json.RawMessage(`{
@@ -40,7 +42,7 @@ func TestCheckpoint_JSONSerialization(t *testing.T) {
 		"thread-123",
 		"test-agent",
 		messages,
-		WithPendingTools([]ToolCall{
+		WithPendingTools([]types.ToolCall{
 			{ID: "call_2", Name: "execute", Arguments: `{"command": "test"}`},
 		}),
 		WithInterruptType("ask_user_question"),
@@ -66,9 +68,9 @@ func TestCheckpoint_JSONSerialization(t *testing.T) {
 
 	// Verify messages
 	require.Len(t, decoded.Messages, 2)
-	assert.Equal(t, RoleUser, decoded.Messages[0].Role)
+	assert.Equal(t, types.RoleUser, decoded.Messages[0].Role)
 	assert.Equal(t, "Hello", decoded.Messages[0].Content)
-	assert.Equal(t, RoleAssistant, decoded.Messages[1].Role)
+	assert.Equal(t, types.RoleAssistant, decoded.Messages[1].Role)
 	assert.Equal(t, "Hi there!", decoded.Messages[1].Content)
 	require.Len(t, decoded.Messages[1].ToolCalls, 1)
 	assert.Equal(t, "call_1", decoded.Messages[1].ToolCalls[0].ID)
@@ -85,8 +87,8 @@ func TestInMemoryCheckpointer_CRUD(t *testing.T) {
 	checkpointer := NewInMemoryCheckpointer()
 	ctx := context.Background()
 
-	messages := []Message{
-		NewUserMessage("Test message"),
+	messages := []types.Message{
+		*types.UserMessage("Test message"),
 	}
 
 	t.Run("Save and Load", func(t *testing.T) {
@@ -191,8 +193,8 @@ func TestInMemoryCheckpointer_Concurrent(t *testing.T) {
 
 			for j := 0; j < numOpsPerGoroutine; j++ {
 				threadID := uuid.New().String()
-				messages := []Message{
-					NewUserMessage("Concurrent test"),
+				messages := []types.Message{
+					*types.UserMessage("Concurrent test"),
 				}
 
 				checkpoint := NewCheckpoint(threadID, "test-agent", messages)

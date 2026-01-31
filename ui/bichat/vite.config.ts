@@ -18,7 +18,8 @@ export default defineConfig({
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM'
-        }
+        },
+        assetFileNames: 'style.css'
       }
     }
   }

@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 func TestMessage_Creation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("basic creation with defaults", func(t *testing.T) {
-		msg := domain.NewMessage()
+		msg := types.UserMessage("")
 
 		if msg.ID == uuid.Nil {
 			t.Error("Expected non-nil UUID")
@@ -33,19 +33,17 @@ func TestMessage_Creation(t *testing.T) {
 	t.Run("creation with options", func(t *testing.T) {
 		sessionID := uuid.New()
 		content := "Hello, world!"
-		role := domain.RoleUser
 
-		msg := domain.NewMessage(
-			domain.WithSessionID(sessionID),
-			domain.WithRole(role),
-			domain.WithContent(content),
+		msg := types.UserMessage(
+			content,
+			types.WithSessionID(sessionID),
 		)
 
 		if msg.SessionID != sessionID {
 			t.Errorf("Expected SessionID %s, got %s", sessionID, msg.SessionID)
 		}
-		if msg.Role != role {
-			t.Errorf("Expected Role %s, got %s", role, msg.Role)
+		if msg.Role != types.RoleUser {
+			t.Errorf("Expected Role %s, got %s", types.RoleUser, msg.Role)
 		}
 		if msg.Content != content {
 			t.Errorf("Expected Content '%s', got '%s'", content, msg.Content)
@@ -53,12 +51,12 @@ func TestMessage_Creation(t *testing.T) {
 	})
 
 	t.Run("creation with tool calls", func(t *testing.T) {
-		toolCalls := []domain.ToolCall{
+		toolCalls := []types.ToolCall{
 			{ID: "call_1", Name: "tool1", Arguments: `{"arg":"value"}`},
 			{ID: "call_2", Name: "tool2", Arguments: `{}`},
 		}
 
-		msg := domain.NewMessage(domain.WithToolCalls(toolCalls))
+		msg := types.UserMessage("", types.WithToolCalls(toolCalls...))
 
 		if len(msg.ToolCalls) != 2 {
 			t.Errorf("Expected 2 tool calls, got %d", len(msg.ToolCalls))
@@ -70,7 +68,7 @@ func TestMessage_Creation(t *testing.T) {
 
 	t.Run("creation with tool call ID", func(t *testing.T) {
 		toolCallID := "call_123"
-		msg := domain.NewMessage(domain.WithToolCallID(toolCallID))
+		msg := types.ToolResponse(toolCallID, "result")
 
 		if msg.ToolCallID == nil {
 			t.Fatal("Expected ToolCallID to be set")
@@ -82,7 +80,7 @@ func TestMessage_Creation(t *testing.T) {
 
 	t.Run("creation with custom ID", func(t *testing.T) {
 		customID := uuid.New()
-		msg := domain.NewMessage(domain.WithMessageID(customID))
+		msg := types.UserMessage("", types.WithMessageID(customID))
 
 		if msg.ID != customID {
 			t.Errorf("Expected ID %s, got %s", customID, msg.ID)
@@ -94,13 +92,13 @@ func TestMessageRole_Values(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		role     domain.MessageRole
+		role     types.Role
 		expected string
 	}{
-		{domain.RoleUser, "user"},
-		{domain.RoleAssistant, "assistant"},
-		{domain.RoleTool, "tool"},
-		{domain.RoleSystem, "system"},
+		{types.RoleUser, "user"},
+		{types.RoleAssistant, "assistant"},
+		{types.RoleTool, "tool"},
+		{types.RoleSystem, "system"},
 	}
 
 	for _, tt := range tests {
@@ -113,16 +111,16 @@ func TestMessageRole_Values(t *testing.T) {
 func TestMessageRole_IsUser(t *testing.T) {
 	t.Parallel()
 
-	if !domain.RoleUser.IsUser() {
+	if !types.RoleUser.IsUser() {
 		t.Error("Expected RoleUser.IsUser() to be true")
 	}
-	if domain.RoleAssistant.IsUser() {
+	if types.RoleAssistant.IsUser() {
 		t.Error("Expected RoleAssistant.IsUser() to be false")
 	}
-	if domain.RoleTool.IsUser() {
+	if types.RoleTool.IsUser() {
 		t.Error("Expected RoleTool.IsUser() to be false")
 	}
-	if domain.RoleSystem.IsUser() {
+	if types.RoleSystem.IsUser() {
 		t.Error("Expected RoleSystem.IsUser() to be false")
 	}
 }
@@ -130,16 +128,16 @@ func TestMessageRole_IsUser(t *testing.T) {
 func TestMessageRole_IsAssistant(t *testing.T) {
 	t.Parallel()
 
-	if !domain.RoleAssistant.IsAssistant() {
+	if !types.RoleAssistant.IsAssistant() {
 		t.Error("Expected RoleAssistant.IsAssistant() to be true")
 	}
-	if domain.RoleUser.IsAssistant() {
+	if types.RoleUser.IsAssistant() {
 		t.Error("Expected RoleUser.IsAssistant() to be false")
 	}
-	if domain.RoleTool.IsAssistant() {
+	if types.RoleTool.IsAssistant() {
 		t.Error("Expected RoleTool.IsAssistant() to be false")
 	}
-	if domain.RoleSystem.IsAssistant() {
+	if types.RoleSystem.IsAssistant() {
 		t.Error("Expected RoleSystem.IsAssistant() to be false")
 	}
 }
@@ -147,16 +145,16 @@ func TestMessageRole_IsAssistant(t *testing.T) {
 func TestMessageRole_IsTool(t *testing.T) {
 	t.Parallel()
 
-	if !domain.RoleTool.IsTool() {
+	if !types.RoleTool.IsTool() {
 		t.Error("Expected RoleTool.IsTool() to be true")
 	}
-	if domain.RoleUser.IsTool() {
+	if types.RoleUser.IsTool() {
 		t.Error("Expected RoleUser.IsTool() to be false")
 	}
-	if domain.RoleAssistant.IsTool() {
+	if types.RoleAssistant.IsTool() {
 		t.Error("Expected RoleAssistant.IsTool() to be false")
 	}
-	if domain.RoleSystem.IsTool() {
+	if types.RoleSystem.IsTool() {
 		t.Error("Expected RoleSystem.IsTool() to be false")
 	}
 }
@@ -164,16 +162,16 @@ func TestMessageRole_IsTool(t *testing.T) {
 func TestMessageRole_IsSystem(t *testing.T) {
 	t.Parallel()
 
-	if !domain.RoleSystem.IsSystem() {
+	if !types.RoleSystem.IsSystem() {
 		t.Error("Expected RoleSystem.IsSystem() to be true")
 	}
-	if domain.RoleUser.IsSystem() {
+	if types.RoleUser.IsSystem() {
 		t.Error("Expected RoleUser.IsSystem() to be false")
 	}
-	if domain.RoleAssistant.IsSystem() {
+	if types.RoleAssistant.IsSystem() {
 		t.Error("Expected RoleAssistant.IsSystem() to be false")
 	}
-	if domain.RoleTool.IsSystem() {
+	if types.RoleTool.IsSystem() {
 		t.Error("Expected RoleTool.IsSystem() to be false")
 	}
 }
@@ -182,15 +180,15 @@ func TestMessageRole_Valid(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		role     domain.MessageRole
+		role     types.Role
 		expected bool
 	}{
-		{domain.RoleUser, true},
-		{domain.RoleAssistant, true},
-		{domain.RoleTool, true},
-		{domain.RoleSystem, true},
-		{domain.MessageRole("invalid"), false},
-		{domain.MessageRole(""), false},
+		{types.RoleUser, true},
+		{types.RoleAssistant, true},
+		{types.RoleTool, true},
+		{types.RoleSystem, true},
+		{types.Role("invalid"), false},
+		{types.Role(""), false},
 	}
 
 	for _, tt := range tests {
@@ -203,12 +201,13 @@ func TestMessageRole_Valid(t *testing.T) {
 func TestMessage_HasToolCalls(t *testing.T) {
 	t.Parallel()
 
-	msgWithToolCalls := domain.NewMessage(
-		domain.WithToolCalls([]domain.ToolCall{
-			{ID: "1", Name: "tool1", Arguments: "{}"},
+	msgWithToolCalls := types.UserMessage(
+		"",
+		types.WithToolCalls(types.ToolCall{
+			ID: "1", Name: "tool1", Arguments: "{}",
 		}),
 	)
-	msgWithoutToolCalls := domain.NewMessage()
+	msgWithoutToolCalls := types.UserMessage("")
 
 	if !msgWithToolCalls.HasToolCalls() {
 		t.Error("Expected message with tool calls to return true")
@@ -221,10 +220,11 @@ func TestMessage_HasToolCalls(t *testing.T) {
 func TestMessage_HasAttachments(t *testing.T) {
 	t.Parallel()
 
-	msgWithAttachments := domain.NewMessage(
-		domain.WithAttachments([]domain.Attachment{{}}),
+	msgWithAttachments := types.UserMessage(
+		"",
+		types.WithAttachments(types.Attachment{}),
 	)
-	msgWithoutAttachments := domain.NewMessage()
+	msgWithoutAttachments := types.UserMessage("")
 
 	if !msgWithAttachments.HasAttachments() {
 		t.Error("Expected message with attachments to return true")
@@ -237,10 +237,11 @@ func TestMessage_HasAttachments(t *testing.T) {
 func TestMessage_HasCitations(t *testing.T) {
 	t.Parallel()
 
-	msgWithCitations := domain.NewMessage(
-		domain.WithCitations([]domain.Citation{{}}),
+	msgWithCitations := types.UserMessage(
+		"",
+		types.WithCitations(types.Citation{}),
 	)
-	msgWithoutCitations := domain.NewMessage()
+	msgWithoutCitations := types.UserMessage("")
 
 	if !msgWithCitations.HasCitations() {
 		t.Error("Expected message with citations to return true")
@@ -254,8 +255,8 @@ func TestMessage_IsToolMessage(t *testing.T) {
 	t.Parallel()
 
 	toolCallID := "call_123"
-	toolMessage := domain.NewMessage(domain.WithToolCallID(toolCallID))
-	regularMessage := domain.NewMessage()
+	toolMessage := types.ToolResponse(toolCallID, "result")
+	regularMessage := types.UserMessage("")
 
 	if !toolMessage.IsToolMessage() {
 		t.Error("Expected message with ToolCallID to return true for IsToolMessage()")
@@ -268,7 +269,7 @@ func TestMessage_IsToolMessage(t *testing.T) {
 func TestToolCall_Basic(t *testing.T) {
 	t.Parallel()
 
-	toolCall := domain.ToolCall{
+	toolCall := types.ToolCall{
 		ID:        "call_abc123",
 		Name:      "get_weather",
 		Arguments: `{"location":"San Francisco","unit":"celsius"}`,
@@ -289,30 +290,26 @@ func TestMessage_MultipleOptions(t *testing.T) {
 	t.Parallel()
 
 	sessionID := uuid.New()
-	role := domain.RoleAssistant
 	content := "Test content"
-	toolCalls := []domain.ToolCall{
+	toolCalls := []types.ToolCall{
 		{ID: "1", Name: "tool", Arguments: "{}"},
 	}
-	toolCallID := "call_123"
-	attachments := []domain.Attachment{{}}
-	citations := []domain.Citation{{}}
+	attachments := []types.Attachment{{}}
+	citations := []types.Citation{{}}
 
-	msg := domain.NewMessage(
-		domain.WithSessionID(sessionID),
-		domain.WithRole(role),
-		domain.WithContent(content),
-		domain.WithToolCalls(toolCalls),
-		domain.WithToolCallID(toolCallID),
-		domain.WithAttachments(attachments),
-		domain.WithCitations(citations),
+	msg := types.AssistantMessage(
+		content,
+		types.WithSessionID(sessionID),
+		types.WithToolCalls(toolCalls...),
+		types.WithAttachments(attachments...),
+		types.WithCitations(citations...),
 	)
 
 	// Verify all options were applied
 	if msg.SessionID != sessionID {
 		t.Error("SessionID not set correctly")
 	}
-	if msg.Role != role {
+	if msg.Role != types.RoleAssistant {
 		t.Error("Role not set correctly")
 	}
 	if msg.Content != content {
@@ -320,9 +317,6 @@ func TestMessage_MultipleOptions(t *testing.T) {
 	}
 	if len(msg.ToolCalls) != 1 {
 		t.Error("ToolCalls not set correctly")
-	}
-	if !msg.IsToolMessage() || *msg.ToolCallID != toolCallID {
-		t.Error("ToolCallID not set correctly")
 	}
 	if len(msg.Attachments) != 1 {
 		t.Error("Attachments not set correctly")
@@ -336,15 +330,12 @@ func TestMessage_EmptyContent(t *testing.T) {
 	t.Parallel()
 
 	// Message with empty content is valid (e.g., tool response)
-	msg := domain.NewMessage(
-		domain.WithRole(domain.RoleTool),
-		domain.WithContent(""),
-	)
+	msg := types.ToolResponse("call_1", "")
 
 	if msg.Content != "" {
 		t.Error("Expected empty content")
 	}
-	if msg.Role != domain.RoleTool {
+	if msg.Role != types.RoleTool {
 		t.Error("Expected Tool role")
 	}
 }
@@ -353,10 +344,11 @@ func TestMessage_WithCreatedAt(t *testing.T) {
 	t.Parallel()
 
 	// Custom timestamp
-	customTime := domain.NewMessage().CreatedAt.Add(-1000)
+	customTime := types.UserMessage("").CreatedAt.Add(-1000)
 
-	msg := domain.NewMessage(
-		domain.WithCreatedAt(customTime),
+	msg := types.UserMessage(
+		"",
+		types.WithCreatedAt(customTime),
 	)
 
 	if !msg.CreatedAt.Equal(customTime) {

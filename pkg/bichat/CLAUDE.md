@@ -7,7 +7,8 @@ Agent framework for building LLM-powered BI chat modules in IOTA SDK.
 BI-Chat provides:
 - **Agent Framework**: ReAct loop execution with tools and LLM integration
 - **Context Management**: Content-addressed blocks with token budgeting
-- **Knowledge Base**: Bleve full-text search (pure Go, embedded)
+- **Knowledge Base**: Bleve full-text search (pure Go, embedded	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+)
 - **Event System**: Pub/sub for observability and metrics
 - **Domain Models**: Session, Message, Attachment, Citation entities
 - **Common Tools**: SQL, schema, KB search, time, export, HITL
@@ -215,9 +216,9 @@ session := domain.NewSession(
     domain.WithTitle("Analysis"),
 )
 
-message := domain.NewMessage(
+message := types.UserMessage(
     domain.WithSessionID(sessionID),
-    domain.WithRole(domain.RoleUser),
+    domain.WithRole(types.RoleUser),
     domain.WithContent("Show revenue"),
 )
 

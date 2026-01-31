@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // ExecutorEventType identifies different types of executor events.
@@ -99,7 +101,7 @@ type ToolEvent struct {
 //	)
 //
 //	gen := executor.Execute(ctx, Input{
-//	    Messages: []Message{{Role: RoleUser, Content: "What's the weather?"}},
+//	    Messages: []types.Message{{Role: RoleUser, Content: "What's the weather?"}},
 //	    SessionID: sessionID,
 //	    TenantID: tenantID,
 //	})
@@ -123,7 +125,7 @@ type Executor struct {
 // Input represents the input to Execute or Resume.
 type Input struct {
 	// Messages is the conversation history to start with.
-	Messages []Message
+	Messages []types.Message
 
 	// SessionID identifies the chat session for observability and checkpointing.
 	SessionID uuid.UUID
@@ -196,11 +198,13 @@ func NewExecutor(agent ExtendedAgent, model Model, opts ...ExecutorOption) *Exec
 //   - Errors (if execution fails)
 //
 // The generator must be closed when done to release resources.
-func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorEvent] {
-	return NewGenerator(func(yield func(ExecutorEvent) bool) error {
+func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[ExecutorEvent] {
+	const op serrors.Op = "Executor.Execute"
+
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(ExecutorEvent) bool) error {
 		// Validate input
 		if len(input.Messages) == 0 {
-			return fmt.Errorf("input must contain at least one message")
+			return serrors.E(op, "input must contain at least one message")
 		}
 
 		// Generate thread ID if not provided
@@ -210,12 +214,12 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 		}
 
 		// Build initial request with system prompt
-		messages := make([]Message, 0, len(input.Messages)+1)
+		messages := make([]types.Message, 0, len(input.Messages)+1)
 
 		// Add system prompt if agent provides one
 		systemPrompt := e.agent.SystemPrompt(ctx)
 		if systemPrompt != "" {
-			messages = append(messages, NewSystemMessage(systemPrompt))
+			messages = append(messages, *types.SystemMessage(systemPrompt))
 		}
 
 		// Add input messages
@@ -251,20 +255,20 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 			defer gen.Close()
 
 			// Accumulate response
-			var responseMessage Message
+			var responseMessage types.Message
 			var chunks []string
-			var toolCalls []ToolCall
-			var usage *TokenUsage
+			var toolCalls []types.ToolCall
+			var usage *types.TokenUsage
 			var finishReason string
 			startTime := time.Now()
 
 			for {
-				chunk, err, hasMore := gen.Next()
+				chunk, err := gen.Next(ctx)
 				if err != nil {
-					return err
-				}
-				if !hasMore {
-					break
+					if err == types.ErrGeneratorDone {
+						break
+					}
+					return serrors.E(op, err)
 				}
 
 				// Yield chunk event
@@ -291,13 +295,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 			}
 
 			// Build response message
-			responseMessage = NewAssistantMessage(joinStrings(chunks), toolCalls)
+			responseMessage = *types.AssistantMessage(joinStrings(chunks), types.WithToolCalls(toolCalls...))
 			messages = append(messages, responseMessage)
 
 			// Emit LLM response event
 			if e.eventBus != nil {
 				modelInfo := e.model.Info()
-				var usageTokens TokenUsage
+				var usageTokens types.TokenUsage
 				if usage != nil {
 					usageTokens = *usage
 				}
@@ -341,11 +345,11 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 			if err != nil {
 				if !yield(ExecutorEvent{
 					Type:  EventTypeError,
-					Error: err,
+					Error: serrors.E(op, err),
 				}) {
 					return nil
 				}
-				return err
+				return serrors.E(op, err)
 			}
 
 			// Check for interrupt
@@ -353,7 +357,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 				// Save checkpoint
 				checkpointID, err := e.saveCheckpoint(ctx, threadID, messages, toolCalls, interrupt)
 				if err != nil {
-					return fmt.Errorf("%w: %v", ErrCheckpointSaveFailed, err)
+					return serrors.E(op, ErrCheckpointSaveFailed, err)
 				}
 
 				// Set checkpoint ID on interrupt event
@@ -364,10 +368,12 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 				if e.eventBus != nil {
 					var question string
 					var data struct {
-						Question string `json:"question"`
+						Questions []struct {
+							Question string `json:"question"`
+						} `json:"questions"`
 					}
-					if err := json.Unmarshal(interrupt.Data, &data); err == nil {
-						question = data.Question
+					if err := json.Unmarshal(interrupt.Data, &data); err == nil && len(data.Questions) > 0 {
+						question = data.Questions[0].Question
 					}
 
 					_ = e.eventBus.Publish(ctx, events.NewInterruptEvent(
@@ -411,7 +417,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 
 						// Termination tool called, return result
 						result := &Response{
-							Message:      NewAssistantMessage(resultContent, nil),
+							Message:      *types.AssistantMessage(resultContent),
 							FinishReason: "tool_calls",
 						}
 						if usage != nil {
@@ -434,17 +440,24 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 		}
 
 		// Max iterations reached
-		return ErrMaxIterations
+		return serrors.E(op, ErrMaxIterations)
 	})
 }
 
 // Resume continues execution from a saved checkpoint after receiving user input.
 // This is used for HITL (human-in-the-loop) workflows where execution was interrupted.
 //
+// The answers parameter is a map from question ID to user's answer string.
+// All questions must have answers, or the resume will fail.
+//
 // Example:
 //
 //	// After interrupt event is received:
-//	gen := executor.Resume(ctx, checkpointID, userAnswer)
+//	answers := map[string]string{
+//	    "question_1": "Q1 2024",
+//	    "question_2": "revenue",
+//	}
+//	gen := executor.Resume(ctx, checkpointID, answers)
 //	defer gen.Close()
 //	for {
 //	    event, err, hasMore := gen.Next()
@@ -452,30 +465,68 @@ func (e *Executor) Execute(ctx context.Context, input Input) Generator[ExecutorE
 //	    if !hasMore { break }
 //	    handleEvent(event)
 //	}
-func (e *Executor) Resume(ctx context.Context, checkpointID, answer string) Generator[ExecutorEvent] {
-	return NewGenerator(func(yield func(ExecutorEvent) bool) error {
+func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[string]string) types.Generator[ExecutorEvent] {
+	const op serrors.Op = "Executor.Resume"
+
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(ExecutorEvent) bool) error {
 		// Load checkpoint
 		if e.checkpointer == nil {
-			return ErrCheckpointNotFound
+			return serrors.E(op, ErrCheckpointNotFound)
 		}
 
 		checkpoint, err := e.checkpointer.LoadAndDelete(ctx, checkpointID)
 		if err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 
 		// Restore messages
 		messages := checkpoint.Messages
 
-		// Add tool results with user's answer
+		// Add tool results with user's answers
 		for _, tc := range checkpoint.PendingTools {
-			// Check if this is an interrupt tool that needs the answer
+			// Check if this is an interrupt tool that needs answers
 			if tc.Name == ToolAskUserQuestion {
-				messages = append(messages, NewToolMessage(tc.ID, answer))
+				// Parse questions from tool call arguments
+				var questionsData struct {
+					Questions []struct {
+						ID   string `json:"id"`
+						Text string `json:"text"`
+					} `json:"questions"`
+				}
+				if err := json.Unmarshal([]byte(tc.Arguments), &questionsData); err != nil {
+					if !yield(ExecutorEvent{
+						Type:  EventTypeError,
+						Error: serrors.E(op, "failed to parse questions from checkpoint", err),
+					}) {
+						return nil
+					}
+					return serrors.E(op, "failed to parse questions from checkpoint", err)
+				}
+
+				// Build response with all answers
+				responseData := make(map[string]string)
+				for _, q := range questionsData.Questions {
+					answer, exists := answers[q.ID]
+					if !exists {
+						if !yield(ExecutorEvent{
+							Type:  EventTypeError,
+							Error: serrors.E(op, serrors.KindValidation, fmt.Sprintf("missing answer for question %s", q.ID)),
+						}) {
+							return nil
+						}
+						return serrors.E(op, serrors.KindValidation, fmt.Sprintf("missing answer for question %s", q.ID))
+					}
+					responseData[q.ID] = answer
+				}
+
+				// Create tool response message with all answers
+				encoded, _ := json.Marshal(responseData)
+				messages = append(messages, *types.ToolResponse(tc.ID, string(encoded)))
 			}
 		}
 
 		// Resume execution with restored state
+		// TODO: Add SessionID and TenantID to Checkpoint struct to restore from metadata
 		input := Input{
 			Messages:  messages,
 			SessionID: uuid.Nil, // TODO: restore from checkpoint metadata
@@ -489,12 +540,12 @@ func (e *Executor) Resume(ctx context.Context, checkpointID, answer string) Gene
 
 		// Yield all events from the resumed execution
 		for {
-			event, err, hasMore := resumeGen.Next()
+			event, err := resumeGen.Next(ctx)
 			if err != nil {
-				return err
-			}
-			if !hasMore {
-				break
+				if err == types.ErrGeneratorDone {
+					break
+				}
+				return serrors.E(op, err)
 			}
 			if !yield(event) {
 				return nil
@@ -510,10 +561,12 @@ func (e *Executor) Resume(ctx context.Context, checkpointID, answer string) Gene
 func (e *Executor) executeToolCalls(
 	ctx context.Context,
 	sessionID, tenantID uuid.UUID,
-	toolCalls []ToolCall,
+	toolCalls []types.ToolCall,
 	yield func(ExecutorEvent) bool,
-) ([]Message, *InterruptEvent, error) {
-	results := make([]Message, 0, len(toolCalls))
+) ([]types.Message, *InterruptEvent, error) {
+	const op serrors.Op = "Executor.executeToolCalls"
+
+	results := make([]types.Message, 0, len(toolCalls))
 
 	for _, tc := range toolCalls {
 		// Emit tool start event
@@ -605,7 +658,7 @@ func (e *Executor) executeToolCalls(
 		}
 
 		// Add tool result message
-		results = append(results, NewToolMessage(tc.ID, result))
+		results = append(results, *types.ToolResponse(tc.ID, result))
 	}
 
 	return results, nil, nil
@@ -615,12 +668,14 @@ func (e *Executor) executeToolCalls(
 func (e *Executor) saveCheckpoint(
 	ctx context.Context,
 	threadID string,
-	messages []Message,
-	toolCalls []ToolCall,
+	messages []types.Message,
+	toolCalls []types.ToolCall,
 	interrupt *InterruptEvent,
 ) (string, error) {
+	const op serrors.Op = "Executor.saveCheckpoint"
+
 	if e.checkpointer == nil {
-		return "", ErrCheckpointSaveFailed
+		return "", serrors.E(op, ErrCheckpointSaveFailed)
 	}
 
 	checkpoint := NewCheckpoint(
@@ -632,7 +687,12 @@ func (e *Executor) saveCheckpoint(
 		WithInterruptData(interrupt.Data),
 	)
 
-	return e.checkpointer.Save(ctx, checkpoint)
+	checkpointID, err := e.checkpointer.Save(ctx, checkpoint)
+	if err != nil {
+		return "", serrors.E(op, err)
+	}
+
+	return checkpointID, nil
 }
 
 // joinStrings concatenates a slice of strings.
