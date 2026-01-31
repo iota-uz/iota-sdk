@@ -2,6 +2,7 @@ package core
 
 import (
 	"embed"
+	"fmt"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
@@ -105,7 +106,7 @@ func (m *Module) Register(app application.Application) error {
 	// TODO: Replace with real sender (Twilio, SendGrid, etc.) in production
 	otpSender := pkgtwofactor.NewNoopSender()
 
-	twoFactorService := twofactor.NewTwoFactorService(
+	twoFactorService, err := twofactor.NewTwoFactorService(
 		otpRepo,
 		recoveryCodeRepo,
 		userRepo,
@@ -116,6 +117,9 @@ func (m *Module) Register(app application.Application) error {
 		twofactor.WithSecretEncryptor(encryptor),
 		twofactor.WithOTPSender(otpSender),
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create two-factor service: %w", err)
+	}
 
 	app.RegisterServices(
 		services.NewAuthService(app),

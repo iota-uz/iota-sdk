@@ -140,6 +140,35 @@ type TwoFactorAuthOptions struct {
 	EncryptionKey string `env:"TOTP_ENCRYPTION_KEY"` // Required for production - used to encrypt TOTP secrets at rest
 }
 
+// Validate checks the two-factor auth configuration for errors
+func (t *TwoFactorAuthOptions) Validate() error {
+	if !t.Enabled {
+		return nil // Skip validation if 2FA is disabled
+	}
+
+	// TOTPIssuer is required when 2FA is enabled
+	if t.TOTPIssuer == "" {
+		return fmt.Errorf("TOTP_ISSUER is required when ENABLE_2FA is true")
+	}
+
+	// Validate OTP code length (4-10 digits)
+	if t.OTPCodeLength < 4 || t.OTPCodeLength > 10 {
+		return fmt.Errorf("OTPCodeLength must be between 4 and 10, got %d", t.OTPCodeLength)
+	}
+
+	// Validate OTP TTL (60-900 seconds = 1-15 minutes)
+	if t.OTPTTLSeconds < 60 || t.OTPTTLSeconds > 900 {
+		return fmt.Errorf("OTPTTLSeconds must be between 60 and 900, got %d", t.OTPTTLSeconds)
+	}
+
+	// Validate OTP max attempts (1-10)
+	if t.OTPMaxAttempts < 1 || t.OTPMaxAttempts > 10 {
+		return fmt.Errorf("OTPMaxAttempts must be between 1 and 10, got %d", t.OTPMaxAttempts)
+	}
+
+	return nil
+}
+
 // Validate checks the rate limit configuration for errors
 func (r *RateLimitOptions) Validate() error {
 	if r.GlobalRPS < 0 {
@@ -258,6 +287,12 @@ func (c *Configuration) load(envFiles []string) error {
 	if err := c.RateLimit.Validate(); err != nil {
 		return fmt.Errorf("rate limit configuration error: %w", err)
 	}
+
+	// Validate two-factor auth configuration
+	if err := c.TwoFactorAuth.Validate(); err != nil {
+		return fmt.Errorf("two-factor auth configuration error: %w", err)
+	}
+
 	f, logger, err := logging.FileLogger(c.LogrusLogLevel(), c.Loki.LogPath)
 	if err != nil {
 		return err

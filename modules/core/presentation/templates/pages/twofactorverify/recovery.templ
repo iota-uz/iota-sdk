@@ -15,9 +15,7 @@ type RecoveryProps struct {
 }
 
 templ Recovery(p *RecoveryProps) {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Base(&layouts.BaseProps{Title: pageCtx.T("TwoFactor.Verify.Meta.Recovery")}) {
 		<div class="flex flex-col h-screen overflow-y-auto">
 			<div class="flex-1 flex items-center justify-center">

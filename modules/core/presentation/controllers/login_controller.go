@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/security"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 
@@ -112,8 +113,10 @@ func (c *LoginController) Register(r *mux.Router) {
 }
 
 func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	// Validate and sanitize the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
 	queryParams := url.Values{
-		"next": []string{r.URL.Query().Get("next")},
+		"next": []string{nextURL},
 	}
 	code := r.URL.Query().Get("code")
 	if code == "" {
@@ -200,15 +203,13 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
+		Path:     "/",
 	}
 
 	http.SetCookie(w, sessionCookie)
 
-	redirectURL := r.URL.Query().Get("next")
-	if redirectURL == "" {
-		redirectURL = "/"
-	}
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	// Use the validated redirect URL from earlier
+	http.Redirect(w, r, nextURL, http.StatusFound)
 }
 
 func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
@@ -240,6 +241,10 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 
 func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
+
+	// Validate the redirect URL early to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+
 	dto, err := composables.UseForm(&LoginDTO{}, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -247,7 +252,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	}
 	if errorsMap, ok := dto.Ok(r.Context()); !ok {
 		shared.SetFlashMap(w, "errorsMap", errorsMap)
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	}
 
@@ -262,7 +267,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		} else {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 		}
-		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	}
 
@@ -293,7 +298,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			logger.Error("Failed to evaluate 2FA policy", "error", err)
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-			http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
+			http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
 			return
 		}
 
@@ -308,6 +313,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 				SameSite: http.SameSiteLaxMode,
 				Secure:   conf.GoAppEnvironment == configuration.Production,
 				Domain:   conf.Domain,
+				Path:     "/",
 			}
 
 			// Update session status to pending 2FA
@@ -327,7 +333,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 			if err := c.sessionService.Update(r.Context(), pendingSession); err != nil {
 				logger.Error("Failed to update session to pending 2FA", "error", err)
 				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
-				http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
+				http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
 				return
 			}
 
@@ -335,11 +341,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 			http.SetCookie(w, sessionCookie)
 
 			// Redirect to 2FA verification or setup based on user's 2FA status
-			nextURL := r.URL.Query().Get("next")
-			// Validate redirect URL to prevent open redirect
-			if !isValidRedirectURL(nextURL) {
-				nextURL = "/"
-			}
+			// nextURL already validated at the beginning of the function
 			if u.Has2FAEnabled() {
 				// User has 2FA enabled, redirect to verification
 				http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
@@ -361,12 +363,10 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
+		Path:     "/",
 	}
 
-	redirectURL := r.URL.Query().Get("next")
-	if redirectURL == "" {
-		redirectURL = "/"
-	}
 	http.SetCookie(w, cookie)
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	// Use the validated redirect URL from the beginning of the function
+	http.Redirect(w, r, nextURL, http.StatusFound)
 }

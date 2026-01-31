@@ -60,7 +60,7 @@ func NewTwoFactorService(
 	recoveryCodeRepo twofactor.RecoveryCodeRepository,
 	userRepo user.Repository,
 	opts ...ServiceOption,
-) *TwoFactorService {
+) (*TwoFactorService, error) {
 	// Default configuration
 	svc := &TwoFactorService{
 		otpRepo:           otpRepo,
@@ -82,15 +82,15 @@ func NewTwoFactorService(
 		opt(svc)
 	}
 
-	// Validate required dependencies
+	// Validate required dependencies BEFORE creating helper services
 	if svc.encryptor == nil {
-		panic("TwoFactorService: encryptor is required (use WithEncryptor option)")
+		return nil, fmt.Errorf("TwoFactorService: encryptor is required (use WithSecretEncryptor option)")
 	}
 	if svc.otpSender == nil {
-		panic("TwoFactorService: otpSender is required (use WithOTPSender option)")
+		return nil, fmt.Errorf("TwoFactorService: otpSender is required (use WithOTPSender option)")
 	}
 
-	// Initialize helper services
+	// Initialize helper services (only after validation passes)
 	svc.totpService = NewTOTPService(
 		svc.encryptor,
 		svc.issuer,
@@ -110,7 +110,7 @@ func NewTwoFactorService(
 		svc.recoveryCodeRepo,
 	)
 
-	return svc
+	return svc, nil
 }
 
 // BeginSetup starts a 2FA setup flow for a user

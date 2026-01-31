@@ -144,10 +144,10 @@ templ AccordionGroup(group Group) {
 
 templ AccordionLink(link Link) {
 	{{
-	className := "gap-2 w-full"
-	if link.IsActive(ctx) {
-		className = className + " active"
-	}
+		className := "gap-2 w-full"
+		if link.IsActive(ctx) {
+			className = className + " active"
+		}
 	}}
 	<li>
 		<!-- Collapsed view: icon only -->

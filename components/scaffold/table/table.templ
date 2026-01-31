@@ -129,18 +129,18 @@ templ Rows(cfg *TableConfig) {
 		} else {
 			for i, row := range cfg.Rows {
 				{{
-				isLastRow := i == len(cfg.Rows)-1
-				rowAttrs := templ.Attributes{}
-				for k, v := range row.Attrs() {
-					rowAttrs[k] = v
-				}
-				if isLastRow && cfg.Infinite.HasMore {
-					rowAttrs["hx-get"] = nextChunkURL(cfg.DataURL, cfg.Infinite.Page, cfg.Infinite.PerPage, currentParams)
-					rowAttrs["hx-indicator"] = "#infinite-scroll-spinner"
-					rowAttrs["hx-trigger"] = "intersect once"
-					rowAttrs["hx-swap"] = "afterend"
-					rowAttrs["hx-target"] = "this"
-				}
+					isLastRow := i == len(cfg.Rows)-1
+					rowAttrs := templ.Attributes{}
+					for k, v := range row.Attrs() {
+						rowAttrs[k] = v
+					}
+					if isLastRow && cfg.Infinite.HasMore {
+						rowAttrs["hx-get"] = nextChunkURL(cfg.DataURL, cfg.Infinite.Page, cfg.Infinite.PerPage, currentParams)
+						rowAttrs["hx-indicator"] = "#infinite-scroll-spinner"
+						rowAttrs["hx-trigger"] = "intersect once"
+						rowAttrs["hx-swap"] = "afterend"
+						rowAttrs["hx-target"] = "this"
+					}
 				}}
 				@base.TableRow(base.TableRowProps{
 					Attrs: rowAttrs,

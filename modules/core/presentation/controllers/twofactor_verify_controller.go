@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/security"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
@@ -64,6 +65,9 @@ func (c *TwoFactorVerifyController) Register(r *mux.Router) {
 func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
+	// Validate the redirect URL early to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+
 	// Get session
 	sess, err := composables.UseSession(r.Context())
 	if err != nil {
@@ -92,7 +96,7 @@ func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		logger.Error("failed to begin 2FA verification", "error", err)
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Verify.Error")))
-		http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(r.URL.Query().Get("next"))), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	}
 
@@ -100,7 +104,7 @@ func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Req
 	method := u.TwoFactorMethod()
 	if err := twofactorverify.Verify(&twofactorverify.VerifyProps{
 		Method:      string(method),
-		NextURL:     r.URL.Query().Get("next"),
+		NextURL:     nextURL,
 		Destination: challenge.Destination,
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render verify template", "error", err)
@@ -119,7 +123,8 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 	}
 
 	code := r.FormValue("Code")
-	nextURL := r.FormValue("NextURL")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
 	if code == "" {
 		http.Error(w, "missing code", http.StatusBadRequest)
@@ -175,15 +180,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Redirect to next URL or home
-	if nextURL == "" {
-		nextURL = "/"
-	}
-	// Validate redirect URL to prevent open redirect
-	if !isValidRedirectURL(nextURL) {
-		nextURL = "/"
-	}
-
+	// Redirect to next URL (already validated earlier)
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Verify.Success")))
 	http.Redirect(w, r, nextURL, http.StatusFound)
 }
@@ -277,15 +274,7 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Redirect to next URL or home
-	if nextURL == "" {
-		nextURL = "/"
-	}
-	// Validate redirect URL to prevent open redirect
-	if !isValidRedirectURL(nextURL) {
-		nextURL = "/"
-	}
-
+	// Redirect to next URL (already validated earlier)
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Verify.Success")))
 	http.Redirect(w, r, nextURL, http.StatusFound)
 }
@@ -300,7 +289,8 @@ func (c *TwoFactorVerifyController) PostResend(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	nextURL := r.FormValue("NextURL")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
 	// Get session
 	sess, err := composables.UseSession(r.Context())

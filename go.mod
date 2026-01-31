@@ -11,7 +11,7 @@ require (
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
 	github.com/PuerkitoBio/goquery v1.10.1
 	github.com/Rhymond/go-money v1.0.15
-	github.com/a-h/templ v0.3.857
+	github.com/a-h/templ v0.3.977
 	github.com/alecthomas/chroma/v2 v2.17.0
 	github.com/antchfx/htmlquery v1.3.4
 	github.com/benbjohnson/hashfs v0.2.2
@@ -61,11 +61,11 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0
 	go.opentelemetry.io/otel/sdk v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
-	golang.org/x/crypto v0.38.0
-	golang.org/x/net v0.40.0
+	golang.org/x/crypto v0.40.0
+	golang.org/x/net v0.42.0
 	golang.org/x/oauth2 v0.26.0
-	golang.org/x/sync v0.14.0
-	golang.org/x/text v0.25.0
+	golang.org/x/sync v0.16.0
+	golang.org/x/text v0.27.0
 	google.golang.org/api v0.209.0
 	gorm.io/gorm v1.25.12
 )
@@ -146,9 +146,9 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/tools v0.26.0 // indirect
+	golang.org/x/mod v0.26.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/genproto v0.0.0-20241113202542-65e8d215514f // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect

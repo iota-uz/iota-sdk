@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/security"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
@@ -63,8 +64,11 @@ func (c *TwoFactorSetupController) Register(r *mux.Router) {
 
 // GetMethodChoice displays method selection page
 func (c *TwoFactorSetupController) GetMethodChoice(w http.ResponseWriter, r *http.Request) {
+	// Validate the redirect URL early to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+
 	if err := twofactorsetup.MethodChoice(&twofactorsetup.MethodChoiceProps{
-		NextURL: r.URL.Query().Get("next"),
+		NextURL: nextURL,
 	}).Render(r.Context(), w); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -81,7 +85,8 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 	}
 
 	method := r.FormValue("Method")
-	nextURL := r.FormValue("NextURL")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
 	// Validate method
 	validMethods := []string{string(pkgtwofactor.MethodTOTP), string(pkgtwofactor.MethodSMS), string(pkgtwofactor.MethodEmail)}
@@ -146,7 +151,8 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 	challengeID := r.URL.Query().Get("challengeId")
-	nextURL := r.URL.Query().Get("next")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -187,7 +193,8 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 
 	challengeID := r.FormValue("ChallengeID")
 	code := r.FormValue("Code")
-	nextURL := r.FormValue("NextURL")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -257,7 +264,8 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 
 	method := r.FormValue("Method")
 	challengeID := r.FormValue("ChallengeID")
-	nextURL := r.FormValue("NextURL")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -290,7 +298,8 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 
 	challengeID := r.FormValue("ChallengeID")
 	code := r.FormValue("Code")
-	nextURL := r.FormValue("NextURL")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
 	if challengeID == "" {
 		http.Error(w, "missing challenge ID", http.StatusBadRequest)
@@ -339,15 +348,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 		return
 	}
 
-	// For OTP methods, show success and redirect
-	if nextURL == "" {
-		nextURL = "/"
-	}
-	// Validate redirect URL to prevent open redirect
-	if !isValidRedirectURL(nextURL) {
-		nextURL = "/"
-	}
-
+	// For OTP methods, show success and redirect (nextURL already validated earlier)
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Success")))
 	http.Redirect(w, r, nextURL, http.StatusFound)
 }

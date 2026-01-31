@@ -155,9 +155,7 @@ templ Navbar(pageCtx types.PageContextProvider) {
 }
 
 templ DefaultSidebarFooter() {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@SidebarFooter(pageCtx)
 }
 
