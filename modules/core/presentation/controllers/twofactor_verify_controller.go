@@ -8,15 +8,15 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/twofactorverify"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/twofactorverify"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
 // NewTwoFactorVerifyController creates a new TwoFactorVerifyController
@@ -179,6 +179,10 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 	if nextURL == "" {
 		nextURL = "/"
 	}
+	// Validate redirect URL to prevent open redirect
+	if !isValidRedirectURL(nextURL) {
+		nextURL = "/"
+	}
 
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Verify.Success")))
 	http.Redirect(w, r, nextURL, http.StatusFound)
@@ -275,6 +279,10 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 
 	// Redirect to next URL or home
 	if nextURL == "" {
+		nextURL = "/"
+	}
+	// Validate redirect URL to prevent open redirect
+	if !isValidRedirectURL(nextURL) {
 		nextURL = "/"
 	}
 

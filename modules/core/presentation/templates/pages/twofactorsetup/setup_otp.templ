@@ -9,11 +9,11 @@ import (
 )
 
 type OTPSetupProps struct {
-	Method       string
-	ChallengeID  string
-	NextURL      string
-	Destination  string
-	ErrorMessage string
+	Method         string
+	ChallengeID    string
+	NextURL        string
+	Destination    string
+	ErrorMessage   string
 	SuccessMessage string
 }
 
@@ -38,24 +38,20 @@ templ OTPSetup(p *OTPSetupProps) {
 							<p class="text-200">{ pageCtx.T("TwoFactor.Setup.CodeSentToEmail") }</p>
 						}
 					</div>
-
 					if p.ErrorMessage != "" {
 						@alert.Error() {
 							{ p.ErrorMessage }
 						}
 					}
-
 					if p.SuccessMessage != "" {
 						<div class="bg-green-100 text-green-600 py-2.5 px-4 text-sm font-medium rounded-md w-full text-center">
 							{ p.SuccessMessage }
 						</div>
 					}
-
 					<!-- Code Input Form -->
 					<form method="post" action="/login/2fa/setup/otp/confirm" class="flex flex-col gap-4">
 						<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
-
 						<div>
 							<label class="block text-sm font-medium text-100 mb-2">
 								{ pageCtx.T("TwoFactor.Setup.EnterVerificationCode") }
@@ -75,7 +71,6 @@ templ OTPSetup(p *OTPSetupProps) {
 								{ pageCtx.T("TwoFactor.Setup.DigitCode") }
 							</p>
 						</div>
-
 						@button.Primary(button.Props{
 							Size:  button.SizeNormal,
 							Class: "justify-center",
@@ -86,13 +81,11 @@ templ OTPSetup(p *OTPSetupProps) {
 							{ pageCtx.T("TwoFactor.Setup.Verify") }
 						}
 					</form>
-
 					<!-- Resend Code -->
 					<form method="post" action="/login/2fa/setup/otp/send" class="flex flex-col gap-2">
 						<input type="hidden" name="Method" value={ p.Method }/>
 						<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
-
 						@button.Secondary(button.Props{
 							Size:  button.SizeSM,
 							Class: "justify-center gap-2",
@@ -104,7 +97,6 @@ templ OTPSetup(p *OTPSetupProps) {
 							{ pageCtx.T("TwoFactor.Setup.ResendCode") }
 						}
 					</form>
-
 					<!-- Help Text -->
 					<div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
 						<div class="flex gap-3">

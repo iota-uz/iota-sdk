@@ -29,13 +29,11 @@ templ TOTPSetup(p *TOTPSetupProps) {
 						</h1>
 						<p class="text-200">{ pageCtx.T("TwoFactor.Setup.ScanQRCode") }</p>
 					</div>
-
 					if p.ErrorMessage != "" {
 						@alert.Error() {
 							{ p.ErrorMessage }
 						}
 					}
-
 					<!-- QR Code Display -->
 					<div class="flex flex-col items-center gap-4 p-6 bg-surface-300 rounded-lg border border-primary/20">
 						<div class="bg-white p-4 rounded-lg">
@@ -45,12 +43,10 @@ templ TOTPSetup(p *TOTPSetupProps) {
 							{ pageCtx.T("TwoFactor.Setup.ScanWithAuthenticator") }
 						</p>
 					</div>
-
 					<!-- Verification Code Form -->
 					<form method="post" action="/login/2fa/setup/totp/confirm" class="flex flex-col gap-4">
 						<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
-
 						<div class="flex flex-col gap-4">
 							<label class="block">
 								<span class="text-sm font-medium text-100 block mb-2">
@@ -72,7 +68,6 @@ templ TOTPSetup(p *TOTPSetupProps) {
 								</p>
 							</label>
 						</div>
-
 						@button.Primary(button.Props{
 							Size:  button.SizeNormal,
 							Class: "justify-center",
@@ -83,7 +78,6 @@ templ TOTPSetup(p *TOTPSetupProps) {
 							{ pageCtx.T("TwoFactor.Setup.Verify") }
 						}
 					</form>
-
 					<!-- Help Text -->
 					<div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
 						<div class="flex gap-3">

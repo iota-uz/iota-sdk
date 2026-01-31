@@ -107,9 +107,9 @@ func (r *recoveryCode) IsUsed() bool {
 
 // CreateRecoveryCodeDTO represents the data required to create recovery codes
 type CreateRecoveryCodeDTO struct {
-	UserID    uint
+	UserID     uint
 	CodeHashes []string
-	TenantID  uuid.UUID
+	TenantID   uuid.UUID
 }
 
 // ToEntities converts the DTO to RecoveryCode entities

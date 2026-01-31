@@ -14,11 +14,15 @@ COMMENT ON COLUMN users.two_factor_enabled_at IS 'Timestamp when two-factor auth
 CREATE TABLE IF NOT EXISTS recovery_codes (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    code_hash VARCHAR(255) NOT NULL COMMENT 'SHA256 hash of the recovery code',
-    used_at TIMESTAMP WITH TIME ZONE DEFAULT NULL COMMENT 'Timestamp when code was used',
+    code_hash VARCHAR(255) NOT NULL,
+    used_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE
 );
+
+-- Add comments to recovery_codes columns
+COMMENT ON COLUMN recovery_codes.code_hash IS 'SHA256 hash of the recovery code';
+COMMENT ON COLUMN recovery_codes.used_at IS 'Timestamp when code was used';
 
 -- Create indexes on recovery_codes for efficient querying
 CREATE INDEX IF NOT EXISTS idx_recovery_codes_user_tenant ON recovery_codes(user_id, tenant_id);
@@ -27,16 +31,24 @@ CREATE INDEX IF NOT EXISTS idx_recovery_codes_unused ON recovery_codes(user_id, 
 -- Create otps table for one-time passwords
 CREATE TABLE IF NOT EXISTS otps (
     id BIGSERIAL PRIMARY KEY,
-    identifier VARCHAR(255) NOT NULL COMMENT 'Email or phone number for OTP delivery',
-    code_hash VARCHAR(255) NOT NULL COMMENT 'SHA256 hash of the OTP code',
-    channel VARCHAR(20) NOT NULL COMMENT 'Channel for delivery: sms or email',
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL COMMENT 'When OTP expires',
-    used_at TIMESTAMP WITH TIME ZONE DEFAULT NULL COMMENT 'When OTP was used',
-    attempts INT DEFAULT 0 NOT NULL COMMENT 'Number of failed verification attempts',
+    identifier VARCHAR(255) NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    channel VARCHAR(20) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    used_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    attempts INT DEFAULT 0 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- Add comments to otps columns
+COMMENT ON COLUMN otps.identifier IS 'Email or phone number for OTP delivery';
+COMMENT ON COLUMN otps.code_hash IS 'SHA256 hash of the OTP code';
+COMMENT ON COLUMN otps.channel IS 'Channel for delivery: sms or email';
+COMMENT ON COLUMN otps.expires_at IS 'When OTP expires';
+COMMENT ON COLUMN otps.used_at IS 'When OTP was used';
+COMMENT ON COLUMN otps.attempts IS 'Number of failed verification attempts';
 
 -- Create indexes on otps for efficient querying
 CREATE INDEX IF NOT EXISTS idx_otps_identifier_tenant ON otps(identifier, tenant_id);
@@ -44,7 +56,10 @@ CREATE INDEX IF NOT EXISTS idx_otps_active ON otps(expires_at, tenant_id) WHERE 
 
 -- Add session status field to track session state
 ALTER TABLE sessions
-ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active' NOT NULL COMMENT 'Session status: active, expired, terminated, or revoked';
+ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active' NOT NULL;
+
+-- Add comment to sessions.status column
+COMMENT ON COLUMN sessions.status IS 'Session status: active, expired, terminated, or revoked';
 
 -- Create index on session status for efficient filtering
 CREATE INDEX IF NOT EXISTS idx_sessions_status_tenant ON sessions(status, tenant_id);

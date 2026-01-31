@@ -25,11 +25,11 @@ const (
 
 // OTPService handles OTP (One-Time Password) operations (internal helper)
 type OTPService struct {
-	repository   twofactor.OTPRepository
-	sender       pkgtf.OTPSender
-	length       int
-	expiry       time.Duration
-	maxAttempts  int
+	repository  twofactor.OTPRepository
+	sender      pkgtf.OTPSender
+	length      int
+	expiry      time.Duration
+	maxAttempts int
 }
 
 // NewOTPService creates a new OTPService

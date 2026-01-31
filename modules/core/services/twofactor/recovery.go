@@ -168,6 +168,9 @@ func (s *RecoveryCodeService) Regenerate(ctx context.Context, userID uint, count
 		return nil, fmt.Errorf("failed to get tenant ID: %w", err)
 	}
 
+	// Declare codes variable outside transaction scope so it can be returned
+	var codes []string
+
 	// Start transaction
 	if err := composables.InTx(ctx, func(txCtx context.Context) error {
 		// Delete all existing codes
@@ -175,8 +178,9 @@ func (s *RecoveryCodeService) Regenerate(ctx context.Context, userID uint, count
 			return fmt.Errorf("failed to delete existing codes: %w", err)
 		}
 
-		// Generate new codes
-		codes, err := s.Generate(count)
+		// Generate new codes (assign to outer variable, not shadow it)
+		var err error
+		codes, err = s.Generate(count)
 		if err != nil {
 			return fmt.Errorf("failed to generate codes: %w", err)
 		}
@@ -201,8 +205,8 @@ func (s *RecoveryCodeService) Regenerate(ctx context.Context, userID uint, count
 		return nil, err
 	}
 
-	// Generate fresh codes to return (these won't be hashed)
-	return s.Generate(count)
+	// Return the same codes that were hashed and stored
+	return codes, nil
 }
 
 // DeleteAll removes all recovery codes for a user

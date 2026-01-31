@@ -81,12 +81,12 @@ func (c *LoginController) SetTwoFactorService(service *twofactor.TwoFactorServic
 }
 
 type LoginController struct {
-	app                 application.Application
-	authService         *services.AuthService
-	twoFactorPolicy     pkgtwofactor.TwoFactorPolicy
-	twoFactorService    *twofactor.TwoFactorService
-	sessionService      *services.SessionService
-	userService         *services.UserService
+	app              application.Application
+	authService      *services.AuthService
+	twoFactorPolicy  pkgtwofactor.TwoFactorPolicy
+	twoFactorService *twofactor.TwoFactorService
+	sessionService   *services.SessionService
+	userService      *services.UserService
 }
 
 func (c *LoginController) Key() string {
@@ -196,7 +196,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
-		HttpOnly: false,
+		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
@@ -304,7 +304,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 				Name:     conf.SidCookieKey,
 				Value:    sess.Token(),
 				Expires:  sess.ExpiresAt(),
-				HttpOnly: false,
+				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
 				Secure:   conf.GoAppEnvironment == configuration.Production,
 				Domain:   conf.Domain,
@@ -336,6 +336,10 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 
 			// Redirect to 2FA verification or setup based on user's 2FA status
 			nextURL := r.URL.Query().Get("next")
+			// Validate redirect URL to prevent open redirect
+			if !isValidRedirectURL(nextURL) {
+				nextURL = "/"
+			}
 			if u.Has2FAEnabled() {
 				// User has 2FA enabled, redirect to verification
 				http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
@@ -353,7 +357,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
-		HttpOnly: false,
+		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,

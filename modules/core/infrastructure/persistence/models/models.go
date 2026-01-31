@@ -84,30 +84,30 @@ type Role struct {
 }
 
 type User struct {
-	ID                   uint
-	TenantID             string // UUID stored as string
-	Type                 string
-	FirstName            string
-	LastName             string
-	MiddleName           sql.NullString
-	Email                string
-	Phone                sql.NullString
-	Password             sql.NullString
-	AvatarID             sql.NullInt32
-	LastLogin            sql.NullTime
-	LastIP               sql.NullString
-	UILanguage           string
-	LastAction           sql.NullTime
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	IsBlocked            bool
-	BlockReason          sql.NullString
-	BlockedAt            sql.NullTime
-	BlockedBy            sql.NullInt64
-	BlockedByTenantID    sql.NullString
-	TwoFactorMethod      sql.NullString
-	TOTPSecretEncrypted  sql.NullString
-	TwoFactorEnabledAt   sql.NullTime
+	ID                  uint
+	TenantID            string // UUID stored as string
+	Type                string
+	FirstName           string
+	LastName            string
+	MiddleName          sql.NullString
+	Email               string
+	Phone               sql.NullString
+	Password            sql.NullString
+	AvatarID            sql.NullInt32
+	LastLogin           sql.NullTime
+	LastIP              sql.NullString
+	UILanguage          string
+	LastAction          sql.NullTime
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	IsBlocked           bool
+	BlockReason         sql.NullString
+	BlockedAt           sql.NullTime
+	BlockedBy           sql.NullInt64
+	BlockedByTenantID   sql.NullString
+	TwoFactorMethod     sql.NullString
+	TOTPSecretEncrypted sql.NullString
+	TwoFactorEnabledAt  sql.NullTime
 }
 
 type UserRole struct {
@@ -247,16 +247,16 @@ func (rc *RecoveryCode) ParsedTenantID() uuid.UUID {
 }
 
 type OTP struct {
-	ID        uint
+	ID         uint
 	Identifier string
-	CodeHash  string
-	Channel   string // OTPChannel stored as string
-	ExpiresAt time.Time
-	UsedAt    *time.Time
-	Attempts  int
-	CreatedAt time.Time
-	TenantID  string // UUID stored as string
-	UserID    uint
+	CodeHash   string
+	Channel    string // OTPChannel stored as string
+	ExpiresAt  time.Time
+	UsedAt     *time.Time
+	Attempts   int
+	CreatedAt  time.Time
+	TenantID   string // UUID stored as string
+	UserID     uint
 }
 
 // ParsedTenantID parses the TenantID string to a UUID

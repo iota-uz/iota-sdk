@@ -85,3 +85,28 @@ func (c *CompositeSender) Send(ctx context.Context, req SendRequest) error {
 	}
 	return sender.Send(ctx, req)
 }
+
+// NoopSender is a no-op implementation that logs OTP codes instead of sending them.
+//
+// WARNING: This implementation provides NO DELIVERY and should ONLY be used for:
+//   - Local development and testing
+//   - Prototyping and demonstrations
+//   - Non-production environments
+//
+// NEVER use NoopSender in production environments. Always use a proper sender
+// implementation (Twilio for SMS, SendGrid for email, etc.) to deliver OTP codes.
+//
+// In development, OTP codes are logged to stdout for manual testing.
+type NoopSender struct{}
+
+// NewNoopSender creates a new NoopSender instance.
+func NewNoopSender() *NoopSender {
+	return &NoopSender{}
+}
+
+// Send logs the OTP code to stdout instead of sending it.
+func (n *NoopSender) Send(ctx context.Context, req SendRequest) error {
+	// In development, log the OTP code for manual testing
+	fmt.Printf("[NoopSender] OTP Code: %s | Channel: %s | Recipient: %s\n", req.Code, req.Channel, req.Recipient)
+	return nil
+}

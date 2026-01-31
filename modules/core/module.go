@@ -2,8 +2,10 @@ package core
 
 import (
 	"embed"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -84,11 +87,34 @@ func (m *Module) Register(app application.Application) error {
 		sessionService,
 		services.NewExcelExportService(app.DB(), uploadService),
 	)
-	// Create 2FA service
+	// Create 2FA service with configuration
+	conf := configuration.Use()
+
+	// Create encryptor for TOTP secrets
+	var encryptor pkgtwofactor.SecretEncryptor
+	if conf.TwoFactorAuth.EncryptionKey != "" {
+		// Production: Use AES-256-GCM encryption
+		encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)
+	} else {
+		// Development: Use plaintext (NoopEncryptor)
+		// WARNING: Never use in production!
+		encryptor = pkgtwofactor.NewNoopEncryptor()
+	}
+
+	// Create OTP sender (NoopSender for development)
+	// TODO: Replace with real sender (Twilio, SendGrid, etc.) in production
+	otpSender := pkgtwofactor.NewNoopSender()
+
 	twoFactorService := twofactor.NewTwoFactorService(
 		otpRepo,
 		recoveryCodeRepo,
 		userRepo,
+		twofactor.WithIssuer(conf.TwoFactorAuth.TOTPIssuer),
+		twofactor.WithOTPLength(conf.TwoFactorAuth.OTPCodeLength),
+		twofactor.WithOTPExpiry(time.Duration(conf.TwoFactorAuth.OTPTTLSeconds)*time.Second),
+		twofactor.WithOTPMaxAttempts(conf.TwoFactorAuth.OTPMaxAttempts),
+		twofactor.WithSecretEncryptor(encryptor),
+		twofactor.WithOTPSender(otpSender),
 	)
 
 	app.RegisterServices(

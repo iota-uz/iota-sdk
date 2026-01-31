@@ -135,6 +135,9 @@ type TwoFactorAuthOptions struct {
 	OTPCodeLength  int `env:"OTP_CODE_LENGTH" envDefault:"6"`
 	OTPTTLSeconds  int `env:"OTP_TTL_SECONDS" envDefault:"300"`
 	OTPMaxAttempts int `env:"OTP_MAX_ATTEMPTS" envDefault:"3"`
+
+	// TOTP Secret Encryption
+	EncryptionKey string `env:"TOTP_ENCRYPTION_KEY"` // Required for production - used to encrypt TOTP secrets at rest
 }
 
 // Validate checks the rate limit configuration for errors
@@ -155,17 +158,17 @@ func (r *RateLimitOptions) Validate() error {
 }
 
 type Configuration struct {
-	Database          DatabaseOptions
-	Google            GoogleOptions
-	Twilio            TwilioOptions
-	Loki              LokiOptions
-	OpenTelemetry     OpenTelemetryOptions
-	Click             ClickOptions
-	Payme             PaymeOptions
-	Octo              OctoOptions
-	Stripe            StripeOptions
-	RateLimit         RateLimitOptions
-	TwoFactorAuth     TwoFactorAuthOptions
+	Database      DatabaseOptions
+	Google        GoogleOptions
+	Twilio        TwilioOptions
+	Loki          LokiOptions
+	OpenTelemetry OpenTelemetryOptions
+	Click         ClickOptions
+	Payme         PaymeOptions
+	Octo          OctoOptions
+	Stripe        StripeOptions
+	RateLimit     RateLimitOptions
+	TwoFactorAuth TwoFactorAuthOptions
 
 	RedisURL         string        `env:"REDIS_URL" envDefault:"localhost:6379"`
 	MigrationsDir    string        `env:"MIGRATIONS_DIR" envDefault:"migrations"`

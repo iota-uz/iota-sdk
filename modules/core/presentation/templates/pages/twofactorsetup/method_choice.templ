@@ -24,10 +24,8 @@ templ MethodChoice(p *MethodChoiceProps) {
 						</h1>
 						<p class="text-200">{ pageCtx.T("TwoFactor.Setup.ChooseMethod") }</p>
 					</div>
-
 					<form method="post" class="flex flex-col gap-4">
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
-
 						<!-- TOTP Option -->
 						<label class="cursor-pointer">
 							<input type="radio" name="Method" value="totp" class="sr-only peer" checked/>
@@ -45,7 +43,6 @@ templ MethodChoice(p *MethodChoiceProps) {
 								</div>
 							}
 						</label>
-
 						<!-- SMS Option -->
 						<label class="cursor-pointer">
 							<input type="radio" name="Method" value="sms" class="sr-only peer"/>
@@ -63,7 +60,6 @@ templ MethodChoice(p *MethodChoiceProps) {
 								</div>
 							}
 						</label>
-
 						<!-- Email Option -->
 						<label class="cursor-pointer">
 							<input type="radio" name="Method" value="email" class="sr-only peer"/>
@@ -81,7 +77,6 @@ templ MethodChoice(p *MethodChoiceProps) {
 								</div>
 							}
 						</label>
-
 						@button.Primary(button.Props{
 							Size:  button.SizeNormal,
 							Class: "justify-center mt-4",

@@ -1,0 +1,200 @@
+# TOTP Secret Encryption
+
+## Overview
+
+TOTP (Time-based One-Time Password) secrets are sensitive cryptographic keys that must be protected at rest. The SDK provides a pluggable encryption system via the `SecretEncryptor` interface, with two implementations:
+
+1. **AESEncryptor** - Production-ready AES-256-GCM encryption
+2. **NoopEncryptor** - Development-only plaintext storage (no encryption)
+
+## Production Setup
+
+### 1. Generate Encryption Key
+
+Generate a strong random encryption key using OpenSSL:
+
+```bash
+openssl rand -base64 32
+```
+
+Example output:
+```
+XyZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFG=
+```
+
+### 2. Configure Environment Variable
+
+Add the encryption key to your `.env` file:
+
+```env
+# REQUIRED for production - DO NOT commit to version control
+TOTP_ENCRYPTION_KEY=XyZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFG=
+```
+
+### 3. Verify Configuration
+
+The SDK automatically selects the appropriate encryptor:
+
+- **With encryption key**: Uses `AESEncryptor` (production)
+- **Without encryption key**: Uses `NoopEncryptor` (development)
+
+Check the module initialization in `modules/core/module.go`:
+
+```go
+var encryptor pkgtwofactor.SecretEncryptor
+if conf.TwoFactorAuth.EncryptionKey != "" {
+    // Production: Use AES-256-GCM encryption
+    encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)
+} else {
+    // Development: Use plaintext (NoopEncryptor)
+    // WARNING: Never use in production!
+    encryptor = pkgtwofactor.NewNoopEncryptor()
+}
+```
+
+## Development Setup
+
+For local development, you can omit the `TOTP_ENCRYPTION_KEY` variable. The system will use `NoopEncryptor` which stores secrets in plaintext.
+
+**WARNING**: Never use NoopEncryptor in production environments!
+
+## Security Considerations
+
+### Key Management
+
+1. **Keep Secret**: Never commit encryption keys to version control
+2. **Rotate Regularly**: Change encryption keys periodically (quarterly recommended)
+3. **Access Control**: Limit access to encryption keys to authorized personnel only
+4. **Environment Isolation**: Use different keys for staging and production
+
+### Key Rotation
+
+When rotating encryption keys:
+
+1. Generate a new encryption key
+2. Deploy the new key to the environment
+3. Re-encrypt existing TOTP secrets with the new key
+4. Update the environment variable
+
+**Note**: Key rotation requires a maintenance window to re-encrypt existing secrets.
+
+### AES-256-GCM Details
+
+The `AESEncryptor` uses AES-256-GCM (Galois/Counter Mode) which provides:
+
+- **Confidentiality**: Secrets are encrypted using AES-256
+- **Authenticity**: GCM mode detects tampering attempts
+- **Nonce-based**: Each encryption uses a unique random nonce
+- **Key Derivation**: Input key strings are hashed with SHA-256 to derive a consistent 32-byte key
+
+### Encryption Process
+
+1. Hash encryption key string with SHA-256 → 32-byte key
+2. Create AES cipher with 32-byte key (AES-256)
+3. Wrap cipher with GCM for authenticated encryption
+4. Generate random 12-byte nonce (GCM standard nonce size)
+5. Encrypt plaintext with nonce
+6. Prepend nonce to ciphertext (needed for decryption)
+7. Encode result as base64 for safe storage
+
+### Decryption Process
+
+1. Decode base64-encoded ciphertext
+2. Extract nonce from beginning of ciphertext
+3. Create AES cipher with 32-byte key
+4. Wrap cipher with GCM for authenticated decryption
+5. Decrypt and authenticate ciphertext
+6. Return plaintext secret
+
+## Advanced: Custom Encryptors
+
+For enterprise requirements, you can implement custom encryptors using cloud KMS services:
+
+```go
+// Example: AWS KMS Encryptor
+type KMSEncryptor struct {
+    kmsClient *kms.Client
+    keyID     string
+}
+
+func (e *KMSEncryptor) Encrypt(ctx context.Context, plaintext string) (string, error) {
+    result, err := e.kmsClient.Encrypt(ctx, &kms.EncryptInput{
+        KeyId:     aws.String(e.keyID),
+        Plaintext: []byte(plaintext),
+    })
+    if err != nil {
+        return "", err
+    }
+    return base64.StdEncoding.EncodeToString(result.CiphertextBlob), nil
+}
+
+func (e *KMSEncryptor) Decrypt(ctx context.Context, ciphertext string) (string, error) {
+    data, err := base64.StdEncoding.DecodeString(ciphertext)
+    if err != nil {
+        return "", err
+    }
+    result, err := e.kmsClient.Decrypt(ctx, &kms.DecryptInput{
+        CiphertextBlob: data,
+    })
+    if err != nil {
+        return "", err
+    }
+    return string(result.Plaintext), nil
+}
+```
+
+Then wire it in `modules/core/module.go`:
+
+```go
+// Production with AWS KMS
+encryptor := NewKMSEncryptor(kmsClient, keyID)
+
+twoFactorService := twofactor.NewTwoFactorService(
+    otpRepo,
+    recoveryCodeRepo,
+    userRepo,
+    twofactor.WithSecretEncryptor(encryptor),
+    // ... other options
+)
+```
+
+## Testing
+
+The SDK includes comprehensive tests for the AES encryptor:
+
+```bash
+# Run all encryptor tests
+go test -v ./pkg/twofactor -run TestAESEncryptor
+
+# Run integration tests
+go test -v ./pkg/twofactor -run Integration
+```
+
+Test coverage includes:
+
+- Encrypt/decrypt round-trip
+- Different keys produce different ciphertexts
+- Same plaintext with same key produces different ciphertexts (random nonces)
+- Invalid ciphertext detection
+- Tampered ciphertext detection (GCM authentication)
+- Key derivation consistency
+- Base64 encoding validation
+- Long plaintext handling
+
+## Compliance
+
+AES-256-GCM encryption helps meet compliance requirements for:
+
+- **PCI-DSS**: Payment Card Industry Data Security Standard
+- **HIPAA**: Health Insurance Portability and Accountability Act
+- **GDPR**: General Data Protection Regulation
+- **SOC 2**: Service Organization Control 2
+
+Consult your security team for specific compliance requirements in your jurisdiction.
+
+## References
+
+- [NIST AES Standard](https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf)
+- [GCM Mode Specification](https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf)
+- [TOTP RFC 6238](https://tools.ietf.org/html/rfc6238)
+- [OWASP Cryptographic Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html)

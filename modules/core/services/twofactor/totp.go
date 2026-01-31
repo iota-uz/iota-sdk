@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"time"
 
+	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/pquerna/otp/totp"
 	"github.com/skip2/go-qrcode"
-	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
 const (
@@ -21,10 +21,10 @@ const (
 
 // TOTPService handles TOTP (Time-based One-Time Password) operations (internal helper)
 type TOTPService struct {
-	encryptor   pkgtf.SecretEncryptor
-	issuer      string
-	skew        uint
-	qrCodeSize  int
+	encryptor  pkgtf.SecretEncryptor
+	issuer     string
+	skew       uint
+	qrCodeSize int
 }
 
 // NewTOTPService creates a new TOTPService

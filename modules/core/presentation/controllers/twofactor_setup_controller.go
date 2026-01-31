@@ -8,15 +8,15 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/twofactorsetup"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/twofactorsetup"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
+	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
 // NewTwoFactorSetupController creates a new TwoFactorSetupController
@@ -341,6 +341,10 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 
 	// For OTP methods, show success and redirect
 	if nextURL == "" {
+		nextURL = "/"
+	}
+	// Validate redirect URL to prevent open redirect
+	if !isValidRedirectURL(nextURL) {
 		nextURL = "/"
 	}
 

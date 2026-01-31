@@ -18,7 +18,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
-	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/country"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/general"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
@@ -27,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
 func ToDomainUser(dbUser *models.User, dbUpload *models.Upload, roles []role.Role, groupIDs []uuid.UUID, permissions []permission.Permission) (user.User, error) {
@@ -125,30 +125,30 @@ func toDBUser(entity user.User) (*models.User, []*models.Role) {
 	}
 
 	return &models.User{
-		ID:                   entity.ID(),
-		Type:                 string(entity.Type()),
-		TenantID:             entity.TenantID().String(),
-		FirstName:            entity.FirstName(),
-		LastName:             entity.LastName(),
-		MiddleName:           mapping.ValueToSQLNullString(entity.MiddleName()),
-		Email:                entity.Email().Value(),
-		Phone:                phoneValue,
-		UILanguage:           string(entity.UILanguage()),
-		Password:             mapping.ValueToSQLNullString(entity.Password()),
-		AvatarID:             mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
-		LastIP:               mapping.ValueToSQLNullString(entity.LastIP()),
-		LastLogin:            mapping.ValueToSQLNullTime(entity.LastLogin()),
-		LastAction:           mapping.ValueToSQLNullTime(entity.LastAction()),
-		CreatedAt:            entity.CreatedAt(),
-		UpdatedAt:            entity.UpdatedAt(),
-		IsBlocked:            entity.IsBlocked(),
-		BlockReason:          mapping.ValueToSQLNullString(entity.BlockReason()),
-		BlockedAt:            mapping.ValueToSQLNullTime(entity.BlockedAt()),
-		BlockedBy:            mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
-		BlockedByTenantID:    blockedByTenantID,
-		TwoFactorMethod:      mapping.ValueToSQLNullString(string(entity.TwoFactorMethod())),
-		TOTPSecretEncrypted:  mapping.ValueToSQLNullString(entity.TOTPSecretEncrypted()),
-		TwoFactorEnabledAt:   mapping.ValueToSQLNullTime(entity.TwoFactorEnabledAt()),
+		ID:                  entity.ID(),
+		Type:                string(entity.Type()),
+		TenantID:            entity.TenantID().String(),
+		FirstName:           entity.FirstName(),
+		LastName:            entity.LastName(),
+		MiddleName:          mapping.ValueToSQLNullString(entity.MiddleName()),
+		Email:               entity.Email().Value(),
+		Phone:               phoneValue,
+		UILanguage:          string(entity.UILanguage()),
+		Password:            mapping.ValueToSQLNullString(entity.Password()),
+		AvatarID:            mapping.ValueToSQLNullInt32(int32(entity.AvatarID())),
+		LastIP:              mapping.ValueToSQLNullString(entity.LastIP()),
+		LastLogin:           mapping.ValueToSQLNullTime(entity.LastLogin()),
+		LastAction:          mapping.ValueToSQLNullTime(entity.LastAction()),
+		CreatedAt:           entity.CreatedAt(),
+		UpdatedAt:           entity.UpdatedAt(),
+		IsBlocked:           entity.IsBlocked(),
+		BlockReason:         mapping.ValueToSQLNullString(entity.BlockReason()),
+		BlockedAt:           mapping.ValueToSQLNullTime(entity.BlockedAt()),
+		BlockedBy:           mapping.ValueToSQLNullInt64(int64(entity.BlockedBy())),
+		BlockedByTenantID:   blockedByTenantID,
+		TwoFactorMethod:     mapping.ValueToSQLNullString(string(entity.TwoFactorMethod())),
+		TOTPSecretEncrypted: mapping.ValueToSQLNullString(entity.TOTPSecretEncrypted()),
+		TwoFactorEnabledAt:  mapping.ValueToSQLNullTime(entity.TwoFactorEnabledAt()),
 	}, roles
 }
 

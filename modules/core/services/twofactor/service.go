@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,6 +41,7 @@ type TwoFactorService struct {
 
 	// Setup challenges (in-memory cache, should be replaced with Redis in production)
 	setupChallenges map[string]*setupChallengeData
+	challengesMu    sync.RWMutex
 }
 
 // setupChallengeData holds temporary data for a setup challenge
@@ -78,6 +80,14 @@ func NewTwoFactorService(
 	// Apply options
 	for _, opt := range opts {
 		opt(svc)
+	}
+
+	// Validate required dependencies
+	if svc.encryptor == nil {
+		panic("TwoFactorService: encryptor is required (use WithEncryptor option)")
+	}
+	if svc.otpSender == nil {
+		panic("TwoFactorService: otpSender is required (use WithOTPSender option)")
 	}
 
 	// Initialize helper services
@@ -145,6 +155,7 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 		}
 
 		// Store challenge data
+		s.challengesMu.Lock()
 		s.setupChallenges[challengeID] = &setupChallengeData{
 			UserID:      userID,
 			Method:      method,
@@ -152,6 +163,7 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 			ExpiresAt:   expiresAt,
 			AccountName: accountName,
 		}
+		s.challengesMu.Unlock()
 
 		challenge = &SetupChallenge{
 			ChallengeID: challengeID,
@@ -175,12 +187,14 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 		}
 
 		// Store challenge data
+		s.challengesMu.Lock()
 		s.setupChallenges[challengeID] = &setupChallengeData{
 			UserID:      userID,
 			Method:      method,
 			ExpiresAt:   expiresAt,
 			Destination: phone.Value(),
 		}
+		s.challengesMu.Unlock()
 
 		challenge = &SetupChallenge{
 			ChallengeID: challengeID,
@@ -203,12 +217,14 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 		}
 
 		// Store challenge data
+		s.challengesMu.Lock()
 		s.setupChallenges[challengeID] = &setupChallengeData{
 			UserID:      userID,
 			Method:      method,
 			ExpiresAt:   expiresAt,
 			Destination: email,
 		}
+		s.challengesMu.Unlock()
 
 		challenge = &SetupChallenge{
 			ChallengeID: challengeID,
@@ -227,7 +243,10 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 // ConfirmSetup completes the 2FA setup by verifying the code
 func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challengeID, code string) (*SetupResult, error) {
 	// Get challenge data
+	s.challengesMu.RLock()
 	challengeData, exists := s.setupChallenges[challengeID]
+	s.challengesMu.RUnlock()
+
 	if !exists {
 		return nil, errors.New("invalid or expired challenge")
 	}
@@ -239,7 +258,9 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 
 	// Check expiration
 	if time.Now().After(challengeData.ExpiresAt) {
+		s.challengesMu.Lock()
 		delete(s.setupChallenges, challengeID)
+		s.challengesMu.Unlock()
 		return nil, errors.New("challenge has expired")
 	}
 
@@ -306,6 +327,13 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 			user.WithRoles(u.Roles()),
 			user.WithGroupIDs(u.GroupIDs()),
 			user.WithPermissions(u.Permissions()),
+			user.WithPhone(u.Phone()),
+			user.WithType(u.Type()),
+			user.WithIsBlocked(u.IsBlocked()),
+			user.WithBlockReason(u.BlockReason()),
+			user.WithBlockedAt(u.BlockedAt()),
+			user.WithBlockedBy(u.BlockedBy()),
+			user.WithBlockedByTenantID(u.BlockedByTenantID()),
 			user.WithTwoFactorMethod(challengeData.Method),
 			user.WithTwoFactorEnabledAt(enabledAt),
 			user.WithTOTPSecretEncrypted(encryptedSecret),
@@ -333,7 +361,9 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 	}
 
 	// Clean up challenge
+	s.challengesMu.Lock()
 	delete(s.setupChallenges, challengeID)
+	s.challengesMu.Unlock()
 
 	return result, nil
 }
@@ -538,6 +568,13 @@ func (s *TwoFactorService) Disable(ctx context.Context, userID uint) error {
 			user.WithRoles(u.Roles()),
 			user.WithGroupIDs(u.GroupIDs()),
 			user.WithPermissions(u.Permissions()),
+			user.WithPhone(u.Phone()),
+			user.WithType(u.Type()),
+			user.WithIsBlocked(u.IsBlocked()),
+			user.WithBlockReason(u.BlockReason()),
+			user.WithBlockedAt(u.BlockedAt()),
+			user.WithBlockedBy(u.BlockedBy()),
+			user.WithBlockedByTenantID(u.BlockedByTenantID()),
 			user.WithTwoFactorMethod(""),
 			user.WithTwoFactorEnabledAt(time.Time{}),
 			user.WithTOTPSecretEncrypted(""),
@@ -582,14 +619,19 @@ func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, userID u
 // This is used by the presentation layer to display the QR code without needing a separate endpoint
 func (s *TwoFactorService) GetSetupChallenge(challengeID string) (*SetupChallenge, error) {
 	// Get challenge data
+	s.challengesMu.RLock()
 	challengeData, exists := s.setupChallenges[challengeID]
+	s.challengesMu.RUnlock()
+
 	if !exists {
 		return nil, errors.New("invalid or expired challenge")
 	}
 
 	// Check expiration
 	if time.Now().After(challengeData.ExpiresAt) {
+		s.challengesMu.Lock()
 		delete(s.setupChallenges, challengeID)
+		s.challengesMu.Unlock()
 		return nil, errors.New("challenge has expired")
 	}
 

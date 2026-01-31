@@ -276,35 +276,35 @@ func New(
 }
 
 type user struct {
-	id                   uint
-	tenantID             uuid.UUID
-	type_                Type
-	firstName            string
-	lastName             string
-	middleName           string
-	password             string
-	email                internet.Email
-	phone                phone.Phone
-	avatarID             uint
-	avatar               upload.Upload
-	lastIP               string
-	uiLanguage           UILanguage
-	roles                []role.Role
-	groupIDs             []uuid.UUID
-	permissions          []permission.Permission
-	lastLogin            time.Time
-	lastAction           time.Time
-	createdAt            time.Time
-	updatedAt            time.Time
-	isBlocked            bool
-	blockReason          string
-	blockedAt            time.Time
-	blockedBy            uint
-	blockedByTenantID    uuid.UUID
-	twoFactorMethod      twofactor.Method
-	twoFactorEnabledAt   time.Time
-	totpSecretEncrypted  string
-	events               []interface{}
+	id                  uint
+	tenantID            uuid.UUID
+	type_               Type
+	firstName           string
+	lastName            string
+	middleName          string
+	password            string
+	email               internet.Email
+	phone               phone.Phone
+	avatarID            uint
+	avatar              upload.Upload
+	lastIP              string
+	uiLanguage          UILanguage
+	roles               []role.Role
+	groupIDs            []uuid.UUID
+	permissions         []permission.Permission
+	lastLogin           time.Time
+	lastAction          time.Time
+	createdAt           time.Time
+	updatedAt           time.Time
+	isBlocked           bool
+	blockReason         string
+	blockedAt           time.Time
+	blockedBy           uint
+	blockedByTenantID   uuid.UUID
+	twoFactorMethod     twofactor.Method
+	twoFactorEnabledAt  time.Time
+	totpSecretEncrypted string
+	events              []interface{}
 }
 
 func (u *user) ID() uint {
@@ -659,7 +659,7 @@ func (u *user) Has2FAEnabled() bool {
 
 // Update2FADTO represents the data transfer object for updating user 2FA configuration
 type Update2FADTO struct {
-	Method               twofactor.Method
-	TOTPSecretEncrypted  string
-	EnabledAt            time.Time
+	Method              twofactor.Method
+	TOTPSecretEncrypted string
+	EnabledAt           time.Time
 }
