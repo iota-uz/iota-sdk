@@ -3,6 +3,7 @@ package resolvers
 import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
@@ -149,4 +150,47 @@ func toGraphQLCitations(citations []types.Citation) []*model.Citation {
 		result[i] = citation
 	}
 	return result
+}
+
+// toGraphQLInterrupt converts a services.Interrupt to a GraphQL Interrupt
+func toGraphQLInterrupt(interrupt *services.Interrupt) *model.Interrupt {
+	if interrupt == nil {
+		return nil
+	}
+
+	gqlInterrupt := &model.Interrupt{
+		CheckpointID: interrupt.CheckpointID,
+		Questions:    make([]*model.Question, len(interrupt.Questions)),
+	}
+
+	for i, q := range interrupt.Questions {
+		gqlInterrupt.Questions[i] = toGraphQLQuestion(q)
+	}
+
+	return gqlInterrupt
+}
+
+// toGraphQLQuestion converts a services.Question to a GraphQL Question
+func toGraphQLQuestion(q services.Question) *model.Question {
+	gqlQuestion := &model.Question{
+		ID:          q.ID,
+		Question:    q.Text,
+		Header:      q.Text, // Use text as header for now
+		MultiSelect: q.Type == services.QuestionTypeMultipleChoice,
+		Options:     make([]*model.QuestionOption, len(q.Options)),
+	}
+
+	for i, opt := range q.Options {
+		gqlQuestion.Options[i] = &model.QuestionOption{
+			Label:       opt.Label,
+			Description: opt.Label, // Use label as description for now
+		}
+	}
+
+	return gqlQuestion
+}
+
+// strPtr is a helper to convert string to *string
+func strPtr(s string) *string {
+	return &s
 }

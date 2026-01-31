@@ -4,6 +4,8 @@ package resolvers
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
@@ -44,7 +46,13 @@ func (r *mutationResolver) CreateSession(ctx context.Context, title *string) (*m
 		return nil, serrors.E(op, serrors.KindValidation, err)
 	}
 
-	user, _ := composables.UseUser(ctx)
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
 	userID := int64(user.ID())
 
 	// Default title
@@ -64,12 +72,116 @@ func (r *mutationResolver) CreateSession(ctx context.Context, title *string) (*m
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, sessionID string, content string, attachments []*graphql.Upload) (*model.SendMessageResponse, error) {
-	panic("not implemented")
+	const op serrors.Op = "Resolver.SendMessage"
+
+	// Parse sessionID
+	sid, err := uuid.Parse(sessionID)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
+	}
+
+	// Get authenticated user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
+
+	// Parse attachments from GraphQL uploads
+	domainAttachments := make([]domain.Attachment, 0, len(attachments))
+	for _, upload := range attachments {
+		if upload == nil {
+			continue
+		}
+
+		// Read file content (simplified - in production, save to storage)
+		// For now, just track metadata
+		att := domain.Attachment{
+			ID:        uuid.New(),
+			FileName:  upload.Filename,
+			MimeType:  upload.ContentType,
+			SizeBytes: upload.Size,
+			// FilePath would be set after saving to storage
+		}
+		domainAttachments = append(domainAttachments, att)
+	}
+
+	// Call service
+	req := services.SendMessageRequest{
+		SessionID:   sid,
+		UserID:      int64(user.ID()),
+		Content:     content,
+		Attachments: domainAttachments,
+	}
+
+	resp, err := r.chatService.SendMessage(ctx, req)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	// Convert to GraphQL response
+	gqlResp := &model.SendMessageResponse{
+		UserMessage:      toGraphQLMessage(resp.UserMessage),
+		AssistantMessage: toGraphQLMessage(resp.AssistantMessage),
+		Session:          toGraphQLSession(resp.Session),
+	}
+
+	// Convert interrupt if present
+	if resp.Interrupt != nil {
+		gqlResp.Interrupt = toGraphQLInterrupt(resp.Interrupt)
+	}
+
+	return gqlResp, nil
 }
 
 // ResumeWithAnswer is the resolver for the resumeWithAnswer field.
 func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID string, checkpointID string, answers string) (*model.SendMessageResponse, error) {
-	panic("not implemented")
+	const op serrors.Op = "Resolver.ResumeWithAnswer"
+
+	// Parse sessionID
+	sid, err := uuid.Parse(sessionID)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
+	}
+
+	// Validate checkpointID
+	if checkpointID == "" {
+		return nil, serrors.E(op, serrors.KindValidation, "checkpoint ID is required")
+	}
+
+	// Parse answers JSON string to map[string]string
+	var answersMap map[string]string
+	if err := json.Unmarshal([]byte(answers), &answersMap); err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, "invalid answers JSON", err)
+	}
+
+	// Call service
+	req := services.ResumeRequest{
+		SessionID:    sid,
+		CheckpointID: checkpointID,
+		Answers:      answersMap,
+	}
+
+	resp, err := r.chatService.ResumeWithAnswer(ctx, req)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	// Convert to GraphQL response
+	gqlResp := &model.SendMessageResponse{
+		UserMessage:      toGraphQLMessage(resp.UserMessage),
+		AssistantMessage: toGraphQLMessage(resp.AssistantMessage),
+		Session:          toGraphQLSession(resp.Session),
+	}
+
+	// Convert interrupt if present
+	if resp.Interrupt != nil {
+		gqlResp.Interrupt = toGraphQLInterrupt(resp.Interrupt)
+	}
+
+	return gqlResp, nil
 }
 
 // ArchiveSession is the resolver for the archiveSession field.
@@ -136,7 +248,13 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) ([]*model.Session, error) {
 	const op serrors.Op = "Resolver.Sessions"
 
-	user, _ := composables.UseUser(ctx)
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
 	userID := int64(user.ID())
 
 	// Set defaults
@@ -225,7 +343,78 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 
 // MessageStream is the resolver for the messageStream field.
 func (r *subscriptionResolver) MessageStream(ctx context.Context, sessionID string) (<-chan *model.MessageChunk, error) {
-	panic("not implemented")
+	const op serrors.Op = "Resolver.MessageStream"
+
+	// Parse sessionID
+	sid, err := uuid.Parse(sessionID)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
+	}
+
+	// Create channel for GraphQL subscription
+	ch := make(chan *model.MessageChunk, 100)
+
+	// Launch goroutine to stream events
+	go func() {
+		defer close(ch)
+
+		// Get event generator from agent service
+		// Note: This is a placeholder - real implementation would get content from request
+		// For GraphQL subscriptions, typically you'd have a separate mutation to start streaming
+		// and the subscription would listen to those events
+
+		// Get authenticated user
+		user, err := composables.UseUser(ctx)
+		if err != nil {
+			select {
+			case ch <- &model.MessageChunk{
+				Type:      model.ChunkTypeError,
+				Error:     strPtr("authentication required"),
+				Timestamp: time.Now(),
+			}:
+			case <-ctx.Done():
+			}
+			return
+		}
+		if user == nil {
+			select {
+			case ch <- &model.MessageChunk{
+				Type:      model.ChunkTypeError,
+				Error:     strPtr("user not authenticated"),
+				Timestamp: time.Now(),
+			}:
+			case <-ctx.Done():
+			}
+			return
+		}
+
+		// Note: In a real implementation, you would:
+		// 1. Get the message content from somewhere (e.g., a session state or separate mutation)
+		// 2. Call agentService.ProcessMessage() to get the Generator
+		// 3. Iterate over the generator and convert events to MessageChunks
+
+		// For now, send a placeholder message indicating subscription is active
+		select {
+		case ch <- &model.MessageChunk{
+			Type:      model.ChunkTypeContent,
+			Content:   strPtr("Subscription active for session: " + sid.String()),
+			Timestamp: time.Now(),
+		}:
+		case <-ctx.Done():
+			return
+		}
+
+		// Send done event
+		select {
+		case ch <- &model.MessageChunk{
+			Type:      model.ChunkTypeDone,
+			Timestamp: time.Now(),
+		}:
+		case <-ctx.Done():
+		}
+	}()
+
+	return ch, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.
