@@ -29,8 +29,10 @@ type Repository interface {
 	GetPaginated(ctx context.Context, params *FindParams) ([]Session, error)
 	GetByToken(ctx context.Context, token string) (Session, error)
 	GetByTokenAndAudience(ctx context.Context, token string, audience SessionAudience) (Session, error)
+	GetByUserID(ctx context.Context, userID uint) ([]Session, error)
 	Create(ctx context.Context, user Session) error
 	Update(ctx context.Context, user Session) error
 	Delete(ctx context.Context, token string) error
 	DeleteByUserId(ctx context.Context, userId uint) ([]Session, error)
+	DeleteAllExceptToken(ctx context.Context, userID uint, exceptToken string) (int, error)
 }

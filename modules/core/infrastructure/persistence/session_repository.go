@@ -38,8 +38,9 @@ const (
             ip = $2,
             user_agent = $3
         WHERE token = $4 AND tenant_id = $5`
-	deleteUserSessionQuery = `DELETE FROM sessions WHERE user_id = $1`
-	deleteSessionQuery     = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
+	deleteUserSessionQuery    = `DELETE FROM sessions WHERE user_id = $1`
+	deleteSessionQuery        = `DELETE FROM sessions WHERE token = $1 AND tenant_id = $2`
+	deleteAllExceptTokenQuery = `DELETE FROM sessions WHERE user_id = $1 AND token != $2 AND tenant_id = $3`
 )
 
 type SessionRepository struct {
@@ -252,6 +253,39 @@ func (g *SessionRepository) DeleteByUserId(ctx context.Context, userId uint) ([]
 		return nil, err
 	}
 	return sessions, nil
+}
+
+func (g *SessionRepository) GetByUserID(ctx context.Context, userID uint) ([]session.Session, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	query := repo.Join(
+		selectSessionQuery,
+		repo.JoinWhere("user_id = $1", "tenant_id = $2"),
+	)
+
+	return g.querySessions(ctx, query, userID, tenantID)
+}
+
+func (g *SessionRepository) DeleteAllExceptToken(ctx context.Context, userID uint, exceptToken string) (int, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	result, err := tx.Exec(ctx, deleteAllExceptTokenQuery, userID, exceptToken, tenantID)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(result.RowsAffected()), nil
 }
 
 func (g *SessionRepository) querySessions(ctx context.Context, query string, args ...interface{}) ([]session.Session, error) {

@@ -113,6 +113,7 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewGroupsController(app),
 		controllers.NewWebSocketController(app),
 		controllers.NewSettingsController(app),
+		controllers.NewSessionController(app, "/settings/sessions"),
 	)
 	// Register showcase controllers with nil-checks (dev build tag)
 	if ctrl := controllers.NewShowcaseController(app); ctrl != nil {

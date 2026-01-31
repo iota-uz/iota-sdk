@@ -127,3 +127,65 @@ func (s *SessionService) DeleteByUserId(ctx context.Context, userId uint) ([]ses
 	}
 	return deletedSessions, nil
 }
+
+func (s *SessionService) GetByUserID(ctx context.Context, userID uint) ([]session.Session, error) {
+	return s.repo.GetByUserID(ctx, userID)
+}
+
+func (s *SessionService) TerminateSession(ctx context.Context, token string) error {
+	var deletedSession session.Session
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		if ses, err := s.repo.GetByToken(txCtx, token); err != nil {
+			return err
+		} else {
+			deletedSession = ses
+		}
+		return s.repo.Delete(txCtx, token)
+	})
+	if err != nil {
+		return err
+	}
+	deletedEvent, err := session.NewDeletedEvent(deletedSession)
+	if err != nil {
+		return err
+	}
+	s.publisher.Publish(deletedEvent)
+	return nil
+}
+
+func (s *SessionService) TerminateOtherSessions(ctx context.Context, userID uint, currentToken string) (int, error) {
+	var deletedSessions []session.Session
+	var count int
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Get all sessions that will be deleted (for event publishing)
+		allSessions, err := s.repo.GetByUserID(txCtx, userID)
+		if err != nil {
+			return err
+		}
+		// Filter sessions to be deleted (all except current token)
+		for _, sess := range allSessions {
+			if sess.Token() != currentToken {
+				deletedSessions = append(deletedSessions, sess)
+			}
+		}
+		// Delete all sessions except the current one
+		deletedCount, err := s.repo.DeleteAllExceptToken(txCtx, userID, currentToken)
+		if err != nil {
+			return err
+		}
+		count = deletedCount
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	// Publish delete events for all deleted sessions
+	for _, sess := range deletedSessions {
+		deletedEvent, err := session.NewDeletedEvent(sess)
+		if err != nil {
+			return count, err
+		}
+		s.publisher.Publish(deletedEvent)
+	}
+	return count, nil
+}

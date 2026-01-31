@@ -190,6 +190,8 @@ func (c *UsersController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}/block/drawer", di.H(c.GetBlockDrawer)).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}/block", di.H(c.BlockUser)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}/unblock", di.H(c.UnblockUser)).Methods(http.MethodPost)
+	router.HandleFunc("/{id:[0-9]+}/sessions", di.H(c.GetUserSessions)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}/sessions/{token}", di.H(c.RevokeUserSession)).Methods(http.MethodDelete)
 
 	c.realtime.Register()
 }
@@ -969,4 +971,143 @@ func (c *UsersController) UnblockUser(
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
+}
+
+// GetUserSessions handles GET /users/{id}/sessions
+func (c *UsersController) GetUserSessions(
+	r *http.Request,
+	w http.ResponseWriter,
+	u user.User,
+	userService *services.UserService,
+	sessionService *services.SessionService,
+	logger *logrus.Entry,
+) {
+	// Check SessionRead permission
+	if !u.Can(permissions.SessionRead) {
+		logger.Error("user does not have SessionRead permission")
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	// Parse user ID from URL
+	vars := mux.Vars(r)
+	userIDStr := vars["id"]
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		logger.WithError(err).Error("invalid user ID")
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch target user
+	targetUser, err := userService.GetByID(r.Context(), uint(userID))
+	if err != nil {
+		logger.WithError(err).Error("failed to fetch user")
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Fetch sessions for the user
+	sessions, err := sessionService.GetByUserID(r.Context(), uint(userID))
+	if err != nil {
+		logger.WithError(err).Error("failed to fetch sessions")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to ViewModels
+	// Note: We pass empty string for currentToken since admin is viewing another user's sessions
+	sessionVMs := make([]*viewmodels.Session, len(sessions))
+	for i, sess := range sessions {
+		sessionVMs[i] = viewmodels.SessionToViewModel(sess, "")
+	}
+
+	// Check if user can delete sessions
+	canDelete := u.Can(permissions.SessionDelete)
+
+	// Render template
+	props := &users.UserSessionsTabProps{
+		User:      mappers.UserToViewModel(targetUser),
+		Sessions:  sessionVMs,
+		CanDelete: canDelete,
+	}
+
+	if err := users.UserSessionsTab(props).Render(r.Context(), w); err != nil {
+		logger.WithError(err).Error("failed to render sessions tab")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+}
+
+// RevokeUserSession handles DELETE /users/{id}/sessions/{token}
+func (c *UsersController) RevokeUserSession(
+	r *http.Request,
+	w http.ResponseWriter,
+	u user.User,
+	userService *services.UserService,
+	sessionService *services.SessionService,
+	logger *logrus.Entry,
+) {
+	// Check SessionDelete permission
+	if !u.Can(permissions.SessionDelete) {
+		logger.Error("user does not have SessionDelete permission")
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	// Parse user ID and token hash from URL
+	vars := mux.Vars(r)
+	userIDStr := vars["id"]
+	tokenHash := vars["token"]
+
+	if tokenHash == "" {
+		logger.Error("token is required")
+		http.Error(w, "Token required", http.StatusBadRequest)
+		return
+	}
+
+	userID, err := strconv.ParseUint(userIDStr, 10, 64)
+	if err != nil {
+		logger.WithError(err).Error("invalid user ID")
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	// Fetch all sessions for the target user
+	sessions, err := sessionService.GetByUserID(r.Context(), uint(userID))
+	if err != nil {
+		logger.WithError(err).Error("failed to fetch user sessions")
+		http.Error(w, "Failed to fetch sessions", http.StatusInternalServerError)
+		return
+	}
+
+	// Find the session to revoke by comparing hashed tokens
+	// This is more secure than passing raw tokens in URLs
+	var sessionToRevoke string
+	for _, s := range sessions {
+		sessionVM := viewmodels.SessionToViewModel(s, "")
+		if sessionVM.FullToken == tokenHash {
+			sessionToRevoke = s.Token()
+			break
+		}
+	}
+
+	if sessionToRevoke == "" {
+		logger.Error("session not found")
+		http.Error(w, "Session not found", http.StatusNotFound)
+		return
+	}
+
+	// Terminate session
+	if err := sessionService.Delete(r.Context(), sessionToRevoke); err != nil {
+		logger.WithError(err).Error("failed to terminate session")
+		http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
+		return
+	}
+
+	logger.WithField("tokenHash", tokenHash).Info("session revoked successfully")
+
+	// Return success with HTMX trigger for toast notification
+	htmx.SetTrigger(w, "showToast", `{"type": "success", "message": "Session revoked successfully"}`)
+	w.WriteHeader(http.StatusOK)
 }
