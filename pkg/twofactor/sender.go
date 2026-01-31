@@ -76,6 +76,9 @@ func NewCompositeSender(senders map[OTPChannel]OTPSender) *CompositeSender {
 
 // Register adds or updates a sender for the specified channel.
 func (c *CompositeSender) Register(channel OTPChannel, sender OTPSender) {
+	if sender == nil {
+		panic("Sender cannot be nil")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.senders[channel] = sender

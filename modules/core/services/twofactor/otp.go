@@ -10,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -40,6 +41,9 @@ func NewOTPService(
 	expiry time.Duration,
 	maxAttempts int,
 ) *OTPService {
+	if repo == nil {
+		panic("OTPRepository cannot be nil")
+	}
 	if length <= 0 {
 		length = defaultOTPLength
 	}
@@ -61,14 +65,16 @@ func NewOTPService(
 
 // generateCode generates a random numeric OTP code
 func (s *OTPService) generateCode() (string, error) {
-	// Calculate max value (e.g., for 6 digits: 999999)
-	maxCode := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(s.length)), nil)
-	maxCode.Sub(maxCode, big.NewInt(1))
+	const op serrors.Op = "OTPService.generateCode"
+
+	// Calculate max value (e.g., for 6 digits: 10^6 = 1000000)
+	// rand.Int returns [0, max) so we get [0, 999999] for 6 digits
+	max := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(s.length)), nil)
 
 	// Generate random number
-	n, err := rand.Int(rand.Reader, maxCode)
+	n, err := rand.Int(rand.Reader, max)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate random number: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Format with leading zeros
@@ -78,34 +84,38 @@ func (s *OTPService) generateCode() (string, error) {
 
 // hashCode hashes an OTP code using bcrypt
 func (s *OTPService) hashCode(code string) (string, error) {
+	const op serrors.Op = "OTPService.hashCode"
+
 	hashed, err := bcrypt.GenerateFromPassword([]byte(code), bcryptCost)
 	if err != nil {
-		return "", fmt.Errorf("failed to hash code: %w", err)
+		return "", serrors.E(op, err)
 	}
 	return string(hashed), nil
 }
 
 // Generate generates and sends an OTP code
 func (s *OTPService) Generate(ctx context.Context, userID uint, channel pkgtf.OTPChannel, destination string) (string, time.Time, error) {
+	const op serrors.Op = "OTPService.Generate"
+
 	if destination == "" {
-		return "", time.Time{}, errors.New("destination cannot be empty")
+		return "", time.Time{}, serrors.E(op, serrors.Invalid, errors.New("destination cannot be empty"))
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to get tenant ID: %w", err)
+		return "", time.Time{}, serrors.E(op, err)
 	}
 
 	// Generate code
 	code, err := s.generateCode()
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to generate code: %w", err)
+		return "", time.Time{}, serrors.E(op, err)
 	}
 
 	// Hash code
 	codeHash, err := s.hashCode(code)
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to hash code: %w", err)
+		return "", time.Time{}, serrors.E(op, err)
 	}
 
 	// Calculate expiration
@@ -123,10 +133,10 @@ func (s *OTPService) Generate(ctx context.Context, userID uint, channel pkgtf.OT
 
 	// Store in repository
 	if err := s.repository.Create(ctx, otp); err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to store OTP: %w", err)
+		return "", time.Time{}, serrors.E(op, err)
 	}
 
-	// Send code via configured sender
+	// Send the OTP
 	if s.sender != nil {
 		sendReq := pkgtf.SendRequest{
 			Channel:   channel,
@@ -138,9 +148,7 @@ func (s *OTPService) Generate(ctx context.Context, userID uint, channel pkgtf.OT
 		}
 
 		if err := s.sender.Send(ctx, sendReq); err != nil {
-			// Log error but don't fail the operation
-			// The code was already stored and can be used for verification
-			return "", time.Time{}, fmt.Errorf("%w: %w", pkgtf.ErrSendFailed, err)
+			return "", time.Time{}, serrors.E(op, fmt.Errorf("%w: %w", pkgtf.ErrSendFailed, err))
 		}
 	}
 
@@ -149,46 +157,48 @@ func (s *OTPService) Generate(ctx context.Context, userID uint, channel pkgtf.OT
 
 // Validate validates an OTP code
 func (s *OTPService) Validate(ctx context.Context, destination, code string) error {
+	const op serrors.Op = "OTPService.Validate"
+
 	if destination == "" {
-		return errors.New("destination cannot be empty")
+		return serrors.E(op, serrors.Invalid, errors.New("destination cannot be empty"))
 	}
 	if code == "" {
-		return pkgtf.ErrInvalidCode
+		return serrors.E(op, pkgtf.ErrInvalidCode)
 	}
 
 	// Find OTP by identifier
 	otp, err := s.repository.FindByIdentifier(ctx, destination)
 	if err != nil {
-		return pkgtf.ErrInvalidCode
+		return serrors.E(op, pkgtf.ErrInvalidCode)
 	}
 
 	// Check if expired
 	if otp.IsExpired() {
-		return pkgtf.ErrExpiredCode
+		return serrors.E(op, pkgtf.ErrExpiredCode)
 	}
 
 	// Check if already used
 	if otp.IsUsed() {
-		return pkgtf.ErrInvalidCode
+		return serrors.E(op, pkgtf.ErrInvalidCode)
 	}
 
 	// Check attempts
 	if otp.Attempts() >= s.maxAttempts {
-		return pkgtf.ErrTooManyAttempts
+		return serrors.E(op, pkgtf.ErrTooManyAttempts)
 	}
 
 	// Verify code
 	if err := bcrypt.CompareHashAndPassword([]byte(otp.CodeHash()), []byte(code)); err != nil {
 		// Increment attempts
 		if err := s.repository.IncrementAttempts(ctx, otp.ID()); err != nil {
-			return fmt.Errorf("failed to increment attempts: %w", err)
+			return serrors.E(op, err)
 		}
-		return pkgtf.ErrInvalidCode
+		return serrors.E(op, pkgtf.ErrInvalidCode)
 	}
 
 	// Mark as used
 	if err := s.repository.MarkUsed(ctx, otp.ID()); err != nil {
-		return fmt.Errorf("failed to mark OTP as used: %w", err)
+		return serrors.E(op, err)
 	}
 
 	return nil
@@ -196,10 +206,12 @@ func (s *OTPService) Validate(ctx context.Context, destination, code string) err
 
 // Resend resends an OTP to the same destination
 func (s *OTPService) Resend(ctx context.Context, userID uint, channel pkgtf.OTPChannel, destination string) (time.Time, error) {
+	const op serrors.Op = "OTPService.Resend"
+
 	// Generate and send new OTP
 	_, expiresAt, err := s.Generate(ctx, userID, channel, destination)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to resend OTP: %w", err)
+		return time.Time{}, serrors.E(op, err)
 	}
 
 	return expiresAt, nil
@@ -207,9 +219,11 @@ func (s *OTPService) Resend(ctx context.Context, userID uint, channel pkgtf.OTPC
 
 // CleanupExpired removes all expired OTP records
 func (s *OTPService) CleanupExpired(ctx context.Context) (int64, error) {
+	const op serrors.Op = "OTPService.CleanupExpired"
+
 	count, err := s.repository.DeleteExpired(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to cleanup expired OTPs: %w", err)
+		return 0, serrors.E(op, err)
 	}
 	return count, nil
 }

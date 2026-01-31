@@ -102,7 +102,10 @@ func (e *EmailOTPSender) sendWithTLS(addr string, auth smtp.Auth, from string, t
 	}()
 
 	// Start TLS encryption (CRITICAL: enforces encrypted connection)
-	tlsConfig := &tls.Config{ServerName: e.host}
+	tlsConfig := &tls.Config{
+		ServerName: e.host,
+		MinVersion: tls.VersionTLS12,
+	}
 	if err = client.StartTLS(tlsConfig); err != nil {
 		return serrors.E(op, err)
 	}
@@ -220,8 +223,14 @@ func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 		return fmt.Errorf("failed to send SMS OTP to %s via Twilio: %w", req.Recipient, err)
 	}
 
+	// Validate response
+	if resp == nil || resp.Sid == nil {
+		return fmt.Errorf("invalid Twilio response")
+	}
+
 	// Log successful delivery
-	log.Printf("[SMSOTPSender] OTP sent to %s via SMS (Twilio SID: %s)\n", req.Recipient, *resp.Sid)
+	sidStr := *resp.Sid
+	log.Printf("[SMSOTPSender] OTP sent to %s via SMS (Twilio SID: %s)\n", req.Recipient, sidStr)
 
 	return nil
 }

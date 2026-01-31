@@ -12,7 +12,7 @@ func TestAESEncryptor_EncryptDecrypt(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	encryptionKey := "test-encryption-key-with-sufficient-entropy-12345"
+	encryptionKey := "test-key-32-bytes-long-for-aes256-gcm-encryption!!!!"
 	encryptor := twofactor.NewAESEncryptor(encryptionKey)
 
 	testCases := []struct {

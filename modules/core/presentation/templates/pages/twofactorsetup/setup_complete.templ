@@ -84,9 +84,10 @@ templ SetupComplete(p *SetupCompleteProps) {
 						@button.Primary(button.Props{
 							Size:  button.SizeNormal,
 							Class: "justify-center",
-							Href:  p.NextURL,
+							Href:  "#",
 							Attrs: templ.Attributes{
-								"onclick": "event.preventDefault(); window.location.href = '" + templ.URL(p.NextURL) + "';",
+								"data-next-url": p.NextURL,
+								"onclick":       "event.preventDefault(); window.location.href = this.dataset.nextUrl;",
 							},
 						}) {
 							{ pageCtx.T("TwoFactor.Setup.Continue") }

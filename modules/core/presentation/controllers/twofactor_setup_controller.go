@@ -367,6 +367,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 
 	challengeID := r.FormValue("ChallengeID")
 	code := r.FormValue("Code")
+	method := r.FormValue("Method")
 	// Validate the redirect URL to prevent open redirect attacks
 	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
@@ -394,7 +395,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 			errorMsg = "TwoFactor.Setup.Error"
 		}
 		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), errorMsg)))
-		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?challengeId=%s&next=%s", url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
 		return
 	}
 

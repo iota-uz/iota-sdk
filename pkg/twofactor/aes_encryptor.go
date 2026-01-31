@@ -9,6 +9,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // AESEncryptor encrypts TOTP secrets using AES-256-GCM.
@@ -68,22 +70,24 @@ func NewAESEncryptor(encryptionKey string) *AESEncryptor {
 //
 // Returns the encrypted secret as a base64-encoded string, or an error if encryption fails.
 func (e *AESEncryptor) Encrypt(ctx context.Context, plaintext string) (string, error) {
+	const op serrors.Op = "AESEncryptor.Encrypt"
+
 	// Create AES cipher
 	block, err := aes.NewCipher(e.key)
 	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Create GCM mode
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Generate random nonce
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", fmt.Errorf("failed to generate nonce: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Encrypt plaintext
@@ -109,28 +113,30 @@ func (e *AESEncryptor) Encrypt(ctx context.Context, plaintext string) (string, e
 //   - Wrong encryption key
 //   - Corrupted ciphertext
 func (e *AESEncryptor) Decrypt(ctx context.Context, ciphertext string) (string, error) {
+	const op serrors.Op = "AESEncryptor.Decrypt"
+
 	// Decode base64
 	data, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode base64: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Create AES cipher
 	block, err := aes.NewCipher(e.key)
 	if err != nil {
-		return "", fmt.Errorf("failed to create cipher: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Create GCM mode
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GCM: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Check minimum length (nonce + at least 1 byte of ciphertext)
 	nonceSize := gcm.NonceSize()
 	if len(data) < nonceSize {
-		return "", fmt.Errorf("ciphertext too short")
+		return "", serrors.E(op, serrors.Invalid, fmt.Errorf("ciphertext too short"))
 	}
 
 	// Extract nonce and ciphertext
@@ -139,7 +145,7 @@ func (e *AESEncryptor) Decrypt(ctx context.Context, ciphertext string) (string, 
 	// Decrypt and authenticate
 	plaintext, err := gcm.Open(nil, nonce, ciphertextBytes, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	return string(plaintext), nil

@@ -18,7 +18,7 @@ openssl rand -base64 32
 ```
 
 Example output:
-```
+```text
 XyZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFG=
 ```
 

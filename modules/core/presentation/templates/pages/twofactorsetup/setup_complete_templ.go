@@ -225,7 +225,7 @@ func SetupComplete(p *SetupCompleteProps) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("TwoFactor.Setup.Continue"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/twofactorsetup/setup_complete.templ`, Line: 92, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/twofactorsetup/setup_complete.templ`, Line: 93, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -236,9 +236,10 @@ func SetupComplete(p *SetupCompleteProps) templ.Component {
 			templ_7745c5c3_Err = button.Primary(button.Props{
 				Size:  button.SizeNormal,
 				Class: "justify-center",
-				Href:  p.NextURL,
+				Href:  "#",
 				Attrs: templ.Attributes{
-					"onclick": "event.preventDefault(); window.location.href = '" + templ.URL(p.NextURL) + "';",
+					"data-next-url": p.NextURL,
+					"onclick":       "event.preventDefault(); window.location.href = this.dataset.nextUrl;",
 				},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -259,7 +260,7 @@ func SetupComplete(p *SetupCompleteProps) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("TwoFactor.Setup.RecoveryCodesInfo"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/twofactorsetup/setup_complete.templ`, Line: 103, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/twofactorsetup/setup_complete.templ`, Line: 104, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {

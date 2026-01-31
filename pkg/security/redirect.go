@@ -35,8 +35,8 @@ func IsValidRedirect(redirectURL string) bool {
 		return false
 	}
 
-	// Prevent protocol-relative URLs (//example.com)
-	if strings.HasPrefix(redirectURL, "//") {
+	// Prevent protocol-relative URLs and backslash bypass (//evil.com or /\evil.com)
+	if strings.HasPrefix(redirectURL, "//") || (len(redirectURL) > 1 && redirectURL[0] == '/' && redirectURL[1] == '\\') {
 		return false
 	}
 

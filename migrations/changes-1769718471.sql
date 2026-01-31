@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS recovery_codes (
 );
 
 -- Add comments to recovery_codes columns
-COMMENT ON COLUMN recovery_codes.code_hash IS 'SHA256 hash of the recovery code';
+COMMENT ON COLUMN recovery_codes.code_hash IS 'bcrypt hash of the recovery code';
 COMMENT ON COLUMN recovery_codes.used_at IS 'Timestamp when code was used';
 
 -- Create indexes on recovery_codes for efficient querying
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS otps (
 
 -- Add comments to otps columns
 COMMENT ON COLUMN otps.identifier IS 'Email or phone number for OTP delivery';
-COMMENT ON COLUMN otps.code_hash IS 'SHA256 hash of the OTP code';
+COMMENT ON COLUMN otps.code_hash IS 'bcrypt hash of the OTP code';
 COMMENT ON COLUMN otps.channel IS 'Channel for delivery: sms or email';
 COMMENT ON COLUMN otps.expires_at IS 'When OTP expires';
 COMMENT ON COLUMN otps.used_at IS 'When OTP was used';

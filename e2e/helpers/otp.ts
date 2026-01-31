@@ -26,8 +26,11 @@ export async function getOTPCodeFromDB(
 		throw new Error(`Failed to get OTP for ${identifier}: ${response.statusText()}`);
 	}
 
-	const body = await response.json();
-	return body.code;
+	const data = await response.json();
+	if (!data.code) {
+		throw new Error('OTP code not found in response');
+	}
+	return data.code;
 }
 
 /**
@@ -49,8 +52,11 @@ export async function getOTPCodeByUserID(
 		throw new Error(`Failed to get OTP for user ${userId}: ${response.statusText()}`);
 	}
 
-	const body = await response.json();
-	return body.code;
+	const data = await response.json();
+	if (!data.code) {
+		throw new Error('OTP code not found in response');
+	}
+	return data.code;
 }
 
 /**
@@ -77,8 +83,11 @@ export async function generateOTPForUser(
 		throw new Error(`Failed to generate OTP: ${response.statusText()}`);
 	}
 
-	const body = await response.json();
-	return body.code;
+	const data = await response.json();
+	if (!data.code) {
+		throw new Error('OTP code not found in response');
+	}
+	return data.code;
 }
 
 /**
