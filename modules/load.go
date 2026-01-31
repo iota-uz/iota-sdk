@@ -3,14 +3,14 @@ package modules
 import (
 	"slices"
 
-	"github.com/iota-uz/iota-sdk/modules/billing"
-
 	"github.com/iota-uz/iota-sdk/modules/bichat"
+	"github.com/iota-uz/iota-sdk/modules/billing"
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/crm"
 	"github.com/iota-uz/iota-sdk/modules/finance"
 	"github.com/iota-uz/iota-sdk/modules/hrm"
 	"github.com/iota-uz/iota-sdk/modules/logging"
+	"github.com/iota-uz/iota-sdk/modules/oidc"
 	"github.com/iota-uz/iota-sdk/modules/projects"
 	"github.com/iota-uz/iota-sdk/modules/testkit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse"
@@ -33,7 +33,8 @@ var (
 		crm.NewModule(),
 		website.NewModule(),
 		billing.NewModule(),
-		testkit.NewModule(), // Test endpoints - only active when ENABLE_TEST_ENDPOINTS=true
+		oidc.NewModule(&oidc.ModuleOptions{}), // OIDC provider - only active when OIDC_ENABLED=true
+		testkit.NewModule(),                   // Test endpoints - only active when ENABLE_TEST_ENDPOINTS=true
 	}
 
 	NavLinks = slices.Concat(

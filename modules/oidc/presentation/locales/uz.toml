@@ -1,0 +1,12 @@
+# OIDC Module - Uzbek Translations
+
+[OIDC]
+Title = "OIDC"
+
+[OIDC.Errors]
+InvalidAuthRequest = "Yaroqsiz avtorizatsiya so'rovi"
+AuthRequestExpired = "Avtorizatsiya so'rovining muddati tugagan"
+AuthRequestNotAuthenticated = "Avtorizatsiya so'rovi autentifikatsiya qilinmagan"
+MissingAuthRequestID = "Avtorizatsiya so'rovi identifikatori yo'q"
+InvalidClient = "Yaroqsiz mijoz"
+UnauthorizedClient = "Ruxsat berilmagan mijoz"
