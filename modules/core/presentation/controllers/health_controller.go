@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 type HealthStatus string
@@ -73,10 +74,31 @@ func (c *HealthController) Register(r *mux.Router) {
 func (c *HealthController) Get(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
-
-	response := c.performHealthChecks(ctx)
+	conf := configuration.Use()
 
 	w.Header().Set("Content-Type", "application/json")
+
+	// Simple mode: quick health check with minimal overhead
+	if !conf.HealthDetailed {
+		status := "healthy"
+		httpStatus := http.StatusOK
+
+		// Quick DB ping with timeout to determine health
+		if err := c.quickDBCheck(ctx); err != nil {
+			status = "unhealthy"
+			httpStatus = http.StatusServiceUnavailable
+			logger.Warnf("Health check failed: %v", err)
+		}
+
+		w.WriteHeader(httpStatus)
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": status}); err != nil {
+			logger.Errorf("Failed to write simple health response: %v", err)
+		}
+		return
+	}
+
+	// Detailed mode: comprehensive health checks with metrics
+	response := c.performHealthChecks(ctx)
 
 	var status int
 	switch response.Status {
@@ -94,6 +116,20 @@ func (c *HealthController) Get(w http.ResponseWriter, r *http.Request) {
 		logger.Errorf("Failed to write health response: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// quickDBCheck performs a fast database ping for simple health check
+func (c *HealthController) quickDBCheck(ctx context.Context) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	db := c.app.DB()
+	if db == nil {
+		return fmt.Errorf("database connection pool not available")
+	}
+
+	var result int
+	return db.QueryRow(timeoutCtx, "SELECT 1").Scan(&result)
 }
 
 func (c *HealthController) performHealthChecks(ctx context.Context) *HealthResponse {

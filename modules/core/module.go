@@ -124,11 +124,17 @@ func (m *Module) Register(app application.Application) error {
 			PermissionSchema: m.options.PermissionSchema,
 		}),
 		controllers.NewGroupsController(app),
-		controllers.NewShowcaseController(app),
-		controllers.NewCrudShowcaseController(app),
 		controllers.NewWebSocketController(app),
 		controllers.NewSettingsController(app),
 	)
+	// Register showcase controllers with nil-checks (dev build tag)
+	if ctrl := controllers.NewShowcaseController(app); ctrl != nil {
+		app.RegisterControllers(ctrl)
+	}
+	//nolint:staticcheck // SA4023: Always true in dev builds, but false in production (build-tagged stub returns nil)
+	if ctrl := controllers.NewCrudShowcaseController(app); ctrl != nil {
+		app.RegisterControllers(ctrl)
+	}
 	app.RegisterHashFsAssets(assets.HashFS)
 	app.RegisterGraphSchema(application.GraphSchema{
 		Value: graph.NewExecutableSchema(graph.Config{
