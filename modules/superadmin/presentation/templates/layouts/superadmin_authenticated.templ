@@ -48,9 +48,7 @@ templ SuperAdminAuthenticated(props SuperAdminAuthenticatedProps) {
 				}
 			}"
 			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
-<<<<<<< HEAD
-			:class="{ 'lg:grid-cols-[4rem_1fr]': sidebarCollapsed, 'lg:grid-cols-[280px_1fr]': !sidebarCollapsed }"
-			class="grid min-h-screen w-full overflow-y-auto transition-all duration-300"
+			class="flex min-h-screen w-full"
 		>
 			<div class="hidden lg:block flex-shrink-0">
 				@sidebar.Sidebar(sidebarProps)
