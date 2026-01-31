@@ -180,7 +180,8 @@ func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	// Create multiple sessions
+	// Create multiple sessions with explicit timestamps
+	baseTime := time.Now()
 	sessions := []*domain.Session{
 		domain.NewSession(
 			domain.WithTenantID(env.Tenant.ID),
@@ -202,11 +203,10 @@ func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 		),
 	}
 
-	for _, session := range sessions {
+	for i, session := range sessions {
+		session.CreatedAt = baseTime.Add(time.Duration(i) * 10 * time.Millisecond)
 		err := repo.CreateSession(env.Ctx, session)
 		require.NoError(t, err)
-		// Add small delay to ensure different created_at timestamps
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	// List all sessions
@@ -240,16 +240,17 @@ func TestPostgresChatRepository_ListUserSessions_Pagination(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	// Create 5 sessions
+	// Create 5 sessions with explicit timestamps
+	baseTime := time.Now()
 	for i := 0; i < 5; i++ {
 		session := domain.NewSession(
 			domain.WithTenantID(env.Tenant.ID),
 			domain.WithUserID(int64(env.User.ID())),
 			domain.WithTitle("Session "+string('A'+byte(i))),
 		)
+		session.CreatedAt = baseTime.Add(time.Duration(i) * 5 * time.Millisecond)
 		err := repo.CreateSession(env.Ctx, session)
 		require.NoError(t, err)
-		time.Sleep(5 * time.Millisecond)
 	}
 
 	// Test pagination
@@ -554,7 +555,8 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Create multiple messages with delays to ensure ordering
+	// Create multiple messages with explicit timestamps for ordering
+	baseTime := time.Now()
 	messages := []*types.Message{
 		types.UserMessage("First message",
 			types.WithSessionID(session.ID),
@@ -567,10 +569,10 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 		),
 	}
 
-	for _, msg := range messages {
+	for i, msg := range messages {
+		msg.CreatedAt = baseTime.Add(time.Duration(i) * 10 * time.Millisecond)
 		err = repo.SaveMessage(env.Ctx, msg)
 		require.NoError(t, err)
-		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Retrieve all messages
@@ -602,14 +604,15 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Create 5 messages
+	// Create 5 messages with explicit timestamps
+	baseTime := time.Now()
 	for i := 0; i < 5; i++ {
 		msg := types.UserMessage("Message "+string('A'+byte(i)),
 			types.WithSessionID(session.ID),
 		)
+		msg.CreatedAt = baseTime.Add(time.Duration(i) * 5 * time.Millisecond)
 		err = repo.SaveMessage(env.Ctx, msg)
 		require.NoError(t, err)
-		time.Sleep(5 * time.Millisecond)
 	}
 
 	// Test pagination
@@ -853,7 +856,8 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
 
-	// Create multiple attachments
+	// Create multiple attachments with explicit timestamps
+	baseTime := time.Now()
 	attachments := []*domain.Attachment{
 		domain.NewAttachment(
 			domain.WithAttachmentMessageID(msg.ID),
@@ -878,10 +882,10 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 		),
 	}
 
-	for _, attachment := range attachments {
+	for i, attachment := range attachments {
+		attachment.CreatedAt = baseTime.Add(time.Duration(i) * 5 * time.Millisecond)
 		err = repo.SaveAttachment(env.Ctx, attachment)
 		require.NoError(t, err)
-		time.Sleep(5 * time.Millisecond)
 	}
 
 	// Retrieve all attachments for the message

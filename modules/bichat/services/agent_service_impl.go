@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -378,12 +377,8 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 		}
 	}
 
-	// TODO: The checkpoint ID should be passed through the InterruptEvent or ExecutorEvent metadata.
-	// For now, we use a temporary placeholder that will be replaced when the agents package
-	// is updated to include checkpoint ID in the interrupt event structure.
-	// The actual checkpoint ID is saved by the executor and should be communicated through
-	// the event system or executor event metadata.
-	checkpointID := fmt.Sprintf("checkpoint_%s", agentInterrupt.SessionID.String())
+	// Use the real checkpoint ID from the interrupt event
+	checkpointID := agentInterrupt.CheckpointID
 
 	return &services.InterruptEvent{
 		CheckpointID: checkpointID,

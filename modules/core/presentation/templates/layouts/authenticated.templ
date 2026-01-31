@@ -160,8 +160,7 @@ templ DefaultSidebarFooter() {
 templ SidebarFooter() {
 	<!-- Toggle button at bottom -->
 	<button
-<<<<<<< HEAD
-		@click="toggle(); $dispatch('sidebar-toggle')"
+		@click.stop="toggle(); $dispatch('sidebar-toggle')"
 		class="hidden lg:flex items-center justify-center w-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
 	>
 		<div x-show="!isCollapsed">
@@ -224,14 +223,15 @@ templ Authenticated(props AuthenticatedProps) {
 			}"
 			data-sidebar-state={ string(sidebarProps.InitialState) }
 			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
-<<<<<<< HEAD
-			:class="{ 'lg:grid-cols-[4rem_1fr]': sidebarCollapsed, 'lg:grid-cols-[280px_1fr]': !sidebarCollapsed }"
-			class="grid min-h-screen w-full overflow-y-auto transition-all duration-300"
+			class="flex min-h-screen w-full overflow-y-auto"
 		>
-			<div class="hidden lg:block flex-shrink-0">
+			<div
+				:class="{ 'lg:w-16': sidebarCollapsed, 'lg:w-[280px]': !sidebarCollapsed }"
+				class="hidden lg:block flex-shrink-0 transition-all duration-300"
+			>
 				@sidebar.Sidebar(sidebarProps)
 			</div>
-			<div class="flex-1 flex flex-col h-screen overflow-hidden">
+			<div class="flex-1 flex flex-col h-screen overflow-x-hidden">
 				@Navbar(pageCtx)
 				<div class="flex-1 overflow-y-auto content">
 					{ children... }

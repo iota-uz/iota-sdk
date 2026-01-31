@@ -2,8 +2,8 @@ package agents
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -19,6 +19,8 @@ type Checkpoint struct {
 	ID            string           `json:"id"`
 	ThreadID      string           `json:"thread_id"`
 	AgentName     string           `json:"agent_name"`
+	SessionID     uuid.UUID        `json:"session_id"`
+	TenantID      uuid.UUID        `json:"tenant_id"`
 	Messages      []types.Message  `json:"messages"`
 	PendingTools  []types.ToolCall `json:"pending_tools"`
 	InterruptType string           `json:"interrupt_type"`
@@ -79,6 +81,20 @@ func WithInterruptData(data json.RawMessage) CheckpointOption {
 func WithCreatedAt(createdAt time.Time) CheckpointOption {
 	return func(cp *Checkpoint) {
 		cp.CreatedAt = createdAt
+	}
+}
+
+// WithSessionID sets the session ID for multi-tenant isolation.
+func WithSessionID(sessionID uuid.UUID) CheckpointOption {
+	return func(cp *Checkpoint) {
+		cp.SessionID = sessionID
+	}
+}
+
+// WithTenantID sets the tenant ID for multi-tenant isolation.
+func WithTenantID(tenantID uuid.UUID) CheckpointOption {
+	return func(cp *Checkpoint) {
+		cp.TenantID = tenantID
 	}
 }
 
@@ -239,20 +255,20 @@ func NewPostgresCheckpointer() *PostgresCheckpointer {
 const (
 	checkpointInsertQuery = `
 		INSERT INTO bichat_checkpoints (
-			id, tenant_id, thread_id, agent_name, messages, pending_tools,
+			id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 			interrupt_type, interrupt_data, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	checkpointSelectQuery = `
-		SELECT id, tenant_id, thread_id, agent_name, messages, pending_tools,
+		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 		       interrupt_type, interrupt_data, created_at
 		FROM bichat_checkpoints
 		WHERE id = $1 AND tenant_id = $2
 	`
 
 	checkpointSelectByThreadQuery = `
-		SELECT id, tenant_id, thread_id, agent_name, messages, pending_tools,
+		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 		       interrupt_type, interrupt_data, created_at
 		FROM bichat_checkpoints
 		WHERE thread_id = $1 AND tenant_id = $2
@@ -294,6 +310,7 @@ func (p *PostgresCheckpointer) Save(ctx context.Context, checkpoint *Checkpoint)
 	_, err = tx.Exec(ctx, checkpointInsertQuery,
 		checkpoint.ID,
 		tenantID,
+		checkpoint.SessionID,
 		checkpoint.ThreadID,
 		checkpoint.AgentName,
 		messagesJSON,
@@ -327,7 +344,8 @@ func (p *PostgresCheckpointer) Load(ctx context.Context, id string) (*Checkpoint
 
 	err = tx.QueryRow(ctx, checkpointSelectQuery, id, tenantID).Scan(
 		&checkpoint.ID,
-		&tenantID, // Scan but don't use (already have it)
+		&checkpoint.TenantID,
+		&checkpoint.SessionID,
 		&checkpoint.ThreadID,
 		&checkpoint.AgentName,
 		&messagesJSON,
@@ -337,7 +355,7 @@ func (p *PostgresCheckpointer) Load(ctx context.Context, id string) (*Checkpoint
 		&checkpoint.CreatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrCheckpointNotFound
 		}
 		return nil, err
@@ -377,7 +395,8 @@ func (p *PostgresCheckpointer) LoadByThreadID(ctx context.Context, threadID stri
 
 	err = tx.QueryRow(ctx, checkpointSelectByThreadQuery, threadID, tenantID).Scan(
 		&checkpoint.ID,
-		&tenantID,
+		&checkpoint.TenantID,
+		&checkpoint.SessionID,
 		&checkpoint.ThreadID,
 		&checkpoint.AgentName,
 		&messagesJSON,
@@ -387,6 +406,9 @@ func (p *PostgresCheckpointer) LoadByThreadID(ctx context.Context, threadID stri
 		&checkpoint.CreatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrCheckpointNotFound
+		}
 		return nil, err
 	}
 

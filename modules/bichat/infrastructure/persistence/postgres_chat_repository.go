@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5"
 )
 
 // SQL query constants
@@ -194,7 +194,7 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 		&session.UpdatedAt,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, serrors.E(op, ErrSessionNotFound)
 		}
 		return nil, serrors.E(op, err)
@@ -384,7 +384,7 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		&msg.CreatedAt,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, serrors.E(op, ErrMessageNotFound)
 		}
 		return nil, serrors.E(op, err)
@@ -538,7 +538,7 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 		&attachment.CreatedAt,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, serrors.E(op, ErrAttachmentNotFound)
 		}
 		return nil, serrors.E(op, err)

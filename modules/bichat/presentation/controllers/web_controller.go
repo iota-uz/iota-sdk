@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 
+	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/interop"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -90,11 +91,8 @@ func (c *WebController) RenderChatApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract CSRF token from context for form submissions
-	csrfToken, ok := ctx.Value("gorilla.csrf.Token").(string)
-	if !ok {
-		csrfToken = ""
-	}
+	// Extract CSRF token using gorilla/csrf helper
+	csrfToken := csrf.Token(r)
 
 	// Serialize context to JSON for injection into HTML
 	contextJSON, err := json.Marshal(initialContext)
