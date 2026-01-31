@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 type chatServiceStub struct{}
@@ -66,7 +67,7 @@ func (s *chatServiceStub) SendMessageStream(ctx context.Context, req services.Se
 }
 
 // GetSessionMessages retrieves all messages for a session.
-func (s *chatServiceStub) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Message, error) {
+func (s *chatServiceStub) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
 	const op = "chatServiceStub.GetSessionMessages"
 	return nil, errors.New("not implemented - Phase 1 pending")
 }
