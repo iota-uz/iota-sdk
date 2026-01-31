@@ -1,115 +1,80 @@
 /**
  * OTP Helper for E2E Tests
  *
- * Provides utilities for retrieving OTP codes from database or test API
+ * Provides utilities for retrieving OTP codes via test API endpoints
  */
 
 import { APIRequestContext } from '@playwright/test';
-import { Pool } from 'pg';
 
 /**
- * Database configuration for E2E tests
- */
-function getDBConfig() {
-	return {
-		user: process.env.DB_USER || 'postgres',
-		password: process.env.DB_PASSWORD || 'postgres',
-		host: process.env.DB_HOST || 'localhost',
-		port: parseInt(process.env.DB_PORT || '5438'),
-		database: process.env.DB_NAME || 'iota_erp_e2e',
-	};
-}
-
-/**
- * Retrieve OTP code from database for a specific destination (phone/email)
- *
- * @param destination - Phone number or email address
- * @returns The OTP code
- */
-export async function getOTPCodeFromDB(destination: string): Promise<string> {
-	const config = getDBConfig();
-	const pool = new Pool(config);
-
-	try {
-		const client = await pool.connect();
-		try {
-			// Query the OTP table for the most recent code sent to this destination
-			const result = await client.query(
-				`SELECT code FROM otps
-				 WHERE destination = $1
-				 AND expires_at > NOW()
-				 ORDER BY created_at DESC
-				 LIMIT 1`,
-				[destination]
-			);
-
-			if (result.rows.length === 0) {
-				throw new Error(`No OTP found for destination: ${destination}`);
-			}
-
-			return result.rows[0].code;
-		} finally {
-			client.release();
-		}
-	} finally {
-		await pool.end();
-	}
-}
-
-/**
- * Retrieve OTP code for a user by user ID
- *
- * @param userId - The user ID
- * @returns The OTP code
- */
-export async function getOTPCodeByUserID(userId: number): Promise<string> {
-	const config = getDBConfig();
-	const pool = new Pool(config);
-
-	try {
-		const client = await pool.connect();
-		try {
-			// Query the OTP table for the most recent code for this user
-			const result = await client.query(
-				`SELECT code FROM otps
-				 WHERE user_id = $1
-				 AND expires_at > NOW()
-				 ORDER BY created_at DESC
-				 LIMIT 1`,
-				[userId]
-			);
-
-			if (result.rows.length === 0) {
-				throw new Error(`No OTP found for user ID: ${userId}`);
-			}
-
-			return result.rows[0].code;
-		} finally {
-			client.release();
-		}
-	} finally {
-		await pool.end();
-	}
-}
-
-/**
- * Retrieve OTP code via test API (if available)
+ * Retrieve OTP code from test API for a specific identifier (phone/email)
  *
  * @param request - Playwright API request context
- * @param destination - Phone number or email address
+ * @param identifier - Phone number or email address
  * @returns The OTP code
  */
-export async function getOTPCodeViaAPI(
+export async function getOTPCodeFromDB(
 	request: APIRequestContext,
-	destination: string
+	identifier: string
 ): Promise<string> {
 	const response = await request.get('/__test__/otp', {
-		params: { destination },
+		params: { identifier },
 		failOnStatusCode: false,
 	});
 
 	if (!response.ok()) {
-		throw new Error(`Failed to get OTP via API: ${response.statusText()}`);
+		throw new Error(`Failed to get OTP for ${identifier}: ${response.statusText()}`);
+	}
+
+	const body = await response.json();
+	return body.code;
+}
+
+/**
+ * Retrieve OTP code for a user by user ID via test API
+ *
+ * @param request - Playwright API request context
+ * @param userId - The user ID
+ * @returns The OTP code
+ */
+export async function getOTPCodeByUserID(
+	request: APIRequestContext,
+	userId: number
+): Promise<string> {
+	const response = await request.get(`/__test__/otp/${userId}`, {
+		failOnStatusCode: false,
+	});
+
+	if (!response.ok()) {
+		throw new Error(`Failed to get OTP for user ${userId}: ${response.statusText()}`);
+	}
+
+	const body = await response.json();
+	return body.code;
+}
+
+/**
+ * Generate OTP for a user via test API
+ *
+ * @param request - Playwright API request context
+ * @param userId - User ID
+ * @param identifier - Phone number or email address
+ * @param channel - Delivery channel ('sms' or 'email')
+ * @returns The plaintext OTP code
+ */
+export async function generateOTPForUser(
+	request: APIRequestContext,
+	userId: number,
+	identifier: string,
+	channel: 'sms' | 'email'
+): Promise<string> {
+	const response = await request.post(`/__test__/otp/${userId}`, {
+		data: { identifier, channel },
+		failOnStatusCode: false,
+	});
+
+	if (!response.ok()) {
+		throw new Error(`Failed to generate OTP: ${response.statusText()}`);
 	}
 
 	const body = await response.json();
@@ -128,12 +93,14 @@ export function generateInvalidOTP(): string {
 /**
  * Wait for OTP to be sent (with timeout)
  *
- * @param destination - Phone number or email address
+ * @param request - Playwright API request context
+ * @param identifier - Phone number or email address
  * @param timeoutMs - Maximum wait time in milliseconds
  * @returns The OTP code
  */
 export async function waitForOTP(
-	destination: string,
+	request: APIRequestContext,
+	identifier: string,
 	timeoutMs: number = 10000
 ): Promise<string> {
 	const startTime = Date.now();
@@ -141,7 +108,7 @@ export async function waitForOTP(
 
 	while (Date.now() - startTime < timeoutMs) {
 		try {
-			const code = await getOTPCodeFromDB(destination);
+			const code = await getOTPCodeFromDB(request, identifier);
 			if (code) {
 				return code;
 			}
@@ -152,5 +119,5 @@ export async function waitForOTP(
 		await new Promise((resolve) => setTimeout(resolve, pollInterval));
 	}
 
-	throw new Error(`OTP not received within ${timeoutMs}ms for ${destination}`);
+	throw new Error(`OTP not received within ${timeoutMs}ms for ${identifier}`);
 }

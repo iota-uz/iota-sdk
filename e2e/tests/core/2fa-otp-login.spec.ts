@@ -45,15 +45,15 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		});
 	});
 
-	test.beforeEach(async ({ page }) => {
+	test.beforeEach(async ({ page, request }) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
 	});
 
-	test.afterEach(async ({ page }) => {
+	test.afterEach(async ({ page, request }) => {
 		await logout(page);
 	});
 
-	test('should redirect to verification page and send OTP automatically', async ({ page }) => {
+	test('should redirect to verification page and send OTP automatically', async ({ page, request }) => {
 		// Login with credentials
 		await page.goto('/login');
 		await page.fill('[type=email]', emailUser.email);
@@ -74,7 +74,7 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	});
 
-	test('should successfully login with valid Email OTP', async ({ page }) => {
+	test('should successfully login with valid Email OTP', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials
@@ -84,7 +84,7 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
 
 		// Wait for OTP and retrieve from database
-		const otpCode = await waitForOTP(emailUser.email);
+		const otpCode = await waitForOTP(request, emailUser.email);
 
 		// Enter OTP
 		await verifyPage.enterVerificationCode(otpCode);
@@ -97,7 +97,7 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		await expect(page).not.toHaveURL(/\/login/);
 	});
 
-	test('should display error for invalid Email OTP', async ({ page }) => {
+	test('should display error for invalid Email OTP', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials
@@ -116,7 +116,7 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
 	});
 
-	test('should allow resending Email OTP', async ({ page }) => {
+	test('should allow resending Email OTP', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials
@@ -135,7 +135,7 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		await verifyPage.expectSuccessMessage();
 	});
 
-	test('should preserve nextURL and redirect after Email OTP verification', async ({ page }) => {
+	test('should preserve nextURL and redirect after Email OTP verification', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 		const nextURL = '/users';
 
@@ -146,7 +146,7 @@ test.describe('2FA OTP Login Flow - Email Method', () => {
 		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
 
 		// Get OTP and verify
-		const otpCode = await waitForOTP(emailUser.email);
+		const otpCode = await waitForOTP(request, emailUser.email);
 		await verifyPage.enterVerificationCode(otpCode);
 
 		// Verify redirect to nextURL
@@ -186,15 +186,15 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		});
 	});
 
-	test.beforeEach(async ({ page }) => {
+	test.beforeEach(async ({ page, request }) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
 	});
 
-	test.afterEach(async ({ page }) => {
+	test.afterEach(async ({ page, request }) => {
 		await logout(page);
 	});
 
-	test('should redirect to verification page and send SMS OTP automatically', async ({ page }) => {
+	test('should redirect to verification page and send SMS OTP automatically', async ({ page, request }) => {
 		// Login with credentials
 		await page.goto('/login');
 		await page.fill('[type=email]', smsUser.email);
@@ -215,7 +215,7 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	});
 
-	test('should successfully login with valid SMS OTP', async ({ page }) => {
+	test('should successfully login with valid SMS OTP', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials
@@ -225,7 +225,7 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		await Promise.all([page.waitForURL(/\/login\/2fa\/verify/), page.click('[type=submit]')]);
 
 		// Wait for OTP and retrieve from database
-		const otpCode = await waitForOTP(smsUser.phone);
+		const otpCode = await waitForOTP(request, smsUser.phone);
 
 		// Enter OTP
 		await verifyPage.enterVerificationCode(otpCode);
@@ -238,7 +238,7 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		await expect(page).not.toHaveURL(/\/login/);
 	});
 
-	test('should display error for invalid SMS OTP', async ({ page }) => {
+	test('should display error for invalid SMS OTP', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials
@@ -257,7 +257,7 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		await expect(page).toHaveURL(/\/login\/2fa\/verify/);
 	});
 
-	test('should allow resending SMS OTP', async ({ page }) => {
+	test('should allow resending SMS OTP', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials
@@ -276,7 +276,7 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		await verifyPage.expectSuccessMessage();
 	});
 
-	test('should allow multiple retries after invalid SMS OTP', async ({ page }) => {
+	test('should allow multiple retries after invalid SMS OTP', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials
@@ -294,14 +294,14 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		await verifyPage.expectErrorMessage();
 
 		// Third attempt: valid
-		const otpCode = await waitForOTP(smsUser.phone);
+		const otpCode = await waitForOTP(request, smsUser.phone);
 		await verifyPage.enterVerificationCode(otpCode);
 
 		// Verify successful login
 		await expect(page).not.toHaveURL(/\/login/);
 	});
 
-	test('should display destination phone number (masked)', async ({ page }) => {
+	test('should display destination phone number (masked)', async ({ page, request }) => {
 		// Login with credentials
 		await page.goto('/login');
 		await page.fill('[type=email]', smsUser.email);
@@ -313,7 +313,7 @@ test.describe('2FA OTP Login Flow - SMS Method', () => {
 		// await expect(page.locator('text=/\\+998|998|567/i')).toBeVisible();
 	});
 
-	test('should display recovery code link on SMS verification page', async ({ page }) => {
+	test('should display recovery code link on SMS verification page', async ({ page, request }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
 		// Login with credentials

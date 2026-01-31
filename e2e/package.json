@@ -11,11 +11,13 @@
 		"test:employees": "playwright test tests/employees"
 	},
 	"dependencies": {
+		"bcryptjs": "^2.4.3",
 		"dotenv": "^16.6.1",
 		"pg": "^8.13.3"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.48.0",
+		"@types/bcryptjs": "^2.4.6",
 		"@types/node": "^22.10.2",
 		"@types/pg": "^8.11.10",
 		"otplib": "^12.0.1",

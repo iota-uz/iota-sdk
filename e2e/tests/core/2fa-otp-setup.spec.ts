@@ -22,15 +22,15 @@ test.describe('2FA OTP Setup Flow', () => {
 		await seedScenario(request, 'comprehensive');
 	});
 
-	test.beforeEach(async ({ page }) => {
+	test.beforeEach(async ({ page, request }) => {
 		await page.setViewportSize({ width: 1280, height: 720 });
 	});
 
-	test.afterEach(async ({ page }) => {
+	test.afterEach(async ({ page, request }) => {
 		await logout(page);
 	});
 
-	test('should send OTP automatically after selecting Email method', async ({ page }) => {
+	test('should send OTP automatically after selecting Email method', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Navigate to setup page
@@ -49,7 +49,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await expect(page.locator('text=/email|inbox/i')).toBeVisible();
 	});
 
-	test('should send OTP automatically after selecting SMS method', async ({ page }) => {
+	test('should send OTP automatically after selecting SMS method', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Navigate to setup page
@@ -68,7 +68,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await expect(page.locator('text=/sms|phone|text message/i')).toBeVisible();
 	});
 
-	test('should successfully complete Email OTP setup with valid code', async ({ page }) => {
+	test('should successfully complete Email OTP setup with valid code', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 		const userEmail = 'test@gmail.com'; // From comprehensive seed data
 
@@ -79,7 +79,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.selectMethod('email');
 
 		// Wait for OTP to be sent and retrieve from database
-		const otpCode = await waitForOTP(userEmail);
+		const otpCode = await waitForOTP(request, userEmail);
 
 		// Enter valid OTP code
 		await setupPage.enterOTPCode(otpCode);
@@ -89,7 +89,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.expectSuccessMessage();
 	});
 
-	test('should successfully complete SMS OTP setup with valid code', async ({ page }) => {
+	test('should successfully complete SMS OTP setup with valid code', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 		const userPhone = '+998901234567'; // Phone from test user in seed data
 
@@ -100,7 +100,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.selectMethod('sms');
 
 		// Wait for OTP to be sent and retrieve from database
-		const otpCode = await waitForOTP(userPhone);
+		const otpCode = await waitForOTP(request, userPhone);
 
 		// Enter valid OTP code
 		await setupPage.enterOTPCode(otpCode);
@@ -110,7 +110,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.expectSuccessMessage();
 	});
 
-	test('should display error for invalid OTP code', async ({ page }) => {
+	test('should display error for invalid OTP code', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Navigate to setup page
@@ -131,7 +131,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	});
 
-	test('should allow OTP resend for Email method', async ({ page }) => {
+	test('should allow OTP resend for Email method', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Navigate to setup page
@@ -150,7 +150,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	});
 
-	test('should allow OTP resend for SMS method', async ({ page }) => {
+	test('should allow OTP resend for SMS method', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Navigate to setup page
@@ -169,7 +169,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await expect(page.locator('input[name="Code"]')).toBeVisible();
 	});
 
-	test('should allow retry after invalid OTP code', async ({ page }) => {
+	test('should allow retry after invalid OTP code', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 		const userEmail = 'test@gmail.com';
 
@@ -184,7 +184,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.expectErrorMessage();
 
 		// Second attempt: valid code
-		const otpCode = await waitForOTP(userEmail);
+		const otpCode = await waitForOTP(request, userEmail);
 		await setupPage.enterOTPCode(otpCode);
 
 		// Verify successful setup
@@ -209,7 +209,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		test.skip();
 	});
 
-	test('should preserve nextURL parameter throughout OTP setup', async ({ page }) => {
+	test('should preserve nextURL parameter throughout OTP setup', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 		const nextURL = '/users';
 		const userEmail = 'test@gmail.com';
@@ -225,7 +225,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		expect(hiddenNextURL).toBe(nextURL);
 
 		// Complete setup
-		const otpCode = await waitForOTP(userEmail);
+		const otpCode = await waitForOTP(request, userEmail);
 		await setupPage.enterOTPCode(otpCode);
 
 		// Verify redirect to nextURL (or shows success, then redirects)
@@ -234,7 +234,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		// await expect(page).toHaveURL(new RegExp(nextURL));
 	});
 
-	test('should validate OTP input format (6 digits)', async ({ page }) => {
+	test('should validate OTP input format (6 digits)', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Navigate to setup page
@@ -256,7 +256,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		expect(value.length).toBeLessThanOrEqual(6);
 	});
 
-	test('should display method-specific help text', async ({ page }) => {
+	test('should display method-specific help text', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Test Email method
@@ -270,7 +270,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await expect(page.locator('text=/check.*phone|text message|sms/i')).toBeVisible();
 	});
 
-	test('should display destination for OTP delivery', async ({ page }) => {
+	test('should display destination for OTP delivery', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 
 		// Navigate to setup page
@@ -285,7 +285,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		// await expect(page.locator('text=/@|gmail|email/i')).toBeVisible();
 	});
 
-	test('should not display recovery codes for OTP setup (only TOTP)', async ({ page }) => {
+	test('should not display recovery codes for OTP setup (only TOTP)', async ({ page, request }) => {
 		const setupPage = new TwoFactorSetupPage(page);
 		const userEmail = 'test@gmail.com';
 
@@ -296,7 +296,7 @@ test.describe('2FA OTP Setup Flow', () => {
 		await setupPage.selectMethod('email');
 
 		// Complete setup
-		const otpCode = await waitForOTP(userEmail);
+		const otpCode = await waitForOTP(request, userEmail);
 		await setupPage.enterOTPCode(otpCode);
 
 		// Verify NO recovery codes are displayed (OTP methods don't use recovery codes)

@@ -4,6 +4,10 @@ import { resetTestDatabase, populateTestData } from '../../fixtures/test-data';
 import { TwoFactorVerifyPage } from '../../pages/core/twofactor-verify-page';
 import { TwoFactorSetupPage } from '../../pages/core/twofactor-setup-page';
 import { generateTOTPCode } from '../../helpers/totp';
+import {
+	createTestRecoveryCodesForUser,
+	getUnusedRecoveryCodeCount,
+} from '../../helpers/recovery-codes';
 import { Pool } from 'pg';
 
 /**
@@ -28,32 +32,6 @@ function getDBConfig() {
 		port: parseInt(process.env.DB_PORT || '5438'),
 		database: process.env.DB_NAME || 'iota_erp_e2e',
 	};
-}
-
-/**
- * Helper function to get recovery codes for a user from database
- */
-async function getRecoveryCodesFromDB(userID: number): Promise<string[]> {
-	const config = getDBConfig();
-	const pool = new Pool(config);
-
-	try {
-		const client = await pool.connect();
-		try {
-			const result = await client.query(
-				`SELECT code FROM recovery_codes
-				 WHERE user_id = $1 AND used_at IS NULL
-				 ORDER BY created_at ASC`,
-				[userID]
-			);
-
-			return result.rows.map((row) => row.code);
-		} finally {
-			client.release();
-		}
-	} finally {
-		await pool.end();
-	}
 }
 
 /**
@@ -176,6 +154,10 @@ test.describe('2FA Recovery Codes', () => {
 	test('should successfully login with valid recovery code', async ({ page }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
+		// Get user ID and create recovery codes
+		const userID = await getUserIDByEmail(testUser.email);
+		const recoveryCodes = await createTestRecoveryCodesForUser(userID, 10);
+
 		// Login to trigger verification
 		await page.goto('/login');
 		await page.fill('[type=email]', testUser.email);
@@ -184,15 +166,6 @@ test.describe('2FA Recovery Codes', () => {
 
 		// Navigate to recovery page
 		await verifyPage.navigateToRecoveryPage();
-
-		// Get a valid recovery code from database
-		const userID = await getUserIDByEmail(testUser.email);
-		const recoveryCodes = await getRecoveryCodesFromDB(userID);
-
-		if (recoveryCodes.length === 0) {
-			test.skip(); // Skip if no recovery codes available
-			return;
-		}
 
 		const validCode = recoveryCodes[0];
 
@@ -232,14 +205,10 @@ test.describe('2FA Recovery Codes', () => {
 	test('should mark recovery code as used after successful login', async ({ page }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
-		// Get initial recovery codes count
+		// Get user ID and create recovery codes
 		const userID = await getUserIDByEmail(testUser.email);
-		const initialCodes = await getRecoveryCodesFromDB(userID);
-
-		if (initialCodes.length === 0) {
-			test.skip(); // Skip if no recovery codes available
-			return;
-		}
+		const initialCodes = await createTestRecoveryCodesForUser(userID, 10);
+		const initialCount = await getUnusedRecoveryCodeCount(userID);
 
 		const codeToUse = initialCodes[0];
 
@@ -259,24 +228,16 @@ test.describe('2FA Recovery Codes', () => {
 		await logout(page);
 
 		// Verify recovery code count decreased
-		const remainingCodes = await getRecoveryCodesFromDB(userID);
-		expect(remainingCodes.length).toBe(initialCodes.length - 1);
-
-		// Verify the used code is not in remaining codes
-		expect(remainingCodes).not.toContain(codeToUse);
+		const remainingCount = await getUnusedRecoveryCodeCount(userID);
+		expect(remainingCount).toBe(initialCount - 1);
 	});
 
 	test('should not allow reusing the same recovery code', async ({ page }) => {
 		const verifyPage = new TwoFactorVerifyPage(page);
 
-		// Get a recovery code
+		// Get user ID and create recovery codes
 		const userID = await getUserIDByEmail(testUser.email);
-		const codes = await getRecoveryCodesFromDB(userID);
-
-		if (codes.length === 0) {
-			test.skip(); // Skip if no recovery codes available
-			return;
-		}
+		const codes = await createTestRecoveryCodesForUser(userID, 10);
 
 		const codeToUse = codes[0];
 
