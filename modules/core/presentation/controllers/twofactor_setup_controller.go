@@ -44,6 +44,7 @@ func (c *TwoFactorSetupController) Key() string {
 func (c *TwoFactorSetupController) Register(r *mux.Router) {
 	setupRouter := r.PathPrefix("/login/2fa/setup").Subrouter()
 	setupRouter.Use(
+		middleware.Authorize(),
 		middleware.ProvideLocalizer(c.app),
 		middleware.WithTransaction(),
 		middleware.WithPageContext(),
@@ -58,6 +59,7 @@ func (c *TwoFactorSetupController) Register(r *mux.Router) {
 	setupRouter.HandleFunc("/totp/confirm", c.PostTOTPConfirm).Methods(http.MethodPost)
 
 	// OTP setup endpoints (SMS/Email)
+	setupRouter.HandleFunc("/otp", c.GetOTPSetup).Methods(http.MethodGet)
 	setupRouter.HandleFunc("/otp/send", c.PostOTPSend).Methods(http.MethodPost)
 	setupRouter.HandleFunc("/otp/confirm", c.PostOTPConfirm).Methods(http.MethodPost)
 }
@@ -188,6 +190,58 @@ func (c *TwoFactorSetupController) GetTOTPSetup(w http.ResponseWriter, r *http.R
 		QRImageURL:  qrImageURL,
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render TOTP setup template", "error", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// GetOTPSetup displays OTP setup page for SMS/Email verification
+func (c *TwoFactorSetupController) GetOTPSetup(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+	method := r.URL.Query().Get("method")
+	challengeID := r.URL.Query().Get("challengeId")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+
+	if challengeID == "" {
+		http.Error(w, "missing challenge ID", http.StatusBadRequest)
+		return
+	}
+
+	if method == "" {
+		http.Error(w, "missing method", http.StatusBadRequest)
+		return
+	}
+
+	// Validate method
+	validMethods := []string{string(pkgtwofactor.MethodSMS), string(pkgtwofactor.MethodEmail)}
+	isValid := false
+	for _, valid := range validMethods {
+		if method == valid {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		http.Error(w, "invalid method", http.StatusBadRequest)
+		return
+	}
+
+	// Retrieve challenge data to get destination (phone/email)
+	challenge, err := c.twoFactorService.GetSetupChallenge(challengeID)
+	if err != nil {
+		logger.Error("failed to get setup challenge", "error", err)
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.Error")))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+		return
+	}
+
+	if err := twofactorsetup.OTPSetup(&twofactorsetup.OTPSetupProps{
+		Method:      method,
+		ChallengeID: challengeID,
+		NextURL:     nextURL,
+		Destination: challenge.Destination,
+	}).Render(r.Context(), w); err != nil {
+		logger.Error("failed to render OTP setup template", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
