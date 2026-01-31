@@ -27,8 +27,8 @@ export async function getOTPCodeFromDB(
 	}
 
 	const data = await response.json();
-	if (!data.code) {
-		throw new Error('OTP code not found in response');
+	if (!data || typeof data.code !== 'string' || data.code.length === 0) {
+		throw new Error(`Missing OTP code in response for identifier ${identifier}: ${response.statusText()}`);
 	}
 	return data.code;
 }
@@ -53,8 +53,8 @@ export async function getOTPCodeByUserID(
 	}
 
 	const data = await response.json();
-	if (!data.code) {
-		throw new Error('OTP code not found in response');
+	if (!data || typeof data.code !== 'string' || data.code.length === 0) {
+		throw new Error(`Missing OTP code in response for user ${userId}: ${response.statusText()}`);
 	}
 	return data.code;
 }
@@ -84,8 +84,8 @@ export async function generateOTPForUser(
 	}
 
 	const data = await response.json();
-	if (!data.code) {
-		throw new Error('OTP code not found in response');
+	if (!data || typeof data.code !== 'string' || data.code.length === 0) {
+		throw new Error(`Missing OTP code in response: ${response.statusText()}`);
 	}
 	return data.code;
 }

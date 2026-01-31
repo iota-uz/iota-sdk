@@ -191,22 +191,10 @@ test.describe('2FA OTP Setup Flow', () => {
 		await expect(page).toHaveURL(/^(?!.*\/login\/2fa\/setup)/);
 	});
 
-	test('should display error if user tries SMS without phone number', async ({ page, request }) => {
-		// Create a test user without phone number
-		const userWithoutPhone = {
-			email: 'nophone@example.com',
-			password: 'TestPass123!',
-			firstName: 'No',
-			lastName: 'Phone',
-			language: 'en',
-		};
-
-		await resetTestDatabase(request, { reseedMinimal: true });
-
+	test.skip('should display error if user tries SMS without phone number', async ({ page, request }) => {
 		// This test assumes the system validates phone number requirement
 		// and shows appropriate error. Implementation may vary.
 		// Skip for now if system allows SMS setup without validation
-		test.skip();
 	});
 
 	test('should preserve nextURL parameter throughout OTP setup', async ({ page, request }) => {
