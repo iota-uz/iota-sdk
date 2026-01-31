@@ -2,10 +2,13 @@ package twofactor
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
+	"net"
 	"net/smtp"
 
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/twilio/twilio-go"
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
@@ -31,7 +34,7 @@ func NewEmailOTPSender(host string, port int, username, password, from string) *
 	}
 }
 
-// Send delivers an OTP code via email using SMTP
+// Send delivers an OTP code via email using SMTP with TLS
 func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 	// Validate channel
 	if req.Channel != pkgtf.ChannelEmail {
@@ -59,15 +62,83 @@ func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error 
 	msg := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s",
 		e.from, req.Recipient, subject, body)
 
-	// Send email
+	// Send email with TLS
 	addr := fmt.Sprintf("%s:%d", e.host, e.port)
-	err := smtp.SendMail(addr, auth, e.from, []string{req.Recipient}, []byte(msg))
+	err := e.sendWithTLS(addr, auth, e.from, []string{req.Recipient}, []byte(msg))
 	if err != nil {
 		return fmt.Errorf("failed to send email OTP to %s: %w", req.Recipient, err)
 	}
 
 	// Log successful delivery
 	log.Printf("[EmailOTPSender] OTP sent to %s via email\n", req.Recipient)
+
+	return nil
+}
+
+// sendWithTLS sends email using SMTP with explicit STARTTLS enforcement
+func (e *EmailOTPSender) sendWithTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
+	const op serrors.Op = "EmailOTPSender.sendWithTLS"
+
+	// Connect to the SMTP server
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			log.Printf("[EmailOTPSender] Warning: failed to close connection: %v", closeErr)
+		}
+	}()
+
+	// Create SMTP client
+	client, err := smtp.NewClient(conn, e.host)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	defer func() {
+		if quitErr := client.Quit(); quitErr != nil {
+			log.Printf("[EmailOTPSender] Warning: failed to quit SMTP client: %v", quitErr)
+		}
+	}()
+
+	// Start TLS encryption (CRITICAL: enforces encrypted connection)
+	tlsConfig := &tls.Config{ServerName: e.host}
+	if err = client.StartTLS(tlsConfig); err != nil {
+		return serrors.E(op, err)
+	}
+
+	// Authenticate (credentials now sent over encrypted connection)
+	if auth != nil {
+		if err = client.Auth(auth); err != nil {
+			return serrors.E(op, err)
+		}
+	}
+
+	// Set sender
+	if err = client.Mail(from); err != nil {
+		return serrors.E(op, err)
+	}
+
+	// Set recipients
+	for _, recipient := range to {
+		if err = client.Rcpt(recipient); err != nil {
+			return serrors.E(op, err)
+		}
+	}
+
+	// Send message body
+	w, err := client.Data()
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	_, err = w.Write(msg)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	err = w.Close()
+	if err != nil {
+		return serrors.E(op, err)
+	}
 
 	return nil
 }
