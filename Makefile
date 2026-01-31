@@ -6,10 +6,6 @@ TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 deps:
 	go get ./...
 
-# Install development tools (templ, air, goimports, golangci-lint, tailwindcss, cloudflared)
-install-tools:
-	@bash scripts/install-dev-tools.sh
-
 # Documentation management with subcommands (serve, install)
 docs:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "serve" ]; then \
@@ -246,7 +242,7 @@ setup: deps css
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose docker score report dev prod linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports serve:
+watch coverage verbose docker score report prod linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports serve:
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check fix superadmin \
