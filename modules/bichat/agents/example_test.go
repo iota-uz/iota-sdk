@@ -38,13 +38,11 @@ func ExampleNewDefaultBIAgent() {
 func ExampleNewDefaultBIAgent_withOptions() {
 	executor := &mockQueryExecutor{}
 	kbSearcher := &mockKBSearcher{}
-	excelExporter := &mockExcelExporter{}
 
-	// Create agent with optional KB search and Excel export
+	// Create agent with optional KB search
 	agent, err := bichatagents.NewDefaultBIAgent(
 		executor,
 		bichatagents.WithKBSearcher(kbSearcher),
-		bichatagents.WithExcelExporter(excelExporter),
 		bichatagents.WithModel("gpt-3.5-turbo"),
 	)
 	if err != nil {
@@ -59,7 +57,7 @@ func ExampleNewDefaultBIAgent_withOptions() {
 
 	// Output:
 	// Model: gpt-3.5-turbo
-	// Tools count: 8
+	// Tools count: 7
 }
 
 // Mock implementations for examples
@@ -82,10 +80,4 @@ func (m *mockKBSearcher) Search(ctx context.Context, query string, limit int) ([
 
 func (m *mockKBSearcher) IsAvailable() bool {
 	return true
-}
-
-type mockExcelExporter struct{}
-
-func (m *mockExcelExporter) ExportToExcel(ctx context.Context, data *tools.QueryResult, filename string) (string, error) {
-	return "/exports/test.xlsx", nil
 }

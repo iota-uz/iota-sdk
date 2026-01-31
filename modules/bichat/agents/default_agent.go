@@ -3,17 +3,16 @@ package agents
 import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // DefaultBIAgent is the default Business Intelligence agent with all BI tools wired.
 // It provides SQL querying, schema exploration, charting, and optional export capabilities.
 type DefaultBIAgent struct {
 	*agents.BaseAgent
-	executor      tools.QueryExecutorService
-	kbSearcher    tools.KBSearcher
-	excelExporter tools.ExcelExporter
-	pdfExporter   tools.PDFExporter
-	model         string // Store model separately to apply during initialization
+	executor   tools.QueryExecutorService
+	kbSearcher tools.KBSearcher
+	model      string // Store model separately to apply during initialization
 }
 
 // BIAgentOption is a functional option for configuring DefaultBIAgent.
@@ -26,20 +25,6 @@ func WithKBSearcher(searcher tools.KBSearcher) BIAgentOption {
 	}
 }
 
-// WithExcelExporter adds Excel export capability to the agent.
-func WithExcelExporter(exporter tools.ExcelExporter) BIAgentOption {
-	return func(a *DefaultBIAgent) {
-		a.excelExporter = exporter
-	}
-}
-
-// WithPDFExporter adds PDF export capability to the agent.
-func WithPDFExporter(exporter tools.PDFExporter) BIAgentOption {
-	return func(a *DefaultBIAgent) {
-		a.pdfExporter = exporter
-	}
-}
-
 // WithModel sets the LLM model for the agent.
 func WithModel(model string) BIAgentOption {
 	return func(a *DefaultBIAgent) {
@@ -49,11 +34,18 @@ func WithModel(model string) BIAgentOption {
 
 // NewDefaultBIAgent creates a new default BI agent with the specified options.
 // The executor parameter is required for SQL querying capabilities.
-// Additional tools (KB search, Excel/PDF export) can be added via options.
+// Additional tools (KB search) can be added via options.
 func NewDefaultBIAgent(
 	executor tools.QueryExecutorService,
 	opts ...BIAgentOption,
 ) (*DefaultBIAgent, error) {
+	const op serrors.Op = "NewDefaultBIAgent"
+
+	// Validate required parameters
+	if executor == nil {
+		return nil, serrors.E(op, serrors.KindValidation, "executor is required")
+	}
+
 	agent := &DefaultBIAgent{
 		executor: executor,
 		model:    "gpt-4", // Default model
@@ -77,17 +69,6 @@ func NewDefaultBIAgent(
 	// Add optional tools based on configuration
 	if agent.kbSearcher != nil {
 		agentTools = append(agentTools, tools.NewKBSearchTool(agent.kbSearcher))
-	}
-
-	if agent.excelExporter != nil {
-		agentTools = append(agentTools, tools.NewExportToExcelTool(agent.excelExporter))
-	}
-
-	if agent.pdfExporter != nil {
-		// Note: NewExportToPDFTool expects a gotenberg URL string,
-		// but we're using the PDFExporter interface.
-		// TODO: Consider refactoring PDF tool to use the interface pattern
-		// For now, skip this tool if using the interface
 	}
 
 	// Build system prompt
@@ -120,8 +101,6 @@ AVAILABLE TOOLS:
 - sql_execute: Execute read-only SQL queries (SELECT only, max 1000 rows)
 - draw_chart: Create chart visualizations (line, bar, pie, area, donut)
 - kb_search: Search knowledge base for documentation and business rules (if available)
-- export_to_excel: Export query results to Excel format (if available)
-- export_to_pdf: Export content to PDF format (if available)
 - ask_user_question: Ask clarifying questions when requirements are unclear (HITL)
 - final_answer: Return final answer to user (terminates execution)
 
@@ -149,11 +128,7 @@ WORKFLOW GUIDELINES:
    - Pie and donut charts require exactly one series
    - Max 1000 data points per series
 
-5. EXPORT RESULTS
-   - Offer Excel export for tabular data the user may want to analyze further
-   - Offer PDF export for formatted reports
-
-6. PROVIDE CLEAR ANSWERS
+5. PROVIDE CLEAR ANSWERS
    - Summarize findings clearly and concisely
    - Highlight key insights and trends
    - Use charts to make data more understandable
