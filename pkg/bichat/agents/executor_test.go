@@ -550,13 +550,30 @@ func TestExecutor_Interrupt(t *testing.T) {
 
 	// Parse interrupt data
 	var data struct {
-		Question string `json:"question"`
+		Questions []struct {
+			Question    string `json:"question"`
+			Header      string `json:"header"`
+			MultiSelect bool   `json:"multiSelect"`
+			Options     []struct {
+				Label       string `json:"label"`
+				Description string `json:"description"`
+			} `json:"options"`
+		} `json:"questions"`
 	}
 	if err := json.Unmarshal(interruptEvent.Data, &data); err != nil {
 		t.Fatalf("Failed to parse interrupt data: %v", err)
 	}
-	if data.Question != "What is your favorite color?" {
-		t.Errorf("Expected question 'What is your favorite color?', got '%s'", data.Question)
+	if len(data.Questions) != 1 {
+		t.Fatalf("Expected 1 question, got %d", len(data.Questions))
+	}
+	if data.Questions[0].Question != "What is your favorite color?" {
+		t.Errorf("Expected question 'What is your favorite color?', got '%s'", data.Questions[0].Question)
+	}
+	if data.Questions[0].Header != "Color" {
+		t.Errorf("Expected header 'Color', got '%s'", data.Questions[0].Header)
+	}
+	if len(data.Questions[0].Options) != 2 {
+		t.Errorf("Expected 2 options, got %d", len(data.Questions[0].Options))
 	}
 }
 
@@ -579,9 +596,21 @@ func TestExecutor_Resume(t *testing.T) {
 		},
 		agents.WithPendingTools([]agents.ToolCall{
 			{
-				ID:        "call_1",
-				Name:      agents.ToolAskUserQuestion,
-				Arguments: `{"question": "What is your favorite color?"}`,
+				ID:   "call_1",
+				Name: agents.ToolAskUserQuestion,
+				Arguments: `{
+					"questions": [
+						{
+							"question": "What is your favorite color?",
+							"header": "Color",
+							"multiSelect": false,
+							"options": [
+								{"label": "Red", "description": "Warm and vibrant"},
+								{"label": "Blue", "description": "Cool and calming"}
+							]
+						}
+					]
+				}`,
 			},
 		}),
 		agents.WithInterruptType(agents.ToolAskUserQuestion),
@@ -912,9 +941,21 @@ func TestExecutor_NoCheckpointerInterruptFails(t *testing.T) {
 			content: "I need to ask a question.",
 			toolCalls: []agents.ToolCall{
 				{
-					ID:        "call_1",
-					Name:      agents.ToolAskUserQuestion,
-					Arguments: `{"question": "Test?"}`,
+					ID:   "call_1",
+					Name: agents.ToolAskUserQuestion,
+					Arguments: `{
+						"questions": [
+							{
+								"question": "Test?",
+								"header": "Test",
+								"multiSelect": false,
+								"options": [
+									{"label": "Yes", "description": "Affirmative"},
+									{"label": "No", "description": "Negative"}
+								]
+							}
+						]
+					}`,
 				},
 			},
 			finishReason: "tool_calls",

@@ -93,23 +93,16 @@ type Interrupt {
 
 # Question represents a question waiting for user answer
 type Question {
-  id: String!
-  text: String!
-  type: QuestionType!
-  options: [QuestionOption!]
-}
-
-# QuestionType enum
-enum QuestionType {
-  TEXT
-  SINGLE_CHOICE
-  MULTIPLE_CHOICE
+  question: String!
+  header: String!
+  multiSelect: Boolean!
+  options: [QuestionOption!]!
 }
 
 # QuestionOption represents an option for choice questions
 type QuestionOption {
-  id: String!
   label: String!
+  description: String!
 }
 
 # MessageChunk for streaming responses

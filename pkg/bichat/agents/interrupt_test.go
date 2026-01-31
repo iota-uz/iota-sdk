@@ -111,8 +111,18 @@ func TestAskUserQuestionHandler_Handle(t *testing.T) {
 	handler := &AskUserQuestionHandler{}
 	ctx := context.Background()
 
-	questionData := map[string]string{
-		"question": "What is your favorite color?",
+	questionData := map[string]interface{}{
+		"questions": []map[string]interface{}{
+			{
+				"question":    "What is your favorite color?",
+				"header":      "Color",
+				"multiSelect": false,
+				"options": []map[string]string{
+					{"label": "Red", "description": "Warm and vibrant"},
+					{"label": "Blue", "description": "Cool and calming"},
+				},
+			},
+		},
 	}
 	data, err := json.Marshal(questionData)
 	if err != nil {

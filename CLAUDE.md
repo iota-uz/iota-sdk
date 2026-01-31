@@ -198,6 +198,252 @@ modules/{module}/
 ### Core Rules
 - **Use `// TODO` comments** for unimplemented parts or future enhancements
 
+## BiChat UI Library
+
+**Location**: `/ui/bichat/`
+**Package**: `@iota-uz/bichat-ui`
+
+BiChat is a React UI library for building AI-powered chat interfaces. It provides components, hooks, and data sources for streaming conversations with HITL (Human-in-the-Loop) support.
+
+### Build Commands
+```bash
+cd ui/bichat
+npm run build        # Build library for production
+npm run typecheck    # TypeScript type checking
+npm run lint         # ESLint code quality check
+npm run dev          # Development mode with hot reload
+```
+
+### Architecture
+
+**Core Components**:
+- `ChatSession` - Main chat UI component
+- `MessageList` - Message display with auto-scroll
+- `MessageInput` - User input with attachments
+- `TurnBubble` - User/assistant message bubbles
+- `MarkdownRenderer` - Markdown with syntax highlighting
+- `ChartCard` - Chart visualization (recharts)
+- `InlineQuestionForm` - HITL question forms
+
+**Context Providers**:
+- `ConfigProvider` - Props-based configuration (user, tenant, locale, endpoints)
+- `ChatSessionProvider` - Session state management
+- `IotaContextProvider` - Legacy global config support
+
+**Hooks**:
+- `useChat()` - Access chat session state and actions
+- `useStreaming()` - Handle AsyncGenerator streaming with cancellation
+- `useConfig()` - Access BiChat configuration
+- `useTranslation()` - i18n translation support
+
+**Data Sources**:
+- `HttpDataSource` - Built-in HTTP/GraphQL client with SSE streaming
+- `ChatDataSource` (interface) - Custom data source implementations
+
+**Utilities**:
+- `RateLimiter` - Per-session rate limiting
+- CSRF token management
+
+### Configuration API
+
+**Props-Based Configuration** (Recommended):
+```tsx
+import { ConfigProvider, ChatSessionProvider, ChatSession, createHttpDataSource } from '@iota-uz/bichat-ui'
+import '@iota-uz/bichat-ui/styles.css'
+
+const config = {
+  user: {
+    id: '123',
+    email: 'user@example.com',
+    firstName: 'John',
+    lastName: 'Doe',
+    permissions: ['chat.read', 'chat.write']
+  },
+  tenant: {
+    id: 'tenant-1',
+    name: 'Acme Corp'
+  },
+  locale: {
+    language: 'en',
+    translations: { 'chat.title': 'Chat' }
+  },
+  endpoints: {
+    graphQL: '/graphql',
+    stream: '/stream'
+  },
+  csrfToken: 'abc123'
+}
+
+const dataSource = createHttpDataSource({
+  baseUrl: 'https://api.example.com',
+  graphQLEndpoint: '/graphql',
+  streamEndpoint: '/stream',
+  csrfToken: config.csrfToken
+})
+
+function App() {
+  return (
+    <ConfigProvider config={config}>
+      <ChatSessionProvider dataSource={dataSource}>
+        <ChatSession />
+      </ChatSessionProvider>
+    </ConfigProvider>
+  )
+}
+```
+
+**Global Config Fallback** (Legacy):
+```tsx
+// Falls back to window.__BICHAT_CONTEXT__
+<ConfigProvider useGlobalConfig={true}>
+  <ChatSessionProvider dataSource={dataSource}>
+    <ChatSession />
+  </ChatSessionProvider>
+</ConfigProvider>
+```
+
+### Data Source API
+
+**HttpDataSource** - Built-in implementation with SSE streaming:
+```tsx
+import { createHttpDataSource } from '@iota-uz/bichat-ui'
+
+const dataSource = createHttpDataSource({
+  baseUrl: 'https://api.example.com',
+  graphQLEndpoint: '/graphql',  // default
+  streamEndpoint: '/stream',    // default
+  csrfToken: () => getCSRFToken(),  // function or string
+  headers: { 'X-Custom': 'value' },
+  timeout: 30000
+})
+```
+
+**Custom Data Source** - Implement `ChatDataSource` interface:
+```tsx
+interface ChatDataSource {
+  createSession(): Promise<ChatSession>
+  fetchSession(id: string): Promise<SessionState | null>
+  sendMessage(
+    sessionId: string,
+    content: string,
+    attachments?: Attachment[],
+    signal?: AbortSignal
+  ): AsyncGenerator<StreamChunk>
+  submitQuestionAnswers(
+    sessionId: string,
+    questionId: string,
+    answers: QuestionAnswers
+  ): Promise<{ success: boolean; error?: string }>
+  cancelPendingQuestion(questionId: string): Promise<{ success: boolean; error?: string }>
+  navigateToSession?(sessionId: string): void
+}
+```
+
+### Streaming & Cancellation
+
+**Built-in cancellation support**:
+```tsx
+function ChatExample() {
+  const { sendMessage, cancel, isStreaming } = useChat()
+
+  const handleSend = async (content: string) => {
+    await sendMessage(content)
+  }
+
+  const handleCancel = () => {
+    cancel()  // Abort ongoing stream
+  }
+
+  return (
+    <div>
+      {isStreaming && <button onClick={handleCancel}>Cancel</button>}
+    </div>
+  )
+}
+```
+
+**useStreaming hook** - Low-level streaming control:
+```tsx
+const { content, isStreaming, processStream, cancel, reset } = useStreaming({
+  onChunk: (content) => console.log(content),
+  onError: (error) => console.error(error),
+  onDone: () => console.log('done')
+})
+
+// Process stream with cancellation
+const abortController = new AbortController()
+await processStream(messageStream, abortController.signal)
+
+// Cancel stream
+cancel()
+```
+
+### Rate Limiting
+
+**Per-session rate limiter**:
+```tsx
+import { RateLimiter } from '@iota-uz/bichat-ui'
+
+const limiter = new RateLimiter({
+  maxRequests: 20,
+  windowMs: 60000  // 1 minute
+})
+
+<ChatSessionProvider dataSource={dataSource} rateLimiter={limiter}>
+  <ChatSession />
+</ChatSessionProvider>
+```
+
+**Default configuration**:
+- `maxRequests: 20`
+- `windowMs: 60000` (1 minute)
+
+### Type Exports
+
+All types are exported from the main entry point:
+```tsx
+import type {
+  BiChatConfig,
+  ChatSessionType,
+  Message,
+  MessageRole,
+  Attachment,
+  StreamChunk,
+  ChatDataSource,
+  RateLimiterConfig,
+  HttpDataSourceConfig,
+  PendingQuestion,
+  QuestionAnswers
+} from '@iota-uz/bichat-ui'
+```
+
+### Development Workflow
+
+**TypeScript Strictness**:
+- Strict mode enabled
+- No `any` types
+- Comprehensive type exports
+
+**Component Patterns**:
+- Functional components with hooks
+- TypeScript for all files
+- CSS variables for theming
+
+**Testing** (when implemented):
+- Unit tests for utilities (RateLimiter)
+- Integration tests for data sources
+- Component tests with React Testing Library
+
+### Backend Integration
+
+BiChat integrates with the BiChat Go module (`modules/bichat/`):
+- GraphQL API for session management
+- SSE streaming for real-time responses
+- CSRF token support
+- Multi-tenant isolation
+
+See `modules/bichat/` for backend implementation details.
+
 ### Extensibility Patterns for Child Projects
 
 #### PageContextProvider Interface

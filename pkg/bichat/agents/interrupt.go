@@ -189,10 +189,18 @@ func (h *AskUserQuestionHandler) Handle(ctx context.Context, event InterruptEven
 	// In production, replace this with actual UI interaction logic
 
 	var data struct {
-		Question string `json:"question"`
+		Questions []struct {
+			Question    string `json:"question"`
+			Header      string `json:"header"`
+			MultiSelect bool   `json:"multiSelect"`
+			Options     []struct {
+				Label       string `json:"label"`
+				Description string `json:"description"`
+			} `json:"options"`
+		} `json:"questions"`
 	}
 	if err := json.Unmarshal(event.Data, &data); err != nil {
-		return false, fmt.Errorf("parse question data: %w", err)
+		return false, fmt.Errorf("parse questions data: %w", err)
 	}
 
 	// TODO: Implement actual user interaction

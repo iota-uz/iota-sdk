@@ -541,18 +541,10 @@ func (e *Executor) executeToolCalls(
 
 		// Check for interrupt tools
 		if tc.Name == ToolAskUserQuestion {
-			// Parse question from arguments
-			var args struct {
-				Question string `json:"question"`
-			}
-			if err := json.Unmarshal([]byte(tc.Arguments), &args); err != nil {
-				return nil, nil, fmt.Errorf("parse ask_user_question args: %w", err)
-			}
-
-			// Create interrupt event
-			interruptData, _ := json.Marshal(map[string]string{
-				"question": args.Question,
-			})
+			// The tool already returns formatted InterruptData in its result
+			// Just parse it and create the interrupt event
+			// tc.Arguments contains the full question data structure
+			interruptData := json.RawMessage(tc.Arguments)
 
 			interrupt := &InterruptEvent{
 				Type: ToolAskUserQuestion,
