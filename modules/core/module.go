@@ -93,6 +93,12 @@ func (m *Module) Register(app application.Application) error {
 
 	// Create encryptor for TOTP secrets
 	var encryptor pkgtwofactor.SecretEncryptor
+
+	// In production, TOTP_ENCRYPTION_KEY is required to prevent plaintext storage
+	if conf.GoAppEnvironment == "production" && conf.TwoFactorAuth.EncryptionKey == "" {
+		return fmt.Errorf("TOTP_ENCRYPTION_KEY is required in production environment")
+	}
+
 	if conf.TwoFactorAuth.EncryptionKey != "" {
 		// Production: Use AES-256-GCM encryption
 		encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)

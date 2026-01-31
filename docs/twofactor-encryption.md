@@ -36,12 +36,20 @@ TOTP_ENCRYPTION_KEY=XyZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFG=
 The SDK automatically selects the appropriate encryptor:
 
 - **With encryption key**: Uses `AESEncryptor` (production)
-- **Without encryption key**: Uses `NoopEncryptor` (development)
+- **Without encryption key**: Uses `NoopEncryptor` (development only)
+
+**Production Environment Protection**: The system will fail to start if `TOTP_ENCRYPTION_KEY` is missing in production, preventing accidental plaintext storage of TOTP secrets.
 
 Check the module initialization in `modules/core/module.go`:
 
 ```go
 var encryptor pkgtwofactor.SecretEncryptor
+
+// In production, TOTP_ENCRYPTION_KEY is required to prevent plaintext storage
+if conf.GoAppEnvironment == "production" && conf.TwoFactorAuth.EncryptionKey == "" {
+    return fmt.Errorf("TOTP_ENCRYPTION_KEY is required in production environment")
+}
+
 if conf.TwoFactorAuth.EncryptionKey != "" {
     // Production: Use AES-256-GCM encryption
     encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)
@@ -56,7 +64,7 @@ if conf.TwoFactorAuth.EncryptionKey != "" {
 
 For local development, you can omit the `TOTP_ENCRYPTION_KEY` variable. The system will use `NoopEncryptor` which stores secrets in plaintext.
 
-**WARNING**: Never use NoopEncryptor in production environments!
+**IMPORTANT**: The system enforces this restriction - attempting to start in production mode (`GO_APP_ENV=production`) without `TOTP_ENCRYPTION_KEY` will cause startup to fail with an error message. This prevents accidental plaintext storage of TOTP secrets in production.
 
 ## Security Considerations
 
