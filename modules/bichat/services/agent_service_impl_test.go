@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,8 +72,8 @@ type mockModel struct {
 func newMockModel() *mockModel {
 	return &mockModel{
 		response: &agents.Response{
-			Message: agents.NewAssistantMessage("Test response", nil),
-			Usage: agents.TokenUsage{
+			Message: *types.AssistantMessage("Test response"),
+			Usage: types.TokenUsage{
 				PromptTokens:     10,
 				CompletionTokens: 20,
 				TotalTokens:      30,
@@ -85,7 +87,7 @@ func newMockModel() *mockModel {
 				Delta:        "",
 				FinishReason: "stop",
 				Done:         true,
-				Usage: &agents.TokenUsage{
+				Usage: &types.TokenUsage{
 					PromptTokens:     10,
 					CompletionTokens: 20,
 					TotalTokens:      30,
@@ -102,12 +104,17 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 	return m.response, nil
 }
 
-func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) agents.Generator[agents.Chunk] {
-	return agents.NewGenerator(func(yield func(agents.Chunk) bool) error {
+func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk] {
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.err != nil {
 			return m.err
 		}
 		for _, chunk := range m.chunks {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
 			if !yield(chunk) {
 				return nil
 			}
@@ -206,6 +213,116 @@ func (m *mockCheckpointer) LoadAndDelete(ctx context.Context, checkpointID strin
 	return checkpoint, nil
 }
 
+// mockChatRepository is a test implementation of domain.ChatRepository
+type mockChatRepository struct {
+	sessions    map[uuid.UUID]*domain.Session
+	messages    map[uuid.UUID][]*types.Message
+	attachments map[uuid.UUID]*domain.Attachment
+}
+
+func newMockChatRepository() *mockChatRepository {
+	return &mockChatRepository{
+		sessions:    make(map[uuid.UUID]*domain.Session),
+		messages:    make(map[uuid.UUID][]*types.Message),
+		attachments: make(map[uuid.UUID]*domain.Attachment),
+	}
+}
+
+func (m *mockChatRepository) CreateSession(ctx context.Context, session *domain.Session) error {
+	if session.ID == uuid.Nil {
+		session.ID = uuid.New()
+	}
+	m.sessions[session.ID] = session
+	return nil
+}
+
+func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
+	session, exists := m.sessions[id]
+	if !exists {
+		return nil, errors.New("session not found")
+	}
+	return session, nil
+}
+
+func (m *mockChatRepository) UpdateSession(ctx context.Context, session *domain.Session) error {
+	m.sessions[session.ID] = session
+	return nil
+}
+
+func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]*domain.Session, error) {
+	var sessions []*domain.Session
+	for _, session := range m.sessions {
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+
+func (m *mockChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
+	delete(m.sessions, id)
+	delete(m.messages, id)
+	return nil
+}
+
+func (m *mockChatRepository) SaveMessage(ctx context.Context, msg *types.Message) error {
+	if msg.ID == uuid.Nil {
+		msg.ID = uuid.New()
+	}
+	m.messages[msg.SessionID] = append(m.messages[msg.SessionID], msg)
+	return nil
+}
+
+func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*types.Message, error) {
+	for _, msgs := range m.messages {
+		for _, msg := range msgs {
+			if msg.ID == id {
+				return msg, nil
+			}
+		}
+	}
+	return nil, errors.New("message not found")
+}
+
+func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
+	msgs, exists := m.messages[sessionID]
+	if !exists {
+		return []*types.Message{}, nil
+	}
+	return msgs, nil
+}
+
+func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment *domain.Attachment) error {
+	if attachment.ID == uuid.Nil {
+		attachment.ID = uuid.New()
+	}
+	m.attachments[attachment.ID] = attachment
+	return nil
+}
+
+func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
+	att, exists := m.attachments[id]
+	if !exists {
+		return nil, errors.New("attachment not found")
+	}
+	return att, nil
+}
+
+func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]*domain.Attachment, error) {
+	var atts []*domain.Attachment
+	for _, att := range m.attachments {
+		atts = append(atts, att)
+	}
+	return atts, nil
+}
+
+func (m *mockChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
+	delete(m.attachments, id)
+	return nil
+}
+
 func TestNewAgentService(t *testing.T) {
 	t.Parallel()
 
@@ -213,6 +330,7 @@ func TestNewAgentService(t *testing.T) {
 	model := newMockModel()
 	renderer := &mockRenderer{}
 	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
 
 	policy := bichatctx.ContextPolicy{
 		ContextWindow:     4096,
@@ -227,6 +345,7 @@ func TestNewAgentService(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		ChatRepo:     chatRepo,
 	})
 
 	assert.NotNil(t, service)
@@ -244,6 +363,7 @@ func TestProcessMessage_Success(t *testing.T) {
 	model := newMockModel()
 	renderer := &mockRenderer{}
 	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
 
 	policy := bichatctx.ContextPolicy{
 		ContextWindow:     4096,
@@ -258,6 +378,7 @@ func TestProcessMessage_Success(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		ChatRepo:     chatRepo,
 	})
 
 	// Create context with tenant ID
@@ -315,6 +436,7 @@ func TestProcessMessage_MissingTenantID(t *testing.T) {
 	model := newMockModel()
 	renderer := &mockRenderer{}
 	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
 
 	policy := bichatctx.ContextPolicy{
 		ContextWindow:     4096,
@@ -329,6 +451,7 @@ func TestProcessMessage_MissingTenantID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		ChatRepo:     chatRepo,
 	})
 
 	// Create context WITHOUT tenant ID
@@ -353,6 +476,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	model := newMockModel()
 	renderer := &mockRenderer{}
 	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
 
 	policy := bichatctx.ContextPolicy{
 		ContextWindow:     4096,
@@ -367,6 +491,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		ChatRepo:     chatRepo,
 	})
 
 	// Create context with tenant ID
@@ -378,16 +503,20 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	checkpoint := agents.NewCheckpoint(
 		"test-thread",
 		"test_agent",
-		[]agents.Message{
-			agents.NewUserMessage("What is 2+2?"),
+		[]types.Message{
+			*types.UserMessage("What is 2+2?"),
 		},
 	)
 	checkpointID, err := checkpointer.Save(ctx, checkpoint)
 	require.NoError(t, err)
 
 	sessionID := uuid.New()
+
+	// Test with multiple answers to verify map support
 	answers := map[string]string{
-		"q1": "4",
+		"question_1": "Q1 2024",
+		"question_2": "revenue",
+		"question_3": "increase",
 	}
 
 	// Execute
@@ -421,6 +550,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 	model := newMockModel()
 	renderer := &mockRenderer{}
 	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
 
 	policy := bichatctx.ContextPolicy{
 		ContextWindow:     4096,
@@ -435,6 +565,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		ChatRepo:     chatRepo,
 	})
 
 	// Create context with tenant ID
@@ -461,6 +592,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	model := newMockModel()
 	renderer := &mockRenderer{}
 	checkpointer := newMockCheckpointer()
+	chatRepo := newMockChatRepository()
 
 	policy := bichatctx.ContextPolicy{
 		ContextWindow:     4096,
@@ -475,6 +607,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 		Policy:       policy,
 		Renderer:     renderer,
 		Checkpointer: checkpointer,
+		ChatRepo:     chatRepo,
 	})
 
 	// Create context WITHOUT tenant ID
@@ -580,8 +713,8 @@ func TestConvertExecutorEvent_Done(t *testing.T) {
 		Type: agents.EventTypeDone,
 		Done: true,
 		Result: &agents.Response{
-			Message: agents.NewAssistantMessage("Final response", nil),
-			Usage: agents.TokenUsage{
+			Message: *types.AssistantMessage("Final response"),
+			Usage: types.TokenUsage{
 				PromptTokens:     100,
 				CompletionTokens: 50,
 				TotalTokens:      150,
@@ -619,7 +752,12 @@ func TestGeneratorAdapter_Close(t *testing.T) {
 	t.Parallel()
 
 	// Create a simple executor event generator for testing
-	execGen := agents.NewGenerator(func(yield func(agents.ExecutorEvent) bool) error {
+	execGen := types.NewGenerator(context.Background(), func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		yield(agents.ExecutorEvent{
 			Type:  agents.EventTypeChunk,
 			Chunk: &agents.Chunk{Delta: "test"},
@@ -627,7 +765,10 @@ func TestGeneratorAdapter_Close(t *testing.T) {
 		return nil
 	})
 
-	adapter := &generatorAdapter{inner: execGen}
+	adapter := &generatorAdapter{
+		ctx:   context.Background(),
+		inner: execGen,
+	}
 	adapter.Close()
 
 	// After close, Next should return hasMore=false

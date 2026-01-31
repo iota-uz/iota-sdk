@@ -8,8 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/codecs"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -26,6 +28,7 @@ type agentServiceImpl struct {
 	renderer     bichatctx.Renderer
 	checkpointer agents.Checkpointer
 	eventBus     hooks.EventBus
+	chatRepo     domain.ChatRepository
 }
 
 // AgentServiceConfig holds configuration for creating an AgentService.
@@ -35,7 +38,8 @@ type AgentServiceConfig struct {
 	Policy       bichatctx.ContextPolicy
 	Renderer     bichatctx.Renderer
 	Checkpointer agents.Checkpointer
-	EventBus     hooks.EventBus // Optional
+	EventBus     hooks.EventBus        // Optional
+	ChatRepo     domain.ChatRepository // Repository for loading messages
 }
 
 // NewAgentService creates a production implementation of AgentService.
@@ -49,6 +53,7 @@ type AgentServiceConfig struct {
 //	    Renderer:     renderer,
 //	    Checkpointer: checkpointer,
 //	    EventBus:     eventBus,
+//	    ChatRepo:     chatRepo,
 //	})
 func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 	return &agentServiceImpl{
@@ -58,6 +63,7 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		renderer:     cfg.Renderer,
 		checkpointer: cfg.Checkpointer,
 		eventBus:     cfg.EventBus,
+		chatRepo:     cfg.ChatRepo,
 	}
 }
 
@@ -81,18 +87,113 @@ func (s *agentServiceImpl) ProcessMessage(
 		return nil, serrors.E(op, err)
 	}
 
-	// TODO: Load session messages from repository
-	// For now, we'll create a simple message history placeholder
-	var sessionMessages []types.Message
-
-	// TODO: Use Context Builder when codecs are available
-	// For now, compile a simple context directly
-	compiled, err := s.compileSimpleContext(ctx, sessionMessages, content)
+	// Load session messages from repository
+	opts := domain.ListOptions{Limit: 100, Offset: 0}
+	domainMessages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
 
-	// Create executor with agent, model, and options
+	// Convert domain messages to types.Message for agent framework
+	sessionMessages := make([]types.Message, 0, len(domainMessages))
+	for _, dm := range domainMessages {
+		msg := types.Message{
+			ID:        dm.ID,
+			SessionID: dm.SessionID,
+			Role:      dm.Role,
+			Content:   dm.Content,
+		}
+
+		// Handle tool calls if present
+		if len(dm.ToolCalls) > 0 {
+			msg.ToolCalls = dm.ToolCalls
+		}
+
+		// Handle tool call ID if present
+		if dm.ToolCallID != nil {
+			msg.ToolCallID = dm.ToolCallID
+		}
+
+		sessionMessages = append(sessionMessages, msg)
+	}
+
+	// Build context graph using Context Builder
+	builder := bichatctx.NewBuilder()
+
+	// 1. System prompt (KindPinned)
+	systemPrompt := s.agent.SystemPrompt(ctx)
+	if systemPrompt != "" {
+		systemCodec := codecs.NewSystemRulesCodec()
+		builder.System(systemCodec, systemPrompt)
+	}
+
+	// 2. Session history (KindHistory)
+	if len(sessionMessages) > 0 {
+		historyCodec := codecs.NewConversationHistoryCodec()
+		historyPayload := convertToHistoryPayload(sessionMessages)
+		builder.History(historyCodec, historyPayload)
+	}
+
+	// 3. Current user turn (KindTurn)
+	userMsg := types.UserMessage(content)
+
+	// Add attachments if present
+	if len(attachments) > 0 {
+		userMsg.Attachments = convertToTypeAttachments(attachments)
+	}
+
+	// Use systemCodec for turn (it accepts string payload via extractText)
+	systemCodec := codecs.NewSystemRulesCodec()
+	builder.Turn(systemCodec, userMsg.Content)
+
+	// Compile with renderer and policy
+	compiled, err := builder.Compile(s.renderer, s.policy)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	// Emit context.compile event
+	if s.eventBus != nil {
+		// Convert TokensByKind map keys from BlockKind to string
+		tokensByKindStr := make(map[string]int)
+		for kind, tokens := range compiled.TokensByKind {
+			tokensByKindStr[string(kind)] = tokens
+		}
+
+		event := events.NewContextCompileEvent(
+			sessionID,
+			tenantID,
+			s.renderer.Provider(),
+			compiled.TotalTokens,
+			tokensByKindStr,
+			len(compiled.Messages),
+			false, // compacted (not implemented yet)
+			compiled.Truncated,
+			0, // excludedBlocks (not tracked yet)
+		)
+		_ = s.eventBus.Publish(ctx, event)
+	}
+
+	// Convert compiled.Messages to []types.Message for executor
+	executorMessages := make([]types.Message, 0, len(compiled.Messages))
+	for _, msg := range compiled.Messages {
+		// Messages are provider-specific map[string]any
+		msgMap, ok := msg.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		// Extract role and content from message map
+		role, _ := msgMap["role"].(string)
+		content, _ := msgMap["content"].(string)
+
+		executorMessages = append(executorMessages, types.Message{
+			Role:    types.Role(role),
+			Content: content,
+		})
+	}
+
+	// Create executor with agent, model, and checkpointer
 	executor := agents.NewExecutor(
 		s.agent,
 		s.model,
@@ -103,7 +204,7 @@ func (s *agentServiceImpl) ProcessMessage(
 
 	// Execute agent and get event generator
 	input := agents.Input{
-		Messages:  compiled,
+		Messages:  executorMessages,
 		SessionID: sessionID,
 		TenantID:  tenantID,
 	}
@@ -148,47 +249,11 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 		agents.WithMaxIterations(10),
 	)
 
-	// Resume execution from checkpoint
-	// Note: The executor's Resume method expects a single answer string,
-	// but we receive a map. We'll join the answers for now.
-	// TODO: Update executor.Resume to accept map[string]string
-	var answer string
-	if len(answers) > 0 {
-		// For now, take the first answer
-		for _, v := range answers {
-			answer = v
-			break
-		}
-	}
-
-	execGen := executor.Resume(ctx, checkpointID, answer)
+	// Resume execution from checkpoint with user answers
+	execGen := executor.Resume(ctx, checkpointID, answers)
 
 	// Wrap the executor generator into a service event generator
 	return s.wrapExecutorGenerator(ctx, execGen), nil
-}
-
-// compileSimpleContext creates a simple message list without using the full context builder.
-// This is a temporary implementation until codecs are available.
-func (s *agentServiceImpl) compileSimpleContext(
-	ctx context.Context,
-	sessionMessages []types.Message,
-	userContent string,
-) ([]types.Message, error) {
-	messages := make([]types.Message, 0, len(sessionMessages)+2)
-
-	// Add system prompt if agent provides one
-	systemPrompt := s.agent.SystemPrompt(ctx)
-	if systemPrompt != "" {
-		messages = append(messages, *types.SystemMessage(systemPrompt))
-	}
-
-	// Add session history
-	messages = append(messages, sessionMessages...)
-
-	// Add current user message
-	messages = append(messages, *types.UserMessage(userContent))
-
-	return messages, nil
 }
 
 // wrapExecutorGenerator wraps an executor event generator into a service event generator.
@@ -313,12 +378,46 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 		}
 	}
 
-	// The checkpointID should be set by the executor
-	// TODO: Extract checkpoint ID from interrupt metadata when available
+	// TODO: The checkpoint ID should be passed through the InterruptEvent or ExecutorEvent metadata.
+	// For now, we use a temporary placeholder that will be replaced when the agents package
+	// is updated to include checkpoint ID in the interrupt event structure.
+	// The actual checkpoint ID is saved by the executor and should be communicated through
+	// the event system or executor event metadata.
 	checkpointID := fmt.Sprintf("checkpoint_%s", agentInterrupt.SessionID.String())
 
 	return &services.InterruptEvent{
 		CheckpointID: checkpointID,
 		Questions:    questions,
 	}
+}
+
+// convertToHistoryPayload converts types.Message slice to ConversationHistoryPayload
+func convertToHistoryPayload(messages []types.Message) codecs.ConversationHistoryPayload {
+	historyMessages := make([]codecs.ConversationMessage, 0, len(messages))
+	for _, msg := range messages {
+		historyMessages = append(historyMessages, codecs.ConversationMessage{
+			Role:    string(msg.Role),
+			Content: msg.Content,
+		})
+	}
+	return codecs.ConversationHistoryPayload{
+		Messages: historyMessages,
+	}
+}
+
+// convertToTypeAttachments converts domain attachments to types.Attachment slice
+func convertToTypeAttachments(domainAttachments []domain.Attachment) []types.Attachment {
+	result := make([]types.Attachment, len(domainAttachments))
+	for i, a := range domainAttachments {
+		result[i] = types.Attachment{
+			ID:        a.ID,
+			MessageID: a.MessageID,
+			FileName:  a.FileName,
+			MimeType:  a.MimeType,
+			SizeBytes: a.SizeBytes,
+			FilePath:  a.FilePath,
+			CreatedAt: a.CreatedAt,
+		}
+	}
+	return result
 }
