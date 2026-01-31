@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
@@ -84,10 +85,10 @@ func NewTwoFactorService(
 
 	// Validate required dependencies BEFORE creating helper services
 	if svc.encryptor == nil {
-		return nil, fmt.Errorf("TwoFactorService: encryptor is required (use WithSecretEncryptor option)")
+		return nil, serrors.E(serrors.Op("NewTwoFactorService"), serrors.Invalid, errors.New("encryptor is required (use WithSecretEncryptor option)"))
 	}
 	if svc.otpSender == nil {
-		return nil, fmt.Errorf("TwoFactorService: otpSender is required (use WithOTPSender option)")
+		return nil, serrors.E(serrors.Op("NewTwoFactorService"), serrors.Invalid, errors.New("otpSender is required (use WithOTPSender option)"))
 	}
 
 	// Initialize helper services (only after validation passes)
@@ -116,15 +117,17 @@ func NewTwoFactorService(
 // BeginSetup starts a 2FA setup flow for a user
 // Returns a challenge that contains method-specific data (QR code for TOTP, expiry for OTP)
 func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method pkgtf.Method) (*SetupChallenge, error) {
+	const op serrors.Op = "TwoFactorService.BeginSetup"
+
 	// Get user
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 	}
 
 	// Check if 2FA is already enabled
 	if u.Has2FAEnabled() {
-		return nil, errors.New("2FA is already enabled for this user")
+		return nil, serrors.E(op, serrors.Invalid, errors.New("2FA is already enabled for this user"))
 	}
 
 	// Generate challenge ID
@@ -138,20 +141,20 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 		// Generate TOTP secret
 		secret, err := s.totpService.GenerateSecret()
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate TOTP secret: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to generate TOTP secret: %w", err))
 		}
 
 		// Generate QR code URL
 		accountName := u.Email().Value()
 		qrURL, err := s.totpService.GenerateQRCodeURL(accountName, secret)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate QR URL: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to generate QR URL: %w", err))
 		}
 
 		// Generate QR code PNG
 		qrPNG, err := s.totpService.GenerateQRCodePNG(accountName, secret, s.qrCodeSize)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate QR code: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to generate QR code: %w", err))
 		}
 
 		// Store challenge data
@@ -177,13 +180,13 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 		// Get user's phone number
 		phone := u.Phone()
 		if phone.Value() == "" {
-			return nil, errors.New("user has no phone number configured")
+			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
 		}
 
 		// Generate and send OTP
 		_, otpExpiresAt, err := s.otpService.Generate(ctx, userID, pkgtf.ChannelSMS, phone.Value())
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate SMS OTP: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to generate SMS OTP: %w", err))
 		}
 
 		// Store challenge data
@@ -207,13 +210,13 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 		// Get user's email
 		email := u.Email().Value()
 		if email == "" {
-			return nil, errors.New("user has no email configured")
+			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no email configured"))
 		}
 
 		// Generate and send OTP
 		_, otpExpiresAt, err := s.otpService.Generate(ctx, userID, pkgtf.ChannelEmail, email)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate email OTP: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to generate email OTP: %w", err))
 		}
 
 		// Store challenge data
@@ -234,10 +237,10 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 		}
 
 	case pkgtf.MethodBackupCodes:
-		return nil, fmt.Errorf("%w: backup codes cannot be used for initial setup", pkgtf.ErrMethodNotSupported)
+		return nil, serrors.E(op, pkgtf.ErrMethodNotSupported, errors.New("backup codes cannot be used for initial setup"))
 
 	default:
-		return nil, fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, method)
+		return nil, serrors.E(op, pkgtf.ErrMethodNotSupported, fmt.Errorf("unsupported method: %s", method))
 	}
 
 	return challenge, nil
@@ -285,18 +288,20 @@ func preserveUserFields(u user.User, opts ...user.Option) user.User {
 
 // ConfirmSetup completes the 2FA setup by verifying the code
 func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challengeID, code string) (*SetupResult, error) {
+	const op serrors.Op = "TwoFactorService.ConfirmSetup"
+
 	// Get challenge data
 	s.challengesMu.RLock()
 	challengeData, exists := s.setupChallenges[challengeID]
 	s.challengesMu.RUnlock()
 
 	if !exists {
-		return nil, errors.New("invalid or expired challenge")
+		return nil, serrors.E(op, serrors.NotFound, errors.New("invalid or expired challenge"))
 	}
 
 	// Verify user ID matches
 	if challengeData.UserID != userID {
-		return nil, errors.New("challenge does not belong to this user")
+		return nil, serrors.E(op, serrors.Invalid, errors.New("challenge does not belong to this user"))
 	}
 
 	// Check expiration
@@ -304,7 +309,7 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 		s.challengesMu.Lock()
 		delete(s.setupChallenges, challengeID)
 		s.challengesMu.Unlock()
-		return nil, errors.New("challenge has expired")
+		return nil, serrors.E(op, serrors.Invalid, errors.New("challenge has expired"))
 	}
 
 	// Verify code based on method
@@ -314,36 +319,36 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 		// Validate TOTP code
 		valid, err := s.totpService.ValidateWithSkew(challengeData.Secret, code, s.totpSkew)
 		if err != nil {
-			return nil, fmt.Errorf("failed to validate TOTP: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to validate TOTP: %w", err))
 		}
 		if !valid {
-			return nil, pkgtf.ErrInvalidCode
+			return nil, serrors.E(op, pkgtf.ErrInvalidCode)
 		}
 
 		// Encrypt secret for storage
 		encrypted, err := s.totpService.EncryptSecret(ctx, challengeData.Secret)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt secret: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to encrypt secret: %w", err))
 		}
 		encryptedSecret = encrypted
 
 	case pkgtf.MethodSMS, pkgtf.MethodEmail:
 		// Validate OTP code
 		if err := s.otpService.Validate(ctx, challengeData.Destination, code); err != nil {
-			return nil, fmt.Errorf("failed to validate OTP: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to validate OTP: %w", err))
 		}
 
 	case pkgtf.MethodBackupCodes:
-		return nil, fmt.Errorf("%w: backup codes cannot be confirmed via this endpoint", pkgtf.ErrMethodNotSupported)
+		return nil, serrors.E(op, pkgtf.ErrMethodNotSupported, errors.New("backup codes cannot be confirmed via this endpoint"))
 
 	default:
-		return nil, fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, challengeData.Method)
+		return nil, serrors.E(op, pkgtf.ErrMethodNotSupported, fmt.Errorf("unsupported method: %s", challengeData.Method))
 	}
 
 	// Generate recovery codes
 	recoveryCodes, err := s.recoveryCodeService.Generate(s.recoveryCodeCount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate recovery codes: %w", err)
+		return nil, serrors.E(op, fmt.Errorf("failed to generate recovery codes: %w", err))
 	}
 
 	// Start transaction to update user and store recovery codes
@@ -352,7 +357,7 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 		// Get user
 		u, err := s.userRepo.GetByID(txCtx, userID)
 		if err != nil {
-			return fmt.Errorf("failed to get user: %w", err)
+			return serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 		}
 
 		// Update user with 2FA settings
@@ -367,12 +372,12 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 
 		// Update user in repository
 		if err := s.userRepo.Update(txCtx, updatedUser); err != nil {
-			return fmt.Errorf("failed to update user: %w", err)
+			return serrors.E(op, fmt.Errorf("failed to update user: %w", err))
 		}
 
 		// Store recovery codes
 		if err := s.recoveryCodeService.Store(txCtx, userID, recoveryCodes); err != nil {
-			return fmt.Errorf("failed to store recovery codes: %w", err)
+			return serrors.E(op, fmt.Errorf("failed to store recovery codes: %w", err))
 		}
 
 		result = &SetupResult{
@@ -396,15 +401,17 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 
 // BeginVerification starts a 2FA verification flow
 func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (*VerifyChallenge, error) {
+	const op serrors.Op = "TwoFactorService.BeginVerification"
+
 	// Get user
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 	}
 
 	// Check if 2FA is enabled
 	if !u.Has2FAEnabled() {
-		return nil, errors.New("2FA is not enabled for this user")
+		return nil, serrors.E(op, serrors.Invalid, errors.New("2FA is not enabled for this user"))
 	}
 
 	method := u.TwoFactorMethod()
@@ -423,13 +430,13 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 		// Get user's phone number
 		phone := u.Phone().Value()
 		if phone == "" {
-			return nil, errors.New("user has no phone number configured")
+			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no phone number configured"))
 		}
 
 		// Generate and send OTP
 		_, expiresAt, err := s.otpService.Generate(ctx, userID, pkgtf.ChannelSMS, phone)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate SMS OTP: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to generate SMS OTP: %w", err))
 		}
 
 		challenge = &VerifyChallenge{
@@ -443,13 +450,13 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 		// Get user's email
 		email := u.Email().Value()
 		if email == "" {
-			return nil, errors.New("user has no email configured")
+			return nil, serrors.E(op, serrors.Invalid, errors.New("user has no email configured"))
 		}
 
 		// Generate and send OTP
 		_, expiresAt, err := s.otpService.Generate(ctx, userID, pkgtf.ChannelEmail, email)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate email OTP: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to generate email OTP: %w", err))
 		}
 
 		challenge = &VerifyChallenge{
@@ -460,10 +467,10 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 		}
 
 	case pkgtf.MethodBackupCodes:
-		return nil, fmt.Errorf("%w: backup codes use different verification flow", pkgtf.ErrMethodNotSupported)
+		return nil, serrors.E(op, pkgtf.ErrMethodNotSupported, errors.New("backup codes use different verification flow"))
 
 	default:
-		return nil, fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, method)
+		return nil, serrors.E(op, pkgtf.ErrMethodNotSupported, fmt.Errorf("unsupported method: %s", method))
 	}
 
 	return challenge, nil
@@ -471,15 +478,17 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 
 // Verify verifies a 2FA code (TOTP or OTP)
 func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string) error {
+	const op serrors.Op = "TwoFactorService.Verify"
+
 	// Get user
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
+		return serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 	}
 
 	// Check if 2FA is enabled
 	if !u.Has2FAEnabled() {
-		return errors.New("2FA is not enabled for this user")
+		return serrors.E(op, serrors.Invalid, errors.New("2FA is not enabled for this user"))
 	}
 
 	method := u.TwoFactorMethod()
@@ -489,37 +498,37 @@ func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string)
 		// Decrypt secret
 		secret, err := s.totpService.DecryptSecret(ctx, u.TOTPSecretEncrypted())
 		if err != nil {
-			return fmt.Errorf("failed to decrypt TOTP secret: %w", err)
+			return serrors.E(op, fmt.Errorf("failed to decrypt TOTP secret: %w", err))
 		}
 
 		// Validate TOTP code
 		valid, err := s.totpService.ValidateWithSkew(secret, code, s.totpSkew)
 		if err != nil {
-			return fmt.Errorf("failed to validate TOTP: %w", err)
+			return serrors.E(op, fmt.Errorf("failed to validate TOTP: %w", err))
 		}
 		if !valid {
-			return pkgtf.ErrInvalidCode
+			return serrors.E(op, pkgtf.ErrInvalidCode)
 		}
 
 	case pkgtf.MethodSMS:
 		// Validate SMS OTP
 		phone := u.Phone().Value()
 		if err := s.otpService.Validate(ctx, phone, code); err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 
 	case pkgtf.MethodEmail:
 		// Validate email OTP
 		email := u.Email().Value()
 		if err := s.otpService.Validate(ctx, email, code); err != nil {
-			return err
+			return serrors.E(op, err)
 		}
 
 	case pkgtf.MethodBackupCodes:
-		return fmt.Errorf("%w: backup codes use VerifyRecovery method", pkgtf.ErrMethodNotSupported)
+		return serrors.E(op, pkgtf.ErrMethodNotSupported, errors.New("backup codes use VerifyRecovery method"))
 
 	default:
-		return fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, method)
+		return serrors.E(op, pkgtf.ErrMethodNotSupported, fmt.Errorf("unsupported method: %s", method))
 	}
 
 	return nil
@@ -527,20 +536,22 @@ func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string)
 
 // VerifyRecovery verifies a recovery code
 func (s *TwoFactorService) VerifyRecovery(ctx context.Context, userID uint, code string) error {
+	const op serrors.Op = "TwoFactorService.VerifyRecovery"
+
 	// Get user
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
+		return serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 	}
 
 	// Check if 2FA is enabled
 	if !u.Has2FAEnabled() {
-		return errors.New("2FA is not enabled for this user")
+		return serrors.E(op, serrors.Invalid, errors.New("2FA is not enabled for this user"))
 	}
 
 	// Validate recovery code
 	if err := s.recoveryCodeService.Validate(ctx, userID, code); err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	return nil
@@ -548,10 +559,12 @@ func (s *TwoFactorService) VerifyRecovery(ctx context.Context, userID uint, code
 
 // GetStatus returns the current 2FA status for a user
 func (s *TwoFactorService) GetStatus(ctx context.Context, userID uint) (*Status, error) {
+	const op serrors.Op = "TwoFactorService.GetStatus"
+
 	// Get user
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 	}
 
 	status := &Status{
@@ -564,7 +577,7 @@ func (s *TwoFactorService) GetStatus(ctx context.Context, userID uint) (*Status,
 	if status.Enabled {
 		remaining, err := s.recoveryCodeService.Remaining(ctx, userID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to count recovery codes: %w", err)
+			return nil, serrors.E(op, fmt.Errorf("failed to count recovery codes: %w", err))
 		}
 		status.RemainingRecoveryCodes = remaining
 	}
@@ -574,16 +587,18 @@ func (s *TwoFactorService) GetStatus(ctx context.Context, userID uint) (*Status,
 
 // Disable disables 2FA for a user
 func (s *TwoFactorService) Disable(ctx context.Context, userID uint) error {
+	const op serrors.Op = "TwoFactorService.Disable"
+
 	return composables.InTx(ctx, func(txCtx context.Context) error {
 		// Get user
 		u, err := s.userRepo.GetByID(txCtx, userID)
 		if err != nil {
-			return fmt.Errorf("failed to get user: %w", err)
+			return serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 		}
 
 		// Check if 2FA is enabled
 		if !u.Has2FAEnabled() {
-			return errors.New("2FA is not enabled for this user")
+			return serrors.E(op, serrors.Invalid, errors.New("2FA is not enabled for this user"))
 		}
 
 		// Update user to disable 2FA (preserve all fields, clear only 2FA settings)
@@ -594,12 +609,12 @@ func (s *TwoFactorService) Disable(ctx context.Context, userID uint) error {
 		)
 
 		if err := s.userRepo.Update(txCtx, updatedUser); err != nil {
-			return fmt.Errorf("failed to update user: %w", err)
+			return serrors.E(op, fmt.Errorf("failed to update user: %w", err))
 		}
 
 		// Delete all recovery codes
 		if err := s.recoveryCodeService.DeleteAll(txCtx, userID); err != nil {
-			return fmt.Errorf("failed to delete recovery codes: %w", err)
+			return serrors.E(op, fmt.Errorf("failed to delete recovery codes: %w", err))
 		}
 
 		return nil
@@ -608,36 +623,44 @@ func (s *TwoFactorService) Disable(ctx context.Context, userID uint) error {
 
 // RegenerateRecoveryCodes generates new recovery codes and replaces existing ones
 func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, userID uint) ([]string, error) {
+	const op serrors.Op = "TwoFactorService.RegenerateRecoveryCodes"
+
 	// Get user
 	u, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+		return nil, serrors.E(op, serrors.NotFound, fmt.Errorf("failed to get user: %w", err))
 	}
 
 	// Check if 2FA is enabled
 	if !u.Has2FAEnabled() {
-		return nil, errors.New("2FA is not enabled for this user")
+		return nil, serrors.E(op, serrors.Invalid, errors.New("2FA is not enabled for this user"))
 	}
 
 	// Regenerate recovery codes
 	codes, err := s.recoveryCodeService.Regenerate(ctx, userID, s.recoveryCodeCount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to regenerate recovery codes: %w", err)
+		return nil, serrors.E(op, fmt.Errorf("failed to regenerate recovery codes: %w", err))
 	}
 
 	return codes, nil
 }
 
-// GetSetupChallenge retrieves the QR code and other data for a TOTP setup challenge
-// This is used by the presentation layer to display the QR code without needing a separate endpoint
-func (s *TwoFactorService) GetSetupChallenge(challengeID string) (*SetupChallenge, error) {
+// ResendSetupOTP resends an OTP for a setup challenge
+func (s *TwoFactorService) ResendSetupOTP(ctx context.Context, challengeID string) (time.Time, error) {
+	const op serrors.Op = "TwoFactorService.ResendSetupOTP"
+
+	// Validate input
+	if challengeID == "" {
+		return time.Time{}, serrors.E(op, serrors.Invalid, errors.New("challenge ID cannot be empty"))
+	}
+
 	// Get challenge data
 	s.challengesMu.RLock()
 	challengeData, exists := s.setupChallenges[challengeID]
 	s.challengesMu.RUnlock()
 
 	if !exists {
-		return nil, errors.New("invalid or expired challenge")
+		return time.Time{}, serrors.E(op, serrors.NotFound, errors.New("invalid or expired challenge"))
 	}
 
 	// Check expiration
@@ -645,34 +668,91 @@ func (s *TwoFactorService) GetSetupChallenge(challengeID string) (*SetupChalleng
 		s.challengesMu.Lock()
 		delete(s.setupChallenges, challengeID)
 		s.challengesMu.Unlock()
-		return nil, errors.New("challenge has expired")
+		return time.Time{}, serrors.E(op, serrors.Invalid, errors.New("challenge has expired"))
 	}
 
-	// Only return challenge data for TOTP (which has QR code)
-	if challengeData.Method != pkgtf.MethodTOTP {
-		return nil, errors.New("this method is not supported for QR code retrieval")
+	// Only OTP methods support resend
+	var channel pkgtf.OTPChannel
+	switch challengeData.Method {
+	case pkgtf.MethodSMS:
+		channel = pkgtf.ChannelSMS
+	case pkgtf.MethodEmail:
+		channel = pkgtf.ChannelEmail
+	default:
+		return time.Time{}, serrors.E(op, serrors.Invalid, fmt.Errorf("resend not supported for method: %s", challengeData.Method))
 	}
 
-	// Regenerate QR code PNG for display
-	// (In production, you might want to cache this or store it in the challenge)
-	secret := challengeData.Secret
-	accountName := challengeData.AccountName
-
-	qrPNG, err := s.totpService.GenerateQRCodePNG(accountName, secret, s.qrCodeSize)
+	// Resend OTP
+	expiresAt, err := s.otpService.Resend(ctx, challengeData.UserID, channel, challengeData.Destination)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate QR code: %w", err)
+		return time.Time{}, serrors.E(op, fmt.Errorf("failed to resend OTP: %w", err))
 	}
 
-	qrURL, err := s.totpService.GenerateQRCodeURL(accountName, secret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate QR URL: %w", err)
+	return expiresAt, nil
+}
+
+// GetSetupChallenge retrieves the challenge data for a setup flow
+// This is used by the presentation layer to display method-specific data (QR code for TOTP, destination for OTP)
+func (s *TwoFactorService) GetSetupChallenge(challengeID string) (*SetupChallenge, error) {
+	const op serrors.Op = "TwoFactorService.GetSetupChallenge"
+
+	// Validate input
+	if challengeID == "" {
+		return nil, serrors.E(op, serrors.Invalid, errors.New("challenge ID cannot be empty"))
 	}
 
-	return &SetupChallenge{
-		ChallengeID: challengeID,
-		Method:      challengeData.Method,
-		QRCodeURL:   qrURL,
-		QRCodePNG:   qrPNG,
-		ExpiresAt:   challengeData.ExpiresAt,
-	}, nil
+	// Get challenge data
+	s.challengesMu.RLock()
+	challengeData, exists := s.setupChallenges[challengeID]
+	s.challengesMu.RUnlock()
+
+	if !exists {
+		return nil, serrors.E(op, serrors.NotFound, errors.New("invalid or expired challenge"))
+	}
+
+	// Check expiration
+	if time.Now().After(challengeData.ExpiresAt) {
+		s.challengesMu.Lock()
+		delete(s.setupChallenges, challengeID)
+		s.challengesMu.Unlock()
+		return nil, serrors.E(op, serrors.Invalid, errors.New("challenge has expired"))
+	}
+
+	// Handle different methods
+	switch challengeData.Method {
+	case pkgtf.MethodTOTP:
+		// Regenerate QR code PNG for display
+		secret := challengeData.Secret
+		accountName := challengeData.AccountName
+
+		qrPNG, err := s.totpService.GenerateQRCodePNG(accountName, secret, s.qrCodeSize)
+		if err != nil {
+			return nil, serrors.E(op, fmt.Errorf("failed to generate QR code: %w", err))
+		}
+
+		qrURL, err := s.totpService.GenerateQRCodeURL(accountName, secret)
+		if err != nil {
+			return nil, serrors.E(op, fmt.Errorf("failed to generate QR URL: %w", err))
+		}
+
+		return &SetupChallenge{
+			ChallengeID: challengeID,
+			Method:      challengeData.Method,
+			QRCodeURL:   qrURL,
+			QRCodePNG:   qrPNG,
+			ExpiresAt:   challengeData.ExpiresAt,
+		}, nil
+
+	case pkgtf.MethodSMS, pkgtf.MethodEmail:
+		// Return OTP challenge data with destination
+		return &SetupChallenge{
+			ChallengeID: challengeID,
+			Method:      challengeData.Method,
+			ExpiresAt:   challengeData.ExpiresAt,
+			Destination: challengeData.Destination,
+		}, nil
+
+	default:
+		return nil, serrors.E(op, serrors.Invalid, fmt.Errorf("unsupported method: %s", challengeData.Method))
+	}
 }

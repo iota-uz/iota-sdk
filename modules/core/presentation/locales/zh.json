@@ -1005,6 +1005,8 @@
       "CopyCodes": "复制代码",
       "RecoveryCodesInfo": "如果你失去对身份验证器设备的访问权限，你可以使用恢复代码。每个代码只能使用一次。",
       "InvalidCode": "你输入的代码无效或已过期。请重试。",
+      "InvalidMethod": "选择的验证方法无效。请重试。",
+      "ResendFailed": "无法重新发送验证码。请重试。",
       "Error": "无法设置两步验证。请重试。"
     },
     "Verify": {

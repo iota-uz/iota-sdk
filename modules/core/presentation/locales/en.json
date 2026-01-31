@@ -1001,6 +1001,8 @@
       "CopyCodes": "Copy Codes",
       "RecoveryCodesInfo": "You can use a recovery code instead of your authenticator device if you lose access to it. Each code can only be used once.",
       "InvalidCode": "The code you entered is invalid or has expired. Please try again.",
+      "InvalidMethod": "Invalid verification method selected. Please try again.",
+      "ResendFailed": "Failed to resend the verification code. Please try again.",
       "Error": "Failed to set up two-factor authentication. Please try again."
     },
     "Verify": {

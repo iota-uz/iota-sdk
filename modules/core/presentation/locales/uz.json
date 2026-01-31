@@ -1001,6 +1001,8 @@
       "CopyCodes": "Kodlarni nusxa olish",
       "RecoveryCodesInfo": "Agar siz authenticator qurilmasiga kirishni yo'qotgan bo'lsangiz, tiklash kodini ishlatishingiz mumkin. Har bir kod faqat bir marta ishlatilishi mumkin.",
       "InvalidCode": "Kiritgan kodingiz notog'ri yoki muddati tugagan. Iltimos, qayta urinib ko'ring.",
+      "InvalidMethod": "Noto'g'ri tekshirish usuli tanlangan. Iltimos, qayta urinib ko'ring.",
+      "ResendFailed": "Tasdiqlash kodini qayta yuborib bo'lmadi. Iltimos, qayta urinib ko'ring.",
       "Error": "Ikki faktorli autentifikatsiyani sozlab bo'lmadi. Iltimos, qayta urinib ko'ring."
     },
     "Verify": {

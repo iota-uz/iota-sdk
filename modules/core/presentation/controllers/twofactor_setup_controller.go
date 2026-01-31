@@ -321,6 +321,8 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 
 // PostOTPSend sends OTP code via SMS or Email
 func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Request) {
+	logger := composables.UseLogger(r.Context())
+
 	// Parse form
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -337,18 +339,41 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// For OTP methods, the code was already sent in BeginSetup
+	// Resend OTP for SMS/Email methods
 	methodType := pkgtwofactor.Method(method)
-	successMsg := "TwoFactor.Setup.CodeSent"
+	var successMsg string
+
 	switch methodType {
-	case pkgtwofactor.MethodSMS:
-		successMsg = "TwoFactor.Setup.SMSSent"
-	case pkgtwofactor.MethodEmail:
-		successMsg = "TwoFactor.Setup.EmailSent"
+	case pkgtwofactor.MethodSMS, pkgtwofactor.MethodEmail:
+		// Call the resend service
+		_, err := c.twoFactorService.ResendSetupOTP(r.Context(), challengeID)
+		if err != nil {
+			logger.Error("failed to resend OTP", "error", err, "method", method, "challengeID", challengeID)
+			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.ResendFailed")))
+			http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
+			return
+		}
+
+		// Set success message based on method
+		if methodType == pkgtwofactor.MethodSMS {
+			successMsg = "TwoFactor.Setup.SMSSent"
+		} else {
+			successMsg = "TwoFactor.Setup.EmailSent"
+		}
+
 	case pkgtwofactor.MethodTOTP, pkgtwofactor.MethodBackupCodes:
-		// TOTP and backup codes don't use OTP send, use default message
+		// TOTP and backup codes don't use OTP send
+		logger.Warn("invalid method for OTP send", "method", method)
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
+		return
+
 	default:
-		// Unknown method, use default message
+		// Unknown method
+		logger.Warn("unknown method for OTP send", "method", method)
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, url.QueryEscape(challengeID), url.QueryEscape(nextURL)), http.StatusFound)
+		return
 	}
 
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), successMsg)))
