@@ -155,8 +155,8 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Evaluate 2FA policy even for OAuth (should return false, but makes flow explicit)
-	if c.twoFactorPolicy != nil {
+	// Evaluate 2FA policy for OAuth authentication
+	if c.twoFactorPolicy != nil && c.twoFactorService != nil {
 		logger := composables.UseLogger(r.Context())
 
 		// Build auth attempt for 2FA policy evaluation with OAuth method
@@ -179,22 +179,66 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 			Timestamp: time.Now(),
 		}
 
-		// Check if 2FA is required for OAuth (should always be false for now)
+		// Check if 2FA is required for this OAuth authentication attempt
 		requires2FA, err := c.twoFactorPolicy.Requires(r.Context(), attempt)
 		if err != nil {
-			// Log but don't block OAuth flow
 			logger.Error("Failed to evaluate 2FA policy for OAuth", "error", err)
+			queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
+			http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+			return
 		}
 
-		// OAuth should bypass 2FA even if policy says otherwise (for now)
 		if requires2FA {
-			// Future: Could require 2FA even for OAuth if policy changes
-			// For now, just log the unexpected result
-			logger.Warn("Unexpected: 2FA policy requires 2FA for OAuth method", "method", pkgtwofactor.AuthMethodOAuth)
+			// Create a pending 2FA session
+			sessionCookie := &http.Cookie{
+				Name:     conf.SidCookieKey,
+				Value:    sess.Token(),
+				Expires:  sess.ExpiresAt(),
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   conf.GoAppEnvironment == configuration.Production,
+				Domain:   conf.Domain,
+				Path:     "/",
+			}
+
+			// Update session status to pending 2FA
+			pendingSession := session.New(
+				sess.Token(),
+				sess.UserID(),
+				sess.TenantID(),
+				sess.IP(),
+				sess.UserAgent(),
+				session.WithStatus(session.StatusPending2FA),
+				session.WithAudience(sess.Audience()),
+				session.WithExpiresAt(time.Now().Add(10*time.Minute)),
+				session.WithCreatedAt(sess.CreatedAt()),
+			)
+
+			// Update the session in the database
+			if err := c.sessionService.Update(r.Context(), pendingSession); err != nil {
+				logger.Error("Failed to update session to pending 2FA for OAuth", "error", err)
+				queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
+				http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
+				return
+			}
+
+			// Set the session cookie
+			http.SetCookie(w, sessionCookie)
+
+			// Redirect to 2FA verification or setup based on user's 2FA status
+			// nextURL already validated at the beginning of the function
+			if u.Has2FAEnabled() {
+				// User has 2FA enabled, redirect to verification
+				http.Redirect(w, r, fmt.Sprintf("/login/2fa/verify?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+			} else {
+				// User hasn't set up 2FA, redirect to setup
+				http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+			}
+			return
 		}
 	}
 
-	// For OAuth, we bypass 2FA and create an active session directly
+	// No 2FA required or policy not configured, create active session
 	sessionCookie := &http.Cookie{
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token(),
@@ -325,7 +369,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 				sess.UserAgent(),
 				session.WithStatus(session.StatusPending2FA),
 				session.WithAudience(sess.Audience()),
-				session.WithExpiresAt(sess.ExpiresAt()),
+				session.WithExpiresAt(time.Now().Add(10*time.Minute)),
 				session.WithCreatedAt(sess.CreatedAt()),
 			)
 

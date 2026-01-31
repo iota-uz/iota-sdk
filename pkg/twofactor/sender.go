@@ -3,6 +3,7 @@ package twofactor
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
 // OTPChannel represents the delivery channel for OTP codes.
@@ -58,6 +59,7 @@ type OTPSender interface {
 // This allows the application to support multiple OTP delivery methods (SMS, email, etc.)
 // while presenting a unified interface to callers.
 type CompositeSender struct {
+	mu      sync.RWMutex
 	senders map[OTPChannel]OTPSender
 }
 
@@ -73,13 +75,18 @@ func NewCompositeSender(senders map[OTPChannel]OTPSender) *CompositeSender {
 
 // Register adds or updates a sender for the specified channel.
 func (c *CompositeSender) Register(channel OTPChannel, sender OTPSender) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.senders[channel] = sender
 }
 
 // Send routes the request to the appropriate sender based on the channel.
 // Returns ErrChannelUnavailable if no sender is registered for the requested channel.
 func (c *CompositeSender) Send(ctx context.Context, req SendRequest) error {
+	c.mu.RLock()
 	sender, ok := c.senders[req.Channel]
+	c.mu.RUnlock()
+
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrChannelUnavailable, req.Channel)
 	}

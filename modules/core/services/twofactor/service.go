@@ -240,6 +240,46 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 	return challenge, nil
 }
 
+// preserveUserFields creates a new user instance with all fields from the original user preserved
+// This helper ensures no fields are lost when updating user for 2FA operations
+func preserveUserFields(u user.User, opts ...user.Option) user.User {
+	baseOpts := []user.Option{
+		user.WithID(u.ID()),
+		user.WithTenantID(u.TenantID()),
+		user.WithType(u.Type()),
+		user.WithMiddleName(u.MiddleName()),
+		user.WithPassword(u.Password()),
+		user.WithAvatar(u.Avatar()),
+		user.WithAvatarID(u.AvatarID()),
+		user.WithRoles(u.Roles()),
+		user.WithGroupIDs(u.GroupIDs()),
+		user.WithPermissions(u.Permissions()),
+		user.WithPhone(u.Phone()),
+		user.WithLastIP(u.LastIP()),
+		user.WithLastLogin(u.LastLogin()),
+		user.WithLastAction(u.LastAction()),
+		user.WithCreatedAt(u.CreatedAt()),
+		user.WithUpdatedAt(u.UpdatedAt()),
+		user.WithIsBlocked(u.IsBlocked()),
+		user.WithBlockReason(u.BlockReason()),
+		user.WithBlockedAt(u.BlockedAt()),
+		user.WithBlockedBy(u.BlockedBy()),
+		user.WithBlockedByTenantID(u.BlockedByTenantID()),
+		user.WithTwoFactorMethod(u.TwoFactorMethod()),
+		user.WithTwoFactorEnabledAt(u.TwoFactorEnabledAt()),
+		user.WithTOTPSecretEncrypted(u.TOTPSecretEncrypted()),
+	}
+	// Append any additional options passed by caller (these will override base options)
+	baseOpts = append(baseOpts, opts...)
+	return user.New(
+		u.FirstName(),
+		u.LastName(),
+		u.Email(),
+		u.UILanguage(),
+		baseOpts...,
+	)
+}
+
 // ConfirmSetup completes the 2FA setup by verifying the code
 func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challengeID, code string) (*SetupResult, error) {
 	// Get challenge data
@@ -311,29 +351,9 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 
 		// Update user with 2FA settings
 		enabledAt := time.Now()
-		updatedUser := u
 
-		// Use the WithTwoFactorMethod and WithTwoFactorEnabledAt options
-		updatedUser = user.New(
-			u.FirstName(),
-			u.LastName(),
-			u.Email(),
-			u.UILanguage(),
-			user.WithID(u.ID()),
-			user.WithTenantID(u.TenantID()),
-			user.WithMiddleName(u.MiddleName()),
-			user.WithPassword(u.Password()),
-			user.WithAvatar(u.Avatar()),
-			user.WithRoles(u.Roles()),
-			user.WithGroupIDs(u.GroupIDs()),
-			user.WithPermissions(u.Permissions()),
-			user.WithPhone(u.Phone()),
-			user.WithType(u.Type()),
-			user.WithIsBlocked(u.IsBlocked()),
-			user.WithBlockReason(u.BlockReason()),
-			user.WithBlockedAt(u.BlockedAt()),
-			user.WithBlockedBy(u.BlockedBy()),
-			user.WithBlockedByTenantID(u.BlockedByTenantID()),
+		// Preserve all user fields and update only 2FA-related fields
+		updatedUser := preserveUserFields(u,
 			user.WithTwoFactorMethod(challengeData.Method),
 			user.WithTwoFactorEnabledAt(enabledAt),
 			user.WithTOTPSecretEncrypted(encryptedSecret),
@@ -554,27 +574,8 @@ func (s *TwoFactorService) Disable(ctx context.Context, userID uint) error {
 			return errors.New("2FA is not enabled for this user")
 		}
 
-		// Update user to disable 2FA
-		updatedUser := user.New(
-			u.FirstName(),
-			u.LastName(),
-			u.Email(),
-			u.UILanguage(),
-			user.WithID(u.ID()),
-			user.WithTenantID(u.TenantID()),
-			user.WithMiddleName(u.MiddleName()),
-			user.WithPassword(u.Password()),
-			user.WithAvatar(u.Avatar()),
-			user.WithRoles(u.Roles()),
-			user.WithGroupIDs(u.GroupIDs()),
-			user.WithPermissions(u.Permissions()),
-			user.WithPhone(u.Phone()),
-			user.WithType(u.Type()),
-			user.WithIsBlocked(u.IsBlocked()),
-			user.WithBlockReason(u.BlockReason()),
-			user.WithBlockedAt(u.BlockedAt()),
-			user.WithBlockedBy(u.BlockedBy()),
-			user.WithBlockedByTenantID(u.BlockedByTenantID()),
+		// Update user to disable 2FA (preserve all fields, clear only 2FA settings)
+		updatedUser := preserveUserFields(u,
 			user.WithTwoFactorMethod(""),
 			user.WithTwoFactorEnabledAt(time.Time{}),
 			user.WithTOTPSecretEncrypted(""),

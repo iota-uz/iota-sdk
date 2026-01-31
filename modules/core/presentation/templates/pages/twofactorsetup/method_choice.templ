@@ -25,6 +25,7 @@ templ MethodChoice(p *MethodChoiceProps) {
 						<p class="text-200">{ pageCtx.T("TwoFactor.Setup.ChooseMethod") }</p>
 					</div>
 					<form method="post" class="flex flex-col gap-4">
+						@composables.CSRFTokenField(ctx)
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
 						<!-- TOTP Option -->
 						<label class="cursor-pointer">

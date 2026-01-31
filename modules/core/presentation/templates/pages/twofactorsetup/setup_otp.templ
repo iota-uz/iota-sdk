@@ -48,6 +48,7 @@ templ OTPSetup(p *OTPSetupProps) {
 					}
 					<!-- Code Input Form -->
 					<form method="post" action="/login/2fa/setup/otp/confirm" class="flex flex-col gap-4">
+						@composables.CSRFTokenField(ctx)
 						<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>
 						<div>
@@ -81,6 +82,7 @@ templ OTPSetup(p *OTPSetupProps) {
 					</form>
 					<!-- Resend Code -->
 					<form method="post" action="/login/2fa/setup/otp/send" class="flex flex-col gap-2">
+						@composables.CSRFTokenField(ctx)
 						<input type="hidden" name="Method" value={ p.Method }/>
 						<input type="hidden" name="ChallengeID" value={ p.ChallengeID }/>
 						<input type="hidden" name="NextURL" value={ p.NextURL }/>

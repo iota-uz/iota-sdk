@@ -1,6 +1,7 @@
 package user
 
 import (
+	"database/sql"
 	"strings"
 	"time"
 
@@ -661,5 +662,5 @@ func (u *user) Has2FAEnabled() bool {
 type Update2FADTO struct {
 	Method              twofactor.Method
 	TOTPSecretEncrypted string
-	EnabledAt           time.Time
+	EnabledAt           sql.NullTime
 }

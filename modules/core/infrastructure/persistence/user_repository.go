@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var (
@@ -574,14 +575,16 @@ func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error 
 }
 
 func (g *PgUserRepository) Update2FASettings(ctx context.Context, userID uint, dto user.Update2FADTO) error {
+	const op serrors.Op = "PgUserRepository.Update2FASettings"
+
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get tenant from context")
+		return serrors.E(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get transaction")
+		return serrors.E(op, err)
 	}
 
 	query := `
@@ -602,7 +605,7 @@ func (g *PgUserRepository) Update2FASettings(ctx context.Context, userID uint, d
 	)
 
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to update 2FA settings for user ID: %d", userID))
+		return serrors.E(op, err)
 	}
 
 	return nil

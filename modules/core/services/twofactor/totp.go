@@ -151,8 +151,8 @@ func (s *TOTPService) ValidateWithSkew(secret, code string, skew uint) (bool, er
 // EncryptSecret encrypts a TOTP secret using the configured encryptor
 func (s *TOTPService) EncryptSecret(ctx context.Context, secret string) (string, error) {
 	if s.encryptor == nil {
-		// No encryption configured, store plaintext (not recommended for production)
-		return secret, nil
+		// Fail fast - encryption is required for production security
+		return "", fmt.Errorf("%w: encryptor not configured", pkgtf.ErrEncryptionFailed)
 	}
 
 	encrypted, err := s.encryptor.Encrypt(ctx, secret)
@@ -166,8 +166,8 @@ func (s *TOTPService) EncryptSecret(ctx context.Context, secret string) (string,
 // DecryptSecret decrypts a TOTP secret using the configured encryptor
 func (s *TOTPService) DecryptSecret(ctx context.Context, encrypted string) (string, error) {
 	if s.encryptor == nil {
-		// No encryption configured, return as-is
-		return encrypted, nil
+		// Fail fast - encryption is required for production security
+		return "", fmt.Errorf("%w: encryptor not configured", pkgtf.ErrDecryptionFailed)
 	}
 
 	plaintext, err := s.encryptor.Decrypt(ctx, encrypted)

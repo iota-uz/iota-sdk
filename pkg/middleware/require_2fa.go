@@ -52,7 +52,12 @@ func Require2FAVerification(setupPath, verifyPath string) mux.MiddlewareFunc {
 					return
 				}
 
-				userService := app.Service(services.UserService{}).(*services.UserService)
+				userService, ok := app.Service(services.UserService{}).(*services.UserService)
+				if !ok {
+					// Type assertion failed, deny the request
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
 				u, err := userService.GetByID(ctx, sess.UserID())
 				if err != nil {
 					// If user not found or error, deny the request
