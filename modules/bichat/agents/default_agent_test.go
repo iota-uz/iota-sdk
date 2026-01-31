@@ -90,6 +90,15 @@ func TestNewDefaultBIAgent(t *testing.T) {
 	assert.Equal(t, []string{agents.ToolFinalAnswer}, metadata.TerminationTools)
 }
 
+func TestNewDefaultBIAgent_NilExecutor(t *testing.T) {
+	t.Parallel()
+
+	agent, err := NewDefaultBIAgent(nil)
+	require.Error(t, err)
+	require.Nil(t, agent)
+	assert.Contains(t, err.Error(), "executor is required")
+}
+
 func TestDefaultBIAgent_CoreTools(t *testing.T) {
 	t.Parallel()
 
@@ -145,27 +154,24 @@ func TestDefaultBIAgent_WithKBSearcher(t *testing.T) {
 	assert.True(t, toolNames["kb_search"], "kb_search tool should be present when KBSearcher is provided")
 }
 
-func TestDefaultBIAgent_WithExcelExporter(t *testing.T) {
-	t.Parallel()
-
-	executor := &mockQueryExecutor{}
-	excelExporter := &mockExcelExporter{}
-
-	agent, err := NewDefaultBIAgent(
-		executor,
-		WithExcelExporter(excelExporter),
-	)
-	require.NoError(t, err)
-
-	// Verify Excel export tool is registered
-	agentTools := agent.Tools()
-	toolNames := make(map[string]bool)
-	for _, tool := range agentTools {
-		toolNames[tool.Name()] = true
-	}
-
-	assert.True(t, toolNames["export_to_excel"], "export_to_excel tool should be present when ExcelExporter is provided")
-}
+// TODO: Re-enable when Excel/PDF export tools are configured at module level
+// func TestDefaultBIAgent_WithExcelExporter(t *testing.T) {
+// 	t.Parallel()
+//
+// 	executor := &mockQueryExecutor{}
+//
+// 	agent, err := NewDefaultBIAgent(executor)
+// 	require.NoError(t, err)
+//
+// 	// Verify Excel export tool is NOT registered by default
+// 	agentTools := agent.Tools()
+// 	toolNames := make(map[string]bool)
+// 	for _, tool := range agentTools {
+// 		toolNames[tool.Name()] = true
+// 	}
+//
+// 	assert.False(t, toolNames["export_to_excel"], "export_to_excel tool should not be present without configuration")
+// }
 
 func TestDefaultBIAgent_WithModel(t *testing.T) {
 	t.Parallel()
@@ -285,14 +291,10 @@ func TestDefaultBIAgent_AllOptions(t *testing.T) {
 
 	executor := &mockQueryExecutor{}
 	kbSearcher := &mockKBSearcher{}
-	excelExporter := &mockExcelExporter{}
-	pdfExporter := &mockPDFExporter{}
 
 	agent, err := NewDefaultBIAgent(
 		executor,
 		WithKBSearcher(kbSearcher),
-		WithExcelExporter(excelExporter),
-		WithPDFExporter(pdfExporter),
 		WithModel("claude-3-opus"),
 	)
 	require.NoError(t, err)
@@ -302,7 +304,7 @@ func TestDefaultBIAgent_AllOptions(t *testing.T) {
 	assert.Equal(t, "bi_agent", metadata.Name)
 	assert.Equal(t, "claude-3-opus", metadata.Model)
 
-	// Verify all optional tools are registered
+	// Verify optional tools are registered
 	agentTools := agent.Tools()
 	toolNames := make(map[string]bool)
 	for _, tool := range agentTools {
@@ -310,7 +312,8 @@ func TestDefaultBIAgent_AllOptions(t *testing.T) {
 	}
 
 	assert.True(t, toolNames["kb_search"], "kb_search should be present")
-	assert.True(t, toolNames["export_to_excel"], "export_to_excel should be present")
+	// Note: Excel/PDF export tools are not included until module-level configuration is added
+	assert.False(t, toolNames["export_to_excel"], "export_to_excel not configured yet")
 }
 
 func TestDefaultBIAgent_InterfaceCompliance(t *testing.T) {
@@ -344,7 +347,6 @@ func TestBuildBISystemPrompt(t *testing.T) {
 		"EXPLORE THE SCHEMA",
 		"WRITE SAFE SQL",
 		"VISUALIZE DATA",
-		"EXPORT RESULTS",
 		"PROVIDE CLEAR ANSWERS",
 		"IMPORTANT CONSTRAINTS",
 		"EXAMPLE WORKFLOW",
@@ -362,8 +364,6 @@ func TestBuildBISystemPrompt(t *testing.T) {
 		"sql_execute",
 		"draw_chart",
 		"kb_search",
-		"export_to_excel",
-		"export_to_pdf",
 		"ask_user_question",
 		"final_answer",
 	}
@@ -410,19 +410,11 @@ func TestDefaultBIAgent_ToolCount(t *testing.T) {
 			expectedCount: 7,
 		},
 		{
-			name: "with Excel exporter",
-			opts: []BIAgentOption{
-				WithExcelExporter(&mockExcelExporter{}),
-			},
-			expectedCount: 7,
-		},
-		{
 			name: "with all options",
 			opts: []BIAgentOption{
 				WithKBSearcher(&mockKBSearcher{}),
-				WithExcelExporter(&mockExcelExporter{}),
 			},
-			expectedCount: 8,
+			expectedCount: 7,
 		},
 	}
 
