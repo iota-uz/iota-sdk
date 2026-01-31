@@ -189,6 +189,9 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
+	// Validate the redirect URL early to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.URL.Query().Get("next"))
+
 	// Get session
 	sess, err := composables.UseSession(r.Context())
 	if err != nil {
@@ -206,7 +209,7 @@ func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.R
 
 	// Render recovery code form
 	if err := twofactorverify.Recovery(&twofactorverify.RecoveryProps{
-		NextURL: r.URL.Query().Get("next"),
+		NextURL: nextURL,
 	}).Render(r.Context(), w); err != nil {
 		logger.Error("failed to render recovery template", "error", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -224,7 +227,8 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 	}
 
 	code := r.FormValue("Code")
-	nextURL := r.FormValue("NextURL")
+	// Validate the redirect URL to prevent open redirect attacks
+	nextURL := security.GetValidatedRedirect(r.FormValue("NextURL"))
 
 	if code == "" {
 		http.Error(w, "missing code", http.StatusBadRequest)

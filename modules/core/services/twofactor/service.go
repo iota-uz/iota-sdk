@@ -515,6 +515,9 @@ func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string)
 			return err
 		}
 
+	case pkgtf.MethodBackupCodes:
+		return fmt.Errorf("%w: backup codes use VerifyRecovery method", pkgtf.ErrMethodNotSupported)
+
 	default:
 		return fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, method)
 	}

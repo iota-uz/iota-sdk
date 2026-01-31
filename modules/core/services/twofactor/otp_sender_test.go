@@ -155,7 +155,7 @@ func TestSMSOTPSender_Send_EmptyCode(t *testing.T) {
 	}
 
 	err := sender.Send(context.Background(), req)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "code cannot be empty")
 }
 
