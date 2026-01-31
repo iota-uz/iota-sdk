@@ -6,28 +6,23 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/sirupsen/logrus"
 )
 
-// TODO: Remove these placeholder types when Phase 1 (Agent Framework) is complete.
-// These are temporary stubs to allow compilation until the agent framework is fully implemented.
-
-// Agent is a placeholder for the agent framework interface (Phase 1 pending).
-type Agent interface{}
-
-// Model is a placeholder for the LLM model interface (Phase 1 pending).
-type Model interface{}
-
-// ModelRegistry is a placeholder for multi-model support (Phase 1 pending).
-type ModelRegistry interface{}
-
-// Checkpointer is a placeholder for HITL state persistence (Phase 1 pending).
-type Checkpointer interface{}
+// Type aliases for convenience
+type (
+	Agent         = agents.ExtendedAgent
+	Model         = agents.Model
+	ModelRegistry = *agents.ModelRegistry // Pointer type to avoid copying mutex
+	Checkpointer  = agents.Checkpointer
+)
 
 // ModuleConfig holds configuration for the bichat module.
 // It uses functional options pattern for optional dependencies.
@@ -37,7 +32,7 @@ type ModuleConfig struct {
 	UserID   func(ctx context.Context) int64
 	ChatRepo domain.ChatRepository
 
-	// Required: LLM Model (TODO: Use agents.Model when Phase 1 is complete)
+	// Required: LLM Model
 	Model Model
 
 	// Optional: LLM Model Registry (for multi-model support)
@@ -46,14 +41,22 @@ type ModuleConfig struct {
 	// Required: Context management
 	ContextPolicy bichatcontext.ContextPolicy
 
-	// Required: Agents (TODO: Use agents.Agent when Phase 1 is complete)
+	// Required: Agents
 	ParentAgent Agent
 	SubAgents   []Agent
 
 	// Optional services (can be nil)
-	QueryExecutor services.QueryExecutorService
+	QueryExecutor bichatservices.QueryExecutorService
 	KBSearcher    kb.KBSearcher
-	// TODO: Add Summarizer when HistorySummarizer interface is implemented in pkg/bichat/context
+	TenantService *coreservices.TenantService
+	// TODO: Implement HistorySummarizer interface for context compaction
+	// This will enable automatic summarization of long conversation histories
+	// to fit within token budgets while preserving key information.
+	// Implementation requires:
+	// - Define HistorySummarizer interface in pkg/bichat/context
+	// - Create LLM-based summarization implementation
+	// - Integrate with CompactionConfig
+	// Deferred as non-critical enhancement (Phase 2).
 	// Summarizer    bichatcontext.HistorySummarizer
 
 	// Optional: Observability
@@ -75,7 +78,7 @@ func WithModelRegistry(registry ModelRegistry) ConfigOption {
 }
 
 // WithQueryExecutor sets the SQL query executor service
-func WithQueryExecutor(executor services.QueryExecutorService) ConfigOption {
+func WithQueryExecutor(executor bichatservices.QueryExecutorService) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.QueryExecutor = executor
 	}
@@ -88,13 +91,12 @@ func WithKBSearcher(searcher kb.KBSearcher) ConfigOption {
 	}
 }
 
-// TODO: Uncomment when HistorySummarizer interface is implemented
-// WithSummarizer sets the history summarizer for context compaction
-// func WithSummarizer(summarizer bichatcontext.HistorySummarizer) ConfigOption {
-// 	return func(c *ModuleConfig) {
-// 		c.Summarizer = summarizer
-// 	}
-// }
+// WithTenantService sets the tenant service for tenant name lookups
+func WithTenantService(svc *coreservices.TenantService) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.TenantService = svc
+	}
+}
 
 // WithLogger sets the logger for observability
 func WithLogger(logger *logrus.Logger) ConfigOption {
@@ -156,10 +158,9 @@ func NewModuleConfig(
 		cfg.EventBus = hooks.NewEventBus()
 	}
 
-	// TODO: Uncomment when Phase 1 is complete
-	// if cfg.Checkpointer == nil {
-	// 	cfg.Checkpointer = agents.NewInMemoryCheckpointer()
-	// }
+	if cfg.Checkpointer == nil {
+		cfg.Checkpointer = agents.NewInMemoryCheckpointer()
+	}
 
 	return cfg
 }
