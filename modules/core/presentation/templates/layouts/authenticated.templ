@@ -160,7 +160,7 @@ templ DefaultSidebarFooter() {
 templ SidebarFooter() {
 	<!-- Toggle button at bottom -->
 	<button
-		@click="toggle(); $dispatch('sidebar-toggle')"
+		@click.stop="toggle(); $dispatch('sidebar-toggle')"
 		class="hidden lg:flex items-center justify-center w-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
 	>
 		<div x-show="!isCollapsed">

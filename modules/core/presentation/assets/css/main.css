@@ -868,6 +868,11 @@
     opacity: 1;
   }
 
+  /* Sidebar width styles */
+  .sidebar-expanded {
+    width: 280px;
+  }
+
   /* Sidebar collapsed styles */
   .sidebar-collapsed {
     width: 4rem !important;
