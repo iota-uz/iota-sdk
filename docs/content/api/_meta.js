@@ -1,3 +1,5 @@
 export default {
-  overview: 'Overview'
+  index: 'Overview',
+  core: 'Core API',
+  warehouse: 'Warehouse API'
 }
