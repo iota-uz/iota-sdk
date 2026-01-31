@@ -51,10 +51,9 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			}
 		}
 
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		default:
+		// Check context before attempting client operations
+		if err := ctx.Err(); err != nil {
+			return "", err
 		}
 
 		if r.client == nil {
