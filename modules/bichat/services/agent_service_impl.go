@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -82,7 +83,7 @@ func (s *agentServiceImpl) ProcessMessage(
 
 	// TODO: Load session messages from repository
 	// For now, we'll create a simple message history placeholder
-	var sessionMessages []agents.Message
+	var sessionMessages []types.Message
 
 	// TODO: Use Context Builder when codecs are available
 	// For now, compile a simple context directly
@@ -110,7 +111,7 @@ func (s *agentServiceImpl) ProcessMessage(
 	execGen := executor.Execute(ctx, input)
 
 	// Wrap the executor generator into a service event generator
-	return s.wrapExecutorGenerator(execGen), nil
+	return s.wrapExecutorGenerator(ctx, execGen), nil
 }
 
 // ResumeWithAnswer resumes agent execution after user answers questions (HITL).
@@ -163,29 +164,29 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	execGen := executor.Resume(ctx, checkpointID, answer)
 
 	// Wrap the executor generator into a service event generator
-	return s.wrapExecutorGenerator(execGen), nil
+	return s.wrapExecutorGenerator(ctx, execGen), nil
 }
 
 // compileSimpleContext creates a simple message list without using the full context builder.
 // This is a temporary implementation until codecs are available.
 func (s *agentServiceImpl) compileSimpleContext(
 	ctx context.Context,
-	sessionMessages []agents.Message,
+	sessionMessages []types.Message,
 	userContent string,
-) ([]agents.Message, error) {
-	messages := make([]agents.Message, 0, len(sessionMessages)+2)
+) ([]types.Message, error) {
+	messages := make([]types.Message, 0, len(sessionMessages)+2)
 
 	// Add system prompt if agent provides one
 	systemPrompt := s.agent.SystemPrompt(ctx)
 	if systemPrompt != "" {
-		messages = append(messages, agents.NewSystemMessage(systemPrompt))
+		messages = append(messages, *types.SystemMessage(systemPrompt))
 	}
 
 	// Add session history
 	messages = append(messages, sessionMessages...)
 
 	// Add current user message
-	messages = append(messages, agents.NewUserMessage(userContent))
+	messages = append(messages, *types.UserMessage(userContent))
 
 	return messages, nil
 }
@@ -193,26 +194,32 @@ func (s *agentServiceImpl) compileSimpleContext(
 // wrapExecutorGenerator wraps an executor event generator into a service event generator.
 // This converts agents.ExecutorEvent to services.Event for the service layer.
 func (s *agentServiceImpl) wrapExecutorGenerator(
-	execGen agents.Generator[agents.ExecutorEvent],
+	ctx context.Context,
+	execGen types.Generator[agents.ExecutorEvent],
 ) services.Generator[services.Event] {
 	return &generatorAdapter{
+		ctx:   ctx,
 		inner: execGen,
 	}
 }
 
-// generatorAdapter adapts an agents.Generator[ExecutorEvent] to services.Generator[Event].
+// generatorAdapter adapts a types.Generator[ExecutorEvent] to services.Generator[Event].
 type generatorAdapter struct {
-	inner agents.Generator[agents.ExecutorEvent]
+	ctx   context.Context
+	inner types.Generator[agents.ExecutorEvent]
 }
 
 // Next returns the next service event by converting executor events.
 func (g *generatorAdapter) Next() (services.Event, error, bool) {
-	execEvent, err, hasMore := g.inner.Next()
+	// types.Generator.Next() requires a context, but services.Generator.Next() doesn't provide one
+	// We use the context stored during adapter creation
+	execEvent, err := g.inner.Next(g.ctx)
 	if err != nil {
+		// Check if generator is done (not an error)
+		if err == types.ErrGeneratorDone {
+			return services.Event{}, nil, false
+		}
 		return services.Event{}, err, false
-	}
-	if !hasMore {
-		return services.Event{}, nil, false
 	}
 
 	// Convert executor event to service event
