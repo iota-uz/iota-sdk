@@ -2,6 +2,7 @@ package context_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -154,11 +155,12 @@ func TestCompiler_Overflow_Truncate(t *testing.T) {
 	// Add non-truncatable system block
 	builder.System(systemCodec, "System rules")
 
-	// Add truncatable history blocks
-	for i := 0; i < 10; i++ {
+	// Add truncatable history blocks with unique large content to ensure overflow
+	// Each block must have unique content to avoid deduplication in content-addressed graph
+	for i := 0; i < 20; i++ {
 		builder.History(historyCodec, codecs.ConversationHistoryPayload{
 			Messages: []codecs.ConversationMessage{
-				{Role: "user", Content: strings.Repeat("x", 100)},
+				{Role: "user", Content: fmt.Sprintf("Message %d: %s", i, strings.Repeat("word ", 50))},
 			},
 		})
 	}
@@ -180,7 +182,8 @@ func TestCompiler_Overflow_Truncate(t *testing.T) {
 
 	// Verify truncation occurred
 	if !compiled.Truncated {
-		t.Error("Expected Truncated flag to be true")
+		t.Errorf("Expected Truncated flag to be true (total tokens: %d, available: %d)",
+			compiled.TotalTokens, policy.ContextWindow-policy.CompletionReserve)
 	}
 
 	// Verify token budget was respected

@@ -306,13 +306,9 @@ func TestBuilder_ContentAddressing(t *testing.T) {
 		System(systemCodec, "Same content")
 
 	blocks := builder.GetGraph().GetAllBlocks()
-	if len(blocks) != 2 {
-		t.Fatalf("Expected 2 blocks, got %d", len(blocks))
-	}
-
-	// Both blocks should have the same hash (content-addressed)
-	if blocks[0].Hash != blocks[1].Hash {
-		t.Errorf("Expected identical hashes for identical content, got %s and %s", blocks[0].Hash, blocks[1].Hash)
+	// Graph deduplicates by hash (content-addressed), so only 1 block stored
+	if len(blocks) != 1 {
+		t.Fatalf("Expected 1 block (deduplicated), got %d", len(blocks))
 	}
 }
 

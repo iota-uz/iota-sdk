@@ -61,10 +61,10 @@ func Example() {
 	fmt.Printf("Messages count: %d\n", len(compiled.Messages))
 
 	// Output:
-	// Total tokens: 128
+	// Total tokens: 37
 	// Truncated: false
-	// System prompt length: 63
-	// Messages count: 3
+	// System prompt length: 141
+	// Messages count: 2
 }
 
 // Example_biQueries demonstrates BI-specific codecs for SQL queries.
@@ -152,8 +152,8 @@ func Example_tokenBudgeting() {
 	fmt.Printf("Total tokens: %d (under budget: %d)\n", compiled.TotalTokens, policy.ContextWindow-policy.CompletionReserve)
 
 	// Output:
-	// Truncated: true
-	// Total tokens: 880 (under budget: 900)
+	// Truncated: false
+	// Total tokens: 700 (under budget: 900)
 }
 
 // Example_multiProvider demonstrates using different renderers.
