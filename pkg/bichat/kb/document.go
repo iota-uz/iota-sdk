@@ -24,19 +24,19 @@ const (
 // Documents are content-addressable, with ID serving as the primary key.
 type Document struct {
 	// ID is the unique identifier for the document
-	ID string
+	ID string `json:"id"`
 	// Title is the document title or heading
-	Title string
+	Title string `json:"title"`
 	// Content is the full text content to be indexed
-	Content string
+	Content string `json:"content"`
 	// Path is the file path or URL of the document
-	Path string
+	Path string `json:"path"`
 	// Type is the document type (markdown, html, pdf, etc.)
-	Type DocumentType
+	Type DocumentType `json:"type"`
 	// Metadata contains additional key-value pairs for filtering and display
-	Metadata map[string]string
+	Metadata map[string]string `json:"metadata"`
 	// UpdatedAt is the last modification time
-	UpdatedAt time.Time
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // SearchResult represents a single search result with relevance scoring.
