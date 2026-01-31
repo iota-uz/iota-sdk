@@ -1,0 +1,425 @@
+---
+title: Use Cases by Role
+---
+
+import { Callout } from 'nextra/components'
+
+# Use Cases by Role
+
+This guide describes how different roles use the Granite to accomplish their daily tasks and business objectives.
+
+## Client Manager
+
+Client Managers maintain relationships with customers and manage client information across the platform.
+
+### Daily Activities
+
+**Morning Routine:**
+1. Review new client registrations from previous day
+2. Check pending client profile updates
+3. Review flagged client notes requiring follow-up
+4. Check client communication backlog (unread messages)
+
+**Client Profile Management:**
+- View comprehensive client profiles with all policies and history
+- Update client contact information (email, phone, messaging apps)
+- Link clients to business organizations with role definitions
+- Add internal notes about client interactions and preferences
+- Track client activity history and engagement
+
+**Communication:**
+- Respond to client inquiries via multi-channel chat (Telegram, WhatsApp, email)
+- Review message history across all channels
+- Send proactive communications about renewals and offers
+- Manage chat assignments within support team
+
+**Portfolio Monitoring:**
+- View all policies associated with each client
+- Monitor policy status (active, expiring, terminated)
+- Track client lifetime value and product ownership
+- Identify cross-sell and up-sell opportunities
+
+### Key Use Cases
+
+**Use Case 1: New Client Onboarding**
+1. System automatically creates client profile on first user registration
+2. Review auto-populated information from authentication
+3. Link to verified person record if PINFL available
+4. Add organization affiliations if business client
+5. Set communication preferences
+6. Add welcome note and initial contact documentation
+
+**Use Case 2: Policy Review with Client**
+1. Open client profile
+2. View unified policy list (all products, both v1 and v2 systems)
+3. Review policy details, coverage, and status
+4. Explain renewal options and benefits
+5. Document discussion in client notes
+
+**Use Case 3: Client Issue Resolution**
+1. Receive client question via chat or email
+2. Access client profile with full history
+3. Review relevant policies and coverage
+4. Provide accurate information or escalate to specialist
+5. Document resolution in notes
+6. Follow up to ensure satisfaction
+
+---
+
+## Sales Representative
+
+Sales Representatives sell insurance products, track commissions, and manage promotional campaigns.
+
+### Daily Activities
+
+**Performance Monitoring:**
+- Check daily commission earnings
+- Review sales pipeline and active quotes
+- Monitor goal progress against targets
+- Track promotional campaign performance
+
+**Commission Management:**
+- View real-time commission balance (available, pending, withdrawn)
+- Monitor promo code performance and multipliers
+- Request commission payouts when threshold met
+- Track payout request status
+
+**Sales Activities:**
+- Generate quotes for customers across all products
+- Process policy applications and sales
+- Apply promotional codes for special offers
+- Follow up on pending quotes and applications
+
+### Key Use Cases
+
+**Use Case 1: Promotional Campaign Management**
+1. Receive promo code with special multiplier (e.g., 1.5x or 2x)
+2. Share promo code with target customer segment
+3. Generate quotes using promo code
+4. Track sales attributed to promotion
+5. Monitor enhanced commission earnings
+6. Analyze campaign effectiveness
+
+**Use Case 2: Commission Payout Request**
+1. Monitor commission balance reaching minimum threshold
+2. Verify available balance amount
+3. Submit payout request through system
+4. Provide bank account details for transfer
+5. Wait for manager approval
+6. Receive payout confirmation
+7. Verify balance updated correctly
+
+**Use Case 3: Multi-Product Sale**
+1. Customer needs vehicle insurance
+2. Generate OSAGO quote (mandatory coverage)
+3. Recommend Kasko for comprehensive protection
+4. Suggest Travel insurance for international trips
+5. Bundle quote with package discount if available
+6. Process sale with multiple products
+7. Earn commission on each product sold
+
+---
+
+## Branch Manager
+
+Branch Managers oversee sales performance, monitor team activity, and analyze business metrics.
+
+### Daily Activities
+
+**Dashboard Review:**
+- Review branch sales performance summary
+- Monitor product mix and revenue distribution
+- Check team performance metrics
+- Review pending items requiring attention
+
+**Report Analysis:**
+- Generate and review sales reports by product, period, agent
+- Analyze referral program performance
+- Review commission summaries and payout requests
+- Monitor customer acquisition and retention metrics
+
+**Team Management:**
+- Review sales representative performance
+- Approve or reject commission payout requests
+- Assign territories or customer segments
+- Track team goal achievement
+
+### Key Use Cases
+
+**Use Case 1: Monthly Performance Review**
+1. Access Sales Report module
+2. Select date range (previous month)
+3. Filter by branch or agent
+4. Review metrics:
+   - Total premium collected by product
+   - Number of policies sold
+   - Average policy value
+   - Commission paid out
+5. Compare to targets and previous periods
+6. Identify top performers and areas for improvement
+7. Export report for management presentation
+
+**Use Case 2: Commission Payout Approval**
+1. Receive notification of pending payout request
+2. Review sales representative's request details
+3. Verify commission balance calculation
+4. Check for any holds or issues
+5. Review sales performance and compliance
+6. Approve or reject with documented reason
+7. Monitor payout processing
+
+**Use Case 3: Referral Program Analysis**
+1. Access Referral Program Report
+2. Review partner performance:
+   - Number of referrals
+   - Conversion rate
+   - Revenue generated
+   - Commission earned
+3. Identify top-performing partners
+4. Analyze low-performing partnerships
+5. Make recommendations for program adjustments
+6. Plan partner engagement activities
+
+---
+
+## Finance Team
+
+Finance Team members manage payments, process payouts, track financial transactions, and ensure accurate accounting.
+
+### Daily Activities
+
+**Payment Monitoring:**
+- Review payment confirmations for new policies
+- Monitor failed payment attempts
+- Track refund requests and processing
+- Verify payment reconciliation
+
+**Payout Processing:**
+- Review commission payout requests
+- Verify payout amounts against records
+- Process approved payouts
+- Track payout completion and confirmations
+
+**Financial Reconciliation:**
+- Reconcile premium collection with policy issuance
+- Verify commission calculations
+- Track reserves and liabilities
+- Generate financial reports for accounting
+
+### Key Use Cases
+
+**Use Case 1: Commission Payout Processing**
+1. Review queue of approved payout requests
+2. For each request:
+   - Verify approval by manager
+   - Confirm commission balance calculation
+   - Validate bank account details
+   - Check for any fraud indicators
+3. Process batch payments to bank
+4. Update system with payment confirmation
+5. Mark payouts as completed
+6. Generate payout summary report
+
+**Use Case 2: Monthly Financial Reconciliation**
+1. Export premium collection report
+2. Export commission payout report
+3. Export policy issuance report
+4. Reconcile:
+   - Premium collected vs. policies issued
+   - Commission paid vs. commission accrued
+   - Refunds processed vs. cancellations
+5. Identify and investigate discrepancies
+6. Make adjusting entries if needed
+7. Generate reconciliation report
+8. Submit to accounting for financial statements
+
+---
+
+## Customer Support
+
+Customer Support representatives help customers with questions, issues, and service requests across all channels.
+
+### Daily Activities
+
+**Multi-Channel Communication:**
+- Monitor Telegram bot conversations
+- Respond to WhatsApp messages
+- Handle email inquiries
+- Manage website chat interactions
+- Process SMS-based requests
+
+**Issue Resolution:**
+- Access customer information and policy details
+- Answer policy coverage questions
+- Explain policy procedures and processes
+- Assist with application issues
+- Escalate complex issues to specialists
+
+**AI Chat Management:**
+- Monitor AI chat performance
+- Handle escalated conversations AI couldn't resolve
+- Train AI with new responses
+- Review AI interaction logs for quality
+
+### Key Use Cases
+
+**Use Case 1: Policy Information Request**
+1. Customer asks about OSAGO coverage via Telegram
+2. System routes message to support queue
+3. Support agent opens chat
+4. Accesses customer's client profile
+5. Reviews current and past policies
+6. Provides detailed coverage explanation
+7. Suggests renewal if policy expiring soon
+8. Documents interaction in notes
+
+**Use Case 2: AI Chat Escalation Handling**
+1. AI chat identifies complex question it cannot answer
+2. Conversation escalated to human agent
+3. Agent reviews full conversation history with AI
+4. Continues conversation seamlessly from where AI left off
+5. Provides detailed answer
+6. Resolves customer issue
+7. Provides feedback to improve AI for similar questions
+
+---
+
+## System Administrator
+
+System Administrators configure the platform, manage integrations, and ensure smooth operations.
+
+### Daily Activities
+
+**System Configuration:**
+- Manage message templates for communications
+- Configure AI chat settings and knowledge base
+- Update product configurations and rate tables
+- Manage user permissions and access
+
+**Integration Monitoring:**
+- Monitor NAPP integration status and sync
+- Check payment gateway connectivity
+- Verify email and SMS service status
+- Review API logs for errors
+
+**Quality Assurance:**
+- Test AI chat responses in playground
+- Review system error logs
+- Monitor performance metrics
+- Validate data integrity
+
+### Key Use Cases
+
+**Use Case 1: AI Chat Configuration**
+1. Access AI Chat Management module
+2. Review current system prompts
+3. Update knowledge base with new information
+4. Configure RAG settings:
+   - Adjust retrieval parameters (top-k)
+   - Set confidence thresholds
+   - Update document index
+5. Test in playground with sample questions
+6. Review test results with GPT-4 evaluation
+7. Deploy updated configuration
+8. Monitor interaction logs for improvements
+
+**Use Case 2: Message Template Management**
+1. Access template management interface
+2. Create new template for policy renewal reminder
+3. Define template variables (customer name, policy number, expiry date)
+4. Write message content for each channel:
+   - Email version with full details
+   - SMS version (short form)
+   - Telegram version with inline buttons
+5. Preview templates with sample data
+6. Test send to internal team
+7. Activate template for automated campaigns
+
+**Use Case 3: Policy Application Review**
+1. Access policy applications queue
+2. Review Kasko application with uploaded documents
+3. Verify document completeness:
+   - Vehicle photos (all angles)
+   - Registration certificate
+   - Driver's license
+   - Previous insurance (if applicable)
+4. Validate vehicle valuation
+5. Check for fraud indicators
+6. Approve or reject application with notes
+7. Notify applicant of decision
+
+---
+
+## Insurance Agent
+
+Insurance Agents work in the field selling policies, generating quotes, and serving customers in person.
+
+### Daily Activities
+
+**Customer Interaction:**
+- Meet with potential customers
+- Explain insurance products and coverage
+- Generate quotes on-site using mobile app
+- Process policy applications
+- Collect required documents
+
+**Portfolio Management:**
+- Track customer renewals
+- Follow up on pending applications
+- Monitor commission earnings
+- Manage assigned customer territory
+
+### Key Use Cases
+
+**Use Case 1: Field Quote Generation**
+1. Meet customer at their location
+2. Collect vehicle or travel information
+3. Use mobile app to generate quote:
+   - Enter vehicle license plate for OSAGO
+   - System verifies vehicle via NAPP
+   - System calculates premium
+4. Explain coverage and premium breakdown
+5. Apply promotional discount if available
+6. Customer accepts quote
+7. Process application on-site
+8. Collect payment or schedule payment
+9. Email policy certificate to customer
+
+**Use Case 2: Renewal Campaign**
+1. System generates list of policies expiring in 30 days
+2. Agent receives assigned renewal list
+3. Contact customers via phone or in person:
+   - Remind about expiration
+   - Explain renewal process
+   - Offer current rates
+   - Suggest additional coverage
+4. Process renewals for interested customers
+5. Document contact attempts for non-responsive customers
+6. Track renewal rate performance
+
+<Callout type="info">
+**Cross-Role Collaboration**: Many workflows involve multiple roles working together. For example, a complex insurance scenario might involve Customer Support (initial contact), Insurance specialist (assessment), and Finance Team (payout).
+</Callout>
+
+## Workflow Examples
+
+### Complete Customer Journey: Vehicle Purchase to Renewal
+
+**Day 1 - Purchase:**
+1. Customer buys new vehicle
+2. **Insurance Agent** meets customer at dealership
+3. Generates OSAGO quote (mandatory)
+4. Recommends Kasko for new vehicle protection
+5. Processes sale with both policies
+6. **System** auto-creates client profile
+7. **Commission** automatically calculated
+
+**Month 11 - Renewal:**
+1. **System** sends renewal reminder
+2. **Client Manager** contacts customer proactively
+3. **Insurance Agent** follows up with new quote
+4. Customer renews both policies
+5. **Commission** calculated on renewal
+6. **Sales Representative** earns renewal commission
+
+This end-to-end journey demonstrates how multiple roles collaborate through the platform to serve the customer throughout the insurance lifecycle.

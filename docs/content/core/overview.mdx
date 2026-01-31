@@ -1,0 +1,45 @@
+---
+title: 'Core Module'
+description: 'Essential platform functionality'
+---
+
+# Core Module
+
+The Core module provides fundamental functionality for IOTA SDK platform, including user management, roles, and system settings.
+
+## Components
+
+### Users
+User management, authentication, and profile settings.
+
+### Roles
+Role definition and assignment for access control.
+
+### Groups
+User grouping and organization structure.
+
+### Settings
+System and tenant settings configuration.
+
+### Dashboard
+Main dashboard view for users.
+
+### Account
+User account management.
+
+## Architecture
+
+The module follows a Domain-Driven Design (DDD) architectural pattern with clear layer separation:
+
+- **Domain layer**: Business logic and entities
+- **Service layer**: Business process orchestration
+- **Presentation layer**: UI and API
+- **Infrastructure layer**: External dependencies and persistence
+
+## Usage
+
+The module is automatically registered during application initialization:
+
+```go
+app.RegisterCoreModule()
+```

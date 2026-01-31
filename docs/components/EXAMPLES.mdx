@@ -1,0 +1,110 @@
+# MDX Component Examples
+
+This file demonstrates usage of all custom MDX components available in the documentation site.
+
+## InfoCard Example
+
+<InfoCard title="OSAGO Coverage Details" icon={<span>📋</span>}>
+  <InfoCard.Section title="Liability Coverage">
+    Covers damages to third parties and their vehicles.
+  </InfoCard.Section>
+
+  <InfoCard.Section title="Coverage Limits" nested>
+    <InfoCard.Limit label="Property Damage">
+      Up to 1,000,000 UZS
+    </InfoCard.Limit>
+    <InfoCard.Limit label="Bodily Injury">
+      Up to 2,000,000 UZS per person
+    </InfoCard.Limit>
+  </InfoCard.Section>
+
+  <InfoCard.Section title="Optional Add-ons">
+    <p>Passengers coverage, glass breakage, and theft protection available.</p>
+  </InfoCard.Section>
+</InfoCard>
+
+## BarChart Example
+
+<BarChart
+  title="Age-Based Premium Coefficients"
+  data={[
+    { label: "Age 18-25", value: 1.8 },
+    { label: "Age 26-35", value: 1.0 },
+    { label: "Age 36-50", value: 0.9 },
+    { label: "Age 50-60", value: 1.1 },
+    { label: "Age 60+", value: 1.4 }
+  ]}
+  maxValue={2}
+/>
+
+## FormulaBox Example
+
+<FormulaBox title="Annual Premium Calculation">
+  <FormulaBox.Equation>
+    Annual Premium = Base Rate × Age Coefficient × Driving Record Coefficient × Vehicle Type Coefficient
+  </FormulaBox.Equation>
+
+  <FormulaBox.Variables>
+    <FormulaBox.Var name="Base Rate" value="500,000 UZS" />
+    <FormulaBox.Var name="Age Coef (26-35)" value="1.0" />
+    <FormulaBox.Var name="Driver Coef (Good)" value="0.95" />
+    <FormulaBox.Var name="Vehicle Coef (Sedan)" value="1.0" />
+  </FormulaBox.Variables>
+
+  <FormulaBox.Result label="Total Annual Premium">
+    475,000 UZS
+  </FormulaBox.Result>
+</FormulaBox>
+
+## ChecklistCard Example
+
+<ChecklistCard title="Required Documents for OSAGO Registration">
+  <ChecklistCard.Required>
+    Valid passport or national ID
+    Vehicle registration certificate (ST)
+    Technical inspection certificate
+    Driving license
+    Proof of residence
+  </ChecklistCard.Required>
+
+  <ChecklistCard.NotRequired>
+    Medical certificate
+    Employment proof
+    Bank statements
+    Credit history
+  </ChecklistCard.NotRequired>
+</ChecklistCard>
+
+## Combining Components
+
+You can also combine multiple components in sections:
+
+### Coverage Structure
+
+<InfoCard title="Standard OSAGO Package" icon={<span>🛡️</span>}>
+  <InfoCard.Section title="Minimum Coverage">
+    <BarChart
+      title="Coverage Minimums by Type"
+      data={[
+        { label: "Third Party Liability", value: 2000000 },
+        { label: "Property Damage", value: 1000000 },
+        { label: "Passenger Coverage", value: 500000 }
+      ]}
+    />
+  </InfoCard.Section>
+
+  <InfoCard.Section title="Premium Calculation" nested>
+    <FormulaBox>
+      <FormulaBox.Equation>
+        Final Premium = Base × Age × Driver Record × Vehicle Type
+      </FormulaBox.Equation>
+      <FormulaBox.Result label="Estimated">
+        425,000 - 650,000 UZS
+      </FormulaBox.Result>
+    </FormulaBox>
+  </InfoCard.Section>
+</InfoCard>
+
+---
+
+These components are optimized for Nextra with Next.js 15, Tailwind CSS v4, and full dark mode support. They replace ASCII art with professional, responsive visualizations.
