@@ -6,6 +6,10 @@ TAILWIND_OUTPUT := modules/core/presentation/assets/css/main.min.css
 deps:
 	go get ./...
 
+# Install development tools (templ, air, goimports, golangci-lint, tailwindcss, cloudflared)
+install-tools:
+	@bash scripts/install-dev-tools.sh
+
 # Documentation management with subcommands (serve, install)
 docs:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "serve" ]; then \
