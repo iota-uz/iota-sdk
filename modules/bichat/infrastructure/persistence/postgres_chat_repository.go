@@ -2,257 +2,573 @@ package persistence
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// SQL query constants
+const (
+	// Session queries
+	insertSessionQuery = `
+		INSERT INTO bichat_sessions (
+			id, tenant_id, user_id, title, status, pinned,
+			parent_session_id, pending_question_agent, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
+	selectSessionQuery = `
+		SELECT id, tenant_id, user_id, title, status, pinned,
+			   parent_session_id, pending_question_agent, created_at, updated_at
+		FROM bichat_sessions
+		WHERE tenant_id = $1 AND id = $2
+	`
+	updateSessionQuery = `
+		UPDATE bichat_sessions
+		SET title = $1, status = $2, pinned = $3,
+			parent_session_id = $4, pending_question_agent = $5,
+			updated_at = NOW()
+		WHERE tenant_id = $6 AND id = $7
+	`
+	listUserSessionsQuery = `
+		SELECT id, tenant_id, user_id, title, status, pinned,
+			   parent_session_id, pending_question_agent, created_at, updated_at
+		FROM bichat_sessions
+		WHERE tenant_id = $1 AND user_id = $2
+		ORDER BY pinned DESC, created_at DESC
+		LIMIT $3 OFFSET $4
+	`
+	deleteSessionQuery = `
+		DELETE FROM bichat_sessions
+		WHERE tenant_id = $1 AND id = $2
+	`
+
+	// Message queries
+	insertMessageQuery = `
+		INSERT INTO bichat_messages (
+			id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+	selectMessageQuery = `
+		SELECT id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
+		FROM bichat_messages
+		WHERE id = $1
+	`
+	selectSessionMessagesQuery = `
+		SELECT id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
+		FROM bichat_messages
+		WHERE session_id = $1
+		ORDER BY created_at ASC
+		LIMIT $2 OFFSET $3
+	`
+	truncateMessagesFromQuery = `
+		DELETE FROM bichat_messages
+		WHERE session_id = $1 AND created_at >= $2
+	`
+
+	// Attachment queries
+	insertAttachmentQuery = `
+		INSERT INTO bichat_attachments (
+			id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+	selectAttachmentQuery = `
+		SELECT id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
+		FROM bichat_attachments
+		WHERE id = $1
+	`
+	selectMessageAttachmentsQuery = `
+		SELECT id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
+		FROM bichat_attachments
+		WHERE message_id = $1
+		ORDER BY created_at ASC
+	`
+	deleteAttachmentQuery = `
+		DELETE FROM bichat_attachments
+		WHERE id = $1
+	`
+)
+
+var (
+	ErrSessionNotFound    = errors.New("session not found")
+	ErrMessageNotFound    = errors.New("message not found")
+	ErrAttachmentNotFound = errors.New("attachment not found")
 )
 
 // PostgresChatRepository implements ChatRepository using PostgreSQL.
-// TODO: Implement when Phase 1 (Agent Framework) is complete.
-//
-// Responsibilities:
-//   - CRUD operations for sessions, messages, and attachments
-//   - Multi-tenant isolation via tenant_id
-//   - Transaction support via composables.UseTx()
-//   - Proper error handling with serrors
-//
-// Table Structure:
-//   - bichat_sessions: Chat sessions
-//   - bichat_messages: Messages within sessions
-//   - bichat_attachments: File attachments for messages
-//   - bichat_checkpoints: HITL state persistence
-type PostgresChatRepository struct {
-	// db *sql.DB // TODO: Uncomment when implementing
-}
+type PostgresChatRepository struct{}
 
 // NewPostgresChatRepository creates a new PostgreSQL chat repository.
-// TODO: Implement when Phase 1 is complete.
 func NewPostgresChatRepository() domain.ChatRepository {
 	return &PostgresChatRepository{}
 }
 
+// Session operations
+
 // CreateSession creates a new session in the database.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) CreateSession(ctx context.Context, session *domain.Session) error {
-	const op serrors.Op = "PostgresChatRepository.CreateSession"
+	const op = "PostgresChatRepository.CreateSession"
 
-	// TODO: Implement
-	// 1. Get tenant ID: tenantID, err := composables.UseTenantID(ctx)
-	// 2. Get transaction: tx, err := composables.UseTx(ctx)
-	// 3. Execute INSERT query with parameterized values ($1, $2, ...)
-	// 4. Return session with generated ID and timestamps
-	//
-	// Example SQL:
-	// const query = `
-	//     INSERT INTO bichat_sessions (
-	//         id, tenant_id, user_id, title, status, pinned,
-	//         parent_session_id, pending_question_agent, created_at, updated_at
-	//     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-	// `
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return err
+	}
 
-	return serrors.E(op, "not implemented - Phase 1 pending")
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	if session.CreatedAt.IsZero() {
+		session.CreatedAt = now
+	}
+	if session.UpdatedAt.IsZero() {
+		session.UpdatedAt = now
+	}
+
+	_, err = tx.Exec(ctx, insertSessionQuery,
+		session.ID,
+		tenantID,
+		session.UserID,
+		session.Title,
+		session.Status,
+		session.Pinned,
+		session.ParentSessionID,
+		session.PendingQuestionAgent,
+		session.CreatedAt,
+		session.UpdatedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetSession retrieves a session by ID.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
-	const op serrors.Op = "PostgresChatRepository.GetSession"
+	const op = "PostgresChatRepository.GetSession"
 
-	// TODO: Implement
-	// 1. Get tenant ID for isolation
-	// 2. Execute SELECT query with tenant_id and id
-	// 3. Scan result into Session struct
-	// 4. Return ErrNotFound if no rows
-	//
-	// Example SQL:
-	// const query = `
-	//     SELECT id, tenant_id, user_id, title, status, pinned,
-	//            parent_session_id, pending_question_agent, created_at, updated_at
-	//     FROM bichat_sessions
-	//     WHERE tenant_id = $1 AND id = $2
-	// `
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, serrors.E(op, "not implemented - Phase 1 pending")
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var session domain.Session
+	err = tx.QueryRow(ctx, selectSessionQuery, tenantID, id).Scan(
+		&session.ID,
+		&session.TenantID,
+		&session.UserID,
+		&session.Title,
+		&session.Status,
+		&session.Pinned,
+		&session.ParentSessionID,
+		&session.PendingQuestionAgent,
+		&session.CreatedAt,
+		&session.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrSessionNotFound
+		}
+		return nil, err
+	}
+
+	return &session, nil
 }
 
 // UpdateSession updates an existing session.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *domain.Session) error {
-	const op serrors.Op = "PostgresChatRepository.UpdateSession"
+	const op = "PostgresChatRepository.UpdateSession"
 
-	// TODO: Implement
-	// 1. Get tenant ID
-	// 2. Execute UPDATE query
-	// 3. Check rows affected (return ErrNotFound if 0)
-	//
-	// Example SQL:
-	// const query = `
-	//     UPDATE bichat_sessions
-	//     SET title = $1, status = $2, pinned = $3,
-	//         parent_session_id = $4, pending_question_agent = $5,
-	//         updated_at = NOW()
-	//     WHERE tenant_id = $6 AND id = $7
-	// `
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return err
+	}
 
-	return serrors.E(op, "not implemented - Phase 1 pending")
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.Exec(ctx, updateSessionQuery,
+		session.Title,
+		session.Status,
+		session.Pinned,
+		session.ParentSessionID,
+		session.PendingQuestionAgent,
+		tenantID,
+		session.ID,
+	)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrSessionNotFound
+	}
+
+	return nil
 }
 
 // ListUserSessions lists all sessions for a user with pagination.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]*domain.Session, error) {
-	const op serrors.Op = "PostgresChatRepository.ListUserSessions"
+	const op = "PostgresChatRepository.ListUserSessions"
 
-	// TODO: Implement
-	// 1. Get tenant ID
-	// 2. Execute SELECT query with tenant_id, user_id, limit, offset
-	// 3. Order by created_at DESC
-	// 4. Pinned sessions should appear first
-	//
-	// Example SQL:
-	// const query = `
-	//     SELECT id, tenant_id, user_id, title, status, pinned,
-	//            parent_session_id, pending_question_agent, created_at, updated_at
-	//     FROM bichat_sessions
-	//     WHERE tenant_id = $1 AND user_id = $2
-	//     ORDER BY pinned DESC, created_at DESC
-	//     LIMIT $3 OFFSET $4
-	// `
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, serrors.E(op, "not implemented - Phase 1 pending")
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, listUserSessionsQuery, tenantID, userID, opts.Limit, opts.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []*domain.Session
+	for rows.Next() {
+		var session domain.Session
+		err := rows.Scan(
+			&session.ID,
+			&session.TenantID,
+			&session.UserID,
+			&session.Title,
+			&session.Status,
+			&session.Pinned,
+			&session.ParentSessionID,
+			&session.PendingQuestionAgent,
+			&session.CreatedAt,
+			&session.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, &session)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return sessions, nil
 }
 
 // DeleteSession deletes a session and all related data (cascades to messages/attachments).
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
-	const op serrors.Op = "PostgresChatRepository.DeleteSession"
+	const op = "PostgresChatRepository.DeleteSession"
 
-	// TODO: Implement
-	// 1. Get tenant ID
-	// 2. Execute DELETE query
-	// 3. Check rows affected
-	//
-	// Example SQL:
-	// const query = `
-	//     DELETE FROM bichat_sessions
-	//     WHERE tenant_id = $1 AND id = $2
-	// `
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return err
+	}
 
-	return serrors.E(op, "not implemented - Phase 1 pending")
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.Exec(ctx, deleteSessionQuery, tenantID, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrSessionNotFound
+	}
+
+	return nil
 }
 
+// Message operations
+
 // SaveMessage saves a message to the database.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *domain.Message) error {
-	const op serrors.Op = "PostgresChatRepository.SaveMessage"
+	const op = "PostgresChatRepository.SaveMessage"
 
-	// TODO: Implement
-	// 1. Get transaction
-	// 2. Execute INSERT query
-	// 3. Marshal tool_calls, citations to JSONB
-	//
-	// Example SQL:
-	// const query = `
-	//     INSERT INTO bichat_messages (
-	//         id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
-	//     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	// `
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
 
-	return serrors.E(op, "not implemented - Phase 1 pending")
+	// Marshal JSONB fields
+	toolCallsJSON, err := json.Marshal(msg.ToolCalls)
+	if err != nil {
+		return err
+	}
+
+	citationsJSON, err := json.Marshal(msg.Citations)
+	if err != nil {
+		return err
+	}
+
+	if msg.CreatedAt.IsZero() {
+		msg.CreatedAt = time.Now()
+	}
+
+	_, err = tx.Exec(ctx, insertMessageQuery,
+		msg.ID,
+		msg.SessionID,
+		msg.Role,
+		msg.Content,
+		toolCallsJSON,
+		msg.ToolCallID,
+		citationsJSON,
+		msg.CreatedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetMessage retrieves a message by ID.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*domain.Message, error) {
-	const op serrors.Op = "PostgresChatRepository.GetMessage"
+	const op = "PostgresChatRepository.GetMessage"
 
-	// TODO: Implement
-	// 1. Execute SELECT query
-	// 2. Unmarshal JSONB fields (tool_calls, citations)
-	//
-	// Example SQL:
-	// const query = `
-	//     SELECT id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
-	//     FROM bichat_messages
-	//     WHERE id = $1
-	// `
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, serrors.E(op, "not implemented - Phase 1 pending")
+	var msg domain.Message
+	var toolCallsJSON, citationsJSON []byte
+
+	err = tx.QueryRow(ctx, selectMessageQuery, id).Scan(
+		&msg.ID,
+		&msg.SessionID,
+		&msg.Role,
+		&msg.Content,
+		&toolCallsJSON,
+		&msg.ToolCallID,
+		&citationsJSON,
+		&msg.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrMessageNotFound
+		}
+		return nil, err
+	}
+
+	// Unmarshal JSONB fields
+	if err := json.Unmarshal(toolCallsJSON, &msg.ToolCalls); err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(citationsJSON, &msg.Citations); err != nil {
+		return nil, err
+	}
+
+	return &msg, nil
 }
 
 // GetSessionMessages retrieves all messages for a session with pagination.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Message, error) {
-	const op serrors.Op = "PostgresChatRepository.GetSessionMessages"
+	const op = "PostgresChatRepository.GetSessionMessages"
 
-	// TODO: Implement
-	// 1. Execute SELECT query ordered by created_at ASC
-	// 2. Apply limit and offset
-	//
-	// Example SQL:
-	// const query = `
-	//     SELECT id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
-	//     FROM bichat_messages
-	//     WHERE session_id = $1
-	//     ORDER BY created_at ASC
-	//     LIMIT $2 OFFSET $3
-	// `
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, serrors.E(op, "not implemented - Phase 1 pending")
+	rows, err := tx.Query(ctx, selectSessionMessagesQuery, sessionID, opts.Limit, opts.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []*domain.Message
+	for rows.Next() {
+		var msg domain.Message
+		var toolCallsJSON, citationsJSON []byte
+
+		err := rows.Scan(
+			&msg.ID,
+			&msg.SessionID,
+			&msg.Role,
+			&msg.Content,
+			&toolCallsJSON,
+			&msg.ToolCallID,
+			&citationsJSON,
+			&msg.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Unmarshal JSONB fields
+		if err := json.Unmarshal(toolCallsJSON, &msg.ToolCalls); err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal(citationsJSON, &msg.Citations); err != nil {
+			return nil, err
+		}
+
+		messages = append(messages, &msg)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
 }
 
 // TruncateMessagesFrom deletes messages in a session from a given timestamp forward.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	const op serrors.Op = "PostgresChatRepository.TruncateMessagesFrom"
+	const op = "PostgresChatRepository.TruncateMessagesFrom"
 
-	// TODO: Implement
-	// 1. Execute DELETE query
-	// 2. Return rows affected
-	//
-	// Example SQL:
-	// const query = `
-	//     DELETE FROM bichat_messages
-	//     WHERE session_id = $1 AND created_at >= $2
-	// `
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
 
-	return 0, serrors.E(op, "not implemented - Phase 1 pending")
+	result, err := tx.Exec(ctx, truncateMessagesFromQuery, sessionID, from)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected(), nil
 }
 
+// Attachment operations
+
 // SaveAttachment saves an attachment to the database.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment *domain.Attachment) error {
-	const op serrors.Op = "PostgresChatRepository.SaveAttachment"
+	const op = "PostgresChatRepository.SaveAttachment"
 
-	// TODO: Implement
-	// Example SQL:
-	// const query = `
-	//     INSERT INTO bichat_attachments (
-	//         id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
-	//     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-	// `
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
 
-	return serrors.E(op, "not implemented - Phase 1 pending")
+	if attachment.CreatedAt.IsZero() {
+		attachment.CreatedAt = time.Now()
+	}
+
+	_, err = tx.Exec(ctx, insertAttachmentQuery,
+		attachment.ID,
+		attachment.MessageID,
+		attachment.FileName,
+		attachment.MimeType,
+		attachment.SizeBytes,
+		attachment.FilePath,
+		attachment.CreatedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetAttachment retrieves an attachment by ID.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
-	const op serrors.Op = "PostgresChatRepository.GetAttachment"
-	return nil, serrors.E(op, "not implemented - Phase 1 pending")
+	const op = "PostgresChatRepository.GetAttachment"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var attachment domain.Attachment
+	err = tx.QueryRow(ctx, selectAttachmentQuery, id).Scan(
+		&attachment.ID,
+		&attachment.MessageID,
+		&attachment.FileName,
+		&attachment.MimeType,
+		&attachment.SizeBytes,
+		&attachment.FilePath,
+		&attachment.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrAttachmentNotFound
+		}
+		return nil, err
+	}
+
+	return &attachment, nil
 }
 
 // GetMessageAttachments retrieves all attachments for a message.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]*domain.Attachment, error) {
-	const op serrors.Op = "PostgresChatRepository.GetMessageAttachments"
-	return nil, serrors.E(op, "not implemented - Phase 1 pending")
+	const op = "PostgresChatRepository.GetMessageAttachments"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, selectMessageAttachmentsQuery, messageID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var attachments []*domain.Attachment
+	for rows.Next() {
+		var attachment domain.Attachment
+		err := rows.Scan(
+			&attachment.ID,
+			&attachment.MessageID,
+			&attachment.FileName,
+			&attachment.MimeType,
+			&attachment.SizeBytes,
+			&attachment.FilePath,
+			&attachment.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		attachments = append(attachments, &attachment)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return attachments, nil
 }
 
 // DeleteAttachment deletes an attachment.
-// TODO: Implement when Phase 1 is complete.
 func (r *PostgresChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
-	const op serrors.Op = "PostgresChatRepository.DeleteAttachment"
-	return serrors.E(op, "not implemented - Phase 1 pending")
+	const op = "PostgresChatRepository.DeleteAttachment"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.Exec(ctx, deleteAttachmentQuery, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return ErrAttachmentNotFound
+	}
+
+	return nil
 }

@@ -20,24 +20,33 @@ func NewModule() application.Module {
 	return &Module{}
 }
 
-type Module struct {
-}
+type Module struct{}
 
 func (m *Module) Register(app application.Application) error {
+	// Register migrations
 	app.Migrations().RegisterSchema(&MigrationFiles)
+
+	// Register locale files
 	app.RegisterLocaleFiles(&LocaleFiles)
-	app.RegisterServices(
-		services.NewEmbeddingService(app),
-	)
-	app.RegisterServices(
-		services.NewDialogueService(persistence.NewDialogueRepository(), app),
-	)
+
+	// Register repository
+	chatRepo := persistence.NewPostgresChatRepository()
+
+	// TODO(Phase 1): Replace with real implementations when Agent Framework is complete
+	// Register stub services
+	chatService := services.NewChatServiceStub()
+
+	// Register controllers
 	app.RegisterControllers(
-		controllers.NewBiChatController(app),
+		controllers.NewChatController(app, chatService, chatRepo),
+		controllers.NewStreamController(app, chatService),
 	)
+
+	// Register quick links
 	app.QuickLinks().Add(
-		spotlight.NewQuickLink(nil, BiChatLink.Name, BiChatLink.Href),
+		spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href),
 	)
+
 	return nil
 }
 
