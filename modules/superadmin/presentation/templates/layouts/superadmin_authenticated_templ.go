@@ -104,7 +104,11 @@ func SuperAdminAuthenticated(props SuperAdminAuthenticatedProps) templ.Component
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+<<<<<<< HEAD
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <div x-data=\"{\n\t\t\t\tsidebarCollapsed: localStorage.getItem(&#39;sidebar-collapsed&#39;) === &#39;true&#39;,\n\t\t\t\tinit() {\n\t\t\t\t\tthis.$nextTick(() =&gt; {\n\t\t\t\t\t\twindow.addEventListener(&#39;storage&#39;, (e) =&gt; {\n\t\t\t\t\t\t\tif (e.key === &#39;sidebar-collapsed&#39;) {\n\t\t\t\t\t\t\t\tthis.sidebarCollapsed = e.newValue === &#39;true&#39;;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t}\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" class=\"flex min-h-screen w-full\"><div class=\"hidden lg:block flex-shrink-0\">")
+=======
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <div x-data=\"{\n\t\t\t\tsidebarCollapsed: localStorage.getItem(&#39;sidebar-collapsed&#39;) === &#39;true&#39;,\n\t\t\t\tinit() {\n\t\t\t\t\tthis.$nextTick(() =&gt; {\n\t\t\t\t\t\twindow.addEventListener(&#39;storage&#39;, (e) =&gt; {\n\t\t\t\t\t\t\tif (e.key === &#39;sidebar-collapsed&#39;) {\n\t\t\t\t\t\t\t\tthis.sidebarCollapsed = e.newValue === &#39;true&#39;;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t}\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" :class=\"{ &#39;lg:grid-cols-[4rem_1fr]&#39;: sidebarCollapsed, &#39;lg:grid-cols-[280px_1fr]&#39;: !sidebarCollapsed }\" class=\"grid min-h-screen w-full overflow-y-auto transition-all duration-300\"><div class=\"hidden lg:block\">")
+>>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -394,7 +394,11 @@ func SidebarFooter() templ.Component {
 			templ_7745c5c3_Var14 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<!-- Toggle button at bottom --><button @click.stop=\"toggle(); $dispatch(&#39;sidebar-toggle&#39;)\" class=\"hidden lg:flex items-center justify-center w-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors\"><div x-show=\"!isCollapsed\">")
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<!-- Toggle button at bottom --><button @click=\"toggle(); $dispatch(&#39;sidebar-toggle&#39;)\" class=\"hidden lg:flex items-center justify-center w-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors\"><div x-show=\"!isCollapsed\">")
+>>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -585,7 +589,11 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+<<<<<<< HEAD
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" class=\"flex min-h-screen w-full\"><div class=\"hidden lg:block flex-shrink-0\">")
+=======
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "\" @sidebar-toggle=\"sidebarCollapsed = !sidebarCollapsed\" :class=\"{ &#39;lg:grid-cols-[4rem_1fr]&#39;: sidebarCollapsed, &#39;lg:grid-cols-[280px_1fr]&#39;: !sidebarCollapsed }\" class=\"grid min-h-screen w-full overflow-y-auto transition-all duration-300\"><div class=\"hidden lg:block\">")
+>>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -593,7 +601,11 @@ func Authenticated(props AuthenticatedProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+<<<<<<< HEAD
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div><div class=\"flex-1 flex flex-col h-screen overflow-hidden\">")
+=======
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div><div class=\"flex flex-col h-screen overflow-x-hidden\">")
+>>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

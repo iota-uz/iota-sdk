@@ -160,7 +160,8 @@ templ DefaultSidebarFooter() {
 templ SidebarFooter() {
 	<!-- Toggle button at bottom -->
 	<button
-		@click.stop="toggle(); $dispatch('sidebar-toggle')"
+<<<<<<< HEAD
+		@click="toggle(); $dispatch('sidebar-toggle')"
 		class="hidden lg:flex items-center justify-center w-full p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
 	>
 		<div x-show="!isCollapsed">
@@ -223,7 +224,9 @@ templ Authenticated(props AuthenticatedProps) {
 			}"
 			data-sidebar-state={ string(sidebarProps.InitialState) }
 			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
-			class="flex min-h-screen w-full"
+<<<<<<< HEAD
+			:class="{ 'lg:grid-cols-[4rem_1fr]': sidebarCollapsed, 'lg:grid-cols-[280px_1fr]': !sidebarCollapsed }"
+			class="grid min-h-screen w-full overflow-y-auto transition-all duration-300"
 		>
 			<div class="hidden lg:block flex-shrink-0">
 				@sidebar.Sidebar(sidebarProps)
