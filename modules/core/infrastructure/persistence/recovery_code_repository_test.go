@@ -9,10 +9,7 @@ import (
 
 // TestRecoveryCodeRepositoryInterface verifies that RecoveryCodeRepository implements the interface
 func TestRecoveryCodeRepositoryInterface(t *testing.T) {
-	repo := NewRecoveryCodeRepository()
-
-	// Verify the interface is implemented
-	var _ twofactor.RecoveryCodeRepository = repo
+	var _ twofactor.RecoveryCodeRepository = NewRecoveryCodeRepository()
 }
 
 // TestNewRecoveryCodeRepository verifies factory function

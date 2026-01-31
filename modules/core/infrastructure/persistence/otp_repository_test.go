@@ -13,10 +13,7 @@ import (
 
 // TestOTPRepositoryInterface verifies that OTPRepository implements the interface
 func TestOTPRepositoryInterface(t *testing.T) {
-	repo := NewOTPRepository()
-
-	// Verify the interface is implemented
-	var _ twofactor.OTPRepository = repo
+	var _ twofactor.OTPRepository = NewOTPRepository()
 }
 
 // TestNewOTPRepository verifies factory function

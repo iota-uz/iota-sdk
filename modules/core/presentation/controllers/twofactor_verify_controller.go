@@ -150,7 +150,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 	err = c.twoFactorService.Verify(r.Context(), sess.UserID(), code)
 	if err != nil {
 		logger.Error("failed to verify 2FA code", "error", err)
-		errorMsg := "TwoFactor.Verify.InvalidCode"
+		var errorMsg string
 		if errors.Is(err, pkgtwofactor.ErrInvalidCode) {
 			errorMsg = "TwoFactor.Verify.InvalidCode"
 		} else {
@@ -339,6 +339,10 @@ func (c *TwoFactorVerifyController) PostResend(w http.ResponseWriter, r *http.Re
 		successMsg = "TwoFactor.Verify.SMSCodeSent"
 	case pkgtwofactor.MethodEmail:
 		successMsg = "TwoFactor.Verify.EmailCodeSent"
+	case pkgtwofactor.MethodTOTP, pkgtwofactor.MethodBackupCodes:
+		// TOTP and backup codes don't use resend, use default message
+	default:
+		// Unknown method, use default message
 	}
 
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), successMsg)))

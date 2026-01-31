@@ -3,6 +3,7 @@ package twofactor
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/smtp"
 
 	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
@@ -66,7 +67,7 @@ func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error 
 	}
 
 	// Log successful delivery
-	fmt.Printf("[EmailOTPSender] OTP sent to %s via email\n", req.Recipient)
+	log.Printf("[EmailOTPSender] OTP sent to %s via email\n", req.Recipient)
 
 	return nil
 }
@@ -149,7 +150,7 @@ func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 	}
 
 	// Log successful delivery
-	fmt.Printf("[SMSOTPSender] OTP sent to %s via SMS (Twilio SID: %s)\n", req.Recipient, *resp.Sid)
+	log.Printf("[SMSOTPSender] OTP sent to %s via SMS (Twilio SID: %s)\n", req.Recipient, *resp.Sid)
 
 	return nil
 }

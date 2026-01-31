@@ -3,6 +3,7 @@ package twofactor
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 )
 
@@ -112,8 +113,9 @@ func NewNoopSender() *NoopSender {
 }
 
 // Send logs the OTP code to stdout instead of sending it.
-func (n *NoopSender) Send(ctx context.Context, req SendRequest) error {
+func (n *NoopSender) Send(_ context.Context, req SendRequest) error {
 	// In development, log the OTP code for manual testing
-	fmt.Printf("[NoopSender] OTP Code: %s | Channel: %s | Recipient: %s\n", req.Code, req.Channel, req.Recipient)
+	// TODO: Replace with proper structured logging in production
+	fmt.Fprintf(os.Stderr, "[NoopSender] OTP Code: %s | Channel: %s | Recipient: %s\n", req.Code, req.Channel, req.Recipient)
 	return nil
 }

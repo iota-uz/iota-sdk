@@ -96,9 +96,7 @@ func (r *RecoveryCodeRepository) FindUnused(ctx context.Context, userID uint) ([
 
 	query := repo.Join(
 		selectRecoveryCodeQuery,
-		fmt.Sprintf(
-			"WHERE user_id = $1 AND tenant_id = $2 AND used_at IS NULL ORDER BY created_at ASC",
-		),
+		"WHERE user_id = $1 AND tenant_id = $2 AND used_at IS NULL ORDER BY created_at ASC",
 	)
 
 	return r.queryRecoveryCodes(ctx, query, userID, tenantID.String())

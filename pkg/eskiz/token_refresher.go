@@ -57,6 +57,10 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 		default:
 		}
 
+		if r.client == nil {
+			return "", errors.New("client is not initialized")
+		}
+
 		resp, httpResp, err := r.client.DefaultApi.
 			Login(ctx).
 			Email(r.cfg.Email()).

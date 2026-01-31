@@ -62,11 +62,11 @@ func NewOTPService(
 // generateCode generates a random numeric OTP code
 func (s *OTPService) generateCode() (string, error) {
 	// Calculate max value (e.g., for 6 digits: 999999)
-	max := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(s.length)), nil)
-	max.Sub(max, big.NewInt(1))
+	maxCode := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(s.length)), nil)
+	maxCode.Sub(maxCode, big.NewInt(1))
 
 	// Generate random number
-	n, err := rand.Int(rand.Reader, max)
+	n, err := rand.Int(rand.Reader, maxCode)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate random number: %w", err)
 	}

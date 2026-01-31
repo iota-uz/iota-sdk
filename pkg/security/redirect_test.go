@@ -163,7 +163,6 @@ func TestIsValidRedirect(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := IsValidRedirect(tt.input)
@@ -215,7 +214,6 @@ func TestGetValidatedRedirect(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := GetValidatedRedirect(tt.input)

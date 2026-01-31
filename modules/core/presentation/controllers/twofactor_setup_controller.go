@@ -142,6 +142,17 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 		redirectURL = fmt.Sprintf("/login/2fa/setup/totp?challengeId=%s&next=%s", challenge.ChallengeID, url.QueryEscape(nextURL))
 	case pkgtwofactor.MethodSMS, pkgtwofactor.MethodEmail:
 		redirectURL = fmt.Sprintf("/login/2fa/setup/otp?method=%s&challengeId=%s&next=%s", method, challenge.ChallengeID, url.QueryEscape(nextURL))
+	case pkgtwofactor.MethodBackupCodes:
+		// Backup codes are not set up directly, return error
+		logger.Error("backup codes cannot be set up directly", "method", method)
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+		return
+	default:
+		logger.Error("unknown 2FA method", "method", method)
+		shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "TwoFactor.Setup.InvalidMethod")))
+		http.Redirect(w, r, fmt.Sprintf("/login/2fa/setup?next=%s", url.QueryEscape(nextURL)), http.StatusFound)
+		return
 	}
 
 	http.Redirect(w, r, redirectURL, http.StatusFound)
@@ -213,7 +224,7 @@ func (c *TwoFactorSetupController) PostTOTPConfirm(w http.ResponseWriter, r *htt
 	result, err := c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
 	if err != nil {
 		logger.Error("failed to confirm 2FA setup", "error", err)
-		errorMsg := "TwoFactor.Setup.InvalidCode"
+		var errorMsg string
 		if errors.Is(err, pkgtwofactor.ErrInvalidCode) {
 			errorMsg = "TwoFactor.Setup.InvalidCode"
 		} else {
@@ -280,6 +291,10 @@ func (c *TwoFactorSetupController) PostOTPSend(w http.ResponseWriter, r *http.Re
 		successMsg = "TwoFactor.Setup.SMSSent"
 	case pkgtwofactor.MethodEmail:
 		successMsg = "TwoFactor.Setup.EmailSent"
+	case pkgtwofactor.MethodTOTP, pkgtwofactor.MethodBackupCodes:
+		// TOTP and backup codes don't use OTP send, use default message
+	default:
+		// Unknown method, use default message
 	}
 
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), successMsg)))
@@ -318,7 +333,7 @@ func (c *TwoFactorSetupController) PostOTPConfirm(w http.ResponseWriter, r *http
 	_, err = c.twoFactorService.ConfirmSetup(r.Context(), sess.UserID(), challengeID, code)
 	if err != nil {
 		logger.Error("failed to confirm 2FA setup", "error", err)
-		errorMsg := "TwoFactor.Setup.InvalidCode"
+		var errorMsg string
 		if errors.Is(err, pkgtwofactor.ErrInvalidCode) {
 			errorMsg = "TwoFactor.Setup.InvalidCode"
 		} else {
