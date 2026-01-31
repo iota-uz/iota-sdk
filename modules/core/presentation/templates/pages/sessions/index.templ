@@ -1,0 +1,212 @@
+package sessions
+
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type IndexPageProps struct {
+	Sessions    []*viewmodels.AdminSessionViewModel
+	Page        int
+	PerPage     int
+	TotalCount  int
+	HasMore     bool
+	SearchQuery string
+}
+
+func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(props.Page+1))
+	params.Set("limit", strconv.Itoa(props.PerPage))
+	if props.SearchQuery != "" {
+		params.Set("search", props.SearchQuery)
+	}
+
+	return templ.Attributes{
+		"hx-get":     "/settings/sessions?" + params.Encode(),
+		"hx-trigger": "intersect once",
+		"hx-swap":    "afterend",
+		"hx-target":  "this",
+	}
+}
+
+templ SessionRow(session *viewmodels.AdminSessionViewModel) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		rowProps := &base.TableRowProps{
+			Attrs: templ.Attributes{
+				"id":    fmt.Sprintf("session-row-%s", session.FullToken),
+				"class": "hide-on-load",
+			},
+		}
+	}}
+	@base.TableRow(*rowProps) {
+		@base.TableCell(base.TableCellProps{}) {
+			if session.User != nil {
+				<div class="flex flex-col">
+					<a
+						href={ templ.URL(fmt.Sprintf("/users/%s", session.User.ID)) }
+						class="text-primary hover:underline font-medium"
+					>
+						{ session.User.Title() }
+					</a>
+					<span class="text-sm text-surface-200">{ session.User.Email }</span>
+				</div>
+			} else {
+				<span class="text-surface-200">{ pageCtx.T("Unknown") }</span>
+			}
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<div class="flex flex-col">
+				<span class="font-medium">{ session.Browser }</span>
+				<span class="text-sm text-surface-200">{ session.Device } • { session.OS }</span>
+			</div>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<div class="flex items-center gap-2">
+				<span>{ session.IPAddress }</span>
+				if session.IsCurrent {
+					@badge.New(badge.Props{
+						Variant: badge.VariantGreen,
+						Size:    badge.SizeNormal,
+					}) {
+						{ pageCtx.T("Sessions.List.CurrentSession") }
+					}
+				}
+			</div>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<div x-data="dateTimeFormat">
+				<span x-text={ fmt.Sprintf("format('%s')", session.CreatedAt) }></span>
+			</div>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			if !session.IsCurrent {
+				@button.Danger(button.Props{
+					Fixed: true,
+					Size:  button.SizeSM,
+					Class: "btn-fixed",
+					Attrs: templ.Attributes{
+						"hx-delete":  fmt.Sprintf("/settings/sessions/%s", session.RawToken),
+						"hx-confirm": pageCtx.T("Sessions.List.ConfirmRevoke"),
+						"hx-swap":    "outerHTML swap:0s",
+						"hx-target":  "closest tr",
+					},
+				}) {
+					@icons.Trash(icons.Props{Size: "20"})
+				}
+			}
+		}
+	}
+}
+
+templ SessionRows(props *IndexPageProps) {
+	<tr class="hidden">
+		<td colspan="5">
+			@loaders.Spinner(loaders.SpinnerProps{
+				ContainerClass: templ.Classes(
+					"flex justify-center items-center py-4",
+				),
+			})
+		</td>
+	</tr>
+	for ix, session := range props.Sessions {
+		{{
+			isLastRow := ix == len(props.Sessions)-1
+			rowProps := &base.TableRowProps{
+				Attrs: templ.Attributes{},
+			}
+			if isLastRow && props.HasMore {
+				rowProps.Attrs = mkInfiniteAttrs(props)
+			}
+		}}
+		@SessionRow(session)
+	}
+}
+
+templ SessionsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@base.Table(base.TableProps{
+		Columns: []*base.TableColumn{
+			{Label: pageCtx.T("Sessions.List.User"), Key: "user"},
+			{Label: pageCtx.T("Sessions.List.Device"), Key: "device"},
+			{Label: pageCtx.T("Sessions.List.IP"), Key: "ip"},
+			{Label: pageCtx.T("Sessions.List.CreatedAt"), Key: "createdAt"},
+			{Label: pageCtx.T("Actions"), Class: "w-16"},
+		},
+		TBodyAttrs: templ.Attributes{
+			"id": "sessions-table-body",
+		},
+	}) {
+		@SessionRows(props)
+	}
+}
+
+templ SessionsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="bg-surface-600 border border-primary rounded-lg">
+		<form
+			class="p-4 flex items-center gap-3"
+			hx-get="/settings/sessions"
+			hx-trigger="keyup changed delay:500ms from:(form input)"
+			hx-target="#sessions-table-body"
+			hx-swap="innerHTML"
+			hx-indicator="#sessions-table-body"
+		>
+			<input type="hidden" name="page" value="1"/>
+			<div class="flex-1">
+				@input.Text(&input.Props{
+					AddonLeft: &input.Addon{
+						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+					},
+					Placeholder: pageCtx.T("Sessions.List.Search"),
+					Attrs: templ.Attributes{
+						"name":  "search",
+						"value": props.SearchQuery,
+					},
+				})
+			</div>
+		</form>
+		if len(props.Sessions) > 0 {
+			@SessionsTable(props)
+		} else {
+			<div class="p-8 text-center text-surface-200">
+				<div class="flex flex-col items-center gap-2">
+					@icons.ClockCounterClockwise(icons.Props{Size: "48", Class: "text-surface-300"})
+					<p class="text-lg">{ pageCtx.T("Sessions.List.EmptyState") }</p>
+				</div>
+			</div>
+		}
+	</div>
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Sessions.Meta.List.Title")},
+	}) {
+		<div class="m-6">
+			<div class="flex justify-between items-center">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("Sessions.List.Title") }
+				</h1>
+			</div>
+			<div class="mt-5">
+				<div id="sessions-table-wrapper">
+					@SessionsContent(props)
+				</div>
+			</div>
+		</div>
+	}
+}

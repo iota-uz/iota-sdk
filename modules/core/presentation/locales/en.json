@@ -49,6 +49,23 @@
       "PhonePlaceholder": "Enter phone number (e.g. +1234567890)",
       "Email": "Email Address",
       "EmailPlaceholder": "Enter email address"
+    },
+    "Sessions": {
+      "Title": "Active Sessions",
+      "DescText": "Manage your active sessions across devices",
+      "CurrentDevice": "Current",
+      "Device": "Device",
+      "IPAddress": "IP Address",
+      "CreatedAt": "Signed In",
+      "Actions": "Actions",
+      "Revoke": "Revoke",
+      "RevokeAll": "Sign out all other devices",
+      "ConfirmRevoke": "Are you sure you want to revoke this session?",
+      "ConfirmRevokeAll": "Are you sure you want to sign out from all other devices?",
+      "RevokeSuccess": "Session revoked successfully",
+      "RevokeAllSuccess": "%d sessions revoked",
+      "EmptyState": "You are only signed in on this device",
+      "CannotRevokeCurrent": "Cannot revoke current session"
     }
   },
   "Actions": "Actions",
@@ -518,6 +535,7 @@
     "Metrics": "Metrics",
     "Navbar": {
       "Profile": "Profile",
+      "Sessions": "Sessions",
       "Logout": "Logout"
     }
   },
@@ -752,6 +770,10 @@
       "Decline": "Decline pipelines",
       "RequestAdditionalInfo": "Request additional information",
       "CompleteAssessment": "Complete assessment"
+    },
+    "Session": {
+      "Read": "View sessions",
+      "Delete": "Delete sessions"
     }
   },
   "Projects": {
@@ -787,7 +809,8 @@
     "upload": "Uploads",
     "payout_request": "Payout Request",
     "pipeline": "Pipeline",
-    "website": "Website"
+    "website": "Website",
+    "session": "Sessions"
   },
   "Roles": {
     "Meta": {
@@ -883,7 +906,8 @@
     },
     "Tabs": {
       "UserInfo": "User Info",
-      "Permissions": "Permissions"
+      "Permissions": "Permissions",
+      "Sessions": "Sessions"
     },
     "Single": {
       "EditUser": "Edit user",
@@ -934,6 +958,20 @@
     },
     "Delete": {
       "NotAllowed": "Cannot delete: You are the only user in this tenant"
+    },
+    "Sessions": {
+      "Title": "Sessions for:",
+      "Device": "Device",
+      "Browser": "Browser",
+      "OS": "Operating System",
+      "IP": "IP Address",
+      "CreatedAt": "Created At",
+      "Actions": "Actions",
+      "Revoke": "Revoke",
+      "RevokeConfirm": "Are you sure you want to revoke this session?",
+      "NoSessions": "No active sessions",
+      "RevokeSuccess": "Session revoked successfully",
+      "RevokeFailed": "Failed to revoke session"
     }
   },
   "ValidationErrors": {
@@ -963,5 +1001,26 @@
     "remove_language": "Remove this language",
     "locale_placeholder": "en",
     "text_placeholder": "Enter text in this language"
+  },
+  "Sessions": {
+    "Meta": {
+      "List": {
+        "Title": "Active Sessions"
+      }
+    },
+    "List": {
+      "Title": "Active Sessions",
+      "Search": "Search by user name or email...",
+      "User": "User",
+      "Device": "Device",
+      "IP": "IP Address",
+      "CreatedAt": "Created",
+      "Actions": "Actions",
+      "Revoke": "Revoke",
+      "ConfirmRevoke": "Are you sure you want to revoke this session?",
+      "EmptyState": "No active sessions found",
+      "CurrentSession": "Current"
+    },
+    "Revoked": "Session revoked successfully"
   }
 }

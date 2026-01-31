@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	ResourceUser   permission.Resource = "user"
-	ResourceRole   permission.Resource = "role"
-	ResourceGroup  permission.Resource = "group"
-	ResourceUpload permission.Resource = "upload"
+	ResourceUser    permission.Resource = "user"
+	ResourceRole    permission.Resource = "role"
+	ResourceGroup   permission.Resource = "group"
+	ResourceUpload  permission.Resource = "upload"
+	ResourceSession permission.Resource = "session"
 )
 
 var (
@@ -133,6 +134,20 @@ var (
 		permission.ActionDelete,
 		permission.ModifierAll,
 	)
+	SessionRead = permission.MustCreate(
+		uuid.MustParse("cc187054-0175-4536-a3f4-1d9f5ff45ec2"),
+		"Session.Read",
+		ResourceSession,
+		permission.ActionRead,
+		permission.ModifierAll,
+	)
+	SessionDelete = permission.MustCreate(
+		uuid.MustParse("595b6051-6974-4807-b059-ad4a96f51819"),
+		"Session.Delete",
+		ResourceSession,
+		permission.ActionDelete,
+		permission.ModifierAll,
+	)
 )
 
 var Permissions = []permission.Permission{
@@ -153,4 +168,6 @@ var Permissions = []permission.Permission{
 	UploadRead,
 	UploadUpdate,
 	UploadDelete,
+	SessionRead,
+	SessionDelete,
 }

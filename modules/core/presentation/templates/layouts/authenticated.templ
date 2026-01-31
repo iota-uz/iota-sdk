@@ -145,6 +145,9 @@ templ Navbar(pageCtx types.PageContextProvider) {
 				@base.DropdownItem(base.DropdownItemProps{Href: "/account"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Profile") }
 				}
+				@base.DropdownItem(base.DropdownItemProps{Href: "/account/sessions"}) {
+					{ pageCtx.T("NavigationLinks.Navbar.Sessions") }
+				}
 				@base.DropdownItem(base.DropdownItemProps{Href: "/logout"}) {
 					{ pageCtx.T("NavigationLinks.Navbar.Logout") }
 				}
