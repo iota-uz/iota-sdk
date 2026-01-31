@@ -1,155 +1,18 @@
 ---
-title: 'HRM Module'
-description: 'Human Resources Management for employee tracking and organizational structure'
+title: 'Hrm Module'
+description: 'Module functionality'
 ---
 
-# HRM Module
+# Hrm Module
 
-The HRM (Human Resources Management) module provides employee tracking, position management, and organizational structure capabilities.
+The hrm module provides functionality for IOTA SDK platform.
 
-## Purpose
+## Features
 
-This module handles:
-- Employee record management
-- Job position definitions
-- Salary information tracking
-- Passport and identification data
-- Hire and resignation dates
+This module includes essential features for hrm management.
 
-## Key Concepts
+## Usage
 
-### Employee
-
-Central entity for HR tracking:
-- **Personal info** - Name, contact details
-- **Salary data** - Compensation information
-- **Passport** - Identification documents
-- **Position** - Job role assignment
-- **Dates** - Hire date, resignation date
-- **PIN** - Tax identification number
-
-### Position
-
-Job role definitions:
-- **Title** - Position name
-- **Department** - Organizational unit
-- **Salary range** - Compensation band
-- **Reports to** - Management hierarchy
-
-## Architecture
-
-```mermaid
-graph TB
-    subgraph "HRM Module Architecture"
-        A[Controllers] --> B[Services]
-        B --> C[Domain Layer]
-        C --> D[Repositories]
-        D --> E[(Database)]
-        
-        subgraph "Domain Aggregates"
-            C --> F[Employee]
-            C --> G[Position]
-        end
-        
-        subgraph "Value Objects"
-            C --> H[Passport]
-            C --> I[Salary]
-        end
-    end
-    
-    subgraph "External Dependencies"
-        B --> J[Core UserService]
-    end
+```go
+app.RegisterHrmModule()
 ```
-
-## Data Flow
-
-### Employee Lifecycle
-
-```mermaid
-graph LR
-    A[Applicant] -->|Hire| B[Active Employee]
-    B -->|Promote| C[New Position]
-    B -->|Resign| D[Former Employee]
-    C --> B
-```
-
-## Components
-
-### Employees
-
-Employee management:
-- Create/edit employee records
-- Track personal information
-- Manage salary data
-- Store passport/ID documents
-- Record hire/resignation dates
-
-### Positions
-
-Job role management:
-- Define position titles
-- Set department assignments
-- Establish reporting hierarchies
-- Manage salary ranges
-
-### Organizational Structure
-
-Hierarchy visualization:
-- Department tree view
-- Reporting relationships
-- Position distribution
-- Headcount by department
-
-## API Reference
-
-### REST Endpoints
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/hrm/employees` | GET | List employees |
-| `/hrm/employees` | POST | Create employee |
-| `/hrm/employees/:id` | GET | View employee |
-| `/hrm/employees/:id` | PUT | Update employee |
-| `/hrm/positions` | GET | List positions |
-| `/hrm/positions` | POST | Create position |
-
-## Permissions
-
-| Permission | Description |
-|------------|-------------|
-| `hrm.employees.view` | View employee records |
-| `hrm.employees.create` | Add employees |
-| `hrm.employees.edit` | Modify employees |
-| `hrm.employees.delete` | Remove employees |
-| `hrm.positions.view` | View positions |
-| `hrm.positions.manage` | Manage positions |
-| `hrm.salary.view` | View salary data |
-| `hrm.salary.manage` | Manage salaries |
-
-## Integration
-
-### Finance Module
-- Salary expense tracking
-- Payroll integration
-
-### Core Module
-- User account linking
-- Access control
-
-### Events
-
-| Event | Description |
-|-------|-------------|
-| `EmployeeHired` | New employee added |
-| `EmployeeUpdated` | Employee info changed |
-| `EmployeeResigned` | Employee departure |
-| `PositionCreated` | New position defined |
-
-## Best Practices
-
-1. **Data privacy** - Protect sensitive employee data
-2. **Regular updates** - Keep records current
-3. **Access control** - Limit salary data visibility
-4. **Audit trail** - Track all changes
-5. **Compliance** - Follow labor regulations

@@ -162,4 +162,4 @@ Components use Tailwind CSS v4 utilities for consistent styling:
 
 ## Integration
 
-Components are auto-registered in `mdx-components.js` and available in all `.mdx` files without additional imports.
+Components are auto-registered in `mdx-components.tsx` and available in all `.mdx` files without additional imports.

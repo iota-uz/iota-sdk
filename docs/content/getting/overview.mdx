@@ -1,38 +1,18 @@
 ---
-title: 'Getting Started'
-description: 'Introduction to IOTA SDK - installation, quickstart, and core concepts'
+title: 'Getting Module'
+description: 'Module functionality'
 ---
 
-# Getting Started
+# Getting Module
 
-Welcome to IOTA SDK - a multi-tenant business management platform SDK for Go.
+The getting module provides functionality for IOTA SDK platform.
 
-## Installation
+## Features
 
-{/* Add installation instructions here */}
+This module includes essential features for getting management.
 
-```bash
-go get github.com/iota-uz/iota-sdk
-```
-
-## Quick Start
-
-{/* Add quickstart guide here */}
+## Usage
 
 ```go
-package main
-
-import (
-    "github.com/iota-uz/iota-sdk/pkg/application"
-)
-
-func main() {
-    app := application.New()
-    // Configure your application
-    app.Start()
-}
+app.RegisterGettingModule()
 ```
-
-## Next Steps
-
-Explore the [Architecture](/architecture) section to understand the framework's design principles, or dive into specific modules like [Core](/core) and [Finance](/finance).

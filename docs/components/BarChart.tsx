@@ -23,7 +23,6 @@ export const BarChart = ({ title, data, maxValue }: BarChartProps) => {
       <div className="space-y-6">
         {data.map((item, index) => {
           const percentage = (item.value / max) * 100
-          const clampedPercentage = Math.min(100, percentage)
 
           return (
             <div key={index}>
@@ -35,10 +34,10 @@ export const BarChart = ({ title, data, maxValue }: BarChartProps) => {
               <div className="h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-blue-400 to-blue-600 dark:from-blue-500 dark:to-blue-700 transition-all duration-300 ease-out flex items-center justify-end pr-2"
-                  style={{ width: `${clampedPercentage}%` }}
+                  style={{ width: `${percentage}%` }}
                 >
-                  {clampedPercentage > 15 && (
-                    <span className="text-xs font-semibold text-white">{clampedPercentage.toFixed(0)}%</span>
+                  {percentage > 15 && (
+                    <span className="text-xs font-semibold text-white">{percentage.toFixed(0)}%</span>
                   )}
                 </div>
               </div>

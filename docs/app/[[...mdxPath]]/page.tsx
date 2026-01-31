@@ -32,8 +32,7 @@ export default async function Page(props: PageProps) {
       </Wrapper>
     )
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('Error importing page for path:', params.mdxPath, errorMessage)
+    console.error('Error importing page for path:', params.mdxPath, error)
     throw error
   }
 }

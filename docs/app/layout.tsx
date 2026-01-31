@@ -3,6 +3,7 @@ import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { TechnicalDocsLink } from './TechnicalDocsLink'
 import { Logo } from './Logo'
 import { EnvironmentProvider } from '../contexts/EnvironmentContext'
 import { EnvironmentSelector } from './EnvironmentSelector'
@@ -22,11 +23,11 @@ const navbar = (
   <Navbar logo={<Logo />}>
     <div className="flex items-center gap-2">
       <EnvironmentSelector />
+      <TechnicalDocsLink />
     </div>
   </Navbar>
 )
 
-// Footer year is evaluated at build time (static export mode)
 const footer = (
   <Footer>
     © {new Date().getFullYear()} IOTA SDK. All rights reserved.
