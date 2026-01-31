@@ -2,12 +2,13 @@ package core
 
 import (
 	"embed"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -49,11 +50,13 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	const op serrors.Op = "core.Module.Register"
+
 	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 	fsStorage, err := persistence.NewFSStorage()
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	// Register upload repository first since user repository needs it
 	uploadRepo := persistence.NewUploadRepository()
@@ -96,7 +99,7 @@ func (m *Module) Register(app application.Application) error {
 
 	// In production, TOTP_ENCRYPTION_KEY is required to prevent plaintext storage
 	if conf.GoAppEnvironment == "production" && conf.TwoFactorAuth.EncryptionKey == "" {
-		return fmt.Errorf("TOTP_ENCRYPTION_KEY is required in production environment")
+		return serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
 	}
 
 	if conf.TwoFactorAuth.EncryptionKey != "" {
@@ -155,7 +158,7 @@ func (m *Module) Register(app application.Application) error {
 		twofactor.WithOTPSender(otpSender),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create two-factor service: %w", err)
+		return serrors.E(op, "failed to create two-factor service", err)
 	}
 
 	app.RegisterServices(

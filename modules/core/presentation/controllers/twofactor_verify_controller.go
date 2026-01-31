@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
@@ -13,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
@@ -162,7 +164,9 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Update session to Active status
+	// Update session to Active status with full session duration
+	// Pending sessions have 10-minute TTL, active sessions get full duration
+	conf := configuration.Use()
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -171,7 +175,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(sess.ExpiresAt()),
+		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
@@ -260,7 +264,9 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Update session to Active status
+	// Update session to Active status with full session duration
+	// Pending sessions have 10-minute TTL, active sessions get full duration
+	conf := configuration.Use()
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -269,7 +275,7 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(sess.ExpiresAt()),
+		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 

@@ -102,11 +102,35 @@ test.describe('2FA Recovery Codes', () => {
 		await logout(page);
 	});
 
-	test('should display recovery codes after successful TOTP setup', async ({ page }) => {
-		const setupPage = new TwoFactorSetupPage(page);
+	test('should display recovery codes after successful TOTP setup', async ({ page, request }) => {
+		// Create a fresh test user WITHOUT 2FA enabled for this setup test
+		await populateTestData(request, {
+			version: '1.0',
+			data: {
+				users: [
+					{
+						email: 'setup-test@example.com',
+						password: 'TestPass123!',
+						firstName: 'Setup',
+						lastName: 'Test',
+						language: 'en',
+						// NOTE: Do NOT set twoFactorMethod or twoFactorEnabledAt
+						// This user should be able to go through setup flow
+					},
+				],
+			},
+		});
 
-		// Navigate to setup page
-		await page.goto('/login/2fa/setup');
+		// Login with the fresh user
+		await page.goto('/login');
+		await page.fill('[type=email]', 'setup-test@example.com');
+		await page.fill('[type=password]', 'TestPass123!');
+		await page.click('[type=submit]');
+
+		// Should redirect to 2FA setup
+		await expect(page).toHaveURL(/\/login\/2fa\/setup/);
+
+		const setupPage = new TwoFactorSetupPage(page);
 
 		// Select TOTP method
 		await setupPage.selectMethod('totp');

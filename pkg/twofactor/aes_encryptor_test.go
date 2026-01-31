@@ -2,17 +2,30 @@ package twofactor_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"strings"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
+// generateTestKey generates a random 32-byte key for testing
+func generateTestKey(t *testing.T) string {
+	t.Helper()
+	key := make([]byte, 32)
+	_, err := rand.Read(key)
+	if err != nil {
+		t.Fatalf("Failed to generate test key: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(key)
+}
+
 func TestAESEncryptor_EncryptDecrypt(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	encryptionKey := "test-key-32-bytes-long-for-aes256-gcm-encryption!!!!"
+	encryptionKey := generateTestKey(t)
 	encryptor := twofactor.NewAESEncryptor(encryptionKey)
 
 	testCases := []struct {
@@ -76,8 +89,8 @@ func TestAESEncryptor_DifferentKeysProduceDifferentCiphertexts(t *testing.T) {
 	ctx := context.Background()
 	plaintext := "JBSWY3DPEHPK3PXP"
 
-	encryptor1 := twofactor.NewAESEncryptor("key1")
-	encryptor2 := twofactor.NewAESEncryptor("key2")
+	encryptor1 := twofactor.NewAESEncryptor(generateTestKey(t))
+	encryptor2 := twofactor.NewAESEncryptor(generateTestKey(t))
 
 	encrypted1, err := encryptor1.Encrypt(ctx, plaintext)
 	if err != nil {
@@ -106,7 +119,7 @@ func TestAESEncryptor_SameKeyDifferentNonces(t *testing.T) {
 
 	ctx := context.Background()
 	plaintext := "JBSWY3DPEHPK3PXP"
-	encryptor := twofactor.NewAESEncryptor("test-key")
+	encryptor := twofactor.NewAESEncryptor(generateTestKey(t))
 
 	// Encrypt same plaintext multiple times
 	encrypted1, err := encryptor.Encrypt(ctx, plaintext)
@@ -144,7 +157,7 @@ func TestAESEncryptor_InvalidCiphertext(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	encryptor := twofactor.NewAESEncryptor("test-key")
+	encryptor := twofactor.NewAESEncryptor(generateTestKey(t))
 
 	testCases := []struct {
 		name       string
@@ -184,7 +197,7 @@ func TestAESEncryptor_TamperedCiphertext(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	encryptor := twofactor.NewAESEncryptor("test-key")
+	encryptor := twofactor.NewAESEncryptor(generateTestKey(t))
 	plaintext := "JBSWY3DPEHPK3PXP"
 
 	// Encrypt
@@ -210,45 +223,40 @@ func TestAESEncryptor_KeyDerivation(t *testing.T) {
 
 	// Test that different key strings produce different derived keys
 	testCases := []struct {
-		key1 string
-		key2 string
+		name string
 	}{
-		{
-			key1: "short",
-			key2: "longer-key-with-more-entropy",
-		},
-		{
-			key1: "key-with-special-chars-!@#$",
-			key2: "key-with-different-special-chars-%^&*",
-		},
+		{name: "case1"},
+		{name: "case2"},
 	}
 
 	plaintext := "JBSWY3DPEHPK3PXP"
 
 	for _, tc := range testCases {
-		encryptor1 := twofactor.NewAESEncryptor(tc.key1)
-		encryptor2 := twofactor.NewAESEncryptor(tc.key2)
+		t.Run(tc.name, func(t *testing.T) {
+			encryptor1 := twofactor.NewAESEncryptor(generateTestKey(t))
+			encryptor2 := twofactor.NewAESEncryptor(generateTestKey(t))
 
-		encrypted1, err := encryptor1.Encrypt(ctx, plaintext)
-		if err != nil {
-			t.Fatalf("Encryptor1 Encrypt failed: %v", err)
-		}
+			encrypted1, err := encryptor1.Encrypt(ctx, plaintext)
+			if err != nil {
+				t.Fatalf("Encryptor1 Encrypt failed: %v", err)
+			}
 
-		encrypted2, err := encryptor2.Encrypt(ctx, plaintext)
-		if err != nil {
-			t.Fatalf("Encryptor2 Encrypt failed: %v", err)
-		}
+			encrypted2, err := encryptor2.Encrypt(ctx, plaintext)
+			if err != nil {
+				t.Fatalf("Encryptor2 Encrypt failed: %v", err)
+			}
 
-		// Different keys should produce different ciphertexts
-		if encrypted1 == encrypted2 {
-			t.Error("Different key strings should produce different ciphertexts")
-		}
+			// Different keys should produce different ciphertexts
+			if encrypted1 == encrypted2 {
+				t.Error("Different key strings should produce different ciphertexts")
+			}
 
-		// Cross-decryption should fail
-		_, err = encryptor2.Decrypt(ctx, encrypted1)
-		if err == nil {
-			t.Error("Cross-decryption should fail with different keys")
-		}
+			// Cross-decryption should fail
+			_, err = encryptor2.Decrypt(ctx, encrypted1)
+			if err == nil {
+				t.Error("Cross-decryption should fail with different keys")
+			}
+		})
 	}
 }
 
@@ -256,7 +264,7 @@ func TestAESEncryptor_ConsistentKeyDerivation(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	keyString := "consistent-key-for-testing"
+	keyString := generateTestKey(t)
 	plaintext := "JBSWY3DPEHPK3PXP"
 
 	// Create two encryptors with the same key string
@@ -284,7 +292,7 @@ func TestAESEncryptor_Base64Encoding(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	encryptor := twofactor.NewAESEncryptor("test-key")
+	encryptor := twofactor.NewAESEncryptor(generateTestKey(t))
 	plaintext := "JBSWY3DPEHPK3PXP"
 
 	encrypted, err := encryptor.Encrypt(ctx, plaintext)
@@ -312,7 +320,7 @@ func TestAESEncryptor_LongPlaintext(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	encryptor := twofactor.NewAESEncryptor("test-key")
+	encryptor := twofactor.NewAESEncryptor(generateTestKey(t))
 
 	// Generate a long plaintext (1KB)
 	plaintext := strings.Repeat("ABCDEFGHIJKLMNOP", 64) // 1024 bytes

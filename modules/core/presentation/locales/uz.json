@@ -989,7 +989,7 @@
       "EmailSent": "Tasdiqlash kodi email pochtangizga jo'natildi",
       "ResendCode": "Kod qayta jo'natish",
       "TOTPHelp": "Agar siz authenticator ilovasiga kirishni yo'qotsangiz, siz tizimga kira olmaysiz. Tiklash kodlarini xavfsiz joyda saqlang.",
-      "SMSHelp": "Kod 10 daqiqa davomida amal qiladi. Agar uni olmay qolsangiz, spam papkasini tekshiring.",
+      "SMSHelp": "Kod 10 daqiqa davomida amal qiladi. Agar uni olmay qolsangiz, yangi kod so'rashga harakat qiling.",
       "EmailHelp": "Tasdiqlash kodi uchun email pochtangizni tekshiring. U 10 daqiqa davomida amal qiladi.",
       "Success": "Ikki faktorli autentifikatsiya yoqildi",
       "SetupComplete": "Sizning hisobingiz endi ikki faktorli autentifikatsiya bilan himoyalangan",
@@ -1036,7 +1036,7 @@
       "VerifyRecoveryCode": "Tiklash kodini tekshiring",
       "BackToVerification": "Ilovaga yoki telefoniga kirishingiz bor?",
       "TOTPHelp": "Agar siz authenticator ilovasiga kirishni yo'qotgan bo'lsangiz, siz tizimga kira olmaysiz. Buning o'rniga tiklash kodini ishlatting.",
-      "SMSHelp": "Kod 10 daqiqa davomida amal qiladi. Agar uni olmay qolsangiz, spam papkasini tekshiring yoki tiklash kodini ishlatting.",
+      "SMSHelp": "Kod 10 daqiqa davomida amal qiladi. Agar uni olmay qolsangiz, yangi kod so'rashga harakat qiling yoki tiklash kodini ishlatting.",
       "EmailHelp": "Email pochtangizni tasdiqlash kodi uchun tekshiring. U 10 daqiqa davomida amal qiladi yoki tiklash kodini ishlatting.",
       "RecoveryCodeHelp": "Har bir tiklash kodi faqat bir marta ishlatilishi mumkin. Agar tiklash kodlari tugab qolgan bo'lsa, siz akkaunt sozlamalarida yangisini yarata olasiz."
     }

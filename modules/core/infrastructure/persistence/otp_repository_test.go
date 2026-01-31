@@ -71,3 +71,34 @@ func TestOTPDeleteExpiredMethodSignature(t *testing.T) {
 	// This test just verifies the method exists and has correct signature
 	_, _ = repo.DeleteExpired(ctx)
 }
+
+// TODO: Add integration tests using setupTest() fixture similar to user_repository_test.go
+// Integration tests should cover:
+// - Create and FindByIdentifier (basic CRUD)
+// - IncrementAttempts (verify counter increases)
+// - MarkUsed (verify OTP becomes unusable)
+// - DeleteExpired (verify only expired OTPs are deleted)
+// - Tenant isolation (verify cross-tenant access is prevented)
+//
+// Example structure:
+// func TestOTPRepository_Create(t *testing.T) {
+//     t.Parallel()
+//     f := setupTest(t)
+//     repo := NewOTPRepository()
+//
+//     // Create OTP
+//     expiresAt := time.Now().Add(10 * time.Minute)
+//     otp := twofactor.NewOTP("test@example.com", "hash123", tf.ChannelEmail, expiresAt, tenantID, userID)
+//     err := repo.Create(f.Ctx, otp)
+//     require.NoError(t, err)
+//
+//     // Verify OTP was created
+//     foundOTP, err := repo.FindByIdentifier(f.Ctx, "test@example.com")
+//     require.NoError(t, err)
+//     assert.Equal(t, "test@example.com", foundOTP.Identifier())
+//
+//     // Cleanup
+//     t.Cleanup(func() {
+//         _ = repo.MarkUsed(f.Ctx, foundOTP.ID())
+//     })
+// }

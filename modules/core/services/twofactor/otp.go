@@ -69,10 +69,10 @@ func (s *OTPService) generateCode() (string, error) {
 
 	// Calculate max value (e.g., for 6 digits: 10^6 = 1000000)
 	// rand.Int returns [0, max) so we get [0, 999999] for 6 digits
-	max := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(s.length)), nil)
+	maxVal := new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(s.length)), nil)
 
 	// Generate random number
-	n, err := rand.Int(rand.Reader, max)
+	n, err := rand.Int(rand.Reader, maxVal)
 	if err != nil {
 		return "", serrors.E(op, err)
 	}

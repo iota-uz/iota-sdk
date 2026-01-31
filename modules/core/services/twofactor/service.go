@@ -92,12 +92,16 @@ func NewTwoFactorService(
 	}
 
 	// Initialize helper services (only after validation passes)
-	svc.totpService = NewTOTPService(
+	totpService, err := NewTOTPService(
 		svc.encryptor,
 		svc.issuer,
 		svc.totpSkew,
 		svc.qrCodeSize,
 	)
+	if err != nil {
+		return nil, serrors.E(serrors.Op("NewTwoFactorService"), fmt.Errorf("failed to create TOTP service: %w", err))
+	}
+	svc.totpService = totpService
 
 	svc.otpService = NewOTPService(
 		svc.otpRepo,
@@ -678,8 +682,11 @@ func (s *TwoFactorService) ResendSetupOTP(ctx context.Context, challengeID strin
 		channel = pkgtf.ChannelSMS
 	case pkgtf.MethodEmail:
 		channel = pkgtf.ChannelEmail
-	default:
+	case pkgtf.MethodTOTP, pkgtf.MethodBackupCodes:
+		// TOTP and backup codes don't support resend (they don't expire during setup)
 		return time.Time{}, serrors.E(op, serrors.Invalid, fmt.Errorf("resend not supported for method: %s", challengeData.Method))
+	default:
+		return time.Time{}, serrors.E(op, serrors.Invalid, fmt.Errorf("unknown method: %s", challengeData.Method))
 	}
 
 	// Resend OTP
@@ -752,7 +759,11 @@ func (s *TwoFactorService) GetSetupChallenge(challengeID string) (*SetupChalleng
 			Destination: challengeData.Destination,
 		}, nil
 
+	case pkgtf.MethodBackupCodes:
+		// Backup codes are handled differently (not part of setup flow)
+		return nil, serrors.E(op, serrors.Invalid, errors.New("backup codes do not use challenge-based setup"))
+
 	default:
-		return nil, serrors.E(op, serrors.Invalid, fmt.Errorf("unsupported method: %s", challengeData.Method))
+		return nil, serrors.E(op, serrors.Invalid, fmt.Errorf("unknown method: %s", challengeData.Method))
 	}
 }
