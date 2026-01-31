@@ -72,25 +72,37 @@ func NewTOTPService(
 	}, nil
 }
 
-// GenerateSecret generates a new TOTP secret key
+// GenerateSecret generates a new TOTP secret key.
+// The secret is a base32-encoded string that can be used to generate time-based OTP codes.
+// Returns the secret string and an error if generation fails.
 func (s *TOTPService) GenerateSecret() (string, error) {
+	const op serrors.Op = "TOTPService.GenerateSecret"
+
 	key, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      s.issuer,
 		AccountName: "placeholder", // Placeholder - actual account name set in QR URL generation
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to generate TOTP key: %w", err)
+		return "", serrors.E(op, err)
 	}
 	return key.Secret(), nil
 }
 
-// GenerateQRCodeURL generates an otpauth:// URL for TOTP
+// GenerateQRCodeURL generates an otpauth:// URL for TOTP.
+// The URL can be used to generate a QR code that users scan with authenticator apps (Google Authenticator, Authy, etc.).
+// Parameters:
+//   - accountName: The user's identifier (typically email address)
+//   - secret: The TOTP secret key from GenerateSecret()
+//
+// Returns the otpauth:// URL string and an error if generation fails.
 func (s *TOTPService) GenerateQRCodeURL(accountName, secret string) (string, error) {
+	const op serrors.Op = "TOTPService.GenerateQRCodeURL"
+
 	if accountName == "" {
-		return "", fmt.Errorf("account name cannot be empty")
+		return "", serrors.E(op, serrors.Invalid, errors.New("account name cannot be empty"))
 	}
 	if secret == "" {
-		return "", pkgtf.ErrInvalidSecret
+		return "", serrors.E(op, pkgtf.ErrInvalidSecret)
 	}
 
 	// Build otpauth URL
@@ -111,8 +123,17 @@ func (s *TOTPService) GenerateQRCodeURL(accountName, secret string) (string, err
 	return otpauthURL, nil
 }
 
-// GenerateQRCodePNG generates a QR code image as a base64-encoded PNG
+// GenerateQRCodePNG generates a QR code image as a base64-encoded PNG.
+// The generated QR code can be displayed in web pages via data URL (data:image/png;base64,...).
+// Parameters:
+//   - accountName: The user's identifier (typically email address)
+//   - secret: The TOTP secret key from GenerateSecret()
+//   - size: The desired QR code size in pixels (uses default if <= 0)
+//
+// Returns the base64-encoded PNG string and an error if generation fails.
 func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (string, error) {
+	const op serrors.Op = "TOTPService.GenerateQRCodePNG"
+
 	if size <= 0 {
 		size = s.qrCodeSize
 	}
@@ -120,7 +141,7 @@ func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (s
 	// Generate otpauth URL
 	otpauthURL, err := s.GenerateQRCodeURL(accountName, secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate URL: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Generate QR code using yeqown/go-qrcode (actively maintained replacement for skip2/go-qrcode)
@@ -129,7 +150,7 @@ func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (s
 		qrcode.WithErrorCorrectionLevel(qrcode.ErrorCorrectionMedium),
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to create QR code: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Write QR code to buffer as PNG
@@ -142,7 +163,7 @@ func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (s
 	// Wrap buffer with nopCloser to satisfy io.WriteCloser interface
 	writer := standard.NewWithWriter(nopCloser{buf}, standard.WithQRWidth(moduleWidth))
 	if err := qrc.Save(writer); err != nil {
-		return "", fmt.Errorf("failed to generate QR code PNG: %w", err)
+		return "", serrors.E(op, err)
 	}
 
 	// Encode to base64
@@ -150,18 +171,35 @@ func (s *TOTPService) GenerateQRCodePNG(accountName, secret string, size int) (s
 	return encoded, nil
 }
 
-// Validate validates a TOTP code against a secret
+// Validate validates a TOTP code against a secret.
+// Uses the current time window without time skew tolerance.
+// For production use, prefer ValidateWithSkew() to handle clock drift.
+// Parameters:
+//   - secret: The TOTP secret key
+//   - code: The 6-digit code entered by the user
+//
+// Returns true if the code is valid, false otherwise.
 func (s *TOTPService) Validate(secret, code string) bool {
 	return totp.Validate(code, secret)
 }
 
-// ValidateWithSkew validates a TOTP code with time tolerance
+// ValidateWithSkew validates a TOTP code with time tolerance.
+// Allows validation within a time window to handle clock drift between server and client.
+// Each skew step represents 30 seconds (1 skew = ±30s, 2 skew = ±60s, etc.).
+// Parameters:
+//   - secret: The TOTP secret key
+//   - code: The 6-digit code entered by the user
+//   - skew: Number of time steps to accept (0 uses configured default)
+//
+// Returns true if the code is valid, false otherwise, or an error if validation fails.
 func (s *TOTPService) ValidateWithSkew(secret, code string, skew uint) (bool, error) {
+	const op serrors.Op = "TOTPService.ValidateWithSkew"
+
 	if secret == "" {
-		return false, pkgtf.ErrInvalidSecret
+		return false, serrors.E(op, pkgtf.ErrInvalidSecret)
 	}
 	if code == "" {
-		return false, pkgtf.ErrInvalidCode
+		return false, serrors.E(op, pkgtf.ErrInvalidCode)
 	}
 
 	// Use configured skew if not specified
@@ -178,13 +216,20 @@ func (s *TOTPService) ValidateWithSkew(secret, code string, skew uint) (bool, er
 		},
 	)
 	if err != nil {
-		return false, fmt.Errorf("validation error: %w", err)
+		return false, serrors.E(op, err)
 	}
 
 	return valid, nil
 }
 
-// EncryptSecret encrypts a TOTP secret using the configured encryptor
+// EncryptSecret encrypts a TOTP secret using the configured encryptor.
+// CRITICAL: Encryption is required for OWASP compliance - TOTP secrets must never be stored in plaintext.
+// The encrypted secret can be safely stored in the database.
+// Parameters:
+//   - ctx: Request context for cancellation and tracing
+//   - secret: The plaintext TOTP secret to encrypt
+//
+// Returns the encrypted secret string and an error if encryption fails.
 func (s *TOTPService) EncryptSecret(ctx context.Context, secret string) (string, error) {
 	const op serrors.Op = "TOTPService.EncryptSecret"
 
@@ -201,7 +246,13 @@ func (s *TOTPService) EncryptSecret(ctx context.Context, secret string) (string,
 	return encrypted, nil
 }
 
-// DecryptSecret decrypts a TOTP secret using the configured encryptor
+// DecryptSecret decrypts a TOTP secret using the configured encryptor.
+// Used to retrieve the plaintext secret from storage for verification operations.
+// Parameters:
+//   - ctx: Request context for cancellation and tracing
+//   - encrypted: The encrypted TOTP secret from database
+//
+// Returns the plaintext secret string and an error if decryption fails.
 func (s *TOTPService) DecryptSecret(ctx context.Context, encrypted string) (string, error) {
 	const op serrors.Op = "TOTPService.DecryptSecret"
 

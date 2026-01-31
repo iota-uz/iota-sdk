@@ -3,6 +3,7 @@ package twofactor
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -14,7 +15,9 @@ import (
 	twilioApi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
-// EmailOTPSender sends OTP codes via email using SMTP
+// EmailOTPSender sends OTP codes via email using SMTP.
+// Implements the OTPSender interface for email delivery with TLS encryption.
+// Uses STARTTLS for secure SMTP communication and supports multi-language message templates.
 type EmailOTPSender struct {
 	host     string
 	port     int
@@ -23,7 +26,16 @@ type EmailOTPSender struct {
 	from     string
 }
 
-// NewEmailOTPSender creates a new EmailOTPSender with SMTP configuration
+// NewEmailOTPSender creates a new EmailOTPSender with SMTP configuration.
+// Configures the SMTP client for sending OTP codes via email with TLS encryption.
+// Parameters:
+//   - host: SMTP server hostname (e.g., "smtp.gmail.com")
+//   - port: SMTP server port (typically 587 for TLS)
+//   - username: SMTP authentication username
+//   - password: SMTP authentication password
+//   - from: Sender email address
+//
+// Returns a configured EmailOTPSender instance.
 func NewEmailOTPSender(host string, port int, username, password, from string) *EmailOTPSender {
 	return &EmailOTPSender{
 		host:     host,
@@ -34,21 +46,30 @@ func NewEmailOTPSender(host string, port int, username, password, from string) *
 	}
 }
 
-// Send delivers an OTP code via email using SMTP with TLS
+// Send delivers an OTP code via email using SMTP with TLS.
+// Validates the request, formats the email message with localized template,
+// and sends it using STARTTLS encryption for secure credential transmission.
+// Parameters:
+//   - ctx: Request context for cancellation
+//   - req: Send request with channel, recipient, code, and language
+//
+// Returns an error if validation or sending fails.
 func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
+	const op serrors.Op = "EmailOTPSender.Send"
+
 	// Validate channel
 	if req.Channel != pkgtf.ChannelEmail {
-		return fmt.Errorf("EmailOTPSender only supports email channel, got %s", req.Channel)
+		return serrors.E(op, serrors.Invalid, fmt.Errorf("EmailOTPSender only supports email channel, got %s", req.Channel))
 	}
 
 	// Validate recipient
 	if req.Recipient == "" {
-		return fmt.Errorf("email recipient cannot be empty")
+		return serrors.E(op, serrors.Invalid, errors.New("email recipient cannot be empty"))
 	}
 
 	// Validate code
 	if req.Code == "" {
-		return fmt.Errorf("OTP code cannot be empty")
+		return serrors.E(op, serrors.Invalid, errors.New("OTP code cannot be empty"))
 	}
 
 	// Build email message with template
@@ -66,7 +87,7 @@ func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error 
 	addr := fmt.Sprintf("%s:%d", e.host, e.port)
 	err := e.sendWithTLS(addr, auth, e.from, []string{req.Recipient}, []byte(msg))
 	if err != nil {
-		return fmt.Errorf("failed to send email OTP to %s: %w", req.Recipient, err)
+		return serrors.E(op, err)
 	}
 
 	// Log successful delivery
@@ -173,13 +194,22 @@ func (e *EmailOTPSender) buildMessage(code, lang string) string {
 	}
 }
 
-// SMSOTPSender sends OTP codes via SMS using Twilio
+// SMSOTPSender sends OTP codes via SMS using Twilio.
+// Implements the OTPSender interface for SMS delivery via Twilio's REST API.
+// Supports multi-language message templates for international users.
 type SMSOTPSender struct {
 	client     *twilio.RestClient
 	fromNumber string
 }
 
-// NewSMSOTPSender creates a new SMSOTPSender with Twilio credentials
+// NewSMSOTPSender creates a new SMSOTPSender with Twilio credentials.
+// Configures the Twilio REST client for sending OTP codes via SMS.
+// Parameters:
+//   - accountSID: Twilio account SID from dashboard
+//   - authToken: Twilio authentication token from dashboard
+//   - fromNumber: Twilio phone number to send from (E.164 format, e.g., "+15551234567")
+//
+// Returns a configured SMSOTPSender instance.
 func NewSMSOTPSender(accountSID, authToken, fromNumber string) *SMSOTPSender {
 	client := twilio.NewRestClientWithParams(twilio.ClientParams{
 		Username: accountSID,
@@ -192,21 +222,30 @@ func NewSMSOTPSender(accountSID, authToken, fromNumber string) *SMSOTPSender {
 	}
 }
 
-// Send delivers an OTP code via SMS using Twilio
+// Send delivers an OTP code via SMS using Twilio.
+// Validates the request, formats the SMS message with localized template,
+// and sends it via Twilio's REST API.
+// Parameters:
+//   - ctx: Request context for cancellation
+//   - req: Send request with channel, recipient, code, and language
+//
+// Returns an error if validation or sending fails.
 func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
+	const op serrors.Op = "SMSOTPSender.Send"
+
 	// Validate channel
 	if req.Channel != pkgtf.ChannelSMS {
-		return fmt.Errorf("SMSOTPSender only supports SMS channel, got %s", req.Channel)
+		return serrors.E(op, serrors.Invalid, fmt.Errorf("SMSOTPSender only supports SMS channel, got %s", req.Channel))
 	}
 
 	// Validate recipient
 	if req.Recipient == "" {
-		return fmt.Errorf("SMS recipient cannot be empty")
+		return serrors.E(op, serrors.Invalid, errors.New("SMS recipient cannot be empty"))
 	}
 
 	// Validate code
 	if req.Code == "" {
-		return fmt.Errorf("OTP code cannot be empty")
+		return serrors.E(op, serrors.Invalid, errors.New("OTP code cannot be empty"))
 	}
 
 	// Build SMS message with template
@@ -220,12 +259,12 @@ func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 
 	resp, err := s.client.Api.CreateMessage(params)
 	if err != nil {
-		return fmt.Errorf("failed to send SMS OTP to %s via Twilio: %w", req.Recipient, err)
+		return serrors.E(op, err)
 	}
 
 	// Validate response
 	if resp == nil || resp.Sid == nil {
-		return fmt.Errorf("invalid Twilio response")
+		return serrors.E(op, serrors.Invalid, errors.New("invalid Twilio response"))
 	}
 
 	// Log successful delivery

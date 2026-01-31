@@ -189,19 +189,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		}
 
 		if requires2FA {
-			// Create a pending 2FA session
-			sessionCookie := &http.Cookie{
-				Name:     conf.SidCookieKey,
-				Value:    sess.Token(),
-				Expires:  sess.ExpiresAt(),
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Secure:   conf.GoAppEnvironment == configuration.Production,
-				Domain:   conf.Domain,
-				Path:     "/",
-			}
-
-			// Update session status to pending 2FA
+			// Create pending 2FA session with 10-minute TTL FIRST
 			pendingSession := session.New(
 				sess.Token(),
 				sess.UserID(),
@@ -220,6 +208,18 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 				queryParams.Set("error", intl.MustT(r.Context(), "Errors.Internal"))
 				http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 				return
+			}
+
+			// Create cookie using pending session's expiry (matches 10-min DB session)
+			sessionCookie := &http.Cookie{
+				Name:     conf.SidCookieKey,
+				Value:    pendingSession.Token(),
+				Expires:  pendingSession.ExpiresAt(),
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   conf.GoAppEnvironment == configuration.Production,
+				Domain:   conf.Domain,
+				Path:     "/",
 			}
 
 			// Set the session cookie
@@ -347,20 +347,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if requires2FA {
-			// Create a pending 2FA session
-			conf := configuration.Use()
-			sessionCookie := &http.Cookie{
-				Name:     conf.SidCookieKey,
-				Value:    sess.Token(),
-				Expires:  sess.ExpiresAt(),
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Secure:   conf.GoAppEnvironment == configuration.Production,
-				Domain:   conf.Domain,
-				Path:     "/",
-			}
-
-			// Update session status to pending 2FA
+			// Create pending 2FA session with 10-minute TTL FIRST
 			pendingSession := session.New(
 				sess.Token(),
 				sess.UserID(),
@@ -379,6 +366,19 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 				shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Errors.Internal")))
 				http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", url.QueryEscape(dto.Email), url.QueryEscape(nextURL)), http.StatusFound)
 				return
+			}
+
+			// Create cookie using pending session's expiry (matches 10-min DB session)
+			conf := configuration.Use()
+			sessionCookie := &http.Cookie{
+				Name:     conf.SidCookieKey,
+				Value:    pendingSession.Token(),
+				Expires:  pendingSession.ExpiresAt(),
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   conf.GoAppEnvironment == configuration.Production,
+				Domain:   conf.Domain,
+				Path:     "/",
 			}
 
 			// Set the session cookie

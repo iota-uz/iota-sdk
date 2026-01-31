@@ -24,7 +24,9 @@ const (
 	defaultOTPMaxAttempts = 3
 )
 
-// OTPService handles OTP (One-Time Password) operations (internal helper)
+// OTPService handles OTP (One-Time Password) operations (internal helper).
+// Provides generation, validation, and delivery of time-limited numeric codes for SMS and email 2FA.
+// OTP codes are hashed with bcrypt before storage and have configurable expiry and attempt limits.
 type OTPService struct {
 	repository  twofactor.OTPRepository
 	sender      pkgtf.OTPSender
@@ -33,7 +35,16 @@ type OTPService struct {
 	maxAttempts int
 }
 
-// NewOTPService creates a new OTPService
+// NewOTPService creates a new OTPService.
+// Configures OTP generation, expiry, and validation behavior.
+// Parameters:
+//   - repo: Repository for storing and retrieving OTP records
+//   - sender: OTP delivery mechanism (SMS, email, etc.)
+//   - length: Number of digits in generated codes (default: 6)
+//   - expiry: How long codes remain valid (default: 10 minutes)
+//   - maxAttempts: Maximum verification attempts before lockout (default: 3)
+//
+// Returns a configured OTPService instance.
 func NewOTPService(
 	repo twofactor.OTPRepository,
 	sender pkgtf.OTPSender,
@@ -93,7 +104,16 @@ func (s *OTPService) hashCode(code string) (string, error) {
 	return string(hashed), nil
 }
 
-// Generate generates and sends an OTP code
+// Generate generates and sends an OTP code.
+// Creates a cryptographically random numeric code, hashes it with bcrypt, stores it in the database,
+// and delivers it to the user via the specified channel (SMS or email).
+// Parameters:
+//   - ctx: Request context with tenant ID
+//   - userID: The user ID requesting the OTP
+//   - channel: Delivery method (SMS, email, etc.)
+//   - destination: Where to send the code (phone number or email address)
+//
+// Returns the generated code (for testing), expiration time, and an error if generation or sending fails.
 func (s *OTPService) Generate(ctx context.Context, userID uint, channel pkgtf.OTPChannel, destination string) (string, time.Time, error) {
 	const op serrors.Op = "OTPService.Generate"
 
@@ -155,7 +175,15 @@ func (s *OTPService) Generate(ctx context.Context, userID uint, channel pkgtf.OT
 	return code, expiresAt, nil
 }
 
-// Validate validates an OTP code
+// Validate validates an OTP code.
+// Verifies the code against the hashed value in the database, checks expiration, usage status,
+// and attempt limits. Increments the attempt counter on failure and marks as used on success.
+// Parameters:
+//   - ctx: Request context
+//   - destination: The destination (phone/email) where the OTP was sent
+//   - code: The code entered by the user
+//
+// Returns an error if validation fails (invalid code, expired, too many attempts, etc.).
 func (s *OTPService) Validate(ctx context.Context, destination, code string) error {
 	const op serrors.Op = "OTPService.Validate"
 
@@ -204,7 +232,16 @@ func (s *OTPService) Validate(ctx context.Context, destination, code string) err
 	return nil
 }
 
-// Resend resends an OTP to the same destination
+// Resend resends an OTP to the same destination.
+// Generates a new OTP code and sends it to the previously used destination.
+// Used when users don't receive the initial code or it expires.
+// Parameters:
+//   - ctx: Request context with tenant ID
+//   - userID: The user ID requesting the resend
+//   - channel: Delivery method (SMS, email, etc.)
+//   - destination: Where to send the code (phone number or email address)
+//
+// Returns the new expiration time and an error if generation or sending fails.
 func (s *OTPService) Resend(ctx context.Context, userID uint, channel pkgtf.OTPChannel, destination string) (time.Time, error) {
 	const op serrors.Op = "OTPService.Resend"
 
@@ -217,7 +254,13 @@ func (s *OTPService) Resend(ctx context.Context, userID uint, channel pkgtf.OTPC
 	return expiresAt, nil
 }
 
-// CleanupExpired removes all expired OTP records
+// CleanupExpired removes all expired OTP records.
+// Should be called periodically (e.g., via cron job) to prevent database bloat.
+// Deletes OTP records where the expiration time has passed.
+// Parameters:
+//   - ctx: Request context
+//
+// Returns the number of deleted records and an error if cleanup fails.
 func (s *OTPService) CleanupExpired(ctx context.Context) (int64, error) {
 	const op serrors.Op = "OTPService.CleanupExpired"
 

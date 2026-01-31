@@ -118,8 +118,15 @@ func NewTwoFactorService(
 	return svc, nil
 }
 
-// BeginSetup starts a 2FA setup flow for a user
-// Returns a challenge that contains method-specific data (QR code for TOTP, expiry for OTP)
+// BeginSetup starts a 2FA setup flow for a user.
+// Generates method-specific setup data: QR code for TOTP, sends OTP for SMS/Email.
+// The challenge must be confirmed with ConfirmSetup() within the expiry window.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID setting up 2FA
+//   - method: The 2FA method to set up (TOTP, SMS, or Email)
+//
+// Returns a SetupChallenge containing method-specific data (QR code for TOTP, expiry for OTP) and an error if setup fails.
 func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method pkgtf.Method) (*SetupChallenge, error) {
 	const op serrors.Op = "TwoFactorService.BeginSetup"
 
@@ -290,7 +297,16 @@ func preserveUserFields(u user.User, opts ...user.Option) user.User {
 	)
 }
 
-// ConfirmSetup completes the 2FA setup by verifying the code
+// ConfirmSetup completes the 2FA setup by verifying the code.
+// Validates the verification code, encrypts the TOTP secret (if applicable), enables 2FA for the user,
+// and generates recovery codes. This operation is atomic - all changes happen in a transaction.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID completing setup
+//   - challengeID: The challenge ID from BeginSetup()
+//   - code: The verification code (6-digit TOTP or OTP code)
+//
+// Returns a SetupResult with recovery codes (display once to user) and an error if confirmation fails.
 func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challengeID, code string) (*SetupResult, error) {
 	const op serrors.Op = "TwoFactorService.ConfirmSetup"
 
@@ -403,7 +419,14 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 	return result, nil
 }
 
-// BeginVerification starts a 2FA verification flow
+// BeginVerification starts a 2FA verification flow.
+// For TOTP, returns a challenge immediately (no server-side action needed).
+// For SMS/Email, generates and sends an OTP to the user's registered contact.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID attempting verification
+//
+// Returns a VerifyChallenge with method-specific data and an error if verification cannot be started.
 func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (*VerifyChallenge, error) {
 	const op serrors.Op = "TwoFactorService.BeginVerification"
 
@@ -480,7 +503,16 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 	return challenge, nil
 }
 
-// Verify verifies a 2FA code (TOTP or OTP)
+// Verify verifies a 2FA code (TOTP or OTP).
+// Validates the code based on the user's configured 2FA method.
+// For TOTP: validates against encrypted secret with time skew tolerance.
+// For SMS/Email: validates against hashed OTP in database.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID attempting verification
+//   - code: The verification code entered by the user
+//
+// Returns an error if verification fails (invalid code, expired, etc.).
 func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string) error {
 	const op serrors.Op = "TwoFactorService.Verify"
 
@@ -538,7 +570,15 @@ func (s *TwoFactorService) Verify(ctx context.Context, userID uint, code string)
 	return nil
 }
 
-// VerifyRecovery verifies a recovery code
+// VerifyRecovery verifies a recovery code.
+// Used as a fallback when the user cannot access their primary 2FA method.
+// The code is normalized (dashes removed) and marked as used if valid.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID attempting recovery
+//   - code: The recovery code entered by the user (with or without dashes)
+//
+// Returns an error if the code is invalid or has already been used.
 func (s *TwoFactorService) VerifyRecovery(ctx context.Context, userID uint, code string) error {
 	const op serrors.Op = "TwoFactorService.VerifyRecovery"
 
@@ -561,7 +601,14 @@ func (s *TwoFactorService) VerifyRecovery(ctx context.Context, userID uint, code
 	return nil
 }
 
-// GetStatus returns the current 2FA status for a user
+// GetStatus returns the current 2FA status for a user.
+// Provides information about whether 2FA is enabled, which method is configured,
+// when it was enabled, and how many recovery codes remain.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID to check
+//
+// Returns a Status struct with 2FA information and an error if the query fails.
 func (s *TwoFactorService) GetStatus(ctx context.Context, userID uint) (*Status, error) {
 	const op serrors.Op = "TwoFactorService.GetStatus"
 
@@ -589,7 +636,14 @@ func (s *TwoFactorService) GetStatus(ctx context.Context, userID uint) (*Status,
 	return status, nil
 }
 
-// Disable disables 2FA for a user
+// Disable disables 2FA for a user.
+// Removes all 2FA settings from the user account and deletes all recovery codes.
+// This operation is atomic - all changes happen in a transaction.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID to disable 2FA for
+//
+// Returns an error if disabling fails or if 2FA is not currently enabled.
 func (s *TwoFactorService) Disable(ctx context.Context, userID uint) error {
 	const op serrors.Op = "TwoFactorService.Disable"
 
@@ -625,7 +679,14 @@ func (s *TwoFactorService) Disable(ctx context.Context, userID uint) error {
 	})
 }
 
-// RegenerateRecoveryCodes generates new recovery codes and replaces existing ones
+// RegenerateRecoveryCodes generates new recovery codes and replaces existing ones.
+// Deletes all existing recovery codes and generates a fresh set.
+// Used when users run out of codes or want to refresh them for security.
+// Parameters:
+//   - ctx: Request context
+//   - userID: The user ID to regenerate codes for
+//
+// Returns the new plaintext recovery codes (display once to user) and an error if regeneration fails.
 func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, userID uint) ([]string, error) {
 	const op serrors.Op = "TwoFactorService.RegenerateRecoveryCodes"
 
@@ -649,7 +710,14 @@ func (s *TwoFactorService) RegenerateRecoveryCodes(ctx context.Context, userID u
 	return codes, nil
 }
 
-// ResendSetupOTP resends an OTP for a setup challenge
+// ResendSetupOTP resends an OTP for a setup challenge.
+// Generates and sends a new OTP code for SMS/Email setup methods.
+// TOTP and backup codes do not support resend (returns error).
+// Parameters:
+//   - ctx: Request context
+//   - challengeID: The challenge ID from BeginSetup()
+//
+// Returns the new expiration time and an error if resend fails or method doesn't support resend.
 func (s *TwoFactorService) ResendSetupOTP(ctx context.Context, challengeID string) (time.Time, error) {
 	const op serrors.Op = "TwoFactorService.ResendSetupOTP"
 
@@ -698,8 +766,14 @@ func (s *TwoFactorService) ResendSetupOTP(ctx context.Context, challengeID strin
 	return expiresAt, nil
 }
 
-// GetSetupChallenge retrieves the challenge data for a setup flow
-// This is used by the presentation layer to display method-specific data (QR code for TOTP, destination for OTP)
+// GetSetupChallenge retrieves the challenge data for a setup flow.
+// Used by the presentation layer to display method-specific data after navigation or page refresh.
+// For TOTP: regenerates QR code from stored secret.
+// For SMS/Email: returns destination and expiry information.
+// Parameters:
+//   - challengeID: The challenge ID from BeginSetup()
+//
+// Returns a SetupChallenge with method-specific data (QR code for TOTP, destination for OTP) and an error if the challenge is invalid or expired.
 func (s *TwoFactorService) GetSetupChallenge(challengeID string) (*SetupChallenge, error) {
 	const op serrors.Op = "TwoFactorService.GetSetupChallenge"
 

@@ -22,7 +22,12 @@ import (
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
-// NewTwoFactorVerifyController creates a new TwoFactorVerifyController
+// NewTwoFactorVerifyController creates a new TwoFactorVerifyController.
+// Initializes the controller with required service dependencies.
+// Parameters:
+//   - app: The application instance providing service registry
+//
+// Returns a configured TwoFactorVerifyController implementing the Controller interface.
 func NewTwoFactorVerifyController(app application.Application) application.Controller {
 	return &TwoFactorVerifyController{
 		app:              app,
@@ -32,6 +37,9 @@ func NewTwoFactorVerifyController(app application.Application) application.Contr
 	}
 }
 
+// TwoFactorVerifyController handles HTTP endpoints for 2FA verification flows.
+// Provides code verification, recovery code fallback, and OTP resend functionality.
+// Routes are mounted at /login/2fa/verify and require authentication (pending 2FA session).
 type TwoFactorVerifyController struct {
 	app              application.Application
 	twoFactorService *twofactor.TwoFactorService
@@ -39,10 +47,20 @@ type TwoFactorVerifyController struct {
 	userService      *services.UserService
 }
 
+// Key returns the base route path for this controller.
+// Implements the Controller interface.
 func (c *TwoFactorVerifyController) Key() string {
 	return "/login/2fa/verify"
 }
 
+// Register registers all HTTP routes for 2FA verification flows.
+// Applies authentication, localization, transaction, and page context middleware.
+// Routes:
+//   - GET/POST /login/2fa/verify - Primary verification (TOTP/SMS/Email)
+//   - GET/POST /login/2fa/verify/recovery - Recovery code fallback
+//   - POST /login/2fa/verify/resend - Resend OTP (SMS/Email only)
+//
+// Implements the Controller interface.
 func (c *TwoFactorVerifyController) Register(r *mux.Router) {
 	verifyRouter := r.PathPrefix("/login/2fa/verify").Subrouter()
 	verifyRouter.Use(
@@ -64,7 +82,10 @@ func (c *TwoFactorVerifyController) Register(r *mux.Router) {
 	verifyRouter.HandleFunc("/resend", c.PostResend).Methods(http.MethodPost)
 }
 
-// GetVerify displays the verification form (adapts to user's method: TOTP/SMS/Email)
+// GetVerify displays the verification form (adapts to user's configured method: TOTP/SMS/Email).
+// For TOTP: shows code input form.
+// For SMS/Email: generates and sends OTP, then shows code input form.
+// GET /login/2fa/verify?next=/redirect/path
 func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
@@ -115,7 +136,10 @@ func (c *TwoFactorVerifyController) GetVerify(w http.ResponseWriter, r *http.Req
 	}
 }
 
-// PostVerify validates the verification code (TOTP or OTP)
+// PostVerify validates the verification code (TOTP or OTP).
+// Verifies the code via TwoFactorService, updates session to active status on success,
+// and redirects to the next URL.
+// POST /login/2fa/verify with Code and NextURL form values.
 func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
@@ -185,12 +209,27 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Update the session cookie with new expiry to match the extended DB session
+	sessionCookie := &http.Cookie{
+		Name:     conf.SidCookieKey,
+		Value:    updatedSession.Token(),
+		Expires:  updatedSession.ExpiresAt(),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == configuration.Production,
+		Domain:   conf.Domain,
+		Path:     "/",
+	}
+	http.SetCookie(w, sessionCookie)
+
 	// Redirect to next URL (already validated earlier)
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Verify.Success")))
 	http.Redirect(w, r, nextURL, http.StatusFound)
 }
 
-// GetRecovery displays the recovery code form
+// GetRecovery displays the recovery code input form.
+// Used as a fallback when users cannot access their primary 2FA method.
+// GET /login/2fa/verify/recovery?next=/redirect/path
 func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
@@ -221,7 +260,10 @@ func (c *TwoFactorVerifyController) GetRecovery(w http.ResponseWriter, r *http.R
 	}
 }
 
-// PostRecovery validates the recovery code
+// PostRecovery validates the recovery code.
+// Verifies the code via TwoFactorService, marks it as used, updates session to active status,
+// and redirects to the next URL.
+// POST /login/2fa/verify/recovery with Code and NextURL form values.
 func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
@@ -285,12 +327,28 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Update the session cookie with new expiry to match the extended DB session
+	sessionCookie := &http.Cookie{
+		Name:     conf.SidCookieKey,
+		Value:    updatedSession.Token(),
+		Expires:  updatedSession.ExpiresAt(),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == configuration.Production,
+		Domain:   conf.Domain,
+		Path:     "/",
+	}
+	http.SetCookie(w, sessionCookie)
+
 	// Redirect to next URL (already validated earlier)
 	shared.SetFlash(w, "success", []byte(intl.MustT(r.Context(), "TwoFactor.Verify.Success")))
 	http.Redirect(w, r, nextURL, http.StatusFound)
 }
 
-// PostResend resends the OTP code (for SMS/Email only)
+// PostResend resends the OTP code (for SMS/Email methods only).
+// Generates and sends a new OTP to the user's registered contact.
+// TOTP method returns an error (does not support resend).
+// POST /login/2fa/verify/resend with NextURL form value.
 func (c *TwoFactorVerifyController) PostResend(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
