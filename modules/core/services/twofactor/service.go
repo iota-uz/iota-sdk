@@ -233,6 +233,9 @@ func (s *TwoFactorService) BeginSetup(ctx context.Context, userID uint, method p
 			Destination: email,
 		}
 
+	case pkgtf.MethodBackupCodes:
+		return nil, fmt.Errorf("%w: backup codes cannot be used for initial setup", pkgtf.ErrMethodNotSupported)
+
 	default:
 		return nil, fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, method)
 	}
@@ -329,6 +332,9 @@ func (s *TwoFactorService) ConfirmSetup(ctx context.Context, userID uint, challe
 		if err := s.otpService.Validate(ctx, challengeData.Destination, code); err != nil {
 			return nil, fmt.Errorf("failed to validate OTP: %w", err)
 		}
+
+	case pkgtf.MethodBackupCodes:
+		return nil, fmt.Errorf("%w: backup codes cannot be confirmed via this endpoint", pkgtf.ErrMethodNotSupported)
 
 	default:
 		return nil, fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, challengeData.Method)
@@ -452,6 +458,9 @@ func (s *TwoFactorService) BeginVerification(ctx context.Context, userID uint) (
 			ExpiresAt:   &expiresAt,
 			Destination: email,
 		}
+
+	case pkgtf.MethodBackupCodes:
+		return nil, fmt.Errorf("%w: backup codes use different verification flow", pkgtf.ErrMethodNotSupported)
 
 	default:
 		return nil, fmt.Errorf("%w: %s", pkgtf.ErrMethodNotSupported, method)

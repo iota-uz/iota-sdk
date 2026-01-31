@@ -136,7 +136,7 @@ func (c *TwoFactorSetupController) PostMethodChoice(w http.ResponseWriter, r *ht
 	}
 
 	// Redirect based on method
-	redirectURL := ""
+	var redirectURL string
 	switch methodType {
 	case pkgtwofactor.MethodTOTP:
 		redirectURL = fmt.Sprintf("/login/2fa/setup/totp?challengeId=%s&next=%s", challenge.ChallengeID, url.QueryEscape(nextURL))
