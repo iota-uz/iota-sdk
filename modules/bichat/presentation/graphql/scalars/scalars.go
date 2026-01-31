@@ -61,6 +61,8 @@ func UnmarshalInt64(v interface{}) (int64, error) {
 		return v, nil
 	case int32:
 		return int64(v), nil
+	case float64:
+		return int64(v), nil
 	default:
 		return 0, fmt.Errorf("Int64 must be a string or number")
 	}
