@@ -1,0 +1,417 @@
+package agents_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+)
+
+func TestModelInfo_Basic(t *testing.T) {
+	t.Parallel()
+
+	info := agents.ModelInfo{
+		Name:     "gpt-5.2-2025-12-11",
+		Provider: "openai",
+		Capabilities: []agents.Capability{
+			agents.CapabilityStreaming,
+			agents.CapabilityTools,
+			agents.CapabilityJSONMode,
+		},
+	}
+
+	// Verify fields
+	if info.Name != "gpt-5.2-2025-12-11" {
+		t.Errorf("Expected name 'gpt-5.2-2025-12-11', got '%s'", info.Name)
+	}
+	if info.Provider != "openai" {
+		t.Errorf("Expected provider 'openai', got '%s'", info.Provider)
+	}
+	if len(info.Capabilities) != 3 {
+		t.Errorf("Expected 3 capabilities, got %d", len(info.Capabilities))
+	}
+
+	// Verify String() method
+	expected := "openai/gpt-5.2-2025-12-11"
+	if info.String() != expected {
+		t.Errorf("Expected String() '%s', got '%s'", expected, info.String())
+	}
+}
+
+func TestCapability_HasCapability(t *testing.T) {
+	t.Parallel()
+
+	info := agents.ModelInfo{
+		Name:     "claude-3-5-sonnet",
+		Provider: "anthropic",
+		Capabilities: []agents.Capability{
+			agents.CapabilityStreaming,
+			agents.CapabilityTools,
+			agents.CapabilityThinking,
+		},
+	}
+
+	tests := []struct {
+		name       string
+		capability agents.Capability
+		expected   bool
+	}{
+		{
+			name:       "has streaming",
+			capability: agents.CapabilityStreaming,
+			expected:   true,
+		},
+		{
+			name:       "has tools",
+			capability: agents.CapabilityTools,
+			expected:   true,
+		},
+		{
+			name:       "has thinking",
+			capability: agents.CapabilityThinking,
+			expected:   true,
+		},
+		{
+			name:       "does not have vision",
+			capability: agents.CapabilityVision,
+			expected:   false,
+		},
+		{
+			name:       "does not have json mode",
+			capability: agents.CapabilityJSONMode,
+			expected:   false,
+		},
+		{
+			name:       "does not have json schema",
+			capability: agents.CapabilityJSONSchema,
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := info.HasCapability(tt.capability)
+			if result != tt.expected {
+				t.Errorf("HasCapability(%s): expected %v, got %v", tt.capability, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestCapability_EmptyCapabilities(t *testing.T) {
+	t.Parallel()
+
+	info := agents.ModelInfo{
+		Name:         "basic-model",
+		Provider:     "test",
+		Capabilities: []agents.Capability{},
+	}
+
+	// Should return false for all capabilities
+	capabilities := []agents.Capability{
+		agents.CapabilityStreaming,
+		agents.CapabilityTools,
+		agents.CapabilityVision,
+		agents.CapabilityThinking,
+		agents.CapabilityJSONMode,
+		agents.CapabilityJSONSchema,
+	}
+
+	for _, cap := range capabilities {
+		if info.HasCapability(cap) {
+			t.Errorf("Expected HasCapability(%s) to be false for empty capabilities", cap)
+		}
+	}
+}
+
+func TestMessage_Creation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		role    agents.Role
+		content string
+	}{
+		{
+			name:    "user message",
+			role:    agents.RoleUser,
+			content: "Hello, how are you?",
+		},
+		{
+			name:    "assistant message",
+			role:    agents.RoleAssistant,
+			content: "I'm doing well, thank you!",
+		},
+		{
+			name:    "system message",
+			role:    agents.RoleSystem,
+			content: "You are a helpful assistant.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := agents.Message{
+				Role:    tt.role,
+				Content: tt.content,
+			}
+
+			if msg.Role != tt.role {
+				t.Errorf("Expected role '%s', got '%s'", tt.role, msg.Role)
+			}
+			if msg.Content != tt.content {
+				t.Errorf("Expected content '%s', got '%s'", tt.content, msg.Content)
+			}
+		})
+	}
+}
+
+func TestToolCall_Basic(t *testing.T) {
+	t.Parallel()
+
+	toolCall := agents.ToolCall{
+		ID:        "call_123",
+		Name:      "get_weather",
+		Arguments: `{"location":"San Francisco","unit":"celsius"}`,
+	}
+
+	// Verify fields
+	if toolCall.ID != "call_123" {
+		t.Errorf("Expected ID 'call_123', got '%s'", toolCall.ID)
+	}
+	if toolCall.Name != "get_weather" {
+		t.Errorf("Expected Name 'get_weather', got '%s'", toolCall.Name)
+	}
+	if toolCall.Arguments != `{"location":"San Francisco","unit":"celsius"}` {
+		t.Errorf("Unexpected Arguments: %s", toolCall.Arguments)
+	}
+}
+
+func TestGenerateConfig_Options(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithMaxTokens", func(t *testing.T) {
+		config := agents.ApplyGenerateOptions(agents.WithMaxTokens(1000))
+		if config.MaxTokens == nil {
+			t.Fatal("Expected MaxTokens to be set")
+		}
+		if *config.MaxTokens != 1000 {
+			t.Errorf("Expected MaxTokens 1000, got %d", *config.MaxTokens)
+		}
+	})
+
+	t.Run("WithReasoningEffort", func(t *testing.T) {
+		config := agents.ApplyGenerateOptions(agents.WithReasoningEffort(agents.ReasoningHigh))
+		if config.ReasoningEffort == nil {
+			t.Fatal("Expected ReasoningEffort to be set")
+		}
+		if *config.ReasoningEffort != agents.ReasoningHigh {
+			t.Errorf("Expected ReasoningHigh, got %s", *config.ReasoningEffort)
+		}
+	})
+
+	t.Run("WithJSONMode", func(t *testing.T) {
+		config := agents.ApplyGenerateOptions(agents.WithJSONMode())
+		if !config.JSONMode {
+			t.Error("Expected JSONMode to be true")
+		}
+	})
+
+	t.Run("WithJSONSchema", func(t *testing.T) {
+		schema := map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"name": map[string]interface{}{"type": "string"},
+			},
+		}
+		config := agents.ApplyGenerateOptions(agents.WithJSONSchema(schema))
+		if config.JSONSchema == nil {
+			t.Fatal("Expected JSONSchema to be set")
+		}
+	})
+
+	t.Run("WithTemperature", func(t *testing.T) {
+		config := agents.ApplyGenerateOptions(agents.WithTemperature(0.7))
+		if config.Temperature == nil {
+			t.Fatal("Expected Temperature to be set")
+		}
+		if *config.Temperature != 0.7 {
+			t.Errorf("Expected Temperature 0.7, got %f", *config.Temperature)
+		}
+	})
+
+	t.Run("Multiple options", func(t *testing.T) {
+		config := agents.ApplyGenerateOptions(
+			agents.WithMaxTokens(500),
+			agents.WithTemperature(0.5),
+			agents.WithReasoningEffort(agents.ReasoningMedium),
+		)
+
+		if config.MaxTokens == nil || *config.MaxTokens != 500 {
+			t.Error("MaxTokens not set correctly")
+		}
+		if config.Temperature == nil || *config.Temperature != 0.5 {
+			t.Error("Temperature not set correctly")
+		}
+		if config.ReasoningEffort == nil || *config.ReasoningEffort != agents.ReasoningMedium {
+			t.Error("ReasoningEffort not set correctly")
+		}
+	})
+}
+
+func TestReasoningEffort_Values(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		effort   agents.ReasoningEffort
+		expected string
+	}{
+		{
+			name:     "low",
+			effort:   agents.ReasoningLow,
+			expected: "low",
+		},
+		{
+			name:     "medium",
+			effort:   agents.ReasoningMedium,
+			expected: "medium",
+		},
+		{
+			name:     "high",
+			effort:   agents.ReasoningHigh,
+			expected: "high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if string(tt.effort) != tt.expected {
+				t.Errorf("Expected %s, got %s", tt.expected, string(tt.effort))
+			}
+		})
+	}
+}
+
+func TestCapability_Values(t *testing.T) {
+	t.Parallel()
+
+	capabilities := []struct {
+		cap      agents.Capability
+		expected string
+	}{
+		{agents.CapabilityStreaming, "streaming"},
+		{agents.CapabilityTools, "tools"},
+		{agents.CapabilityVision, "vision"},
+		{agents.CapabilityThinking, "thinking"},
+		{agents.CapabilityJSONMode, "json_mode"},
+		{agents.CapabilityJSONSchema, "json_schema"},
+	}
+
+	for _, tc := range capabilities {
+		if string(tc.cap) != tc.expected {
+			t.Errorf("Expected capability value '%s', got '%s'", tc.expected, string(tc.cap))
+		}
+	}
+}
+
+func TestRequest_Creation(t *testing.T) {
+	t.Parallel()
+
+	testTool := agents.NewTool(
+		"test_tool",
+		"A test tool",
+		map[string]interface{}{},
+		func(ctx context.Context, input string) (string, error) {
+			return "test", nil
+		},
+	)
+
+	req := agents.Request{
+		Messages: []agents.Message{
+			{Role: agents.RoleUser, Content: "Hello"},
+		},
+		Tools: []agents.Tool{
+			testTool,
+		},
+	}
+
+	if len(req.Messages) != 1 {
+		t.Errorf("Expected 1 message, got %d", len(req.Messages))
+	}
+	if len(req.Tools) != 1 {
+		t.Errorf("Expected 1 tool, got %d", len(req.Tools))
+	}
+	if req.Messages[0].Role != agents.RoleUser {
+		t.Errorf("Expected role 'user', got '%s'", req.Messages[0].Role)
+	}
+}
+
+func TestResponse_Creation(t *testing.T) {
+	t.Parallel()
+
+	resp := agents.Response{
+		Message: agents.Message{
+			Role:    agents.RoleAssistant,
+			Content: "Hello!",
+		},
+		Usage: agents.TokenUsage{
+			PromptTokens:     10,
+			CompletionTokens: 5,
+			TotalTokens:      15,
+		},
+		FinishReason: "stop",
+		Thinking:     "I should greet the user",
+	}
+
+	if resp.Message.Role != agents.RoleAssistant {
+		t.Errorf("Expected role 'assistant', got '%s'", resp.Message.Role)
+	}
+	if resp.Usage.TotalTokens != 15 {
+		t.Errorf("Expected 15 total tokens, got %d", resp.Usage.TotalTokens)
+	}
+	if resp.FinishReason != "stop" {
+		t.Errorf("Expected finish reason 'stop', got '%s'", resp.FinishReason)
+	}
+}
+
+func TestChunk_Creation(t *testing.T) {
+	t.Parallel()
+
+	chunk := agents.Chunk{
+		Delta:        "Hello",
+		ToolCalls:    []agents.ToolCall{},
+		Usage:        nil,
+		FinishReason: "",
+		Done:         false,
+	}
+
+	if chunk.Delta != "Hello" {
+		t.Errorf("Expected delta 'Hello', got '%s'", chunk.Delta)
+	}
+	if chunk.Done {
+		t.Error("Expected Done to be false")
+	}
+
+	// Test final chunk
+	finalChunk := agents.Chunk{
+		Delta: "",
+		Usage: &agents.TokenUsage{
+			PromptTokens:     10,
+			CompletionTokens: 20,
+			TotalTokens:      30,
+		},
+		FinishReason: "stop",
+		Done:         true,
+	}
+
+	if !finalChunk.Done {
+		t.Error("Expected Done to be true for final chunk")
+	}
+	if finalChunk.Usage == nil {
+		t.Error("Expected Usage to be set for final chunk")
+	}
+	if finalChunk.FinishReason != "stop" {
+		t.Errorf("Expected finish reason 'stop', got '%s'", finalChunk.FinishReason)
+	}
+}

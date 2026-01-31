@@ -1,0 +1,191 @@
+# BI-Chat GraphQL Schema
+# This schema defines the GraphQL API for chat operations
+
+# TODO: Generate resolvers using gqlgen when Phase 1 (Agent Framework) is complete
+# Run: go run github.com/99designs/gqlgen generate
+
+scalar UUID
+scalar Time
+scalar JSON
+scalar Upload
+
+# Session represents a chat conversation
+type Session {
+  id: UUID!
+  tenantID: UUID!
+  userID: Int!
+  title: String!
+  status: SessionStatus!
+  pinned: Boolean!
+  parentSessionID: UUID
+  pendingQuestionAgent: String
+  createdAt: Time!
+  updatedAt: Time!
+  messages(limit: Int, offset: Int): [Message!]!
+}
+
+# SessionStatus enum
+enum SessionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+# Message represents a single message in a chat
+type Message {
+  id: UUID!
+  sessionID: UUID!
+  role: MessageRole!
+  content: String!
+  toolCalls: [ToolCall!]
+  toolCallID: String
+  attachments: [Attachment!]!
+  citations: [Citation!]!
+  createdAt: Time!
+}
+
+# MessageRole enum
+enum MessageRole {
+  USER
+  ASSISTANT
+  TOOL
+  SYSTEM
+}
+
+# ToolCall represents an LLM tool invocation
+type ToolCall {
+  id: String!
+  name: String!
+  arguments: String!
+}
+
+# Attachment represents a file attached to a message
+type Attachment {
+  id: UUID!
+  messageID: UUID!
+  fileName: String!
+  mimeType: String!
+  sizeBytes: Int!
+  storagePath: String!
+  createdAt: Time!
+}
+
+# Citation represents a source reference
+type Citation {
+  source: String!
+  title: String
+  url: String
+  excerpt: String
+}
+
+# SendMessageResponse contains the result of sending a message
+type SendMessageResponse {
+  userMessage: Message!
+  assistantMessage: Message
+  session: Session!
+  interrupt: Interrupt
+}
+
+# Interrupt represents a HITL pause waiting for user input
+type Interrupt {
+  checkpointID: String!
+  questions: [Question!]!
+}
+
+# Question represents a question waiting for user answer
+type Question {
+  id: String!
+  text: String!
+  type: QuestionType!
+  options: [QuestionOption!]
+}
+
+# QuestionType enum
+enum QuestionType {
+  TEXT
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+}
+
+# QuestionOption represents an option for choice questions
+type QuestionOption {
+  id: String!
+  label: String!
+}
+
+# MessageChunk for streaming responses
+type MessageChunk {
+  type: ChunkType!
+  content: String
+  citation: Citation
+  usage: TokenUsage
+  error: String
+  timestamp: Time!
+}
+
+# ChunkType enum
+enum ChunkType {
+  CONTENT
+  CITATION
+  USAGE
+  DONE
+  ERROR
+}
+
+# TokenUsage tracks token consumption
+type TokenUsage {
+  promptTokens: Int!
+  completionTokens: Int!
+  totalTokens: Int!
+  cachedTokens: Int!
+  cost: Float!
+}
+
+# Queries
+type Query {
+  # List user's sessions
+  sessions(limit: Int, offset: Int): [Session!]!
+
+  # Get a specific session
+  session(id: UUID!): Session
+
+  # Get messages for a session
+  messages(sessionId: UUID!, limit: Int, offset: Int): [Message!]!
+}
+
+# Mutations
+type Mutation {
+  # Create a new chat session
+  createSession(title: String): Session!
+
+  # Send a message to a session
+  sendMessage(
+    sessionId: UUID!
+    content: String!
+    attachments: [Upload!]
+  ): SendMessageResponse!
+
+  # Resume execution after user answers questions (HITL)
+  resumeWithAnswer(
+    sessionId: UUID!
+    checkpointId: String!
+    answers: JSON!
+  ): SendMessageResponse!
+
+  # Archive a session
+  archiveSession(id: UUID!): Session!
+
+  # Pin a session
+  pinSession(id: UUID!): Session!
+
+  # Unpin a session
+  unpinSession(id: UUID!): Session!
+
+  # Delete a session
+  deleteSession(id: UUID!): Boolean!
+}
+
+# Subscriptions
+type Subscription {
+  # Stream message responses in real-time
+  messageStream(sessionId: UUID!): MessageChunk!
+}

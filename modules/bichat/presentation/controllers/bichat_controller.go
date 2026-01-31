@@ -1,9 +1,12 @@
 package controllers
 
 import (
+	"encoding/json"
+	"html/template"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers/dtos"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/interop"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/templates/pages/bichat"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -46,6 +49,7 @@ func (c *BiChatController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.Index).Methods(http.MethodGet)
+	getRouter.HandleFunc("/app", c.RenderChatApp).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
@@ -85,3 +89,58 @@ func (c *BiChatController) Delete(w http.ResponseWriter, r *http.Request) {
 
 	shared.Redirect(w, r, c.basePath)
 }
+
+// RenderChatApp renders the React SPA with injected server context
+func (c *BiChatController) RenderChatApp(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Build initial context for React
+	initialContext, err := interop.BuildInitialContext(ctx)
+	if err != nil {
+		http.Error(w, "Failed to build context", http.StatusInternalServerError)
+		return
+	}
+
+	// Get CSRF token from context
+	csrfToken, ok := ctx.Value("gorilla.csrf.Token").(string)
+	if !ok {
+		csrfToken = ""
+	}
+
+	// Serialize context to JSON
+	contextJSON, err := json.Marshal(initialContext)
+	if err != nil {
+		http.Error(w, "Failed to serialize context", http.StatusInternalServerError)
+		return
+	}
+
+	// Render HTML template
+	tmpl := template.Must(template.New("app").Parse(appTemplate))
+	data := map[string]interface{}{
+		"ContextJSON": template.JS(contextJSON),
+		"CSRFToken":   csrfToken,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
+	}
+}
+
+const appTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BI Chat</title>
+    <script type="module" src="/bichat/assets/index.js"></script>
+</head>
+<body>
+    <div id="app"></div>
+    <script>
+        window.__BICHAT_CONTEXT__ = {{.ContextJSON}};
+        window.__CSRF_TOKEN__ = "{{.CSRFToken}}";
+    </script>
+</body>
+</html>`
