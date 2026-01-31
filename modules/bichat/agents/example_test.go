@@ -1,0 +1,91 @@
+package agents_test
+
+import (
+	"context"
+	"fmt"
+
+	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+)
+
+// ExampleNewDefaultBIAgent demonstrates basic usage of the default BI agent.
+func ExampleNewDefaultBIAgent() {
+	// Create a query executor (in real usage, this would use your database pool)
+	executor := &mockQueryExecutor{}
+
+	// Create the default BI agent with core SQL tools
+	agent, err := bichatagents.NewDefaultBIAgent(executor)
+	if err != nil {
+		panic(err)
+	}
+
+	// Access agent metadata
+	metadata := agent.Metadata()
+	fmt.Println("Agent name:", metadata.Name)
+	fmt.Println("Agent model:", metadata.Model)
+
+	// List available tools
+	agentTools := agent.Tools()
+	fmt.Printf("Number of tools: %d\n", len(agentTools))
+
+	// Output:
+	// Agent name: bi_agent
+	// Agent model: gpt-4
+	// Number of tools: 6
+}
+
+// ExampleNewDefaultBIAgent_withOptions demonstrates using optional tools.
+func ExampleNewDefaultBIAgent_withOptions() {
+	executor := &mockQueryExecutor{}
+	kbSearcher := &mockKBSearcher{}
+	excelExporter := &mockExcelExporter{}
+
+	// Create agent with optional KB search and Excel export
+	agent, err := bichatagents.NewDefaultBIAgent(
+		executor,
+		bichatagents.WithKBSearcher(kbSearcher),
+		bichatagents.WithExcelExporter(excelExporter),
+		bichatagents.WithModel("gpt-3.5-turbo"),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	metadata := agent.Metadata()
+	agentTools := agent.Tools()
+
+	fmt.Println("Model:", metadata.Model)
+	fmt.Printf("Tools count: %d\n", len(agentTools))
+
+	// Output:
+	// Model: gpt-3.5-turbo
+	// Tools count: 8
+}
+
+// Mock implementations for examples
+
+type mockQueryExecutor struct{}
+
+func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*tools.QueryResult, error) {
+	return &tools.QueryResult{
+		Columns:  []string{"id", "name"},
+		Rows:     []map[string]interface{}{{"id": 1, "name": "test"}},
+		RowCount: 1,
+	}, nil
+}
+
+type mockKBSearcher struct{}
+
+func (m *mockKBSearcher) Search(ctx context.Context, query string, limit int) ([]tools.SearchResult, error) {
+	return []tools.SearchResult{}, nil
+}
+
+func (m *mockKBSearcher) IsAvailable() bool {
+	return true
+}
+
+type mockExcelExporter struct{}
+
+func (m *mockExcelExporter) ExportToExcel(ctx context.Context, data *tools.QueryResult, filename string) (string, error) {
+	return "/exports/test.xlsx", nil
+}
