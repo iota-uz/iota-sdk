@@ -46,7 +46,7 @@ func SessionToViewModel(s session.Session, currentToken string) *Session {
 		CreatedAt:    s.CreatedAt().Format("2006-01-02 15:04:05"),
 		IsCurrent:    s.Token() == currentToken,
 		Icon:         deviceInfo.Icon,
-		FullToken:    hashToken(s.Token()), // Hash for safe comparison
+		FullToken:    s.Token(), // Store raw token for revocation
 	}
 }
 

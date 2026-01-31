@@ -24,6 +24,10 @@ func (s *SessionService) GetCount(ctx context.Context) (int64, error) {
 	return s.repo.Count(ctx)
 }
 
+func (s *SessionService) GetFilteredCount(ctx context.Context, search string) (int64, error) {
+	return s.repo.CountFiltered(ctx, search)
+}
+
 func (s *SessionService) GetAll(ctx context.Context) ([]session.Session, error) {
 	return s.repo.GetAll(ctx)
 }
@@ -133,24 +137,7 @@ func (s *SessionService) GetByUserID(ctx context.Context, userID uint) ([]sessio
 }
 
 func (s *SessionService) TerminateSession(ctx context.Context, token string) error {
-	var deletedSession session.Session
-	err := composables.InTx(ctx, func(txCtx context.Context) error {
-		if ses, err := s.repo.GetByToken(txCtx, token); err != nil {
-			return err
-		} else {
-			deletedSession = ses
-		}
-		return s.repo.Delete(txCtx, token)
-	})
-	if err != nil {
-		return err
-	}
-	deletedEvent, err := session.NewDeletedEvent(deletedSession)
-	if err != nil {
-		return err
-	}
-	s.publisher.Publish(deletedEvent)
-	return nil
+	return s.Delete(ctx, token)
 }
 
 func (s *SessionService) TerminateOtherSessions(ctx context.Context, userID uint, currentToken string) (int, error) {

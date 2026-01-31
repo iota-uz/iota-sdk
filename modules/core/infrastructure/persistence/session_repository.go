@@ -63,15 +63,29 @@ func (g *SessionRepository) GetPaginated(ctx context.Context, params *session.Fi
 	}
 
 	var args []interface{}
-	where, args := []string{"tenant_id = $%d"}, []interface{}{tenantID}
+	where, args := []string{"s.tenant_id = $%d"}, []interface{}{tenantID}
 
 	if params.Token != "" {
-		where = append(where, fmt.Sprintf("token = $%d", len(args)+1))
+		where = append(where, fmt.Sprintf("s.token = $%d", len(args)+1))
 		args = append(args, params.Token)
 	}
 
+	// Add search filter with JOIN if search query provided
+	var joinClause string
+	if params.Search != "" {
+		joinClause = "JOIN users u ON s.user_id = u.id"
+		searchPattern := "%" + params.Search + "%"
+		where = append(where, fmt.Sprintf("(u.first_name ILIKE $%d OR u.last_name ILIKE $%d OR u.email ILIKE $%d)",
+			len(args)+1, len(args)+1, len(args)+1))
+		args = append(args, searchPattern)
+	}
+
+	// Use table alias for select query
+	selectQuery := "SELECT s.token, s.user_id, s.expires_at, s.ip, s.user_agent, s.created_at, s.tenant_id, s.audience FROM sessions s"
+
 	query := repo.Join(
-		selectSessionQuery,
+		selectQuery,
+		joinClause,
 		repo.JoinWhere(where...),
 		params.SortBy.ToSQL(g.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
@@ -94,6 +108,36 @@ func (g *SessionRepository) Count(ctx context.Context) (int64, error) {
 	var count int64
 	if err := tx.QueryRow(ctx, countSessionQuery+" WHERE tenant_id = $1", tenantID).Scan(&count); err != nil {
 		return 0, err
+	}
+	return count, nil
+}
+
+func (g *SessionRepository) CountFiltered(ctx context.Context, search string) (int64, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	var count int64
+	if search != "" {
+		query := `
+			SELECT COUNT(*) as count 
+			FROM sessions s
+			JOIN users u ON s.user_id = u.id
+			WHERE s.tenant_id = $1 
+			AND (u.first_name ILIKE $2 OR u.last_name ILIKE $2 OR u.email ILIKE $2)
+		`
+		if err := tx.QueryRow(ctx, query, tenantID, "%"+search+"%").Scan(&count); err != nil {
+			return 0, err
+		}
+	} else {
+		// Fall back to regular count if no search
+		return g.Count(ctx)
 	}
 	return count, nil
 }

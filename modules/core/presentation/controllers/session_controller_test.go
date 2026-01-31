@@ -609,7 +609,7 @@ func TestSessionController_RevokeUserSession(t *testing.T) {
 
 		suite.DELETE(fmt.Sprintf("/sessions/%s", nonExistentToken)).
 			Assert(t).
-			ExpectStatus(http.StatusInternalServerError) // Error retrieving session
+			ExpectStatus(http.StatusNotFound) // Session not found
 	})
 }
 

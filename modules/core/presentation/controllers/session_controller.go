@@ -2,15 +2,16 @@ package controllers
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	sessiontemplates "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/sessions"
@@ -78,6 +79,7 @@ func (c *SessionController) List(
 	findParams := &session.FindParams{
 		Limit:  params.Limit,
 		Offset: params.Offset,
+		Search: searchQuery,
 		SortBy: session.SortBy{
 			Fields: []session.SortByField{
 				{
@@ -117,18 +119,11 @@ func (c *SessionController) List(
 		userVM := mappers.UserToViewModel(user)
 		sessionVM := viewmodels.NewAdminSessionViewModel(sess, userVM, currentToken)
 
-		// Apply search filter if provided
-		if searchQuery != "" {
-			if !containsSearch(userVM, searchQuery) {
-				continue
-			}
-		}
-
 		adminSessions = append(adminSessions, sessionVM)
 	}
 
 	// Get total count for pagination
-	totalCount, err := sessionService.GetCount(r.Context())
+	totalCount, err := sessionService.GetFilteredCount(r.Context(), searchQuery)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get session count")
 		http.Error(w, "Error retrieving session count", http.StatusInternalServerError)
@@ -186,12 +181,16 @@ func (c *SessionController) Revoke(
 	// Terminate session
 	if err := sessionService.TerminateSession(r.Context(), token); err != nil {
 		logger.WithError(err).Error("Failed to terminate session")
-		http.Error(w, "Error terminating session", http.StatusInternalServerError)
+		if errors.Is(err, persistence.ErrSessionNotFound) {
+			http.Error(w, "Session not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Error terminating session", http.StatusInternalServerError)
+		}
 		return
 	}
 
 	logger.
-		WithField("token", token).
+		WithField("token_hash", hashToken(token)).
 		WithField("revoked_by", composables.MustUseUser(r.Context()).ID()).
 		Info("Session revoked")
 
@@ -201,25 +200,6 @@ func (c *SessionController) Revoke(
 	// Use hash of token for the ID (consistent with the FullToken field in viewmodel)
 	tokenHash := hashToken(token)
 	_, _ = w.Write([]byte(`<tr id="session-row-` + tokenHash + `" hx-swap-oob="delete"></tr>`))
-}
-
-// containsSearch checks if user matches the search query
-func containsSearch(user *viewmodels.User, query string) bool {
-	if query == "" {
-		return true
-	}
-
-	// Convert to lowercase for case-insensitive search
-	query = strings.ToLower(query)
-
-	// Search in name and email
-	if strings.Contains(strings.ToLower(user.FirstName), query) ||
-		strings.Contains(strings.ToLower(user.LastName), query) ||
-		strings.Contains(strings.ToLower(user.Email), query) {
-		return true
-	}
-
-	return false
 }
 
 // hashToken creates a SHA-256 hash of the token for safe comparison

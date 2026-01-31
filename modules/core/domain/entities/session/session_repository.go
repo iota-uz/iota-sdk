@@ -21,10 +21,12 @@ type FindParams struct {
 	Offset int
 	SortBy SortBy
 	Token  string
+	Search string // Search query for filtering by user name/email
 }
 
 type Repository interface {
 	Count(ctx context.Context) (int64, error)
+	CountFiltered(ctx context.Context, search string) (int64, error)
 	GetAll(ctx context.Context) ([]Session, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Session, error)
 	GetByToken(ctx context.Context, token string) (Session, error)

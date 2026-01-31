@@ -66,8 +66,9 @@ func (c *AccountController) Register(r *mux.Router) {
 
 	deleteRouter := r.PathPrefix(c.basePath).Subrouter()
 	deleteRouter.Use(commonMiddleware...)
-	deleteRouter.HandleFunc("/sessions/{token}", c.RevokeSession).Methods(http.MethodDelete)
+	// Register specific routes before parameterized ones to avoid route conflicts
 	deleteRouter.HandleFunc("/sessions/others", c.RevokeOtherSessions).Methods(http.MethodDelete)
+	deleteRouter.HandleFunc("/sessions/{token}", c.RevokeSession).Methods(http.MethodDelete)
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {
