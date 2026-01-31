@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
@@ -32,12 +33,15 @@ import (
 //	    WithTools(delegationTool),
 //	)
 type DelegationTool struct {
-	registry *AgentRegistry
-	model    Model
+	registry  *AgentRegistry
+	model     Model
+	sessionID uuid.UUID
+	tenantID  uuid.UUID
 }
 
 // NewDelegationTool creates a new delegation tool with access to the agent registry.
 // The model parameter is the LLM model used by child agents during delegation.
+// SessionID and TenantID are passed to child agents for proper isolation.
 //
 // When a delegation occurs:
 //   - The tool executes the child agent with proper isolation
@@ -49,11 +53,13 @@ type DelegationTool struct {
 //	registry := NewAgentRegistry()
 //	registry.Register(sqlAgent)
 //
-//	delegationTool := NewDelegationTool(registry, model)
-func NewDelegationTool(registry *AgentRegistry, model Model) Tool {
+//	delegationTool := NewDelegationTool(registry, model, sessionID, tenantID)
+func NewDelegationTool(registry *AgentRegistry, model Model, sessionID, tenantID uuid.UUID) Tool {
 	return &DelegationTool{
-		registry: registry,
-		model:    model,
+		registry:  registry,
+		model:     model,
+		sessionID: sessionID,
+		tenantID:  tenantID,
 	}
 }
 
@@ -91,6 +97,18 @@ func (t *DelegationTool) Parameters() map[string]any {
 		},
 		"required": []string{"agent_name", "task"},
 	}
+}
+
+// filterDelegationTool removes the delegation tool from a tool list to prevent recursion.
+// Child agents should not have access to the delegation tool to prevent infinite delegation chains.
+func (t *DelegationTool) filterDelegationTool(tools []Tool) []Tool {
+	filtered := make([]Tool, 0, len(tools))
+	for _, tool := range tools {
+		if tool.Name() != ToolTask {
+			filtered = append(filtered, tool)
+		}
+	}
+	return filtered
 }
 
 // Call executes the delegation by invoking the child agent.
@@ -162,17 +180,18 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	taskMessage := types.UserMessage(args.Task)
 	childMessages := []types.Message{*taskMessage}
 
-	// Create child executor
-	// CRITICAL: Filter delegation tool to prevent recursion
-	childExecutor := NewExecutor(extendedAgent, t.model)
+	// Create child executor with filtered tools to prevent recursion
+	// CRITICAL: Remove delegation tool from child's tool list
+	filteredTools := t.filterDelegationTool(extendedAgent.Tools())
+	childExecutor := NewExecutor(extendedAgent, t.model, WithExecutorTools(filteredTools))
 
 	// Execute child agent
 	// Use Execute() which returns a types.Generator[ExecutorEvent]
-	// TODO(#26): Pass SessionID and TenantID from parent to child for proper isolation.
-	// This requires storing parent Input in context or adding it to DelegationTool struct.
-	// For now, child executes without session/tenant tracking.
+	// Pass SessionID and TenantID from parent to child for proper isolation.
 	gen := childExecutor.Execute(ctx, Input{
-		Messages: childMessages,
+		Messages:  childMessages,
+		SessionID: t.sessionID,
+		TenantID:  t.tenantID,
 	})
 	defer gen.Close()
 

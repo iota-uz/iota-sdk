@@ -120,6 +120,7 @@ type Executor struct {
 	eventBus          hooks.EventBus
 	maxIterations     int
 	interruptRegistry *InterruptHandlerRegistry
+	tools             []Tool // Optional override for agent tools (e.g., filtered for child executors)
 }
 
 // Input represents the input to Execute or Resume.
@@ -170,6 +171,14 @@ func WithMaxIterations(max int) ExecutorOption {
 func WithInterruptRegistry(registry *InterruptHandlerRegistry) ExecutorOption {
 	return func(e *Executor) {
 		e.interruptRegistry = registry
+	}
+}
+
+// WithExecutorTools sets custom tools for the executor, overriding the agent's default tools.
+// Use this to filter tools (e.g., removing delegation tool for child executors to prevent recursion).
+func WithExecutorTools(tools []Tool) ExecutorOption {
+	return func(e *Executor) {
+		e.tools = tools
 	}
 }
 
@@ -230,10 +239,16 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 		for iteration < e.maxIterations {
 			iteration++
 
+			// Determine which tools to use (override if e.tools is set)
+			tools := e.tools
+			if tools == nil {
+				tools = e.agent.Tools()
+			}
+
 			// Build model request
 			req := Request{
 				Messages: messages,
-				Tools:    e.agent.Tools(),
+				Tools:    tools,
 			}
 
 			// Emit LLM request event
@@ -252,7 +267,6 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 			// Call model (streaming)
 			gen := e.model.Stream(ctx, req)
-			defer gen.Close()
 
 			// Accumulate response
 			var responseMessage types.Message
@@ -268,6 +282,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					if err == types.ErrGeneratorDone {
 						break
 					}
+					gen.Close()
 					return serrors.E(op, err)
 				}
 
@@ -278,6 +293,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						Type:  EventTypeChunk,
 						Chunk: &chunk,
 					}) {
+						gen.Close()
 						return nil // Consumer stopped
 					}
 				}
@@ -293,6 +309,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					finishReason = chunk.FinishReason
 				}
 			}
+
+			// Close generator immediately after exhausting
+			gen.Close()
 
 			// Build response message
 			responseMessage = *types.AssistantMessage(joinStrings(chunks), types.WithToolCalls(toolCalls...))
@@ -355,7 +374,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Check for interrupt
 			if interrupt != nil {
 				// Save checkpoint
-				checkpointID, err := e.saveCheckpoint(ctx, threadID, messages, toolCalls, interrupt)
+				checkpointID, err := e.saveCheckpoint(ctx, threadID, messages, toolCalls, interrupt, input.SessionID, input.TenantID)
 				if err != nil {
 					return serrors.E(op, ErrCheckpointSaveFailed, err)
 				}
@@ -363,6 +382,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				// Set checkpoint ID on interrupt event
 				interrupt.AgentName = e.agent.Metadata().Name
 				interrupt.SessionID = input.SessionID
+				interrupt.CheckpointID = checkpointID
 
 				// Emit interrupt event to EventBus
 				if e.eventBus != nil {
@@ -526,11 +546,10 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 		}
 
 		// Resume execution with restored state
-		// TODO: Add SessionID and TenantID to Checkpoint struct to restore from metadata
 		input := Input{
 			Messages:  messages,
-			SessionID: uuid.Nil, // TODO: restore from checkpoint metadata
-			TenantID:  uuid.Nil, // TODO: restore from checkpoint metadata
+			SessionID: checkpoint.SessionID,
+			TenantID:  checkpoint.TenantID,
 			ThreadID:  checkpoint.ThreadID,
 		}
 
@@ -545,6 +564,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 				if err == types.ErrGeneratorDone {
 					break
 				}
+				resumeGen.Close()
 				return serrors.E(op, err)
 			}
 			if !yield(event) {
@@ -671,6 +691,8 @@ func (e *Executor) saveCheckpoint(
 	messages []types.Message,
 	toolCalls []types.ToolCall,
 	interrupt *InterruptEvent,
+	sessionID uuid.UUID,
+	tenantID uuid.UUID,
 ) (string, error) {
 	const op serrors.Op = "Executor.saveCheckpoint"
 
@@ -685,6 +707,8 @@ func (e *Executor) saveCheckpoint(
 		WithPendingTools(toolCalls),
 		WithInterruptType(interrupt.Type),
 		WithInterruptData(interrupt.Data),
+		WithSessionID(sessionID),
+		WithTenantID(tenantID),
 	)
 
 	checkpointID, err := e.checkpointer.Save(ctx, checkpoint)

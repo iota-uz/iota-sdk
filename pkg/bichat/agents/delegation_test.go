@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 )
 
@@ -14,7 +15,9 @@ func TestNewDelegationTool(t *testing.T) {
 	t.Parallel()
 
 	registry := agents.NewAgentRegistry()
-	tool := agents.NewDelegationTool(registry, nil)
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
 	if tool.Name() != agents.ToolTask {
 		t.Errorf("Expected tool name %q, got %q", agents.ToolTask, tool.Name())
@@ -49,7 +52,9 @@ func TestDelegationTool_AgentNotFound(t *testing.T) {
 	t.Parallel()
 
 	registry := agents.NewAgentRegistry()
-	tool := agents.NewDelegationTool(registry, nil)
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
 	input := `{"agent_name": "nonexistent", "task": "do something"}`
 	_, err := tool.Call(context.Background(), input)
@@ -68,7 +73,9 @@ func TestDelegationTool_InvalidInput(t *testing.T) {
 	t.Parallel()
 
 	registry := agents.NewAgentRegistry()
-	tool := agents.NewDelegationTool(registry, nil)
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
 	tests := []struct {
 		name        string
@@ -133,7 +140,9 @@ func TestDelegationTool_NoExecutor(t *testing.T) {
 		t.Fatalf("Failed to register agent: %v", err)
 	}
 
-	tool := agents.NewDelegationTool(registry, nil)
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
 	input := `{"agent_name": "test_agent", "task": "perform test"}`
 	result, err := tool.Call(context.Background(), input)
@@ -277,7 +286,9 @@ func TestDelegationTool_RecursionPrevention(t *testing.T) {
 	)
 
 	// Create delegation tool
-	delegationTool := agents.NewDelegationTool(registry, nil)
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	delegationTool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
 	// Create child agent with both tools
 	childAgent := agents.NewBaseAgent(
@@ -389,7 +400,9 @@ func TestDelegationTool_Description(t *testing.T) {
 		t.Fatalf("Failed to register agent2: %v", err)
 	}
 
-	tool := agents.NewDelegationTool(registry, nil)
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 	description := tool.Description()
 
 	// Verify description includes agent information
@@ -425,7 +438,9 @@ func TestDelegationTool_ContextParameter(t *testing.T) {
 		t.Fatalf("Failed to register agent: %v", err)
 	}
 
-	tool := agents.NewDelegationTool(registry, nil)
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
 	// Test with optional context parameter
 	input := `{

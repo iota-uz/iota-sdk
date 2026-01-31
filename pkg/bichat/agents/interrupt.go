@@ -36,6 +36,10 @@ type InterruptEvent struct {
 	// SessionID is the chat session this interrupt belongs to.
 	// Used to correlate interrupts with their originating conversation.
 	SessionID uuid.UUID
+
+	// CheckpointID is the identifier for the saved checkpoint.
+	// Used to resume execution after the interrupt is resolved.
+	CheckpointID string
 }
 
 // InterruptHandler processes a specific type of interrupt event.

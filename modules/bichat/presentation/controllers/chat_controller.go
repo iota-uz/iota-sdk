@@ -180,6 +180,21 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate session ownership (CRITICAL SECURITY)
+	session, err := c.chatRepo.GetSession(r.Context(), sessionID)
+	if err != nil {
+		c.sendError(w, serrors.E(op, err), http.StatusNotFound)
+		return
+	}
+
+	// User must own the session OR have BiChatReadAll permission
+	if session.UserID != int64(user.ID()) {
+		if err := composables.CanUser(r.Context(), permissions.BiChatReadAll); err != nil {
+			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+			return
+		}
+	}
+
 	var req struct {
 		Content     string              `json:"content"`
 		Attachments []domain.Attachment `json:"attachments"`
@@ -207,11 +222,32 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "ChatController.ResumeWithAnswer"
 
+	user, err := composables.UseUser(r.Context())
+	if err != nil {
+		c.sendError(w, serrors.E(op, err), http.StatusUnauthorized)
+		return
+	}
+
 	vars := mux.Vars(r)
 	sessionID, err := uuid.Parse(vars["id"])
 	if err != nil {
 		c.sendError(w, serrors.E(op, errors.New("invalid session ID")), http.StatusBadRequest)
 		return
+	}
+
+	// Validate session ownership (CRITICAL SECURITY)
+	session, err := c.chatRepo.GetSession(r.Context(), sessionID)
+	if err != nil {
+		c.sendError(w, serrors.E(op, err), http.StatusNotFound)
+		return
+	}
+
+	// User must own the session OR have BiChatReadAll permission
+	if session.UserID != int64(user.ID()) {
+		if err := composables.CanUser(r.Context(), permissions.BiChatReadAll); err != nil {
+			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
+			return
+		}
 	}
 
 	var req struct {

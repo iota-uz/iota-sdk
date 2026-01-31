@@ -685,14 +685,16 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	t.Parallel()
 
 	sessionID := uuid.New()
+	checkpointID := "checkpoint_" + sessionID.String()
 	interruptData := []byte(`{"question": "What is your name?"}`)
 
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeInterrupt,
 		Interrupt: &agents.InterruptEvent{
-			Type:      agents.ToolAskUserQuestion,
-			SessionID: sessionID,
-			Data:      interruptData,
+			Type:         agents.ToolAskUserQuestion,
+			SessionID:    sessionID,
+			Data:         interruptData,
+			CheckpointID: checkpointID,
 		},
 	}
 

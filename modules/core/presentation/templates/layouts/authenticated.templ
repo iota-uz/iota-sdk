@@ -223,13 +223,15 @@ templ Authenticated(props AuthenticatedProps) {
 			}"
 			data-sidebar-state={ string(sidebarProps.InitialState) }
 			@sidebar-toggle="sidebarCollapsed = !sidebarCollapsed"
-			:class="{ 'lg:grid-cols-[4rem_1fr]': sidebarCollapsed, 'lg:grid-cols-[280px_1fr]': !sidebarCollapsed }"
-			class="grid min-h-screen w-full overflow-y-auto transition-all duration-300"
+			class="flex min-h-screen w-full overflow-y-auto"
 		>
-			<div class="hidden lg:block">
+			<div
+				:class="{ 'lg:w-16': sidebarCollapsed, 'lg:w-[280px]': !sidebarCollapsed }"
+				class="hidden lg:block flex-shrink-0 transition-all duration-300"
+			>
 				@sidebar.Sidebar(sidebarProps)
 			</div>
-			<div class="flex flex-col h-screen overflow-x-hidden">
+			<div class="flex-1 flex flex-col h-screen overflow-x-hidden">
 				@Navbar(pageCtx)
 				<div class="flex-1 overflow-y-auto content">
 					{ children... }
