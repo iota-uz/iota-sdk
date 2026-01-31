@@ -52,10 +52,14 @@ func Sidebar(props Props) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"sidebar()\" x-cloak @click=\"handleSidebarClick($event)\" :class=\"{ &#39;sidebar-collapsed&#39;: isCollapsed, &#39;sidebar-expanded&#39;: !isCollapsed, &#39;sidebar-expand-cursor&#39;: isCollapsed, &#39;sidebar-collapse-cursor&#39;: !isCollapsed }\" x-init=\"initSidebar()\" class=\"flex flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible\">")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"sidebar()\" x-cloak @click=\"handleSidebarClick($event)\" :class=\"{ &#39;sidebar-collapsed&#39;: isCollapsed, &#39;sidebar-expand-cursor&#39;: isCollapsed, &#39;sidebar-collapse-cursor&#39;: !isCollapsed }\" x-init=\"initSidebar()\" class=\"flex w-full flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div x-data=\"sidebar()\" x-cloak @click=\"handleSidebarClick($event)\" :class=\"{ &#39;sidebar-collapsed&#39;: isCollapsed, &#39;sidebar-expanded&#39;: !isCollapsed, &#39;sidebar-expand-cursor&#39;: isCollapsed, &#39;sidebar-collapse-cursor&#39;: !isCollapsed }\" x-init=\"initSidebar()\" class=\"flex flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -213,10 +217,14 @@ func SidebarNav(props Props) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<nav class=\"py-4 flex-1 min-h-0\">")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<nav class=\"py-4 flex-1 min-h-0\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<nav class=\"py-4 flex-1 min-h-0\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -234,10 +242,14 @@ func SidebarNav(props Props) templ.Component {
 				}
 				ctx = templ.InitializeContext(ctx)
 <<<<<<< HEAD
+<<<<<<< HEAD
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<ul id=\"sidebar-navigation\" :class=\"{ &#39;px-2&#39;: isCollapsed, &#39;px-6&#39;: !isCollapsed }\" class=\"flex flex-col gap-2 overflow-y-auto h-full hide-scrollbar transition-all duration-300\">")
 =======
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<ul id=\"sidebar-navigation\" :class=\"{ &#39;px-2&#39;: isCollapsed, &#39;px-6&#39;: !isCollapsed }\" class=\"flex flex-col gap-2 overflow-y-auto h-full hide-scrollbar transition-all duration-300\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<ul id=\"sidebar-navigation\" :class=\"{ &#39;px-2&#39;: isCollapsed, &#39;px-6&#39;: !isCollapsed }\" class=\"flex flex-col gap-2 overflow-y-auto h-full hide-scrollbar transition-all duration-300\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -255,10 +267,14 @@ func SidebarNav(props Props) templ.Component {
 					}
 				}
 <<<<<<< HEAD
+<<<<<<< HEAD
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</ul>")
 =======
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</ul>")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</ul>")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -269,6 +285,7 @@ func SidebarNav(props Props) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
+<<<<<<< HEAD
 <<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</nav>")
 		if templ_7745c5c3_Err != nil {
@@ -294,6 +311,12 @@ func SidebarNav(props Props) templ.Component {
 			}
 		}
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</nav>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		return nil
 	})
 }
@@ -320,10 +343,14 @@ func AccordionGroup(group Group) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div><!-- Collapsed view: only icon --><div x-show=\"isCollapsed\" @click.stop=\"toggle(); $dispatch(&#39;sidebar-toggle&#39;)\" x-tooltip.placement.right.raw=\"")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div><!-- Collapsed view: only icon --><div x-show=\"isCollapsed\" @click=\"toggle(); $dispatch(&#39;sidebar-toggle&#39;)\" x-tooltip.placement.right.raw=\"")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div><!-- Collapsed view: only icon --><div x-show=\"isCollapsed\" @click.stop=\"toggle(); $dispatch(&#39;sidebar-toggle&#39;)\" x-tooltip.placement.right.raw=\"")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -331,20 +358,28 @@ func AccordionGroup(group Group) templ.Component {
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(group.Text())
 		if templ_7745c5c3_Err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 106, Col: 47}
 =======
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 105, Col: 47}
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 106, Col: 47}
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"accordion-group-collapsed w-full cursor-pointer\">")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" class=\"accordion-group-collapsed w-full cursor-pointer\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"accordion-group-collapsed w-full cursor-pointer\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -355,28 +390,40 @@ func AccordionGroup(group Group) templ.Component {
 			}
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div><!-- Expanded view: full accordion --><details x-show=\"!isCollapsed\" class=\"group\"")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><!-- Expanded view: full accordion --><details x-show=\"!isCollapsed\" class=\"group\"")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div><!-- Expanded view: full accordion --><details x-show=\"!isCollapsed\" class=\"group\"")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if group.IsActive(ctx) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, " open")
 =======
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, " open")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, " open")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "><summary class=\"btn btn-sidebar btn-md gap-2 w-full cursor-pointer\">")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "><summary class=\"btn btn-sidebar btn-md gap-2 w-full cursor-pointer\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "><summary class=\"btn btn-sidebar btn-md gap-2 w-full cursor-pointer\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -390,10 +437,14 @@ func AccordionGroup(group Group) templ.Component {
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(group.Text())
 		if templ_7745c5c3_Err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 119, Col: 18}
 =======
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 118, Col: 18}
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 119, Col: 18}
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -404,10 +455,14 @@ func AccordionGroup(group Group) templ.Component {
 			return templ_7745c5c3_Err
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</summary><ul class=\"ml-4 mt-2 flex flex-col gap-2\">")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</summary><ul class=\"ml-4 mt-2 flex flex-col gap-2\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</summary><ul class=\"ml-4 mt-2 flex flex-col gap-2\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -425,10 +480,14 @@ func AccordionGroup(group Group) templ.Component {
 			}
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</ul></details></div>")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</ul></details></div>")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</ul></details></div>")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -463,10 +522,14 @@ func AccordionLink(link Link) templ.Component {
 			className = className + " active"
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<li><!-- Collapsed view: icon only --><div x-show=\"isCollapsed\" x-tooltip.placement.right.raw=\"")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<li><!-- Collapsed view: icon only --><div x-show=\"isCollapsed\" x-tooltip.placement.right.raw=\"")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<li><!-- Collapsed view: icon only --><div x-show=\"isCollapsed\" x-tooltip.placement.right.raw=\"")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -474,20 +537,28 @@ func AccordionLink(link Link) templ.Component {
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(link.Text())
 		if templ_7745c5c3_Err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 144, Col: 71}
 =======
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 143, Col: 71}
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 144, Col: 71}
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\">")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -505,10 +576,14 @@ func AccordionLink(link Link) templ.Component {
 			ctx = templ.InitializeContext(ctx)
 			if link.Icon() != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"w-6 h-6 flex items-center justify-center\">")
 =======
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<div class=\"w-6 h-6 flex items-center justify-center\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"w-6 h-6 flex items-center justify-center\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -517,10 +592,14 @@ func AccordionLink(link Link) templ.Component {
 					return templ_7745c5c3_Err
 				}
 <<<<<<< HEAD
+<<<<<<< HEAD
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div>")
 =======
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div>")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div>")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -536,10 +615,14 @@ func AccordionLink(link Link) templ.Component {
 			return templ_7745c5c3_Err
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div><!-- Expanded view: icon + text --><div x-show=\"!isCollapsed\">")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div><!-- Expanded view: icon + text --><div x-show=\"!isCollapsed\">")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div><!-- Expanded view: icon + text --><div x-show=\"!isCollapsed\">")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -562,10 +645,14 @@ func AccordionLink(link Link) templ.Component {
 				}
 			}
 <<<<<<< HEAD
+<<<<<<< HEAD
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, " ")
 =======
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, " ")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, " ")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -573,10 +660,14 @@ func AccordionLink(link Link) templ.Component {
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(link.Text())
 			if templ_7745c5c3_Err != nil {
 <<<<<<< HEAD
+<<<<<<< HEAD
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 167, Col: 17}
 =======
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 166, Col: 17}
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/sidebar/sidebar.templ`, Line: 167, Col: 17}
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -593,10 +684,14 @@ func AccordionLink(link Link) templ.Component {
 			return templ_7745c5c3_Err
 		}
 <<<<<<< HEAD
+<<<<<<< HEAD
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></li>")
 =======
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div></li>")
 >>>>>>> 7e829a76 (feat(ui): improve sidebar UX with click-to-toggle and bottom toggle button)
+=======
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></li>")
+>>>>>>> a7267365 (fix(sidebar): resolve toggle button and width issues)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

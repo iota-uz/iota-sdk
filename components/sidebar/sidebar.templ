@@ -27,7 +27,7 @@ templ Sidebar(props Props) {
 		x-data="sidebar()"
 		x-cloak
 		@click="handleSidebarClick($event)"
-		:class="{ 'sidebar-collapsed': isCollapsed, 'sidebar-expand-cursor': isCollapsed, 'sidebar-collapse-cursor': !isCollapsed }"
+		:class="{ 'sidebar-collapsed': isCollapsed, 'sidebar-expanded': !isCollapsed, 'sidebar-expand-cursor': isCollapsed, 'sidebar-collapse-cursor': !isCollapsed }"
 		x-init="initSidebar()"
 		class="flex flex-col bg-surface-200 shadow-lg py-6 h-screen sticky top-0 transition-all duration-300 overflow-visible"
 	>
@@ -64,12 +64,18 @@ templ Sidebar(props Props) {
 					</div>
 				}
 			</div>
-			@SidebarContent(props)
+			@SidebarNav(props)
+		}
+		<!-- Footer is outside navtabs.Root so it's in sidebar's x-data scope -->
+		if props.Footer != nil {
+			<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="mt-auto transition-all duration-300">
+				@props.Footer
+			</div>
 		}
 	</div>
 }
 
-templ SidebarContent(props Props) {
+templ SidebarNav(props Props) {
 	<nav class="py-4 flex-1 min-h-0">
 		for _, tabGroup := range props.TabGroups.Groups {
 			@navtabs.Content(tabGroup.Value) {
@@ -89,11 +95,6 @@ templ SidebarContent(props Props) {
 			}
 		}
 	</nav>
-	if props.Footer != nil {
-		<div :class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }" class="mt-auto transition-all duration-300">
-			@props.Footer
-		</div>
-	}
 }
 
 templ AccordionGroup(group Group) {
