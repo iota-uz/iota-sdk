@@ -11,7 +11,7 @@ require (
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.31
 	github.com/PuerkitoBio/goquery v1.10.1
 	github.com/Rhymond/go-money v1.0.15
-	github.com/a-h/templ v0.3.977
+	github.com/a-h/templ v0.3.857
 	github.com/alecthomas/chroma/v2 v2.17.0
 	github.com/antchfx/htmlquery v1.3.4
 	github.com/benbjohnson/hashfs v0.2.2

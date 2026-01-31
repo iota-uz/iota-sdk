@@ -78,6 +78,19 @@ type TwilioOptions struct {
 	PhoneNumber string `env:"TWILIO_PHONE_NUMBER"`
 }
 
+type SMTPOptions struct {
+	Host     string `env:"SMTP_HOST"`
+	Port     int    `env:"SMTP_PORT" envDefault:"587"`
+	Username string `env:"SMTP_USERNAME"`
+	Password string `env:"SMTP_PASSWORD"`
+	From     string `env:"SMTP_FROM"` // Sender email address
+}
+
+type OTPDeliveryOptions struct {
+	EnableEmail bool `env:"OTP_ENABLE_EMAIL" envDefault:"false"`
+	EnableSMS   bool `env:"OTP_ENABLE_SMS" envDefault:"false"`
+}
+
 type LokiOptions struct {
 	URL     string `env:"LOKI_URL"`
 	AppName string `env:"LOKI_APP_NAME" envDefault:"sdk"`
@@ -190,6 +203,8 @@ type Configuration struct {
 	Database      DatabaseOptions
 	Google        GoogleOptions
 	Twilio        TwilioOptions
+	SMTP          SMTPOptions
+	OTPDelivery   OTPDeliveryOptions
 	Loki          LokiOptions
 	OpenTelemetry OpenTelemetryOptions
 	Click         ClickOptions

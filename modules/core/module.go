@@ -102,9 +102,40 @@ func (m *Module) Register(app application.Application) error {
 		encryptor = pkgtwofactor.NewNoopEncryptor()
 	}
 
-	// Create OTP sender (NoopSender for development)
-	// TODO: Replace with real sender (Twilio, SendGrid, etc.) in production
-	otpSender := pkgtwofactor.NewNoopSender()
+	// Create OTP sender based on configuration and environment
+	var otpSender pkgtwofactor.OTPSender
+
+	if conf.GoAppEnvironment == "production" || conf.GoAppEnvironment == "staging" {
+		// Production/Staging: Use composite sender with real implementations
+		composite := pkgtwofactor.NewCompositeSender(nil)
+
+		// Register email sender if enabled
+		if conf.OTPDelivery.EnableEmail && conf.SMTP.Host != "" {
+			emailSender := twofactor.NewEmailOTPSender(
+				conf.SMTP.Host,
+				conf.SMTP.Port,
+				conf.SMTP.Username,
+				conf.SMTP.Password,
+				conf.SMTP.From,
+			)
+			composite.Register(pkgtwofactor.ChannelEmail, emailSender)
+		}
+
+		// Register SMS sender if enabled
+		if conf.OTPDelivery.EnableSMS && conf.Twilio.AccountSID != "" && conf.Twilio.AuthToken != "" {
+			smsSender := twofactor.NewSMSOTPSender(
+				conf.Twilio.AccountSID,
+				conf.Twilio.AuthToken,
+				conf.Twilio.PhoneNumber,
+			)
+			composite.Register(pkgtwofactor.ChannelSMS, smsSender)
+		}
+
+		otpSender = composite
+	} else {
+		// Development: Use noop sender (logs to stdout)
+		otpSender = pkgtwofactor.NewNoopSender()
+	}
 
 	twoFactorService, err := twofactor.NewTwoFactorService(
 		otpRepo,
