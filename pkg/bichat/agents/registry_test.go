@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"testing"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // mockAgent is a test implementation of the ExtendedAgent interface.
@@ -644,7 +646,7 @@ func (m *mockModel) Generate(ctx context.Context, req Request, opts ...GenerateO
 	return nil, nil
 }
 
-func (m *mockModel) Stream(ctx context.Context, req Request, opts ...GenerateOption) Generator[Chunk] {
+func (m *mockModel) Stream(ctx context.Context, req Request, opts ...GenerateOption) types.Generator[Chunk] {
 	return nil
 }
 

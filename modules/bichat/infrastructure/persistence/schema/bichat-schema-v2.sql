@@ -1,6 +1,6 @@
 -- BI-Chat Schema v2
--- This schema replaces the legacy dialogues table with a proper sessions/messages structure
--- TODO: This migration will be applied when Phase 1 (Agent Framework) is complete
+-- This schema replaces the legacy dialogues table with a proper sessions/messages structure.
+-- Applied as part of BiChat module production deployment.
 
 -- Drop legacy tables (if migrating from v1)
 -- DROP TABLE IF EXISTS dialogues CASCADE;

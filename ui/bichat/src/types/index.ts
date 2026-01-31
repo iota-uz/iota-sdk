@@ -2,7 +2,7 @@
  * Type definitions for BI-Chat UI components
  */
 
-export interface ChatSession {
+export interface Session {
   id: string
   title: string
   status: 'active' | 'archived'
@@ -88,16 +88,17 @@ export interface StreamChunk {
 }
 
 export interface ChatDataSource {
-  createSession(): Promise<ChatSession>
+  createSession(): Promise<Session>
   fetchSession(id: string): Promise<{
-    session: ChatSession
+    session: Session
     messages: Message[]
     pendingQuestion?: PendingQuestion | null
   } | null>
   sendMessage(
     sessionId: string,
     content: string,
-    attachments?: Attachment[]
+    attachments?: Attachment[],
+    signal?: AbortSignal
   ): AsyncGenerator<StreamChunk>
   submitQuestionAnswers(
     sessionId: string,
@@ -116,7 +117,7 @@ export interface ChatSessionContextValue {
   error: string | null
   currentSessionId?: string
   pendingQuestion: PendingQuestion | null
-  session: ChatSession | null
+  session: Session | null
   fetching: boolean
   streamingContent: string
   isStreaming: boolean
@@ -133,4 +134,5 @@ export interface ChatSessionContextValue {
   handleSubmitQuestionAnswers: (answers: QuestionAnswers) => void
   handleCancelPendingQuestion: () => Promise<void>
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
+  cancel: () => void
 }

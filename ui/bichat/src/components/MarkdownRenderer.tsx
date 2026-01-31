@@ -15,21 +15,21 @@ interface MarkdownRendererProps {
   citations?: Citation[] | null
 }
 
-export function MarkdownRenderer({ content, citations }: MarkdownRendererProps) {
+export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   return (
     <div className="prose prose-sm max-w-none">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
         components={{
-          code({ node, inline, className, children, ...props }) {
+          code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
-            return !inline && match ? (
+            const isInline = !match
+            return !isInline && match ? (
               <SyntaxHighlighter
-                style={tomorrow}
+                style={tomorrow as any}
                 language={match[1]}
                 PreTag="div"
-                {...props}
               >
                 {String(children).replace(/\n$/, '')}
               </SyntaxHighlighter>

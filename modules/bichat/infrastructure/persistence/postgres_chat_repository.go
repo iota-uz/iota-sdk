@@ -9,7 +9,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // SQL query constants
@@ -54,20 +56,26 @@ const (
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	selectMessageQuery = `
-		SELECT id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
-		FROM bichat_messages
-		WHERE id = $1
+		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
+		FROM bichat_messages m
+		JOIN bichat_sessions s ON m.session_id = s.id
+		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectSessionMessagesQuery = `
-		SELECT id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
-		FROM bichat_messages
-		WHERE session_id = $1
-		ORDER BY created_at ASC
-		LIMIT $2 OFFSET $3
+		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
+		FROM bichat_messages m
+		JOIN bichat_sessions s ON m.session_id = s.id
+		WHERE s.tenant_id = $1 AND m.session_id = $2
+		ORDER BY m.created_at ASC
+		LIMIT $3 OFFSET $4
 	`
 	truncateMessagesFromQuery = `
-		DELETE FROM bichat_messages
-		WHERE session_id = $1 AND created_at >= $2
+		DELETE FROM bichat_messages m
+		USING bichat_sessions s
+		WHERE m.session_id = s.id
+		  AND s.tenant_id = $1
+		  AND m.session_id = $2
+		  AND m.created_at >= $3
 	`
 
 	// Attachment queries
@@ -77,19 +85,27 @@ const (
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	selectAttachmentQuery = `
-		SELECT id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
-		FROM bichat_attachments
-		WHERE id = $1
+		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
+		FROM bichat_attachments a
+		JOIN bichat_messages m ON a.message_id = m.id
+		JOIN bichat_sessions s ON m.session_id = s.id
+		WHERE s.tenant_id = $1 AND a.id = $2
 	`
 	selectMessageAttachmentsQuery = `
-		SELECT id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
-		FROM bichat_attachments
-		WHERE message_id = $1
-		ORDER BY created_at ASC
+		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
+		FROM bichat_attachments a
+		JOIN bichat_messages m ON a.message_id = m.id
+		JOIN bichat_sessions s ON m.session_id = s.id
+		WHERE s.tenant_id = $1 AND a.message_id = $2
+		ORDER BY a.created_at ASC
 	`
 	deleteAttachmentQuery = `
-		DELETE FROM bichat_attachments
-		WHERE id = $1
+		DELETE FROM bichat_attachments a
+		USING bichat_messages m, bichat_sessions s
+		WHERE a.message_id = m.id
+		  AND m.session_id = s.id
+		  AND s.tenant_id = $1
+		  AND a.id = $2
 	`
 )
 
@@ -111,16 +127,16 @@ func NewPostgresChatRepository() domain.ChatRepository {
 
 // CreateSession creates a new session in the database.
 func (r *PostgresChatRepository) CreateSession(ctx context.Context, session *domain.Session) error {
-	const op = "PostgresChatRepository.CreateSession"
+	const op serrors.Op = "PostgresChatRepository.CreateSession"
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	now := time.Now()
@@ -144,7 +160,7 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session *dom
 		session.UpdatedAt,
 	)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	return nil
@@ -152,16 +168,16 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session *dom
 
 // GetSession retrieves a session by ID.
 func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
-	const op = "PostgresChatRepository.GetSession"
+	const op serrors.Op = "PostgresChatRepository.GetSession"
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	var session domain.Session
@@ -178,10 +194,10 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 		&session.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrSessionNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, serrors.E(op, ErrSessionNotFound)
 		}
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return &session, nil
@@ -189,16 +205,16 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 
 // UpdateSession updates an existing session.
 func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *domain.Session) error {
-	const op = "PostgresChatRepository.UpdateSession"
+	const op serrors.Op = "PostgresChatRepository.UpdateSession"
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	result, err := tx.Exec(ctx, updateSessionQuery,
@@ -211,12 +227,12 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *dom
 		session.ID,
 	)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return ErrSessionNotFound
+		return serrors.E(op, ErrSessionNotFound)
 	}
 
 	return nil
@@ -224,21 +240,21 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *dom
 
 // ListUserSessions lists all sessions for a user with pagination.
 func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]*domain.Session, error) {
-	const op = "PostgresChatRepository.ListUserSessions"
+	const op serrors.Op = "PostgresChatRepository.ListUserSessions"
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	rows, err := tx.Query(ctx, listUserSessionsQuery, tenantID, userID, opts.Limit, opts.Offset)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -258,13 +274,13 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 			&session.UpdatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		sessions = append(sessions, &session)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return sessions, nil
@@ -272,26 +288,26 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 
 // DeleteSession deletes a session and all related data (cascades to messages/attachments).
 func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) error {
-	const op = "PostgresChatRepository.DeleteSession"
+	const op serrors.Op = "PostgresChatRepository.DeleteSession"
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	result, err := tx.Exec(ctx, deleteSessionQuery, tenantID, id)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return ErrSessionNotFound
+		return serrors.E(op, ErrSessionNotFound)
 	}
 
 	return nil
@@ -300,23 +316,23 @@ func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID
 // Message operations
 
 // SaveMessage saves a message to the database.
-func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *domain.Message) error {
-	const op = "PostgresChatRepository.SaveMessage"
+func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *types.Message) error {
+	const op serrors.Op = "PostgresChatRepository.SaveMessage"
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	// Marshal JSONB fields
 	toolCallsJSON, err := json.Marshal(msg.ToolCalls)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	citationsJSON, err := json.Marshal(msg.Citations)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	if msg.CreatedAt.IsZero() {
@@ -334,25 +350,30 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *domain.Me
 		msg.CreatedAt,
 	)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	return nil
 }
 
 // GetMessage retrieves a message by ID.
-func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*domain.Message, error) {
-	const op = "PostgresChatRepository.GetMessage"
+func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*types.Message, error) {
+	const op serrors.Op = "PostgresChatRepository.GetMessage"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
-	var msg domain.Message
+	var msg types.Message
 	var toolCallsJSON, citationsJSON []byte
 
-	err = tx.QueryRow(ctx, selectMessageQuery, id).Scan(
+	err = tx.QueryRow(ctx, selectMessageQuery, tenantID, id).Scan(
 		&msg.ID,
 		&msg.SessionID,
 		&msg.Role,
@@ -363,42 +384,47 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		&msg.CreatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrMessageNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, serrors.E(op, ErrMessageNotFound)
 		}
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	// Unmarshal JSONB fields
 	if err := json.Unmarshal(toolCallsJSON, &msg.ToolCalls); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	if err := json.Unmarshal(citationsJSON, &msg.Citations); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return &msg, nil
 }
 
 // GetSessionMessages retrieves all messages for a session with pagination.
-func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Message, error) {
-	const op = "PostgresChatRepository.GetSessionMessages"
+func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
+	const op serrors.Op = "PostgresChatRepository.GetSessionMessages"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, selectSessionMessagesQuery, sessionID, opts.Limit, opts.Offset)
+	rows, err := tx.Query(ctx, selectSessionMessagesQuery, tenantID, sessionID, opts.Limit, opts.Offset)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
-	var messages []*domain.Message
+	var messages []*types.Message
 	for rows.Next() {
-		var msg domain.Message
+		var msg types.Message
 		var toolCallsJSON, citationsJSON []byte
 
 		err := rows.Scan(
@@ -412,23 +438,23 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			&msg.CreatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 
 		// Unmarshal JSONB fields
 		if err := json.Unmarshal(toolCallsJSON, &msg.ToolCalls); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 
 		if err := json.Unmarshal(citationsJSON, &msg.Citations); err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 
 		messages = append(messages, &msg)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return messages, nil
@@ -436,16 +462,21 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 
 // TruncateMessagesFrom deletes messages in a session from a given timestamp forward.
 func (r *PostgresChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID uuid.UUID, from time.Time) (int64, error) {
-	const op = "PostgresChatRepository.TruncateMessagesFrom"
+	const op serrors.Op = "PostgresChatRepository.TruncateMessagesFrom"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 
-	result, err := tx.Exec(ctx, truncateMessagesFromQuery, sessionID, from)
+	result, err := tx.Exec(ctx, truncateMessagesFromQuery, tenantID, sessionID, from)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 
 	return result.RowsAffected(), nil
@@ -455,11 +486,11 @@ func (r *PostgresChatRepository) TruncateMessagesFrom(ctx context.Context, sessi
 
 // SaveAttachment saves an attachment to the database.
 func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment *domain.Attachment) error {
-	const op = "PostgresChatRepository.SaveAttachment"
+	const op serrors.Op = "PostgresChatRepository.SaveAttachment"
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	if attachment.CreatedAt.IsZero() {
@@ -476,7 +507,7 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 		attachment.CreatedAt,
 	)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	return nil
@@ -484,15 +515,20 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 
 // GetAttachment retrieves an attachment by ID.
 func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
-	const op = "PostgresChatRepository.GetAttachment"
+	const op serrors.Op = "PostgresChatRepository.GetAttachment"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	var attachment domain.Attachment
-	err = tx.QueryRow(ctx, selectAttachmentQuery, id).Scan(
+	err = tx.QueryRow(ctx, selectAttachmentQuery, tenantID, id).Scan(
 		&attachment.ID,
 		&attachment.MessageID,
 		&attachment.FileName,
@@ -502,10 +538,10 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 		&attachment.CreatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, ErrAttachmentNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, serrors.E(op, ErrAttachmentNotFound)
 		}
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return &attachment, nil
@@ -513,16 +549,21 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 
 // GetMessageAttachments retrieves all attachments for a message.
 func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]*domain.Attachment, error) {
-	const op = "PostgresChatRepository.GetMessageAttachments"
+	const op serrors.Op = "PostgresChatRepository.GetMessageAttachments"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, selectMessageAttachmentsQuery, messageID)
+	rows, err := tx.Query(ctx, selectMessageAttachmentsQuery, tenantID, messageID)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -539,13 +580,13 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 			&attachment.CreatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		attachments = append(attachments, &attachment)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	return attachments, nil
@@ -553,21 +594,26 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 
 // DeleteAttachment deletes an attachment.
 func (r *PostgresChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
-	const op = "PostgresChatRepository.DeleteAttachment"
+	const op serrors.Op = "PostgresChatRepository.DeleteAttachment"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
-	result, err := tx.Exec(ctx, deleteAttachmentQuery, id)
+	result, err := tx.Exec(ctx, deleteAttachmentQuery, tenantID, id)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		return ErrAttachmentNotFound
+		return serrors.E(op, ErrAttachmentNotFound)
 	}
 
 	return nil

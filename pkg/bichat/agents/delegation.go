@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // DelegationTool creates a tool that delegates work to child agents.
@@ -157,15 +159,18 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	// TODO: Implement ReadParent and FullAccess isolation modes
 	// This requires parent context to be passed in (future enhancement)
 	metadata := extendedAgent.Metadata()
-	taskMessage := NewUserMessage(args.Task)
-	childMessages := []Message{taskMessage}
+	taskMessage := types.UserMessage(args.Task)
+	childMessages := []types.Message{*taskMessage}
 
 	// Create child executor
 	// CRITICAL: Filter delegation tool to prevent recursion
 	childExecutor := NewExecutor(extendedAgent, t.model)
 
 	// Execute child agent
-	// Use Execute() which returns a Generator[ExecutorEvent]
+	// Use Execute() which returns a types.Generator[ExecutorEvent]
+	// TODO(#26): Pass SessionID and TenantID from parent to child for proper isolation.
+	// This requires storing parent Input in context or adding it to DelegationTool struct.
+	// For now, child executes without session/tenant tracking.
 	gen := childExecutor.Execute(ctx, Input{
 		Messages: childMessages,
 	})
@@ -173,14 +178,14 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 
 	// Collect final result from generator
 	var finalContent string
-	var finalUsage TokenUsage
+	var finalUsage types.TokenUsage
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next(ctx)
 		if err != nil {
-			return "", fmt.Errorf("child agent %q execution failed: %w", args.AgentName, err)
-		}
-		if !hasMore {
-			break
+			if err == types.ErrGeneratorDone {
+				break
+			}
+			return "", fmt.Errorf("child agent generator error: %w", err)
 		}
 
 		// Process events
@@ -211,18 +216,6 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	}
 
 	return string(outputJSON), nil
-}
-
-// filterDelegationTool removes the delegation tool from a tool list.
-// This prevents child agents from delegating to other agents (recursion prevention).
-func (t *DelegationTool) filterDelegationTool(tools []Tool) []Tool {
-	filtered := make([]Tool, 0, len(tools))
-	for _, tool := range tools {
-		if tool.Name() != ToolTask {
-			filtered = append(filtered, tool)
-		}
-	}
-	return filtered
 }
 
 // Note: Executor, ExecutionResult, and related types are defined in executor.go.

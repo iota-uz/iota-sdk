@@ -216,11 +216,22 @@ func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 	assert.GreaterOrEqual(t, len(retrieved), 3)
 
 	// Verify ordering: pinned first, then by created_at DESC
-	if len(retrieved) >= 2 {
-		// First session should be the pinned one
-		assert.True(t, retrieved[0].Pinned, "First session should be pinned")
-		assert.Equal(t, "Session 2 Pinned", retrieved[0].Title)
-	}
+	require.GreaterOrEqual(t, len(retrieved), 3, "Should have at least 3 sessions")
+
+	// First session should be the pinned one
+	assert.True(t, retrieved[0].Pinned, "First session should be pinned")
+	assert.Equal(t, "Session 2 Pinned", retrieved[0].Title)
+
+	// Remaining non-pinned sessions should be ordered by created_at DESC (Session 3, then Session 1)
+	assert.False(t, retrieved[1].Pinned, "Second session should not be pinned")
+	assert.Equal(t, "Session 3", retrieved[1].Title, "Second session should be Session 3 (most recent non-pinned)")
+
+	assert.False(t, retrieved[2].Pinned, "Third session should not be pinned")
+	assert.Equal(t, "Session 1", retrieved[2].Title, "Third session should be Session 1 (oldest non-pinned)")
+
+	// Verify timestamp ordering for non-pinned sessions (DESC)
+	assert.True(t, retrieved[1].CreatedAt.After(retrieved[2].CreatedAt) || retrieved[1].CreatedAt.Equal(retrieved[2].CreatedAt),
+		"Non-pinned sessions should be ordered by created_at DESC")
 }
 
 func TestPostgresChatRepository_ListUserSessions_Pagination(t *testing.T) {

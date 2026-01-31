@@ -2,35 +2,38 @@ package agents
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/jackc/pgx/v5"
 )
 
 // Checkpoint represents a saved state for Human-in-the-Loop (HITL) support.
 // It captures the conversation state when agent execution is paused for user input.
 type Checkpoint struct {
-	ID            string          `json:"id"`
-	ThreadID      string          `json:"thread_id"`
-	AgentName     string          `json:"agent_name"`
-	Messages      []Message       `json:"messages"`
-	PendingTools  []ToolCall      `json:"pending_tools"`
-	InterruptType string          `json:"interrupt_type"`
-	InterruptData json.RawMessage `json:"interrupt_data,omitempty"`
-	CreatedAt     time.Time       `json:"created_at"`
+	ID            string           `json:"id"`
+	ThreadID      string           `json:"thread_id"`
+	AgentName     string           `json:"agent_name"`
+	Messages      []types.Message  `json:"messages"`
+	PendingTools  []types.ToolCall `json:"pending_tools"`
+	InterruptType string           `json:"interrupt_type"`
+	InterruptData json.RawMessage  `json:"interrupt_data,omitempty"`
+	CreatedAt     time.Time        `json:"created_at"`
 }
 
 // NewCheckpoint creates a new checkpoint with the given parameters.
-func NewCheckpoint(threadID, agentName string, messages []Message, opts ...CheckpointOption) *Checkpoint {
+func NewCheckpoint(threadID, agentName string, messages []types.Message, opts ...CheckpointOption) *Checkpoint {
 	cp := &Checkpoint{
 		ID:           uuid.New().String(),
 		ThreadID:     threadID,
 		AgentName:    agentName,
 		Messages:     messages,
-		PendingTools: []ToolCall{},
+		PendingTools: []types.ToolCall{},
 		CreatedAt:    time.Now(),
 	}
 
@@ -52,7 +55,7 @@ func WithCheckpointID(id string) CheckpointOption {
 }
 
 // WithPendingTools sets the pending tool calls.
-func WithPendingTools(tools []ToolCall) CheckpointOption {
+func WithPendingTools(tools []types.ToolCall) CheckpointOption {
 	return func(cp *Checkpoint) {
 		cp.PendingTools = tools
 	}
@@ -334,6 +337,9 @@ func (p *PostgresCheckpointer) Load(ctx context.Context, id string) (*Checkpoint
 		&checkpoint.CreatedAt,
 	)
 	if err != nil {
+		if err == sql.ErrNoRows || err == pgx.ErrNoRows {
+			return nil, ErrCheckpointNotFound
+		}
 		return nil, err
 	}
 

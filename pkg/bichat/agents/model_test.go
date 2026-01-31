@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 func TestModelInfo_Basic(t *testing.T) {
@@ -129,29 +130,29 @@ func TestMessage_Creation(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		role    agents.Role
+		role    types.Role
 		content string
 	}{
 		{
 			name:    "user message",
-			role:    agents.RoleUser,
+			role:    types.RoleUser,
 			content: "Hello, how are you?",
 		},
 		{
 			name:    "assistant message",
-			role:    agents.RoleAssistant,
+			role:    types.RoleAssistant,
 			content: "I'm doing well, thank you!",
 		},
 		{
 			name:    "system message",
-			role:    agents.RoleSystem,
+			role:    types.RoleSystem,
 			content: "You are a helpful assistant.",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := agents.Message{
+			msg := types.Message{
 				Role:    tt.role,
 				Content: tt.content,
 			}
@@ -169,7 +170,7 @@ func TestMessage_Creation(t *testing.T) {
 func TestToolCall_Basic(t *testing.T) {
 	t.Parallel()
 
-	toolCall := agents.ToolCall{
+	toolCall := types.ToolCall{
 		ID:        "call_123",
 		Name:      "get_weather",
 		Arguments: `{"location":"San Francisco","unit":"celsius"}`,
@@ -328,8 +329,8 @@ func TestRequest_Creation(t *testing.T) {
 	)
 
 	req := agents.Request{
-		Messages: []agents.Message{
-			{Role: agents.RoleUser, Content: "Hello"},
+		Messages: []types.Message{
+			{Role: types.RoleUser, Content: "Hello"},
 		},
 		Tools: []agents.Tool{
 			testTool,
@@ -342,7 +343,7 @@ func TestRequest_Creation(t *testing.T) {
 	if len(req.Tools) != 1 {
 		t.Errorf("Expected 1 tool, got %d", len(req.Tools))
 	}
-	if req.Messages[0].Role != agents.RoleUser {
+	if req.Messages[0].Role != types.RoleUser {
 		t.Errorf("Expected role 'user', got '%s'", req.Messages[0].Role)
 	}
 }
@@ -351,11 +352,11 @@ func TestResponse_Creation(t *testing.T) {
 	t.Parallel()
 
 	resp := agents.Response{
-		Message: agents.Message{
-			Role:    agents.RoleAssistant,
+		Message: types.Message{
+			Role:    types.RoleAssistant,
 			Content: "Hello!",
 		},
-		Usage: agents.TokenUsage{
+		Usage: types.TokenUsage{
 			PromptTokens:     10,
 			CompletionTokens: 5,
 			TotalTokens:      15,
@@ -364,7 +365,7 @@ func TestResponse_Creation(t *testing.T) {
 		Thinking:     "I should greet the user",
 	}
 
-	if resp.Message.Role != agents.RoleAssistant {
+	if resp.Message.Role != types.RoleAssistant {
 		t.Errorf("Expected role 'assistant', got '%s'", resp.Message.Role)
 	}
 	if resp.Usage.TotalTokens != 15 {
@@ -380,7 +381,7 @@ func TestChunk_Creation(t *testing.T) {
 
 	chunk := agents.Chunk{
 		Delta:        "Hello",
-		ToolCalls:    []agents.ToolCall{},
+		ToolCalls:    []types.ToolCall{},
 		Usage:        nil,
 		FinishReason: "",
 		Done:         false,
@@ -396,7 +397,7 @@ func TestChunk_Creation(t *testing.T) {
 	// Test final chunk
 	finalChunk := agents.Chunk{
 		Delta: "",
-		Usage: &agents.TokenUsage{
+		Usage: &types.TokenUsage{
 			PromptTokens:     10,
 			CompletionTokens: 20,
 			TotalTokens:      30,

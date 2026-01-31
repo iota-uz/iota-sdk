@@ -8,7 +8,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/interop"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // WebController handles React SPA rendering with server context injection.
@@ -74,14 +76,16 @@ func (c *WebController) Register(r *mux.Router) {
 // Status: 200 OK on success
 // Status: 500 Internal Server Error if context build or rendering fails
 func (c *WebController) RenderChatApp(w http.ResponseWriter, r *http.Request) {
-	const op = "WebController.RenderChatApp"
+	const op serrors.Op = "WebController.RenderChatApp"
 
 	ctx := r.Context()
+	logger := configuration.Use().Logger()
 
 	// Build initial context for React using the interop package
 	// This extracts user, tenant, locale, and config from request context
 	initialContext, err := interop.BuildInitialContext(ctx)
 	if err != nil {
+		logger.WithError(serrors.E(op, err)).Error("Failed to build context")
 		http.Error(w, "Failed to build context", http.StatusInternalServerError)
 		return
 	}
@@ -95,6 +99,7 @@ func (c *WebController) RenderChatApp(w http.ResponseWriter, r *http.Request) {
 	// Serialize context to JSON for injection into HTML
 	contextJSON, err := json.Marshal(initialContext)
 	if err != nil {
+		logger.WithError(serrors.E(op, err)).Error("Failed to serialize context")
 		http.Error(w, "Failed to serialize context", http.StatusInternalServerError)
 		return
 	}
@@ -108,6 +113,7 @@ func (c *WebController) RenderChatApp(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := tmpl.Execute(w, data); err != nil {
+		logger.WithError(serrors.E(op, err)).Error("Failed to render template")
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}

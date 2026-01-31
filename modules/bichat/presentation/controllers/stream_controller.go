@@ -14,7 +14,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
@@ -70,7 +72,7 @@ func (c *StreamController) Register(r *mux.Router) {
 //
 // Response: Server-Sent Events stream
 func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request) {
-	const op = "StreamController.StreamMessage"
+	const op serrors.Op = "StreamController.StreamMessage"
 
 	// 1. Check for Flusher support
 	flusher, ok := w.(http.Flusher)
@@ -158,10 +160,14 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	})
 
 	if err != nil {
-		// Send error event
+		// Log actual error server-side
+		logger := configuration.Use().Logger()
+		logger.WithError(serrors.E(op, err)).Error("Stream error")
+
+		// Send sanitized error to client
 		c.sendSSEEvent(w, flusher, "error", map[string]string{
 			"type":  "error",
-			"error": err.Error(),
+			"error": "An error occurred while processing your request",
 		})
 		return
 	}
