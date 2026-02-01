@@ -268,11 +268,18 @@ func (c *LoginController) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	codeURL, err := c.authService.GoogleAuthenticate(w)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+
+	// Only get Google OAuth URL if Google OAuth is configured
+	conf := configuration.Use()
+	var codeURL string
+	if conf.Google.IsConfigured() {
+		codeURL, err = c.authService.GoogleAuthenticate(w)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
+
 	if err := login.Index(&login.LoginProps{
 		ErrorsMap:          errorsMap,
 		Email:              email,

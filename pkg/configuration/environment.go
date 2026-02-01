@@ -71,6 +71,12 @@ type GoogleOptions struct {
 	ClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
 }
 
+// IsConfigured returns true if Google OAuth is configured (both ClientID and ClientSecret are set).
+// This makes Google OAuth enablement implicit - no explicit flag needed.
+func (g *GoogleOptions) IsConfigured() bool {
+	return g.ClientID != "" && g.ClientSecret != ""
+}
+
 type TwilioOptions struct {
 	WebhookURL  string `env:"TWILIO_WEBHOOK_URL"`
 	AccountSID  string `env:"TWILIO_ACCOUNT_SID"`
@@ -140,9 +146,8 @@ type RateLimitOptions struct {
 // TwoFactorAuthOptions contains configuration for two-factor authentication and OTP
 type TwoFactorAuthOptions struct {
 	// Two-Factor Authentication
-	Enabled       bool   `env:"ENABLE_2FA" envDefault:"false"`
-	TOTPIssuer    string `env:"TOTP_ISSUER"` // No default - must be set by app if 2FA is enabled
-	GoogleEnabled bool   `env:"ENABLE_GOOGLE_OAUTH" envDefault:"false"`
+	Enabled    bool   `env:"ENABLE_2FA" envDefault:"false"`
+	TOTPIssuer string `env:"TOTP_ISSUER"` // No default - must be set by app if 2FA is enabled
 
 	// OTP Settings
 	OTPCodeLength  int `env:"OTP_CODE_LENGTH" envDefault:"6"`

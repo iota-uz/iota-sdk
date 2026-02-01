@@ -83,7 +83,8 @@ templ Index(p *LoginProps) {
 						</h1>
 						<p class="mt-2 text-200">{ pageCtx.T("Login.LoginToUse") }</p>
 					</div>
-					<hr class="border border-primary"/>
+				<hr class="border border-primary"/>
+				if p.GoogleOAuthCodeURL != "" {
 					@button.Secondary(button.Props{
 						Size:  button.SizeNormal,
 						Class: "justify-center items-center gap-3",
@@ -95,7 +96,8 @@ templ Index(p *LoginProps) {
 						@GoogleIcon()
 						{ pageCtx.T("Login.LoginWithGoogle") }
 					}
-					if len(p.ErrorMessage) > 0 {
+				}
+				if len(p.ErrorMessage) > 0 {
 						@alert.Error() {
 							{ p.ErrorMessage }
 						}
