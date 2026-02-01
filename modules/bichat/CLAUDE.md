@@ -12,24 +12,35 @@ modules/bichat/
 ├── infrastructure/
 │   ├── persistence/
 │   │   ├── chat_repository.go   # PostgreSQL implementation
+│   │   ├── postgres_chat_repository_test.go
 │   │   └── schema/              # SQL migrations
-│   └── llmproviders/
-│       └── openai_provider.go   # LLM provider
+│   ├── llmproviders/
+│   │   ├── openai_model.go      # OpenAI implementation of agents.Model
+│   │   └── openai_model_test.go
+│   ├── logs/
+│   └── postgres_executor.go     # SQL execution tool implementation
 ├── services/
-│   └── agent_service_impl.go    # Agent orchestration with event streaming
+│   ├── agent_service_impl.go    # Agent orchestration with event streaming
+│   ├── chat_service_impl.go     # Chat session management
+│   ├── attachment_service.go    # File upload handling
+│   └── title_generation_service.go # AI session title generator
 ├── presentation/
 │   ├── assets/
 │   │   ├── embed.go             # Embedded React build (dist/)
 │   │   └── dist/                # React build output (created by npm build)
 │   ├── controllers/
-│   │   ├── chat_controller.go   # GraphQL endpoints
-│   │   ├── stream_controller.go # SSE streaming (line ~65 critical)
-│   │   └── web_controller.go    # DEPRECATED: Use applet system instead
+│   │   ├── chat_controller.go   # GraphQL/REST endpoints
+│   │   ├── stream_controller.go # SSE streaming
+│   │   └── web_controller_test.go
 │   ├── graphql/
+│   │   ├── model/
+│   │   ├── generated/
 │   │   └── schema.graphql       # GraphQL schema
-│   └── templates/pages/bichat/  # HTMX templates (for legacy routes)
+│   └── locales/                 # i18n files
 └── agents/
-    └── default_agent.go         # Default BI agent
+    ├── default_agent.go         # Default BI agent
+    ├── sql_agent.go             # Specialized SQL agent
+    └── query_executor_adapter.go # Tool adapter
 ```
 
 ## Applet System Integration

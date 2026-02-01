@@ -8,7 +8,7 @@ export default function App() {
   return (
     <IotaContextProvider>
       <GraphQLProvider>
-        <BrowserRouter basename="/bichat">
+        <BrowserRouter basename="/bi-chat">
           <Routes>
             <Route path="/" element={<SessionsPage />} />
             <Route path="/session/:id" element={<ChatPage />} />

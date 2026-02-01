@@ -5,10 +5,13 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/bichat/permissions"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -19,21 +22,28 @@ import (
 
 // ChatController handles HTTP endpoints for chat operations.
 type ChatController struct {
-	app         application.Application
-	chatService services.ChatService
-	chatRepo    domain.ChatRepository
+	app               application.Application
+	chatService       services.ChatService
+	chatRepo          domain.ChatRepository
+	agentService      services.AgentService
+	attachmentService services.AttachmentService
 }
 
 // NewChatController creates a new chat controller.
+// Services can be nil - they're optional for REST endpoints, required for GraphQL.
 func NewChatController(
 	app application.Application,
 	chatService services.ChatService,
 	chatRepo domain.ChatRepository,
+	agentService services.AgentService,
+	attachmentService services.AttachmentService,
 ) *ChatController {
 	return &ChatController{
-		app:         app,
-		chatService: chatService,
-		chatRepo:    chatRepo,
+		app:               app,
+		chatService:       chatService,
+		chatRepo:          chatRepo,
+		agentService:      agentService,
+		attachmentService: attachmentService,
 	}
 }
 
@@ -57,6 +67,9 @@ func (c *ChatController) Register(r *mux.Router) {
 	subRouter := r.PathPrefix("/bi-chat").Subrouter()
 	subRouter.Use(commonMiddleware...)
 
+	// GraphQL endpoint
+	c.registerGraphQL(subRouter)
+
 	// Session routes
 	subRouter.HandleFunc("/sessions", c.ListSessions).Methods("GET")
 	subRouter.HandleFunc("/sessions", c.CreateSession).Methods("POST")
@@ -66,6 +79,36 @@ func (c *ChatController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/sessions/{id}/archive", c.ArchiveSession).Methods("PUT")
 	subRouter.HandleFunc("/sessions/{id}/pin", c.TogglePin).Methods("PUT")
 	subRouter.HandleFunc("/sessions/{id}", c.DeleteSession).Methods("DELETE")
+}
+
+// registerGraphQL registers the GraphQL endpoint.
+// GraphQL endpoint requires agentService and attachmentService to be configured.
+func (c *ChatController) registerGraphQL(r *mux.Router) {
+	// Skip if required services are not available
+	if c.agentService == nil || c.attachmentService == nil {
+		return
+	}
+
+	// Create resolver with all required services
+	resolver := resolvers.NewResolver(
+		c.app,
+		c.chatService,
+		c.agentService,
+		c.attachmentService,
+	)
+
+	// Create GraphQL schema
+	schema := generated.NewExecutableSchema(
+		generated.Config{
+			Resolvers: resolver,
+		},
+	)
+
+	// Create GraphQL handler
+	graphqlHandler := handler.NewDefaultServer(schema)
+
+	// Register GraphQL endpoint
+	r.Handle("/graphql", graphqlHandler).Methods("GET", "POST")
 }
 
 // ListSessions returns all sessions for the current user.

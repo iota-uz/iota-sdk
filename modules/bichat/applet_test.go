@@ -20,7 +20,7 @@ func TestBiChatApplet_BasePath(t *testing.T) {
 	t.Parallel()
 
 	bichatApplet := NewBiChatApplet(nil)
-	assert.Equal(t, "/bichat", bichatApplet.BasePath())
+	assert.Equal(t, "/bi-chat", bichatApplet.BasePath())
 }
 
 func TestBiChatApplet_Config(t *testing.T) {
@@ -33,13 +33,13 @@ func TestBiChatApplet_Config(t *testing.T) {
 	assert.Equal(t, "__BICHAT_CONTEXT__", config.WindowGlobal)
 
 	// Verify endpoints
-	assert.Equal(t, "/bichat/graphql", config.Endpoints.GraphQL)
-	assert.Equal(t, "/bichat/stream", config.Endpoints.Stream)
+	assert.Equal(t, "/bi-chat/graphql", config.Endpoints.GraphQL)
+	assert.Equal(t, "/bi-chat/stream", config.Endpoints.Stream)
 
 	// Verify assets
 	assert.NotNil(t, config.Assets.FS)
-	assert.Equal(t, "/bichat/assets", config.Assets.BasePath)
-	assert.Equal(t, "/bichat/assets/main.css", config.Assets.CSSPath)
+	assert.Equal(t, "/assets", config.Assets.BasePath)
+	assert.Equal(t, "/assets/main.css", config.Assets.CSSPath)
 
 	// Verify router
 	assert.NotNil(t, config.Router)
@@ -49,7 +49,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 
 	// Verify middleware
 	assert.NotNil(t, config.Middleware)
-	assert.Empty(t, config.Middleware) // BiChat uses SDK defaults
+	assert.NotEmpty(t, config.Middleware) // BiChat requires authentication middleware
 }
 
 func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {

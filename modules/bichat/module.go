@@ -5,6 +5,7 @@ import (
 	"embed"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 )
@@ -64,8 +65,8 @@ func (m *Module) Register(app application.Application) error {
 	// Register BiChat applet for React app integration
 	// This registers the applet in the application registry and sets up:
 	// - Context injection (window.__BICHAT_CONTEXT__)
-	// - Asset serving (/bichat/assets/*)
-	// - Route handling (/bichat/*)
+	// - Asset serving (/bi-chat/assets/*)
+	// - Route handling (/bi-chat/*)
 	if err := app.RegisterApplet(bichatApplet); err != nil {
 		return err
 	}
@@ -75,6 +76,31 @@ func (m *Module) Register(app application.Application) error {
 
 	// Register translation files
 	app.RegisterLocaleFiles(&LocaleFiles)
+
+	// Register ChatController with GraphQL endpoint if config is available
+	if m.config != nil {
+		// Build services (creates ChatService, AgentService, AttachmentService)
+		if err := m.config.BuildServices(); err != nil {
+			// Log error but don't fail - GraphQL will be unavailable but REST API will still work
+			if m.config.Logger != nil {
+				m.config.Logger.WithError(err).Warn("Failed to build BiChat services, GraphQL endpoint will not be available")
+			}
+		} else {
+			// Create and register ChatController with all services
+			chatController := controllers.NewChatController(
+				app,
+				m.config.ChatService(),
+				m.config.ChatRepo,
+				m.config.AgentService(),
+				m.config.AttachmentService(),
+			)
+			app.RegisterControllers(chatController)
+
+			if m.config.Logger != nil {
+				m.config.Logger.Info("Registered BiChat ChatController with GraphQL endpoint at /bi-chat/graphql")
+			}
+		}
+	}
 
 	return nil
 }

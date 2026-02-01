@@ -4,14 +4,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"io/fs"
 	"net/http"
+	"path/filepath"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
+
+var mimeTypes = map[string]string{
+	".js":    "application/javascript; charset=utf-8",
+	".css":   "text/css; charset=utf-8",
+	".json":  "application/json; charset=utf-8",
+	".svg":   "image/svg+xml",
+	".png":   "image/png",
+	".jpg":   "image/jpeg",
+	".jpeg":  "image/jpeg",
+	".gif":   "image/gif",
+	".woff":  "font/woff",
+	".woff2": "font/woff2",
+}
 
 // AppletController is a generic controller for rendering React/Next.js applets.
 // It handles:
@@ -62,7 +75,18 @@ func NewAppletController(
 func (c *AppletController) RegisterRoutes(router *mux.Router) {
 	config := c.applet.Config()
 
-	// Create subrouter for applet
+	if c.logger != nil {
+		c.logger.Infof("AppletController.RegisterRoutes: Registering routes for applet at BasePath: %s", c.applet.BasePath())
+	}
+
+	// Serve static assets on parent router (without middleware) so they can be
+	// loaded without authentication. This must be done BEFORE the subrouter
+	// is created, otherwise the subrouter's middleware would apply.
+	if config.Assets.FS != nil {
+		c.registerAssetRoutes(router)
+	}
+
+	// Create subrouter for applet (main app routes with middleware)
 	appletRouter := router.PathPrefix(c.applet.BasePath()).Subrouter()
 
 	// Apply custom middleware if provided
@@ -72,37 +96,44 @@ func (c *AppletController) RegisterRoutes(router *mux.Router) {
 		}
 	}
 
-	// Serve static assets
-	if config.Assets.FS != nil {
-		c.registerAssetRoutes(appletRouter)
-	}
+	// Main applet routes
+	// Register both root path variants to handle with/without trailing slash
+	appletRouter.HandleFunc("", c.RenderApp).Methods("GET")
+	appletRouter.HandleFunc("/", c.RenderApp).Methods("GET")
+	appletRouter.PathPrefix("/").HandlerFunc(c.RenderApp) // Catch-all for sub-paths
 
-	// Main applet route (must be last to act as catch-all)
-	appletRouter.PathPrefix("/").HandlerFunc(c.RenderApp)
+	if c.logger != nil {
+		c.logger.Infof("AppletController.RegisterRoutes: Successfully registered routes for %s", c.applet.BasePath())
+	}
 }
 
 // registerAssetRoutes registers routes for serving static assets (JS, CSS, images)
+// Assets are served from the parent router (without middleware) so they load without auth.
 func (c *AppletController) registerAssetRoutes(router *mux.Router) {
 	config := c.applet.Config()
 
 	// Serve assets from embedded FS
-	assetsPath := config.Assets.BasePath
-	if assetsPath == "" {
-		assetsPath = "/assets"
+	assetsBasePath := config.Assets.BasePath
+	if assetsBasePath == "" {
+		assetsBasePath = "/assets"
 	}
 
-	// Create sub-filesystem for assets
-	assetsFS, err := fs.Sub(config.Assets.FS, ".")
-	if err != nil {
-		if c.logger != nil {
-			c.logger.Errorf("Failed to create assets sub-filesystem: %v", err)
+	// Full path includes applet base path (e.g., /bi-chat/assets)
+	fullAssetsPath := c.applet.BasePath() + assetsBasePath
+
+	fileServer := http.FileServer(http.FS(config.Assets.FS))
+
+	// Wrap with explicit MIME type handling
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set Content-Type based on file extension
+		if mimeType, ok := mimeTypes[filepath.Ext(r.URL.Path)]; ok {
+			w.Header().Set("Content-Type", mimeType)
 		}
-		return
-	}
+		fileServer.ServeHTTP(w, r)
+	})
 
-	// Strip BasePath prefix and serve files
-	router.PathPrefix(assetsPath).Handler(
-		http.StripPrefix(assetsPath, http.FileServer(http.FS(assetsFS))),
+	router.PathPrefix(fullAssetsPath).Handler(
+		http.StripPrefix(fullAssetsPath, handler),
 	)
 }
 
@@ -115,6 +146,10 @@ func (c *AppletController) registerAssetRoutes(router *mux.Router) {
 func (c *AppletController) RenderApp(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "AppletController.RenderApp"
 	ctx := r.Context()
+
+	if c.logger != nil {
+		c.logger.Infof("AppletController.RenderApp called for path: %s", r.URL.Path)
+	}
 
 	// Build context
 	initialContext, err := c.builder.Build(ctx, r)
@@ -145,6 +180,11 @@ func (c *AppletController) RenderApp(w http.ResponseWriter, r *http.Request) {
 func (c *AppletController) renderHTML(w http.ResponseWriter, contextJSON []byte) {
 	config := c.applet.Config()
 
+	// Compute full URL paths by combining applet base path with relative asset paths.
+	// Config paths are relative to the applet (e.g., "/assets"), but HTML needs
+	// absolute paths (e.g., "/bi-chat/assets").
+	assetsURL := c.applet.BasePath() + config.Assets.BasePath
+
 	// Build script tag for context injection
 	contextScript := fmt.Sprintf(
 		`<script>window.%s = %s;</script>`,
@@ -155,7 +195,8 @@ func (c *AppletController) renderHTML(w http.ResponseWriter, contextJSON []byte)
 	// Build CSS link tag if CSSPath is provided
 	cssLink := ""
 	if config.Assets.CSSPath != "" {
-		cssLink = fmt.Sprintf(`<link rel="stylesheet" href="%s">`, config.Assets.CSSPath)
+		cssURL := c.applet.BasePath() + config.Assets.CSSPath
+		cssLink = fmt.Sprintf(`<link rel="stylesheet" href="%s">`, cssURL)
 	}
 
 	// Build HTML page
@@ -171,13 +212,13 @@ func (c *AppletController) renderHTML(w http.ResponseWriter, contextJSON []byte)
 <body>
     <div id="root"></div>
     %s
-    <script src="%s/main.js"></script>
+    <script type="module" src="%s/main.js"></script>
 </body>
 </html>`,
 		c.applet.Name(),
 		cssLink,
 		contextScript,
-		config.Assets.BasePath,
+		assetsURL,
 	)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

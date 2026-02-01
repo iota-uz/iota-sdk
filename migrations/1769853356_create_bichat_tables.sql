@@ -1,6 +1,10 @@
 -- +migrate Up
 -- BiChat module tables for multi-tenant chat sessions, messages, attachments, and HITL checkpoints
 
+-- Drop legacy tables from previous implementation
+DROP TABLE IF EXISTS dialogues CASCADE;
+DROP TABLE IF EXISTS prompts CASCADE;
+
 -- Sessions table
 CREATE TABLE IF NOT EXISTS bichat_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -141,7 +145,27 @@ REVOKE ALL ON SCHEMA information_schema FROM bichat_agent_role;
 COMMENT ON SCHEMA analytics IS 'Denormalized views for BiChat query executor. Child projects should create tenant-isolated views here using current_setting(''app.tenant_id'', true)::UUID pattern.';
 -- +migrate StatementEnd
 
+-- Code interpreter outputs table
+CREATE TABLE IF NOT EXISTS bichat_code_interpreter_outputs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    message_id UUID NOT NULL REFERENCES bichat_messages(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    url TEXT NOT NULL,
+    size_bytes BIGINT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+-- Index for fast lookup by message
+CREATE INDEX idx_bichat_code_outputs_message ON bichat_code_interpreter_outputs(message_id);
+
+-- Index for created_at ordering
+CREATE INDEX idx_bichat_code_outputs_created_at ON bichat_code_interpreter_outputs(created_at);
+
 -- +migrate Down
+-- Drop code_interpreter_outputs table
+DROP TABLE IF EXISTS bichat_code_interpreter_outputs CASCADE;
+
 -- +migrate StatementBegin
 -- Drop analytics schema and bichat_agent_role
 DROP SCHEMA IF EXISTS analytics CASCADE;

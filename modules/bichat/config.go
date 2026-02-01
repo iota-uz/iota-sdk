@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
+	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -79,6 +81,11 @@ type ModuleConfig struct {
 	EnableWebSearch       bool // Enable web search tool
 	EnableCodeInterpreter bool // Enable code execution capabilities
 	EnableMultiAgent      bool // Enable multi-agent orchestration
+
+	// Internal: Created services (initialized during BuildServices)
+	chatService       bichatservices.ChatService
+	agentService      bichatservices.AgentService
+	attachmentService bichatservices.AttachmentService
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -383,6 +390,91 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 	}
 }
 
+// BuildServices creates and initializes all BiChat services from the configuration.
+// This should be called after NewModuleConfig and before registering the module.
+// Services are cached in the config and reused on subsequent calls.
+func (c *ModuleConfig) BuildServices() error {
+	const op serrors.Op = "ModuleConfig.BuildServices"
+
+	// Validate configuration first
+	if err := c.Validate(); err != nil {
+		return serrors.E(op, err)
+	}
+
+	// Build AgentService first (ChatService depends on it)
+	if c.agentService == nil {
+		// Create a simple anthropic-compatible renderer
+		// This uses the basic tokenizer for token estimation
+		renderer := &simpleRenderer{
+			tokenizer: bichatcontext.NewSimpleTokenizer(),
+		}
+
+		c.agentService = services.NewAgentService(services.AgentServiceConfig{
+			Agent:         c.ParentAgent,
+			Model:         c.Model,
+			Policy:        c.ContextPolicy,
+			Renderer:      renderer,
+			Checkpointer:  c.Checkpointer,
+			EventBus:      c.EventBus,
+			ChatRepo:      c.ChatRepo,
+			AgentRegistry: c.AgentRegistry,
+		})
+	}
+
+	// Build TitleGenerationService (ChatService depends on it)
+	var titleService services.TitleGenerationService
+	titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo)
+	if err != nil {
+		// Log warning but continue - title generation is optional
+		c.Logger.WithError(err).Warn("Failed to create title generation service, session titles will need manual input")
+	} else {
+		titleService = titleSvc
+	}
+
+	// Build ChatService
+	if c.chatService == nil {
+		c.chatService = services.NewChatService(
+			c.ChatRepo,
+			c.agentService,
+			c.Model,
+			titleService,
+		)
+	}
+
+	// Build AttachmentService (requires file storage)
+	if c.attachmentService == nil {
+		// Create a basic local file storage for attachments
+		// This uses pkg/bichat/storage for file handling
+		fileStorage, err := storage.NewLocalFileStorage("/tmp/bichat-attachments", "http://localhost:3900/bi-chat/attachments")
+		if err != nil {
+			c.Logger.WithError(err).Warn("Failed to create local attachment storage, using no-op fallback")
+			fileStorage = storage.NewNoOpFileStorage()
+		}
+
+		c.attachmentService = services.NewAttachmentService(fileStorage)
+	}
+
+	return nil
+}
+
+// ChatService returns the cached ChatService instance.
+// Returns nil if BuildServices hasn't been called yet.
+func (c *ModuleConfig) ChatService() bichatservices.ChatService {
+	return c.chatService
+}
+
+// AgentService returns the cached AgentService instance.
+// Returns nil if BuildServices hasn't been called yet.
+func (c *ModuleConfig) AgentService() bichatservices.AgentService {
+	return c.agentService
+}
+
+// AttachmentService returns the cached AttachmentService instance.
+// Returns nil if BuildServices hasn't been called yet.
+func (c *ModuleConfig) AttachmentService() bichatservices.AttachmentService {
+	return c.attachmentService
+}
+
 // String provides a human-readable representation of the configuration
 func (c *ModuleConfig) String() string {
 	return fmt.Sprintf("BIChatConfig{Model: %v, SubAgents: %d, EventBus: %v, QueryExecutor: %v, KBSearcher: %v}",
@@ -392,4 +484,43 @@ func (c *ModuleConfig) String() string {
 		c.QueryExecutor != nil,
 		c.KBSearcher != nil,
 	)
+}
+
+// simpleRenderer is a basic Renderer implementation for Anthropic-style messages.
+// This creates provider-agnostic messages suitable for most LLM providers.
+type simpleRenderer struct {
+	tokenizer bichatcontext.Tokenizer
+}
+
+func (r *simpleRenderer) Render(block bichatcontext.ContextBlock) (bichatcontext.RenderedBlock, error) {
+	rendered := bichatcontext.RenderedBlock{
+		Metadata: make(map[string]any),
+	}
+
+	// Convert payload to string for content
+	content := fmt.Sprintf("%v", block.Payload)
+
+	// System blocks go in SystemContent
+	if block.Meta.Kind == bichatcontext.KindPinned {
+		rendered.SystemContent = content
+		return rendered, nil
+	}
+
+	// Other blocks become messages
+	// Create a simple message structure compatible with most providers
+	rendered.Message = map[string]any{
+		"role":    "user", // Simple default - real implementation would parse from block
+		"content": content,
+	}
+
+	return rendered, nil
+}
+
+func (r *simpleRenderer) EstimateTokens(block bichatcontext.ContextBlock) (int, error) {
+	content := fmt.Sprintf("%v", block.Payload)
+	return r.tokenizer.CountTokens(content)
+}
+
+func (r *simpleRenderer) Provider() string {
+	return "simple"
 }

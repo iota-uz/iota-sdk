@@ -2,7 +2,7 @@ package applet
 
 import (
 	"context"
-	"embed"
+	"io/fs"
 
 	"github.com/gorilla/mux"
 )
@@ -57,9 +57,10 @@ type EndpointConfig struct {
 
 // AssetConfig contains configuration for serving applet static assets (JS, CSS, images)
 type AssetConfig struct {
-	// FS is the embedded filesystem containing applet assets
-	// Example: //go:embed dist/* from React build output
-	FS *embed.FS
+	// FS is the filesystem containing applet assets.
+	// Can be an embedded FS (*embed.FS) or a sub-filesystem (fs.Sub result).
+	// Example: fs.Sub(embedFS, "dist") to serve files from dist/ subdirectory
+	FS fs.FS
 
 	// BasePath is the URL path prefix for serving assets
 	// Example: "/bichat/assets" serves files from FS at /bichat/assets/*

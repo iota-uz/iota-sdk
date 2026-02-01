@@ -9,7 +9,6 @@
       }
     },
     "Title": "BI-Chat",
-    "NewDialog": "New dialog",
     "NewChat": "New Chat",
     "MessagePlaceholder": "Type a message...",
     "SendMessage": "Send Message",
@@ -21,7 +20,7 @@
     "Export": "Export",
     "History": {
       "Empty": "Empty history",
-      "HelpText": "Press \"New dialog\" to start a new dialog"
+      "HelpText": "Press \"New Chat\" to start a new chat"
     },
     "Permissions": {
       "Access": "Access BI Chat",

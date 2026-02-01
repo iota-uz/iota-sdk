@@ -9,7 +9,6 @@
 			}
 		},
 		"Title": "BI-Chat",
-		"NewDialog": "Yangi suhbat",
 		"NewChat": "Yangi chat",
 		"MessagePlaceholder": "Xabar yozing...",
 		"SendMessage": "Xabar yuborish",
@@ -21,7 +20,7 @@
 		"Export": "Eksport",
 		"History": {
 			"Empty": "Tarix bo'sh",
-			"HelpText": "Yangi suhbat boshlash uchun \"Yangi suhbat\" tugmasini bosing"
+			"HelpText": "Yangi chat boshlash uchun \"Yangi chat\" tugmasini bosing"
 		},
 		"Permissions": {
 			"Access": "BI-chatga kirish",

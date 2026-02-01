@@ -9,7 +9,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  base: '/bichat/assets/',
+  base: '/bi-chat/assets/',
   build: {
     outDir: '../assets/dist',
     emptyOutDir: true,
