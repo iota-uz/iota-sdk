@@ -111,12 +111,3 @@ func (s searchKnowledgeBase) Execute(args map[string]interface{}) (string, error
 	}
 	return string(jsonBytes), nil
 }
-
-//
-// func (s *EmbeddingService) GetByUUID(ctx context.Context, uuid string) (*composables.Embedding, error) {
-//	return s.app.Embeddings.GetByUUID(ctx, uuid)
-//}
-//
-// func (s *EmbeddingService) Create(ctx context.Context, embedding *composables.Embedding) error {
-//	return s.app.Embeddings.Create(ctx, embedding)
-//}

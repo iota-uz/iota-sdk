@@ -3,11 +3,7 @@ package bichat
 import (
 	"embed"
 
-	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:embed presentation/locales/*.json
@@ -16,28 +12,32 @@ var LocaleFiles embed.FS
 //go:embed infrastructure/persistence/schema/bichat-schema.sql
 var MigrationFiles embed.FS
 
+// NewModule creates a BiChat module for schema and locale registration.
+//
+// For full BiChat functionality, you must:
+// 1. Create a ModuleConfig using NewModuleConfig() in config.go
+// 2. Implement required dependencies (Model, ChatRepository, etc.)
+// 3. Register controllers and services in your application setup
+//
+// See CLAUDE.md for complete configuration examples.
 func NewModule() application.Module {
 	return &Module{}
 }
 
-type Module struct {
-}
+type Module struct{}
 
 func (m *Module) Register(app application.Application) error {
+	// Register BiChat applet for React app integration
+	if err := app.RegisterApplet(&BiChatApplet{}); err != nil {
+		return err
+	}
+
+	// Register database schema
 	app.Migrations().RegisterSchema(&MigrationFiles)
+
+	// Register translation files
 	app.RegisterLocaleFiles(&LocaleFiles)
-	app.RegisterServices(
-		services.NewEmbeddingService(app),
-	)
-	app.RegisterServices(
-		services.NewDialogueService(persistence.NewDialogueRepository(), app),
-	)
-	app.RegisterControllers(
-		controllers.NewBiChatController(app),
-	)
-	app.QuickLinks().Add(
-		spotlight.NewQuickLink(nil, BiChatLink.Name, BiChatLink.Href),
-	)
+
 	return nil
 }
 

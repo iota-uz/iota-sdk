@@ -60,12 +60,11 @@ func (d *dialogue) Messages() Messages {
 	return d.messages
 }
 
-// TODO: handle empty messages
-func (d *dialogue) LastMessage() llm.ChatCompletionMessage {
+func (d *dialogue) LastMessage() (llm.ChatCompletionMessage, error) {
 	if len(d.messages) == 0 {
-		return llm.ChatCompletionMessage{}
+		return llm.ChatCompletionMessage{}, ErrNoMessages
 	}
-	return d.messages[len(d.messages)-1]
+	return d.messages[len(d.messages)-1], nil
 }
 
 func (d *dialogue) CreatedAt() time.Time {

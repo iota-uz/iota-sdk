@@ -1,11 +1,14 @@
 package dialogue
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/bichat/domain/entities/llm"
 )
+
+var ErrNoMessages = errors.New("dialogue has no messages")
 
 type Messages []llm.ChatCompletionMessage
 
@@ -15,7 +18,7 @@ type Dialogue interface {
 	UserID() uint
 	Label() string
 	Messages() Messages
-	LastMessage() llm.ChatCompletionMessage
+	LastMessage() (llm.ChatCompletionMessage, error)
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 
