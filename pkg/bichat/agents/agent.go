@@ -310,8 +310,8 @@ func WithSystemPrompt(prompt string) AgentOption {
 //
 // Example:
 //
-//	WithModel("gpt-4")
-//	WithModel("claude-3-opus")
+//	WithModel("gpt-5.2")
+//	WithModel("claude-opus-4.5")
 func WithModel(model string) AgentOption {
 	return func(a *BaseAgent) {
 		a.metadata.Model = model

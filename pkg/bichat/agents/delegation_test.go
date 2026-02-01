@@ -38,12 +38,16 @@ func TestNewDelegationTool(t *testing.T) {
 		t.Fatal("Expected properties to be map[string]any")
 	}
 
-	if _, hasAgentName := props["agent_name"]; !hasAgentName {
-		t.Error("Expected agent_name in parameters")
+	if _, hasSubagentType := props["subagent_type"]; !hasSubagentType {
+		t.Error("Expected subagent_type in parameters")
 	}
 
-	if _, hasTask := props["task"]; !hasTask {
-		t.Error("Expected task in parameters")
+	if _, hasPrompt := props["prompt"]; !hasPrompt {
+		t.Error("Expected prompt in parameters")
+	}
+
+	if _, hasDescription := props["description"]; !hasDescription {
+		t.Error("Expected description in parameters")
 	}
 }
 
@@ -56,7 +60,7 @@ func TestDelegationTool_AgentNotFound(t *testing.T) {
 	tenantID := uuid.New()
 	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
-	input := `{"agent_name": "nonexistent", "task": "do something"}`
+	input := `{"subagent_type": "nonexistent", "prompt": "do something", "description": "test task"}`
 	_, err := tool.Call(context.Background(), input)
 
 	if err == nil {
@@ -88,24 +92,34 @@ func TestDelegationTool_InvalidInput(t *testing.T) {
 			expectedErr: "parse delegation input",
 		},
 		{
-			name:        "missing agent_name",
-			input:       `{"task": "do something"}`,
-			expectedErr: "agent_name is required",
+			name:        "missing subagent_type",
+			input:       `{"prompt": "do something", "description": "test"}`,
+			expectedErr: "subagent_type is required",
 		},
 		{
-			name:        "missing task",
-			input:       `{"agent_name": "test"}`,
-			expectedErr: "task is required",
+			name:        "missing prompt",
+			input:       `{"subagent_type": "test", "description": "test"}`,
+			expectedErr: "prompt is required",
 		},
 		{
-			name:        "empty agent_name",
-			input:       `{"agent_name": "", "task": "test"}`,
-			expectedErr: "agent_name is required",
+			name:        "missing description",
+			input:       `{"subagent_type": "test", "prompt": "do something"}`,
+			expectedErr: "description is required",
 		},
 		{
-			name:        "empty task",
-			input:       `{"agent_name": "test", "task": ""}`,
-			expectedErr: "task is required",
+			name:        "empty subagent_type",
+			input:       `{"subagent_type": "", "prompt": "test", "description": "test"}`,
+			expectedErr: "subagent_type is required",
+		},
+		{
+			name:        "empty prompt",
+			input:       `{"subagent_type": "test", "prompt": "", "description": "test"}`,
+			expectedErr: "prompt is required",
+		},
+		{
+			name:        "empty description",
+			input:       `{"subagent_type": "test", "prompt": "test", "description": ""}`,
+			expectedErr: "description is required",
 		},
 	}
 
@@ -144,7 +158,7 @@ func TestDelegationTool_NoExecutor(t *testing.T) {
 	tenantID := uuid.New()
 	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
-	input := `{"agent_name": "test_agent", "task": "perform test"}`
+	input := `{"subagent_type": "test_agent", "prompt": "perform test", "description": "test execution"}`
 	result, err := tool.Call(context.Background(), input)
 
 	if err != nil {
@@ -164,6 +178,10 @@ func TestDelegationTool_NoExecutor(t *testing.T) {
 
 	if resultData["task"] != "perform test" {
 		t.Errorf("Expected task 'perform test', got %v", resultData["task"])
+	}
+
+	if resultData["summary"] != "test execution" {
+		t.Errorf("Expected summary 'test execution', got %v", resultData["summary"])
 	}
 
 	if resultData["description"] != "A test agent" {
@@ -423,8 +441,8 @@ func TestDelegationTool_Description(t *testing.T) {
 	}
 }
 
-// TestDelegationTool_ContextParameter verifies optional context parameter handling.
-func TestDelegationTool_ContextParameter(t *testing.T) {
+// TestDelegationTool_AllRequiredParameters verifies all required parameter handling.
+func TestDelegationTool_AllRequiredParameters(t *testing.T) {
 	t.Parallel()
 
 	registry := agents.NewAgentRegistry()
@@ -442,14 +460,11 @@ func TestDelegationTool_ContextParameter(t *testing.T) {
 	tenantID := uuid.New()
 	tool := agents.NewDelegationTool(registry, nil, sessionID, tenantID)
 
-	// Test with optional context parameter
+	// Test with all required parameters
 	input := `{
-		"agent_name": "test_agent",
-		"task": "perform analysis",
-		"context": {
-			"user_id": 123,
-			"tenant_id": "abc"
-		}
+		"subagent_type": "test_agent",
+		"prompt": "perform analysis",
+		"description": "analyze data"
 	}`
 
 	result, err := tool.Call(context.Background(), input)
@@ -462,13 +477,17 @@ func TestDelegationTool_ContextParameter(t *testing.T) {
 		t.Fatalf("Failed to parse result: %v", err)
 	}
 
-	// Verify result includes agent and task
+	// Verify result includes agent, task, and summary
 	if resultData["agent"] != "test_agent" {
 		t.Errorf("Expected agent 'test_agent', got %v", resultData["agent"])
 	}
 
 	if resultData["task"] != "perform analysis" {
 		t.Errorf("Expected task 'perform analysis', got %v", resultData["task"])
+	}
+
+	if resultData["summary"] != "analyze data" {
+		t.Errorf("Expected summary 'analyze data', got %v", resultData["summary"])
 	}
 }
 
