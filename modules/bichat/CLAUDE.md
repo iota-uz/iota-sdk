@@ -538,11 +538,19 @@ go test -v ./modules/bichat/presentation/controllers/
 
 ## Environment Variables
 
+**Required:**
 ```bash
-# LLM Provider (defaults to OpenAI)
-LLM_PROVIDER=openai
-LLM_API_KEY=sk-...
-LLM_MODEL=gpt-4
+# OpenAI API Key (REQUIRED)
+OPENAI_API_KEY=sk-...
+
+# Database connection (REQUIRED)
+DATABASE_URL=postgres://user:pass@localhost/dbname
+```
+
+**Optional:**
+```bash
+# OpenAI Model (optional, defaults to gpt-4)
+OPENAI_MODEL=gpt-4-turbo
 
 # Context Configuration
 BICHAT_CONTEXT_WINDOW=180000
@@ -555,6 +563,148 @@ BICHAT_KB_ENABLED=true
 # Observability
 BICHAT_EVENT_BUS_BUFFER_SIZE=1000
 LOG_LEVEL=info
+```
+
+## Setup & Configuration
+
+### 1. Prerequisites
+
+BiChat requires:
+- **OpenAI API Key**: Set `OPENAI_API_KEY` environment variable
+- **PostgreSQL Database**: Version 13+ with multi-tenant schema
+- **Go 1.23+**: For SDK compatibility
+
+### 2. Quick Start
+
+```go
+import (
+    "github.com/iota-uz/iota-sdk/modules/bichat"
+    "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure"
+    "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
+    "github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// Validate dependencies at startup
+if err := bichat.ValidateBiChatDependencies(app.DB()); err != nil {
+    log.Fatal("BiChat dependencies missing:", err)
+}
+
+// Create OpenAI model (reads OPENAI_API_KEY and OPENAI_MODEL from env)
+model, err := llmproviders.NewOpenAIModel()
+if err != nil {
+    log.Fatal("Failed to create OpenAI model:", err)
+}
+
+// Create PostgreSQL query executor
+executor := infrastructure.NewPostgresQueryExecutor(app.DB())
+
+// Configure module with required dependencies
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    model,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithQueryExecutor(executor),
+)
+
+// Validate configuration
+if err := cfg.Validate(); err != nil {
+    log.Fatal("Invalid BiChat configuration:", err)
+}
+```
+
+### 3. Production Deployment Checklist
+
+Before deploying BiChat to production:
+
+- [ ] **Environment Variables Set**:
+  - `OPENAI_API_KEY` is configured
+  - `DATABASE_URL` points to production database
+  - `OPENAI_MODEL` is set if not using default gpt-4
+
+- [ ] **Database Schema**:
+  - Run migrations: `make db migrate up`
+  - Verify tables: `bichat_sessions`, `bichat_messages`, `bichat_attachments`
+  - Check indexes on `tenant_id` and `user_id`
+
+- [ ] **Multi-Tenant Isolation**:
+  - All queries include `tenant_id` in WHERE clauses
+  - Context middleware injects tenant ID
+  - Test cross-tenant data leakage
+
+- [ ] **Query Executor Security**:
+  - SQL validation blocks non-SELECT queries
+  - Row limits enforced (max 1000 rows)
+  - Query timeouts configured (default 30s)
+
+- [ ] **Observability**:
+  - Logging configured (see Observability section)
+  - Metrics collection enabled
+  - Event bus buffer sized appropriately
+
+- [ ] **Cost Management**:
+  - Token estimator enabled
+  - Rate limiting configured
+  - Monitor OpenAI API usage
+
+## Troubleshooting
+
+### Common Errors
+
+**Error: "OPENAI_API_KEY environment variable is required"**
+- **Cause**: OPENAI_API_KEY not set in environment
+- **Fix**: Set environment variable: `export OPENAI_API_KEY=sk-...`
+- **Production**: Add to `.env` file or container environment
+
+**Error: "database connection is required for BiChat"**
+- **Cause**: Database not initialized before BiChat setup
+- **Fix**: Ensure `app.DB()` returns valid connection before calling `CreatePostgresQueryExecutor`
+- **Check**: Verify `DATABASE_URL` is set correctly
+
+**Error: "tenant ID required for query execution"**
+- **Cause**: Context missing tenant ID when executing SQL
+- **Fix**: Ensure tenant middleware is applied to BiChat routes
+- **Verify**: `composables.UseTenantID(ctx)` returns valid UUID
+
+**Error: "query contains disallowed keyword: INSERT"**
+- **Cause**: Attempted to execute non-SELECT query via query executor
+- **Fix**: Only SELECT and WITH (CTE) queries are allowed
+- **Solution**: Use appropriate API for data modifications
+
+**Error: "OpenAI API request failed"**
+- **Cause**: Invalid API key, rate limit, or network issue
+- **Fix**:
+  - Verify API key is valid
+  - Check OpenAI service status
+  - Implement retry logic with backoff
+  - Monitor rate limits
+
+### Debugging Tips
+
+**Enable Verbose Logging:**
+```bash
+LOG_LEVEL=debug
+```
+
+**Test OpenAI Connection:**
+```bash
+curl https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+**Verify Database Connection:**
+```bash
+psql $DATABASE_URL -c "SELECT 1"
+```
+
+**Check Tenant Context:**
+```go
+tenantID, err := composables.UseTenantID(ctx)
+if err != nil {
+    log.Printf("Missing tenant ID: %v", err)
+}
 ```
 
 ## Observability & Cost Tracking
