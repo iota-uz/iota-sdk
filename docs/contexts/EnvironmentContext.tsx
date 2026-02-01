@@ -8,7 +8,7 @@ const EnvironmentContext = createContext<EnvironmentContextType | undefined>(und
 const STORAGE_KEY = 'granite-docs-environment'
 
 // ERP paths pattern - paths starting with these are considered ERP links
-const ERP_PATH_PATTERNS = ['/crm', '/insurance', '/reinsurance', '/administration']
+const ERP_PATH_PATTERNS = ['/crm', '/inventory', '/hr', '/administration']
 
 export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const [environment, setEnvironmentState] = useState<Environment>('production')
