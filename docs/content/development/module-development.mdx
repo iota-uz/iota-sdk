@@ -806,6 +806,7 @@ Create `modules/productcatalog/presentation/viewmodels/product_viewmodel.go`:
 package viewmodels
 
 import (
+	"fmt"
 	"time"
 	"github.com/google/uuid"
 )
@@ -924,6 +925,11 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewProductController(app),
 	)
 
+	// Register quick links
+	app.QuickLinks().Add(
+		spotlight.NewQuickLink(NavItems[0].Icon, NavItems[0].Name, NavItems[0].Href),
+	)
+
 	// Register locale files
 	app.RegisterLocaleFiles(&localeFiles)
 
@@ -1000,7 +1006,7 @@ make db migrate up
 - Validate DTOs using `go-playground/validator`
 - Use localized error messages
 - Map domain entities to view models for templates
-- Handle both full page and HTMX partial requests
+- Handle both full-page and HTMX partial requests
 
 ## Next Steps
 
