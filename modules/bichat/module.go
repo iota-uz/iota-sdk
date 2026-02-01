@@ -27,6 +27,11 @@ func NewModule() application.Module {
 type Module struct{}
 
 func (m *Module) Register(app application.Application) error {
+	// Register BiChat applet for React app integration
+	if err := app.RegisterApplet(&BiChatApplet{}); err != nil {
+		return err
+	}
+
 	// Register database schema
 	app.Migrations().RegisterSchema(&MigrationFiles)
 

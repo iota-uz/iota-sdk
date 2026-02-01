@@ -7,7 +7,7 @@ import (
 
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/interop"
+	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -82,16 +82,28 @@ func (c *WebController) RenderChatApp(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := configuration.Use().Logger()
 
-	// Build initial context for React using the interop package
+	// Get BiChat applet configuration from registry
+	// Note: In production, retrieve from app.AppletRegistry().Get("bichat")
+	// For now, create inline to get config
+	config := applet.Config{
+		WindowGlobal: "__BICHAT_CONTEXT__",
+		Endpoints: applet.EndpointConfig{
+			GraphQL: "/bichat/graphql",
+			Stream:  "/bichat/stream",
+		},
+	}
+
+	// Build initial context for React using the applet package
 	// This extracts user, tenant, locale, and config from request context
-	initialContext, err := interop.BuildInitialContext(ctx)
+	builder := applet.NewContextBuilder(config)
+	initialContext, err := builder.Build(ctx, r)
 	if err != nil {
 		logger.WithError(serrors.E(op, err)).Error("Failed to build context")
 		http.Error(w, "Failed to build context", http.StatusInternalServerError)
 		return
 	}
 
-	// Extract CSRF token using gorilla/csrf helper
+	// CSRF token is already included in initialContext.Session
 	csrfToken := csrf.Token(r)
 
 	// Serialize context to JSON for injection into HTML
