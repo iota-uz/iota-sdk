@@ -23,10 +23,10 @@ Claude serves as a **pure orchestrator** with general project knowledge, transla
 
 **Agent Selection Matrix:**
 - **Errors/Failures**: Always start with `debugger`
-- **Go Code Changes**: Always end with `refactoring-expert`
+- **Go Code Changes**: Always end with `auditor`
 - **Database Changes**: Always include `editor`
 - **Template/Translation**: Always include `editor`
-- **Production Changes**: `refactoring-expert` ALWAYS
+- **Production Changes**: `auditor` ALWAYS
 - **Complex Research/Discovery**: Use `general-purpose` when uncertain about code location or architecture
 - **Multi-Step Search Operations**: Use `general-purpose` when simple grep/glob won't suffice
 
@@ -360,32 +360,32 @@ make migrate down                     # Rollback migrations
 
 ## AGENT ORCHESTRATION WORKFLOWS
 
-**Claude's Default Operating Mode: Multi-Agent Parallel Execution**
+**Claude's Default Operating Mode: Balanced Orchestration**
 
-Multi-agent workflows are the **standard approach** for all non-trivial development tasks. Single agents are the exception, not the rule.
+Use agents for complex, multi-file, or unclear-scope tasks. Handle simple, well-defined work (1-3 files, <50 lines, clear requirements) directly with Read/Edit/Bash tools. Don't use agents for typo fixes, single-line changes, reading files, or running commands.
 
 ### Multi-Agent Workflow Matrix
 
 **Workflow Types:**
 
 **Feature Development:** Use `editor` agent
-- Optional: `refactoring-expert` (always after editor)
+- Optional: `auditor` (always after editor)
 - When: New features, enhancements, major functionality
 
-**Bug Resolution:** `debugger` → `editor` + `refactoring-expert`
+**Bug Resolution:** `debugger` → `editor` + `auditor`
 - When: Bug fixes, error resolution, system failures
 
-**Performance Issues:** `debugger` + `editor` + `refactoring-expert`
+**Performance Issues:** `debugger` + `editor` + `auditor`
 - When: Slow queries, high latency, resource usage
 
 **UI/Template Changes:** Use `editor` agent
 - When: UI updates, forms, frontend functionality
 
-**Database Changes:** `editor` + `refactoring-expert`
+**Database Changes:** `editor` + `auditor`
 - Note: editor handles all layers
 - When: Schema changes, migrations, query optimization
 
-**Cross-Module Work:** Multiple `editor` + `refactoring-expert`
+**Cross-Module Work:** Multiple `editor` + `auditor`
 - When: Architecture changes, large refactoring
 
 **Config Management:** Use `editor` agent
@@ -401,8 +401,9 @@ Multi-agent workflows are the **standard approach** for all non-trivial developm
 
 **Agent Launch Rules:**
 - **Always parallel**: Launch required agents simultaneously in single message
-- **Always sequential**: `debugger` first for bugs, `refactoring-expert` last for Go changes
+- **Always sequential**: `debugger` first for bugs, `auditor` last for Go changes
 - **Scale by scope**: 1-3 agents (small), 4-6 agents (medium), 7-10+ agents (large)
+- **Agent threshold**: Use agents only when task requires 4+ files, 50+ lines, or investigation
 
 ### Workflow Execution Patterns
 
@@ -494,7 +495,7 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 2. **Balanced Distribution Phase**: Work divided evenly between agents
 3. **Independent Work Phase**: Agents work in parallel on assigned scope
 4. **Integration Points**: Outputs from one agent feed others as needed
-5. **Final Review Phase**: `refactoring-expert` reviews all changes
+5. **Final Review Phase**: `auditor` reviews all changes
 
 #### Scaling Triggers
 - **Large scope discovered**: Add more agents of same type with balanced loads
@@ -508,47 +509,47 @@ find . -name "*_test.go" | wc -l # Assess test coverage needs
 ```
 1. Investigation: debugger (investigate error, identify root cause)
 2. Implementation: editor (fix the bug across affected files)
-3. Quality review: refactoring-expert (review changes, ensure code quality)
+3. Quality review: auditor (review changes, ensure code quality)
 
-Syntax: debugger && editor && refactoring-expert
+Syntax: debugger && editor && auditor
 ```
 
 **Example 2: New Feature Development**
 ```
 1. Planning (optional): general-purpose for architecture research if needed
 2. Implementation: editor (implement domain, service, repository, controller, templates)
-3. Quality review: refactoring-expert (ensure production-ready code)
+3. Quality review: auditor (ensure production-ready code)
 
-Syntax: editor && refactoring-expert
-Or with research: general-purpose && editor && refactoring-expert
+Syntax: editor && auditor
+Or with research: general-purpose && editor && auditor
 ```
 
 **Example 3: Database Schema Changes**
 ```
 1. Migration: editor (create migration, update domain entities)
 2. Data layer: editor (update repositories for new schema)
-3. Quality review: refactoring-expert (verify migration safety, code quality)
+3. Quality review: auditor (verify migration safety, code quality)
 
-Syntax: editor (migrations + domain) && editor (repositories) && refactoring-expert
-Or single editor: editor && refactoring-expert
+Syntax: editor (migrations + domain) && editor (repositories) && auditor
+Or single editor: editor && auditor
 ```
 
 **Example 4: UI/Template Updates**
 ```
 1. Templates: editor (update .templ files, controllers, ViewModels)
 2. Translations: editor (update en.toml, ru.toml, uz.toml)
-3. Quality review: refactoring-expert (verify HTMX patterns, security)
+3. Quality review: auditor (verify HTMX patterns, security)
 
-Syntax: editor && refactoring-expert
+Syntax: editor && auditor
 ```
 
 **Example 5: Performance Optimization**
 ```
 1. Investigation: debugger (identify bottlenecks, analyze queries)
 2. Optimization: editor (optimize queries, add indexes, improve algorithms)
-3. Quality review: refactoring-expert (ensure no regressions)
+3. Quality review: auditor (ensure no regressions)
 
-Syntax: debugger && editor && refactoring-expert
+Syntax: debugger && editor && auditor
 ```
 
 **Example 6: E2E Test Development**
@@ -566,34 +567,34 @@ Or with debugging: debugger && e2e-tester
    - editor (finance module changes)
    - editor (warehouse module changes)
    - editor (CRM module changes)
-2. Sequential review: refactoring-expert (review all changes)
+2. Sequential review: auditor (review all changes)
 
-Syntax: (editor & editor & editor) && refactoring-expert
+Syntax: (editor & editor & editor) && auditor
 ```
 
 **Example 8: Complex Research & Implementation**
 ```
 1. Research: general-purpose (explore codebase, find patterns, analyze architecture)
 2. Implementation: editor (apply findings, implement solution)
-3. Quality review: refactoring-expert (ensure consistency with codebase)
+3. Quality review: auditor (ensure consistency with codebase)
 
-Syntax: general-purpose && editor && refactoring-expert
+Syntax: general-purpose && editor && auditor
 ```
 
-### Single Agent Exceptions
+### When NOT to Use Agents
 
-**Use single agents ONLY for:**
-- **Simple read-only queries**: Documentation lookups, code reading
-- **Emergency hotfixes**: Time-critical production issues (but follow up with multi-agent review)
-- **Single-file documentation updates**: README changes, comment additions
-- **Configuration tweaks**: Small settings adjustments
+**Handle directly (no agents):**
+- Simple file reading, typo fixes, single-line changes
+- Running commands (go vet, make test, git status)
+- 1-3 file edits with clear requirements (<50 lines total)
+- Adding comments, updating docs, config tweaks
 
-**Never use single agents for:**
-- Cross-layer changes (controller + template + service)
-- Data schema modifications
-- Feature development
-- Bug fixes with unknown scope
-- Performance optimization
+**Use agents for:**
+- 4+ files or 50+ lines of changes
+- Cross-layer changes (controller + service + repository + template)
+- Unknown scope requiring investigation
+- Feature development, schema changes, refactoring
+- Production changes requiring quality review
 
 ### Anti-Patterns to Avoid
 
@@ -605,7 +606,7 @@ Syntax: general-purpose && editor && refactoring-expert
 **❌ Workflow Mistakes:**
 - Launching agents sequentially when parallel is possible
 - Skipping `debugger` for unknown issues
-- Missing `refactoring-expert` after Go code changes
+- Missing `auditor` after Go code changes
 - Using direct tools instead of `editor` for complex multi-file changes
 
 ### Business Context Translation
@@ -613,16 +614,16 @@ Syntax: general-purpose && editor && refactoring-expert
 **Business Request → Multi-Agent Orchestration Examples:**
 
 **"Fix dashboard bug"**
-→ `debugger` && (`editor` & `refactoring-expert`)
+→ `debugger` && (`editor` & `auditor`)
 
 **"Add new payment form"**
-→ `editor` && `refactoring-expert`
+→ `editor` && `auditor`
 
 **"Optimize accounting performance"**
-→ `debugger` && `editor` && `refactoring-expert`
+→ `debugger` && `editor` && `auditor`
 
 **"Update finance module"**
-→ (Multiple `editor`) && `refactoring-expert`
+→ (Multiple `editor`) && `auditor`
 
 **"Update CLAUDE.md with new agent"**
 → `editor`

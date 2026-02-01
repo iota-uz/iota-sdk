@@ -22,7 +22,7 @@ All linting errors: !`make check lint || true`
 
 ## Important Notes
 
-- Follow CLAUDE.md § 2 (Agent Orchestration) Sequential Execution: agents && `refactoring-expert`
+- Follow CLAUDE.md § 2 (Agent Orchestration) Sequential Execution: agents && `auditor`
 - DO NOT fix test files separately - include in the main fix workflow
 - Preserve existing functionality while fixing errors
 - Address unused variables/functions flagged by linter
