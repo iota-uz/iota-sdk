@@ -22,7 +22,7 @@ By the end of this guide, you'll have a fully functional Product Catalog module 
 ## Prerequisites
 
 Before starting, ensure you have:
-- Understanding of [IOTA SDK Architecture](/architecture: %v", err)
+- Understanding of [IOTA SDK Architecture](/architecture
 - Go 1.23+ installed
 - PostgreSQL database set up
 - IOTA SDK project cloned and running
@@ -85,7 +85,7 @@ import (
 	"time"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/money"
-: %v", err)
+
 
 type Field int
 
@@ -97,7 +97,7 @@ const (
 	SKU
 	CreatedAt
 	UpdatedAt
-: %v", err)
+
 
 // Product is the aggregate root for the product catalog domain
 type Product interface {
@@ -109,7 +109,7 @@ type Product interface {
 	CreatedAt() time.Time
 	UpdatedAt() time.Time
 	
-	// Setters return new instances (immutable pattern: %v", err)
+	// Setters return new instances (immutable pattern
 	SetName(name string) Product
 	SetDescription(desc string) Product
 	SetPrice(price *money.Money) Product
@@ -118,13 +118,13 @@ type Product interface {
 
 // Repository interface for persistence
 type Repository interface {
-	GetPaginated(ctx context.Context, params *FindParams) ([]Product, error: %v", err)
-	GetAll(ctx context.Context) ([]Product, error: %v", err)
-	GetByID(ctx context.Context, id uuid.UUID) (Product, error: %v", err)
-	Create(ctx context.Context, product Product) (Product, error: %v", err)
-	Update(ctx context.Context, product Product) (Product, error: %v", err)
+	GetPaginated(ctx context.Context, params *FindParams) ([]Product, error
+	GetAll(ctx context.Context) ([]Product, error
+	GetByID(ctx context.Context, id uuid.UUID) (Product, error
+	Create(ctx context.Context, product Product) (Product, error
+	Update(ctx context.Context, product Product) (Product, error
 	Delete(ctx context.Context, id uuid.UUID) error
-	Count(ctx context.Context, params *FindParams) (int64, error: %v", err)
+	Count(ctx context.Context, params *FindParams) (int64, error
 }
 
 // FindParams for querying products
@@ -162,10 +162,10 @@ import (
 	"time"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/money"
-: %v", err)
+
 
 // Option pattern for flexible entity construction
-type Option func(p *product: %v", err)
+type Option func(p *product
 
 func WithID(id uuid.UUID) Option {
 	return func(p *product) {
@@ -219,7 +219,7 @@ func New(name string, price *money.Money, opts ...Option) Product {
 	}
 	
 	for _, opt := range opts {
-		opt(p: %v", err)
+		opt(p
 	}
 	
 	return p
@@ -238,28 +238,28 @@ func (p *product) UpdatedAt() time.Time { return p.updatedAt }
 func (p *product) SetName(name string) Product {
 	result := *p
 	result.name = name
-	result.updatedAt = time.Now(: %v", err)
+	result.updatedAt = time.Now(
 	return &result
 }
 
 func (p *product) SetDescription(desc string) Product {
 	result := *p
 	result.description = desc
-	result.updatedAt = time.Now(: %v", err)
+	result.updatedAt = time.Now(
 	return &result
 }
 
 func (p *product) SetPrice(price *money.Money) Product {
 	result := *p
 	result.price = price
-	result.updatedAt = time.Now(: %v", err)
+	result.updatedAt = time.Now(
 	return &result
 }
 
 func (p *product) SetSKU(sku string) Product {
 	result := *p
 	result.sku = sku
-	result.updatedAt = time.Now(: %v", err)
+	result.updatedAt = time.Now(
 	return &result
 }
 ```
@@ -282,7 +282,7 @@ CREATE TABLE products (
     sku varchar(100),
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    UNIQUE (tenant_id, sku: %v", err)
+    UNIQUE (tenant_id, sku
 );
 
 -- Index for common queries
@@ -300,7 +300,7 @@ package models
 import (
 	"time"
 	"github.com/google/uuid"
-: %v", err)
+
 
 type Product struct {
 	ID          uuid.UUID `db:"id"`
@@ -326,7 +326,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/domain/aggregates/product"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/money"
-: %v", err)
+
 
 // ToDBProduct converts domain entity to database model
 func ToDBProduct(p product.Product) *models.Product {
@@ -373,9 +373,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
-: %v", err)
 
-var ErrProductNotFound = errors.New("product not found": %v", err)
+
+var ErrProductNotFound = errors.New("product not found"
 
 const (
 	selectProductQuery = `
@@ -384,15 +384,15 @@ const (
 	`
 	countProductQuery  = `SELECT COUNT(*) FROM products`
 	insertProductQuery = `
-		INSERT INTO products (tenant_id, name, description, price, currency_id, sku: %v", err)
-		VALUES ($1, $2, $3, $4, $5, $6: %v", err)
+		INSERT INTO products (tenant_id, name, description, price, currency_id, sku
+		VALUES ($1, $2, $3, $4, $5, $6
 		RETURNING id, created_at, updated_at`
 	updateProductQuery = `
 		UPDATE products
-		SET name = $1, description = $2, price = $3, currency_id = $4, sku = $5, updated_at = now(: %v", err)
+		SET name = $1, description = $2, price = $3, currency_id = $4, sku = $5, updated_at = now(
 		WHERE id = $6 AND tenant_id = $7`
 	deleteProductQuery = `DELETE FROM products WHERE id = $1 AND tenant_id = $2`
-: %v", err)
+
 
 type PgProductRepository struct {
 	fieldMap map[product.Field]string
@@ -413,9 +413,9 @@ func NewProductRepository() product.Repository {
 }
 
 func (r *PgProductRepository) buildFilters(ctx context.Context, params *product.FindParams) ([]string, []interface{}, error) {
-	tenantID, err := composables.UseTenantID(ctx: %v", err)
+	tenantID, err := composables.UseTenantID(ctx
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get tenant: %w", err: %v", err)
+		return nil, nil, fmt.Errorf("failed to get tenant: %w", err
 	}
 
 	where := []string{"tenant_id = $1"}
@@ -424,32 +424,32 @@ func (r *PgProductRepository) buildFilters(ctx context.Context, params *product.
 	for _, filter := range params.Filters {
 		column, ok := r.fieldMap[filter.Column]
 		if !ok {
-			return nil, nil, fmt.Errorf("unknown filter field: %v", filter.Column: %v", err)
+			return nil, nil, fmt.Errorf("unknown filter field: %v", filter.Column
 		}
-		where = append(where, filter.Filter.String(column, len(args)+1): %v", err)
-		args = append(args, filter.Filter.Value()...: %v", err)
+		where = append(where, filter.Filter.String(column, len(args)+1)
+		args = append(args, filter.Filter.Value()...
 	}
 
 	if params.Search != "" {
 		index := len(args) + 1
-		where = append(where, fmt.Sprintf("(name ILIKE $%d OR description ILIKE $%d OR sku ILIKE $%d)", index, index, index): %v", err)
-		args = append(args, "%"+params.Search+"%": %v", err)
+		where = append(where, fmt.Sprintf("(name ILIKE $%d OR description ILIKE $%d OR sku ILIKE $%d)", index, index, index)
+		args = append(args, "%"+params.Search+"%"
 	}
 
 	return where, args, nil
 }
 
 func (r *PgProductRepository) queryProducts(ctx context.Context, query string, args ...interface{}) ([]product.Product, error) {
-	tx, err := composables.UseTx(ctx: %v", err)
+	tx, err := composables.UseTx(ctx
 	if err != nil {
-		return nil, fmt.Errorf("failed to get transaction: %w", err: %v", err)
+		return nil, fmt.Errorf("failed to get transaction: %w", err
 	}
 
-	rows, err := tx.Query(ctx, query, args...: %v", err)
+	rows, err := tx.Query(ctx, query, args...
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute query: %w", err: %v", err)
+		return nil, fmt.Errorf("failed to execute query: %w", err
 	}
-	defer rows.Close(: %v", err)
+	defer rows.Close(
 
 	var products []product.Product
 	for rows.Next() {
@@ -458,25 +458,25 @@ func (r *PgProductRepository) queryProducts(ctx context.Context, query string, a
 			&m.ID, &m.TenantID, &m.Name, &m.Description,
 			&m.Price, &m.CurrencyID, &m.SKU, &m.CreatedAt, &m.UpdatedAt,
 		); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err: %v", err)
+			return nil, fmt.Errorf("failed to scan row: %w", err
 		}
 
-		p, err := ToDomainProduct(&m: %v", err)
+		p, err := ToDomainProduct(&m
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert to domain: %w", err: %v", err)
+			return nil, fmt.Errorf("failed to convert to domain: %w", err
 		}
-		products = append(products, p: %v", err)
+		products = append(products, p
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("row iteration error: %w", err: %v", err)
+		return nil, fmt.Errorf("row iteration error: %w", err
 	}
 
 	return products, nil
 }
 
 func (r *PgProductRepository) GetPaginated(ctx context.Context, params *product.FindParams) ([]product.Product, error) {
-	where, args, err := r.buildFilters(ctx, params: %v", err)
+	where, args, err := r.buildFilters(ctx, params
 	if err != nil {
 		return nil, err
 	}
@@ -486,117 +486,117 @@ func (r *PgProductRepository) GetPaginated(ctx context.Context, params *product.
 		repo.JoinWhere(where...),
 		params.SortBy.ToSQL(r.fieldMap),
 		repo.FormatLimitOffset(params.Limit, params.Offset),
-	: %v", err)
+	
 
-	return r.queryProducts(ctx, query, args...: %v", err)
+	return r.queryProducts(ctx, query, args...
 }
 
 func (r *PgProductRepository) Count(ctx context.Context, params *product.FindParams) (int64, error) {
-	tx, err := composables.UseTx(ctx: %v", err)
+	tx, err := composables.UseTx(ctx
 	if err != nil {
 		return 0, err
 	}
 
-	where, args, err := r.buildFilters(ctx, params: %v", err)
+	where, args, err := r.buildFilters(ctx, params
 	if err != nil {
 		return 0, err
 	}
 
-	query := repo.Join(countProductQuery, repo.JoinWhere(where...): %v", err)
+	query := repo.Join(countProductQuery, repo.JoinWhere(where...)
 
 	var count int64
 	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
-		return 0, fmt.Errorf("failed to count: %w", err: %v", err)
+		return 0, fmt.Errorf("failed to count: %w", err
 	}
 	return count, nil
 }
 
 func (r *PgProductRepository) GetAll(ctx context.Context) ([]product.Product, error) {
-	tenantID, err := composables.UseTenantID(ctx: %v", err)
+	tenantID, err := composables.UseTenantID(ctx
 	if err != nil {
 		return nil, err
 	}
 
-	query := repo.Join(selectProductQuery, repo.JoinWhere("tenant_id = $1"): %v", err)
-	return r.queryProducts(ctx, query, tenantID: %v", err)
+	query := repo.Join(selectProductQuery, repo.JoinWhere("tenant_id = $1")
+	return r.queryProducts(ctx, query, tenantID
 }
 
 func (r *PgProductRepository) GetByID(ctx context.Context, id uuid.UUID) (product.Product, error) {
-	tenantID, err := composables.UseTenantID(ctx: %v", err)
+	tenantID, err := composables.UseTenantID(ctx
 	if err != nil {
 		return nil, err
 	}
 
-	query := repo.Join(selectProductQuery, repo.JoinWhere("id = $1 AND tenant_id = $2"): %v", err)
-	products, err := r.queryProducts(ctx, query, id, tenantID: %v", err)
+	query := repo.Join(selectProductQuery, repo.JoinWhere("id = $1 AND tenant_id = $2")
+	products, err := r.queryProducts(ctx, query, id, tenantID
 	if err != nil {
 		return nil, err
 	}
 	if len(products) == 0 {
-		return nil, fmt.Errorf("%w: id=%s", ErrProductNotFound, id: %v", err)
+		return nil, fmt.Errorf("%w: id=%s", ErrProductNotFound, id
 	}
 	return products[0], nil
 }
 
 func (r *PgProductRepository) Create(ctx context.Context, p product.Product) (product.Product, error) {
-	tx, err := composables.UseTx(ctx: %v", err)
+	tx, err := composables.UseTx(ctx
 	if err != nil {
 		return nil, err
 	}
 
-	tenantID, err := composables.UseTenantID(ctx: %v", err)
+	tenantID, err := composables.UseTenantID(ctx
 	if err != nil {
 		return nil, err
 	}
 
-	m := ToDBProduct(p: %v", err)
+	m := ToDBProduct(p
 	var id uuid.UUID
 	var createdAt, updatedAt time.Time
 
 	err = tx.QueryRow(ctx, insertProductQuery,
 		tenantID, m.Name, m.Description, m.Price, m.CurrencyID, m.SKU,
-	).Scan(&id, &createdAt, &updatedAt: %v", err)
+	).Scan(&id, &createdAt, &updatedAt
 	if err != nil {
-		return nil, fmt.Errorf("failed to create product: %w", err: %v", err)
+		return nil, fmt.Errorf("failed to create product: %w", err
 	}
 
-	return r.GetByID(ctx, id: %v", err)
+	return r.GetByID(ctx, id
 }
 
 func (r *PgProductRepository) Update(ctx context.Context, p product.Product) (product.Product, error) {
-	tx, err := composables.UseTx(ctx: %v", err)
+	tx, err := composables.UseTx(ctx
 	if err != nil {
 		return nil, err
 	}
 
-	tenantID, err := composables.UseTenantID(ctx: %v", err)
+	tenantID, err := composables.UseTenantID(ctx
 	if err != nil {
 		return nil, err
 	}
 
-	m := ToDBProduct(p: %v", err)
+	m := ToDBProduct(p
 	if _, err := tx.Exec(ctx, updateProductQuery,
 		m.Name, m.Description, m.Price, m.CurrencyID, m.SKU, m.ID, tenantID,
 	); err != nil {
-		return nil, fmt.Errorf("failed to update product: %w", err: %v", err)
+		return nil, fmt.Errorf("failed to update product: %w", err
 	}
 
-	return r.GetByID(ctx, p.ID(): %v", err)
+	return r.GetByID(ctx, p.ID()
 }
 
 func (r *PgProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	tx, err := composables.UseTx(ctx: %v", err)
+	tx, err := composables.UseTx(ctx
 	if err != nil {
 		return err
 	}
 
-	tenantID, err := composables.UseTenantID(ctx: %v", err)
+	tenantID, err := composables.UseTenantID(ctx
 	if err != nil {
 		return err
 	}
 
 	if _, err := tx.Exec(ctx, deleteProductQuery, id, tenantID); err != nil {
-		return fmt.Errorf("failed to delete product: %w", err: %v", err)
+		return fmt.Errorf("failed to delete product: %w", err
 	}
 	return nil
 }
@@ -616,7 +616,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-: %v", err)
+
 
 type ProductService struct {
 	repo      product.Repository
@@ -634,28 +634,28 @@ func (s *ProductService) GetByID(ctx context.Context, id uuid.UUID) (product.Pro
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
-	return s.repo.GetByID(ctx, id: %v", err)
+	return s.repo.GetByID(ctx, id
 }
 
 func (s *ProductService) GetAll(ctx context.Context) ([]product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
-	return s.repo.GetAll(ctx: %v", err)
+	return s.repo.GetAll(ctx
 }
 
 func (s *ProductService) GetPaginated(ctx context.Context, params *product.FindParams) ([]product.Product, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return nil, err
 	}
-	return s.repo.GetPaginated(ctx, params: %v", err)
+	return s.repo.GetPaginated(ctx, params
 }
 
 func (s *ProductService) Count(ctx context.Context, params *product.FindParams) (uint, error) {
 	if err := composables.CanUser(ctx, permissions.ProductRead); err != nil {
 		return 0, err
 	}
-	count, err := s.repo.Count(ctx, params: %v", err)
+	count, err := s.repo.Count(ctx, params
 	return uint(count), err
 }
 
@@ -664,7 +664,7 @@ func (s *ProductService) Create(ctx context.Context, p product.Product) (product
 		return nil, err
 	}
 
-	created, err := s.repo.Create(ctx, p: %v", err)
+	created, err := s.repo.Create(ctx, p
 	if err != nil {
 		return nil, err
 	}
@@ -677,11 +677,11 @@ func (s *ProductService) Create(ctx context.Context, p product.Product) (product
 		Currency:    p.Price().Currency(),
 		CategoryIDs: p.CategoryIDs(),
 	}
-	event, err := product.NewCreatedEvent(ctx, createDTO, created: %v", err)
+	event, err := product.NewCreatedEvent(ctx, createDTO, created
 	if err != nil {
 		return nil, err
 	}
-	s.publisher.Publish(event: %v", err)
+	s.publisher.Publish(event
 	return created, nil
 }
 
@@ -690,7 +690,7 @@ func (s *ProductService) Update(ctx context.Context, p product.Product) (product
 		return nil, err
 	}
 
-	updated, err := s.repo.Update(ctx, p: %v", err)
+	updated, err := s.repo.Update(ctx, p
 	if err != nil {
 		return nil, err
 	}
@@ -704,11 +704,11 @@ func (s *ProductService) Update(ctx context.Context, p product.Product) (product
 		Currency:    p.Price().Currency(),
 		CategoryIDs: p.CategoryIDs(),
 	}
-	event, err := product.NewUpdatedEvent(ctx, updateDTO, updated: %v", err)
+	event, err := product.NewUpdatedEvent(ctx, updateDTO, updated
 	if err != nil {
 		return nil, err
 	}
-	s.publisher.Publish(event: %v", err)
+	s.publisher.Publish(event
 	return updated, nil
 }
 
@@ -717,7 +717,7 @@ func (s *ProductService) Delete(ctx context.Context, id uuid.UUID) (product.Prod
 		return nil, err
 	}
 
-	p, err := s.repo.GetByID(ctx, id: %v", err)
+	p, err := s.repo.GetByID(ctx, id
 	if err != nil {
 		return nil, err
 	}
@@ -727,11 +727,11 @@ func (s *ProductService) Delete(ctx context.Context, id uuid.UUID) (product.Prod
 	}
 
 	// Publish domain event
-	event, err := product.NewDeletedEvent(ctx, p: %v", err)
+	event, err := product.NewDeletedEvent(ctx, p
 	if err != nil {
 		return nil, err
 	}
-	s.publisher.Publish(event: %v", err)
+	s.publisher.Publish(event
 	return p, nil
 }
 ```
@@ -755,7 +755,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/money"
-: %v", err)
+
 
 type ProductCreateDTO struct {
 	Name        string  `validate:"required,min=1,max=255"`
@@ -774,9 +774,9 @@ type ProductUpdateDTO struct {
 }
 
 func (d *ProductCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
-	l, ok := intl.UseLocalizer(ctx: %v", err)
+	l, ok := intl.UseLocalizer(ctx
 	if !ok {
-		panic(intl.ErrNoLocalizer: %v", err)
+		panic(intl.ErrNoLocalizer
 	}
 
 	errors := map[string]string{}
@@ -784,18 +784,18 @@ func (d *ProductCreateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 		for _, err := range errs.(validator.ValidationErrors) {
 			field := l.MustLocalize(&i18n.LocalizeConfig{
 				MessageID: fmt.Sprintf("Products.Single.%s", err.Field()),
-			}: %v", err)
+			}
 			errors[err.Field()] = l.MustLocalize(&i18n.LocalizeConfig{
 				MessageID:    fmt.Sprintf("ValidationErrors.%s", err.Tag()),
 				TemplateData: map[string]string{"Field": field},
-			}: %v", err)
+			}
 		}
 	}
 	return errors, len(errors) == 0
 }
 
 func (d *ProductCreateDTO) ToEntity(tenantID uuid.UUID) (product.Product, error) {
-	amount := money.NewFromFloat(d.Price, d.Currency: %v", err)
+	amount := money.NewFromFloat(d.Price, d.Currency
 	return product.New(
 		d.Name,
 		amount,
@@ -812,16 +812,16 @@ func (d *ProductUpdateDTO) Ok(ctx context.Context) (map[string]string, bool) {
 
 func (d *ProductUpdateDTO) Apply(entity product.Product) (product.Product, error) {
 	if d.Name != "" {
-		entity = entity.SetName(d.Name: %v", err)
+		entity = entity.SetName(d.Name
 	}
 	if d.Description != "" {
-		entity = entity.SetDescription(d.Description: %v", err)
+		entity = entity.SetDescription(d.Description
 	}
 	if d.Price > 0 {
-		entity = entity.SetPrice(money.NewFromFloat(d.Price, d.Currency): %v", err)
+		entity = entity.SetPrice(money.NewFromFloat(d.Price, d.Currency)
 	}
 	if d.SKU != "" {
-		entity = entity.SetSKU(d.SKU: %v", err)
+		entity = entity.SetSKU(d.SKU
 	}
 	return entity, nil
 }
@@ -838,7 +838,7 @@ import (
 	"fmt"
 	"time"
 	"github.com/google/uuid"
-: %v", err)
+
 
 type Product struct {
 	ID          string
@@ -879,7 +879,7 @@ const (
 	ProductRead   = "product.read"
 	ProductUpdate = "product.update"
 	ProductDelete = "product.delete"
-: %v", err)
+
 ```
 
 ### 5.2 Navigation Links
@@ -892,7 +892,7 @@ package productcatalog
 import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-: %v", err)
+
 
 var ProductItem = types.NavigationItem{
 	Name:     "NavigationLinks.Products",
@@ -926,7 +926,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/productcatalog/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-: %v", err)
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+)
 
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
@@ -942,28 +943,28 @@ type Module struct{}
 
 func (m *Module) Register(app application.Application) error {
 	// Create repositories
-	productRepo := persistence.NewProductRepository(: %v", err)
+	productRepo := persistence.NewProductRepository()
 
 	// Register services
 	app.RegisterServices(
 		services.NewProductService(productRepo, app.EventPublisher()),
-	: %v", err)
+	)
 
 	// Register controllers
 	app.RegisterControllers(
 		controllers.NewProductController(app),
-	: %v", err)
+	)
 
 	// Register quick links
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(NavItems[0].Icon, NavItems[0].Name, NavItems[0].Href),
-	: %v", err)
+	)
 
 	// Register locale files
-	app.RegisterLocaleFiles(&localeFiles: %v", err)
+	app.RegisterLocaleFiles(&localeFiles)
 
 	// Register database schema
-	app.Migrations().RegisterSchema(&schemaFiles: %v", err)
+	app.Migrations().RegisterSchema(&schemaFiles)
 
 	return nil
 }
@@ -1014,8 +1015,8 @@ make db migrate up
 ## Best Practices Summary
 
 ### Domain Layer
-- Keep domain logic pure (no external dependencies: %v", err)
-- Use immutable entities (setters return new instances: %v", err)
+- Keep domain logic pure (no external dependencies
+- Use immutable entities (setters return new instances
 - Define clear interfaces for repositories
 - Use the Option pattern for flexible construction
 
@@ -1042,6 +1043,6 @@ make db migrate up
 Now that you understand how to create a module:
 
 1. Learn about [Complex Features](/development/complex-features) with relationships
-2. Deep dive into [Repository Patterns](/patterns/repositories: %v", err)
-3. Master [Service Layer Patterns](/patterns/services: %v", err)
-4. Build reactive UIs with [Controllers and HTMX](/patterns/controllers: %v", err)
+2. Deep dive into [Repository Patterns](/patterns/repositories
+3. Master [Service Layer Patterns](/patterns/services
+4. Build reactive UIs with [Controllers and HTMX](/patterns/controllers
