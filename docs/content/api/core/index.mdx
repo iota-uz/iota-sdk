@@ -1,0 +1,173 @@
+---
+title: 'Core API'
+description: 'GraphQL API reference for Core module'
+---
+
+# Core API
+
+This section documents the GraphQL API for the Core module.
+
+## Types
+
+### User
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| id | `ID!` | Unique identifier |
+| firstName | `String!` | User's first name |
+| lastName | `String!` | User's last name |
+| email | `String!` | User's email address |
+| uiLanguage | `String!` | Preferred UI language |
+| updatedAt | `Time!` | Last update timestamp |
+| createdAt | `Time!` | Creation timestamp |
+
+### PaginatedUsers
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| data | `[User!]!` | List of users |
+| total | `Int64!` | Total user count |
+
+### Upload
+
+Represents a file upload in the system.
+
+**Fields:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| id | `ID!` | Unique identifier |
+| filename | `String!` | Original filename |
+| url | `String!` | File access URL |
+| size | `Int64!` | File size in bytes |
+| mimeType | `String!` | MIME type |
+| createdAt | `Time!` | Upload timestamp |
+
+## Queries
+
+### user
+
+Fetch a single user by ID.
+
+```graphql
+user(id: ID!): User
+```
+
+### users
+
+Fetch a paginated list of users.
+
+```graphql
+users(offset: Int!, limit: Int!, sortBy: [Int!], ascending: Boolean!): PaginatedUsers!
+```
+
+**Arguments:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| offset | `Int!` | Pagination offset |
+| limit | `Int!` | Number of results to return |
+| sortBy | `[Int!]` | Sort field indices |
+| ascending | `Boolean!` | Sort direction |
+
+### me
+
+Get the currently authenticated user.
+
+```graphql
+me: User
+```
+
+### upload
+
+Fetch a single upload by ID.
+
+```graphql
+upload(id: ID!): Upload
+```
+
+### uploads
+
+Fetch a list of uploads.
+
+```graphql
+uploads: [Upload!]!
+```
+
+## Mutations
+
+### createUser
+
+Create a new user.
+
+```graphql
+createUser(input: CreateUserInput!): User!
+```
+
+### updateUser
+
+Update an existing user.
+
+```graphql
+updateUser(id: ID!, input: UpdateUserInput!): User!
+```
+
+### deleteUser
+
+Delete a user.
+
+```graphql
+deleteUser(id: ID!): Boolean!
+```
+
+### createUpload
+
+Upload a new file.
+
+```graphql
+createUpload(file: Upload!): Upload!
+```
+
+### login
+
+Authenticate a user.
+
+```graphql
+login(email: String!, password: String!): AuthPayload!
+```
+
+### logout
+
+End user session.
+
+```graphql
+logout: Boolean!
+```
+
+## Subscriptions
+
+### counter
+
+Real-time counter for testing subscriptions.
+
+```graphql
+counter: Int!
+```
+
+## Scalars
+
+### Time
+
+ISO 8601 timestamp.
+
+### Int64
+
+64-bit integer for large numbers.
+
+---
+
+*This documentation is auto-generated from GraphQL schema files. Last updated: 2026-01-31*
