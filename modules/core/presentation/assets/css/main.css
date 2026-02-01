@@ -868,6 +868,11 @@
     opacity: 1;
   }
 
+  /* Sidebar width styles */
+  .sidebar-expanded {
+    width: 280px;
+  }
+
   /* Sidebar collapsed styles */
   .sidebar-collapsed {
     width: 4rem !important;
@@ -933,6 +938,26 @@
   .btn-sidebar-toggle:hover {
     --text-color: var(--gray-400);
     --bg-color: var(--gray-100);
+  }
+
+  /* Sidebar click-to-toggle cursor styles */
+  .sidebar-expand-cursor {
+    cursor: e-resize;
+  }
+
+  .sidebar-collapse-cursor {
+    cursor: w-resize;
+  }
+
+  .sidebar-expand-cursor a,
+  .sidebar-expand-cursor button,
+  .sidebar-expand-cursor summary,
+  .sidebar-expand-cursor [role="button"],
+  .sidebar-collapse-cursor a,
+  .sidebar-collapse-cursor button,
+  .sidebar-collapse-cursor summary,
+  .sidebar-collapse-cursor [role="button"] {
+    cursor: pointer;
   }
 }
 

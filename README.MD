@@ -70,6 +70,28 @@ various industries. Here's what's in the pipeline:
 
 ## 🛠️ Developer Tools
 
+### Automated Tool Installation
+
+Install all required development tools with a single command:
+
+```bash
+make install-tools
+```
+
+This installs the following tools with correct versions:
+- **templ** v0.3.857 - Template engine
+- **air** v1.61.5 - Hot reload for Go applications
+- **goimports** - Go imports organizer
+- **golangci-lint** v1.64.8 - Go linter
+- **TailwindCSS** v3.4.13 - Standalone CSS CLI
+- **cloudflared** - Cloudflare tunnel client
+
+The script automatically detects your OS (macOS/Linux) and architecture, downloads binaries, creates symlinks, and configures your PATH.
+
+**Prerequisites:** Go and Homebrew (macOS only) must be installed first.
+
+For full setup instructions, see the [Installation Guide](https://iota-uz.github.io/iota-sdk/getting-started/installation.html).
+
 ### DevHub CLI
 
 DevHub is a powerful Terminal User Interface (TUI) for managing development services. It provides centralized control over all your project's services from a single interface.
