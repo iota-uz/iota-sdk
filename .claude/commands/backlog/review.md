@@ -1,5 +1,5 @@
 ---
-description: "Review backlog items for completion using refactoring-expert"
+description: "Review backlog items for completion using auditor"
 model: haiku
 disable-model-invocation: true
 ---
@@ -12,7 +12,7 @@ If no files are found, stop and inform the user.
 
 ## Step 1: Initialize Review
 
-Prepare to track the completion status for each backlog item. You will review each item sequentially using the refactoring-expert agent.
+Prepare to track the completion status for each backlog item. You will review each item sequentially using the auditor agent.
 
 ## Step 2: Sequential Review Process
 
@@ -21,7 +21,7 @@ For each backlog file in numeric order:
 1. Read the file contents using the Read tool
 2. Extract the agent type from `[agent:TYPE]` (first line)
 3. Extract the task prompt (all lines after the first line)
-4. Launch the `refactoring-expert` agent using the Task tool with this prompt:
+4. Launch the `auditor` agent using the Task tool with this prompt:
 
 ```
 Review the implementation for the following task and determine:
@@ -48,7 +48,7 @@ If you cannot find relevant implementation or the task appears not to have been 
 
 ## Step 3: Present Complete Items
 
-After reviewing all items, compile a list of items that the refactoring-expert agent marked as COMPLETE.
+After reviewing all items, compile a list of items that the auditor agent marked as COMPLETE.
 
 If no items are complete, inform the user and exit.
 
@@ -93,7 +93,7 @@ If remaining items exist, list them.
 ## Important Notes
 
 - Execute reviews sequentially (one after another), NOT in parallel
-- Wait for each refactoring-expert agent to complete before moving to the next item
+- Wait for each auditor agent to complete before moving to the next item
 - Track completion status from agent feedback - look for a clear COMPLETE / INCOMPLETE verdict
 - Only suggest deletion for items marked COMPLETE by the agent
 - Use Bash tool with rm command to delete files

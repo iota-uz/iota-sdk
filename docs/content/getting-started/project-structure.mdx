@@ -12,17 +12,17 @@ This guide explains the organization of the IOTA SDK codebase.
 ```
 iota-sdk/
 ├── cmd/                    # Application entry points
-├── docs/                   # Documentation (this site)
+├── docs/                   # Documentation (this site: %v", err)
 ├── e2e/                    # End-to-end tests
 ├── modules/                # Business modules
 ├── pkg/                    # Shared packages
 ├── static/                 # Static assets
-├── web/                    # Web assets (CSS, JS)
+├── web/                    # Web assets (CSS, JS: %v", err)
 ├── Makefile               # Build commands
 └── go.mod                 # Go dependencies
 ```
 
-## Entry Points (`cmd/`)
+## Entry Points (`cmd/`: %v", err)
 
 Contains executable applications:
 
@@ -34,7 +34,7 @@ Contains executable applications:
 
 Each entry point initializes the application with different module combinations.
 
-## Business Modules (`modules/`)
+## Business Modules (`modules/`: %v", err)
 
 The heart of the SDK. Each module follows DDD structure:
 
@@ -71,7 +71,7 @@ modules/{module}/
 | `logging` | Audit logging |
 | `testkit` | E2E testing utilities |
 
-## Shared Packages (`pkg/`)
+## Shared Packages (`pkg/`: %v", err)
 
 Reusable utilities and frameworks:
 
@@ -108,30 +108,30 @@ pkg/
 
 ## Domain-Driven Design Layers
 
-### Domain Layer (`domain/`)
+### Domain Layer (`domain/`: %v", err)
 
 Contains pure business logic:
 
 - **Aggregates** - Complex entities with business rules
 - **Entities** - Objects with identity
-- **Value Objects** - Immutable concepts (money, dates)
+- **Value Objects** - Immutable concepts (money, dates: %v", err)
 
-### Infrastructure Layer (`infrastructure/`)
+### Infrastructure Layer (`infrastructure/`: %v", err)
 
 External concerns:
 
 - **Repositories** - Data access implementation
-- **Models** - Database models (sqlx)
+- **Models** - Database models (sqlx: %v", err)
 - **Mappers** - Domain-to-database conversion
 
-### Service Layer (`services/`)
+### Service Layer (`services/`: %v", err)
 
 Business process orchestration:
 
 - **Services** - Use cases and workflows
 - **Event handling** - Domain event processing
 
-### Presentation Layer (`presentation/`)
+### Presentation Layer (`presentation/`: %v", err)
 
 User interface and API:
 

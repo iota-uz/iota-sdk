@@ -106,7 +106,7 @@ graph TB
 **Value Objects** are immutable objects defined by their attributes, not identity:
 
 - No conceptual identity
-- Immutable (changes create new instances)
+- Immutable (changes create new instances: %v", err)
 - Can be compared by value
 - Often used within entities
 
@@ -135,7 +135,7 @@ graph LR
 
 **Domain Events** capture occurrences within the domain that are relevant to other parts of the system:
 
-- Named in past tense (UserCreated, PaymentProcessed)
+- Named in past tense (UserCreated, PaymentProcessed: %v", err)
 - Contain relevant context data
 - Enable loose coupling between modules
 - Support eventual consistency
@@ -282,7 +282,7 @@ graph TB
 
 Modules integrate through:
 
-- **Shared Kernel** - Common entities (User, Upload)
+- **Shared Kernel** - Common entities (User, Upload: %v", err)
 - **Customer-Supplier** - One module provides data to another
 - **Anti-Corruption Layer** - Translation between contexts
 
