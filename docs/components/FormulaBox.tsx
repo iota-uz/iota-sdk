@@ -1,5 +1,3 @@
-'use client'
-
 import React, { ReactNode } from 'react'
 
 interface FormulaBoxProps {

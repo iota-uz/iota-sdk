@@ -17,9 +17,14 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   // Load from localStorage on mount
   useEffect(() => {
     setMounted(true)
-    const stored = localStorage.getItem(STORAGE_KEY) as Environment | null
-    if (stored && ['production', 'staging', 'pre-production'].includes(stored)) {
-      setEnvironmentState(stored)
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY) as Environment | null
+      if (stored && ['production', 'staging', 'pre-production'].includes(stored)) {
+        setEnvironmentState(stored)
+      }
+    } catch (error) {
+      // Silently handle localStorage errors (e.g., in private browsing mode)
+      console.error('Failed to read from localStorage:', error)
     }
   }, [])
 
@@ -27,7 +32,12 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const setEnvironment = (env: Environment) => {
     setEnvironmentState(env)
     if (mounted) {
-      localStorage.setItem(STORAGE_KEY, env)
+      try {
+        localStorage.setItem(STORAGE_KEY, env)
+      } catch (error) {
+        // Silently handle localStorage errors (e.g., in private browsing mode)
+        console.error('Failed to write to localStorage:', error)
+      }
     }
   }
 
@@ -52,7 +62,7 @@ export function EnvironmentProvider({ children }: { children: ReactNode }) {
         : type
 
     // Get base URL for current environment
-    const baseUrl = ENV_URLS[environment as Environment][linkType]
+    const baseUrl = ENV_URLS[environment][linkType]
 
     // If pre-production (empty baseUrl), return # to disable
     if (!baseUrl) {

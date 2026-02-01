@@ -1,11 +1,11 @@
 ---
-title: 'Superadmin Module'
+title: 'SuperAdmin Module'
 description: 'Platform-wide administration for multi-tenant management'
 ---
 
-# Superadmin Module
+# SuperAdmin Module
 
-The Superadmin module provides platform-wide administration capabilities for managing multiple tenants and viewing cross-tenant analytics.
+The SuperAdmin module provides platform-wide administration capabilities for managing multiple tenants and viewing cross-tenant analytics. This module is deployed on port 4000 (cmd/superadmin/main.go) and is restricted to superadmin users only. All SuperAdmin routes must be protected with RequireSuperAdmin() middleware.
 
 ## Purpose
 

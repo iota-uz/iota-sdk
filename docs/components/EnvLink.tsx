@@ -21,7 +21,7 @@ export function EnvLink({ href, children, type = 'auto', className }: EnvLinkPro
   if (isDisabled) {
     return (
       <span
-        className={`${className} opacity-50 cursor-not-allowed`}
+        className={`${className || ''} opacity-50 cursor-not-allowed`}
         title="This feature is not yet available in pre-production"
       >
         {children}
