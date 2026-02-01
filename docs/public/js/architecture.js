@@ -1,4 +1,4 @@
-// EAI System Architecture - Interactive Cytoscape.js Diagram
+// System Architecture - Interactive Cytoscape.js Diagram
 document.addEventListener('DOMContentLoaded', function() {
   const container = document.getElementById('cy');
   if (!container) return;
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
       { data: { id: 'preprod-env', label: 'Pre-Production Environment (Railway)', type: 'compound', env: 'railway' } },
 
       // Production Environment
-      { data: { id: 'production', label: 'On-Premise Production EAI', type: 'compound', env: 'onprem' } },
+      { data: { id: 'production', label: 'On-Premise Production', type: 'compound', env: 'onprem' } },
 
       // Next.js Replicas (nested inside production)
       { data: { id: 'next-replicas', label: 'Next.js Replicas', type: 'compound', parent: 'production' } },
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function() {
       { data: { id: 'rag-services', label: 'RAG Services (Railway)', type: 'compound', env: 'railway' } },
 
       // On-premise Legacy
-      { data: { id: 'onprem-legacy', label: 'On-premise (inside EAI building)', type: 'compound', env: 'onprem' } },
+      { data: { id: 'onprem-legacy', label: 'On-premise Legacy Systems', type: 'compound', env: 'onprem' } },
 
       // Monitoring Stack
       { data: { id: 'monitoring', label: 'Monitoring Stack (Railway)', type: 'compound', env: 'railway' } },
@@ -215,14 +215,14 @@ document.addEventListener('DOMContentLoaded', function() {
       { data: { source: 'mobile-app', target: 'traefik' } },
 
       // ==================== PRODUCTION ROUTING ====================
-      { data: { source: 'traefik', target: 'nr3', label: 'eai.uz' } },
-      { data: { source: 'traefik', target: 'go-be', label: 'erp.eai.uz' } },
+      { data: { source: 'traefik', target: 'nr3', label: 'example.com' } },
+      { data: { source: 'traefik', target: 'go-be', label: 'erp.example.com' } },
       { data: { source: 'nr3', target: 'go-be', label: 'API Requests' } },
       { data: { source: 'go-be', target: 'prod-db', label: 'Reads/Writes' } },
 
       // ==================== PRODUCTION SERVICES CONNECTIONS ====================
       { data: { source: 'end-user-tg', target: 'tg-bot', label: 'Interacts with' } },
-      { data: { source: 'tg-bot', target: 'go-be', label: 'erp.eai.uz' } },
+      { data: { source: 'tg-bot', target: 'go-be', label: 'erp.example.com' } },
       { data: { source: 'redis', target: 'go-be', label: 'Manages Sessions' } },
 
       // ==================== RAG SERVICES CONNECTIONS ====================
