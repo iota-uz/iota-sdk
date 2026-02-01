@@ -1,6 +1,8 @@
-@import "tailwindcss";
+/* Import shared design tokens from @iotauz/design-tokens package */
+/* Note: Using relative path for local development */
+@import "../../../../../packages/design-tokens/index.css";
 
-/* Content paths relative to CSS file location */
+/* SDK-specific content sources */
 @source "../../../../../modules/**/templates/**/*.templ";
 @source "../../../../../modules/**/templates/**/*.html";
 @source "../../../../../modules/**/templates/**/*.js";
