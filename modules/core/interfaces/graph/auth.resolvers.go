@@ -35,10 +35,11 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 		Name:     conf.SidCookieKey,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
-		HttpOnly: false,
-		SameSite: http.SameSiteDefaultMode,
-		Secure:   false,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   conf.GoAppEnvironment == configuration.Production,
 		Domain:   conf.Domain,
+		Path:     "/",
 	}
 	http.SetCookie(writer, cookie)
 	return mappers.SessionToGraphModel(sess), nil

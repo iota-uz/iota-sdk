@@ -31,6 +31,7 @@ type Repository interface {
 	GetByTokenAndAudience(ctx context.Context, token string, audience SessionAudience) (Session, error)
 	Create(ctx context.Context, user Session) error
 	Update(ctx context.Context, user Session) error
+	UpdateStatus(ctx context.Context, id uint, status SessionStatus) error
 	Delete(ctx context.Context, token string) error
 	DeleteByUserId(ctx context.Context, userId uint) ([]Session, error)
 }

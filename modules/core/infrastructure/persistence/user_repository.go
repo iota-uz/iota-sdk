@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var (
@@ -42,7 +43,10 @@ const (
             u.block_reason,
             u.blocked_at,
             u.blocked_by,
-            u.blocked_by_tenant_id
+            u.blocked_by_tenant_id,
+            u.two_factor_method,
+            u.totp_secret_encrypted,
+            u.two_factor_enabled_at
         FROM users u`
 
 	userCountQuery = `SELECT COUNT(u.id) FROM users u`
@@ -570,6 +574,43 @@ func (g *PgUserRepository) UpdateLastAction(ctx context.Context, id uint) error 
 	return nil
 }
 
+func (g *PgUserRepository) Update2FASettings(ctx context.Context, userID uint, dto user.Update2FADTO) error {
+	const op serrors.Op = "PgUserRepository.Update2FASettings"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	query := `
+		UPDATE users
+		SET two_factor_method = $1,
+			totp_secret_encrypted = $2,
+			two_factor_enabled_at = $3
+		WHERE id = $4 AND tenant_id = $5`
+
+	_, err = tx.Exec(
+		ctx,
+		query,
+		string(dto.Method),
+		dto.TOTPSecretEncrypted,
+		dto.EnabledAt,
+		userID,
+		tenantID.String(),
+	)
+
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	return nil
+}
+
 func (g *PgUserRepository) Delete(ctx context.Context, id uint) error {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -629,6 +670,9 @@ func (g *PgUserRepository) queryUsers(ctx context.Context, query string, args ..
 			&u.BlockedAt,
 			&u.BlockedBy,
 			&u.BlockedByTenantID,
+			&u.TwoFactorMethod,
+			&u.TOTPSecretEncrypted,
+			&u.TwoFactorEnabledAt,
 		); err != nil {
 			return nil, errors.Wrap(err, "failed to scan user row")
 		}

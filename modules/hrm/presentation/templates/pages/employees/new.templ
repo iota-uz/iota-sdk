@@ -19,10 +19,10 @@ type CreatePageProps struct {
 
 templ CreateForm(props *CreatePageProps) {
 	{{
-	sharedProps := SharedProps{
-		Employee: props.Employee,
-		Errors:   props.Errors,
-	}
+		sharedProps := SharedProps{
+			Employee: props.Employee,
+			Errors:   props.Errors,
+		}
 	}}
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form

@@ -351,9 +351,7 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 }
 
 templ Index(props *IndexPageProps) {
-	{{
-		pageCtx := composables.UsePageCtx(ctx)
-	}}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Chats.Meta.Title")},
 	}) {

@@ -10,6 +10,17 @@ import (
 // SessionAudience represents the audience/context for which the session is valid
 type SessionAudience string
 
+// SessionStatus represents the status of a session
+type SessionStatus string
+
+const (
+	// StatusActive indicates the session is active and valid
+	StatusActive SessionStatus = "active"
+
+	// StatusPending2FA indicates the session is pending 2FA verification
+	StatusPending2FA SessionStatus = "pending_2fa"
+)
+
 // Option is a functional option for configuring Session
 type Option func(*session)
 
@@ -33,6 +44,12 @@ func WithAudience(audience SessionAudience) Option {
 	}
 }
 
+func WithStatus(status SessionStatus) Option {
+	return func(s *session) {
+		s.status = status
+	}
+}
+
 // --- Interface ---
 
 // Session represents a user session
@@ -45,8 +62,11 @@ type Session interface {
 	ExpiresAt() time.Time
 	CreatedAt() time.Time
 	Audience() SessionAudience
+	Status() SessionStatus
 
 	IsExpired() bool
+	IsPending() bool
+	IsActive() bool
 }
 
 // --- Implementation ---
@@ -62,6 +82,7 @@ func New(token string, userID uint, tenantID uuid.UUID, ip, userAgent string, op
 		expiresAt: time.Now().Add(configuration.Use().SessionDuration),
 		createdAt: time.Now(),
 		audience:  "",
+		status:    StatusActive,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -78,6 +99,7 @@ type session struct {
 	expiresAt time.Time
 	createdAt time.Time
 	audience  SessionAudience
+	status    SessionStatus
 }
 
 func (s *session) Token() string {
@@ -112,8 +134,20 @@ func (s *session) Audience() SessionAudience {
 	return s.audience
 }
 
+func (s *session) Status() SessionStatus {
+	return s.status
+}
+
 func (s *session) IsExpired() bool {
 	return s.expiresAt.Before(time.Now())
+}
+
+func (s *session) IsPending() bool {
+	return s.status == StatusPending2FA
+}
+
+func (s *session) IsActive() bool {
+	return s.status == StatusActive && !s.IsExpired()
 }
 
 // --- DTOs ---
@@ -125,12 +159,18 @@ type CreateDTO struct {
 	IP        string
 	UserAgent string
 	Audience  SessionAudience
+	Status    SessionStatus
 }
 
 func (d *CreateDTO) ToEntity() Session {
 	opts := []Option{}
 	if d.Audience != "" {
 		opts = append(opts, WithAudience(d.Audience))
+	}
+	if d.Status == "" {
+		opts = append(opts, WithStatus(StatusActive))
+	} else {
+		opts = append(opts, WithStatus(d.Status))
 	}
 	return New(d.Token, d.UserID, d.TenantID, d.IP, d.UserAgent, opts...)
 }

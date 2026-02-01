@@ -53,7 +53,7 @@ templ SearchFields(fields []SearchField) {
 // Search renders a search input with field selection.
 // It includes a search icon and allows selecting which field to search on.
 templ Search(fields []SearchField) {
-	{{ 	pageCtx := composables.UsePageCtx(ctx) }}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@input.Text(&input.Props{
 		AddonLeft: &input.Addon{
 			Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),

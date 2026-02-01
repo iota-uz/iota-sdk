@@ -94,9 +94,10 @@ templ PermissionSet(props PermissionSetProps) {
 						<button type="button" class="flex items-center justify-between w-full" @click="toggleAll()">
 							<span class="text-sm">{ label }</span>
 							{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
-							{{if props.Set.Checked {
-	toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
-}
+							{{
+								if props.Set.Checked {
+									toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
+								}
 							}}
 							<div id={ fmt.Sprintf("toggle-visual-%s", setId) } class={ fmt.Sprintf("relative w-11 h-6 rounded-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all %s", toggleClasses) }></div>
 						</button>
@@ -183,9 +184,10 @@ templ ResourceGroup(props ResourceGroupProps) {
 			<button type="button" class="flex items-center justify-between w-full font-medium text-lg cursor-pointer" @click="toggleAll()">
 				<span>{ props.PageContext.T(fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)) }</span>
 				{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
-				{{if allChecked {
-	toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
-}
+				{{
+					if allChecked {
+						toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
+					}
 				}}
 				<div
 					id={ fmt.Sprintf("toggle-visual-%d", props.GroupIndex) }
