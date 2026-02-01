@@ -1,0 +1,218 @@
+---
+title: 'Billing Module'
+description: 'Payment processing with multiple providers and webhook handling'
+---
+
+# Billing Module
+
+The Billing module provides payment processing capabilities with support for multiple payment providers and webhook integration.
+
+## Purpose
+
+This module handles:
+- Payment transaction processing
+- Multiple payment provider integration
+- Webhook handling for payment notifications
+- Transaction status tracking
+- Payment reconciliation
+
+## Key Concepts
+
+### BillingTransaction
+
+Payment transaction entity:
+- **Provider** - Payment provider used
+- **Amount** - Transaction amount
+- **Currency** - Transaction currency
+- **Status** - Pending, Completed, Failed, Refunded
+- **External ID** - Provider's transaction reference
+- **Metadata** - Provider-specific data
+
+### Payment Providers
+
+Supported payment gateways:
+
+| Provider | Region | Type |
+|----------|--------|------|
+| **Click** | Uzbekistan | Local payment |
+| **Payme** | Uzbekistan | Local payment |
+| **Octo** | International | Payment aggregator |
+| **Stripe** | International | Credit cards, global |
+
+### Webhooks
+
+Provider notification system:
+- **Payment completion** - Success notifications
+- **Payment failure** - Error notifications
+- **Refunds** - Refund confirmations
+- **Signature verification** - Security validation
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph "Billing Module Architecture"
+        A[Controllers] --> B[Services]
+        B --> C[Domain Layer]
+        C --> D[Repositories]
+        D --> E[(Database)]
+        
+        subgraph "Payment Providers"
+            F[Click Provider]
+            G[Payme Provider]
+            H[Octo Provider]
+            I[Stripe Provider]
+        end
+        
+        subgraph "Webhooks"
+            J[Click Webhook]
+            K[Payme Webhook]
+            L[Octo Webhook]
+            M[Stripe Webhook]
+        end
+    end
+    
+    B --> F
+    B --> G
+    B --> H
+    B --> I
+    
+    J --> B
+    K --> B
+    L --> B
+    M --> B
+```
+
+## Payment Flow
+
+### Initiating Payment
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant BillingService
+    participant Provider
+    participant Webhook
+    participant Database
+    
+    Client->>BillingService: Create payment request
+    BillingService->>Database: Create transaction (Pending)
+    BillingService->>Provider: Initialize payment
+    Provider-->>BillingService: Payment URL/Token
+    BillingService-->>Client: Redirect to payment
+    
+    Note over Client,Provider: User completes payment
+    
+    Provider->>Webhook: Payment completion
+    Webhook->>BillingService: Process notification
+    BillingService->>Database: Update status (Completed)
+    BillingService->>BillingService: Publish event
+```
+
+## Components
+
+### Transactions
+
+Transaction management:
+- Create payment requests
+- Track transaction status
+- Handle refunds
+- Reconcile with providers
+
+### Provider Integration
+
+Provider-specific handling:
+- **Click** - Uzbek payment system
+- **Payme** - Another Uzbek provider
+- **Octo** - Aggregator with multiple methods
+- **Stripe** - International credit cards
+
+### Webhook Controllers
+
+Secure webhook endpoints:
+- Signature verification
+- Idempotency handling
+- Event processing
+- Error recovery
+
+### Reconciliation
+
+Payment matching:
+- Compare transactions with provider reports
+- Identify discrepancies
+- Handle missing notifications
+
+## API Reference
+
+### REST Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/billing/transactions` | GET | List transactions |
+| `/billing/transactions` | POST | Create transaction |
+| `/billing/webhooks/click` | POST | Click webhook |
+| `/billing/webhooks/payme` | POST | Payme webhook |
+| `/billing/webhooks/octo` | POST | Octo webhook |
+| `/billing/webhooks/stripe` | POST | Stripe webhook |
+
+### Provider APIs
+
+Each provider has specific integration endpoints for:
+- Payment initialization
+- Status checking
+- Refund processing
+- webhook configuration
+
+## Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `billing.transactions.view` | View transactions |
+| `billing.transactions.create` | Create payments |
+| `billing.transactions.refund` | Process refunds |
+| `billing.providers.manage` | Configure providers |
+| `billing.webhooks.receive` | Webhook access |
+
+## Integration
+
+### Finance Module
+- Payment recording
+- Account balance updates
+- Transaction reconciliation
+
+### Events
+
+| Event | Description |
+|-------|-------------|
+| `PaymentInitiated` | Payment started |
+| `PaymentCompleted` | Payment successful |
+| `PaymentFailed` | Payment error |
+| `PaymentRefunded` | Refund processed |
+| `WebhookReceived` | Provider notification |
+
+## Configuration
+
+### Provider Settings
+
+Each provider requires:
+- **API credentials** - Keys and secrets
+- **Webhook URL** - Endpoint configuration
+- **Environment** - Sandbox or production
+- **Supported currencies** - Currency restrictions
+
+### Security
+
+Webhook security measures:
+- **Signature verification** - HMAC validation
+- **IP whitelisting** - Provider IP restrictions
+- **Replay protection** - Idempotency keys
+- **TLS encryption** - HTTPS only
+
+## Best Practices
+
+1. **Idempotency** - Handle duplicate webhooks gracefully
+2. **Logging** - Log all provider interactions
+3. **Reconciliation** - Regular transaction matching
+4. **Error handling** - Retry failed webhooks
+5. **Testing** - Use sandbox environments
+6. **Monitoring** - Track payment success rates
