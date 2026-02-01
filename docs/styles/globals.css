@@ -1,0 +1,4 @@
+@import "tailwindcss";
+
+/* Configure dark mode to use .dark class (nextra-theme-docs pattern) */
+@custom-variant dark (&:where(.dark, .dark *));

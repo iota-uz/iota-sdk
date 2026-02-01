@@ -8,14 +8,17 @@ deps:
 
 # Documentation management with subcommands (serve, install)
 docs:
-	@if [ "$(word 2,$(MAKECMDGOALS))" = "serve" ]; then \
-		cd docs && bundle exec jekyll serve --livereload; \
+	@if [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
+		cd docs && pnpm dev; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "build" ]; then \
+		cd docs && pnpm build; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "install" ]; then \
-		cd docs && bundle install; \
+		cd docs && pnpm install; \
 	else \
-		echo "Usage: make docs [serve|install]"; \
-		echo "  serve   - Start local Jekyll server with live reload"; \
-		echo "  install - Install Ruby/Jekyll dependencies"; \
+		echo "Usage: make docs [dev|build|install]"; \
+		echo "  dev     - Start local Nextra dev server on port 4000"; \
+		echo "  build   - Build static site to docs/out/"; \
+		echo "  install - Install Node.js/pnpm dependencies"; \
 	fi
 
 # Template generation with optional subcommands (generate, watch)
