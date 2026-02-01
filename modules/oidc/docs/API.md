@@ -1,0 +1,397 @@
+# OIDC API Documentation
+
+This document describes all OIDC endpoints provided by the IOTA SDK OIDC module.
+
+## Table of Contents
+
+- [Discovery Endpoint](#discovery-endpoint)
+- [Authorization Endpoint](#authorization-endpoint)
+- [Token Endpoint](#token-endpoint)
+- [UserInfo Endpoint](#userinfo-endpoint)
+- [JWKS Endpoint](#jwks-endpoint)
+- [Token Revocation Endpoint](#token-revocation-endpoint)
+- [Error Responses](#error-responses)
+
+---
+
+## Discovery Endpoint
+
+### `GET /.well-known/openid-configuration`
+
+Returns OpenID Connect discovery document.
+
+**Request:**
+```bash
+curl https://your-domain.com/.well-known/openid-configuration
+```
+
+**Response:**
+```json
+{
+  "issuer": "https://your-domain.com",
+  "authorization_endpoint": "https://your-domain.com/oidc/authorize",
+  "token_endpoint": "https://your-domain.com/oidc/token",
+  "userinfo_endpoint": "https://your-domain.com/oidc/userinfo",
+  "jwks_uri": "https://your-domain.com/oidc/keys",
+  "revocation_endpoint": "https://your-domain.com/oidc/revoke",
+  "response_types_supported": ["code"],
+  "grant_types_supported": ["authorization_code", "refresh_token"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"],
+  "scopes_supported": ["openid", "profile", "email", "offline_access"],
+  "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
+  "code_challenge_methods_supported": ["S256", "plain"]
+}
+```
+
+---
+
+## Authorization Endpoint
+
+### `GET /oidc/authorize`
+
+Initiates the authorization code flow.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `client_id` | string | Yes | OAuth2 client identifier |
+| `redirect_uri` | string | Yes | Callback URI (must match registered URI) |
+| `response_type` | string | Yes | Must be `code` |
+| `scope` | string | Yes | Space-separated list of scopes (`openid` required) |
+| `state` | string | Recommended | Opaque value to maintain state |
+| `nonce` | string | Optional | Random value for ID token validation |
+| `code_challenge` | string | Conditional | PKCE code challenge (required if client uses PKCE) |
+| `code_challenge_method` | string | Conditional | PKCE method: `S256` or `plain` |
+
+**Example (without PKCE):**
+```bash
+curl -X GET "https://your-domain.com/oidc/authorize?\
+client_id=my-client-id&\
+redirect_uri=http://localhost:3000/callback&\
+response_type=code&\
+scope=openid%20profile%20email&\
+state=random-state-123"
+```
+
+**Example (with PKCE):**
+```bash
+# Generate code verifier
+CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-43)
+
+# Generate code challenge
+CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr -d "=+/" | tr -d "\n")
+
+curl -X GET "https://your-domain.com/oidc/authorize?\
+client_id=my-client-id&\
+redirect_uri=http://localhost:3000/callback&\
+response_type=code&\
+scope=openid%20profile%20email&\
+state=random-state-123&\
+code_challenge=$CODE_CHALLENGE&\
+code_challenge_method=S256"
+```
+
+**Success Response:**
+
+User is redirected to login page. After successful authentication:
+
+```
+HTTP/1.1 302 Found
+Location: http://localhost:3000/callback?code=AUTH_CODE&state=random-state-123
+```
+
+**Error Responses:**
+
+```
+# Invalid redirect URI
+HTTP/1.1 400 Bad Request
+{
+  "error": "invalid_request",
+  "error_description": "Invalid redirect_uri"
+}
+
+# Missing required parameter
+Location: http://localhost:3000/callback?error=invalid_request&error_description=Missing+client_id&state=random-state-123
+```
+
+---
+
+## Token Endpoint
+
+### `POST /oidc/token`
+
+Exchanges authorization code for tokens.
+
+**Request Headers:**
+```
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic base64(client_id:client_secret)
+```
+
+**Request Body Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `grant_type` | string | Yes | `authorization_code` or `refresh_token` |
+| `code` | string | Conditional | Authorization code (required for `authorization_code` grant) |
+| `redirect_uri` | string | Conditional | Must match the redirect_uri from authorization request |
+| `code_verifier` | string | Conditional | PKCE code verifier (if PKCE was used) |
+| `refresh_token` | string | Conditional | Refresh token (required for `refresh_token` grant) |
+| `scope` | string | Optional | Requested scopes (for refresh token grant) |
+
+**Example (Authorization Code Grant):**
+```bash
+curl -X POST https://your-domain.com/oidc/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -u "my-client-id:my-client-secret" \
+  -d "grant_type=authorization_code" \
+  -d "code=AUTH_CODE" \
+  -d "redirect_uri=http://localhost:3000/callback"
+```
+
+**Example (Authorization Code Grant with PKCE):**
+```bash
+curl -X POST https://your-domain.com/oidc/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=authorization_code" \
+  -d "client_id=my-client-id" \
+  -d "code=AUTH_CODE" \
+  -d "redirect_uri=http://localhost:3000/callback" \
+  -d "code_verifier=$CODE_VERIFIER"
+```
+
+**Example (Refresh Token Grant):**
+```bash
+curl -X POST https://your-domain.com/oidc/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -u "my-client-id:my-client-secret" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=REFRESH_TOKEN"
+```
+
+**Success Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "scope": "openid profile email"
+}
+```
+
+**Error Responses:**
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "Authorization code has expired"
+}
+
+{
+  "error": "invalid_client",
+  "error_description": "Client authentication failed"
+}
+```
+
+---
+
+## UserInfo Endpoint
+
+### `GET /oidc/userinfo`
+
+Returns user profile information.
+
+**Request Headers:**
+```
+Authorization: Bearer ACCESS_TOKEN
+```
+
+**Example:**
+```bash
+curl -X GET https://your-domain.com/oidc/userinfo \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**Success Response:**
+```json
+{
+  "sub": "user-123",
+  "name": "John Doe",
+  "given_name": "John",
+  "family_name": "Doe",
+  "email": "john.doe@example.com",
+  "email_verified": true,
+  "picture": "https://example.com/avatars/john.jpg",
+  "updated_at": 1638360000
+}
+```
+
+**Error Responses:**
+```json
+{
+  "error": "invalid_token",
+  "error_description": "Access token is expired"
+}
+```
+
+---
+
+## JWKS Endpoint
+
+### `GET /oidc/keys`
+
+Returns JSON Web Key Set for token verification.
+
+**Example:**
+```bash
+curl https://your-domain.com/oidc/keys
+```
+
+**Response:**
+```json
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "use": "sig",
+      "kid": "key-id-123",
+      "alg": "RS256",
+      "n": "xGOr-H7A...",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+
+---
+
+## Token Revocation Endpoint
+
+### `POST /oidc/revoke`
+
+Revokes an access token or refresh token.
+
+**Request Headers:**
+```
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic base64(client_id:client_secret)
+```
+
+**Request Body Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `token` | string | Yes | Token to revoke (access or refresh token) |
+| `token_type_hint` | string | Optional | `access_token` or `refresh_token` |
+
+**Example:**
+```bash
+curl -X POST https://your-domain.com/oidc/revoke \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -u "my-client-id:my-client-secret" \
+  -d "token=REFRESH_TOKEN" \
+  -d "token_type_hint=refresh_token"
+```
+
+**Success Response:**
+```
+HTTP/1.1 200 OK
+```
+
+---
+
+## Error Responses
+
+All endpoints return standard OAuth 2.0 error responses:
+
+### Common Error Codes
+
+| Error Code | Description |
+|------------|-------------|
+| `invalid_request` | Missing or invalid parameters |
+| `invalid_client` | Client authentication failed |
+| `invalid_grant` | Invalid authorization code or refresh token |
+| `unauthorized_client` | Client not authorized for this grant type |
+| `unsupported_grant_type` | Grant type not supported |
+| `invalid_scope` | Requested scope is invalid or exceeds granted scope |
+| `server_error` | Internal server error |
+| `temporarily_unavailable` | Server is temporarily unable to handle the request |
+
+### Error Response Format
+
+```json
+{
+  "error": "error_code",
+  "error_description": "Human-readable error description",
+  "error_uri": "https://docs.example.com/errors/error_code"
+}
+```
+
+---
+
+## PKCE Flow Example
+
+Complete PKCE flow from start to finish:
+
+```bash
+#!/bin/bash
+
+# Step 1: Generate code verifier and challenge
+CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-43)
+CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr -d "=+/" | tr -d "\n")
+
+echo "Code Verifier: $CODE_VERIFIER"
+echo "Code Challenge: $CODE_CHALLENGE"
+
+# Step 2: Authorization request (user visits this URL in browser)
+AUTH_URL="https://your-domain.com/oidc/authorize?client_id=my-client-id&redirect_uri=http://localhost:3000/callback&response_type=code&scope=openid%20profile%20email&state=random-state&code_challenge=$CODE_CHALLENGE&code_challenge_method=S256"
+
+echo "Visit: $AUTH_URL"
+echo "Enter authorization code from redirect:"
+read AUTH_CODE
+
+# Step 3: Exchange code for tokens
+curl -X POST https://your-domain.com/oidc/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=authorization_code" \
+  -d "client_id=my-client-id" \
+  -d "code=$AUTH_CODE" \
+  -d "redirect_uri=http://localhost:3000/callback" \
+  -d "code_verifier=$CODE_VERIFIER"
+```
+
+---
+
+## Rate Limiting
+
+All endpoints are subject to rate limiting:
+
+- **Authorization endpoint**: 100 requests per 15 minutes per IP
+- **Token endpoint**: 50 requests per 15 minutes per client
+- **UserInfo endpoint**: 200 requests per 15 minutes per token
+- **JWKS endpoint**: 500 requests per 15 minutes per IP
+
+Rate limit headers:
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 99
+X-RateLimit-Reset: 1638360000
+```
+
+---
+
+## Security Recommendations
+
+1. **Always use HTTPS** in production
+2. **Use PKCE** for public clients (SPAs, mobile apps)
+3. **Validate state parameter** to prevent CSRF
+4. **Use nonce parameter** in ID tokens
+5. **Implement token refresh** before expiration
+6. **Store refresh tokens securely** (encrypted at rest)
+7. **Rotate client secrets** regularly
+8. **Monitor failed authentication attempts**
+9. **Implement proper CORS policies**
+10. **Use short-lived access tokens** (1 hour recommended)

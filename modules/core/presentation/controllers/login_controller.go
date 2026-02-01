@@ -189,10 +189,21 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set session cookie
+	http.SetCookie(w, cookie)
+
+	// After successful login, check if this is an OIDC flow
+	if authRequestID := r.URL.Query().Get("oidc_auth_id"); authRequestID != "" {
+		// This is an OIDC authorization flow
+		// Redirect to OIDC callback to complete the flow
+		http.Redirect(w, r, "/oidc/authorize/callback?id="+authRequestID, http.StatusFound)
+		return
+	}
+
+	// Normal login continues - redirect to next URL or home
 	redirectURL := r.URL.Query().Get("next")
 	if redirectURL == "" {
 		redirectURL = "/"
 	}
-	http.SetCookie(w, cookie)
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
