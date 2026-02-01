@@ -33,8 +33,8 @@ const (
 		UPDATE bichat_sessions
 		SET title = $1, status = $2, pinned = $3,
 			parent_session_id = $4, pending_question_agent = $5,
-			updated_at = NOW()
-		WHERE tenant_id = $6 AND id = $7
+			updated_at = $6
+		WHERE tenant_id = $7 AND id = $8
 	`
 	listUserSessionsQuery = `
 		SELECT id, tenant_id, user_id, title, status, pinned,
@@ -217,12 +217,16 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *dom
 		return serrors.E(op, err)
 	}
 
+	// Set updated_at in application layer
+	session.UpdatedAt = time.Now()
+
 	result, err := tx.Exec(ctx, updateSessionQuery,
 		session.Title,
 		session.Status,
 		session.Pinned,
 		session.ParentSessionID,
 		session.PendingQuestionAgent,
+		session.UpdatedAt,
 		tenantID,
 		session.ID,
 	)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -60,6 +61,10 @@ type InterruptEvent struct {
 	Questions    []Question
 }
 
+// ErrGeneratorDone is a sentinel error returned by Generator.Next() when iteration is complete.
+// Callers should use errors.Is(err, ErrGeneratorDone) to detect completion.
+var ErrGeneratorDone = errors.New("generator iteration complete")
+
 // Generator is a lazy iterator pattern for streaming results.
 // Inspired by Python generators, it allows processing items as they arrive
 // without buffering the entire result set.
@@ -71,15 +76,20 @@ type InterruptEvent struct {
 //	defer gen.Close()
 //
 //	for {
-//	    event, err, hasMore := gen.Next()
-//	    if err != nil { return err }
-//	    if !hasMore { break }
+//	    event, err := gen.Next()
+//	    if errors.Is(err, ErrGeneratorDone) {
+//	        break
+//	    }
+//	    if err != nil {
+//	        return err
+//	    }
 //	    handleEvent(event)
 //	}
 type Generator[T any] interface {
-	// Next returns the next value, error (if any), and whether more values exist.
-	// When hasMore is false, the generator is exhausted and should not be called again.
-	Next() (value T, err error, hasMore bool)
+	// Next returns the next value or an error.
+	// When iteration is complete, returns ErrGeneratorDone.
+	// Other errors indicate failures during generation.
+	Next() (value T, err error)
 
 	// Close releases resources. Should be deferred after creation.
 	Close()

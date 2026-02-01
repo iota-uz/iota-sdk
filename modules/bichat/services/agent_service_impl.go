@@ -275,21 +275,21 @@ type generatorAdapter struct {
 }
 
 // Next returns the next service event by converting executor events.
-func (g *generatorAdapter) Next() (services.Event, error, bool) {
+func (g *generatorAdapter) Next() (services.Event, error) {
 	// types.Generator.Next() requires a context, but services.Generator.Next() doesn't provide one
 	// We use the context stored during adapter creation
 	execEvent, err := g.inner.Next(g.ctx)
 	if err != nil {
-		// Check if generator is done (not an error)
+		// Convert types.ErrGeneratorDone to services.ErrGeneratorDone
 		if err == types.ErrGeneratorDone {
-			return services.Event{}, nil, false
+			return services.Event{}, services.ErrGeneratorDone
 		}
-		return services.Event{}, err, false
+		return services.Event{}, err
 	}
 
 	// Convert executor event to service event
 	serviceEvent := convertExecutorEvent(execEvent)
-	return serviceEvent, nil, true
+	return serviceEvent, nil
 }
 
 // Close releases resources held by the inner generator.

@@ -114,28 +114,8 @@ CREATE INDEX IF NOT EXISTS idx_bichat_checkpoints_expires
     ON bichat_checkpoints(expires_at);
 
 -- ========================================
--- Triggers
--- ========================================
-
--- Trigger for sessions updated_at
-DROP TRIGGER IF EXISTS trigger_bichat_sessions_updated_at ON bichat_sessions;
-CREATE TRIGGER trigger_bichat_sessions_updated_at
-    BEFORE UPDATE ON bichat_sessions
-    FOR EACH ROW
-    EXECUTE FUNCTION update_bichat_session_updated_at();
-
--- ========================================
 -- Functions
 -- ========================================
-
--- Function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_bichat_session_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
 -- Function to cleanup expired checkpoints
 CREATE OR REPLACE FUNCTION cleanup_expired_bichat_checkpoints()

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -216,12 +217,12 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	var interrupt *bichatservices.Interrupt
 
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next()
+		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+			break
+		}
 		if err != nil {
 			return nil, serrors.E(op, err)
-		}
-		if !hasMore {
-			break
 		}
 
 		switch event.Type {
@@ -334,7 +335,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var interrupted bool
 
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next()
+		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+			break
+		}
 		if err != nil {
 			// Send error chunk
 			onChunk(bichatservices.StreamChunk{
@@ -343,9 +347,6 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				Timestamp: time.Now(),
 			})
 			return serrors.E(op, err)
-		}
-		if !hasMore {
-			break
 		}
 
 		switch event.Type {
@@ -442,12 +443,12 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	var assistantContent strings.Builder
 
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next()
+		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+			break
+		}
 		if err != nil {
 			return nil, serrors.E(op, err)
-		}
-		if !hasMore {
-			break
 		}
 
 		switch event.Type {

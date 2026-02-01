@@ -399,12 +399,12 @@ func TestProcessMessage_Success(t *testing.T) {
 	// Collect all events
 	var events []services.Event
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next()
+		if errors.Is(err, services.ErrGeneratorDone) {
+			break
+		}
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 		events = append(events, event)
 	}
@@ -528,12 +528,12 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	// Collect all events
 	var events []services.Event
 	for {
-		event, err, hasMore := gen.Next()
+		event, err := gen.Next()
+		if errors.Is(err, services.ErrGeneratorDone) {
+			break
+		}
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
-		}
-		if !hasMore {
-			break
 		}
 		events = append(events, event)
 	}
@@ -775,8 +775,7 @@ func TestGeneratorAdapter_Close(t *testing.T) {
 	}
 	adapter.Close()
 
-	// After close, Next should return hasMore=false
-	_, err, hasMore := adapter.Next()
-	assert.Error(t, err) // Should get ErrGeneratorClosed
-	assert.False(t, hasMore)
+	// After close, Next should return ErrGeneratorDone
+	_, err := adapter.Next()
+	assert.Error(t, err) // Should get an error (either ErrGeneratorDone or closed error)
 }
