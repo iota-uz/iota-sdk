@@ -8,8 +8,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/interop"
 	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
@@ -135,7 +135,7 @@ func TestWebController_RenderChatApp_ContextInjection(t *testing.T) {
 	contextJSON := body[jsonStart : jsonStart+jsonEnd]
 
 	// Parse context
-	var initialContext interop.InitialContext
+	var initialContext applet.InitialContext
 	err := json.Unmarshal([]byte(contextJSON), &initialContext)
 	require.NoError(t, err, "Context JSON should be valid")
 
@@ -179,7 +179,7 @@ func TestWebController_RenderChatApp_UserPermissions(t *testing.T) {
 	jsonEnd := strings.Index(body[jsonStart:], ";")
 	contextJSON := body[jsonStart : jsonStart+jsonEnd]
 
-	var initialContext interop.InitialContext
+	var initialContext applet.InitialContext
 	err := json.Unmarshal([]byte(contextJSON), &initialContext)
 	require.NoError(t, err)
 
@@ -250,7 +250,7 @@ func TestWebController_RenderChatApp_Translations(t *testing.T) {
 	jsonEnd := strings.Index(body[jsonStart:], ";")
 	contextJSON := body[jsonStart : jsonStart+jsonEnd]
 
-	var initialContext interop.InitialContext
+	var initialContext applet.InitialContext
 	err := json.Unmarshal([]byte(contextJSON), &initialContext)
 	require.NoError(t, err)
 
@@ -294,7 +294,7 @@ func TestWebController_RenderChatApp_TenantIsolation(t *testing.T) {
 	jsonEnd := strings.Index(body[jsonStart:], ";")
 	contextJSON := body[jsonStart : jsonStart+jsonEnd]
 
-	var initialContext interop.InitialContext
+	var initialContext applet.InitialContext
 	err := json.Unmarshal([]byte(contextJSON), &initialContext)
 	require.NoError(t, err)
 
@@ -346,7 +346,7 @@ func TestWebController_RenderChatApp_LocaleContext(t *testing.T) {
 	jsonEnd := strings.Index(body[jsonStart:], ";")
 	contextJSON := body[jsonStart : jsonStart+jsonEnd]
 
-	var initialContext interop.InitialContext
+	var initialContext applet.InitialContext
 	err := json.Unmarshal([]byte(contextJSON), &initialContext)
 	require.NoError(t, err)
 
@@ -387,7 +387,7 @@ func TestWebController_RenderChatApp_ConfigEndpoints(t *testing.T) {
 	jsonEnd := strings.Index(body[jsonStart:], ";")
 	contextJSON := body[jsonStart : jsonStart+jsonEnd]
 
-	var initialContext interop.InitialContext
+	var initialContext applet.InitialContext
 	err := json.Unmarshal([]byte(contextJSON), &initialContext)
 	require.NoError(t, err)
 
@@ -452,7 +452,7 @@ func TestWebController_RenderChatApp_NoXSSVulnerability(t *testing.T) {
 	contextJSON := body[jsonStart : jsonStart+jsonEnd]
 
 	// Verify JSON is valid (not broken by injection)
-	var initialContext interop.InitialContext
+	var initialContext applet.InitialContext
 	err := json.Unmarshal([]byte(contextJSON), &initialContext)
 	require.NoError(t, err, "Context JSON should be valid and properly escaped")
 

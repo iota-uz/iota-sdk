@@ -1,0 +1,15 @@
+# Source files (only publish dist/)
+src/
+tsconfig.json
+.eslintrc.json
+
+# Development files
+node_modules/
+*.log
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
