@@ -13,12 +13,12 @@ export interface EnvironmentContextType {
 
 export const ENV_URLS: Record<Environment, EnvironmentUrls> = {
   production: {
-    erp: 'https://erp.eai.uz',
-    website: 'https://eai.uz'
+    erp: 'https://erp.example.com',
+    website: 'https://example.com'
   },
   staging: {
-    erp: 'https://erp-staging.eai.uz',
-    website: 'https://eai-staging.uz'
+    erp: 'https://erp-staging.example.com',
+    website: 'https://staging.example.com'
   },
   'pre-production': {
     erp: '',
