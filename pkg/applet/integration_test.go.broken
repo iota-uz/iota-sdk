@@ -1,0 +1,734 @@
+package applet_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"testing"
+	"time"
+
+	"github.com/gorilla/csrf"
+	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/text/language"
+)
+
+// --- Helper Mocks (duplicated from context_test.go since unexported) ---
+
+type mockMetricsRecorder struct {
+	durations map[string]time.Duration
+	counters  map[string]int
+}
+
+func (m *mockMetricsRecorder) RecordDuration(name string, duration time.Duration, labels map[string]string) {
+	if m.durations == nil {
+		m.durations = make(map[string]time.Duration)
+	}
+	m.durations[name] = duration
+}
+
+func (m *mockMetricsRecorder) IncrementCounter(name string, labels map[string]string) {
+	if m.counters == nil {
+		m.counters = make(map[string]int)
+	}
+	m.counters[name]++
+}
+
+type mockTenantNameResolver struct {
+	name         string
+	err          error
+	lastTenantID string
+}
+
+func (m *mockTenantNameResolver) ResolveTenantName(tenantID string) (string, error) {
+	m.lastTenantID = tenantID
+	return m.name, m.err
+}
+
+type mockErrorEnricher struct {
+	errorCtx *applet.ErrorContext
+	err      error
+}
+
+func (m *mockErrorEnricher) EnrichContext(ctx context.Context, r *http.Request) (*applet.ErrorContext, error) {
+	return m.errorCtx, m.err
+}
+
+// TestContextBuilder_Integration_FullFlow tests the complete context building flow
+// using real application bundle and database
+func TestContextBuilder_Integration_FullFlow(t *testing.T) {
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	// Create test user with permissions
+	userEmail, err := internet.NewEmail("integration@example.com")
+	require.NoError(t, err)
+
+	perm1 := permission.New(permission.WithName("bichat.access"), permission.WithID(1))
+	perm2 := permission.New(permission.WithName("finance.read"), permission.WithID(2))
+	perm3 := permission.New(permission.WithName("core.admin"), permission.WithID(3))
+
+	testRole := role.New(
+		"admin",
+		role.WithID(1),
+		role.WithPermissions([]permission.Permission{perm1, perm2, perm3}),
+		role.WithCreatedAt(time.Now()),
+		role.WithUpdatedAt(time.Now()),
+		role.WithTenantID(env.TenantID()),
+	)
+
+	testUser := user.New(
+		"Integration",
+		"Test",
+		userEmail,
+		"en",
+		user.WithID(999),
+		user.WithRoles([]role.Role{testRole}),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
+	)
+
+	// Build context with ITF environment
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, env.Pool)
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithUser(ctx, testUser)
+
+	// Use real application bundle
+	bundle := env.App.Bundle()
+	require.NotNil(t, bundle)
+
+	// Create page context
+	localizer := i18n.NewLocalizer(bundle, "en")
+	pageCtx := &types.PageContext{Localizer: localizer, URL: mustParseURL("http://example.com/test")}
+	ctx = composables.WithPageCtx(ctx, pageCtx)
+
+	// Create context builder
+	config := Config{
+		Endpoints: EndpointConfig{
+			GraphQL: "/graphql",
+			Stream:  "/stream",
+			REST:    "/api",
+		},
+	}
+	sessionConfig := DefaultSessionConfig
+	metrics := &mockMetricsRecorder{}
+
+	builder := NewContextBuilder(config, bundle, sessionConfig, nil, metrics)
+
+	// Create HTTP request
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+	req = req.WithContext(ctx)
+
+	// Build context with CSRF
+	csrfHandler := csrf.Protect(
+		[]byte("32-byte-long-auth-key-for-testing"),
+		csrf.Secure(false),
+	)
+	handler := csrfHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		initialCtx, err := builder.Build(r.Context(), r)
+		require.NoError(t, err)
+		require.NotNil(t, initialCtx)
+
+		// --- Verify User Context ---
+		assert.Equal(t, int64(999), initialCtx.User.ID)
+		assert.Equal(t, "integration@example.com", initialCtx.User.Email)
+		assert.Equal(t, "Integration", initialCtx.User.FirstName)
+		assert.Equal(t, "Test", initialCtx.User.LastName)
+		assert.Len(t, initialCtx.User.Permissions, 3)
+		assert.Contains(t, initialCtx.User.Permissions, "bichat.access")
+		assert.Contains(t, initialCtx.User.Permissions, "finance.read")
+		assert.Contains(t, initialCtx.User.Permissions, "core.admin")
+
+		// --- Verify Tenant Context ---
+		assert.Equal(t, env.TenantID().String(), initialCtx.Tenant.ID)
+		assert.NotEmpty(t, initialCtx.Tenant.Name)
+		// Should fall back to "Tenant {short-uuid}" format since no resolver
+		assert.Contains(t, initialCtx.Tenant.Name, "Tenant")
+
+		// --- Verify Locale Context ---
+		assert.Equal(t, "en", initialCtx.Locale.Language)
+		assert.NotEmpty(t, initialCtx.Locale.Translations)
+		// Verify real translations loaded (not hardcoded count)
+		assert.Greater(t, len(initialCtx.Locale.Translations), 20,
+			"Expected > 20 translations from real bundle")
+
+		// --- Verify Config ---
+		assert.Equal(t, "/graphql", initialCtx.Config.GraphQLEndpoint)
+		assert.Equal(t, "/stream", initialCtx.Config.StreamEndpoint)
+		assert.Equal(t, "/api", initialCtx.Config.RESTEndpoint)
+
+		// --- Verify Route Context ---
+		assert.NotEmpty(t, initialCtx.Route.Path)
+		assert.NotNil(t, initialCtx.Route.Params)
+		assert.NotNil(t, initialCtx.Route.Query)
+
+		// --- Verify Session Context ---
+		assert.Greater(t, initialCtx.Session.ExpiresAt, int64(0))
+		assert.NotEmpty(t, initialCtx.Session.CSRFToken)
+		assert.Equal(t, "/auth/refresh", initialCtx.Session.RefreshURL)
+
+		// --- Verify Error Context ---
+		assert.NotNil(t, initialCtx.Error)
+		assert.False(t, initialCtx.Error.DebugMode)
+
+		// --- Verify JSON Serialization ---
+		jsonData, err := json.Marshal(initialCtx)
+		require.NoError(t, err)
+		assert.NotEmpty(t, jsonData)
+
+		// Verify deserialization
+		var decoded InitialContext
+		err = json.Unmarshal(jsonData, &decoded)
+		require.NoError(t, err)
+		assert.Equal(t, initialCtx.User.ID, decoded.User.ID)
+		assert.Equal(t, initialCtx.Tenant.ID, decoded.Tenant.ID)
+
+		// --- Verify Metrics ---
+		assert.NotNil(t, metrics.durations)
+		assert.Contains(t, metrics.durations, "applet.context_build")
+		assert.Contains(t, metrics.durations, "applet.translation_load")
+		assert.Contains(t, metrics.durations, "applet.tenant_resolution")
+
+		assert.NotNil(t, metrics.counters)
+		assert.Contains(t, metrics.counters, "applet.context_built")
+		assert.Equal(t, 1, metrics.counters["applet.context_built"])
+	}))
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+}
+
+// TestContextBuilder_Integration_MultipleLocales tests translation loading for different locales
+func TestContextBuilder_Integration_MultipleLocales(t *testing.T) {
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	// Use real application bundle
+	bundle := env.App.Bundle()
+	require.NotNil(t, bundle)
+
+	config := Config{}
+	sessionConfig := DefaultSessionConfig
+	builder := NewContextBuilder(config, bundle, sessionConfig, nil, &mockMetricsRecorder{})
+
+	// Test different locales
+	locales := []language.Tag{
+		language.English,
+		language.Russian,
+		language.Make("uz"), // Uzbek
+	}
+
+	for _, locale := range locales {
+		t.Run(locale.String(), func(t *testing.T) {
+			translations := builder.getAllTranslations(locale)
+
+			// Verify translations loaded (not empty for supported locales)
+			if locale == language.English || locale == language.Russian || locale.String() == "uz" {
+				assert.Greater(t, len(translations), 0,
+					"Expected translations for locale %s", locale)
+			}
+		})
+	}
+}
+
+// TestContextBuilder_Integration_TenantResolution tests tenant name resolution with database
+func TestContextBuilder_Integration_TenantResolution(t *testing.T) {
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	bundle := env.App.Bundle()
+	config := Config{}
+	sessionConfig := DefaultSessionConfig
+	builder := NewContextBuilder(config, bundle, sessionConfig, nil, &mockMetricsRecorder{})
+
+	// Build context with database pool
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, env.Pool)
+
+	// Test tenant name resolution
+	tenantName := builder.getTenantName(ctx, env.TenantID())
+
+	// Should query database and return actual tenant name or fall back
+	assert.NotEmpty(t, tenantName)
+	// ITF creates test tenant, verify name format
+	assert.NotContains(t, tenantName, "00000000-0000-0000-0000-000000000000",
+		"Tenant name should not contain nil UUID")
+}
+
+// TestContextBuilder_Integration_CustomResolver tests custom tenant name resolver
+func TestContextBuilder_Integration_CustomResolver(t *testing.T) {
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	bundle := env.App.Bundle()
+	config := Config{}
+	sessionConfig := DefaultSessionConfig
+
+	// Custom resolver
+	resolver := &mockTenantNameResolver{
+		name: "Custom Integration Tenant",
+	}
+
+	builder := NewContextBuilder(
+		config,
+		bundle,
+		sessionConfig,
+		nil,
+		&mockMetricsRecorder{},
+		WithTenantNameResolver(resolver),
+	)
+
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, env.Pool)
+
+	tenantName := builder.getTenantName(ctx, env.TenantID())
+
+	// Should use custom resolver
+	assert.Equal(t, "Custom Integration Tenant", tenantName)
+	assert.Equal(t, env.TenantID().String(), resolver.lastTenantID)
+}
+
+// TestStreamContextBuilder_Integration_FullFlow tests streaming context with real environment
+func TestStreamContextBuilder_Integration_FullFlow(t *testing.T) {
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	// Create test user
+	userEmail, err := internet.NewEmail("stream@example.com")
+	require.NoError(t, err)
+
+	perm1 := permission.New(permission.WithName("bichat.access"), permission.WithID(1))
+
+	testRole := role.New(
+		"user",
+		role.WithID(2),
+		role.WithPermissions([]permission.Permission{perm1}),
+		role.WithCreatedAt(time.Now()),
+		role.WithUpdatedAt(time.Now()),
+		role.WithTenantID(env.TenantID()),
+	)
+
+	testUser := user.New(
+		"Stream",
+		"User",
+		userEmail,
+		"en",
+		user.WithID(888),
+		user.WithRoles([]role.Role{testRole}),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
+	)
+
+	// Build context
+	ctx := context.Background()
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithUser(ctx, testUser)
+
+	// Create stream context builder
+	config := Config{}
+	sessionConfig := DefaultSessionConfig
+	builder := NewStreamContextBuilder(config, sessionConfig, nil)
+
+	req := httptest.NewRequest("GET", "http://example.com/stream", nil)
+	req = req.WithContext(ctx)
+
+	// Build context with CSRF
+	csrfHandler := csrf.Protect(
+		[]byte("32-byte-long-auth-key-for-testing"),
+		csrf.Secure(false),
+	)
+	handler := csrfHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		streamCtx, err := builder.Build(r.Context(), r)
+		require.NoError(t, err)
+		require.NotNil(t, streamCtx)
+
+		// --- Verify Lightweight Context ---
+		assert.Equal(t, int64(888), streamCtx.UserID)
+		assert.Equal(t, env.TenantID().String(), streamCtx.TenantID)
+		assert.Contains(t, streamCtx.Permissions, "bichat.access")
+		assert.NotEmpty(t, streamCtx.CSRFToken)
+
+		// --- Verify Session ---
+		assert.Greater(t, streamCtx.Session.ExpiresAt, int64(0))
+		assert.Equal(t, "/auth/refresh", streamCtx.Session.RefreshURL)
+
+		// --- Verify JSON Serialization ---
+		jsonData, err := json.Marshal(streamCtx)
+		require.NoError(t, err)
+		assert.NotEmpty(t, jsonData)
+
+		// Verify smaller payload than InitialContext (no translations)
+		var decoded StreamContext
+		err = json.Unmarshal(jsonData, &decoded)
+		require.NoError(t, err)
+		assert.Equal(t, streamCtx.UserID, decoded.UserID)
+	}))
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+}
+
+// TestContextBuilder_Integration_Performance benchmarks context build time
+func TestContextBuilder_Integration_Performance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping performance test in short mode")
+	}
+
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	// Create test user
+	userEmail, _ := internet.NewEmail("perf@example.com")
+	perm := permission.New(permission.WithName("test.access"), permission.WithID(1))
+	testRole := role.New(
+		"user",
+		role.WithID(1),
+		role.WithPermissions([]permission.Permission{perm}),
+		role.WithCreatedAt(time.Now()),
+		role.WithUpdatedAt(time.Now()),
+		role.WithTenantID(env.TenantID()),
+	)
+	testUser := user.New(
+		"Perf",
+		"Test",
+		userEmail,
+		"en",
+		user.WithID(777),
+		user.WithRoles([]role.Role{testRole}),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
+	)
+
+	ctx := context.Background()
+	ctx = composables.WithPool(ctx, env.Pool)
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithUser(ctx, testUser)
+
+	bundle := env.App.Bundle()
+	localizer := i18n.NewLocalizer(bundle, "en")
+	pageCtx := &types.PageContext{Localizer: localizer, URL: mustParseURL("http://example.com/test")}
+	ctx = composables.WithPageCtx(ctx, pageCtx)
+
+	config := Config{
+		Endpoints: EndpointConfig{
+			GraphQL: "/graphql",
+			Stream:  "/stream",
+		},
+	}
+	sessionConfig := DefaultSessionConfig
+	metrics := &mockMetricsRecorder{}
+	builder := NewContextBuilder(config, bundle, sessionConfig, nil, metrics)
+
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+	req = req.WithContext(ctx)
+
+	// Measure build time
+	csrfHandler := csrf.Protect(
+		[]byte("32-byte-long-auth-key-for-testing"),
+		csrf.Secure(false),
+	)
+	handler := csrfHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		initialCtx, err := builder.Build(r.Context(), r)
+		duration := time.Since(start)
+
+		require.NoError(t, err)
+		require.NotNil(t, initialCtx)
+
+		// Performance target: <20ms (p95)
+		assert.Less(t, duration.Milliseconds(), int64(20),
+			"ContextBuilder.Build should complete in <20ms, took %dms", duration.Milliseconds())
+
+		// Check metrics recorded
+		assert.Contains(t, metrics.durations, "applet.context_build")
+		buildDuration := metrics.durations["applet.context_build"]
+		assert.Less(t, buildDuration.Milliseconds(), int64(20))
+
+		t.Logf("ContextBuilder.Build took %v", duration)
+	}))
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+}
+
+// TestStreamContextBuilder_Integration_Performance benchmarks stream context build time
+func TestStreamContextBuilder_Integration_Performance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping performance test in short mode")
+	}
+
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	// Create test user
+	userEmail, _ := internet.NewEmail("stream-perf@example.com")
+	perm := permission.New(permission.WithName("test.access"), permission.WithID(1))
+	testRole := role.New(
+		"user",
+		role.WithID(1),
+		role.WithPermissions([]permission.Permission{perm}),
+		role.WithCreatedAt(time.Now()),
+		role.WithUpdatedAt(time.Now()),
+		role.WithTenantID(env.TenantID()),
+	)
+	testUser := user.New(
+		"StreamPerf",
+		"Test",
+		userEmail,
+		"en",
+		user.WithID(666),
+		user.WithRoles([]role.Role{testRole}),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
+	)
+
+	ctx := context.Background()
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithUser(ctx, testUser)
+
+	config := Config{}
+	sessionConfig := DefaultSessionConfig
+	builder := NewStreamContextBuilder(config, sessionConfig, nil)
+
+	req := httptest.NewRequest("GET", "http://example.com/stream", nil)
+	req = req.WithContext(ctx)
+
+	// Measure build time
+	csrfHandler := csrf.Protect(
+		[]byte("32-byte-long-auth-key-for-testing"),
+		csrf.Secure(false),
+	)
+	handler := csrfHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		streamCtx, err := builder.Build(r.Context(), r)
+		duration := time.Since(start)
+
+		require.NoError(t, err)
+		require.NotNil(t, streamCtx)
+
+		// Performance target: <5ms (p95)
+		assert.Less(t, duration.Milliseconds(), int64(5),
+			"StreamContextBuilder.Build should complete in <5ms, took %dms", duration.Milliseconds())
+
+		t.Logf("StreamContextBuilder.Build took %v", duration)
+	}))
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+}
+
+// TestContextBuilder_Integration_ErrorEnricher tests custom error enricher integration
+func TestContextBuilder_Integration_ErrorEnricher(t *testing.T) {
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	// Create test user
+	userEmail, _ := internet.NewEmail("error-test@example.com")
+	testUser := user.New(
+		"Error",
+		"Test",
+		userEmail,
+		"en",
+		user.WithID(555),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
+	)
+
+	ctx := context.Background()
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithUser(ctx, testUser)
+
+	bundle := env.App.Bundle()
+	localizer := i18n.NewLocalizer(bundle, "en")
+	pageCtx := &types.PageContext{Localizer: localizer, URL: mustParseURL("http://example.com/test")}
+	ctx = composables.WithPageCtx(ctx, pageCtx)
+
+	// Custom error enricher
+	enricher := &mockErrorEnricher{
+		errorCtx: &ErrorContext{
+			SupportEmail: "support@integration.com",
+			DebugMode:    true,
+			ErrorCodes: map[string]string{
+				"404": "Not Found",
+				"500": "Internal Server Error",
+			},
+			RetryConfig: &RetryConfig{
+				MaxAttempts: 3,
+				BackoffMs:   1000,
+			},
+		},
+	}
+
+	config := Config{}
+	sessionConfig := DefaultSessionConfig
+	builder := NewContextBuilder(
+		config,
+		bundle,
+		sessionConfig,
+		nil,
+		&mockMetricsRecorder{},
+		WithErrorEnricher(enricher),
+	)
+
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+	req = req.WithContext(ctx)
+
+	csrfHandler := csrf.Protect(
+		[]byte("32-byte-long-auth-key-for-testing"),
+		csrf.Secure(false),
+	)
+	handler := csrfHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		initialCtx, err := builder.Build(r.Context(), r)
+		require.NoError(t, err)
+		require.NotNil(t, initialCtx)
+
+		// Verify enriched error context
+		assert.NotNil(t, initialCtx.Error)
+		assert.Equal(t, "support@integration.com", initialCtx.Error.SupportEmail)
+		assert.True(t, initialCtx.Error.DebugMode)
+		assert.Len(t, initialCtx.Error.ErrorCodes, 2)
+		assert.Equal(t, "Not Found", initialCtx.Error.ErrorCodes["404"])
+		assert.Equal(t, "Internal Server Error", initialCtx.Error.ErrorCodes["500"])
+
+		// Verify retry config
+		assert.NotNil(t, initialCtx.Error.RetryConfig)
+		assert.Equal(t, 3, initialCtx.Error.RetryConfig.MaxAttempts)
+		assert.Equal(t, int64(1000), initialCtx.Error.RetryConfig.BackoffMs)
+	}))
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+}
+
+// TestContextBuilder_Integration_CustomContext tests custom context extender
+func TestContextBuilder_Integration_CustomContext(t *testing.T) {
+	t.Parallel()
+
+	// Setup ITF environment
+	env := itf.Setup(t, itf.WithModules(core.NewModule(nil)))
+	defer env.Pool.Close()
+
+	// Create test user
+	userEmail, _ := internet.NewEmail("custom@example.com")
+	testUser := user.New(
+		"Custom",
+		"Test",
+		userEmail,
+		"en",
+		user.WithID(444),
+		user.WithCreatedAt(time.Now()),
+		user.WithUpdatedAt(time.Now()),
+	)
+
+	ctx := context.Background()
+	ctx = composables.WithTenantID(ctx, env.TenantID())
+	ctx = composables.WithUser(ctx, testUser)
+
+	bundle := env.App.Bundle()
+	localizer := i18n.NewLocalizer(bundle, "en")
+	pageCtx := &types.PageContext{Localizer: localizer, URL: mustParseURL("http://example.com/test")}
+	ctx = composables.WithPageCtx(ctx, pageCtx)
+
+	// Custom context extender with complex data
+	customExtender := func(ctx context.Context) (map[string]interface{}, error) {
+		return map[string]interface{}{
+			"tenantBranding": map[string]interface{}{
+				"logo":  "<img src='logo.png'>", // Should be sanitized
+				"color": "#FF5733",
+			},
+			"featureFlags": map[string]interface{}{
+				"enableNewUI": true,
+				"maxUploads":  10,
+			},
+			"analytics": map[string]interface{}{
+				"trackingID": "UA-12345",
+			},
+		}, nil
+	}
+
+	config := Config{
+		CustomContext: customExtender,
+	}
+	sessionConfig := DefaultSessionConfig
+	builder := NewContextBuilder(config, bundle, sessionConfig, nil, &mockMetricsRecorder{})
+
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+	req = req.WithContext(ctx)
+
+	csrfHandler := csrf.Protect(
+		[]byte("32-byte-long-auth-key-for-testing"),
+		csrf.Secure(false),
+	)
+	handler := csrfHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		initialCtx, err := builder.Build(r.Context(), r)
+		require.NoError(t, err)
+		require.NotNil(t, initialCtx)
+
+		// Verify custom extensions
+		require.NotNil(t, initialCtx.Extensions)
+
+		branding, ok := initialCtx.Extensions["tenantBranding"].(map[string]interface{})
+		require.True(t, ok)
+		// Verify XSS sanitization
+		assert.Equal(t, "&lt;img src=&#39;logo.png&#39;&gt;", branding["logo"])
+		assert.Equal(t, "#FF5733", branding["color"])
+
+		features, ok := initialCtx.Extensions["featureFlags"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, true, features["enableNewUI"])
+		assert.Equal(t, 10, features["maxUploads"])
+
+		analytics, ok := initialCtx.Extensions["analytics"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "UA-12345", analytics["trackingID"])
+	}))
+
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+}
+
+// mustParseURL is a helper to parse URLs in tests
+func mustParseURL(rawURL string) *url.URL {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		panic(err)
+	}
+	return u
+}

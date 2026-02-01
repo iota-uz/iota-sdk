@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	functions "github.com/iota-uz/iota-sdk/pkg/llm/gpt-functions"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -179,7 +180,15 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data dialogue.Dialog
 		if err := s.repo.Update(ctx, data); err != nil {
 			return err
 		}
-		msg := data.LastMessage()
+		msg, err := data.LastMessage()
+		if err != nil {
+			if errors.Is(err, dialogue.ErrNoMessages) {
+				// No messages in dialogue, exit loop
+				break
+			}
+			// Other error - return wrapped error
+			return serrors.E(serrors.Op("DialogueService.ChatComplete.LastMessage"), err)
+		}
 		if len(msg.ToolCalls) == 0 {
 			break
 		}

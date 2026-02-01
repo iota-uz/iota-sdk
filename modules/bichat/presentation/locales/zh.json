@@ -10,10 +10,23 @@
     },
     "Title": "BI-聊天",
     "NewDialog": "新对话",
+    "NewChat": "新聊天",
     "MessagePlaceholder": "输入消息...",
+    "SendMessage": "发送消息",
+    "Loading": "加载中...",
+    "Error": "错误",
+    "Retry": "重试",
+    "Cancel": "取消",
+    "Submit": "提交",
+    "Export": "导出",
     "History": {
       "Empty": "空历史记录",
       "HelpText": "按 \"新对话\" 开始新对话"
+    },
+    "Permissions": {
+      "Access": "访问BI聊天",
+      "ReadAll": "读取所有会话",
+      "Export": "导出数据"
     }
   }
 }
