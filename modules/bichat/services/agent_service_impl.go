@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -362,17 +363,26 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 	// Parse the interrupt data to extract questions
 	var questions []services.Question
 	if len(agentInterrupt.Data) > 0 {
-		// Try to parse the data as a question
+		// Try to parse as questions array (executor format: {questions: [...]})
 		var questionData struct {
-			Question string `json:"question"`
+			Questions []struct {
+				ID       string `json:"id"`
+				Question string `json:"question"`
+			} `json:"questions"`
 		}
 		if err := json.Unmarshal(agentInterrupt.Data, &questionData); err == nil {
-			questions = []services.Question{
-				{
-					ID:   "q1", // Simple ID for single question
-					Text: questionData.Question,
+			questions = make([]services.Question, 0, len(questionData.Questions))
+			for i, q := range questionData.Questions {
+				qid := q.ID
+				if qid == "" {
+					// Generate stable ID if not provided (q1, q2, etc.)
+					qid = fmt.Sprintf("q%d", i+1)
+				}
+				questions = append(questions, services.Question{
+					ID:   qid,
+					Text: q.Question,
 					Type: services.QuestionTypeText,
-				},
+				})
 			}
 		}
 	}

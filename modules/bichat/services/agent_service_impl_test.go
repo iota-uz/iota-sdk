@@ -686,7 +686,8 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 
 	sessionID := uuid.New()
 	checkpointID := "checkpoint_" + sessionID.String()
-	interruptData := []byte(`{"question": "What is your name?"}`)
+	// Use new array format: {questions: [...]}
+	interruptData := []byte(`{"questions": [{"id": "q1", "question": "What is your name?"}]}`)
 
 	execEvent := agents.ExecutorEvent{
 		Type: agents.EventTypeInterrupt,
@@ -704,6 +705,7 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	require.NotNil(t, serviceEvent.Interrupt)
 	assert.NotEmpty(t, serviceEvent.Interrupt.CheckpointID)
 	require.Len(t, serviceEvent.Interrupt.Questions, 1)
+	assert.Equal(t, "q1", serviceEvent.Interrupt.Questions[0].ID)
 	assert.Equal(t, "What is your name?", serviceEvent.Interrupt.Questions[0].Text)
 	assert.Equal(t, services.QuestionTypeText, serviceEvent.Interrupt.Questions[0].Type)
 }

@@ -82,20 +82,20 @@ func (t *DelegationTool) Parameters() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"agent_name": map[string]any{
+			"subagent_type": map[string]any{
 				"type":        "string",
-				"description": "The name of the agent to delegate to. Use the agent list from the tool description.",
+				"description": "The type of specialized agent (e.g., 'editor', 'debugger', 'e2e-tester', 'general-purpose', 'Plan', 'Explore', etc.). Use the agent list from the tool description.",
 			},
-			"task": map[string]any{
+			"prompt": map[string]any{
 				"type":        "string",
-				"description": "The task description to send to the child agent. Be clear and specific.",
+				"description": "The detailed task description for the agent to perform. Be clear and specific about requirements, context, and expected outcomes.",
 			},
-			"context": map[string]any{
-				"type":        "object",
-				"description": "Optional context data to pass to the child agent (JSON object).",
+			"description": map[string]any{
+				"type":        "string",
+				"description": "A short 3-5 word summary of what the agent will do (e.g., 'Fix payment controller bug', 'Add user registration tests').",
 			},
 		},
-		"required": []string{"agent_name", "task"},
+		"required": []string{"subagent_type", "prompt", "description"},
 	}
 }
 
@@ -112,7 +112,7 @@ func (t *DelegationTool) filterDelegationTool(tools []Tool) []Tool {
 }
 
 // Call executes the delegation by invoking the child agent.
-// The input should be a JSON string with agent_name and task fields.
+// The input should be a JSON string with subagent_type, prompt, and description fields.
 //
 // Behavior by IsolationLevel:
 //   - Isolated: Child sees only the task message
@@ -123,37 +123,41 @@ func (t *DelegationTool) filterDelegationTool(tools []Tool) []Tool {
 func (t *DelegationTool) Call(ctx context.Context, input string) (string, error) {
 	// Parse input arguments
 	var args struct {
-		AgentName string         `json:"agent_name"`
-		Task      string         `json:"task"`
-		Context   map[string]any `json:"context,omitempty"`
+		SubagentType string `json:"subagent_type"`
+		Prompt       string `json:"prompt"`
+		Description  string `json:"description"`
 	}
 
 	if err := json.Unmarshal([]byte(input), &args); err != nil {
 		return "", fmt.Errorf("parse delegation input: %w", err)
 	}
 
-	if args.AgentName == "" {
-		return "", fmt.Errorf("agent_name is required")
+	if args.SubagentType == "" {
+		return "", fmt.Errorf("subagent_type is required")
 	}
 
-	if args.Task == "" {
-		return "", fmt.Errorf("task is required")
+	if args.Prompt == "" {
+		return "", fmt.Errorf("prompt is required")
+	}
+
+	if args.Description == "" {
+		return "", fmt.Errorf("description is required")
 	}
 
 	// Get child agent from registry
-	childAgent, exists := t.registry.Get(args.AgentName)
+	childAgent, exists := t.registry.Get(args.SubagentType)
 	if !exists {
 		availableAgents := make([]string, 0)
 		for _, agent := range t.registry.All() {
 			availableAgents = append(availableAgents, agent.Name())
 		}
-		return "", fmt.Errorf("agent %q not found; available agents: %v", args.AgentName, availableAgents)
+		return "", fmt.Errorf("agent %q not found; available agents: %v", args.SubagentType, availableAgents)
 	}
 
 	// Type assert to ExtendedAgent (required for delegation)
 	extendedAgent, ok := childAgent.(ExtendedAgent)
 	if !ok {
-		return "", fmt.Errorf("agent %q does not implement ExtendedAgent interface", args.AgentName)
+		return "", fmt.Errorf("agent %q does not implement ExtendedAgent interface", args.SubagentType)
 	}
 
 	// If no model is configured, just return agent metadata (useful for testing)
@@ -163,7 +167,8 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 			"agent":       metadata.Name,
 			"description": metadata.Description,
 			"when_to_use": metadata.WhenToUse,
-			"task":        args.Task,
+			"task":        args.Prompt,
+			"summary":     args.Description,
 			"note":        "No model configured - returning agent metadata only",
 		}
 		resultJSON, err := json.Marshal(result)
@@ -177,7 +182,7 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	// TODO: Implement ReadParent and FullAccess isolation modes
 	// This requires parent context to be passed in (future enhancement)
 	metadata := extendedAgent.Metadata()
-	taskMessage := types.UserMessage(args.Task)
+	taskMessage := types.UserMessage(args.Prompt)
 	childMessages := []types.Message{*taskMessage}
 
 	// Create child executor with filtered tools to prevent recursion
@@ -215,10 +220,10 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 				finalUsage = event.Result.Usage
 			}
 		case EventTypeError:
-			return "", fmt.Errorf("child agent %q error: %w", args.AgentName, event.Error)
+			return "", fmt.Errorf("child agent %q error: %w", args.SubagentType, event.Error)
 		case EventTypeInterrupt:
 			// Child agent requested user interaction - not supported in delegation
-			return "", fmt.Errorf("child agent %q requested interrupt (not supported in delegation)", args.AgentName)
+			return "", fmt.Errorf("child agent %q requested interrupt (not supported in delegation)", args.SubagentType)
 		}
 	}
 

@@ -1,6 +1,6 @@
--- +migrate Up
 -- BiChat module schema for multi-tenant chat sessions, messages, attachments, and HITL checkpoints
--- This consolidated schema merges bichat-schema.sql and bichat-schema-v2.sql
+-- This file defines the complete schema structure for the bichat module
+-- For migrations, see the migrations/ directory
 
 -- ========================================
 -- Tables

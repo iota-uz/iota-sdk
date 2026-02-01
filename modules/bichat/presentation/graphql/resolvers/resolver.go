@@ -146,6 +146,24 @@ func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID strin
 		return nil, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
 	}
 
+	// Get authenticated user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
+
+	// Verify session ownership
+	session, err := r.chatService.GetSession(ctx, sid)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if session.UserID != int64(user.ID()) {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
+	}
+
 	// Validate checkpointID
 	if checkpointID == "" {
 		return nil, serrors.E(op, serrors.KindValidation, "checkpoint ID is required")
@@ -243,6 +261,24 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 	sessionID, err := uuid.Parse(id)
 	if err != nil {
 		return false, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
+	}
+
+	// Get authenticated user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return false, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return false, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
+
+	// Verify session ownership
+	session, err := r.chatService.GetSession(ctx, sessionID)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+	if session.UserID != int64(user.ID()) {
+		return false, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
 	// Delete session (cascades to messages and attachments via repository)

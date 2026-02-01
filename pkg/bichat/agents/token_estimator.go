@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/pkoukk/tiktoken-go"
 )
 
@@ -49,6 +50,8 @@ func NewTiktokenEstimator(encoding string) TokenEstimator {
 
 // EstimateTokens estimates tokens in text using tiktoken.
 func (e *TiktokenEstimator) EstimateTokens(ctx context.Context, text string) (int, error) {
+	const op = serrors.Op("agents.TiktokenEstimator.EstimateTokens")
+
 	if text == "" {
 		return 0, nil
 	}
@@ -56,7 +59,7 @@ func (e *TiktokenEstimator) EstimateTokens(ctx context.Context, text string) (in
 	// Get tiktoken encoding
 	tkm, err := tiktoken.GetEncoding(e.encoding)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 
 	// Encode text to tokens
@@ -67,6 +70,8 @@ func (e *TiktokenEstimator) EstimateTokens(ctx context.Context, text string) (in
 // EstimateMessages estimates total tokens across messages.
 // Includes overhead for message structure and role tokens.
 func (e *TiktokenEstimator) EstimateMessages(ctx context.Context, messages []types.Message) (int, error) {
+	const op = serrors.Op("agents.TiktokenEstimator.EstimateMessages")
+
 	if len(messages) == 0 {
 		return 0, nil
 	}
@@ -76,7 +81,7 @@ func (e *TiktokenEstimator) EstimateMessages(ctx context.Context, messages []typ
 	// Get tiktoken encoding
 	tkm, err := tiktoken.GetEncoding(e.encoding)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 
 	for _, msg := range messages {
