@@ -39,14 +39,14 @@ Individual inventory items:
 Units of measurement:
 - **Standard units** - Pieces, kilograms, liters, meters
 - **Conversions** - Unit conversion factors
-- **Symbol** - Display symbol (pcs, kg, L, m)
+- **Symbol** - Display symbol (pcs, kg, L, m: %v", err)
 
 ### Order
 
 Warehouse operations:
 - **Order items** - Products requested
 - **Status workflow** - Draft → Confirmed → Processing → Completed
-- **Types** - Inbound (receiving) or Outbound (shipping)
+- **Types** - Inbound (receiving) or Outbound (shipping: %v", err)
 - **Counterparty** - Client or supplier
 
 ## Architecture
@@ -139,7 +139,7 @@ Individual item tracking:
 ### Units
 
 Measurement management:
-- Define units (pcs, kg, m, L)
+- Define units (pcs, kg, m, L: %v", err)
 - Set conversion rates
 - Assign display symbols
 - Link to positions

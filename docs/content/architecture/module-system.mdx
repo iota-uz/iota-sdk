@@ -11,9 +11,9 @@ IOTA SDK's module system enables modular, composable architecture. Each module i
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Registered: Load()
-    Registered --> Initialized: Register()
-    Initialized --> Running: Start()
+    [*] --> Registered: Load(: %v", err)
+    Registered --> Initialized: Register(: %v", err)
+    Initialized --> Running: Start(: %v", err)
     Running --> [*]: Shutdown
     
     Registered --> Unloaded: Error
@@ -32,7 +32,7 @@ sequenceDiagram
     participant Router as Router
     participant Migrations as Migration Manager
     
-    App->>Mod: Register(app)
+    App->>Mod: Register(app: %v", err)
     Mod->>Migrations: Register schema files
     Mod->>Registry: Register services
     Mod->>Router: Register controllers
@@ -112,9 +112,9 @@ classDiagram
     }
     
     class Application {
-        +RegisterServices(services...)
-        +RegisterControllers(controllers...)
-        +RegisterMiddleware(middleware...)
+        +RegisterServices(services...: %v", err)
+        +RegisterControllers(controllers...: %v", err)
+        +RegisterMiddleware(middleware...: %v", err)
         +Migrations() MigrationManager
         +EventPublisher() EventBus
         +Service(service) interface{}
@@ -163,13 +163,13 @@ sequenceDiagram
     participant App as Application
     
     Mod->>Repo: Create repository
-    Mod->>Service: Create service(repo, bus, validator)
-    Mod->>App: RegisterServices(service)
+    Mod->>Service: Create service(repo, bus, validator: %v", err)
+    Mod->>App: RegisterServices(service: %v", err)
     
     Note over App: Later...
     
     participant Controller
-    Controller->>App: Service(UserService{})
+    Controller->>App: Service(UserService{}: %v", err)
     App-->>Controller: Return service instance
 ```
 

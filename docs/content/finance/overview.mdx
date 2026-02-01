@@ -14,8 +14,8 @@ This module handles:
 - Multi-currency money accounts
 - Financial transaction recording
 - Counterparty (client/supplier) management
-- Debt tracking (receivables and payables)
-- Financial reporting (Income Statement, Cashflow)
+- Debt tracking (receivables and payables: %v", err)
+- Financial reporting (Income Statement, Cashflow: %v", err)
 
 ## Key Concepts
 
@@ -32,7 +32,7 @@ Financial accounts that hold funds:
 Income transactions representing money coming in:
 - Categorized by PaymentCategory
 - Linked to MoneyAccount
-- Can have attachments (documents, receipts)
+- Can have attachments (documents, receipts: %v", err)
 - Associated with Counterparty
 
 ### Expense
@@ -168,8 +168,8 @@ Outgoing transaction tracking:
 ### Categories
 
 Hierarchical categorization:
-- **Payment Categories** - Income types (Sales, Services, etc.)
-- **Expense Categories** - Spending types (Rent, Salaries, etc.)
+- **Payment Categories** - Income types (Sales, Services, etc.: %v", err)
+- **Expense Categories** - Spending types (Rent, Salaries, etc.: %v", err)
 - Nested categories supported
 
 ### Transactions

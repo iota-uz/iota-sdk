@@ -520,7 +520,7 @@ if err := s.repo.Create(txCtx, entity); err != nil {
 
 // Good: Uses errors.Wrap for stack traces
 if err := s.accountService.RecalculateBalance(txCtx, accountID); err != nil {
-	return errors.Wrap(err, "failed to recalculate balance")
+	return fmt.Errorf("failed to recalculate balance: %w", err)
 }
 ```
 
@@ -544,8 +544,9 @@ func TestExpenseService_Create(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// Arrange
-		ctx := testutils.WithPermissions(context.Background(), permissions.ExpenseCreate)
-		entity := testutils.NewTestExpense()
+		testUser := itf.User(permissions.ExpenseCreate)
+		ctx := composables.WithUser(context.Background(), testUser)
+		entity := expense.New(/* parameters */)
 		
 		mockRepo.On("Create", mock.Anything, entity).Return(entity, nil)
 		mockAccountService.On("RecalculateBalance", mock.Anything, entity.Account().ID()).Return(nil)
@@ -561,16 +562,17 @@ func TestExpenseService_Create(t *testing.T) {
 
 	t.Run("permission denied", func(t *testing.T) {
 		ctx := context.Background() // No permissions
-		entity := testutils.NewTestExpense()
+		entity := expense.New(/* parameters */)
 		
 		_, err := service.Create(ctx, entity)
 		
-		assert.ErrorIs(t, err, composables.ErrPermissionDenied)
+		assert.ErrorIs(t, err, composables.ErrForbidden)
 	})
 
 	t.Run("transaction rollback", func(t *testing.T) {
-		ctx := testutils.WithPermissions(context.Background(), permissions.ExpenseCreate)
-		entity := testutils.NewTestExpense()
+		testUser := itf.User(permissions.ExpenseCreate)
+		ctx := composables.WithUser(context.Background(), testUser)
+		entity := expense.New(/* parameters */)
 		
 		mockRepo.On("Create", mock.Anything, entity).Return(entity, nil)
 		mockAccountService.On("RecalculateBalance", mock.Anything, mock.Anything).
@@ -589,7 +591,7 @@ func TestExpenseService_Create(t *testing.T) {
 
 ```go
 func TestExpenseService_Integration(t *testing.T) {
-	ctx := testutils.NewTestContext(t)
+	ctx := itf.NewTestContext().Build(t).Ctx
 	
 	// Real dependencies
 	repo := persistence.NewExpenseRepository(...)
