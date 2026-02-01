@@ -1,0 +1,61 @@
+/* OKLCH Color Design Tokens */
+/* These generate Tailwind utilities: bg-*, text-*, border-*, etc. */
+
+/* Base colors */
+--color-white: oklch(100% 0 0);
+--color-black-800: oklch(26% 0 0);
+--color-black: oklch(18.67% 0 0);
+--color-black-950: oklch(16.84% 0 0);
+
+/* Brand/Primary colors */
+--color-brand-400: oklch(62.51% 0.172 283.89);
+--color-brand-500: oklch(58.73% 0.23 279.66);
+--color-brand-600: oklch(50% 0.192 279.97);
+--color-brand-650: oklch(52.52% 0.272 280.57);
+--color-brand-700: oklch(45.57% 0.171 280.34);
+
+/* Gray scale - Tailwind CSS v4 OKLCH palette */
+--color-gray-50: oklch(98.5% 0.002 247.839);
+--color-gray-100: oklch(96.7% 0.003 264.542);
+--color-gray-200: oklch(92.8% 0.006 264.531);
+--color-gray-300: oklch(87.2% 0.01 258.338);
+--color-gray-400: oklch(70.7% 0.022 261.325);
+--color-gray-500: oklch(55.1% 0.027 264.364);
+--color-gray-600: oklch(44.6% 0.03 256.802);
+--color-gray-700: oklch(37.3% 0.034 259.733);
+--color-gray-800: oklch(27.8% 0.033 256.848);
+--color-gray-900: oklch(21% 0.034 264.665);
+--color-gray-950: oklch(13% 0.028 261.692);
+
+/* Red */
+--color-red-100: oklch(from oklch(59.16% 0.218 0.58) l c h / 10%);
+--color-red-200: oklch(from oklch(59.16% 0.218 0.58) l c h / 20%);
+--color-red-300: oklch(from oklch(59.16% 0.218 0.58) l c h / 30%);
+--color-red-500: oklch(59.16% 0.218 0.58);
+--color-red-600: oklch(59.16% 0.218 0.58);
+--color-red-700: oklch(59.16% 0.218 0.58);
+
+/* Green */
+--color-green-50: oklch(96.3% 0.0173 168.27);
+--color-green-100: oklch(92.4% 0.0346 168.27);
+--color-green-200: oklch(84.9% 0.0692 168.27);
+--color-green-500: oklch(78.02% 0.1534 168.27);
+--color-green-600: oklch(64.33% 0.1128 171.09);
+
+/* Pink */
+--color-pink-500: oklch(59.16% 0.218 0.58);
+--color-pink-600: oklch(58.93% 0.2129 359.93);
+
+/* Yellow */
+--color-yellow-500: oklch(80.13% 0.1458 73.41);
+
+/* Blue */
+--color-blue-500: oklch(82.1% 0.099263 240.9782);
+--color-blue-600: oklch(64.12% 0.0638 240.72);
+
+/* Purple */
+--color-purple-500: oklch(52.06% 0.2042 305.37);
+
+/* Semantic color aliases */
+--color-success: var(--color-green-500);
+--color-on-success: var(--color-white);

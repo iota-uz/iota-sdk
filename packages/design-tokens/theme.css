@@ -1,0 +1,7 @@
+/* IOTA SDK Design Tokens - Theme Configuration */
+/* Import this file to get the complete @theme block */
+
+@theme {
+  @import "./tokens/colors.css";
+  @import "./tokens/typography.css";
+}

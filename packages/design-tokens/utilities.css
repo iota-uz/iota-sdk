@@ -1,0 +1,148 @@
+/* Custom Utility Classes */
+
+@layer utilities {
+  .hide-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-transition {
+    transition: none !important;
+  }
+
+  /* Slider styles */
+  .slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 1rem;
+    position: relative;
+    z-index: 10;
+  }
+
+  .slider-thumb::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: oklch(var(--primary-500));
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 20;
+  }
+
+  .slider-thumb::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: oklch(var(--primary-500));
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 20;
+  }
+
+  .slider-thumb:focus {
+    outline: none;
+  }
+
+  .slider-thumb:disabled::-webkit-slider-thumb {
+    background: oklch(var(--gray-400));
+  }
+
+  .slider-thumb:disabled::-moz-range-thumb {
+    background: oklch(var(--gray-400));
+  }
+}
+
+/* iOS Safari 100vh fix - use dynamic viewport height */
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh !important;
+  }
+  .h-screen {
+    height: 100dvh !important;
+  }
+}
+
+/* Keyframes */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%)
+  }
+}
+
+@keyframes slide-out-right {
+  to {
+    transform: translateX(100%)
+  }
+}
+
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%)
+  }
+}
+
+@keyframes slide-out-left {
+  to {
+    transform: translateX(-100%)
+  }
+}
+
+@keyframes slide-in-up {
+  from {
+    transform: translateY(100%)
+  }
+}
+
+@keyframes scale-down {
+  to {
+    transform: scale(.75)
+  }
+}
+
+@keyframes slide-out-down {
+  to {
+    transform: translateY(100%)
+  }
+}
+
+@keyframes slide-in-down {
+  from {
+    transform: translateY(-100%)
+  }
+}
+
+@keyframes slide-out-up {
+  to {
+    transform: translateY(-100%)
+  }
+}
+
+@keyframes dot-flashing {
+  0% {
+    background-color: oklch(var(--color));
+  }
+
+  50%,
+  100% {
+    background-color: oklch(var(--color) / 30%);
+  }
+}
+
+/* Lazy loading component styles */
+.lazy-load.htmx-settling * {
+  opacity: 0;
+}
+
+.lazy-load * {
+  transition: opacity 300ms ease-in;
+}

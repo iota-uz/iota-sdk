@@ -1,0 +1,30 @@
+# Files to exclude from npm package
+
+# Development files
+validate.sh
+PACKAGE_SUMMARY.md
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+test
+tests
+*.test.js
+*.spec.js
+
+# Documentation (keep only README)
+# EXAMPLE.md and CHANGELOG.md are useful, keep them
