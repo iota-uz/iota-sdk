@@ -166,9 +166,9 @@ func (s *agentServiceImpl) ProcessMessage(
 			compiled.TotalTokens,
 			tokensByKindStr,
 			len(compiled.Messages),
-			false, // compacted (not implemented yet)
+			compiled.Compacted,
 			compiled.Truncated,
-			0, // excludedBlocks (not tracked yet)
+			compiled.ExcludedBlocks,
 		)
 		_ = s.eventBus.Publish(ctx, event)
 	}

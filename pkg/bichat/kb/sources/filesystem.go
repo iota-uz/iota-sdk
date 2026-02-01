@@ -11,6 +11,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
 )
 
 // fileSystemSource indexes documents from a filesystem directory.
@@ -21,6 +22,7 @@ type fileSystemSource struct {
 	recursive       bool
 	extractTitle    bool
 	includeMetadata bool
+	logger          logging.Logger
 }
 
 // FSOption is a functional option for configuring FileSystemSource.
@@ -62,6 +64,13 @@ func WithIncludeMetadata(include bool) FSOption {
 	}
 }
 
+// WithFSLogger sets a logger for the filesystem source.
+func WithFSLogger(logger logging.Logger) FSOption {
+	return func(fs *fileSystemSource) {
+		fs.logger = logger
+	}
+}
+
 // NewFileSystemSource creates a DocumentSource that indexes files from a directory.
 func NewFileSystemSource(root string, opts ...FSOption) kb.DocumentSource {
 	fs := &fileSystemSource{
@@ -71,6 +80,7 @@ func NewFileSystemSource(root string, opts ...FSOption) kb.DocumentSource {
 		recursive:       true,
 		extractTitle:    true,
 		includeMetadata: true,
+		logger:          logging.NewNoOpLogger(), // Default to no-op
 	}
 
 	for _, opt := range opts {
@@ -168,9 +178,11 @@ func (fs *fileSystemSource) Watch(ctx context.Context) (<-chan kb.DocumentChange
 	go func() {
 		defer close(changes)
 		defer func() {
-			if err := watcher.Close(); err != nil {
-				// TODO: log watcher close error
-				_ = err
+			if closeErr := watcher.Close(); closeErr != nil {
+				fs.logger.Error(ctx, "failed to close filesystem watcher", map[string]any{
+					"error": closeErr.Error(),
+					"root":  fs.root,
+				})
 			}
 		}()
 

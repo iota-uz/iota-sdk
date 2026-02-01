@@ -54,6 +54,12 @@ func (s *chatServiceStub) UnpinSession(ctx context.Context, sessionID uuid.UUID)
 	return nil, serrors.E(op, "not implemented - Phase 1 pending")
 }
 
+// DeleteSession deletes a session and all its messages.
+func (s *chatServiceStub) DeleteSession(ctx context.Context, sessionID uuid.UUID) error {
+	const op serrors.Op = "chatServiceStub.DeleteSession"
+	return serrors.E(op, "not implemented - Phase 1 pending")
+}
+
 // SendMessage sends a message to a session.
 func (s *chatServiceStub) SendMessage(ctx context.Context, req services.SendMessageRequest) (*services.SendMessageResponse, error) {
 	const op serrors.Op = "chatServiceStub.SendMessage"

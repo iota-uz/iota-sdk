@@ -98,7 +98,76 @@ cfg := bichat.NewModuleConfig(
 
     // Optional: PostgreSQL checkpointer for HITL
     bichat.WithCheckpointer(checkpointer),
+
+    // Optional: Token estimator for cost tracking
+    bichat.WithTokenEstimator(tokenEstimator),
+
+    // Optional: File storage for PDF exports
+    bichat.WithFileStorage(fileStorage),
+
+    // Optional: Logger for observability
+    bichat.WithLogger(logger),
+
+    // Optional: Metrics recorder
+    bichat.WithMetrics(metrics),
 )
+```
+
+### 3. Complete Setup with Observability
+
+```go
+import (
+    "github.com/iota-uz/iota-sdk/modules/bichat"
+    "github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+    "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+    "github.com/iota-uz/iota-sdk/pkg/bichat/logging"
+    "github.com/iota-uz/iota-sdk/pkg/bichat/storage"
+    "github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
+)
+
+// Create token estimator
+tokenEstimator := agents.NewTiktokenEstimator("cl100k_base")
+
+// Create file storage
+fileStorage, _ := storage.NewLocalFileStorage(
+    "/var/lib/bichat/exports",
+    "https://example.com/exports",
+)
+
+// Create logger
+logger := logging.NewStdLogger()
+
+// Create metrics recorder
+metrics := hooks.NewStdMetricsRecorder()
+
+// Create context policy with summarization
+summarizer := context.NewLLMHistorySummarizer(llmModel, tokenEstimator)
+policy := context.ContextPolicy{
+    ContextWindow:     180000,
+    CompletionReserve: 8000,
+    OverflowStrategy:  context.OverflowCompact,
+    Summarizer:        summarizer,
+    Compaction: &context.CompactionConfig{
+        SummarizeHistory:   true,
+        MaxHistoryMessages: 50,
+    },
+}
+
+// Configure module
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    llmModel,
+    policy,
+    parentAgent,
+    bichat.WithTokenEstimator(tokenEstimator),
+    bichat.WithFileStorage(fileStorage),
+    bichat.WithLogger(logger),
+    bichat.WithMetrics(metrics),
+)
+
+app.RegisterModule(bichat.NewModule(cfg))
 ```
 
 ## Database Schema
@@ -486,6 +555,170 @@ BICHAT_KB_ENABLED=true
 # Observability
 BICHAT_EVENT_BUS_BUFFER_SIZE=1000
 LOG_LEVEL=info
+```
+
+## Observability & Cost Tracking
+
+### Token Estimation
+
+Track token usage for cost monitoring and budget enforcement:
+
+```go
+// Create estimator
+estimator := agents.NewTiktokenEstimator("cl100k_base")
+
+// Integrate with executor
+executor := agents.NewExecutor(agent, model,
+    agents.WithTokenEstimator(estimator),
+    agents.WithEventBus(eventBus),
+)
+
+// Subscribe to LLM request events for cost tracking
+eventBus.Subscribe(hooks.EventLLMRequest, func(e hooks.Event) error {
+    reqEvent := e.(*events.LLMRequestEvent)
+    log.Printf("LLM Request: model=%s, estimated_tokens=%d",
+        reqEvent.ModelName, reqEvent.EstimatedTokens)
+
+    // Track costs
+    costPerToken := 0.00003 // $0.03 per 1K tokens (GPT-4)
+    estimatedCost := float64(reqEvent.EstimatedTokens) * costPerToken
+    metrics.RecordGauge("bichat.llm.estimated_cost", estimatedCost, labels)
+
+    return nil
+})
+```
+
+**Token Estimator Options**:
+- **Tiktoken** (accurate, ~10-50ms): Use for production cost tracking
+- **Character-based** (fast, <1ms): Use for rate limiting and quick estimates
+- **NoOp** (instant): Disable estimation when not needed
+
+### Logging
+
+Add structured logging for debugging and monitoring:
+
+```go
+// Create logger
+logger := logging.NewStdLogger()
+
+// Use with components
+pdfTool := tools.NewExportToPDFTool(
+    gotenbergURL,
+    fileStorage,
+    tools.WithLogger(logger),
+)
+
+fsSource := sources.NewFileSystemSource(
+    rootDir,
+    sources.WithFSLogger(logger),
+)
+
+// Logs automatically capture errors:
+// - Response body close failures
+// - Filesystem watcher close errors
+// - File storage errors
+```
+
+**Production Integration**:
+```go
+// Example: Custom slog-based logger
+type SlogLogger struct {
+    logger *slog.Logger
+}
+
+func (l *SlogLogger) Error(ctx context.Context, msg string, fields map[string]any) {
+    l.logger.ErrorContext(ctx, msg, slogFields(fields)...)
+}
+
+// Use with BiChat
+logger := &SlogLogger{logger: slog.Default()}
+```
+
+### Metrics
+
+Monitor performance and health with metrics:
+
+```go
+// Create metrics recorder
+metrics := hooks.NewStdMetricsRecorder()
+
+// Use with async event handler
+asyncHandler := handlers.NewAsyncHandler(
+    baseHandler,
+    100, // buffer size
+    handlers.WithMetrics(metrics),
+)
+
+// Automatically tracked:
+// - bichat.async_handler.queue_depth (gauge)
+// - bichat.async_handler.dropped_events (counter with reason label)
+```
+
+**Production Integration with Prometheus**:
+```go
+import "github.com/prometheus/client_golang/prometheus"
+
+type PrometheusMetrics struct {
+    queueDepth   prometheus.Gauge
+    droppedEvents *prometheus.CounterVec
+}
+
+func (m *PrometheusMetrics) RecordGauge(name string, value float64, labels map[string]string) {
+    if name == "bichat.async_handler.queue_depth" {
+        m.queueDepth.Set(value)
+    }
+}
+
+func (m *PrometheusMetrics) IncrementCounter(name string, value int64, labels map[string]string) {
+    if name == "bichat.async_handler.dropped_events" {
+        m.droppedEvents.With(labels).Add(float64(value))
+    }
+}
+```
+
+### File Storage
+
+Persist generated files (PDFs, exports) with storage abstraction:
+
+```go
+// Local filesystem storage
+storage, _ := storage.NewLocalFileStorage(
+    "/var/lib/bichat/exports",
+    "https://example.com/exports",
+)
+
+// Use with PDF export tool
+pdfTool := tools.NewExportToPDFTool(
+    "http://gotenberg:3000",
+    storage,
+    tools.WithLogger(logger),
+)
+
+// Files automatically saved with unique names
+// URL returned: https://example.com/exports/uuid.pdf
+```
+
+**Cloud Storage Integration**:
+```go
+// Example: Custom S3 storage backend
+type S3Storage struct {
+    bucket string
+    client *s3.Client
+}
+
+func (s *S3Storage) Save(ctx context.Context, filename string, content io.Reader, metadata storage.FileMetadata) (string, error) {
+    key := fmt.Sprintf("bichat/%s-%s", uuid.New(), filename)
+    _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+        Bucket:      aws.String(s.bucket),
+        Key:         aws.String(key),
+        Body:        content,
+        ContentType: aws.String(metadata.ContentType),
+    })
+    if err != nil {
+        return "", err
+    }
+    return fmt.Sprintf("https://%s.s3.amazonaws.com/%s", s.bucket, key), nil
+}
 ```
 
 ## Common Patterns

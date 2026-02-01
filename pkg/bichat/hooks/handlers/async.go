@@ -13,6 +13,7 @@ import (
 type AsyncHandler struct {
 	handler    hooks.EventHandler
 	eventQueue chan eventWithContext
+	metrics    hooks.MetricsRecorder
 	wg         sync.WaitGroup
 	stopOnce   sync.Once
 	stopCh     chan struct{}
@@ -24,10 +25,20 @@ type eventWithContext struct {
 	event hooks.Event
 }
 
+// AsyncHandlerOption configures an AsyncHandler.
+type AsyncHandlerOption func(*AsyncHandler)
+
+// WithMetrics sets a metrics recorder for the async handler.
+func WithMetrics(metrics hooks.MetricsRecorder) AsyncHandlerOption {
+	return func(h *AsyncHandler) {
+		h.metrics = metrics
+	}
+}
+
 // NewAsyncHandler creates a new AsyncHandler that processes events asynchronously.
 // The bufferSize determines how many events can be queued before blocking.
 // Call Close() when done to wait for pending events and cleanup resources.
-func NewAsyncHandler(handler hooks.EventHandler, bufferSize int) *AsyncHandler {
+func NewAsyncHandler(handler hooks.EventHandler, bufferSize int, opts ...AsyncHandlerOption) *AsyncHandler {
 	if bufferSize <= 0 {
 		bufferSize = 100 // Default buffer size
 	}
@@ -35,7 +46,12 @@ func NewAsyncHandler(handler hooks.EventHandler, bufferSize int) *AsyncHandler {
 	h := &AsyncHandler{
 		handler:    handler,
 		eventQueue: make(chan eventWithContext, bufferSize),
+		metrics:    hooks.NewNoOpMetricsRecorder(), // Default to no-op
 		stopCh:     make(chan struct{}),
+	}
+
+	for _, opt := range opts {
+		opt(h)
 	}
 
 	// Start background processor
@@ -49,13 +65,26 @@ func NewAsyncHandler(handler hooks.EventHandler, bufferSize int) *AsyncHandler {
 func (h *AsyncHandler) Handle(ctx context.Context, event hooks.Event) error {
 	select {
 	case h.eventQueue <- eventWithContext{ctx: ctx, event: event}:
+		// Record queue depth
+		h.metrics.RecordGauge("bichat.async_handler.queue_depth",
+			float64(len(h.eventQueue)),
+			map[string]string{"event_type": event.Type()})
 		return nil
 	case <-h.stopCh:
 		// Handler is stopped, drop the event
+		h.metrics.IncrementCounter("bichat.async_handler.dropped_events", 1,
+			map[string]string{
+				"event_type": event.Type(),
+				"reason":     "handler_stopped",
+			})
 		return nil
 	default:
-		// Queue is full, drop the event (could also block or return error)
-		// TODO: Consider adding metrics for dropped events
+		// Queue is full, drop the event
+		h.metrics.IncrementCounter("bichat.async_handler.dropped_events", 1,
+			map[string]string{
+				"event_type": event.Type(),
+				"reason":     "queue_full",
+			})
 		return nil
 	}
 }
