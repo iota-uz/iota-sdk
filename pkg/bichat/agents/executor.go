@@ -120,7 +120,8 @@ type Executor struct {
 	eventBus          hooks.EventBus
 	maxIterations     int
 	interruptRegistry *InterruptHandlerRegistry
-	tools             []Tool // Optional override for agent tools (e.g., filtered for child executors)
+	tools             []Tool         // Optional override for agent tools (e.g., filtered for child executors)
+	tokenEstimator    TokenEstimator // Optional token estimator for cost tracking
 }
 
 // Input represents the input to Execute or Resume.
@@ -171,6 +172,23 @@ func WithMaxIterations(max int) ExecutorOption {
 func WithInterruptRegistry(registry *InterruptHandlerRegistry) ExecutorOption {
 	return func(e *Executor) {
 		e.interruptRegistry = registry
+	}
+}
+
+// WithTokenEstimator sets the token estimator for accurate cost tracking.
+// If nil, token estimation will be disabled (events will report 0 tokens).
+//
+// Recommended implementations:
+//   - TiktokenEstimator: Accurate token counting using tiktoken library
+//   - CharacterBasedEstimator: Fast approximation using character counts
+//
+// Example:
+//
+//	estimator := NewTiktokenEstimator("cl100k_base")
+//	executor := NewExecutor(agent, model, WithTokenEstimator(estimator))
+func WithTokenEstimator(estimator TokenEstimator) ExecutorOption {
+	return func(e *Executor) {
+		e.tokenEstimator = estimator
 	}
 }
 
@@ -254,6 +272,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			// Emit LLM request event
 			if e.eventBus != nil {
 				modelInfo := e.model.Info()
+
+				// Estimate tokens if estimator is configured
+				estimatedTokens := 0
+				if e.tokenEstimator != nil {
+					estimatedTokens, _ = e.tokenEstimator.EstimateMessages(ctx, req.Messages)
+				}
+
 				_ = e.eventBus.Publish(ctx, events.NewLLMRequestEvent(
 					input.SessionID,
 					input.TenantID,
@@ -261,7 +286,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					modelInfo.Provider,
 					len(req.Messages),
 					len(req.Tools),
-					0, // TODO: estimate tokens
+					estimatedTokens,
 				))
 			}
 

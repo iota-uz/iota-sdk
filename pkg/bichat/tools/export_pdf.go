@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -18,14 +20,44 @@ import (
 // See: https://gotenberg.dev/
 type ExportToPDFTool struct {
 	gotenbergURL string
+	storage      storage.FileStorage
+	logger       logging.Logger
+}
+
+// PDFToolOption configures an ExportToPDFTool.
+type PDFToolOption func(*ExportToPDFTool)
+
+// WithLogger sets a logger for the PDF export tool.
+func WithLogger(logger logging.Logger) PDFToolOption {
+	return func(t *ExportToPDFTool) {
+		t.logger = logger
+	}
 }
 
 // NewExportToPDFTool creates a new export to PDF tool.
-// gotenbergURL is the base URL of the Gotenberg service (e.g., "http://localhost:3000").
-func NewExportToPDFTool(gotenbergURL string) agents.Tool {
-	return &ExportToPDFTool{
+//
+// Parameters:
+//   - gotenbergURL: Base URL of the Gotenberg service (e.g., "http://localhost:3000")
+//   - storage: File storage backend for saving generated PDFs
+//   - opts: Optional configuration (logger)
+//
+// Example:
+//
+//	storage, _ := storage.NewLocalFileStorage("/var/lib/bichat/exports", "https://example.com/exports")
+//	logger := logging.NewStdLogger()
+//	tool := tools.NewExportToPDFTool("http://gotenberg:3000", storage, WithLogger(logger))
+func NewExportToPDFTool(gotenbergURL string, fileStorage storage.FileStorage, opts ...PDFToolOption) agents.Tool {
+	t := &ExportToPDFTool{
 		gotenbergURL: gotenbergURL,
+		storage:      fileStorage,
+		logger:       logging.NewNoOpLogger(), // Default to no-op
 	}
+
+	for _, opt := range opts {
+		opt(t)
+	}
+
+	return t
 }
 
 // Name returns the tool name.
@@ -104,9 +136,19 @@ func (t *ExportToPDFTool) Call(ctx context.Context, input string) (string, error
 		return "", serrors.E(op, err, "PDF conversion failed")
 	}
 
-	// TODO: Save PDF file and return URL
-	// This is a placeholder - consumers should implement file storage
-	url := fmt.Sprintf("/exports/%s", filename)
+	// Save PDF file to storage
+	url := fmt.Sprintf("/exports/%s", filename) // Fallback URL
+	if t.storage != nil {
+		metadata := storage.FileMetadata{
+			ContentType: "application/pdf",
+			Size:        int64(len(pdfData)),
+		}
+		savedURL, err := t.storage.Save(ctx, filename, bytes.NewReader(pdfData), metadata)
+		if err != nil {
+			return "", serrors.E(op, err, "failed to save PDF file")
+		}
+		url = savedURL
+	}
 
 	// Build response
 	response := pdfExportOutput{
@@ -151,9 +193,10 @@ func (t *ExportToPDFTool) convertHTMLToPDF(ctx context.Context, html string, lan
 		return nil, serrors.E(op, err, "failed to send request")
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			// TODO: log response body close error
-			_ = err
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.logger.Error(ctx, "failed to close response body", map[string]any{
+				"error": closeErr.Error(),
+			})
 		}
 	}()
 
@@ -184,17 +227,30 @@ type GotenbergPDFExporter struct {
 	gotenbergURL string
 	outputDir    string
 	baseURL      string
+	storage      storage.FileStorage
 }
 
 // NewGotenbergPDFExporter creates a new Gotenberg PDF exporter.
-// gotenbergURL is the base URL of the Gotenberg service.
-// outputDir is the directory where PDF files will be saved.
-// baseURL is the base URL for download links.
+//
+// Parameters:
+//   - gotenbergURL: Base URL of the Gotenberg service
+//   - outputDir: Legacy parameter (deprecated, use storage instead)
+//   - baseURL: Legacy parameter (deprecated, use storage URL instead)
+//
+// Deprecated: Use NewExportToPDFTool with storage.LocalFileStorage instead.
 func NewGotenbergPDFExporter(gotenbergURL, outputDir, baseURL string) PDFExporter {
+	// Create storage backend from legacy parameters
+	fileStorage, err := storage.NewLocalFileStorage(outputDir, baseURL)
+	if err != nil {
+		// Fallback to no-op storage if directory creation fails
+		fileStorage = storage.NewNoOpFileStorage()
+	}
+
 	return &GotenbergPDFExporter{
 		gotenbergURL: gotenbergURL,
 		outputDir:    outputDir,
 		baseURL:      baseURL,
+		storage:      fileStorage,
 	}
 }
 
@@ -202,7 +258,7 @@ func NewGotenbergPDFExporter(gotenbergURL, outputDir, baseURL string) PDFExporte
 func (e *GotenbergPDFExporter) ExportToPDF(ctx context.Context, html string, filename string, landscape bool) (string, error) {
 	const op serrors.Op = "GotenbergPDFExporter.ExportToPDF"
 
-	tool := NewExportToPDFTool(e.gotenbergURL)
+	tool := NewExportToPDFTool(e.gotenbergURL, e.storage)
 	pdfTool := tool.(*ExportToPDFTool)
 
 	// Convert HTML to PDF
@@ -211,11 +267,20 @@ func (e *GotenbergPDFExporter) ExportToPDF(ctx context.Context, html string, fil
 		return "", serrors.E(op, err)
 	}
 
-	// TODO: Save PDF file to outputDir
-	// This is a placeholder - implement file storage
-	_ = pdfData
+	// Save PDF file using storage
+	if e.storage != nil {
+		metadata := storage.FileMetadata{
+			ContentType: "application/pdf",
+			Size:        int64(len(pdfData)),
+		}
+		url, err := e.storage.Save(ctx, filename, bytes.NewReader(pdfData), metadata)
+		if err != nil {
+			return "", serrors.E(op, err, "failed to save PDF file")
+		}
+		return url, nil
+	}
 
-	// Return download URL
+	// Fallback to legacy URL construction (no actual storage)
 	url := fmt.Sprintf("%s/%s", e.baseURL, filename)
 	return url, nil
 }

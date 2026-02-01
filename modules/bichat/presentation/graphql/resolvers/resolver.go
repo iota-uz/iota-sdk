@@ -239,9 +239,19 @@ func (r *mutationResolver) UnpinSession(ctx context.Context, id string) (*model.
 func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, error) {
 	const op serrors.Op = "Resolver.DeleteSession"
 
-	// TODO: Implement DeleteSession in ChatService
-	// For now, return not implemented error
-	return false, serrors.E(op, "not yet implemented", "delete session not yet implemented")
+	// Parse UUID
+	sessionID, err := uuid.Parse(id)
+	if err != nil {
+		return false, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
+	}
+
+	// Delete session (cascades to messages and attachments via repository)
+	err = r.chatService.DeleteSession(ctx, sessionID)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+
+	return true, nil
 }
 
 // Sessions is the resolver for the sessions field.
@@ -342,6 +352,21 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 }
 
 // MessageStream is the resolver for the messageStream field.
+//
+// IMPORTANT LIMITATION:
+// This is a placeholder implementation. GraphQL subscriptions require WebSocket infrastructure
+// and don't fit well with the chat streaming model where messages are sent as mutations.
+//
+// RECOMMENDED APPROACH:
+// Use SSE (Server-Sent Events) streaming via the HTTP StreamController instead:
+// - POST /bichat/stream - Starts streaming for a message
+// - More efficient for chat (unidirectional)
+// - Simpler infrastructure (no WebSocket)
+// - Better backpressure handling
+// - Direct integration with ChatService.SendMessageStream()
+//
+// This GraphQL subscription remains as a placeholder for future pub/sub implementations
+// (e.g., multi-device synchronization, typing indicators, presence).
 func (r *subscriptionResolver) MessageStream(ctx context.Context, sessionID string) (<-chan *model.MessageChunk, error) {
 	const op serrors.Op = "Resolver.MessageStream"
 

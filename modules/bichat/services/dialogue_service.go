@@ -179,7 +179,11 @@ func (s *DialogueService) ChatComplete(ctx context.Context, data dialogue.Dialog
 		if err := s.repo.Update(ctx, data); err != nil {
 			return err
 		}
-		msg := data.LastMessage()
+		msg, err := data.LastMessage()
+		if err != nil {
+			// No messages in dialogue, exit loop
+			break
+		}
 		if len(msg.ToolCalls) == 0 {
 			break
 		}

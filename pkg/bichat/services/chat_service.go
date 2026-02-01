@@ -19,6 +19,7 @@ type ChatService interface {
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error)
 	PinSession(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error)
 	UnpinSession(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error)
+	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
 
 	// Message management
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)

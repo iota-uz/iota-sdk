@@ -64,6 +64,11 @@ type ContextPolicy struct {
 	// Compaction configures automatic compaction (if OverflowStrategy = compact).
 	Compaction *CompactionConfig
 
+	// Summarizer provides LLM-based conversation history compression.
+	// If nil, compaction will fall back to truncation.
+	// Used when OverflowStrategy = OverflowCompact and Compaction.SummarizeHistory = true.
+	Summarizer HistorySummarizer
+
 	// MaxSensitivity is the maximum sensitivity level to include.
 	MaxSensitivity SensitivityLevel
 

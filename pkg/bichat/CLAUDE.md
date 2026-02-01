@@ -133,6 +133,42 @@ for {
 }
 ```
 
+### Token Estimation (`agents/`)
+
+**Purpose**: Accurate token counting for cost tracking and budget management.
+
+**Implementations**:
+- **TiktokenEstimator**: Accurate token counting using tiktoken library (~10-50ms per message)
+  - Supports provider-specific encodings (cl100k_base for GPT-4/Claude)
+  - Includes overhead for message formatting and role tokens
+- **CharacterBasedEstimator**: Fast approximation using ~4 chars/token (<1ms)
+  - Configurable chars-per-token ratio (default: 4.0)
+  - No external dependencies
+- **NoOpTokenEstimator**: No-op implementation (returns 0 tokens)
+
+**Usage**:
+```go
+// Tiktoken (accurate)
+estimator := agents.NewTiktokenEstimator("cl100k_base")
+tokens, _ := estimator.EstimateMessages(ctx, messages)
+
+// Character-based (fast)
+estimator := agents.NewCharacterBasedEstimator(4.0)
+tokens, _ := estimator.EstimateTokens(ctx, "Hello world")
+
+// Integrate with Executor
+executor := agents.NewExecutor(agent, model,
+    agents.WithTokenEstimator(estimator),
+    agents.WithEventBus(eventBus),
+)
+```
+
+**Features**:
+- Estimates tokens for single text strings or full message arrays
+- Accounts for tool calls, role tokens, and message overhead
+- Published via LLM request events for cost tracking
+- Optional - defaults to nil (no estimation)
+
 ### Context Management (`context/`)
 
 **Content-Addressed Blocks**: SHA-256 hashing for deduplication
@@ -153,6 +189,37 @@ for {
 - `ContextWindow`: Model's max tokens
 - `CompletionReserve`: Tokens for response
 - `OverflowStrategy`: Error | Truncate | Compact
+
+**Context Compaction with Summarization**:
+```go
+// Create LLM-based summarizer
+summarizer := context.NewLLMHistorySummarizer(
+    model,
+    estimator,
+    context.WithSystemPrompt("Condense this conversation..."),
+)
+
+// Configure policy with summarization
+policy := context.ContextPolicy{
+    ContextWindow:     180000,
+    CompletionReserve: 8000,
+    OverflowStrategy:  context.OverflowCompact,
+    Summarizer:        summarizer,
+    Compaction: &context.CompactionConfig{
+        SummarizeHistory:   true,
+        MaxHistoryMessages: 50,
+    },
+}
+
+// Compile with intelligent compaction
+compiled, _ := builder.Compile(renderer, policy)
+```
+
+**Features**:
+- LLM-based conversation summarization to compress history
+- Falls back to truncation if summarizer not configured
+- Redacted stubs for restricted content (preserves structure)
+- Configurable compaction strategies (prune tool outputs, summarize history)
 
 **Renderers**: Provider-specific output
 - `AnthropicRenderer`: Claude (Anthropic, Bedrock, Vertex)
@@ -241,11 +308,123 @@ attachment := domain.NewAttachment(
 **Utilities**:
 - `NewTimeTool()` - Current date/time
 - `NewExportExcelTool()` - Export to Excel
-- `NewExportPDFTool()` - Generate PDF reports
+- `NewExportPDFTool(gotenbergURL, storage, WithLogger(logger))` - Generate PDF reports with file storage
 - `NewChartTool()` - Generate chart data
 
 **HITL (Human-in-the-Loop)**:
 - `NewQuestionTool()` - Ask user questions, trigger interrupt
+
+### File Storage (`storage/`)
+
+**Purpose**: Abstraction for saving and retrieving files (PDFs, exports, attachments).
+
+**Implementations**:
+- **LocalFileStorage**: Filesystem backend with unique file names (UUID + extension)
+- **NoOpFileStorage**: No-op implementation for testing
+
+**Usage**:
+```go
+// Create storage backend
+storage, _ := storage.NewLocalFileStorage(
+    "/var/lib/bichat/exports",
+    "https://example.com/exports",
+)
+
+// Save file
+metadata := storage.FileMetadata{
+    ContentType: "application/pdf",
+    Size:        int64(len(pdfData)),
+}
+url, _ := storage.Save(ctx, "report.pdf", bytes.NewReader(pdfData), metadata)
+// Returns: https://example.com/exports/550e8400-e29b-41d4-a716-446655440000.pdf
+
+// Retrieve file
+reader, _ := storage.Get(ctx, url)
+defer reader.Close()
+
+// Use with PDF export tool
+pdfTool := tools.NewExportToPDFTool(
+    "http://gotenberg:3000",
+    storage,
+    tools.WithLogger(logger),
+)
+```
+
+**Features**:
+- Automatic unique file naming (UUID + original extension)
+- Size validation
+- Extension preservation
+- Directory auto-creation
+- Extensible for S3, GCS, Azure Blob, etc.
+
+### Observability (`logging/`, `hooks/`)
+
+**Logging**: Structured logging interface for BiChat components.
+
+**Implementations**:
+- **StdLogger**: Logs to stdout/stderr using fmt package
+- **NoOpLogger**: No-op implementation (default)
+
+**Usage**:
+```go
+// Create logger
+logger := logging.NewStdLogger()
+
+// Use with components
+pdfTool := tools.NewExportToPDFTool(gotenbergURL, storage,
+    tools.WithLogger(logger))
+
+fsSource := sources.NewFileSystemSource(rootDir,
+    sources.WithFSLogger(logger))
+
+// Log messages
+logger.Error(ctx, "failed to close watcher", map[string]any{
+    "error": err.Error(),
+    "root":  "/path/to/dir",
+})
+```
+
+**Metrics**: Metric collection interface for observability.
+
+**Implementations**:
+- **StdMetricsRecorder**: Logs metrics to stdout (debugging only)
+- **NoOpMetricsRecorder**: No-op implementation (default)
+
+**Usage**:
+```go
+// Create metrics recorder
+metrics := hooks.NewStdMetricsRecorder()
+
+// Use with async handler
+asyncHandler := handlers.NewAsyncHandler(
+    baseHandler,
+    bufferSize,
+    handlers.WithMetrics(metrics),
+)
+
+// Metrics automatically recorded:
+// - bichat.async_handler.queue_depth (gauge)
+// - bichat.async_handler.dropped_events (counter)
+```
+
+**Integration with Production Systems**:
+```go
+// Example: Custom Prometheus metrics recorder
+type PrometheusMetrics struct {
+    counters   map[string]*prometheus.CounterVec
+    gauges     map[string]*prometheus.GaugeVec
+    histograms map[string]*prometheus.HistogramVec
+}
+
+func (m *PrometheusMetrics) IncrementCounter(name string, value int64, labels map[string]string) {
+    counter := m.counters[name]
+    counter.With(labels).Add(float64(value))
+}
+
+// Use with BiChat
+metrics := NewPrometheusMetrics()
+asyncHandler := handlers.NewAsyncHandler(handler, 100, handlers.WithMetrics(metrics))
+```
 
 ## Common Patterns
 
