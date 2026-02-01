@@ -1,0 +1,10 @@
+/*!
+ * @iotauz/design-tokens
+ * Design tokens and Tailwind CSS theme for IOTA SDK
+ */
+
+@import "tailwindcss";
+@import "./theme.css";
+@import "./base.css";
+@import "./components.css";
+@import "./utilities.css";
