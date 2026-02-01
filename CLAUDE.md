@@ -1,5 +1,12 @@
 # IOTA SDK - Claude Code Orchestrator Configuration
 
+## Design Philosophy
+iota-sdk is a general purpose ERP building engine/solution. When designing anything inside iota-sdk:
+- Make it extensible, generalizable, and customizable
+- Prefer interfaces over concrete structs at boundaries
+- Apply dependency inversion and inject interfaces
+- Keep domain and services decoupled from infrastructure details
+
 ## Quick Decision Tree
 
 **Task Classification:**
@@ -51,19 +58,6 @@ modules/{module}/
 ├── links.go                       # Navigation
 └── permissions/constants.go       # RBAC
 ```
-
-## Business → Code Mapping
-
-| Module | Route | Controller | Service | Repository | Template |
-|--------|-------|------------|---------|------------|----------|
-| **Core** | `/users` | `user_controller.go` | `user_service.go` | `user_repository.go` | `users/index.templ` |
-| **Finance** | `/finance/payments` | `payment_controller.go` | `payment_service.go` | `payment_repository.go` | `payments/index.templ` |
-| **CRM** | `/crm/clients` | `client_controller.go` | `client_service.go` | `client_repository.go` | `clients/index.templ` |
-| **Warehouse** | `/warehouse/products` | `product_controller.go` | `product_service.go` | `product_repository.go` | `products/index.templ` |
-| **Projects** | `/projects` | `project_controller.go` | `project_service.go` | `project_repository.go` | `projects/index.templ` |
-| **HRM** | `/hrm/employees` | `employee_controller.go` | `employee_service.go` | `employee_repository.go` | `employees/index.templ` |
-| **BiChat** | `/bichat` | `chat_controller.go` | `agent_service.go` | `chat_repository.go` | `bichat/index.templ` |
-| **Superadmin** | `/superadmin/tenants` | `tenants_controller.go` | `tenant_service.go` | `analytics_query_repository.go` | `tenants/index.templ` |
 
 ## Creating New Entities
 
