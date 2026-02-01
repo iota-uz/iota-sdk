@@ -1,11 +1,16 @@
 package applet
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/gorilla/csrf"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 // StreamWriter provides utilities for Server-Sent Events (SSE) streaming.
@@ -130,4 +135,108 @@ func (sw *StreamWriter) WriteComment(comment string) error {
 
 	sw.flusher.Flush()
 	return nil
+}
+
+// StreamContextBuilder builds lightweight context for SSE streaming endpoints.
+// Excludes heavy fields like translations, full locale, routes for optimal performance.
+type StreamContextBuilder struct {
+	config        Config
+	logger        *logrus.Logger
+	sessionConfig SessionConfig
+}
+
+// NewStreamContextBuilder creates a StreamContextBuilder.
+// Does not require i18n bundle since translations are excluded for performance.
+//
+// Parameters:
+//   - config: Applet configuration (primarily for CustomContext extender)
+//   - sessionConfig: Session expiry and refresh configuration
+//   - logger: Structured logger for operations
+func NewStreamContextBuilder(
+	config Config,
+	sessionConfig SessionConfig,
+	logger *logrus.Logger,
+) *StreamContextBuilder {
+	return &StreamContextBuilder{
+		config:        config,
+		logger:        logger,
+		sessionConfig: sessionConfig,
+	}
+}
+
+// Build builds lightweight StreamContext for SSE endpoints.
+// Excludes heavy fields like translations, full locale, routes.
+//
+// Performance target: <5ms (much faster than full InitialContext)
+// Logs: Entry/exit with user/tenant/duration
+//
+// Returns only essential data:
+//   - User ID (for authentication)
+//   - Tenant ID (for data isolation)
+//   - Permissions (for authorization)
+//   - CSRF token (for security)
+//   - Session context (for expiry handling)
+//   - Extensions (optional custom data)
+func (b *StreamContextBuilder) Build(ctx context.Context, r *http.Request) (*StreamContext, error) {
+	const op serrors.Op = "StreamContextBuilder.Build"
+	start := time.Now()
+
+	// Extract user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		if b.logger != nil {
+			b.logger.WithError(err).Error("Failed to extract user for stream context")
+		}
+		return nil, serrors.E(op, serrors.Internal, "user extraction failed", err)
+	}
+
+	// Extract tenant ID
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		if b.logger != nil {
+			b.logger.WithError(err).WithField("user_id", user.ID()).Error("Failed to extract tenant ID")
+		}
+		return nil, serrors.E(op, serrors.Internal, "tenant extraction failed", err)
+	}
+
+	// Get permissions (validated)
+	permissions := getUserPermissions(ctx)
+	permissions = validatePermissions(permissions)
+
+	// Build session context
+	// StreamContextBuilder doesn't support SessionStore, use default config expiry
+	session := buildSessionContext(r, b.sessionConfig, nil)
+
+	streamCtx := &StreamContext{
+		UserID:      int64(user.ID()),
+		TenantID:    tenantID.String(),
+		Permissions: permissions,
+		CSRFToken:   csrf.Token(r),
+		Session:     session,
+	}
+
+	// Apply custom context extender if provided
+	if b.config.CustomContext != nil {
+		customData, err := b.config.CustomContext(ctx)
+		if err != nil {
+			if b.logger != nil {
+				b.logger.WithError(err).Warn("Failed to build custom stream context")
+			}
+		} else if customData != nil {
+			// Sanitize custom data to prevent XSS
+			streamCtx.Extensions = sanitizeForJSON(customData)
+		}
+	}
+
+	// Log build completion
+	buildDuration := time.Since(start)
+	if b.logger != nil {
+		b.logger.WithFields(logrus.Fields{
+			"user_id":     user.ID(),
+			"tenant_id":   tenantID.String(),
+			"duration_ms": buildDuration.Milliseconds(),
+		}).Debug("Built stream context")
+	}
+
+	return streamCtx, nil
 }
