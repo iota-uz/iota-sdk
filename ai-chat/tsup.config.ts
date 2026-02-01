@@ -2,8 +2,6 @@ import { defineConfig } from 'tsup';
 import fs from 'fs';
 import path from 'path';
 import postcss from 'postcss';
-import tailwindcss from 'tailwindcss';
-import autoprefixer from 'autoprefixer';
 
 export default defineConfig({
   entry: ['src/index.ts'],
@@ -32,15 +30,15 @@ export default defineConfig({
     };
   },
   async onSuccess() {
-    // CSS processing
+    // CSS processing with Tailwind CSS v4
     const inputCSS = fs.readFileSync(path.resolve('./app/globals.css'), 'utf8');
     
-    // Process with PostCSS and Tailwind
+    // Import @tailwindcss/postcss dynamically
+    const tailwindcssPostcss = await import('@tailwindcss/postcss').then(m => m.default || m);
+    
+    // Process with PostCSS and Tailwind v4
     const result = await postcss([
-      tailwindcss({
-        config: './tailwind.config.ts'
-      }),
-      autoprefixer()
+      tailwindcssPostcss
     ]).process(inputCSS, {
       from: path.resolve('./app/globals.css'),
       to: path.resolve('./dist/styles.css')
