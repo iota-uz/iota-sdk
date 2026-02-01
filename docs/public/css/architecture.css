@@ -1,0 +1,174 @@
+/* =============================================================================
+ * Architecture Diagram Styles
+ * Uses CSS variables for theme support (light/dark mode)
+ * ============================================================================= */
+
+#architecture-container {
+  position: relative;
+  width: 100%;
+  height: 80vh;
+  min-height: 600px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#cy {
+  width: 100%;
+  height: 100%;
+}
+
+/* Minimap */
+#cy-navigator {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 200px;
+  height: 150px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 4px;
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Zoom Controls */
+#zoom-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+#zoom-controls button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+#zoom-controls button:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-primary);
+  transform: scale(1.05);
+}
+
+#zoom-controls button:active {
+  background: var(--bg-tertiary);
+  transform: scale(0.95);
+}
+
+/* Legend */
+#architecture-legend {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  z-index: 10;
+  box-shadow: var(--shadow-sm);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#architecture-legend h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  color: var(--text-secondary);
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  transition: border-color 0.2s ease;
+}
+
+/* Legend colors - specific to architecture diagram node types */
+.legend-color.railway { background: #1a1a2e; }
+.legend-color.onprem { background: #2d3436; }
+.legend-color.external { background: #6c5ce7; }
+.legend-color.database { background: #00b894; }
+.legend-color.user { background: #fdcb6e; }
+
+/* Instructions tooltip */
+#diagram-instructions {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  border: 1px solid var(--border-color);
+  z-index: 10;
+  opacity: 0.9;
+  transition: opacity 0.3s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+#diagram-instructions:hover {
+  opacity: 1;
+  background: var(--bg-secondary);
+}
+
+/* Loading state */
+#cy-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #architecture-container {
+    height: 60vh;
+    min-height: 400px;
+  }
+
+  #cy-navigator {
+    width: 150px;
+    height: 100px;
+  }
+
+  #architecture-legend {
+    display: none;
+  }
+
+  #zoom-controls button {
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+  }
+}

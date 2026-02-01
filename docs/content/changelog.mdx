@@ -1,0 +1,961 @@
+---
+title: Development Changelog
+---
+
+# Granite Development Changelog
+## April 2025 - January 2026
+
+| Added application enhancement | Category | Type | Date |
+|------------------|----------|------|------|
+| Add security XSS prevention pattern with SafeText helper and OTP configuration documentation | granite | Feature | 2026-01-30 |
+| Update Claims data model documentation with motion tracking table for audit trail | granite | Feature | 2026-01-30 |
+| Update Website GraphQL API documentation with OTP configuration endpoints and remove deprecated glossary queries | website | Feature | 2026-01-30 |
+| Refactor glossary page generation from client-side to server-side API routes | website | Feature | 2026-01-30 |
+| Add GraphQL authorization documentation with custom authorizers for group-based access control | granite | Feature | 2026-01-29 |
+| Add Claims module documentation with technical implementation and data model | granite | Feature | 2026-01-29 |
+| Add Voluntary Insurance GraphQL API documentation with product queries and mutations | website | Feature | 2026-01-29 |
+| Add session audience isolation security feature with database migration | granite | Feature | 2026-01-29 |
+| Update OSGOP documentation with payment redirect and seat count calculation logic | website | Bug Fix | 2026-01-26 |
+| Add real estate management system with property search and ownership tracking for voluntary insurance | granite | Feature | 2026-01-23 |
+| Update Portfolio V2 with performance improvements and drawer view | granite | Feature | 2026-01-23 |
+| Add policyID field and destinations support | website | Feature | 2026-01-06 |
+| Resolve ESLint errors in batch stream route and TranslationService | website | Bug Fix | 2026-01-03 |
+| Resolve ESLint and Prettier build errors | website | Bug Fix | 2026-01-02 |
+| Add Cyrillic column to glossary and fix uz/oz script mapping | website | Bug Fix | 2026-01-02 |
+| Add progress tracking, debug mode, and system integration improvements | website | Feature | 2026-01-02 |
+| Add policy application status tracking in user cabinet | website | Feature | 2025-12-29 |
+| Enable SSR for GlossaryTerm and GlossaryPopularTerms components | website | Bug Fix | 2025-12-26 |
+| Pixel-perfect Figma design implementation for 5 components | website | Feature | 2025-12-26 |
+| Pixel-perfect CTA components and interface improvements | website | Feature | 2025-12-26 |
+| Add GlossaryPopularTerms Puck component | website | Feature | 2025-12-25 |
+| Update term selector to use custom field and fix GraphQL client | website | Feature | 2025-12-25 |
+| Add TermSelector custom Puck field component | website | Feature | 2025-12-25 |
+| Add interactive category selectors for Puck components | website | Feature | 2025-12-25 |
+| Add category page Puck components | website | Feature | 2025-12-25 |
+| Add Puck components for glossary pages | website | Feature | 2025-12-25 |
+| Implement multi-language glossary feature | website | Feature | 2025-12-25 |
+| Resolve lint errors in TranslationService and client.tsx | website | Bug Fix | 2025-12-25 |
+| Add fast models to model selector with grouped interface | website | Feature | 2025-12-25 |
+| Overhaul CMS/Puck editor with LangGraph translation and capabilities | website | Feature | 2025-12-25 |
+| Add null safety check and update footer link | website | Bug Fix | 2025-12-23 |
+| Make typing indicator locale-dependent with translations for en/ru/oz/uz | website | Feature | 2025-12-22 |
+| Improve page preview modal UX and CSS layer organization | website | Bug Fix | 2025-12-22 |
+| Add SafeRender wrapper and component validation for create_page | website | Bug Fix | 2025-12-22 |
+| Optimize ContextPicker data fetching to prevent constant loading | website | Bug Fix | 2025-12-22 |
+| Emit tool calls in real-time instead of batching | website | Bug Fix | 2025-12-22 |
+| Add tool call history display in batch mode | website | Feature | 2025-12-22 |
+| Add batch processing and page diff comparison features | website | Feature | 2025-12-22 |
+| Cc: update settings.json permissions for new development tools | website | Feature | 2025-12-22 |
+| Resolve "PUSH is not defined" error in batch mode | website | Bug Fix | 2025-12-22 |
+| Improve error handling with retry buttons and error recovery | website | Feature | 2025-12-22 |
+| Fix context loss and invalid patch operation errors | website | Bug Fix | 2025-12-22 |
+| Add sidebar for multi-page mode with per-page publishing | website | Feature | 2025-12-21 |
+| Resolved linting errors and code style issues | website | Bug Fix | 2025-12-19 |
+| Addressed code review comments and made requested improvements | website | Bug Fix | 2025-12-18 |
+| Resolve critical bugs in batch mode executor pattern | website | Bug Fix | 2025-12-18 |
+| Migrate travel insurance tariffs to structured coverage format | website | Feature | 2025-12-18 |
+| Add tooltip support with rule validation for Comprehensive Auto Insurance programs | website | Feature | 2025-12-17 |
+| Add EuroKasko translations for all locales | website | Feature | 2025-12-17 |
+| Add maxLength and minLength validation to license plate inputs | website | Bug Fix | 2025-12-17 |
+| Localize Comprehensive Auto Insurance Club banner in tiered insurance | website | Feature | 2025-12-17 |
+| Consolidate system integration routes and add page management tools | website | Feature | 2025-12-16 |
+| Resolve lint errors and warnings | website | Bug Fix | 2025-12-16 |
+| Improve UX with example prompts, session management, and bug fixes | website | Feature | 2025-12-16 |
+| Create unified GeniePromptInput component | website | Feature | 2025-12-15 |
+| Add shared components, resources system integration, and interface enhancements | website | Feature | 2025-12-15 |
+| Add seat count validation and improve insurance forms | website | Feature | 2025-12-15 |
+| Add session management and interface enhancements | website | Feature | 2025-12-15 |
+| Add new Civil Liability Insurance insurance component with GraphQL integration | website | Feature | 2025-12-15 |
+| Add video verification interface for tiered Comprehensive Auto Insurance insurance | website | Feature | 2025-12-15 |
+| Addressed code review comments and made requested improvements | website | Bug Fix | 2025-12-14 |
+| Correct HTML lang attribute and hreflang values for Uzbek pages | website | Bug Fix | 2025-12-11 |
+| Complete Phase 2.5 and Phase 4 of Imagen integration | website | Feature | 2025-12-09 |
+| Use SafetyFilterLevel enum from @google/genai SDK | website | Bug Fix | 2025-12-09 |
+| Implement Google Imagen integration for CMS AI Popup | website | Feature | 2025-12-09 |
+| AI chat prompt missing in request and trigger button visibility | website | Bug Fix | 2025-12-09 |
+| Implement langgraph-based ai transform | website | Feature | 2025-12-03 |
+| Add langgraph-based AI transform implementation | website | Feature | 2025-12-03 |
+| Generated TypeScript types from GraphQL schema | website | Bug Fix | 2025-12-03 |
+| Updated Auto Liability Insurance implementation and schema | website | Bug Fix | 2025-12-02 |
+| Fixed promotion code input field validation and processing | website | Bug Fix | 2025-12-02 |
+| Add scroll to top on mobile landing page load | website | Feature | 2025-12-01 |
+| Add Travel Insurance V2 component with new GraphQL queries | website | Feature | 2025-12-01 |
+| Update KaskoClubCard component with file upload and improved text styling | website | Bug Fix | 2025-11-28 |
+| Improve mobile landing navigation and links | website | Feature | 2025-11-27 |
+| Add ApolloLink to ignore AbortError from cancelled requests | website | Feature | 2025-11-25 |
+| Add global disableLayout query parameter support | website | Feature | 2025-11-25 |
+| Add error boundary and error page with i18n support | website | Feature | 2025-11-24 |
+| Pass null to AbortController.abort() in EuroKasko components | website | Bug Fix | 2025-11-24 |
+| Update GraphQL types and discount conditions component | website | Bug Fix | 2025-11-24 |
+| Add discount conditions V2 component and GraphQL updates | website | Feature | 2025-11-24 |
+| Add Puck drop zone to mobile landing hero and simplify header | website | Feature | 2025-11-17 |
+| Perf: Optimize scroll performance in mobile landing components | website | Feature | 2025-11-17 |
+| Adjust scroll speed in mobile landing components | website | Bug Fix | 2025-11-17 |
+| Disable anticipatePin in mobile landing ScrollTrigger animations | website | Bug Fix | 2025-11-17 |
+| Implement quiz functionality with BFF integration and MULTIPLE_CHOICE support | website | Feature | 2025-11-14 |
+| Migrate ai-chat component from npm package to local codebase | website | Feature | 2025-11-14 |
+| Adjust mobile overflow positioning in Testimonials and WhyChooseUs | website | Bug Fix | 2025-11-12 |
+| Add image upload fields to mobile landing components | website | Feature | 2025-11-12 |
+| Add GSAP ScrollTrigger resize handling for mobile landing components | website | Feature | 2025-11-12 |
+| Add navigation support and enhance mobile landing components | website | Feature | 2025-11-06 |
+| Add MobileLandingKasko component and enhance Revolution component | website | Feature | 2025-11-06 |
+| Add scroll animations and interface improvements to mobile landing components | website | Feature | 2025-11-05 |
+| Add EuroKasko v2 insurance quotation system | website | Feature | 2025-10-31 |
+| Add tiered Comprehensive Auto Insurance v2 insurance form with GraphQL integration | website | Feature | 2025-10-31 |
+| Add pinfl/tin fields to vehicle owner schema for identity validation | website | Feature | 2025-10-30 |
+| Implement mobile landing page with multiple block | website | Feature | 2025-10-30 |
+| Add Customer Management GraphQL endpoint to frontend codegen | website | Feature | 2025-10-27 |
+| Add region and district selection for insurant | website | Feature | 2025-10-21 |
+| Make birthDate optional in PersonV2 types | website | Bug Fix | 2025-10-17 |
+| Add phone number country code prefix for insurant | website | Feature | 2025-10-15 |
+| Add organization type support and improve driver forms | website | Feature | 2025-10-15 |
+| Add organization support for owner applicant label | website | Feature | 2025-10-15 |
+| Add minimum driver validation and form improvements | website | Feature | 2025-10-15 |
+| Enhanced form validation by making birth date optional for personal data entry | website | Feature | 2025-10-15 |
+| Add driver license validation and enhance form handling | website | Feature | 2025-10-15 |
+| Implement Auto Liability Insurance v2 GraphQL integration | website | Feature | 2025-10-14 |
+| Use makeInsuranceClient for Auto Liability Insurance insurance mutations | website | Feature | 2025-10-08 |
+| Implement State Reference Pattern for context optimization | website | Feature | 2025-10-06 |
+| Add configurable footer controls for insurance forms | website | Feature | 2025-10-03 |
+| Update Civil Liability Insurance owner applicant label text | website | Bug Fix | 2025-10-02 |
+| Update 404 error page messages across all languages | website | Feature | 2025-09-29 |
+| Add PageLinkSelector generic Puck component | website | Feature | 2025-09-25 |
+| Add partnership offer document link to withdrawal information | website | Feature | 2025-09-25 |
+| Updated AI chat component and features | website | Bug Fix | 2025-09-24 |
+| Civil Liability Insurance: added 9 month term | website | Feature | 2025-09-23 |
+| Add popular destinations feature for travel insurance | website | Feature | 2025-09-23 |
+| Validate char length for govNumber properly | website | Bug Fix | 2025-09-16 |
+| Allow 9 characters for foreign vehicles in Comprehensive Auto Insurance | website | Bug Fix | 2025-09-15 |
+| Fetch regions for Comprehensive Auto Insurance | website | Bug Fix | 2025-09-15 |
+| Add Quiz section component for Puck CMS | website | Feature | 2025-09-12 |
+| Fix extra parentheses in translation function call | website | Bug Fix | 2025-09-09 |
+| Perf : improve loading states and optimize performance | website | Feature | 2025-09-08 |
+| Perf : optimize image loading and performance | website | Feature | 2025-09-08 |
+| Add date validation for travel insurance policy period | website | Feature | 2025-09-02 |
+| Add header alignment property to Products component | website | Feature | 2025-08-29 |
+| Add endDate validation for travel insurance form | website | Feature | 2025-08-27 |
+| Update not-found pages and translations | website | Feature | 2025-08-27 |
+| Added source to Travel/Osgor/Civil Liability Insurance | website | Bug Fix | 2025-08-27 |
+| Improve SOS requests display and translations | website | Feature | 2025-08-26 |
+| Add performance optimization documentation and improve CMS components | website | Feature | 2025-08-25 |
+| Display rejection comments instead of request description | website | Bug Fix | 2025-08-25 |
+| Add SOS requests page with detailed view modal | website | Feature | 2025-08-22 |
+| Add SEO admin panel with llms.txt editor using uploadFileWithSlug | website | Feature | 2025-08-19 |
+| Perf: achieve 91/100 Lighthouse performance score through comprehensive optimization | website | Feature | 2025-08-18 |
+| Clean up Twitter metadata in page metadata | website | Bug Fix | 2025-08-15 |
+| Resolve TypeScript issues in callback fields and component | website | Bug Fix | 2025-08-15 |
+| Resolve TypeScript headingSlot errors in Puck CMS components | website | Bug Fix | 2025-08-14 |
+| Add llms.txt support with proper headers | website | Feature | 2025-08-13 |
+| Add headingSlot support across multiple components | website | Feature | 2025-08-13 |
+| Add Components Analyzer for component usage analysis | website | Feature | 2025-08-13 |
+| Resolve TypeScript issue with headingSlot in CallbackFormComp | website | Bug Fix | 2025-08-13 |
+| Enhance SEO metadata and add dynamic OG image generation | website | Feature | 2025-08-12 |
+| Remove automatic slug generation from file upload handlers | website | Bug Fix | 2025-08-12 |
+| Initialize EAI Quiz system integration project structure | website | Feature | 2025-08-08 |
+| Add UPLOAD_FILE_WITH_SLUG support to MediaBrowser | website | Feature | 2025-08-07 |
+| Hide payment sections when premium is zero | website | Feature | 2025-08-06 |
+| Implement advanced link management for article editor | website | Feature | 2025-08-04 |
+| Add ID normalization utility for duplicate component IDs | website | Feature | 2025-08-04 |
+| Improve redirect logic to handle locale-less URLs | website | Feature | 2025-08-01 |
+| Add GenericAdvantages component with unified item structure | website | Feature | 2025-07-28 |
+| Update logo URL in BlogPost component and add new logotype image | website | Bug Fix | 2025-07-25 |
+| Handle empty publishedAt and updatedAt fields in BlogPost component | website | Bug Fix | 2025-07-24 |
+| Add Schema.org support and delete functionality for blog system | website | Feature | 2025-07-24 |
+| Add NEXT_PUBLIC_APP_ENV variable for production environment | website | Feature | 2025-07-23 |
+| Add headingSlot support to product components | website | Feature | 2025-07-22 |
+| Add EditorInfoNote info box for schema.org FAQPage ld+json in editor mode | website | Feature | 2025-07-21 |
+| Cabinet: discount premium fixes | website | Bug Fix | 2025-07-17 |
+| Implement schema.org component for Puck editor | website | Feature | 2025-07-15 |
+| Apply code review feedback: improve AI transform implementation | website | Feature | 2025-07-13 |
+| Implement agentic AI transform with ReAct pattern | website | Feature | 2025-07-13 |
+| Add DELETE_ARTICLE_CATEGORY support to CategoryManager | website | Feature | 2025-07-14 |
+| Resolved discount banner display logic and payment state handling issues | website | Bug Fix | 2025-07-11 |
+| Improve Comprehensive Auto Insurance promotion banner logic and performance | website | Bug Fix | 2025-07-11 |
+| Update ownerApplicant translation strings for clarity across multiple languages | website | Bug Fix | 2025-07-09 |
+| Improve Comprehensive Auto Insurance timer styling and localization | website | Feature | 2025-07-09 |
+| Timer in tiered Comprehensive Auto Insurance | website | Feature | 2025-07-09 |
+| Implement DELETE_UPLOAD support in MediaBrowser | website | Feature | 2025-07-07 |
+| Implement configurable runtime redirects at Next.js middleware level | website | Feature | 2025-07-07 |
+| Add CMS integration for income calculator values | website | Feature | 2025-07-07 |
+| Fixed language switcher functionality and improved locale handling in navigation | website | Bug Fix | 2025-07-06 |
+| Add configurable banner notification system for data provider errors | website | Feature | 2025-07-05 |
+| Add Google Play and App Store links to footer with SVG icons | website | Feature | 2025-07-04 |
+| Enhanced URL redirection service to properly handle multi-language paths | website | Bug Fix | 2025-07-04 |
+| Update Google AI provider to use correct @google/generative-ai package | website | Bug Fix | 2025-07-03 |
+| Add AI keyword generation for Meta Keywords field | website | Feature | 2025-07-03 |
+| Add sectionID prop for navigation in multiple components | website | Feature | 2025-07-02 |
+| Implemented hero section component | website | Bug Fix | 2025-07-02 |
+| Show payment options on cabinet, payment-state | website | Bug Fix | 2025-06-30 |
+| Add Uzbek to dd menu | website | Feature | 2025-06-26 |
+| Add meta keywords support to Puck CMS pages | website | Feature | 2025-06-24 |
+| Header: added Comprehensive Auto Insurance-club link | website | Feature | 2025-06-24 |
+| Fixed build configuration and compilation errors | website | Bug Fix | 2025-06-24 |
+| Add editable program descriptions through Puck CMS | website | Feature | 2025-06-24 |
+| Fixed TypeScript type checking errors | website | Bug Fix | 2025-06-24 |
+| Tiered-Comprehensive Auto Insurance: only leave market cost input, other fixes. | website | Bug Fix | 2025-06-23 |
+| Implemented referral program payout request system with commission tracking | website | Feature | 2025-06-23 |
+| Blog categories now created in all supported languages | website | Bug Fix | 2025-06-23 |
+| Preview for custom html components | website | Bug Fix | 2025-06-22 |
+| Added dedicated KASKO Club landing page with localized content | website | Bug Fix | 2025-06-22 |
+| Block by block translation | website | Feature | 2025-06-22 |
+| Implemented prompt optimization and improvement system | website | Feature | 2025-06-22 |
+| Improved system prompt for smart routing | website | Feature | 2025-06-22 |
+| Implemented intelligent request routing | website | Feature | 2025-06-22 |
+| Enhanced website header navigation with KASKO Club link and improved mobile menu | website | Feature | 2025-06-22 |
+| Line by line diff | website | Feature | 2025-06-22 |
+| Developed referral system integration with user dashboard for partner program | website | Feature | 2025-06-21 |
+| Added configurable image upload for KASKO Club promotional content in CMS | website | Feature | 2025-06-21 |
+| Implemented new content management system | website | Feature | 2025-06-21 |
+| Restore original table header, remove header dropzone | website | Bug Fix | 2025-06-18 |
+| Extend GenericTable component with dropzones | website | Feature | 2025-06-18 |
+| Add payment icons to footer v3 | website | Feature | 2025-06-17 |
+| Relocate payment icons and add size constraints | website | Bug Fix | 2025-06-17 |
+| Change products components backgroundPosition from center to right | website | Bug Fix | 2025-06-17 |
+| Add payment icons to footer with responsive design | website | Feature | 2025-06-17 |
+| Replace hardcoded button with dropzone in SliderGrad | website | Feature | 2025-06-17 |
+| Add SliderGrad component with gradient file upload | website | Feature | 2025-06-17 |
+| Implement CMS blog component with post selection and category filtering | website | Feature | 2025-06-16 |
+| Add versatile Hero component for CMS | website | Feature | 2025-06-14 |
+| Puck: language selector fixes | website | Bug Fix | 2025-06-13 |
+| Handle template urls properly | website | Bug Fix | 2025-06-11 |
+| Refactored Hero section component to support flexible content zones and image management | website | Feature | 2025-06-10 |
+| Resolved merge conflicts in codebase | website | Bug Fix | 2025-06-10 |
+| Add generic comparison table component | website | Feature | 2025-06-10 |
+| Resolved code linting errors and style violations | website | Bug Fix | 2025-06-10 |
+| Add configurable comparison table block for Puck CMS | website | Feature | 2025-06-10 |
+| Migrated comparison table component to generic reusable table section | website | Bug Fix | 2025-06-05 |
+| Promo code capture && my income calculator | website | Feature | 2025-06-05 |
+| My income tab in cabinet | website | Feature | 2025-06-04 |
+| Ai drawer && page selector | website | Bug Fix | 2025-06-04 |
+| New interface for cms | website | Feature | 2025-06-04 |
+| Improved callback form styling and layout consistency across pages | website | Feature | 2025-06-04 |
+| Added prompt history tracking and retrieval | website | Feature | 2025-06-04 |
+| Improved interface for llm editor | website | Feature | 2025-06-04 |
+| Fixed canonical URL generation for improved SEO across all language versions | website | Bug Fix | 2025-06-03 |
+| Added canonical URL links for SEO | website | Feature | 2025-06-02 |
+| Added canonical URL links for SEO | website | Feature | 2025-06-02 |
+| Created system prompt builder interface | website | Bug Fix | 2025-06-02 |
+| Auto Liability Insurance form | website | Bug Fix | 2025-05-31 |
+| Info tooltip for osgor.payroll && money input mask | website | Feature | 2025-05-29 |
+| Implemented AI-powered content transformation | website | Bug Fix | 2025-05-29 |
+| Added IOTA branding to website footer with company attribution | website | Feature | 2025-05-28 |
+| Enhanced SEO implementation with proper canonical URL support in page layouts | website | Bug Fix | 2025-05-28 |
+| Created LLM-powered content editor | website | Feature | 2025-05-28 |
+| Added dynamic table building functionality | website | Feature | 2025-05-27 |
+| Implemented custom HTML block support in CMS with AI transformation capabilities | website | Feature | 2025-05-27 |
+| Center content blocks in AdvantagesAlt & InsuranceCoverage | website | Bug Fix | 2025-05-26 |
+| Added salary calculator tooltip and improved money input formatting | website | Bug Fix | 2025-05-24 |
+| Enhanced Civil Liability Insurance form with income calculator and validation improvements | website | Feature | 2025-05-24 |
+| Improved error handling in CMS AI content transformation with user notifications | website | Bug Fix | 2025-05-23 |
+| Added markdown formatting support | website | Feature | 2025-05-23 |
+| Added markdown formatting support for promotional content blocks | website | Feature | 2025-05-22 |
+| Fixed blog article preview truncation for consistent content display | website | Bug Fix | 2025-05-15 |
+| Posthog events on message submit in ai-chat | website | Feature | 2025-05-14 |
+| Ai chat cut off messages | website | Bug Fix | 2025-05-14 |
+| Improved blog article image and text alignment for better visual presentation | website | Bug Fix | 2025-05-13 |
+| Improvements to ai chat | website | Feature | 2025-05-13 |
+| Added policy download functionality | website | Bug Fix | 2025-05-11 |
+| Download link in policy | website | Feature | 2025-05-11 |
+| Replaced download with target=_blank for offer link | website | Bug Fix | 2025-05-07 |
+| Enhanced Auto Liability Insurance form to support both individual and corporate clients | website | Bug Fix | 2025-05-07 |
+| Filter by correct iso locale | website | Bug Fix | 2025-05-05 |
+| Streamlined KASKO insurance GraphQL resolver to reduce code duplication | website | Feature | 2025-04-28 |
+| Added button text input for products | website | Bug Fix | 2025-04-22 |
+| New date picker for request forms | website | Feature | 2025-04-07 |
+| New date picker; testing on osgor | website | Feature | 2025-04-05 |
+| Cms revision date fix | website | Bug Fix | 2025-04-02 |
+| Fixed visual styling issues in date picker and mode switcher components | website | Feature | 2025-04-01 |
+| Send user-provided seatsCount in Civil Liability Insurance mutation | granite | Feature | 2026-01-07 |
+| Use user-provided passenger seat count in Civil Liability Insurance PDF | granite | Bug Fix | 2026-01-07 |
+| Add support for foreign ID cards in GraphQL resolver | granite | Bug Fix | 2026-01-07 |
+| impl Policy Management System anul/terminate/reissue | granite | Feature | 2026-01-06 |
+| Auto Liability Insurance-report: added totals for policy holder types | granite | Feature | 2026-01-05 |
+| fix : add localization for vehicle owner identification error | granite | Bug Fix | 2025-12-30 |
+| Fix(insurance): Added localization for vehicle owner identification error | granite | Bug Fix | 2025-12-30 |
+| Not every policy has application, check for it | granite | Bug Fix | 2025-12-30 |
+| Fixed data validation in insurance policy processing | granite | Bug Fix | 2025-12-29 |
+| move from country to more generic destination for travel | granite | Bug Fix | 2025-12-29 |
+| Fixed insurance policy data handling edge cases | granite | Bug Fix | 2025-12-26 |
+| fixes: cms chats & optimization & refactor | granite | Bug Fix | 2025-12-26 |
+| i18n used, but no locale key | granite | Bug Fix | 2025-12-24 |
+| policy annul & terminate different pipelines and logic | granite | Feature | 2025-12-24 |
+| Civil Liability Insurance policy detail query | granite | Feature | 2025-12-22 |
+| make old stuff work as well | granite | Bug Fix | 2025-12-22 |
+| added Comprehensive Auto Insurance details graphql query | granite | Feature | 2025-12-22 |
+| Fixed reinsurance module data processing issues | granite | Bug Fix | 2025-12-19 |
+| added applicationV2 for insurance | granite | Bug Fix | 2025-12-19 |
+| trigger calculation after vehicle search completed | granite | Bug Fix | 2025-12-19 |
+| hide add drivers btn | granite | Feature | 2025-12-17 |
+| nil fixes, and reissue button visibility checks | granite | Bug Fix | 2025-12-17 |
+| clean up unused code in insurance DTOs and refund policy | granite | Bug Fix | 2025-12-17 |
+| upd iota-sdk & sdk toggle script | granite | Feature | 2025-12-17 |
+| Enhanced driver management in insurance system | granite | Bug Fix | 2025-12-17 |
+| Travel Insurance tariff calculations completed | granite | Bug Fix | 2025-12-17 |
+| impl Auto Liability Insurance 2026 CALCULATIONS | granite | Feature | 2025-12-15 |
+| Fixed insurance system data processing issues | granite | Bug Fix | 2025-12-12 |
+| Implemented real-time logging for system monitoring | granite | Feature | 2025-12-12 |
+| Made several small bug fixes and improvements | granite | Bug Fix | 2025-12-10 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-12-10 |
+| impl strategy pattern for click & cash | granite | Feature | 2025-12-06 |
+| impl new strategy for Payment Processing | granite | Feature | 2025-12-05 |
+| Removed deprecated payment failure handler | granite | Feature | 2025-12-09 |
+| impl termination & detail info in payment | granite | Feature | 2025-12-04 |
+| impl payment pipeline pattern & annul on Payment Processing.Failed | granite | Feature | 2025-12-04 |
+| import Civil Liability Insurance & osogop pereodic | granite | Feature | 2025-12-03 |
+| summary_report data-range pass to url | granite | Feature | 2025-12-03 |
+| fixes: Customer Management & reports | granite | Bug Fix | 2025-12-02 |
+| Enhanced CRM reporting and customer management features | granite | Bug Fix | 2025-12-02 |
+| Fixed insurance system data processing issues | granite | Bug Fix | 2025-12-02 |
+| Updated iota-sdk component or module | granite | Feature | 2025-12-02 |
+| sales report total sell policies | granite | Bug Fix | 2025-12-01 |
+| impl Policy Portfolio v2 | granite | Feature | 2025-12-01 |
+| remove owner_email & owner_phone | granite | Bug Fix | 2025-12-01 |
+| remove inn validation & templ file | granite | Bug Fix | 2025-11-28 |
+| import by policy seria/number | granite | Feature | 2025-11-28 |
+| Enhanced insurance system functionality and architecture | granite | Feature | 2025-11-28 |
+| impl import_missing_policies periodic task | granite | Feature | 2025-11-28 |
+| Policy Portfolio/export add columns | granite | Feature | 2025-11-27 |
+| search by user phone for new policies | granite | Bug Fix | 2025-11-26 |
+| calc for 6 month & 1 year -1day | granite | Bug Fix | 2025-11-26 |
+| Enhanced insurance system functionality | granite | Bug Fix | 2025-11-26 |
+| Added API Kasko constructor to product mapper | granite | Bug Fix | 2025-11-26 |
+| Fixed contract number sequence for incremental values | granite | Bug Fix | 2025-11-26 |
+| hot-fix: return sdk in go.mod | granite | Bug Fix | 2025-11-26 |
+| Added user phone search for new policies | granite | Bug Fix | 2025-11-26 |
+| fixes: Policy Portfolio fix smart-search & filters | granite | Bug Fix | 2025-11-25 |
+| impl filter by iss_at in porfolio | granite | Feature | 2025-11-25 |
+| use products, instead of insurance types | granite | Bug Fix | 2025-11-25 |
+| add external_id to Policy Portfolio & export | granite | Feature | 2025-11-25 |
+| ins graphql provide phone-number info | granite | Feature | 2025-11-25 |
+| Fixed portfolio smart-search and filter functionality | granite | Bug Fix | 2025-11-25 |
+| Enhanced insurance system functionality | granite | Bug Fix | 2025-11-25 |
+| remove v1 from Customer Management && refactor & fixes | granite | Feature | 2025-11-25 |
+| fixes: remove voluntary insurance_types & fixes & refactor | granite | Bug Fix | 2025-11-25 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-11-24 |
+| send tg notifications when new policy is purchased | granite | Bug Fix | 2025-11-24 |
+| fetch old insurance applicant to avoid undefined | granite | Bug Fix | 2025-11-24 |
+| add trgm search and fix excel export | granite | Feature | 2025-11-22 |
+| Enhanced insurance system functionality | granite | Bug Fix | 2025-11-23 |
+| update Policy Portfolio table and repo, add queries and filtering | granite | Feature | 2025-11-19 |
+| add periodic sync task for Policy Portfolio table | granite | Feature | 2025-11-11 |
+| add new Policy Portfolio table and implement async writing handler | granite | Feature | 2025-11-10 |
+| ins rest api for policy insurant | granite | Feature | 2025-11-21 |
+| graph policy_info add insurant | granite | Feature | 2025-11-21 |
+| 1c premia to float64 | granite | Feature | 2025-11-21 |
+| fixes: aft sdk upd | granite | Bug Fix | 2025-11-21 |
+| Updated IOTA system integration | granite | Feature | 2025-11-20 |
+| insr impl cash payment | granite | Feature | 2025-11-20 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-11-20 |
+| in graphql add policy objects info | granite | Feature | 2025-11-20 |
+| Fixed blog system issues | granite | Bug Fix | 2025-11-19 |
+| Civil Liability Insurance work in progress | granite | Bug Fix | 2025-11-19 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-11-19 |
+| Comprehensive Auto Insurance fixes | granite | Bug Fix | 2025-11-18 |
+| create application in Customer Management module | granite | Feature | 2025-11-18 |
+| Send insurance rate and sum for Euro Kasko | granite | Bug Fix | 2025-11-18 |
+| Updated database schema for insurance system | granite | Feature | 2025-11-17 |
+| i18n: Add translations for AI chat logs viewer | granite | Feature | 2025-11-15 |
+| Add AI chat logs routes and module registration | granite | Feature | 2025-11-15 |
+| Enhance AI chat UI templates for testing framework | granite | Feature | 2025-11-15 |
+| AI chat testing and evaluation framework | granite | Feature | 2025-11-15 |
+| Add domain layer for AI chat configuration | granite | Feature | 2025-11-15 |
+| Add AI chat playground JavaScript interactions | granite | Feature | 2025-11-14 |
+| Add AI chat configuration list and playground routes | granite | Feature | 2025-11-14 |
+| Add AI chat configuration translations | granite | Feature | 2025-11-14 |
+| Add AI chat configuration list and playground templates | granite | Feature | 2025-11-14 |
+| Add AI chat configuration list and playground controllers | granite | Feature | 2025-11-14 |
+| Add AI chat configuration list and playground services | granite | Feature | 2025-11-14 |
+| new pattern for local uz license plates | granite | Feature | 2025-11-14 |
+| Fix 2-column layout in AI chat configuration template | granite | Bug Fix | 2025-11-14 |
+| Enhanced insurance system functionality | granite | Bug Fix | 2025-11-14 |
+| Added AI chat playground JavaScript interactions | granite | Bug Fix | 2025-11-14 |
+| logsys time-line & relation | granite | Feature | 2025-11-14 |
+| resolve CI failures and add missing translations | granite | Bug Fix | 2025-11-13 |
+| Enhanced insurance system functionality | granite | Feature | 2025-11-13 |
+| Add AIChatBot translation keys for system prompt configuration | granite | Feature | 2025-11-14 |
+| Correct templ syntax errors in AI chat configuration template | granite | Bug Fix | 2025-11-14 |
+| Upgrade to Go 1.24.10 and use base-0.0.3 | granite | Bug Fix | 2025-11-13 |
+| Upgrade to Go 1.24 and use new base image | granite | Bug Fix | 2025-11-13 |
+| Downgrade charmbracelet/bubbletea to v1.2.1 for Go 1.23.2 compatibility | granite | Bug Fix | 2025-11-13 |
+| Update Go version requirement from 1.24.0 to 1.23.2 | granite | Bug Fix | 2025-11-13 |
+| Fix database connection for data migrations in test-migration run | granite | Bug Fix | 2025-11-13 |
+| Handle non-template databases in test-migration setup/clean commands | granite | Bug Fix | 2025-11-13 |
+| show new Auto Liability Insurance and travel policies in cabinet | granite | Feature | 2025-11-13 |
+| Add TUI components for interactive CLI commands | granite | Feature | 2025-11-12 |
+| Implement database test migration command handlers | granite | Feature | 2025-11-12 |
+| Add database test migration CLI commands and documentation | granite | Feature | 2025-11-12 |
+| save insurant phone / email to contract columns | granite | Feature | 2025-11-11 |
+| Save insurant phone and email to contract columns | granite | Bug Fix | 2025-11-11 |
+| Made several small bug fixes and improvements | granite | Bug Fix | 2025-11-11 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-11-10 |
+| Use buildQueryArgs helper for consistent referral revenue queries | granite | Bug Fix | 2025-11-12 |
+| Add new reporting architecture with modular services | granite | Feature | 2025-11-12 |
+| Added TUI components for interactive CLI commands | granite | Bug Fix | 2025-11-12 |
+| .env.example & redis & nats | granite | Feature | 2025-11-10 |
+| added date filters for Policy Portfolio | granite | Feature | 2025-11-09 |
+| resolve test failures in report repository and controller tests | granite | Bug Fix | 2025-11-09 |
+| Policy Management System fixes & upd sdk | granite | Bug Fix | 2025-11-07 |
+| Policy Management System fixes and system integration updates | granite | Feature | 2025-11-07 |
+| templ files generation path | granite | Bug Fix | 2025-11-07 |
+| correct migration file naming | granite | Bug Fix | 2025-11-07 |
+| calculate total revenue by summing daily breakdown instead of separate query | granite | Bug Fix | 2025-11-07 |
+| Fixed issues in sos | granite | Bug Fix | 2025-11-07 |
+| upd refund calc return full money if start_at == now | granite | Feature | 2025-11-07 |
+| 1c logs & refactor | granite | Feature | 2025-11-07 |
+| impl Policy Management System send payment | granite | Feature | 2025-11-05 |
+| impl Policy Management System pkg | granite | Feature | 2025-11-05 |
+| send address as - if empty address | granite | Feature | 2025-11-06 |
+| Parse and assign TypeID in GetRevenueByType for unified policies | granite | Bug Fix | 2025-11-04 |
+| Update v1 policy source comments for data source architecture | granite | Bug Fix | 2025-11-04 |
+| Add routing support for "Other" insurance type | granite | Bug Fix | 2025-11-04 |
+| Improve Customer Management client contact info and documents management | granite | Bug Fix | 2025-11-04 |
+| Customer Management client contact info and documents management | granite | Bug Fix | 2025-11-04 |
+| Customer Management client presentation | granite | Bug Fix | 2025-11-04 |
+| Add report date filtering to repository queries | granite | Bug Fix | 2025-11-04 |
+| Correct client-person matching in data migration via users table | granite | Bug Fix | 2025-11-04 |
+| osago_report fix calc logic | granite | Bug Fix | 2025-11-04 |
+| fixes: fix issue_at for sales logic | granite | Bug Fix | 2025-11-03 |
+| Add date filter translations and update custom links | granite | Feature | 2025-11-03 |
+| Add date range filtering to policies dashboard | granite | Feature | 2025-11-03 |
+| ins impl Auto Liability Insurance-report | granite | Feature | 2025-11-03 |
+| Load vehicle data in insurance service queries | granite | Feature | 2025-11-03 |
+| Update reports page template targets and clean up unused code | granite | Feature | 2025-11-03 |
+| Add date range quick select buttons component | granite | Feature | 2025-11-03 |
+| ui: Add Commission subtitle in all languages | granite | Feature | 2025-11-03 |
+| Add referral sales revenue calculation for reports | granite | Feature | 2025-11-03 |
+| ins policy_result return external_id | granite | Feature | 2025-11-03 |
+| Add performance indexes for data migrations | granite | Feature | 2025-11-03 |
+| Simplify promo_code logic in commission transactions | granite | Bug Fix | 2025-11-03 |
+| rest osago_controller fix logic | granite | Bug Fix | 2025-11-03 |
+| cc: Reorganize guides and add backend code organization documentation | granite | Feature | 2025-11-03 |
+| fixes: fix all tests & application_repository.go & sales_report_service.go & v1_policy_source.go | granite | Bug Fix | 2025-10-31 |
+| ins rest impl flex time | granite | Feature | 2025-10-31 |
+| ins impl payment api | granite | Feature | 2025-10-30 |
+| Add user ownership verification for insurance policies | granite | Feature | 2025-10-30 |
+| Migrated website from REST to API-only architecture | granite | Feature | 2025-10-30 |
+| Remove default active status filter from v2 policy source | granite | Bug Fix | 2025-10-29 |
+| Fix Customer Management v1/v2 dual-source routing and type mapping | granite | Bug Fix | 2025-10-29 |
+| Add date-range filter component with quick range buttons | granite | Feature | 2025-10-29 |
+| Fix dashboard modal overlay blocking clicks and chart placeholder positioning | granite | Bug Fix | 2025-10-29 |
+| Restore 31 unimplemented GraphQL resolvers from git history | granite | Feature | 2025-10-28 |
+| Implement GraphQL resolver stubs and update module configuration | granite | Bug Fix | 2025-10-28 |
+| Add base MyUser type to Customer Management GraphQL schema | granite | Bug Fix | 2025-10-27 |
+| Add partner program request GraphQL schema | granite | Feature | 2025-10-27 |
+| Improve Customer Management pagination and idempotency handling | granite | Bug Fix | 2025-10-27 |
+| Add tenant_id filtering and improve Customer Management test robustness | granite | Bug Fix | 2025-10-27 |
+| Correct client policy query and improve test assertions | granite | Bug Fix | 2025-10-27 |
+| Correct chat repository test and remove unused query | granite | Bug Fix | 2025-10-27 |
+| Map upload ID from int64 to UUID in batch retrieval | granite | Bug Fix | 2025-10-27 |
+| Refactor chat messaging to check DB existence instead of relying on nil UUID | granite | Bug Fix | 2025-10-27 |
+| consolidate policy type mapping with nullable date fields | granite | Bug Fix | 2025-10-26 |
+| add missing translation key for sales report | granite | Bug Fix | 2025-10-26 |
+| add report pagination and type mapping services | granite | Feature | 2025-10-25 |
+| add report pagination and daily/monthly revenue views | granite | Feature | 2025-10-25 |
+| correct upload URL column and add tenant_id to commission balance | granite | Bug Fix | 2025-10-25 |
+| add ValidationErrors section to Customer Management locale files for form validation messages | granite | Bug Fix | 2025-10-24 |
+| implement AI chat configuration module in website | granite | Feature | 2025-10-24 |
+| add commission transaction backfill migration and schema updates | granite | Feature | 2025-10-24 |
+| update modules and seeds for AI chat config and dependencies | granite | Feature | 2025-10-24 |
+| update insurance module for v2 commission backfill and schema improvements | granite | Feature | 2025-10-24 |
+| update GraphQL resolvers for commission and user v2 | granite | Feature | 2025-10-24 |
+| update presentation layer for commission and promo code v2 | granite | Feature | 2025-10-24 |
+| update services to support user-based promo codes and v2 commissions | granite | Feature | 2025-10-24 |
+| add user_id to PromoCode aggregate | granite | Feature | 2025-10-24 |
+| enhance Commission aggregate to support v2 policies | granite | Feature | 2025-10-24 |
+| update database schema for commission v2 and add model mappers | granite | Feature | 2025-10-24 |
+| Fixed commission service test isolation for proper parallel execution | granite | Bug Fix | 2025-10-24 |
+| impl annul logic for policy | granite | Feature | 2025-10-24 |
+| adjust commission report tests and filter handling | granite | Bug Fix | 2025-10-23 |
+| add translation keys for reports filtering, sorting, and commission tracking | granite | Feature | 2025-10-23 |
+| add reports template with filter form and sortable results table | granite | Feature | 2025-10-23 |
+| implement reports controller with filtering, sorting, and HTMX integration | granite | Feature | 2025-10-23 |
+| add reports and client viewmodels with filter and sort support | granite | Feature | 2025-10-23 |
+| add report service with advanced filtering and client integration | granite | Feature | 2025-10-23 |
+| implement report repository with filtering, sorting, and pagination | granite | Feature | 2025-10-23 |
+| add ReportFilter domain aggregate for advanced reporting | granite | Feature | 2025-10-23 |
+| add commission transaction schema with amount, product type, premium, rate, multiplier | granite | Feature | 2025-10-23 |
+| enhance SOS requests with multi-status filtering | granite | Feature | 2025-10-23 |
+| add question status management and filtering | granite | Feature | 2025-10-23 |
+| add SOS insurance type translations | granite | Feature | 2025-10-23 |
+| add status filter, actions column, and standalone page to SOS requests | granite | Feature | 2025-10-23 |
+| resolve duplicate controller keys in crmv2 and Customer Management modules | granite | Bug Fix | 2025-10-23 |
+| add userRevenue GraphQL query to crmv2 | granite | Feature | 2025-10-23 |
+| Fixed RejectPayoutRequest test to use ITF context | granite | Feature | 2025-10-23 |
+| resolve client drawer panic and complete Comprehensive Auto Insurance media gallery | granite | Bug Fix | 2025-10-23 |
+| add Comprehensive Auto Insurance media gallery to Customer Management v2 client drawer | granite | Feature | 2025-10-23 |
+| display multiple document types in CRMv2 client drawer | granite | Feature | 2025-10-23 |
+| Added transaction context to ChatService.Delete | granite | Bug Fix | 2025-10-23 |
+| impl make db dump | granite | Feature | 2025-10-23 |
+| Implemented database restore functionality | granite | Feature | 2025-10-22 |
+| v1→v2 insurance type mapping and remove ViewAct from payout actions | granite | Bug Fix | 2025-10-22 |
+| enhance multi-tenant isolation and improve Comprehensive Auto Insurance data parsing | granite | Bug Fix | 2025-10-22 |
+| update report service and regenerate reinsurance templates | granite | Bug Fix | 2025-10-22 |
+| implement Comprehensive Auto Insurance requests drawer template | granite | Feature | 2025-10-22 |
+| add Comprehensive Auto Insurance request translations and policy viewmodel updates | granite | Feature | 2025-10-22 |
+| implement Comprehensive Auto Insurance requests feature parity with Customer Management v1 | granite | Feature | 2025-10-22 |
+| impl Comprehensive Auto Insurance/euro Comprehensive Auto Insurance graphql | granite | Feature | 2025-10-22 |
+| add promo code UI components | granite | Feature | 2025-10-22 |
+| add search and sort capabilities to promo codes | granite | Feature | 2025-10-22 |
+| make passport_id nullable in sos_applicants migration | granite | Bug Fix | 2025-10-22 |
+| use GetLocalizedName instead of translation key in Comprehensive Auto Insurance drawer | granite | Bug Fix | 2025-10-21 |
+| implement CRMv2 client aggregate repository pattern | granite | Feature | 2025-10-21 |
+| resolve CRMv2 type errors from merge | granite | Bug Fix | 2025-10-21 |
+| implement v1+v2 policy aggregation in client repository | granite | Feature | 2025-10-21 |
+| added duplicate driver check | granite | Feature | 2025-10-21 |
+| add Auto Liability Insurance drivers command | granite | Feature | 2025-10-20 |
+| Fixed policy status validation error handling | granite | Bug Fix | 2025-10-19 |
+| policy-motion & annul operation | granite | Feature | 2025-10-18 |
+| impl view button for person/organization | granite | Feature | 2025-10-17 |
+| person_details show pinfl / phone | granite | Feature | 2025-10-17 |
+| Improved code quality in insurance system | granite | Feature | 2025-10-17 |
+| impl napp Auto Liability Insurance driver api | granite | Feature | 2025-10-17 |
+| Updated sdk component or module | granite | Feature | 2025-10-17 |
+| impl Payment Processing callback | granite | Feature | 2025-10-17 |
+| logs: add more logs | granite | Feature | 2025-10-16 |
+| Enhanced insurance system functionality | granite | Feature | 2025-10-16 |
+| Implemented CRM v2 domain aggregates with full-stack integration | granite | Feature | 2025-10-16 |
+| Fixed insurance system data processing issues | granite | Bug Fix | 2025-10-16 |
+| Added comprehensive testing for insurance system | granite | Bug Fix | 2025-10-15 |
+| Auto Liability Insurance save & send relative | granite | Feature | 2025-10-15 |
+| send to napp without + phone | granite | Bug Fix | 2025-10-15 |
+| graphql save phone_number & person-document priority idCard, passport, foreignPassport | granite | Feature | 2025-10-15 |
+| org not found error | granite | Feature | 2025-10-15 |
+| hot-fix: fix aftr merge | granite | Bug Fix | 2025-10-15 |
+| Added multi-language support for insurance system | granite | Bug Fix | 2025-10-15 |
+| Removed deprecated partner system tests | granite | Bug Fix | 2025-10-14 |
+| policy impl pdf url | granite | Feature | 2025-10-15 |
+| pass contract_souce to create_osago | granite | Feature | 2025-10-15 |
+| errors & fix person find | granite | Bug Fix | 2025-10-15 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-10-14 |
+| Fixed runtime and type errors | granite | Bug Fix | 2025-10-14 |
+| impl graphql localized errors | granite | Feature | 2025-10-14 |
+| Payment Processing impl callback url on pdf policy | granite | Feature | 2025-10-14 |
+| impl get policy api v2 | granite | Feature | 2025-10-14 |
+| Implemented API localized error messages | granite | Feature | 2025-10-14 |
+| sesonal insurance add days & order | granite | Feature | 2025-10-14 |
+| more validations and refacort Auto Liability Insurance | granite | Feature | 2025-10-20 |
+| Auto Liability Insurance resolver save region district country | granite | Feature | 2025-10-20 |
+| Fixed policies repository code formatting | granite | Bug Fix | 2025-10-20 |
+| fix vehicle group for Trailers and SemiTrailers | granite | Feature | 2025-10-20 |
+| Auto Liability Insurance default region / district | granite | Bug Fix | 2025-10-20 |
+| implement partner API REST controllers in insurance module | granite | Feature | 2025-10-17 |
+| feat : implement domain aggregates and full-stack integration | granite | Feature | 2025-10-16 |
+| feat : add policy search placeholder translations | granite | Feature | 2025-10-16 |
+| fix : update client profile UI and remove country field | granite | Bug Fix | 2025-10-15 |
+| feat : update presentation layer for passport integration | granite | Feature | 2025-10-15 |
+| feat : add policies query repository | granite | Feature | 2025-10-15 |
+| feat : add simplified client service layer | granite | Feature | 2025-10-15 |
+| implement CRMv2 module with Client aggregate | granite | Feature | 2025-10-15 |
+| add Client aggregate database schema migrations | granite | Feature | 2025-10-15 |
+| register crmv2 module with gotgbot dependency | granite | Feature | 2025-10-14 |
+| Implemented billing callback URL for PDF policies | granite | Feature | 2025-10-14 |
+| remove mask on phone number | granite | Bug Fix | 2025-10-14 |
+| changes added with generate | granite | Feature | 2025-10-13 |
+| Regenerated template files from schema changes | granite | Feature | 2025-10-13 |
+| add full name search support for policies page | granite | Bug Fix | 2025-10-13 |
+| add timestamps to contract insert and fix test context | granite | Bug Fix | 2025-10-12 |
+| handle missing PageContext in repository queries | granite | Bug Fix | 2025-10-12 |
+| remove unused translation keys | granite | Bug Fix | 2025-10-12 |
+| improve sales report chart data validation | granite | Bug Fix | 2025-10-12 |
+| add translations for contract filtering | granite | Feature | 2025-10-12 |
+| add contract filtering UI and view models | granite | Feature | 2025-10-12 |
+| implement contract filtering in controller | granite | Feature | 2025-10-12 |
+| add Policy Portfolio filtering methods to repository | granite | Feature | 2025-10-12 |
+| improve hasData validation in insurance type charts | granite | Bug Fix | 2025-10-12 |
+| Travel Insurance implementation work in progress | granite | Feature | 2025-10-10 |
+| ordering added to sql in Policy Portfolio export service, and refactored | granite | Feature | 2025-10-09 |
+| changes added to include statusgroup, and match more properly | granite | Feature | 2025-10-09 |
+| Travel Insurance implementation work in progress | granite | Feature | 2025-10-09 |
+| Removed debugging code or feature | granite | Bug Fix | 2025-10-09 |
+| fixed search to look for proper fields in json, where conditions now look for list of uuid | granite | Bug Fix | 2025-10-09 |
+| Optimized policy queries with limit/offset using issue_at index | granite | Bug Fix | 2025-10-09 |
+| Upgraded system integration module | granite | Bug Fix | 2025-10-08 |
+| upd Auto Liability Insurance aftr sucess payment | granite | Feature | 2025-10-07 |
+| Civil Liability Insurance/osgor: remove issueDate | granite | Bug Fix | 2025-10-07 |
+| ins upd graph v2 | granite | Feature | 2025-10-07 |
+| fixes: fix person & fix upsert cmd | granite | Bug Fix | 2025-10-07 |
+| improve sales report UI interactions and fullscreen display | granite | Bug Fix | 2025-10-07 |
+| improve chart re-rendering with HTMX event listener | granite | Bug Fix | 2025-10-07 |
+| add HTMX content swap and loading indicators to sales report | granite | Feature | 2025-10-07 |
+| correct revenue currency conversion in sales report charts | granite | Bug Fix | 2025-10-07 |
+| correct revenue currency conversion in sales reports | granite | Bug Fix | 2025-10-07 |
+| add stacked bar charts for daily sales breakdown | granite | Feature | 2025-10-07 |
+| enhance sales report with analytics charts | granite | Feature | 2025-10-07 |
+| add sales report module with analytics dashboard | granite | Feature | 2025-10-06 |
+| prevent panic from empty StatusHistory access | granite | Bug Fix | 2025-10-06 |
+| implement lazy loading for contracts page | granite | Feature | 2025-10-06 |
+| optimize Policy Portfolio queries with caching and index usage | granite | Feature | 2025-10-04 |
+| optimize Policy Portfolio endpoint with deferred joins | granite | Feature | 2025-10-04 |
+| optimize Policy Portfolio contracts endpoint with database indexes | granite | Feature | 2025-10-04 |
+| Fixed phone input mask and minor validation improvements | granite | Bug Fix | 2025-10-06 |
+| upd person & vehicle types | granite | Feature | 2025-10-06 |
+| resolve SQL syntax error in KASKO requests query | granite | Bug Fix | 2025-10-03 |
+| Policy Portfolio optimization && agressive consuming for db | granite | Feature | 2025-10-03 |
+| implement search functionality for KASKO requests | granite | Bug Fix | 2025-10-03 |
+| optimize contract Policy Portfolio loading with tooltips and batch queries | granite | Feature | 2025-10-03 |
+| vehicle person and organization comment fixes | granite | Bug Fix | 2025-09-30 |
+| fixes for previous comments | granite | Bug Fix | 2025-09-30 |
+| Added multi-language support for insurance system | granite | Feature | 2025-09-29 |
+| Enhanced insurance system functionality | granite | Feature | 2025-09-29 |
+| inject default tenant into AI chat API middleware | granite | Bug Fix | 2025-10-03 |
+| fixes & add confirm api | granite | Feature | 2025-10-02 |
+| Enhanced API functionality for insurance system | granite | Feature | 2025-10-02 |
+| impl voluntary api for napp | granite | Feature | 2025-10-02 |
+| improve contracts search with HTMX targets | granite | Feature | 2025-10-01 |
+| replace source tabs with status group tabs | granite | Feature | 2025-10-01 |
+| add status group translations for contracts | granite | Feature | 2025-10-01 |
+| enhance Policy Portfolio management with unified search and source tabs | granite | Feature | 2025-10-01 |
+| add Civil Liability Insurance insurance type support | granite | Feature | 2025-09-30 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-09-30 |
+| Corrected translation strings and i18n setup | granite | Bug Fix | 2025-09-29 |
+| find upd time logic for local find | granite | Feature | 2025-09-27 |
+| Fixed update time logic for local find operations | granite | Bug Fix | 2025-09-27 |
+| Improved payment processing for insurance system | granite | Bug Fix | 2025-09-25 |
+| Enhanced insurance system functionality | granite | Feature | 2025-09-25 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-09-25 |
+| Improved payment processing for insurance system | granite | Bug Fix | 2025-09-24 |
+| Fixed minor issues in contract payments module | granite | Bug Fix | 2025-09-24 |
+| person-documents number -> seria, number | granite | Feature | 2025-09-24 |
+| import script inc parallel handling | granite | Feature | 2025-09-24 |
+| inc retry for import && policy commission && contract-sources && save person/org phones on import | granite | Feature | 2025-09-24 |
+| Improved payment processing for insurance system | granite | Feature | 2025-09-23 |
+| Comprehensive Auto Insurance: added risks | granite | Feature | 2025-09-23 |
+| Added 9-month term option for Civil Liability Insurance | granite | Bug Fix | 2025-09-23 |
+| Fixed minor issues in Kasko module | granite | Feature | 2025-09-22 |
+| Auto Liability Insurance get use territory from vehicle | granite | Feature | 2025-09-19 |
+| Auto Liability Insurance migration save termConcl & sesonal & foreign | granite | Feature | 2025-09-19 |
+| hot-fixes: policy mapping fixes | granite | Bug Fix | 2025-09-19 |
+| Fixed pipeline translations, changed DRAFT to SUBMISSION | granite | Bug Fix | 2025-09-19 |
+| some changes for periodics | granite | Feature | 2025-09-19 |
+| Fixed insurance system data processing issues | granite | Bug Fix | 2025-09-18 |
+| Save local person/org IDs in Auto Liability Insurance form | granite | Bug Fix | 2025-09-18 |
+| save agency & region & area-type | granite | Feature | 2025-09-18 |
+| insurance init periodics & sync_agencies | granite | Feature | 2025-09-18 |
+| ref: refactor create Auto Liability Insurance | granite | Feature | 2025-09-18 |
+| Updated tests component or module | granite | Bug Fix | 2025-09-17 |
+| fixes: fixes & Auto Liability Insurance import pass bl values | granite | Bug Fix | 2025-09-17 |
+| upd import logic for Auto Liability Insurance | granite | Feature | 2025-09-17 |
+| upd license-plate get region | granite | Feature | 2025-09-17 |
+| determine vehicle region based on gov number | granite | Bug Fix | 2025-09-16 |
+| Determine vehicle region based on government number | granite | Bug Fix | 2025-09-16 |
+| Fixed Kasko requests UI display issues | granite | Bug Fix | 2025-09-16 |
+| Auto Liability Insurance-wizard: fixes | granite | Bug Fix | 2025-09-16 |
+| Fixed Auto Liability Insurance wizard issues | granite | Bug Fix | 2025-09-15 |
+| Implemented policy payment processing | granite | Feature | 2025-09-12 |
+| change status to WaitingForApproval when updating insurance | granite | Bug Fix | 2025-09-12 |
+| added application to insurance object | granite | Feature | 2025-09-12 |
+| translate some lookups, fix amendment dialog form | granite | Bug Fix | 2025-09-10 |
+| fixes: fix Auto Liability Insurance calc | granite | Bug Fix | 2025-09-10 |
+| Fixed Kasko applications sorting by created_at descending | granite | Bug Fix | 2025-09-10 |
+| Comprehensive Auto Insurance-ui: fixes | granite | Bug Fix | 2025-09-10 |
+| Generated source files from schema definitions | granite | Bug Fix | 2025-09-08 |
+| fixes: contract details some changes | granite | Bug Fix | 2025-09-08 |
+| temp detail page for contract | granite | Feature | 2025-09-08 |
+| Policy Portfolio shown all fields | granite | Feature | 2025-09-08 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-09-08 |
+| Enhanced insurance system functionality | granite | Feature | 2025-09-08 |
+| Updated generated template files | granite | Feature | 2025-09-08 |
+| Added Claude Code agents and commands configuration | granite | Feature | 2025-09-08 |
+| impl napp get contract data | granite | Feature | 2025-09-06 |
+| napp get contract info | granite | Feature | 2025-09-05 |
+| napp policy info & contr list | granite | Feature | 2025-09-05 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-09-04 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-09-04 |
+| insurance impl Policy Portfolio query | granite | Feature | 2025-09-04 |
+| Auto Liability Insurance-form: fixes | granite | Bug Fix | 2025-09-04 |
+| Auto Liability Insurance: form fixes | granite | Bug Fix | 2025-09-02 |
+| Fixed Auto Liability Insurance form issues | granite | Feature | 2025-09-02 |
+| Updated insurance CLI commands | granite | Bug Fix | 2025-09-02 |
+| create Auto Liability Insurance v1 | granite | Feature | 2025-09-02 |
+| simplify Auto Liability Insurance calculation | granite | Feature | 2025-08-30 |
+| Simplified Auto Liability Insurance calculation logic | granite | Bug Fix | 2025-08-30 |
+| impl Auto Liability Insurance drivers | granite | Feature | 2025-08-30 |
+| person use details & search-form | granite | Feature | 2025-08-30 |
+| Enhanced driver management in insurance system | granite | Bug Fix | 2025-08-30 |
+| Updated details display components | granite | Feature | 2025-08-29 |
+| person & org & vehicle viewmodels | granite | Feature | 2025-08-29 |
+| Auto Liability Insurance serch impl fixes | granite | Feature | 2025-08-29 |
+| Policy Portfolio Auto Liability Insurance find vehicle & find org | granite | Feature | 2025-08-29 |
+| Fixed issues in calculator | granite | Bug Fix | 2025-08-27 |
+| calc service && Auto Liability Insurance create command | granite | Bug Fix | 2025-08-26 |
+| insurance: refactor Auto Liability Insurance calc & create | granite | Feature | 2025-08-26 |
+| Added source tracking for Travel/OSGOR/OSGOP Insurance | granite | Bug Fix | 2025-08-27 |
+| Implemented calculation service and Auto Liability Insurance create command | granite | Feature | 2025-08-26 |
+| Refactored Auto Liability Insurance calculation and creation | granite | Feature | 2025-08-26 |
+| Upgraded system integration module | granite | Feature | 2025-08-26 |
+| address unresolved PR review comments | granite | Bug Fix | 2025-08-25 |
+| fixes: create_osago_command tests & refactor | granite | Feature | 2025-08-25 |
+| Fixed JSON decode error format for test compatibility | granite | Feature | 2025-08-25 |
+| fixes: contract_repo test fixes | granite | Bug Fix | 2025-08-24 |
+| Implemented contract service module | granite | Feature | 2025-08-23 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-08-23 |
+| fixes: refactor & fixes & tests | granite | Bug Fix | 2025-08-23 |
+| Enhanced insurance system functionality | granite | Bug Fix | 2025-08-22 |
+| fixes: contract_repository add tests & fixes | granite | Feature | 2025-08-22 |
+| Added missing lookups to pipelines UI | granite | Bug Fix | 2025-08-22 |
+| Added currency filter and restored old migration for reinsurance pipelines | granite | Bug Fix | 2025-08-22 |
+| Added insurance type filter for reinsurance pipelines | granite | Bug Fix | 2025-08-22 |
+| Fixed reinsurance pipelines issues | granite | Feature | 2025-08-22 |
+| Reinsurance pipelines work in progress | granite | Feature | 2025-08-22 |
+| Reinsurance pipelines work in progress | granite | Feature | 2025-08-22 |
+| Fixed reinsurance pipelines issues | granite | Bug Fix | 2025-08-22 |
+| Upgraded system integration for reinsurance pipelines | granite | Feature | 2025-08-21 |
+| Extracted Auto Liability Insurance controller config for testability | granite | Feature | 2025-08-20 |
+| Reinsurance pipelines work in progress | granite | Feature | 2025-08-19 |
+| Reinsurance pipelines work in progress | granite | Feature | 2025-08-19 |
+| Reinsurance pipelines work in progress | granite | Feature | 2025-08-18 |
+| Reinsurance pipelines work in progress | granite | Feature | 2025-08-18 |
+| Reinsurance pipelines work in progress | granite | Feature | 2025-08-15 |
+| Fixed minor issues in persons expanded view | granite | Bug Fix | 2025-08-14 |
+| fixes & feat: impl agency | granite | Bug Fix | 2025-08-11 |
+| Added print and back buttons to payouts act | granite | Feature | 2025-08-11 |
+| improve Auto Liability Insurance REST API error handling and click integration | granite | Feature | 2025-08-25 |
+| pipelines: added some missing lookups to ui | granite | Feature | 2025-08-22 |
+| reinsurance-pipelines: added currency filter, bring back old migration | granite | Feature | 2025-08-22 |
+| reinsurance-pipelines: added insurance type filter | granite | Feature | 2025-08-22 |
+| reinsurance-pipelines: upgrade sdk, other fixes | granite | Bug Fix | 2025-08-21 |
+| implement comprehensive Auto Liability Insurance REST API endpoints | granite | Feature | 2025-08-20 |
+| Fixed insurance system data processing issues | granite | Bug Fix | 2025-08-14 |
+| list.templ updates, code clean up | granite | Bug Fix | 2025-08-14 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-08-12 |
+| pipeline insurance parties type lookup | granite | Feature | 2025-08-12 |
+| sos-ui: added sos view | granite | Feature | 2025-08-11 |
+| Removed console logs from SOS UI | granite | Bug Fix | 2025-08-11 |
+| use oked in orgs | granite | Feature | 2025-08-11 |
+| Updated navigation component or module | granite | Feature | 2025-08-11 |
+| Fixed issues in oked | granite | Bug Fix | 2025-08-11 |
+| Added SOS request view to UI | granite | Bug Fix | 2025-08-11 |
+| Persons UI work in progress | granite | Feature | 2025-08-10 |
+| Persons UI work in progress | granite | Feature | 2025-08-10 |
+| Implemented risk and insurance class group | granite | Feature | 2025-08-09 |
+| Persons UI work in progress | granite | Feature | 2025-08-09 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-09 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-09 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-09 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-09 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-09 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-08-09 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-09 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-09 |
+| Persons UI work in progress | granite | Bug Fix | 2025-08-08 |
+| security: fix critical security and architectural issues in pipeline implementation | granite | Feature | 2025-08-08 |
+| Fixed insurance system validation issues | granite | Bug Fix | 2025-08-08 |
+| ui fields -> backend mappings | granite | Bug Fix | 2025-08-08 |
+| Improved code quality for insurance system | granite | Bug Fix | 2025-08-08 |
+| create pipeline ui, backend, db tweaks | granite | Bug Fix | 2025-08-08 |
+| Fixed insurance system data processing issues | granite | Feature | 2025-08-08 |
+| reinsurance lookup seed duplicates | granite | Bug Fix | 2025-08-07 |
+| Fixed reinsurance lookup seed duplicates | granite | Feature | 2025-08-07 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-07 |
+| lookups as a dynamic select options, create pipeline flow | granite | Feature | 2025-08-07 |
+| create pipeline ui updates | granite | Feature | 2025-08-06 |
+| introduced aggregate, entities, service, repo, mapper | granite | Feature | 2025-08-04 |
+| Improved code quality for insurance system | granite | Feature | 2025-08-04 |
+| use uuid for person/org/vehicle | granite | Bug Fix | 2025-08-08 |
+| added IDs to DTOs | granite | Feature | 2025-08-07 |
+| Enhanced insurance system functionality | granite | Feature | 2025-08-07 |
+| added index page for contracts | granite | Feature | 2025-08-06 |
+| added insurance options page | granite | Feature | 2025-08-06 |
+| add org api to napp pkg | granite | Feature | 2025-08-05 |
+| Made applicant, owner and vehicle components reusable | granite | Feature | 2025-08-05 |
+| Added organization API to partner system package | granite | Bug Fix | 2025-08-05 |
+| portfel: create Auto Liability Insurance ui | granite | Feature | 2025-08-05 |
+| Improved calculation logic for insurance system | granite | Bug Fix | 2025-08-05 |
+| use export component from sdk for commission payout requests | granite | Bug Fix | 2025-08-04 |
+| impl vehicle & person abstractions | granite | Feature | 2025-08-04 |
+| implement critical improvements for reinsurance lookup entities | granite | Feature | 2025-08-01 |
+| introduced lookup generator agent | granite | Feature | 2025-07-31 |
+| Upgraded IOTA SDK component library to latest version | granite | Feature | 2025-07-31 |
+| Applied minor system configuration adjustments | granite | Feature | 2025-07-31 |
+| pipeline premium schedule statu | granite | Feature | 2025-07-31 |
+| pipeline premium schedule types | granite | Feature | 2025-07-30 |
+| Enhanced Puck CMS editor with improved content replacement functionality | granite | Feature | 2025-07-30 |
+| pipeline probability of bind | granite | Feature | 2025-07-30 |
+| Added premium schedule type classifications for reinsurance pipelines | granite | Feature | 2025-07-30 |
+| Added deduction type categories for reinsurance premium calculations | granite | Feature | 2025-07-30 |
+| Added probability of bind metrics for reinsurance pipeline tracking | granite | Feature | 2025-07-30 |
+| Added pipeline structure definitions for reinsurance workflow | granite | Feature | 2025-07-30 |
+| Fixed infinite scroll pagination and column sorting in data tables | granite | Bug Fix | 2025-07-30 |
+| infinite scroll, column sorting | granite | Bug Fix | 2025-07-30 |
+| bank/bank branches button translation | granite | Bug Fix | 2025-07-30 |
+| underwriting module separate db schema, multitenancy support | granite | Feature | 2025-07-28 |
+| Fixed submission search functionality in reinsurance module | granite | Bug Fix | 2025-07-25 |
+| Improved insurance module architecture and code organization | granite | Feature | 2025-07-23 |
+| ui action buttons updates | granite | Bug Fix | 2025-07-23 |
+| submissions ui table & filtering | granite | Bug Fix | 2025-07-23 |
+| introduced smpt / imap to process submission details view | granite | Feature | 2025-07-21 |
+| update broker fields email -> domain, ui filtering | granite | Bug Fix | 2025-07-21 |
+| updated accept/decline btn ui | granite | Feature | 2025-07-18 |
+| Synchronized changes from main branch to staging environment | granite | Feature | 2025-07-17 |
+| Implemented discount rate management for insurance pricing | granite | Feature | 2025-07-17 |
+| Regenerated auto-generated source files from schema definitions | granite | Bug Fix | 2025-07-25 |
+| Merged insurance module initialization changes | granite | Bug Fix | 2025-07-25 |
+| Reverted temporary development changes | granite | Bug Fix | 2025-07-25 |
+| Completed insurance module initialization with domain structure | granite | Feature | 2025-07-25 |
+| Applied code improvements based on AI assistant feedback | granite | Feature | 2025-07-25 |
+| Merged staging branch updates into feature branch | granite | Feature | 2025-07-25 |
+| Fixed Telegram notification to display correct premium amount | granite | Feature | 2025-07-25 |
+| Updated IOTA SDK dependency to latest staging version | granite | Feature | 2025-07-25 |
+| Updated environment configuration examples for deployment | granite | Feature | 2025-07-25 |
+| Addressed code review comments and refactored components | granite | Feature | 2025-07-25 |
+| Updated Docker stack and deployment configuration files | granite | Feature | 2025-07-25 |
+| Completed database synchronization script development | granite | Feature | 2025-07-25 |
+| Fixed failing unit and integration tests | granite | Feature | 2025-07-25 |
+| some fixes && impl genders lookup | granite | Feature | 2025-07-25 |
+| mv to insurance db schema && add relatives lookup | granite | Feature | 2025-07-25 |
+| Added QR code generation for policy documents and verification | granite | Bug Fix | 2025-07-24 |
+| Fixed article update timestamp handling in CMS | granite | Feature | 2025-07-24 |
+| Fixed blog post date field handling for published and updated dates | granite | Feature | 2025-07-24 |
+| add X-Robots-Tag headers to block staging domains from search indexing | granite | Feature | 2025-07-23 |
+| improve email encoding in sync to preserve email structure | granite | Feature | 2025-07-22 |
+| set insurance status to checking while checking | granite | Bug Fix | 2025-07-18 |
+| Implemented commission calculation using discounted premiums | granite | Feature | 2025-07-17 |
+| don't allow to delete a category if it has articles; | granite | Bug Fix | 2025-07-15 |
+| summary report provides inconsistent data range for the default 30days period | granite | Bug Fix | 2025-07-15 |
+| Applied miscellaneous bug fixes and UI improvements | granite | Feature | 2025-07-14 |
+| Civil Liability Insurance: org owner/applicant fixes | granite | Bug Fix | 2025-07-11 |
+| range date picker logic | granite | Bug Fix | 2025-07-10 |
+| introduced quick selector 7/30/90 days | granite | Feature | 2025-07-10 |
+| date wasn't displayed in the date range field | granite | Bug Fix | 2025-07-09 |
+| add discounts for insurance type | granite | Feature | 2025-07-09 |
+| added discounted premium for insurance type | granite | Feature | 2025-07-09 |
+| Fixed URL redirect handling for localized pages | granite | Bug Fix | 2025-07-09 |
+| earn with eai button | granite | Bug Fix | 2025-07-06 |
+| Fixed icon sizing and display issues in UI components | granite | Bug Fix | 2025-07-06 |
+| edit comission rate form | granite | Bug Fix | 2025-07-06 |
+| index on staging: 7d194704 feat: add Google Play and App Store links to footer with SVG icons | granite | Feature | 2025-07-06 |
+| translate "New" button text to Russian for banks and bank branches | granite | Bug Fix | 2025-07-04 |
+| Implemented discount management system for insurance products | granite | Feature | 2025-07-04 |
+| Updated AI-powered content transformation features | granite | Bug Fix | 2025-07-03 |
+| add vehicles tab to Customer Management client drawer | granite | Feature | 2025-07-03 |
+| Added navigation anchor support across multiple page components | granite | Bug Fix | 2025-07-02 |
+| send payment reminders after 3 min; | granite | Feature | 2025-06-30 |
+| save payout offer signature | granite | Bug Fix | 2025-06-30 |
+| remove csv export options | granite | Bug Fix | 2025-06-25 |
+| Resolved test failures and test coverage issues | granite | Bug Fix | 2025-06-24 |
+| Enhanced Comprehensive Auto Insurance program configuration system | granite | Bug Fix | 2025-06-24 |
+| Added meta keywords support for SEO optimization in CMS pages | granite | Feature | 2025-06-24 |
+| add editable program descriptions through admin interface | granite | Feature | 2025-06-24 |
+| Improved payout request management interface | granite | Bug Fix | 2025-06-24 |
+| Added copy-to-clipboard functionality for data fields | granite | Feature | 2025-06-21 |
+| blog with selectable fields | granite | Feature | 2025-06-17 |
+| Cleaned up deployment trigger configuration | granite | Feature | 2025-06-16 |
+| send policy notifications to correct Telegram thread | granite | Bug Fix | 2025-06-13 |
+| Fixed template URL handling in page routing system | granite | Bug Fix | 2025-06-11 |
+| logo in collapsed state | granite | Feature | 2025-06-10 |
+| Fixed callback form styling and layout issues | granite | Feature | 2025-06-09 |
+| travel-insurance: add 15 days to shengen zone countries | granite | Feature | 2025-06-09 |
+| Improved callback form validation and error handling | granite | Bug Fix | 2025-06-09 |
+| bug fixes && refactoring | granite | Bug Fix | 2025-06-08 |
+| updated page for policies | granite | Feature | 2025-06-07 |
+| separate page for policies | granite | Feature | 2025-06-07 |
+| Added missing translation keys for multi-language support | granite | Bug Fix | 2025-06-06 |
+| Completed translation coverage for all interface elements | granite | Feature | 2025-06-06 |
+| Implemented redesigned user interface components | granite | Feature | 2025-06-05 |
+| defaults for schema && client tenant_id | granite | Bug Fix | 2025-06-05 |
+| Added tenant identification to insurance applicant data | granite | Feature | 2025-06-04 |
+| Fixed authentication middleware in GraphQL API endpoints | granite | Bug Fix | 2025-06-03 |
+| Enhanced security with improved auth middleware validation | granite | Feature | 2025-06-03 |
+| Fixed question repository data access methods | granite | Bug Fix | 2025-06-03 |
+| Resolved memory leak in question management system | granite | Bug Fix | 2025-06-03 |
+| Synchronized production changes to staging environment | granite | Bug Fix | 2025-06-03 |
+| type errors after upgrade | granite | Bug Fix | 2025-05-30 |
+| Auto Liability Insurance road24 api | granite | Bug Fix | 2025-05-27 |
+| Merged mainline updates into development branch | granite | Feature | 2025-05-27 |
+| Configured Traefik reverse proxy for load balancing | granite | Feature | 2025-05-26 |
+| show only last 50 records in policies | granite | Bug Fix | 2025-05-26 |
+| ignore promo code error | granite | Bug Fix | 2025-05-25 |
+| deploy configuration for sync script && custom types in sitemap.ts | granite | Bug Fix | 2025-05-24 |
+| Implemented tiered Comprehensive Auto Insurance product with multiple coverage levels | granite | Feature | 2025-05-24 |
+| tiered-Comprehensive Auto Insurance: implemented | granite | Feature | 2025-05-23 |
+| new ai chat logo && daily revenue chart on the dashboard | granite | Feature | 2025-05-23 |
+| new Comprehensive Auto Insurance wip | granite | Feature | 2025-05-22 |
+| chart reload on websocket update | granite | Bug Fix | 2025-05-22 |
+| Developed new Comprehensive Auto Insurance product features | granite | Bug Fix | 2025-05-22 |
+| Synchronized Comprehensive Auto Insurance development changes | granite | Feature | 2025-05-22 |
+| Integrated Comprehensive Auto Insurance calculations and pricing | granite | Feature | 2025-05-22 |
+| clean up policies table | granite | Bug Fix | 2025-05-21 |
+| class collision in summary report | granite | Bug Fix | 2025-05-21 |
+| Optimized Traefik routing configuration | granite | Bug Fix | 2025-05-21 |
+| Enhanced load balancer health check settings | granite | Feature | 2025-05-21 |
+| Upgraded IOTA SDK component library to latest version | granite | Feature | 2025-05-20 |
+| parse phone numbers correctly | granite | Bug Fix | 2025-05-15 |
+| upgrade sdk && ai-chat | granite | Bug Fix | 2025-05-15 |
+| display casco in the dashboard | granite | Bug Fix | 2025-05-15 |
+| Implemented AI chat feature | granite | Feature | 2025-05-12 |
+| Added policy document download functionality | granite | Feature | 2025-05-11 |
+| Implemented health status monitoring | granite | Bug Fix | 2025-05-10 |
+| Implemented detailed logging for Auto Liability Insurance transactions | granite | Feature | 2025-05-10 |
+| new logo && collors | granite | Feature | 2025-05-10 |
+| Enhanced Auto Liability Insurance error tracking and debugging | granite | Feature | 2025-05-10 |
+| show refresh button only if in cancelled state | granite | Bug Fix | 2025-05-10 |
+| refresh policy state button | granite | Feature | 2025-05-10 |
+| Fixed database migration execution errors | granite | Bug Fix | 2025-05-09 |
+| notification on sos event | granite | Feature | 2025-05-08 |
+| Fixed SMS notification handler for policy alerts | granite | Bug Fix | 2025-05-08 |
+| Comprehensive Auto Insurance insurance fixes | granite | Bug Fix | 2025-05-07 |
+| Implemented payment processing improvements | granite | Feature | 2025-05-03 |
+| Added GraphQL resolver for retrieving insurance policies by ID | granite | Feature | 2025-04-30 |
+| Upgraded IOTA SDK component library to latest version | granite | Bug Fix | 2025-04-23 |
+| Applied minor bug fixes and code improvements | granite | Bug Fix | 2025-04-22 |
+| Implemented various system enhancements | granite | Feature | 2025-04-19 |
+| Added advanced search functionality for policy management | granite | Feature | 2025-04-18 |
+| new columns in policies tab | granite | Feature | 2025-04-18 |
+| Enhanced search capabilities with additional filter options | granite | Feature | 2025-04-18 |
+| drawer ui && refactoring | granite | Bug Fix | 2025-04-17 |
+| better ui && refactoring | granite | Feature | 2025-04-17 |
+| fix : open policy in new tab | granite | Bug Fix | 2025-04-15 |
+| notifications on policy purchase | granite | Feature | 2025-04-14 |
+| policies sold report card | granite | Bug Fix | 2025-04-14 |
+| Implemented automated notifications for policy purchases | granite | Feature | 2025-04-14 |
+| Added payment status filtering to policy dashboard | granite | Feature | 2025-04-13 |
+| Enhanced payment status tracking and reporting | granite | Feature | 2025-04-13 |
+| Implemented insurance domain model and business logic | granite | Feature | 2025-04-13 |
+| Added translation support for new interface components | granite | Feature | 2025-04-12 |
+| better UI for policies | granite | Feature | 2025-04-12 |
+| Improved currency and date formatting across application | granite | Feature | 2025-04-11 |
+| osgor: new date picker | granite | Feature | 2025-04-10 |
+| error page for payment callback page | granite | Bug Fix | 2025-04-09 |
+| Added email login support for content editor access | granite | Feature | 2025-04-08 |
+| handle travel applicants with no address | granite | Feature | 2025-04-07 |
+| question controller && sos controller hx request | granite | Bug Fix | 2025-04-07 |
+| Upgraded IOTA SDK component library to latest version | granite | Bug Fix | 2025-04-07 |
+| travel insurance new datepicker | granite | Feature | 2025-04-07 |
+| search in question controller | granite | Feature | 2025-04-07 |
+| remove old user controller | granite | Bug Fix | 2025-04-06 |
+| Fixed UI styling inconsistencies | granite | Bug Fix | 2025-04-04 |
+| Applied visual design improvements | granite | Feature | 2025-04-04 |
+| Merged production updates to staging environment | granite | Feature | 2025-04-04 |
+| Auto Liability Insurance insurance fixes | granite | Bug Fix | 2025-04-02 |
+| Fixed Emergency Assistance alert visibility on iOS and Android platforms | mobile | Bug Fix | 2025-10-21 |
+| Added multi-language support for English, Russian, and Uzbek | mobile | Feature | 2025-10-06 |
+| Fixed build configuration and updated dependencies for Android and iOS | mobile | Feature | 2025-10-04 |
+| Added video instruction guides for vehicle documentation capture process | mobile | Feature | 2025-10-04 |
+| Configured production environment settings and API endpoints | mobile | Feature | 2025-09-30 |
+| Build 1.3.8: Fixed bugs in integrated browser, images, and camera interface | mobile | Feature | 2025-09-29 |
+| Implemented integrated browser components for insurance navigation | mobile | Feature | 2025-09-24 |
+| Fixed multiple Android platform issues with UI components and forms | mobile | Feature | 2025-09-23 |
+| Enabled users to resend vehicle documentation videos during application | mobile | Feature | 2025-09-18 |
+| Resolved authentication and policy management issues across app | mobile | Bug Fix | 2025-09-12 |
+| Fixed visibility and interaction of action buttons in policy view | mobile | Bug Fix | 2025-09-11 |
+| Enhanced Auto Liability Insurance application form | mobile | Feature | 2025-09-09 |
+| Enabled video upload capability for policy verification documents | mobile | Feature | 2025-09-03 |
+| Enhanced Comprehensive Auto Insurance workflow with video upload and payment tracking | mobile | Feature | 2025-09-01 |
+| Resolved promotion code and order completion issues | mobile | Bug Fix | 2025-08-26 |
+| Implemented Comprehensive Auto Insurance product with complete workflow | mobile | Feature | 2025-08-22 |
+| Fixed video compression format for camera capture | mobile | Bug Fix | 2025-08-07 |
+| Resolved date picker, form input, and payment issues | mobile | Bug Fix | 2025-08-06 |
+| Implemented proper location retrieval for Emergency Assistance on Android | mobile | Bug Fix | 2025-08-06 |
+| Updated application icons and improved camera video format | mobile | Feature | 2025-06-24 |
+| Fixed profile and user settings interface issues | mobile | Feature | 2025-06-23 |
+| Fixed multiple form validation, UI display, and Emergency Assistance issues | mobile | Bug Fix | 2025-06-23 |
+| Refactored date picker component for improved usability | mobile | Bug Fix | 2025-06-03 |
+| Fixed Android webview keyboard behavior, spacing, and switch styling | mobile | Bug Fix | 2025-06-02 |
+| Resolved unexpected crash issues on Android platform | mobile | Bug Fix | 2025-05-30 |
+| Added Emergency Assistance request handling and pending document verification | mobile | Feature | 2025-05-29 |
+| Implemented push notification system for policy updates and alerts | mobile | Feature | 2025-05-29 |
+| Added user operation history view with list performance optimization | mobile | Feature | 2025-05-29 |
+| Implemented comprehensive insurance product system with workflow management | mobile | Feature | 2025-05-29 |
+| Fixed Android keyboard display and Auto Liability Insurance application flow | mobile | Bug Fix | 2025-06-30 |
+| Fixed Android app icons and added pending policy application support | mobile | Bug Fix | 2025-06-25 |
+| Resolved display issues in user policy management screen | mobile | Bug Fix | 2025-06-24 |

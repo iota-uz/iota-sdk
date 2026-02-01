@@ -1,0 +1,273 @@
+---
+title: 'Frontend Stack'
+description: 'HTMX, Templ, and Alpine.js patterns'
+---
+
+# Frontend Stack
+
+IOTA SDK uses a modern, lightweight frontend stack focused on server-rendered HTML with progressive enhancement.
+
+## Stack Overview
+
+```mermaid
+graph TB
+    subgraph "Frontend Stack"
+        A[Templ] -->|Generates| B[HTML]
+        C[HTMX] -->|Enhances| B
+        D[Alpine.js] -->|Interactivity| B
+        E[Tailwind CSS] -->|Styles| B
+    end
+    
+    subgraph "Backend"
+        F[Go Controllers]
+        G[Templates]
+    end
+    
+    F -->|Data| G
+    G -->|Renders| A
+```
+
+## Technology Choices
+
+| Technology | Purpose | Why |
+|-----------|---------|-----|
+| **Templ** | HTML templating | Type-safe, Go-native |
+| **HTMX** | AJAX via HTML | Minimal JS, progressive enhancement |
+| **Alpine.js** | Reactivity | Lightweight, declarative |
+| **Tailwind CSS** | Styling | Utility-first, rapid development |
+
+## Request/Response Flow
+
+### Standard Page Load
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Controller
+    participant Service
+    participant Templ
+    
+    Browser->>Controller: GET /page
+    Controller->>Service: Fetch data
+    Service-->>Controller: Return models
+    Controller->>Templ: Render template
+    Templ-->>Controller: HTML string
+    Controller-->>Browser: Full HTML page
+```
+
+### HTMX Request
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant HTMX
+    participant Controller
+    participant Templ
+    
+    Browser->>HTMX: User action (hx-post)
+    HTMX->>Controller: AJAX request + HX headers
+    Controller->>Controller: Check htmx.IsHxRequest()
+    Controller->>Templ: Render partial template
+    Templ-->>Controller: HTML fragment
+    Controller-->>HTMX: HTML + HX-Trigger headers
+    HTMX->>Browser: Swap DOM content
+```
+
+## Templ
+
+### Type-Safe Templates
+
+Templ provides compile-time type safety for HTML templates:
+
+**Benefits:**
+- Catch errors at compile time, not runtime
+- IDE support and autocomplete
+- No template parsing overhead
+- Type-safe data passing
+
+### Template Structure
+
+```mermaid
+graph TD
+    A[Page Template] --> B[Layout Template]
+    A --> C[Component 1]
+    A --> D[Component 2]
+    
+    B --> E[Header]
+    B --> F[Navigation]
+    B --> G[Footer]
+```
+
+### Template Types
+
+| Type | Extension | Purpose |
+|------|-----------|---------|
+| **Pages** | `*.templ` | Full page templates |
+| **Components** | `*.templ` | Reusable UI components |
+| **Layouts** | `*.templ` | Page wrappers |
+| **Partials** | `*.templ` | HTMX fragments |
+
+## HTMX
+
+### Progressive Enhancement
+
+HTMX adds AJAX functionality via HTML attributes:
+
+```mermaid
+graph LR
+    A[Plain HTML Form] -->|hx-post| B[AJAX Submission]
+    B -->|hx-target| C[Partial Update]
+    C -->|hx-trigger| D[Client Event]
+```
+
+### Key Attributes
+
+| Attribute | Purpose | Example |
+|-----------|---------|---------|
+| `hx-get` | AJAX GET request | Load content dynamically |
+| `hx-post` | AJAX POST request | Submit forms |
+| `hx-target` | Update target element | Swap specific DOM |
+| `hx-swap` | Swap method | innerHTML, outerHTML, beforeend |
+| `hx-trigger` | Event trigger | click, change, load |
+| `hx-confirm` | Confirm dialog | User confirmation |
+
+### Server-Side Handling
+
+```mermaid
+graph TD
+    A[Request] --> B{Is HxRequest?}
+    B -->|Yes| C[Render Partial]
+    B -->|No| D[Render Full Page]
+    C --> E[Return HTML Fragment]
+    D --> F[Return Full HTML]
+```
+
+## Alpine.js
+
+### Lightweight Reactivity
+
+Alpine.js adds JavaScript interactivity declaratively:
+
+**Use Cases:**
+- Dropdown menus
+- Modal dialogs
+- Form validation feedback
+- Toggle switches
+- Tabs
+
+### Integration with HTMX
+
+```mermaid
+sequenceDiagram
+    participant Alpine
+    participant HTMX
+    participant Server
+    
+    Alpine->>Alpine: User interaction
+    Alpine->>HTMX: Trigger htmx-request
+    HTMX->>Server: AJAX call
+    Server-->>HTMX: Response
+    HTMX->>Alpine: DOM updated
+    Alpine->>Alpine: Reinitialize components
+```
+
+## Tailwind CSS
+
+### Utility-First Styling
+
+Compose designs from utility classes:
+
+```mermaid
+graph LR
+    A[Component] --> B[Container]
+    B --> C[Typography]
+    B --> D[Spacing]
+    B --> E[Colors]
+    B --> F[Layout]
+```
+
+### Configuration
+
+Tailwind is configured in `web/src/css/tailwind.config.js`:
+
+- Custom colors for branding
+- Extended spacing scale
+- Plugin configurations
+
+## Component Architecture
+
+### Server Components
+
+Pure server-rendered components:
+
+```mermaid
+graph TD
+    A[Controller] -->|Data| B[Templ Component]
+    B -->|Renders| C[HTML]
+    C -->|Sent| D[Browser]
+```
+
+### Interactive Components
+
+Components with Alpine.js interactivity:
+
+```mermaid
+graph TD
+    A[Controller] -->|Initial HTML| B[Templ Component]
+    B -->|Includes| C[Alpine Directives]
+    C -->|Hydrates| D[Interactive Component]
+```
+
+## State Management
+
+### Server State
+
+Primary state lives on the server:
+
+```mermaid
+graph LR
+    A[Browser] -->|HTTP| B[Controller]
+    B -->|Query| C[Service]
+    C -->|Fetch| D[(Database)]
+    D -->|State| C
+    C -->|Data| B
+    B -->|HTML| A
+```
+
+### Client State
+
+Minimal state in Alpine.js:
+
+- UI state (open/closed, selected tab)
+- Form draft state
+- Temporary user preferences
+
+## Best Practices
+
+### Progressive Enhancement
+
+1. **Start with HTML** - Works without JavaScript
+2. **Add HTMX** - Enhance with AJAX
+3. **Add Alpine.js** - Add interactivity where needed
+
+### Performance
+
+1. **Minimize JS** - Server-render when possible
+2. **Partial Updates** - HTMX for targeted updates
+3. **Lazy Loading** - Load components on demand
+4. **Bundle Size** - Alpine.js is ~15kb, minimal overhead
+
+## Comparison with SPA Frameworks
+
+| Aspect | IOTA SDK | React/Vue SPA |
+|--------|----------|---------------|
+| **Initial Load** | Fast (HTML) | Slower (JS bundle) |
+| **Interactivity** | Progressive | Full client-side |
+| **SEO** | Native | Requires SSR |
+| **Complexity** | Lower | Higher |
+| **State** | Server-first | Client-first |
+
+## Next Steps
+
+- **[Module System](/architecture/module-system)** - How modules register templates
+- **[Core Module](/core)** - See template examples in action

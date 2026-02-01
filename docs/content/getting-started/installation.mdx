@@ -1,0 +1,128 @@
+---
+title: 'Installation'
+description: 'Set up your development environment'
+---
+
+# Installation
+
+This guide walks you through setting up the IOTA SDK development environment.
+
+## System Requirements
+
+### Required Software
+
+- **Go 1.23+** ([Download](https://go.dev/dl/))
+- **PostgreSQL 13+** ([Download](https://www.postgresql.org/download/))
+- **Node.js 18+** ([Download](https://nodejs.org/))
+- **Git** ([Download](https://git-scm.com/downloads))
+- **Make** (Usually pre-installed on macOS/Linux, [Windows instructions](https://gnuwin32.sourceforge.net/packages/make.htm))
+
+### Verify Installations
+
+```bash
+go version          # Should show 1.23 or later
+psql --version      # Should show 13.x or later
+node --version      # Should show 18.x or later
+git --version       # Any recent version
+make --version      # Any version
+```
+
+## Database Setup
+
+### Create Database
+
+Connect to PostgreSQL and create the development database:
+
+```bash
+# Connect to PostgreSQL
+psql -U postgres
+
+# Create database
+CREATE DATABASE iota_sdk_dev;
+
+# Create user (optional, can use postgres)
+CREATE USER iota_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE iota_sdk_dev TO iota_user;
+```
+
+## Project Setup
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/iota-uz/iota-sdk.git
+cd iota-sdk
+```
+
+### Install Dependencies
+
+```bash
+# Install Go dependencies
+go mod download
+
+# Install Node.js dependencies for documentation
+cd docs && npm install && cd ..
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Database connection
+DATABASE_URL=postgres://postgres:password@localhost:5432/iota_sdk_dev?sslmode=disable
+
+# Application
+APP_ENV=development
+APP_PORT=3200
+
+# Session
+SESSION_SECRET=your-random-secret-key-at-least-32-characters
+
+# Optional: Test endpoints
+ENABLE_TEST_ENDPOINTS=true
+```
+
+### Configuration Files
+
+The SDK uses a configuration system located in `pkg/config/`. Key configuration areas:
+
+- **Database** - Connection pools and query timeouts
+- **Server** - Port, TLS settings, timeouts
+- **Session** - Cookie settings and secrets
+- **Localization** - Supported languages and default locale
+
+## Build and Run
+
+### Database Migrations
+
+Apply database schema:
+
+```bash
+make db migrate up
+```
+
+### Start the Server
+
+```bash
+# Standard server
+go run cmd/server/main.go
+
+# Or using make
+make run
+```
+
+The server will start on `http://localhost:3200` by default.
+
+### Verify Installation
+
+Visit these URLs to verify:
+
+- `http://localhost:3200` - Main application
+- `http://localhost:3200/health` - Health check endpoint
+
+## Next Steps
+
+Now that your environment is set up, continue to the [Quick Start guide](/getting-started/quickstart) to understand the SDK's core concepts and build your first feature.
