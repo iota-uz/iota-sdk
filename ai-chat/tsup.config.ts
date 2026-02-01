@@ -33,8 +33,8 @@ export default defineConfig({
     // CSS processing with Tailwind CSS v4
     const inputCSS = fs.readFileSync(path.resolve('./app/globals.css'), 'utf8');
     
-    // Import @tailwindcss/postcss dynamically
-    const tailwindcssPostcss = await import('@tailwindcss/postcss').then(m => m.default || m);
+    // Import @tailwindcss/postcss dynamically (default export)
+    const { default: tailwindcssPostcss } = await import('@tailwindcss/postcss');
     
     // Process with PostCSS and Tailwind v4
     const result = await postcss([
