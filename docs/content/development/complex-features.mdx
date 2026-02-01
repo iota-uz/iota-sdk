@@ -89,6 +89,7 @@ type expense struct {
 }
 
 // New creates an expense with validation
+// Note: account can be nil for lazy-loading scenarios - it will be hydrated later
 func New(amount *money.Money, account moneyaccount.Account, 
          category category.ExpenseCategory, date time.Time, 
          opts ...Option) Expense {
