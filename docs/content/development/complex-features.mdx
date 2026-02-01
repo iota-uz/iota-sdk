@@ -92,14 +92,12 @@ type expense struct {
 func New(amount *money.Money, account moneyaccount.Account, 
          category category.ExpenseCategory, date time.Time, 
          opts ...Option) Expense {
-	// Validation: amount must be positive
+	// Validation: amount must not be nil and must be positive
+	if amount == nil {
+		panic("expense amount is required")
+	}
 	if amount.Amount() <= 0 {
 		panic("expense amount must be positive")
-	}
-	
-	// Validation: account must be valid
-	if account == nil {
-		panic("expense requires a valid account")
 	}
 	
 	e := &expense{
@@ -583,8 +581,18 @@ func (c *ExpenseController) Create(
 	}
 
 	// Load related entities
-	accountID, _ := uuid.Parse(dto.AccountID)
-	categoryID, _ := uuid.Parse(dto.CategoryID)
+	accountID, err := uuid.Parse(dto.AccountID)
+	if err != nil {
+		logger.Errorf("Invalid account ID: %v", err)
+		http.Error(w, "Invalid account", http.StatusBadRequest)
+		return
+	}
+	categoryID, err := uuid.Parse(dto.CategoryID)
+	if err != nil {
+		logger.Errorf("Invalid category ID: %v", err)
+		http.Error(w, "Invalid category", http.StatusBadRequest)
+		return
+	}
 	
 	account, err := moneyAccountService.GetByID(r.Context(), accountID)
 	if err != nil {

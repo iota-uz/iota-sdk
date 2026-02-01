@@ -15,7 +15,7 @@ Controllers in IOTA SDK handle:
 - **DTO parsing and validation** from form data
 - **Service coordination** for business operations
 - **Response rendering** with Templ templates
-- **HTMX detection** for partial vs full page responses
+- **HTMX detection** for partial vs full-page responses
 
 ## Controller Structure
 
@@ -144,7 +144,10 @@ func (c *ExpenseController) List(
 		return
 	}
 
-	total, err := expenseService.Count(r.Context(), &expense.FindParams{})
+	countParams := *findParams
+	countParams.Limit = 0
+	countParams.Offset = 0
+	total, err := expenseService.Count(r.Context(), &countParams)
 	if err != nil {
 		logger.Errorf("Error counting expenses: %v", err)
 		http.Error(w, "Error counting expenses", http.StatusInternalServerError)
@@ -321,7 +324,12 @@ func (c *ExpenseController) Update(
 	}
 
 	// Load category if changed
-	categoryID, _ := uuid.Parse(dto.CategoryID)
+	categoryID, err := uuid.Parse(dto.CategoryID)
+	if err != nil {
+		logger.Errorf("Invalid category ID: %v", err)
+		http.Error(w, "Invalid category ID", http.StatusBadRequest)
+		return
+	}
 	cat, err := expenseCategoryService.GetByID(r.Context(), categoryID)
 	if err != nil {
 		logger.Errorf("Error retrieving category: %v", err)
@@ -700,7 +708,7 @@ When implementing a controller:
 - [ ] Parse and validate DTOs from forms
 - [ ] Check permissions using composables.CanUser()
 - [ ] Handle validation errors with localized messages
-- [ ] Support both full page and HTMX partial responses
+- [ ] Support both full-page and HTMX partial responses
 - [ ] Use proper HTTP status codes
 - [ ] Log errors with context
 - [ ] Write integration tests with ITF
