@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  go-lint-and-build:
+    name: Go Lint and Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Build Go code
+        run: go build -tags dev -o /tmp/iota-sdk ./cmd/server/main.go
+
+  docs-build:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install documentation dependencies
+        working-directory: ./docs
+        run: pnpm install
+
+      - name: Build documentation
+        working-directory: ./docs
+        run: pnpm build
+
+      - name: Check documentation build artifacts
+        run: |
+          if [ ! -d "docs/out" ]; then
+            echo "Error: Documentation build output not found"
+            exit 1
+          fi
+          if [ ! -f "docs/out/index.html" ]; then
+            echo "Error: Documentation index.html not found"
+            exit 1
+          fi
+          echo "Documentation build successful"
