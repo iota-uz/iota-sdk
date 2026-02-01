@@ -47,11 +47,14 @@ func NewRecoveryCodeService(repo twofactor.RecoveryCodeRepository) *RecoveryCode
 // Creates cryptographically random base32-encoded codes formatted with dashes for readability.
 // These codes are displayed once to the user and must be stored securely.
 // Parameters:
-//   - count: Number of recovery codes to generate
+//   - count: Number of recovery codes to generate (must be between 1 and 100)
 //
 // Returns a slice of formatted recovery codes and an error if generation fails.
 func (s *RecoveryCodeService) Generate(count int) ([]string, error) {
 	const op serrors.Op = "RecoveryCodeService.Generate"
+	if count < 1 || count > 100 {
+		return nil, serrors.E(op, serrors.Invalid, errors.New("recovery code count must be between 1 and 100"))
+	}
 	codes := make([]string, count)
 	for i := 0; i < count; i++ {
 		code, err := s.generateSingleCode()

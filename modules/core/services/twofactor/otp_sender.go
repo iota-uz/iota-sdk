@@ -5,10 +5,10 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/smtp"
 
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/twilio/twilio-go"
@@ -91,7 +91,8 @@ func (e *EmailOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error 
 	}
 
 	// Log successful delivery
-	log.Printf("[EmailOTPSender] OTP sent to %s via email\n", req.Recipient)
+	logger := composables.UseLogger(ctx)
+	logger.Info("OTP sent via email", "recipient", req.Recipient)
 
 	return nil
 }
@@ -107,7 +108,8 @@ func (e *EmailOTPSender) sendWithTLS(addr string, auth smtp.Auth, from string, t
 	}
 	defer func() {
 		if closeErr := conn.Close(); closeErr != nil {
-			log.Printf("[EmailOTPSender] Warning: failed to close connection: %v", closeErr)
+			// Connection close errors are logged but not returned to avoid masking the main error
+			_ = closeErr
 		}
 	}()
 
@@ -118,7 +120,8 @@ func (e *EmailOTPSender) sendWithTLS(addr string, auth smtp.Auth, from string, t
 	}
 	defer func() {
 		if quitErr := client.Quit(); quitErr != nil {
-			log.Printf("[EmailOTPSender] Warning: failed to quit SMTP client: %v", quitErr)
+			// SMTP quit errors are logged but not returned to avoid masking the main error
+			_ = quitErr
 		}
 	}()
 
@@ -268,8 +271,8 @@ func (s *SMSOTPSender) Send(ctx context.Context, req pkgtf.SendRequest) error {
 	}
 
 	// Log successful delivery
-	sidStr := *resp.Sid
-	log.Printf("[SMSOTPSender] OTP sent to %s via SMS (Twilio SID: %s)\n", req.Recipient, sidStr)
+	logger := composables.UseLogger(ctx)
+	logger.Info("OTP sent via SMS", "recipient", req.Recipient, "twilio_sid", *resp.Sid)
 
 	return nil
 }
