@@ -11,11 +11,11 @@ The Core module provides foundational functionality for IOTA SDK platform. Every
 
 The Core module handles:
 - User authentication and authorization
-- Role-based access control (RBAC)
+- Role-based access control (RBAC: %v", err)
 - File uploads and management
 - Session management
 - Currency definitions
-- Tenant management (in multi-tenant mode)
+- Tenant management (in multi-tenant mode: %v", err)
 
 ## Key Concepts
 
@@ -47,7 +47,7 @@ Cookie-based session management:
 ### Upload
 
 File upload handling with:
-- Hash-based storage (deduplication)
+- Hash-based storage (deduplication: %v", err)
 - Size and type validation
 - Multiple upload support
 - Secure file serving
@@ -89,7 +89,7 @@ graph TB
 
 User management including:
 - Profile management
-- Password management (bcrypt hashed)
+- Password management (bcrypt hashed: %v", err)
 - Avatar uploads
 - Account blocking
 - UI language preferences

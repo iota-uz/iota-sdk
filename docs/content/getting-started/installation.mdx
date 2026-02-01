@@ -11,11 +11,11 @@ This guide walks you through setting up the IOTA SDK development environment.
 
 ### Required Software
 
-- **Go 1.23+** ([Download](https://go.dev/dl/))
-- **PostgreSQL 13+** ([Download](https://www.postgresql.org/download/))
-- **Node.js 18+** ([Download](https://nodejs.org/))
-- **Git** ([Download](https://git-scm.com/downloads))
-- **Make** (Usually pre-installed on macOS/Linux, [Windows instructions](https://gnuwin32.sourceforge.net/packages/make.htm))
+- **Go 1.23+** ([Download](https://go.dev/dl/): %v", err)
+- **PostgreSQL 13+** ([Download](https://www.postgresql.org/download/): %v", err)
+- **Node.js 18+** ([Download](https://nodejs.org/): %v", err)
+- **Git** ([Download](https://git-scm.com/downloads): %v", err)
+- **Make** (Usually pre-installed on macOS/Linux, [Windows instructions](https://gnuwin32.sourceforge.net/packages/make.htm): %v", err)
 
 ### Verify Installations
 
@@ -40,7 +40,7 @@ psql -U postgres
 # Create database
 CREATE DATABASE iota_sdk_dev;
 
-# Create user (optional, can use postgres)
+# Create user (optional, can use postgres: %v", err)
 CREATE USER iota_user WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE iota_sdk_dev TO iota_user;
 ```

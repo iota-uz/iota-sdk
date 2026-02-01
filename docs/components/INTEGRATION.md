@@ -22,83 +22,78 @@ title: Your Page Title
 
 ## Real-World Examples
 
-### Insurance Coverage Documentation
+### Feature Documentation
 
-**Before (ASCII art):**
+**Before (Plain text):**
 ```
-┌─────────────────────────────────────┐
-│ OSAGO Coverage                      │
-├─────────────────────────────────────┤
-│ • Third party liability: 2M UZS     │
-│ • Property damage: 1M UZS           │
-│ • Passenger: 500K UZS               │
-└─────────────────────────────────────┘
+API Rate Limits
+- Free tier: 100 requests/hour
+- Pro tier: 1,000 requests/hour
+- Enterprise: 10,000 requests/hour
 ```
 
 **After (Component):**
 ```mdx
-<InfoCard title="OSAGO Coverage">
-  <InfoCard.Section title="Coverage Details">
-    <InfoCard.Limit label="Third Party Liability">2,000,000 UZS</InfoCard.Limit>
-    <InfoCard.Limit label="Property Damage">1,000,000 UZS</InfoCard.Limit>
-    <InfoCard.Limit label="Passenger">500,000 UZS</InfoCard.Limit>
+<InfoCard title="API Rate Limits">
+  <InfoCard.Section title="Tier Limits">
+    <InfoCard.Limit label="Free Tier">100 requests/hour</InfoCard.Limit>
+    <InfoCard.Limit label="Pro Tier">1,000 requests/hour</InfoCard.Limit>
+    <InfoCard.Limit label="Enterprise">10,000 requests/hour</InfoCard.Limit>
   </InfoCard.Section>
 </InfoCard>
 ```
 
-### Premium Calculation Documentation
+### Usage Analytics
 
 **Before (Text table):**
 ```
-Age Group    | Coefficient
-18-25        | 1.8
-26-35        | 1.0
-36-50        | 0.9
-50+          | 1.2
+Plan Type    | Monthly Cost
+Free         | $0
+Starter      | $29
+Professional | $99
+Enterprise   | $499
 ```
 
 **After (Component):**
 ```mdx
 <BarChart
-  title="Age-Based Premium Coefficients"
+  title="Plan Pricing"
   data={[
-    { label: "18-25", value: 1.8 },
-    { label: "26-35", value: 1.0 },
-    { label: "36-50", value: 0.9 },
-    { label: "50+", value: 1.2 }
+    { label: "Free", value: 0 },
+    { label: "Starter", value: 29 },
+    { label: "Professional", value: 99 },
+    { label: "Enterprise", value: 499 }
   ]}
-  maxValue={2}
+  maxValue={500}
 />
 ```
 
-### Formula Documentation
+### Pricing Formula Documentation
 
 **Before (Plain text):**
 ```
-Annual Premium = Base Rate * Age Coef * Driver Coef * Vehicle Coef
-Base Rate: 500,000 UZS
-Age Coefficient (26-35): 1.0
-Driver Coefficient (Good): 0.95
-Vehicle Coefficient (Sedan): 1.0
-Total: 475,000 UZS
+Monthly Cost = Base Price + (Active Users × Price Per User)
+Base Price: $99
+Active Users: 25
+Price Per User: $5
+Total: $224
 ```
 
 **After (Component):**
 ```mdx
-<FormulaBox title="Annual Premium Calculation">
+<FormulaBox title="Monthly Cost Calculation">
   <FormulaBox.Equation>
-    Premium = Base Rate × Age Coef × Driver Coef × Vehicle Coef
+    Monthly Cost = Base Price + (Active Users × Price Per User)
   </FormulaBox.Equation>
 
   <FormulaBox.Variables>
-    <FormulaBox.Var name="Base Rate" value="500,000 UZS" />
-    <FormulaBox.Var name="Age Coef (26-35)" value="1.0" />
-    <FormulaBox.Var name="Driver Coef (Good)" value="0.95" />
-    <FormulaBox.Var name="Vehicle Coef (Sedan)" value="1.0" />
+    <FormulaBox.Var name="Base Price" value="$99" />
+    <FormulaBox.Var name="Active Users" value="25" />
+    <FormulaBox.Var name="Price Per User" value="$5" />
   </FormulaBox.Variables>
 
-  <FormulaBox.Result label="Total Annual Premium">
-    475,000 UZS
+  <FormulaBox.Result label="Total Monthly Cost">
+    $224
   </FormulaBox.Result>
 </FormulaBox>
 ```
@@ -108,27 +103,27 @@ Total: 475,000 UZS
 **Before (Bullet points):**
 ```
 Required:
-- Valid ID
-- Vehicle registration
-- Technical inspection
+- Valid API key
+- Node.js 18+
+- PostgreSQL 13+
 
-Not required:
-- Medical certificate
-- Employment proof
+Optional:
+- Redis cache
+- Monitoring tools
 ```
 
 **After (Component):**
 ```mdx
-<ChecklistCard title="Required Documents">
+<ChecklistCard title="System Requirements">
   <ChecklistCard.Required>
-    Valid ID
-    Vehicle registration
-    Technical inspection
+    Valid API key
+    Node.js 18+
+    PostgreSQL 13+
   </ChecklistCard.Required>
 
   <ChecklistCard.NotRequired>
-    Medical certificate
-    Employment proof
+    Redis cache
+    Monitoring tools
   </ChecklistCard.NotRequired>
 </ChecklistCard>
 ```
@@ -138,19 +133,19 @@ Not required:
 ### Nested Information with Multiple Sections
 
 ```mdx
-<InfoCard title="Insurance Products" icon={<span>📋</span>}>
-  <InfoCard.Section title="OSAGO (Mandatory)">
-    Third-party liability insurance
+<InfoCard title="Service Plans" icon={<span>📋</span>}>
+  <InfoCard.Section title="Starter Plan">
+    Perfect for small teams getting started
   </InfoCard.Section>
 
-  <InfoCard.Section title="Coverage Tiers" nested>
-    <InfoCard.Limit label="Basic">500,000 UZS</InfoCard.Limit>
-    <InfoCard.Limit label="Standard">1,000,000 UZS</InfoCard.Limit>
-    <InfoCard.Limit label="Premium">2,000,000 UZS</InfoCard.Limit>
+  <InfoCard.Section title="Features" nested>
+    <InfoCard.Limit label="Users">Up to 10</InfoCard.Limit>
+    <InfoCard.Limit label="Storage">100 GB</InfoCard.Limit>
+    <InfoCard.Limit label="Support">Email</InfoCard.Limit>
   </InfoCard.Section>
 
-  <InfoCard.Section title="Optional Add-ons" nested>
-    <p>Passengers, glass, theft protection available</p>
+  <InfoCard.Section title="Add-ons Available" nested>
+    <p>Additional storage, priority support, and custom integrations</p>
   </InfoCard.Section>
 </InfoCard>
 ```
@@ -158,17 +153,17 @@ Not required:
 ### Combined Charts and Information
 
 ```mdx
-<InfoCard title="Premium Factors">
-  <InfoCard.Section title="Discounts by Driving Record">
+<InfoCard title="Usage Analytics">
+  <InfoCard.Section title="API Requests by Plan">
     <BarChart
-      title="Premium Multipliers"
+      title="Monthly API Usage"
       data={[
-        { label: "Excellent (0 claims)", value: 0.8 },
-        { label: "Good (1-2 claims)", value: 1.0 },
-        { label: "Fair (3-5 claims)", value: 1.5 },
-        { label: "Poor (6+ claims)", value: 2.0 }
+        { label: "Free", value: 500 },
+        { label: "Starter", value: 5000 },
+        { label: "Pro", value: 25000 },
+        { label: "Enterprise", value: 100000 }
       ]}
-      maxValue={2.5}
+      maxValue={120000}
     />
   </InfoCard.Section>
 </InfoCard>
@@ -177,18 +172,20 @@ Not required:
 ### Calculation with Results
 
 ```mdx
-<InfoCard title="Premium Calculation Example">
-  <InfoCard.Section title="Step-by-Step Calculation">
+<InfoCard title="Cost Estimation">
+  <InfoCard.Section title="Calculate Your Monthly Bill">
     <FormulaBox>
       <FormulaBox.Equation>
-        Final Premium = Base × Age × Driver Record
+        Total = Base Price + (Users × Price Per User) + (Storage × Storage Rate)
       </FormulaBox.Equation>
       <FormulaBox.Variables>
-        <FormulaBox.Var name="Base" value="500,000 UZS" />
-        <FormulaBox.Var name="Age (26-35)" value="1.0" />
-        <FormulaBox.Var name="Driver (Good)" value="0.95" />
+        <FormulaBox.Var name="Base Price" value="$99" />
+        <FormulaBox.Var name="Users" value="25" />
+        <FormulaBox.Var name="Price Per User" value="$5" />
+        <FormulaBox.Var name="Storage" value="500 GB" />
+        <FormulaBox.Var name="Storage Rate" value="$0.10/GB" />
       </FormulaBox.Variables>
-      <FormulaBox.Result>475,000 UZS</FormulaBox.Result>
+      <FormulaBox.Result>$224</FormulaBox.Result>
     </FormulaBox>
   </InfoCard.Section>
 </InfoCard>
@@ -198,156 +195,67 @@ Not required:
 
 ### Documentation Pages
 
-1. **Policy Details** - Use InfoCard for coverage information
-2. **Premium Guides** - Use BarChart for comparisons, FormulaBox for calculations
-3. **Requirements** - Use ChecklistCard for document lists
-4. **Product Specs** - Use InfoCard with nested sections
-5. **Calculations** - Use FormulaBox for step-by-step math
+Components enhance:
+- **API documentation** - Rate limits, quotas, authentication
+- **Pricing pages** - Plan comparisons, cost calculators
+- **Feature guides** - Requirements, limitations, capabilities
+- **Architecture docs** - System diagrams, data flows
 
-### Recommended Locations in Granite Docs
+### Component Organization
 
+Place component examples in:
 ```
-docs/app/
-├── [locale]/
-│   ├── insurance/
-│   │   ├── osago.mdx          ← Use InfoCard, BarChart
-│   │   ├── kasko.mdx          ← Use InfoCard, ChecklistCard
-│   │   └── premiums.mdx       ← Use FormulaBox, BarChart
-│   ├── products/
-│   │   └── [product].mdx      ← Use InfoCard, BarChart
-│   └── requirements/
-│       └── documents.mdx      ← Use ChecklistCard, InfoCard
+docs/
+├── components/
+│   ├── EXAMPLES.mdx        # All component examples
+│   ├── INTEGRATION.md      # Integration guide (this file)
+│   └── README.md           # Component documentation
 ```
 
-## Styling & Customization
+## Migration Tips
 
-### Using Custom Icons
+### From Plain Text
 
-```mdx
-<InfoCard
-  title="Coverage"
-  icon={<span>🛡️</span>}
->
-  Content
-</InfoCard>
-```
+1. Identify structured data (limits, calculations, comparisons)
+2. Choose appropriate component (InfoCard, BarChart, FormulaBox)
+3. Map data to component props
+4. Add visual hierarchy with sections
 
-Available icon options:
-- 📋 Documents
-- 🛡️ Protection/Coverage
-- ✓ Verified/Approved
-- ⚠️ Important/Warning
-- 💰 Money/Cost
-- 📊 Statistics/Data
+### From Tables
 
-### Adjusting Bar Chart Scale
-
-```mdx
-<!-- Auto-scale (0 to max value) -->
-<BarChart title="Chart" data={[...]} />
-
-<!-- Manual scale (0 to 10) -->
-<BarChart title="Chart" data={[...]} maxValue={10} />
-```
-
-### Long Variable Names
-
-For FormulaBox, use abbrev. and explain:
-
-```mdx
-<FormulaBox.Variables>
-  <FormulaBox.Var
-    name="ACF (Age Coef)"
-    value="1.5 (age 18-25)"
-  />
-  <FormulaBox.Var
-    name="DCF (Driver Coef)"
-    value="0.95 (good record)"
-  />
-</FormulaBox.Variables>
-```
-
-### Multiple Checklists
-
-```mdx
-<ChecklistCard title="Requirements">
-  <ChecklistCard.Required>
-    Documents needed
-  </ChecklistCard.Required>
-  <ChecklistCard.NotRequired>
-    Not needed
-  </ChecklistCard.NotRequired>
-</ChecklistCard>
-
-<ChecklistCard title="Optional Features">
-  <ChecklistCard.Required>
-    Available add-ons
-  </ChecklistCard.Required>
-</ChecklistCard>
-```
-
-## Migration Checklist
-
-When updating existing documentation:
-
-- [ ] Identify ASCII art/tables that can be replaced
-- [ ] Choose appropriate component:
-  - InfoCard for structured info with sections
-  - BarChart for comparisons/statistics
-  - FormulaBox for calculations
-  - ChecklistCard for requirements
-- [ ] Update `.mdx` file with component syntax
-- [ ] Remove old ASCII art/tables
-- [ ] Test in development (`npm run dev`)
-- [ ] Check dark mode appearance
-- [ ] Verify responsive layout on mobile
-- [ ] Commit changes
-
-## Component API Reference
-
-For complete component API, see:
-- `/docs/components/README.md` - Full API reference
-- `/docs/components/EXAMPLES.mdx` - Live examples
-
-## Troubleshooting
-
-### Component not appearing?
-
-1. Check file is `.mdx` (not `.md`)
-2. Verify component name capitalization
-3. Check syntax matches examples
-4. Restart dev server: `npm run dev`
-
-### Styling looks wrong?
-
-1. Check dark mode by toggling theme
-2. Verify Tailwind classes in component
-3. Check responsive layout on mobile
-4. Review `styles/globals.css` for custom styles
-
-### Data not displaying?
-
-1. Check data array format: `[{ label, value }, ...]`
-2. Verify values are numbers (not strings)
-3. Check labels are strings
-4. Test with simple data first
-
-## Performance
-
-Components are optimized for documentation:
-- Zero external dependencies (except React)
-- Pure Tailwind CSS styling
-- No JavaScript overhead
-- Fast builds and rendering
-- Excellent SEO-friendly markup
+Tables work for simple data, but components better for:
+- Highlighting important values
+- Showing relationships
+- Interactive comparisons
+- Visual impact
 
 ## Accessibility
 
-All components include:
-- Semantic HTML structure
-- Proper color contrast (WCAG AA)
-- Clear visual hierarchy
-- Icon with text labels
-- Responsive to user preferences (dark mode)
+All components support:
+- **Keyboard navigation** - Tab through interactive elements
+- **Screen readers** - Proper ARIA labels and descriptions
+- **Reduced motion** - Respects `prefers-reduced-motion`
+- **High contrast** - WCAG 2.1 AA compliant
 
-No additional ARIA labels needed for most use cases.
+## Dark Mode Support
+
+Components automatically adapt to:
+- Light mode (default)
+- Dark mode (user preference or manual toggle)
+- System preference (`prefers-color-scheme`)
+
+No additional configuration needed!
+
+## Next Steps
+
+1. Browse `EXAMPLES.mdx` for all component variations
+2. Check `README.md` for detailed component API
+3. Start using components in your `.mdx` files
+4. Customize styling with Tailwind classes if needed
+
+## Support
+
+For component questions or issues:
+- Review the examples in this directory
+- Check component source code in `components/`
+- Open an issue on GitHub

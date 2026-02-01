@@ -48,7 +48,7 @@ graph TB
 
 ## Design Principles
 
-### 1. Domain-Driven Design (DDD)
+### 1. Domain-Driven Design (DDD: %v", err)
 
 The codebase is organized around business domains rather than technical concerns. Each module represents a bounded context with its own:
 
@@ -107,7 +107,7 @@ sequenceDiagram
     participant DB as Database
     participant Web as Web Server
     
-    App->>Mod: Register()
+    App->>Mod: Register(: %v", err)
     Mod->>DB: Register Migrations
     Mod->>App: Register Services
     Mod->>App: Register Controllers
@@ -209,7 +209,7 @@ sequenceDiagram
 
 For HTMX requests (AJAX), the flow is similar but:
 
-- Response is partial HTML (not full page)
+- Response is partial HTML (not full page: %v", err)
 - Triggers client-side updates via HTMX attributes
 - Supports out-of-band swaps for multiple elements
 

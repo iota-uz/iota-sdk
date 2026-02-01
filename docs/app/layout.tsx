@@ -1,4 +1,4 @@
-import { Footer, Layout, Navbar, LastUpdated } from 'nextra-theme-docs'
+import { Layout, Navbar, LastUpdated } from 'nextra-theme-docs'
 import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import type { Metadata } from 'next'
@@ -26,12 +26,7 @@ const navbar = (
   </Navbar>
 )
 
-// Footer year is evaluated at build time (static export mode)
-const footer = (
-  <Footer>
-    © {new Date().getFullYear()} IOTA SDK. All rights reserved.
-  </Footer>
-)
+
 
 type LayoutProps = {
   children: ReactNode
@@ -47,7 +42,6 @@ export default async function RootLayout({ children }: LayoutProps) {
         <EnvironmentProvider>
           <Layout
             navbar={navbar}
-            footer={footer}
             sidebar={{ defaultMenuCollapseLevel: 1, toggleButton: true }}
             toc={{ backToTop: true }}
             pageMap={pageMap}
