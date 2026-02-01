@@ -12,10 +12,7 @@ const withNextra = nextra({
   },
   mdxOptions: {
     remarkPlugins: [
-      [remarkMermaid, {
-        // Pre-render Mermaid diagrams at build time
-        // This validates syntax and improves performance
-      }]
+      remarkMermaid
     ]
   }
 })
