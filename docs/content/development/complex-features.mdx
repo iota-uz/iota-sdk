@@ -187,7 +187,7 @@ func (g *GormExpenseRepository) buildExpenseFilters(
 ) ([]string, []interface{}, error) {
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to get tenant")
+		return nil, nil, fmt.Errorf("failed to get tenant: %w", err)
 	}
 
 	where := []string{"ex.tenant_id = $1"}
@@ -225,12 +225,12 @@ func (g *GormExpenseRepository) queryExpenses(
 ) ([]expense.Expense, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute query")
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -251,7 +251,7 @@ func (g *GormExpenseRepository) queryExpenses(
 			&d.dbTransaction.Comment,
 			&d.dbTransaction.OriginAccountID, &d.dbTransaction.DestinationAccountID,
 		); err != nil {
-			return nil, errors.Wrap(err, "failed to scan row")
+			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		data = append(data, d)
 	}
@@ -263,7 +263,7 @@ func (g *GormExpenseRepository) queryExpenses(
 		domainCategory, err := g.categoryRepo.GetByID(ctx, 
 			uuid.MustParse(d.dbExpense.CategoryID))
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to load category")
+			return nil, fmt.Errorf("failed to load category: %w", err)
 		}
 
 		// Build domain entity
@@ -347,14 +347,14 @@ func (g *GormExpenseRepository) Create(
 ) (expense.Expense, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
 	// Step 1: Create the transaction first
 	expenseRow, transactionRow := ToDBExpense(data)
 	createdTransaction, err := g.transactionRepo.Create(ctx, transactionRow)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create transaction")
+		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
 	// Step 2: Create the expense with transaction reference
@@ -367,7 +367,7 @@ func (g *GormExpenseRepository) Create(
 		expenseRow.CategoryID,
 		expenseRow.TenantID,
 	).Scan(&id); err != nil {
-		return nil, errors.Wrap(err, "failed to create expense")
+		return nil, fmt.Errorf("failed to create expense: %w", err)
 	}
 
 	return g.GetByID(ctx, id)
@@ -411,7 +411,7 @@ func (g *GormExpenseRepository) GetAttachments(
 
 	rows, err := tx.Query(ctx, expenseAttachmentsQuery, expenseID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to query attachments")
+		return nil, fmt.Errorf("failed to query attachments: %w", err)
 	}
 	defer rows.Close()
 
@@ -419,7 +419,7 @@ func (g *GormExpenseRepository) GetAttachments(
 	for rows.Next() {
 		var uploadID uint
 		if err := rows.Scan(&uploadID); err != nil {
-			return nil, errors.Wrap(err, "failed to scan upload ID")
+			return nil, fmt.Errorf("failed to scan upload ID: %w", err)
 		}
 		attachments = append(attachments, uploadID)
 	}
@@ -439,7 +439,7 @@ func (g *GormExpenseRepository) AttachFile(
 
 	_, err = tx.Exec(ctx, expenseAttachFileQuery, expenseID, uploadID)
 	if err != nil {
-		return errors.Wrap(err, "failed to attach file")
+		return fmt.Errorf("failed to attach file: %w", err)
 	}
 	return nil
 }

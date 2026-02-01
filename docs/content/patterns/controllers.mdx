@@ -595,23 +595,17 @@ func respondWithError(w http.ResponseWriter, code string, message string, status
 ```go
 func TestExpenseController_Create(t *testing.T) {
 	// Setup ITF (Integration Test Framework)
-	itf := testutils.NewITF(t)
-	defer itf.Cleanup()
-
-	// Register module
-	itf.RegisterModule(finance.NewModule())
-	
-	// Start server
-	itf.Start()
+	env := itf.Setup(t, itf.WithModules(finance.NewModule()))
+	defer env.Teardown()
 
 	t.Run("create expense", func(t *testing.T) {
-		// Login as test user
-		user := testutils.CreateTestUser(itf.DB(), permissions.ExpenseCreate)
-		cookies := testutils.Login(itf.Server(), user)
+		// Create test user with permissions
+		testUser := itf.User(permissions.ExpenseCreate)
+		ctx := composables.WithUser(env.Ctx, testUser)
 
 		// Create category and account first
-		category := createTestCategory(itf.DB(), user.TenantID)
-		account := createTestAccount(itf.DB(), user.TenantID)
+		category := createTestCategory(env.DB(), testUser.TenantID())
+		account := createTestAccount(env.DB(), testUser.TenantID())
 
 		// Submit form
 		resp := itf.DoRequest(itf.NewRequest(t, http.MethodPost, "/finance/expenses", 

@@ -96,7 +96,7 @@ sequenceDiagram
     participant Database
     
     Client->>BillingService: Create payment request
-    BillingService->>Database: Create transaction (Pending)
+    BillingService->>Database: Create transaction (Pending: %v", err)
     BillingService->>Provider: Initialize payment
     Provider-->>BillingService: Payment URL/Token
     BillingService-->>Client: Redirect to payment
@@ -105,7 +105,7 @@ sequenceDiagram
     
     Provider->>Webhook: Payment completion
     Webhook->>BillingService: Process notification
-    BillingService->>Database: Update status (Completed)
+    BillingService->>Database: Update status (Completed: %v", err)
     BillingService->>BillingService: Publish event
 ```
 

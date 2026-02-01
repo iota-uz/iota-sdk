@@ -321,12 +321,12 @@ func (g *GormExpenseRepository) queryExpenses(
 ) ([]expense.Expense, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute query")
+		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer rows.Close()
 
@@ -346,7 +346,7 @@ func (g *GormExpenseRepository) queryExpenses(
 			&d.transaction.AccountingPeriod, &d.transaction.TransactionType,
 			&d.transaction.Comment,
 		); err != nil {
-			return nil, errors.Wrap(err, "failed to scan")
+			return nil, fmt.Errorf("failed to scan: %w", err)
 		}
 		data = append(data, d)
 	}
@@ -357,7 +357,7 @@ func (g *GormExpenseRepository) queryExpenses(
 		// Load category (may cause N+1, consider optimization)
 		category, err := g.categoryRepo.GetByID(ctx, d.expense.CategoryID)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to load category")
+			return nil, fmt.Errorf("failed to load category: %w", err)
 		}
 
 		// Build domain entity
@@ -386,14 +386,14 @@ func (g *GormExpenseRepository) Create(
 ) (expense.Expense, error) {
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
 	}
 
 	// Step 1: Create related transaction first
 	expenseRow, transactionRow := ToDBExpense(data)
 	createdTransaction, err := g.transactionRepo.Create(ctx, transactionRow)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create transaction")
+		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
 	// Step 2: Create expense with foreign key
@@ -406,7 +406,7 @@ func (g *GormExpenseRepository) Create(
 		expenseRow.CategoryID,
 		expenseRow.TenantID,
 	).Scan(&id); err != nil {
-		return nil, errors.Wrap(err, "failed to create expense")
+		return nil, fmt.Errorf("failed to create expense: %w", err)
 	}
 
 	return g.GetByID(ctx, id)
@@ -451,7 +451,7 @@ func (g *GormExpenseRepository) GetAttachments(
 
 	rows, err := tx.Query(ctx, expenseAttachmentsQuery, expenseID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to query attachments")
+		return nil, fmt.Errorf("failed to query attachments: %w", err)
 	}
 	defer rows.Close()
 
@@ -459,7 +459,7 @@ func (g *GormExpenseRepository) GetAttachments(
 	for rows.Next() {
 		var uploadID uint
 		if err := rows.Scan(&uploadID); err != nil {
-			return nil, errors.Wrap(err, "failed to scan")
+			return nil, fmt.Errorf("failed to scan: %w", err)
 		}
 		attachments = append(attachments, uploadID)
 	}
@@ -479,7 +479,7 @@ func (g *GormExpenseRepository) AttachFile(
 
 	_, err = tx.Exec(ctx, expenseAttachFileQuery, expenseID, uploadID)
 	if err != nil {
-		return errors.Wrap(err, "failed to attach file")
+		return fmt.Errorf("failed to attach file: %w", err)
 	}
 	return nil
 }
@@ -531,7 +531,7 @@ params.Filters = append(params.Filters, expense.Filter{
 return nil, fmt.Errorf("failed to create expense category: %w", err)
 
 // Good: Uses errors.Wrap for stack traces
-return nil, errors.Wrap(err, "failed to load category")
+return nil, fmt.Errorf("failed to load category: %w", err)
 
 // Avoid: Losing context
 return nil, err
@@ -557,7 +557,7 @@ if len(categories) == 0 {
 
 ```go
 func TestExpenseCategoryRepository(t *testing.T) {
-	ctx := testutils.NewTestContext(t)
+	ctx := itf.NewTestContext().Build(t).Ctx
 	repo := persistence.NewExpenseCategoryRepository()
 
 	t.Run("Create and Get", func(t *testing.T) {
@@ -596,12 +596,12 @@ func TestExpenseCategoryRepository(t *testing.T) {
 
 	t.Run("Tenant Isolation", func(t *testing.T) {
 		// Create in tenant A
-		ctxA := testutils.WithTenant(ctx, tenantAID)
+		ctxA := composables.WithTenant(ctx, tenantAID)
 		entity := category.New("Tenant A Category")
 		created, _ := repo.Create(ctxA, entity)
 		
 		// Try to access from tenant B
-		ctxB := testutils.WithTenant(ctx, tenantBID)
+		ctxB := composables.WithTenant(ctx, tenantBID)
 		_, err := repo.GetByID(ctxB, created.ID())
 		assert.Error(t, err) // Should fail
 	})
