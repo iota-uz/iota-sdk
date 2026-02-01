@@ -13,17 +13,19 @@ package table
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
-
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"strconv"
 	"time"
 
-	"context"
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
 	"github.com/google/uuid"
+
+	"maps"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
@@ -34,7 +36,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"maps"
 )
 
 // DateTime renders a timestamp with Alpine-based relative formatting

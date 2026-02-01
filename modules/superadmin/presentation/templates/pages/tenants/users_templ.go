@@ -5,11 +5,15 @@ package tenants
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
-
 import (
 	"fmt"
+
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
+
+	"net/http"
+	"time"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/breadcrumb"
@@ -20,8 +24,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
-	"net/http"
-	"time"
 )
 
 func isUserActive(lastLogin time.Time) bool {
