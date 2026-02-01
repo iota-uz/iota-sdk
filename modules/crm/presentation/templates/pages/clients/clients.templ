@@ -37,9 +37,7 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 }
 
 templ ClientRow(client *viewmodels.Client, rowProps *base.TableRowProps) {
-	{{
-		url := fmt.Sprintf("/crm/clients?tab=profile&view=%s", client.ID)
-	}}
+	{{ url := fmt.Sprintf("/crm/clients?tab=profile&view=%s", client.ID) }}
 	@base.TableRow(*rowProps) {
 		@base.TableCell(base.TableCellProps{}) {
 			<button

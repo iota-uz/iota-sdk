@@ -54,6 +54,13 @@ func Authorize() mux.MiddlewareFunc {
 					return
 				}
 
+				// Security: Validate session is active (not pending 2FA or expired)
+				if !sess.IsActive() {
+					// Inactive sessions (pending 2FA, expired, etc.) should not be authenticated
+					next.ServeHTTP(w, r)
+					return
+				}
+
 				if _, err := composables.UseTenantID(ctx); err != nil {
 					ctx = composables.WithTenantID(ctx, sess.TenantID())
 				}

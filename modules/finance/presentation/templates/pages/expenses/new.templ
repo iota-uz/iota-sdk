@@ -18,7 +18,7 @@ type CreatePageProps struct {
 }
 
 templ CreateForm(props *CreatePageProps) {
-	{{ 	pageCtx := composables.UsePageCtx(ctx) }}
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		class="flex flex-col justify-between h-full"
 		hx-post="/finance/expenses"
