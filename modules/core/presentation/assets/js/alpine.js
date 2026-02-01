@@ -630,6 +630,13 @@ let sidebar = () => ({
     localStorage.setItem('sidebar-collapsed', this.isCollapsed.toString());
   },
 
+  handleSidebarClick(event) {
+    const interactive = 'a, button, input, summary, [role="button"], .btn';
+    if (event.target.closest(interactive)) return;
+    this.toggle();
+    this.$dispatch('sidebar-toggle');
+  },
+
   handleTabChange(event) {
     // Save the selected tab to localStorage
     if (event.detail && event.detail.value) {
