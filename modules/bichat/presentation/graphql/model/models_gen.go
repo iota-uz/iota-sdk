@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+type Artifact struct {
+	ID          string    `json:"id"`
+	SessionID   string    `json:"sessionID"`
+	MessageID   *string   `json:"messageID,omitempty"`
+	Type        string    `json:"type"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description,omitempty"`
+	MimeType    *string   `json:"mimeType,omitempty"`
+	URL         *string   `json:"url,omitempty"`
+	SizeBytes   int64     `json:"sizeBytes"`
+	Metadata    *string   `json:"metadata,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
 type Attachment struct {
 	ID          string    `json:"id"`
 	MessageID   string    `json:"messageID"`
@@ -26,21 +40,31 @@ type Citation struct {
 	Excerpt *string `json:"excerpt,omitempty"`
 }
 
+type CodeInterpreterOutput struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	MimeType  string    `json:"mimeType"`
+	URL       string    `json:"url"`
+	Size      int64     `json:"size"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 type Interrupt struct {
 	CheckpointID string      `json:"checkpointID"`
 	Questions    []*Question `json:"questions"`
 }
 
 type Message struct {
-	ID          string        `json:"id"`
-	SessionID   string        `json:"sessionID"`
-	Role        MessageRole   `json:"role"`
-	Content     string        `json:"content"`
-	ToolCalls   []*ToolCall   `json:"toolCalls,omitempty"`
-	ToolCallID  *string       `json:"toolCallID,omitempty"`
-	Attachments []*Attachment `json:"attachments"`
-	Citations   []*Citation   `json:"citations"`
-	CreatedAt   time.Time     `json:"createdAt"`
+	ID          string                   `json:"id"`
+	SessionID   string                   `json:"sessionID"`
+	Role        MessageRole              `json:"role"`
+	Content     string                   `json:"content"`
+	ToolCalls   []*ToolCall              `json:"toolCalls,omitempty"`
+	ToolCallID  *string                  `json:"toolCallID,omitempty"`
+	Attachments []*Attachment            `json:"attachments"`
+	Citations   []*Citation              `json:"citations"`
+	CodeOutputs []*CodeInterpreterOutput `json:"codeOutputs"`
+	CreatedAt   time.Time                `json:"createdAt"`
 }
 
 type MessageChunk struct {
@@ -90,6 +114,7 @@ type Session struct {
 	CreatedAt            time.Time     `json:"createdAt"`
 	UpdatedAt            time.Time     `json:"updatedAt"`
 	Messages             []*Message    `json:"messages"`
+	Artifacts            []*Artifact   `json:"artifacts"`
 }
 
 type Subscription struct {

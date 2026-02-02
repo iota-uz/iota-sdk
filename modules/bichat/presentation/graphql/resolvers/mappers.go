@@ -1,6 +1,8 @@
 package resolvers
 
 import (
+	"encoding/json"
+
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -63,6 +65,7 @@ func toGraphQLMessage(m *types.Message) *model.Message {
 		ToolCalls:   toGraphQLToolCalls(m.ToolCalls),
 		Attachments: toGraphQLAttachments(m.Attachments),
 		Citations:   toGraphQLCitations(m.Citations),
+		CodeOutputs: toGraphQLCodeOutputs(m.CodeOutputs),
 		CreatedAt:   m.CreatedAt,
 	}
 
@@ -71,6 +74,26 @@ func toGraphQLMessage(m *types.Message) *model.Message {
 	}
 
 	return gqlMessage
+}
+
+// toGraphQLCodeOutputs converts []types.CodeInterpreterOutput to []*model.CodeInterpreterOutput
+func toGraphQLCodeOutputs(outputs []types.CodeInterpreterOutput) []*model.CodeInterpreterOutput {
+	if len(outputs) == 0 {
+		return []*model.CodeInterpreterOutput{}
+	}
+
+	result := make([]*model.CodeInterpreterOutput, len(outputs))
+	for i, o := range outputs {
+		result[i] = &model.CodeInterpreterOutput{
+			ID:        o.ID.String(),
+			Name:      o.Name,
+			MimeType:  o.MimeType,
+			URL:       o.URL,
+			Size:      o.Size,
+			CreatedAt: o.CreatedAt,
+		}
+	}
+	return result
 }
 
 // toGraphQLMessageRole converts types.Role to GraphQL MessageRole
@@ -188,6 +211,43 @@ func toGraphQLQuestion(q services.Question) *model.Question {
 	}
 
 	return gqlQuestion
+}
+
+// toGraphQLArtifact converts a domain.Artifact to a GraphQL Artifact.
+func toGraphQLArtifact(a *domain.Artifact) *model.Artifact {
+	if a == nil {
+		return nil
+	}
+	gql := &model.Artifact{
+		ID:        a.ID.String(),
+		SessionID: a.SessionID.String(),
+		Type:      string(a.Type),
+		Name:      a.Name,
+		SizeBytes: a.SizeBytes,
+		CreatedAt: a.CreatedAt,
+	}
+	if a.MessageID != nil {
+		s := a.MessageID.String()
+		gql.MessageID = &s
+	}
+	if a.Description != "" {
+		gql.Description = &a.Description
+	}
+	if a.MimeType != "" {
+		gql.MimeType = &a.MimeType
+	}
+	if a.URL != "" {
+		gql.URL = &a.URL
+	}
+	if len(a.Metadata) > 0 {
+		b, err := json.Marshal(a.Metadata)
+		if err == nil {
+			s := string(b)
+			gql.Metadata = &s
+		}
+		// If marshal fails, metadata will be nil in GraphQL response
+	}
+	return gql
 }
 
 // strPtr is a helper to convert string to *string
