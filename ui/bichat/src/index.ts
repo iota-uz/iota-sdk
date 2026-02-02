@@ -18,13 +18,29 @@ export { ChartCard } from './components/ChartCard'
 export { SourcesPanel } from './components/SourcesPanel'
 export { DownloadCard } from './components/DownloadCard'
 export { InlineQuestionForm } from './components/InlineQuestionForm'
-export { MessageInput } from './components/MessageInput'
+export { MessageInput, type MessageInputRef, type MessageInputProps } from './components/MessageInput'
 export { default as AttachmentGrid } from './components/AttachmentGrid'
 export { default as ImageModal } from './components/ImageModal'
 export { default as WelcomeContent } from './components/WelcomeContent'
 export { default as CodeOutputsPanel } from './components/CodeOutputsPanel'
 export { default as StreamingCursor } from './components/StreamingCursor'
 export { default as ScrollToBottomButton } from './components/ScrollToBottomButton'
+export { default as EmptyState, type EmptyStateProps } from './components/EmptyState'
+export { default as EditableText, type EditableTextProps, type EditableTextRef } from './components/EditableText'
+export { default as SearchInput, type SearchInputProps } from './components/SearchInput'
+export {
+  default as Skeleton,
+  SkeletonGroup,
+  SkeletonText,
+  SkeletonAvatar,
+  SkeletonCard,
+  ListItemSkeleton,
+  type SkeletonProps,
+  type SkeletonGroupProps,
+} from './components/Skeleton'
+
+// Animations
+export * from './animations'
 
 // Context
 export { ChatSessionProvider, useChat } from './context/ChatContext'
