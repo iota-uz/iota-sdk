@@ -74,6 +74,22 @@ CREATE TABLE IF NOT EXISTS bichat.code_interpreter_outputs (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+-- Artifacts table (generic tool outputs: charts, exports, code outputs)
+CREATE TABLE IF NOT EXISTS bichat.artifacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL REFERENCES bichat.sessions(id) ON DELETE CASCADE,
+    message_id UUID REFERENCES bichat.messages(id) ON DELETE SET NULL,
+    type VARCHAR(50) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    mime_type VARCHAR(100),
+    url TEXT,
+    size_bytes BIGINT DEFAULT 0,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
 -- ========================================
 -- Indexes
 -- ========================================
@@ -101,6 +117,11 @@ CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON bichat.checkpoints(session
 CREATE INDEX IF NOT EXISTS idx_code_outputs_message ON bichat.code_interpreter_outputs(message_id);
 CREATE INDEX IF NOT EXISTS idx_code_outputs_created_at ON bichat.code_interpreter_outputs(created_at);
 
+CREATE INDEX IF NOT EXISTS idx_artifacts_session ON bichat.artifacts(session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_artifacts_tenant ON bichat.artifacts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_type ON bichat.artifacts(type);
+CREATE INDEX IF NOT EXISTS idx_artifacts_message ON bichat.artifacts(message_id) WHERE message_id IS NOT NULL;
+
 -- ========================================
 -- Functions
 -- ========================================
@@ -127,9 +148,13 @@ COMMENT ON COLUMN bichat.messages.tool_call_id IS 'Reference to tool call this m
 COMMENT ON COLUMN bichat.messages.citations IS 'JSON array of source citations';
 COMMENT ON COLUMN bichat.checkpoints.thread_id IS 'Session or conversation identifier for checkpoint continuity';
 COMMENT ON COLUMN bichat.checkpoints.interrupt_data IS 'Handler-specific interrupt data (e.g., questions)';
+COMMENT ON TABLE bichat.artifacts IS 'Generic artifact storage for session outputs (charts, exports, code outputs, etc.)';
+COMMENT ON COLUMN bichat.artifacts.type IS 'Artifact type (code_output, chart, export, etc.) - extensible';
+COMMENT ON COLUMN bichat.artifacts.metadata IS 'Type-specific data as JSONB (chart spec, row counts, etc.)';
 
 -- +migrate Down
 DROP FUNCTION IF EXISTS cleanup_expired_bichat_checkpoints();
+DROP TABLE IF EXISTS bichat.artifacts CASCADE;
 DROP TABLE IF EXISTS bichat.code_interpreter_outputs CASCADE;
 DROP TABLE IF EXISTS bichat.checkpoints CASCADE;
 DROP TABLE IF EXISTS bichat.attachments CASCADE;

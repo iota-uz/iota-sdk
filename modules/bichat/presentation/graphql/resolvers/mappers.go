@@ -1,6 +1,8 @@
 package resolvers
 
 import (
+	"encoding/json"
+
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -209,6 +211,43 @@ func toGraphQLQuestion(q services.Question) *model.Question {
 	}
 
 	return gqlQuestion
+}
+
+// toGraphQLArtifact converts a domain.Artifact to a GraphQL Artifact.
+func toGraphQLArtifact(a *domain.Artifact) *model.Artifact {
+	if a == nil {
+		return nil
+	}
+	gql := &model.Artifact{
+		ID:        a.ID.String(),
+		SessionID: a.SessionID.String(),
+		Type:      string(a.Type),
+		Name:      a.Name,
+		SizeBytes: a.SizeBytes,
+		CreatedAt: a.CreatedAt,
+	}
+	if a.MessageID != nil {
+		s := a.MessageID.String()
+		gql.MessageID = &s
+	}
+	if a.Description != "" {
+		gql.Description = &a.Description
+	}
+	if a.MimeType != "" {
+		gql.MimeType = &a.MimeType
+	}
+	if a.URL != "" {
+		gql.URL = &a.URL
+	}
+	if len(a.Metadata) > 0 {
+		b, err := json.Marshal(a.Metadata)
+		if err == nil {
+			s := string(b)
+			gql.Metadata = &s
+		}
+		// If marshal fails, metadata will be nil in GraphQL response
+	}
+	return gql
 }
 
 // strPtr is a helper to convert string to *string

@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+type Artifact struct {
+	ID          string    `json:"id"`
+	SessionID   string    `json:"sessionID"`
+	MessageID   *string   `json:"messageID,omitempty"`
+	Type        string    `json:"type"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description,omitempty"`
+	MimeType    *string   `json:"mimeType,omitempty"`
+	URL         *string   `json:"url,omitempty"`
+	SizeBytes   int64     `json:"sizeBytes"`
+	Metadata    *string   `json:"metadata,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
 type Attachment struct {
 	ID          string    `json:"id"`
 	MessageID   string    `json:"messageID"`
@@ -100,6 +114,7 @@ type Session struct {
 	CreatedAt            time.Time     `json:"createdAt"`
 	UpdatedAt            time.Time     `json:"updatedAt"`
 	Messages             []*Message    `json:"messages"`
+	Artifacts            []*Artifact   `json:"artifacts"`
 }
 
 type Subscription struct {

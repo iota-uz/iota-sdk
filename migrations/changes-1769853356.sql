@@ -468,7 +468,33 @@ CREATE INDEX idx_code_outputs_message ON bichat.code_interpreter_outputs (messag
 -- Index for created_at ordering
 CREATE INDEX idx_code_outputs_created_at ON bichat.code_interpreter_outputs (created_at);
 
+-- Generic artifacts table for extensible artifact storage
+CREATE TABLE IF NOT EXISTS bichat.artifacts (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+    session_id uuid NOT NULL REFERENCES bichat.sessions(id) ON DELETE CASCADE,
+    message_id uuid REFERENCES bichat.messages(id) ON DELETE SET NULL,
+    type varchar(50) NOT NULL,
+    name varchar(255) NOT NULL,
+    description text,
+    mime_type varchar(100),
+    url text,
+    size_bytes bigint DEFAULT 0,
+    metadata jsonb DEFAULT '{}',
+    created_at timestamp with time zone NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_artifacts_session ON bichat.artifacts(session_id, created_at DESC);
+CREATE INDEX idx_artifacts_tenant ON bichat.artifacts(tenant_id);
+CREATE INDEX idx_artifacts_type ON bichat.artifacts(type);
+CREATE INDEX idx_artifacts_message ON bichat.artifacts(message_id) WHERE message_id IS NOT NULL;
+
+COMMENT ON TABLE bichat.artifacts IS 'Generic artifact storage for session outputs (charts, exports, code outputs, etc.)';
+COMMENT ON COLUMN bichat.artifacts.type IS 'Artifact type (code_output, chart, export, etc.) - extensible';
+COMMENT ON COLUMN bichat.artifacts.metadata IS 'Type-specific data as JSONB (chart spec, row counts, etc.)';
+
 -- +migrate Down
+DROP TABLE IF EXISTS bichat.artifacts;
 -- Drop bichat schema (cascades to all tables and indexes)
 DROP SCHEMA IF EXISTS bichat CASCADE;
 
@@ -552,5 +578,23 @@ DROP VIEW IF EXISTS analytics.clients;
 DROP SCHEMA IF EXISTS analytics CASCADE;
 
 DROP ROLE IF EXISTS bichat_agent_role;
+
+-- Restore legacy tables dropped in Up (Down reverses Up exactly)
+CREATE TABLE dialogues (
+	id         SERIAL8 PRIMARY KEY,
+	user_id    INT8 NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+	label      VARCHAR(255) NOT NULL,
+	messages   JSONB NOT NULL,
+	created_at TIMESTAMPTZ DEFAULT now(),
+	updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE prompts (
+	id          VARCHAR(30) PRIMARY KEY,
+	title       VARCHAR(255) NOT NULL,
+	description TEXT NOT NULL,
+	prompt      TEXT NOT NULL,
+	created_at  TIMESTAMPTZ DEFAULT now()
+);
 
 -- +migrate StatementEnd

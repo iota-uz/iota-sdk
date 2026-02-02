@@ -23,6 +23,7 @@ type Resolver struct {
 	chatService       services.ChatService
 	agentService      services.AgentService
 	attachmentService services.AttachmentService
+	artifactService   services.ArtifactService
 }
 
 func NewResolver(
@@ -30,12 +31,14 @@ func NewResolver(
 	chatService services.ChatService,
 	agentService services.AgentService,
 	attachmentService services.AttachmentService,
+	artifactService services.ArtifactService,
 ) *Resolver {
 	return &Resolver{
 		app:               app,
 		chatService:       chatService,
 		agentService:      agentService,
 		attachmentService: attachmentService,
+		artifactService:   artifactService,
 	}
 }
 
@@ -344,6 +347,7 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 }
 
 // Sessions is the resolver for the sessions field.
+// Sessions are scoped by tenant and user from context (ListUserSessions uses UseTenantID and userID).
 func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) ([]*model.Session, error) {
 	const op serrors.Op = "Resolver.Sessions"
 
@@ -399,6 +403,14 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 		return nil, serrors.E(op, err)
 	}
 
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil || int64(user.ID()) != session.UserID {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
+	}
+
 	return toGraphQLSession(session), nil
 }
 
@@ -409,6 +421,19 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	sid, err := uuid.Parse(sessionID)
 	if err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+
+	session, err := r.chatService.GetSession(ctx, sid)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil || int64(user.ID()) != session.UserID {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
 	}
 
 	// Set defaults
@@ -438,6 +463,11 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	}
 
 	return result, nil
+}
+
+// Session returns the Session resolver (for Session.artifacts).
+func (r *Resolver) Session() generated.SessionResolver {
+	return &sessionResolver{r}
 }
 
 // MessageStream is the resolver for the messageStream field.
@@ -543,3 +573,4 @@ func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subsc
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+type sessionResolver struct{ *Resolver }
