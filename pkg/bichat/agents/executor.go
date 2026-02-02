@@ -240,17 +240,8 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			threadID = uuid.New().String()
 		}
 
-		// Build initial request with system prompt
-		messages := make([]types.Message, 0, len(input.Messages)+1)
-
-		// Add system prompt if agent provides one
-		systemPrompt := e.agent.SystemPrompt(ctx)
-		if systemPrompt != "" {
-			messages = append(messages, *types.SystemMessage(systemPrompt))
-		}
-
-		// Add input messages
-		messages = append(messages, input.Messages...)
+		// Use input messages as-is (system prompt already included from context compilation)
+		messages := input.Messages
 
 		// Start ReAct loop
 		iteration := 0
@@ -291,7 +282,17 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			}
 
 			// Call model (streaming)
-			gen := e.model.Stream(ctx, req)
+			gen, err := e.model.Stream(ctx, req)
+			if err != nil {
+				// Emit error event
+				if !yield(ExecutorEvent{
+					Type:  EventTypeError,
+					Error: err,
+				}) {
+					return nil
+				}
+				return serrors.E(op, err)
+			}
 
 			// Accumulate response
 			var responseMessage types.Message
@@ -531,7 +532,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 //	    if !hasMore { break }
 //	    handleEvent(event)
 //	}
-func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[string]string) types.Generator[ExecutorEvent] {
+func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[string]types.Answer) types.Generator[ExecutorEvent] {
 	const op serrors.Op = "Executor.Resume"
 
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(ExecutorEvent) bool) error {
@@ -552,26 +553,21 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 		for _, tc := range checkpoint.PendingTools {
 			// Check if this is an interrupt tool that needs answers
 			if tc.Name == ToolAskUserQuestion {
-				// Parse questions from tool call arguments
-				var questionsData struct {
-					Questions []struct {
-						ID   string `json:"id"`
-						Text string `json:"text"`
-					} `json:"questions"`
-				}
-				if err := json.Unmarshal([]byte(tc.Arguments), &questionsData); err != nil {
+				// Parse canonical payload from tool call arguments
+				var payload types.AskUserQuestionPayload
+				if err := json.Unmarshal([]byte(tc.Arguments), &payload); err != nil {
 					if !yield(ExecutorEvent{
 						Type:  EventTypeError,
-						Error: serrors.E(op, "failed to parse questions from checkpoint", err),
+						Error: serrors.E(op, "failed to parse interrupt payload from checkpoint", err),
 					}) {
 						return nil
 					}
-					return serrors.E(op, "failed to parse questions from checkpoint", err)
+					return serrors.E(op, "failed to parse interrupt payload from checkpoint", err)
 				}
 
-				// Build response with all answers
-				responseData := make(map[string]string)
-				for _, q := range questionsData.Questions {
+				// Validate answers cover all required question IDs
+				responseData := make(map[string]json.RawMessage)
+				for _, q := range payload.Questions {
 					answer, exists := answers[q.ID]
 					if !exists {
 						if !yield(ExecutorEvent{
@@ -582,10 +578,12 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 						}
 						return serrors.E(op, serrors.KindValidation, fmt.Sprintf("missing answer for question %s", q.ID))
 					}
-					responseData[q.ID] = answer
+
+					// Store answer as JSON (supports both string and []string)
+					responseData[q.ID] = answer.Value
 				}
 
-				// Create tool response message with all answers
+				// Create tool response message with all answers (JSON-encoded)
 				encoded, _ := json.Marshal(responseData)
 				messages = append(messages, *types.ToolResponse(tc.ID, string(encoded)))
 			}
@@ -660,10 +658,37 @@ func (e *Executor) executeToolCalls(
 
 		// Check for interrupt tools
 		if tc.Name == ToolAskUserQuestion {
-			// The tool already returns formatted InterruptData in its result
-			// Just parse it and create the interrupt event
-			// tc.Arguments contains the full question data structure
-			interruptData := json.RawMessage(tc.Arguments)
+			// Parse tool call arguments into canonical AskUserQuestionPayload
+			var payload types.AskUserQuestionPayload
+			if err := json.Unmarshal([]byte(tc.Arguments), &payload); err != nil {
+				return nil, nil, serrors.E(op, err, "failed to parse ask_user_question payload")
+			}
+
+			// Validate payload
+			if payload.Type != types.InterruptTypeAskUserQuestion {
+				return nil, nil, serrors.E(op, "invalid interrupt type")
+			}
+			if len(payload.Questions) == 0 {
+				return nil, nil, serrors.E(op, "at least one question required")
+			}
+
+			// Validate question IDs are unique
+			questionIDs := make(map[string]bool)
+			for _, q := range payload.Questions {
+				if q.ID == "" {
+					return nil, nil, serrors.E(op, "question ID is required")
+				}
+				if questionIDs[q.ID] {
+					return nil, nil, serrors.E(op, fmt.Sprintf("duplicate question ID: %s", q.ID))
+				}
+				questionIDs[q.ID] = true
+			}
+
+			// Store validated payload JSON in interrupt data
+			interruptData, err := json.Marshal(payload)
+			if err != nil {
+				return nil, nil, serrors.E(op, err, "failed to marshal interrupt payload")
+			}
 
 			interrupt := &InterruptEvent{
 				Type: ToolAskUserQuestion,

@@ -10,18 +10,17 @@ export default defineConfig({
     },
   },
   base: '/bi-chat/assets/',
+  assetsInclude: ['**/*.css'],
   build: {
     outDir: '../assets/dist',
     emptyOutDir: true,
+    manifest: true,
+    cssCodeSplit: false, // Bundle all CSS into a single file
     rollupOptions: {
       output: {
-        entryFileNames: 'main.js',
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name?.endsWith('.css')) {
-            return 'main.css'
-          }
-          return 'assets/[name].[ext]'
-        },
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
   },

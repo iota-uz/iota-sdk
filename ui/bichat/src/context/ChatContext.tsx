@@ -11,6 +11,9 @@ import type {
   PendingQuestion,
   QuestionAnswers,
   Attachment,
+  ImageAttachment,
+  QueuedMessage,
+  CodeOutput,
   ChatSessionContextValue,
 } from '../types'
 import { MessageRole } from '../types'
@@ -57,6 +60,10 @@ export function ChatSessionProvider({
   const [streamingContent, setStreamingContent] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Queue and code outputs state
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([])
+  const [codeOutputs, setCodeOutputs] = useState<CodeOutput[]>([])
 
   // Rate limiter (use provided or create default)
   const rateLimiterRef = useRef<RateLimiter>(
@@ -236,13 +243,37 @@ export function ChatSessionProvider({
   }, [])
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent, attachments: Attachment[] = []) => {
+    (e: React.FormEvent, attachments: ImageAttachment[] = []) => {
       e.preventDefault()
-      if (!message.trim()) return
-      sendMessageDirect(message, attachments)
+      if (!message.trim() && attachments.length === 0) return
+
+      // Convert ImageAttachment to Attachment for the data source
+      const convertedAttachments: Attachment[] = attachments.map(att => ({
+        id: '', // Will be assigned by backend
+        filename: att.filename,
+        mimeType: att.mimeType,
+        sizeBytes: att.sizeBytes,
+        base64Data: att.base64Data
+      }))
+
+      sendMessageDirect(message, convertedAttachments)
     },
     [message, sendMessageDirect]
   )
+
+  const handleUnqueue = useCallback(() => {
+    if (messageQueue.length === 0) {
+      return null
+    }
+
+    const lastQueued = messageQueue[messageQueue.length - 1]
+    setMessageQueue(prev => prev.slice(0, -1))
+
+    return {
+      content: lastQueued.content,
+      attachments: lastQueued.attachments
+    }
+  }, [messageQueue])
 
   const handleRegenerate = useCallback(
     async (messageId: string) => {
@@ -380,10 +411,13 @@ export function ChatSessionProvider({
     fetching,
     streamingContent,
     isStreaming,
+    messageQueue,
+    codeOutputs,
 
     // Setters
     setMessage,
     setError,
+    setCodeOutputs,
 
     // Handlers
     handleCopy,
@@ -392,6 +426,7 @@ export function ChatSessionProvider({
     handleSubmit,
     handleSubmitQuestionAnswers,
     handleCancelPendingQuestion,
+    handleUnqueue,
     sendMessage: sendMessageDirect,
     cancel: cancelStream,
   }

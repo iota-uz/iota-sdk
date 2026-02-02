@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/codecs"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // Example demonstrates basic context building and compilation.
@@ -57,13 +58,20 @@ func Example() {
 
 	fmt.Printf("Total tokens: %d\n", compiled.TotalTokens)
 	fmt.Printf("Truncated: %v\n", compiled.Truncated)
-	fmt.Printf("System prompt length: %d\n", len(compiled.SystemPrompt))
+	// System messages are now in compiled.Messages
+	systemMsgCount := 0
+	for _, msg := range compiled.Messages {
+		if msg.Role == types.RoleSystem {
+			systemMsgCount++
+		}
+	}
+	fmt.Printf("System messages count: %d\n", systemMsgCount)
 	fmt.Printf("Messages count: %d\n", len(compiled.Messages))
 
 	// Output:
 	// Total tokens: 37
 	// Truncated: false
-	// System prompt length: 141
+	// System messages count: 1
 	// Messages count: 2
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -84,9 +85,10 @@ func (c *ChatController) Register(r *mux.Router) {
 // registerGraphQL registers the GraphQL endpoint.
 // GraphQL endpoint requires agentService and attachmentService to be configured.
 func (c *ChatController) registerGraphQL(r *mux.Router) {
-	// Skip if required services are not available
+	// Services should always be available (fail-fast in module.Register)
+	// This check is defensive - should never happen in production
 	if c.agentService == nil || c.attachmentService == nil {
-		return
+		panic("BUG: ChatController created with nil services - should have failed in module.Register")
 	}
 
 	// Create resolver with all required services
@@ -302,10 +304,16 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Convert answers from map[string]string to map[string]types.Answer
+	canonicalAnswers := make(map[string]types.Answer, len(req.Answers))
+	for qid, answerStr := range req.Answers {
+		canonicalAnswers[qid] = types.NewAnswer(answerStr)
+	}
+
 	response, err := c.chatService.ResumeWithAnswer(r.Context(), services.ResumeRequest{
 		SessionID:    sessionID,
 		CheckpointID: req.CheckpointID,
-		Answers:      req.Answers,
+		Answers:      canonicalAnswers,
 	})
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)

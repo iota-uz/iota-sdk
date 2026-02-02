@@ -85,13 +85,13 @@ import {
 
 ### Run All Tests
 ```bash
-npm test
+pnpm test
 ```
 
 ### Run Specific Module
 ```bash
-npm run test:users
-npm run test:employees
+pnpm run test:users
+pnpm run test:employees
 ```
 
 ### Run Specific Test File
@@ -101,17 +101,17 @@ npx playwright test tests/users/register.spec.ts
 
 ### Run Tests in UI Mode (Interactive)
 ```bash
-npm run test:ui
+pnpm run test:ui
 ```
 
 ### Run Tests in Headed Mode (See Browser)
 ```bash
-npm run test:headed
+pnpm run test:headed
 ```
 
 ### Run Tests in Debug Mode
 ```bash
-npm run test:debug
+pnpm run test:debug
 ```
 
 ### Run Specific Test by Name
@@ -231,7 +231,7 @@ If you see Alpine.js errors in console:
 If locators fail to find elements:
 1. Check element is visible: `await expect(locator).toBeVisible()`
 2. Wait for element: `await page.waitForSelector('selector')`
-3. Use debug mode: `npm run test:debug`
+3. Use debug mode: `pnpm run test:debug`
 
 ## Debugging Tips
 

@@ -6,19 +6,21 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockQueryExecutor is a test double for QueryExecutorService
+// mockQueryExecutor is a test double for bichatsql.QueryExecutor
 type mockQueryExecutor struct {
-	result *QueryResult
+	result *bichatsql.QueryResult
 	err    error
 }
 
-func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*QueryResult, error) {
+func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -62,15 +64,15 @@ func TestExportQueryToExcelTool_Call_Success(t *testing.T) {
 
 	// Mock executor with sample data
 	executor := &mockQueryExecutor{
-		result: &QueryResult{
+		result: &bichatsql.QueryResult{
 			Columns: []string{"id", "name", "amount"},
-			Rows: []map[string]interface{}{
-				{"id": int64(1), "name": "Alice", "amount": 100.50},
-				{"id": int64(2), "name": "Bob", "amount": 200.75},
+			Rows: [][]any{
+				{int64(1), "Alice", 100.50},
+				{int64(2), "Bob", 200.75},
 			},
-			RowCount:   2,
-			IsLimited:  false,
-			DurationMs: 10,
+			RowCount:  2,
+			Truncated: false,
+			Duration:  10 * time.Millisecond,
 		},
 	}
 
@@ -112,11 +114,11 @@ func TestExportQueryToExcelTool_Call_DefaultFilename(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	executor := &mockQueryExecutor{
-		result: &QueryResult{
+		result: &bichatsql.QueryResult{
 			Columns:   []string{"col1"},
-			Rows:      []map[string]interface{}{{"col1": "value1"}},
+			Rows:      [][]any{{"value1"}},
 			RowCount:  1,
-			IsLimited: false,
+			Truncated: false,
 		},
 	}
 
@@ -143,9 +145,9 @@ func TestExportQueryToExcelTool_Call_AutoAppendExtension(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	executor := &mockQueryExecutor{
-		result: &QueryResult{
+		result: &bichatsql.QueryResult{
 			Columns:  []string{"col1"},
-			Rows:     []map[string]interface{}{{"col1": "value1"}},
+			Rows:     [][]any{{"value1"}},
 			RowCount: 1,
 		},
 	}

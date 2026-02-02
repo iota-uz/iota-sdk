@@ -1,0 +1,50 @@
+package pages
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/types"
+)
+
+templ Index(pageCtx types.PageContextProvider, assets *presentation.ViteAssets, contextJSON string) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{
+			Title: pageCtx.T("NavigationLinks.BiChat"),
+		},
+	}) {
+		<!-- Inject IOTA Context for React app -->
+		@templ.Raw("<script type=\"application/json\" id=\"iota-context-data\">")
+		@templ.Raw(contextJSON)
+		@templ.Raw("</script>")
+		@iotaContextInitScript()
+		<!-- Load CSS Assets -->
+		for _, cssFile := range assets.CSSFiles {
+			<link rel="stylesheet" crossorigin href={ cssFile }/>
+		}
+		<!-- Load JS Assets -->
+		for _, jsFile := range assets.JSFiles {
+			<script type="module" crossorigin src={ jsFile }></script>
+		}
+		<bi-chat-root
+			base-path="/bi-chat"
+			style="display: flex; flex: 1; flex-direction: column; min-height: 0; height: 100%;"
+		></bi-chat-root>
+	}
+}
+
+templ iotaContextInitScript() {
+	<script>
+		// Parse and expose the IOTA context globally
+		(function () {
+			const scriptTag = document.getElementById("iota-context-data");
+			if (scriptTag) {
+				try {
+					window.IOTA_CONTEXT = JSON.parse(scriptTag.textContent);
+				} catch (e) {
+					console.error("Failed to parse IOTA context:", e);
+					window.IOTA_CONTEXT = null;
+				}
+			}
+		})();
+	</script>
+}

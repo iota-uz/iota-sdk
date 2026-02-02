@@ -23,8 +23,7 @@
 //   - ExportToPDFTool: Export content to PDF via Gotenberg
 //
 // HITL (Human-in-the-Loop):
-//   - AskUserQuestionTool: Ask user for clarification (special interrupt tool)
-//   - NewAskUserQuestionHandler: Create interrupt handler for executor
+//   - AskUserQuestionTool: Ask user for clarification (triggers interrupt automatically)
 //
 // # Dependency Injection Pattern
 //
@@ -60,23 +59,20 @@
 //
 // # HITL Interrupts
 //
-// The ask_user_question tool is special - it triggers a HITL interrupt.
-// Register it with the executor's interrupt handler registry:
-//
-//	handler := tools.NewAskUserQuestionHandler()
-//	executor.RegisterInterruptHandler(agents.ToolAskUserQuestion, handler)
+// The ask_user_question tool automatically triggers a HITL interrupt when called.
+// Register it as a regular tool with the agent - the executor handles interrupts automatically.
 //
 // When the agent calls this tool, execution pauses and a checkpoint is saved.
-// Resume execution with the user's answers (map from question ID to answer):
+// Resume execution with the user's answers (map from question ID to types.Answer):
 //
-//	answers := map[string]string{
-//	    "question_1": "Q1 2024",
-//	    "question_2": "revenue",
+//	answers := map[string]types.Answer{
+//	    "question_1": types.NewAnswer("Q1 2024"),
+//	    "question_2": types.NewAnswer("revenue"),
 //	}
 //	gen := executor.Resume(ctx, checkpointID, answers)
 //	for {
-//	    event, err, hasMore := gen.Next()
-//	    if !hasMore { break }
+//	    event, err := gen.Next(ctx)
+//	    if err == types.ErrGeneratorDone { break }
 //	    // Process event
 //	}
 //

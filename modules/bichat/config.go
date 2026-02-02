@@ -11,11 +11,13 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -55,7 +57,7 @@ type ModuleConfig struct {
 	AgentRegistry *agents.AgentRegistry
 
 	// Optional services (can be nil)
-	QueryExecutor bichatservices.QueryExecutorService
+	QueryExecutor bichatsql.QueryExecutor
 	KBSearcher    kb.KBSearcher
 	TenantService *coreservices.TenantService
 
@@ -82,6 +84,17 @@ type ModuleConfig struct {
 	EnableCodeInterpreter bool // Enable code execution capabilities
 	EnableMultiAgent      bool // Enable multi-agent orchestration
 
+	// Renderer for context block formatting (required, defaults to AnthropicRenderer)
+	Renderer bichatcontext.Renderer
+
+	// Attachment storage configuration
+	AttachmentStorageBasePath string // e.g., "/var/lib/bichat/attachments"
+	AttachmentStorageBaseURL  string // e.g., "https://example.com/bichat/attachments"
+	DisableAttachmentStorage  bool   // Explicit disable (testing only)
+
+	// Feature toggles
+	DisableTitleGeneration bool // Disable auto-title generation
+
 	// Internal: Created services (initialized during BuildServices)
 	chatService       bichatservices.ChatService
 	agentService      bichatservices.AgentService
@@ -99,7 +112,7 @@ func WithModelRegistry(registry ModelRegistry) ConfigOption {
 }
 
 // WithQueryExecutor sets the SQL query executor service
-func WithQueryExecutor(executor bichatservices.QueryExecutorService) ConfigOption {
+func WithQueryExecutor(executor bichatsql.QueryExecutor) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.QueryExecutor = executor
 	}
@@ -197,6 +210,43 @@ func WithObservability(provider observability.Provider) ConfigOption {
 	}
 }
 
+// WithRenderer sets a custom renderer for context block formatting.
+// If not provided, defaults to AnthropicRenderer.
+func WithRenderer(renderer bichatcontext.Renderer) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.Renderer = renderer
+	}
+}
+
+// WithAttachmentStorage configures file storage for attachments.
+// Both basePath and baseURL are required for attachment support.
+//
+// Example:
+//
+//	bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments")
+func WithAttachmentStorage(basePath, baseURL string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.AttachmentStorageBasePath = basePath
+		c.AttachmentStorageBaseURL = baseURL
+	}
+}
+
+// WithNoOpAttachmentStorage disables attachment storage (testing only).
+// Use this explicitly in tests to bypass attachment storage requirements.
+func WithNoOpAttachmentStorage() ConfigOption {
+	return func(c *ModuleConfig) {
+		c.DisableAttachmentStorage = true
+	}
+}
+
+// WithTitleGenerationDisabled disables automatic session title generation.
+// When disabled, users must manually provide session titles.
+func WithTitleGenerationDisabled() ConfigOption {
+	return func(c *ModuleConfig) {
+		c.DisableTitleGeneration = true
+	}
+}
+
 // NewModuleConfig creates a new module configuration with required dependencies.
 // Use ConfigOption functions to set optional dependencies.
 func NewModuleConfig(
@@ -233,8 +283,16 @@ func NewModuleConfig(
 		cfg.Checkpointer = agents.NewInMemoryCheckpointer()
 	}
 
+	// Default to proper token estimator (not NoOp)
 	if cfg.TokenEstimator == nil {
-		cfg.TokenEstimator = agents.NewNoOpTokenEstimator()
+		cfg.TokenEstimator = agents.NewTiktokenEstimator("cl100k_base")
+	} else if _, isNoOp := cfg.TokenEstimator.(*agents.NoOpTokenEstimator); isNoOp {
+		cfg.Logger.Warn("NoOpTokenEstimator configured - context window management disabled")
+	}
+
+	// Default to AnthropicRenderer
+	if cfg.Renderer == nil {
+		cfg.Renderer = renderers.NewAnthropicRenderer()
 	}
 
 	// Wire summarizer to context policy if compaction is enabled
@@ -321,6 +379,49 @@ func (c *ModuleConfig) Validate() error {
 	if c.ContextPolicy.ContextWindow == 0 {
 		return errors.New("ContextPolicy.ContextWindow must be set")
 	}
+
+	// Validate Renderer
+	if c.Renderer == nil {
+		return errors.New("Renderer is required")
+	}
+
+	// Validate TokenEstimator
+	if c.TokenEstimator == nil {
+		return errors.New("TokenEstimator is required")
+	}
+
+	// Validate OverflowStrategy
+	validStrategies := map[bichatcontext.OverflowStrategy]bool{
+		bichatcontext.OverflowError:    true,
+		bichatcontext.OverflowTruncate: true,
+		bichatcontext.OverflowCompact:  true,
+	}
+	if !validStrategies[c.ContextPolicy.OverflowStrategy] {
+		return fmt.Errorf("invalid OverflowStrategy: %s (must be error/truncate/compact)", c.ContextPolicy.OverflowStrategy)
+	}
+
+	// Validate OverflowCompact configuration
+	if c.ContextPolicy.OverflowStrategy == bichatcontext.OverflowCompact {
+		if c.ContextPolicy.Compaction == nil {
+			return errors.New("OverflowStrategy=compact requires Compaction config")
+		}
+
+		// Warn if using NoOp estimator with compaction
+		if _, isNoOp := c.TokenEstimator.(*agents.NoOpTokenEstimator); isNoOp {
+			return errors.New("OverflowStrategy=compact requires accurate TokenEstimator (not NoOp)")
+		}
+	}
+
+	// Validate attachment storage if enabled
+	if !c.DisableAttachmentStorage {
+		if c.AttachmentStorageBasePath == "" {
+			return errors.New("AttachmentStorageBasePath required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+		}
+		if c.AttachmentStorageBaseURL == "" {
+			return errors.New("AttachmentStorageBaseURL required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+		}
+	}
+
 	return nil
 }
 
@@ -393,6 +494,8 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 // BuildServices creates and initializes all BiChat services from the configuration.
 // This should be called after NewModuleConfig and before registering the module.
 // Services are cached in the config and reused on subsequent calls.
+//
+// This method fails fast - any error in service creation returns immediately.
 func (c *ModuleConfig) BuildServices() error {
 	const op serrors.Op = "ModuleConfig.BuildServices"
 
@@ -403,17 +506,11 @@ func (c *ModuleConfig) BuildServices() error {
 
 	// Build AgentService first (ChatService depends on it)
 	if c.agentService == nil {
-		// Create a simple anthropic-compatible renderer
-		// This uses the basic tokenizer for token estimation
-		renderer := &simpleRenderer{
-			tokenizer: bichatcontext.NewSimpleTokenizer(),
-		}
-
 		c.agentService = services.NewAgentService(services.AgentServiceConfig{
 			Agent:         c.ParentAgent,
 			Model:         c.Model,
 			Policy:        c.ContextPolicy,
-			Renderer:      renderer,
+			Renderer:      c.Renderer, // Use configured renderer
 			Checkpointer:  c.Checkpointer,
 			EventBus:      c.EventBus,
 			ChatRepo:      c.ChatRepo,
@@ -421,13 +518,13 @@ func (c *ModuleConfig) BuildServices() error {
 		})
 	}
 
-	// Build TitleGenerationService (ChatService depends on it)
+	// Build TitleGenerationService (required unless disabled)
 	var titleService services.TitleGenerationService
-	titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo)
-	if err != nil {
-		// Log warning but continue - title generation is optional
-		c.Logger.WithError(err).Warn("Failed to create title generation service, session titles will need manual input")
-	} else {
+	if !c.DisableTitleGeneration {
+		titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo)
+		if err != nil {
+			return serrors.E(op, err, "failed to create title generation service")
+		}
 		titleService = titleSvc
 	}
 
@@ -437,18 +534,26 @@ func (c *ModuleConfig) BuildServices() error {
 			c.ChatRepo,
 			c.agentService,
 			c.Model,
-			titleService,
+			titleService, // Can be nil if disabled
 		)
 	}
 
-	// Build AttachmentService (requires file storage)
+	// Build AttachmentService (required unless disabled)
 	if c.attachmentService == nil {
-		// Create a basic local file storage for attachments
-		// This uses pkg/bichat/storage for file handling
-		fileStorage, err := storage.NewLocalFileStorage("/tmp/bichat-attachments", "http://localhost:3900/bi-chat/attachments")
-		if err != nil {
-			c.Logger.WithError(err).Warn("Failed to create local attachment storage, using no-op fallback")
+		var fileStorage storage.FileStorage
+
+		if c.DisableAttachmentStorage {
 			fileStorage = storage.NewNoOpFileStorage()
+		} else {
+			// Create LocalFileStorage with configured paths
+			fs, err := storage.NewLocalFileStorage(
+				c.AttachmentStorageBasePath,
+				c.AttachmentStorageBaseURL,
+			)
+			if err != nil {
+				return serrors.E(op, err, "failed to create attachment storage")
+			}
+			fileStorage = fs
 		}
 
 		c.attachmentService = services.NewAttachmentService(fileStorage)
@@ -484,43 +589,4 @@ func (c *ModuleConfig) String() string {
 		c.QueryExecutor != nil,
 		c.KBSearcher != nil,
 	)
-}
-
-// simpleRenderer is a basic Renderer implementation for Anthropic-style messages.
-// This creates provider-agnostic messages suitable for most LLM providers.
-type simpleRenderer struct {
-	tokenizer bichatcontext.Tokenizer
-}
-
-func (r *simpleRenderer) Render(block bichatcontext.ContextBlock) (bichatcontext.RenderedBlock, error) {
-	rendered := bichatcontext.RenderedBlock{
-		Metadata: make(map[string]any),
-	}
-
-	// Convert payload to string for content
-	content := fmt.Sprintf("%v", block.Payload)
-
-	// System blocks go in SystemContent
-	if block.Meta.Kind == bichatcontext.KindPinned {
-		rendered.SystemContent = content
-		return rendered, nil
-	}
-
-	// Other blocks become messages
-	// Create a simple message structure compatible with most providers
-	rendered.Message = map[string]any{
-		"role":    "user", // Simple default - real implementation would parse from block
-		"content": content,
-	}
-
-	return rendered, nil
-}
-
-func (r *simpleRenderer) EstimateTokens(block bichatcontext.ContextBlock) (int, error) {
-	content := fmt.Sprintf("%v", block.Payload)
-	return r.tokenizer.CountTokens(content)
-}
-
-func (r *simpleRenderer) Provider() string {
-	return "simple"
 }

@@ -25,7 +25,17 @@ function ChatSessionCore({
   renderAssistantMessage,
   className = '',
 }: Omit<ChatSessionProps, 'dataSource' | 'sessionId'>) {
-  const { session, fetching, error } = useChat()
+  const {
+    session,
+    fetching,
+    error,
+    message,
+    setMessage,
+    loading,
+    handleSubmit,
+    messageQueue,
+    handleUnqueue
+  } = useChat()
 
   if (fetching) {
     return (
@@ -44,14 +54,24 @@ function ChatSessionCore({
   }
 
   return (
-    <div className={`bichat-session flex flex-col h-full ${className}`}>
+    <main className={`flex-1 flex flex-col overflow-hidden min-h-0 bg-gray-50 dark:bg-gray-900 ${className}`}>
       <ChatHeader session={session} />
       <MessageList
         renderUserMessage={renderUserMessage}
         renderAssistantMessage={renderAssistantMessage}
       />
-      {!isReadOnly && <MessageInput />}
-    </div>
+      {!isReadOnly && (
+        <MessageInput
+          message={message}
+          loading={loading}
+          fetching={fetching}
+          onMessageChange={setMessage}
+          onSubmit={handleSubmit}
+          messageQueue={messageQueue}
+          onUnqueue={handleUnqueue}
+        />
+      )}
+    </main>
   )
 }
 

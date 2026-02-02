@@ -3,8 +3,10 @@ package agents_test
 import (
 	"context"
 	"fmt"
+	"time"
 
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 )
 
@@ -64,10 +66,10 @@ func ExampleNewDefaultBIAgent_withOptions() {
 
 type mockQueryExecutor struct{}
 
-func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*tools.QueryResult, error) {
-	return &tools.QueryResult{
+func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
+	return &bichatsql.QueryResult{
 		Columns:  []string{"id", "name"},
-		Rows:     []map[string]interface{}{{"id": 1, "name": "test"}},
+		Rows:     [][]any{{1, "test"}},
 		RowCount: 1,
 	}, nil
 }

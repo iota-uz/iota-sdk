@@ -2,44 +2,28 @@ package tools
 
 import (
 	"context"
-	"database/sql"
+	stdlibsql "database/sql"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// QueryExecutorService defines the interface for executing SQL queries.
-// Consumers can implement this interface to provide database access.
-type QueryExecutorService interface {
-	// ExecuteQuery executes a read-only SQL query and returns results.
-	// The timeoutMs parameter specifies the query timeout in milliseconds.
-	ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*QueryResult, error)
-}
-
-// QueryResult represents the result of a SQL query execution.
-type QueryResult struct {
-	Columns    []string                 `json:"columns"`
-	Rows       []map[string]interface{} `json:"rows"`
-	RowCount   int                      `json:"row_count"`
-	IsLimited  bool                     `json:"is_limited"`
-	DurationMs int64                    `json:"duration_ms,omitempty"`
-}
-
-// SQLExecuteTool executes SQL queries against a database via QueryExecutorService.
+// SQLExecuteTool executes SQL queries against a database via bichatsql.QueryExecutor.
 // It validates queries to ensure they are read-only and enforces row limits.
 type SQLExecuteTool struct {
-	executor QueryExecutorService
+	executor bichatsql.QueryExecutor
 }
 
 // NewSQLExecuteTool creates a new SQL execute tool.
 // The executor parameter provides database access and should be provided by the consumer.
-func NewSQLExecuteTool(executor QueryExecutorService) agents.Tool {
+func NewSQLExecuteTool(executor bichatsql.QueryExecutor) agents.Tool {
 	return &SQLExecuteTool{
 		executor: executor,
 	}
@@ -145,8 +129,8 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 		), serrors.E(op, err)
 	}
 
-	// Execute via service
-	result, err := t.executor.ExecuteQuery(ctx, params.Query, nil, 30000) // 30 second timeout
+	// Execute via executor
+	result, err := t.executor.ExecuteQuery(ctx, params.Query, nil, 30*time.Second)
 	if err != nil {
 		return FormatToolError(
 			ErrCodeQueryError,
@@ -157,8 +141,17 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 		), serrors.E(op, err, "query execution failed")
 	}
 
+	// Convert to map format for tool output (tools expect map format)
+	resultMap := map[string]any{
+		"columns":     result.Columns,
+		"rows":        result.AllMaps(),
+		"row_count":   result.RowCount,
+		"is_limited":  result.Truncated,
+		"duration_ms": result.Duration.Milliseconds(),
+	}
+
 	// Format response
-	return agents.FormatToolOutput(result)
+	return agents.FormatToolOutput(resultMap)
 }
 
 // validateReadOnlyQuery ensures the query is a SELECT statement.
@@ -214,32 +207,31 @@ func validateQueryParameters(query string, params map[string]any) error {
 	return nil
 }
 
-// DefaultQueryExecutor is a default implementation of QueryExecutorService using pgxpool.
+// DefaultQueryExecutor is a default implementation of bichatsql.QueryExecutor using pgxpool.
 // Consumers can use this or provide their own implementation.
 type DefaultQueryExecutor struct {
 	pool *pgxpool.Pool
 }
 
 // NewDefaultQueryExecutor creates a new default query executor.
-func NewDefaultQueryExecutor(pool *pgxpool.Pool) QueryExecutorService {
+func NewDefaultQueryExecutor(pool *pgxpool.Pool) bichatsql.QueryExecutor {
 	return &DefaultQueryExecutor{
 		pool: pool,
 	}
 }
 
 // ExecuteQuery executes a SQL query with the given timeout.
-func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, params []any, timeoutMs int) (*QueryResult, error) {
+func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	const op serrors.Op = "DefaultQueryExecutor.ExecuteQuery"
 
 	// Add timeout to context
-	timeout := time.Duration(timeoutMs) * time.Millisecond
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	start := time.Now()
 
 	// Execute query
-	rows, err := e.pool.Query(ctx, query, params...)
+	rows, err := e.pool.Query(queryCtx, query, params...)
 	if err != nil {
 		return nil, serrors.E(op, err, "query execution failed")
 	}
@@ -252,13 +244,14 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 		columnNames[i] = fd.Name
 	}
 
-	// Collect rows
-	var results []map[string]interface{}
-	rowCount := 0
+	// Collect rows (canonical format: [][]any)
+	var results [][]any
 	maxRows := 1000
+	hitLimit := false
 
 	for rows.Next() {
-		if rowCount >= maxRows {
+		if len(results) >= maxRows {
+			hitLimit = true
 			break
 		}
 
@@ -267,13 +260,13 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 			return nil, serrors.E(op, err, "failed to scan row")
 		}
 
-		row := make(map[string]interface{})
-		for i, col := range columnNames {
-			row[col] = formatValue(values[i])
+		// Format values
+		row := make([]any, len(values))
+		for i, val := range values {
+			row[i] = formatValue(val)
 		}
 
 		results = append(results, row)
-		rowCount++
 	}
 
 	if err := rows.Err(); err != nil {
@@ -282,12 +275,13 @@ func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, p
 
 	duration := time.Since(start)
 
-	return &QueryResult{
-		Columns:    columnNames,
-		Rows:       results,
-		RowCount:   len(results),
-		IsLimited:  len(results) >= maxRows,
-		DurationMs: duration.Milliseconds(),
+	return &bichatsql.QueryResult{
+		Columns:   columnNames,
+		Rows:      results,
+		RowCount:  len(results),
+		Truncated: hitLimit,
+		Duration:  duration,
+		SQL:       query,
 	}, nil
 }
 
@@ -302,27 +296,27 @@ func formatValue(value interface{}) interface{} {
 		return v.Format(time.RFC3339)
 	case []byte:
 		return string(v)
-	case sql.NullString:
+	case stdlibsql.NullString:
 		if v.Valid {
 			return v.String
 		}
 		return nil
-	case sql.NullInt64:
+	case stdlibsql.NullInt64:
 		if v.Valid {
 			return v.Int64
 		}
 		return nil
-	case sql.NullFloat64:
+	case stdlibsql.NullFloat64:
 		if v.Valid {
 			return v.Float64
 		}
 		return nil
-	case sql.NullBool:
+	case stdlibsql.NullBool:
 		if v.Valid {
 			return v.Bool
 		}
 		return nil
-	case sql.NullTime:
+	case stdlibsql.NullTime:
 		if v.Valid {
 			return v.Time.Format(time.RFC3339)
 		}

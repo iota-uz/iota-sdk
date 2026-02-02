@@ -172,6 +172,9 @@ type Mutation {
   # Unpin a session
   unpinSession(id: UUID!): Session!
 
+  # Update session title
+  updateSessionTitle(id: UUID!, title: String!): Session!
+
   # Delete a session
   deleteSession(id: UUID!): Boolean!
 }

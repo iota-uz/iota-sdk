@@ -38,17 +38,19 @@ type Model interface {
 	// Stream sends a streaming completion request.
 	// Returns a Generator that yields Chunk objects as they arrive.
 	// Use this for real-time UI updates and progressive response display.
+	// Returns an error immediately if the stream cannot be created.
 	//
 	// Example:
-	//   gen := model.Stream(ctx, req)
+	//   gen, err := model.Stream(ctx, req)
+	//   if err != nil { return err }
 	//   defer gen.Close()
 	//   for {
-	//       chunk, err, hasMore := gen.Next()
+	//       chunk, err := gen.Next(ctx)
+	//       if err == types.ErrGeneratorDone { break }
 	//       if err != nil { return err }
-	//       if !hasMore { break }
 	//       fmt.Print(chunk.Delta)
 	//   }
-	Stream(ctx context.Context, req Request, opts ...GenerateOption) types.Generator[Chunk]
+	Stream(ctx context.Context, req Request, opts ...GenerateOption) (types.Generator[Chunk], error)
 
 	// Info returns model metadata (name, provider, capabilities).
 	// This is used for observability, logging, and capability checks.

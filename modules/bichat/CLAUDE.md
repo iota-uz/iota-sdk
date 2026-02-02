@@ -27,7 +27,7 @@ modules/bichat/
 ├── presentation/
 │   ├── assets/
 │   │   ├── embed.go             # Embedded React build (dist/)
-│   │   └── dist/                # React build output (created by npm build)
+│   │   └── dist/                # React build output (created by pnpm build)
 │   ├── controllers/
 │   │   ├── chat_controller.go   # GraphQL/REST endpoints
 │   │   ├── stream_controller.go # SSE streaming
@@ -394,3 +394,116 @@ func TestChatRepo(t *testing.T) {
     // test...
 }
 ```
+
+## Migration Guide: Fail-Fast Refactoring
+
+The BiChat module now uses a **fail-fast** approach - configuration errors are caught at startup instead of allowing degraded functionality at runtime.
+
+### Breaking Changes
+
+1. **Attachment storage now required** - Must provide paths or explicitly disable
+2. **Module registration can fail** - Must check error from `app.RegisterModule()`
+3. **AnthropicRenderer default** - Proper context rendering (was stub)
+4. **TiktokenEstimator default** - Accurate token counting (~10-50ms overhead)
+
+### Old Code (Silent Failures)
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    model,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+)
+
+module := bichat.NewModuleWithConfig(cfg)
+app.RegisterModule(module) // No error check - failures logged but hidden
+```
+
+**Problems**:
+- Attachments silently discarded (NoOp fallback)
+- Title generation fails silently
+- GraphQL becomes unavailable without indication
+- Token counting disabled (returns 0)
+
+### New Code (Fail Fast)
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    model,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    // REQUIRED: Attachment storage configuration
+    bichat.WithAttachmentStorage(
+        "/var/lib/bichat/attachments",
+        "https://example.com/bichat/attachments",
+    ),
+)
+
+module := bichat.NewModuleWithConfig(cfg)
+if err := app.RegisterModule(module); err != nil {
+    log.Fatalf("Failed to register BiChat: %v", err)
+}
+```
+
+### Optional Configurations
+
+**Disable Attachments** (testing only):
+```go
+cfg := bichat.NewModuleConfig(
+    ...,
+    bichat.WithNoOpAttachmentStorage(), // Explicit disable
+)
+```
+
+**Disable Auto-Titles**:
+```go
+cfg := bichat.NewModuleConfig(
+    ...,
+    bichat.WithTitleGenerationDisabled(), // Users must provide titles manually
+)
+```
+
+**Custom Renderer**:
+```go
+customRenderer := myrenderers.NewCustomRenderer()
+cfg := bichat.NewModuleConfig(
+    ...,
+    bichat.WithRenderer(customRenderer),
+)
+```
+
+### Error Messages
+
+All errors are descriptive and actionable:
+
+```
+"AttachmentStorageBasePath required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()"
+"OverflowStrategy=compact requires accurate TokenEstimator (not NoOp)"
+"failed to create title generation service: model returned error"
+"failed to create attachment storage: directory /var/lib/bichat/attachments is not writable"
+```
+
+### Troubleshooting
+
+**Error: "AttachmentStorageBasePath required"**
+- Solution: Add `bichat.WithAttachmentStorage("/path", "https://url")` to config
+- Or: Use `bichat.WithNoOpAttachmentStorage()` for testing
+
+**Error: "failed to create attachment storage: permission denied"**
+- Solution: Ensure directory exists and is writable by application user
+- Check: `mkdir -p /var/lib/bichat/attachments && chown app:app /var/lib/bichat/attachments`
+
+**Error: "failed to build BiChat services"**
+- Solution: Check logs for underlying error (title generation, storage, etc.)
+- Enable debug logging: `cfg.Logger.SetLevel(logrus.DebugLevel)`
+
+**Module registration fails at startup**
+- This is expected behavior - fix configuration and restart
+- Old behavior: Module loaded with broken features
+- New behavior: Application fails fast with clear error message

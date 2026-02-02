@@ -52,6 +52,27 @@ export interface Attachment {
   base64Data?: string
 }
 
+// Image attachment with preview for MessageInput
+export interface ImageAttachment {
+  filename: string
+  mimeType: string
+  sizeBytes: number
+  base64Data: string
+  preview: string  // data URL for img src
+}
+
+// Code interpreter output
+export interface CodeOutput {
+  type: 'image' | 'text' | 'error'
+  content: string | ImageAttachment
+}
+
+// Queued message for offline/loading state
+export interface QueuedMessage {
+  content: string
+  attachments: ImageAttachment[]
+}
+
 export interface ChartData {
   type: 'bar' | 'line' | 'pie' | 'area'
   title?: string
@@ -121,18 +142,22 @@ export interface ChatSessionContextValue {
   fetching: boolean
   streamingContent: string
   isStreaming: boolean
+  messageQueue: QueuedMessage[]
+  codeOutputs: CodeOutput[]
 
   // Setters
   setMessage: (message: string) => void
   setError: (error: string | null) => void
+  setCodeOutputs: (outputs: CodeOutput[]) => void
 
   // Handlers
-  handleSubmit: (e: React.FormEvent, attachments?: Attachment[]) => void
+  handleSubmit: (e: React.FormEvent, attachments?: ImageAttachment[]) => void
   handleRegenerate?: (messageId: string) => Promise<void>
   handleEdit?: (messageId: string, newContent: string) => Promise<void>
   handleCopy: (text: string) => Promise<void>
   handleSubmitQuestionAnswers: (answers: QuestionAnswers) => void
   handleCancelPendingQuestion: () => Promise<void>
+  handleUnqueue: () => { content: string; attachments: ImageAttachment[] } | null
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   cancel: () => void
 }

@@ -19,6 +19,12 @@ export { SourcesPanel } from './components/SourcesPanel'
 export { DownloadCard } from './components/DownloadCard'
 export { InlineQuestionForm } from './components/InlineQuestionForm'
 export { MessageInput } from './components/MessageInput'
+export { default as AttachmentGrid } from './components/AttachmentGrid'
+export { default as ImageModal } from './components/ImageModal'
+export { default as WelcomeContent } from './components/WelcomeContent'
+export { default as CodeOutputsPanel } from './components/CodeOutputsPanel'
+export { default as StreamingCursor } from './components/StreamingCursor'
+export { default as ScrollToBottomButton } from './components/ScrollToBottomButton'
 
 // Context
 export { ChatSessionProvider, useChat } from './context/ChatContext'
@@ -46,6 +52,7 @@ export { HttpDataSource, createHttpDataSource } from './data/HttpDataSource'
 
 // Utilities
 export { RateLimiter } from './utils/RateLimiter'
+export * from './utils/fileUtils'
 
 // Types
 export type {
@@ -54,6 +61,9 @@ export type {
   ToolCall,
   Citation,
   Attachment,
+  ImageAttachment,
+  QueuedMessage,
+  CodeOutput,
   ChartData,
   Artifact,
   PendingQuestion,

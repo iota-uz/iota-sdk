@@ -103,7 +103,7 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 	return m.response, nil
 }
 
-func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk] {
+func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.err != nil {
 			return m.err
@@ -119,7 +119,7 @@ func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 			}
 		}
 		return nil
-	})
+	}), nil
 }
 
 func (m *mockModel) Info() agents.ModelInfo {
@@ -157,8 +157,10 @@ type mockRenderer struct{}
 
 func (m *mockRenderer) Render(block bichatctx.ContextBlock) (bichatctx.RenderedBlock, error) {
 	return bichatctx.RenderedBlock{
-		SystemContent: "test system content",
-		Message:       map[string]any{"role": "user", "content": "test"},
+		Messages: []types.Message{
+			{Role: types.RoleSystem, Content: "test system content"},
+			{Role: types.RoleUser, Content: "test"},
+		},
 	}, nil
 }
 
@@ -408,8 +410,8 @@ func TestProcessMessage_Success(t *testing.T) {
 	// Collect all events
 	var events []services.Event
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, services.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
@@ -522,10 +524,10 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	sessionID := uuid.New()
 
 	// Test with multiple answers to verify map support
-	answers := map[string]string{
-		"question_1": "Q1 2024",
-		"question_2": "revenue",
-		"question_3": "increase",
+	answers := map[string]types.Answer{
+		"question_1": types.NewAnswer("Q1 2024"),
+		"question_2": types.NewAnswer("revenue"),
+		"question_3": types.NewAnswer("increase"),
 	}
 
 	// Execute
@@ -537,8 +539,8 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	// Collect all events
 	var events []services.Event
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, services.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
@@ -583,7 +585,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 	ctx = composables.WithTenantID(ctx, tenantID)
 
 	sessionID := uuid.New()
-	answers := map[string]string{"q1": "answer"}
+	answers := map[string]types.Answer{"q1": types.NewAnswer("answer")}
 
 	// Execute with empty checkpoint ID
 	gen, err := service.ResumeWithAnswer(ctx, sessionID, "", answers)
@@ -623,7 +625,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	ctx := context.Background()
 	sessionID := uuid.New()
 	checkpointID := "test-checkpoint"
-	answers := map[string]string{"q1": "answer"}
+	answers := map[string]types.Answer{"q1": types.NewAnswer("answer")}
 
 	// Execute
 	gen, err := service.ResumeWithAnswer(ctx, sessionID, checkpointID, answers)
@@ -761,11 +763,12 @@ func TestConvertExecutorEvent_Error(t *testing.T) {
 	assert.Equal(t, testErr, serviceEvent.Error)
 }
 
-func TestGeneratorAdapter_Close(t *testing.T) {
+func TestConvertExecutorGenerator_Close(t *testing.T) {
 	t.Parallel()
 
 	// Create a simple executor event generator for testing
-	execGen := types.NewGenerator(context.Background(), func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
+	ctx := context.Background()
+	execGen := types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.ExecutorEvent) bool) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -778,13 +781,14 @@ func TestGeneratorAdapter_Close(t *testing.T) {
 		return nil
 	})
 
-	adapter := &generatorAdapter{
-		ctx:   context.Background(),
-		inner: execGen,
-	}
-	adapter.Close()
+	// Create a service implementation to access the conversion function
+	service := &agentServiceImpl{}
+	serviceGen := service.convertExecutorGenerator(ctx, execGen)
+
+	// Close the generator
+	serviceGen.Close()
 
 	// After close, Next should return ErrGeneratorDone
-	_, err := adapter.Next()
+	_, err := serviceGen.Next(ctx)
 	assert.Error(t, err) // Should get an error (either ErrGeneratorDone or closed error)
 }

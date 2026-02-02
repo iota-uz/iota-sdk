@@ -1,11 +1,5 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import './index.css'
-import '@iota-uz/bichat-ui/styles.css'
+import { registerChatRootElement } from './ChatRootElement'
+import { injectMockContext } from './dev/mockIotaContext'
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+injectMockContext()
+registerChatRootElement()

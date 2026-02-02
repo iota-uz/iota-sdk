@@ -3,18 +3,19 @@ package tools
 import (
 	"context"
 
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 )
 
-// QueryResultDataSource adapts QueryResult to the excel.DataSource interface.
+// QueryResultDataSource adapts bichatsql.QueryResult to the excel.DataSource interface.
 // This allows BiChat query results to use the SDK's rich Excel export infrastructure.
 type QueryResultDataSource struct {
-	result    *QueryResult
+	result    *bichatsql.QueryResult
 	sheetName string
 }
 
 // NewQueryResultDataSource creates a new adapter from a QueryResult.
-func NewQueryResultDataSource(result *QueryResult) excel.DataSource {
+func NewQueryResultDataSource(result *bichatsql.QueryResult) excel.DataSource {
 	return &QueryResultDataSource{
 		result:    result,
 		sheetName: "Sheet1",
@@ -49,12 +50,8 @@ func (d *QueryResultDataSource) GetRows(ctx context.Context) (func() ([]interfac
 			return nil, nil // EOF
 		}
 
-		// Convert map-based row to slice in column order
-		row := make([]interface{}, len(d.result.Columns))
-		for i, col := range d.result.Columns {
-			row[i] = d.result.Rows[index][col]
-		}
-
+		// Rows are already in slice format [][]any, just return the row
+		row := d.result.Rows[index]
 		index++
 		return row, nil
 	}, nil

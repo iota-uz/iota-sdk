@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -82,7 +81,7 @@ func (s *agentServiceImpl) ProcessMessage(
 	sessionID uuid.UUID,
 	content string,
 	attachments []domain.Attachment,
-) (services.Generator[services.Event], error) {
+) (types.Generator[services.Event], error) {
 	const op serrors.Op = "agentServiceImpl.ProcessMessage"
 
 	// Get tenant ID for multi-tenant isolation
@@ -139,16 +138,15 @@ func (s *agentServiceImpl) ProcessMessage(
 	}
 
 	// 3. Current user turn (KindTurn)
-	userMsg := types.UserMessage(content)
-
+	turnCodec := codecs.NewTurnCodec()
+	turnPayload := codecs.TurnPayload{
+		Content: content,
+	}
 	// Add attachments if present
 	if len(attachments) > 0 {
-		userMsg.Attachments = convertToTypeAttachments(attachments)
+		turnPayload.Attachments = codecs.ConvertAttachmentsToTurnAttachments(convertToTypeAttachments(attachments))
 	}
-
-	// Use systemCodec for turn (it accepts string payload via extractText)
-	systemCodec := codecs.NewSystemRulesCodec()
-	builder.Turn(systemCodec, userMsg.Content)
+	builder.Turn(turnCodec, turnPayload)
 
 	// Compile with renderer and policy
 	compiled, err := builder.Compile(s.renderer, s.policy)
@@ -178,24 +176,8 @@ func (s *agentServiceImpl) ProcessMessage(
 		_ = s.eventBus.Publish(ctx, event)
 	}
 
-	// Convert compiled.Messages to []types.Message for executor
-	executorMessages := make([]types.Message, 0, len(compiled.Messages))
-	for _, msg := range compiled.Messages {
-		// Messages are provider-specific map[string]any
-		msgMap, ok := msg.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		// Extract role and content from message map
-		role, _ := msgMap["role"].(string)
-		content, _ := msgMap["content"].(string)
-
-		executorMessages = append(executorMessages, types.Message{
-			Role:    types.Role(role),
-			Content: content,
-		})
-	}
+	// Use compiled.Messages directly (now canonical []types.Message)
+	executorMessages := compiled.Messages
 
 	// Build executor options
 	executorOpts := []agents.ExecutorOption{
@@ -236,8 +218,8 @@ func (s *agentServiceImpl) ProcessMessage(
 
 	execGen := executor.Execute(ctx, input)
 
-	// Wrap the executor generator into a service event generator
-	return s.wrapExecutorGenerator(ctx, execGen), nil
+	// Convert executor generator to service event generator
+	return s.convertExecutorGenerator(ctx, execGen), nil
 }
 
 // ResumeWithAnswer resumes agent execution after user answers questions (HITL).
@@ -250,8 +232,8 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	ctx context.Context,
 	sessionID uuid.UUID,
 	checkpointID string,
-	answers map[string]string,
-) (services.Generator[services.Event], error) {
+	answers map[string]types.Answer,
+) (types.Generator[services.Event], error) {
 	const op serrors.Op = "agentServiceImpl.ResumeWithAnswer"
 
 	// Validate inputs
@@ -298,49 +280,33 @@ func (s *agentServiceImpl) ResumeWithAnswer(
 	// Resume execution from checkpoint with user answers
 	execGen := executor.Resume(ctx, checkpointID, answers)
 
-	// Wrap the executor generator into a service event generator
-	return s.wrapExecutorGenerator(ctx, execGen), nil
+	// Convert executor generator to service event generator
+	return s.convertExecutorGenerator(ctx, execGen), nil
 }
 
-// wrapExecutorGenerator wraps an executor event generator into a service event generator.
+// convertExecutorGenerator converts an executor event generator to a service event generator.
 // This converts agents.ExecutorEvent to services.Event for the service layer.
-func (s *agentServiceImpl) wrapExecutorGenerator(
+func (s *agentServiceImpl) convertExecutorGenerator(
 	ctx context.Context,
 	execGen types.Generator[agents.ExecutorEvent],
-) services.Generator[services.Event] {
-	return &generatorAdapter{
-		ctx:   ctx,
-		inner: execGen,
-	}
-}
+) types.Generator[services.Event] {
+	return types.NewGenerator(ctx, func(ctx context.Context, yield func(services.Event) bool) error {
+		for {
+			execEvent, err := execGen.Next(ctx)
+			if err != nil {
+				if err == types.ErrGeneratorDone {
+					return nil // Normal completion
+				}
+				return err
+			}
 
-// generatorAdapter adapts a types.Generator[ExecutorEvent] to services.Generator[Event].
-type generatorAdapter struct {
-	ctx   context.Context
-	inner types.Generator[agents.ExecutorEvent]
-}
-
-// Next returns the next service event by converting executor events.
-func (g *generatorAdapter) Next() (services.Event, error) {
-	// types.Generator.Next() requires a context, but services.Generator.Next() doesn't provide one
-	// We use the context stored during adapter creation
-	execEvent, err := g.inner.Next(g.ctx)
-	if err != nil {
-		// Convert types.ErrGeneratorDone to services.ErrGeneratorDone
-		if err == types.ErrGeneratorDone {
-			return services.Event{}, services.ErrGeneratorDone
+			// Convert executor event to service event
+			serviceEvent := convertExecutorEvent(execEvent)
+			if !yield(serviceEvent) {
+				return nil // Consumer stopped
+			}
 		}
-		return services.Event{}, err
-	}
-
-	// Convert executor event to service event
-	serviceEvent := convertExecutorEvent(execEvent)
-	return serviceEvent, nil
-}
-
-// Close releases resources held by the inner generator.
-func (g *generatorAdapter) Close() {
-	g.inner.Close()
+	})
 }
 
 // convertExecutorEvent converts an agents.ExecutorEvent to a services.Event.
@@ -406,28 +372,37 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 		return nil
 	}
 
-	// Parse the interrupt data to extract questions
+	// Parse the canonical interrupt payload
 	var questions []services.Question
 	if len(agentInterrupt.Data) > 0 {
-		// Try to parse as questions array (executor format: {questions: [...]})
-		var questionData struct {
-			Questions []struct {
-				ID       string `json:"id"`
-				Question string `json:"question"`
-			} `json:"questions"`
-		}
-		if err := json.Unmarshal(agentInterrupt.Data, &questionData); err == nil {
-			questions = make([]services.Question, 0, len(questionData.Questions))
-			for i, q := range questionData.Questions {
-				qid := q.ID
-				if qid == "" {
-					// Generate stable ID if not provided (q1, q2, etc.)
-					qid = fmt.Sprintf("q%d", i+1)
+		var payload types.AskUserQuestionPayload
+		if err := json.Unmarshal(agentInterrupt.Data, &payload); err == nil {
+			questions = make([]services.Question, 0, len(payload.Questions))
+			for _, q := range payload.Questions {
+				// Convert options
+				options := make([]services.QuestionOption, 0, len(q.Options))
+				for _, opt := range q.Options {
+					options = append(options, services.QuestionOption{
+						ID:    opt.ID,
+						Label: opt.Label,
+					})
 				}
+
+				// Determine question type
+				// If no options, it's a text question; otherwise single/multiple choice
+				questionType := services.QuestionTypeText
+				if len(options) > 0 {
+					questionType = services.QuestionTypeSingleChoice
+					if q.MultiSelect {
+						questionType = services.QuestionTypeMultipleChoice
+					}
+				}
+
 				questions = append(questions, services.Question{
-					ID:   qid,
-					Text: q.Question,
-					Type: services.QuestionTypeText,
+					ID:      q.ID,
+					Text:    q.Question,
+					Type:    questionType,
+					Options: options,
 				})
 			}
 		}

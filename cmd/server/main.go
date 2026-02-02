@@ -8,14 +8,21 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/bichat"
+	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
+	bichatinfra "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure"
+	llmproviders "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
+	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
@@ -96,6 +103,62 @@ func main() {
 	}
 	app.RegisterNavItems(modules.NavLinks...)
 	app.RegisterHashFsAssets(internalassets.HashFS)
+
+	// Register BiChat module with config (requires OpenAI API key)
+	if openaiKey := os.Getenv("OPENAI_API_KEY"); openaiKey != "" {
+		// Create BiChat dependencies
+		chatRepo := bichatpersistence.NewPostgresChatRepository()
+
+		model, err := llmproviders.NewOpenAIModel()
+		if err != nil {
+			logger.Warnf("Failed to create OpenAI model for BiChat: %v", err)
+		} else {
+			// Create PostgreSQL query executor for SQL tools
+			executor := bichatinfra.NewPostgresQueryExecutor(pool)
+
+			// Create BiChat agent with SQL query capabilities
+			parentAgent, err := bichatagents.NewDefaultBIAgent(executor)
+			if err != nil {
+				logger.Warnf("Failed to create BiChat agent: %v", err)
+			} else {
+				// Create BiChat config with wrapper functions for tenant/user ID
+				cfg := bichat.NewModuleConfig(
+					func(ctx context.Context) uuid.UUID {
+						tenantID, err := composables.UseTenantID(ctx)
+						if err != nil {
+							panic(err) // Fail fast if tenant context missing
+						}
+						return tenantID
+					},
+					func(ctx context.Context) int64 {
+						user, err := composables.UseUser(ctx)
+						if err != nil {
+							panic(err) // Fail fast if user context missing
+						}
+						return int64(user.ID())
+					},
+					chatRepo,
+					model,
+					bichat.DefaultContextPolicy(),
+					parentAgent,
+					bichat.WithAttachmentStorage(
+						conf.UploadsPath+"/bichat",
+						conf.Origin+"/"+conf.UploadsPath+"/bichat",
+					),
+				)
+
+				// Register BiChat module with config
+				bichatModule := bichat.NewModuleWithConfig(cfg)
+				if err := bichatModule.Register(app); err != nil {
+					logger.Warnf("Failed to register BiChat module: %v", err)
+				} else {
+					logger.Info("BiChat module registered successfully")
+				}
+			}
+		}
+	} else {
+		logger.Info("OPENAI_API_KEY not set - BiChat module disabled")
+	}
 
 	// Register applet controllers for all registered applets
 	appletControllers := make([]application.Controller, 0)

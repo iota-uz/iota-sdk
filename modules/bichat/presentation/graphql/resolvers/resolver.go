@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -25,6 +26,7 @@ type Resolver struct {
 	attachmentService services.AttachmentService
 }
 
+// NewResolver creates a new GraphQL resolver with required services.
 func NewResolver(
 	app application.Application,
 	chatService services.ChatService,
@@ -186,16 +188,41 @@ func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID strin
 	}
 
 	// Parse answers JSON string to map[string]string
-	var answersMap map[string]string
-	if err := json.Unmarshal([]byte(answers), &answersMap); err != nil {
+	// Parse answers JSON (can be map[string]string or map[string][]string for multi-select)
+	var answersRaw map[string]interface{}
+	if err := json.Unmarshal([]byte(answers), &answersRaw); err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, "invalid answers JSON", err)
+	}
+
+	// Convert to canonical types.Answer format
+	canonicalAnswers := make(map[string]types.Answer, len(answersRaw))
+	for qid, value := range answersRaw {
+		// Handle both string (single-select) and []string (multi-select)
+		switch v := value.(type) {
+		case string:
+			canonicalAnswers[qid] = types.NewAnswer(v)
+		case []interface{}:
+			// Multi-select: convert []interface{} to []string
+			strs := make([]string, 0, len(v))
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					strs = append(strs, s)
+				}
+			}
+			canonicalAnswers[qid] = types.NewMultiAnswer(strs)
+		default:
+			// Try to marshal as JSON for complex types
+			if data, err := json.Marshal(v); err == nil {
+				canonicalAnswers[qid] = types.Answer{Value: data}
+			}
+		}
 	}
 
 	// Call service
 	req := services.ResumeRequest{
 		SessionID:    sid,
 		CheckpointID: checkpointID,
-		Answers:      answersMap,
+		Answers:      canonicalAnswers,
 	}
 
 	resp, err := r.chatService.ResumeWithAnswer(ctx, req)
@@ -440,8 +467,6 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	return result, nil
 }
 
-// MessageStream is the resolver for the messageStream field.
-//
 // IMPORTANT LIMITATION:
 // This is a placeholder implementation. GraphQL subscriptions require WebSocket infrastructure
 // and don't fit well with the chat streaming model where messages are sent as mutations.
@@ -543,3 +568,13 @@ func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subsc
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	type Resolver struct {}
+*/

@@ -13,7 +13,7 @@ Shared Tailwind CSS preset for IOTA SDK applets. Provides unified design tokens,
 ## Installation
 
 ```bash
-npm install @iota-uz/tailwind-preset
+pnpm install @iota-uz/tailwind-preset
 ```
 
 ## Usage
@@ -254,11 +254,11 @@ module.exports = {
 
 ```bash
 # Test package locally
-npm pack
+pnpm pack
 
 # Install in applet
 cd ../bichat
-npm install ../tailwind-preset/iota-uz-tailwind-preset-1.0.0.tgz
+pnpm install ../tailwind-preset/iota-uz-tailwind-preset-1.0.0.tgz
 ```
 
 ## License

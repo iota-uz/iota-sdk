@@ -70,7 +70,7 @@ Navigate to the e2e directory and install dependencies:
 cd e2e
 pnpm install
 
-# Or with npm
+# Or with npm (not recommended)
 npm install
 ```
 

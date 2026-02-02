@@ -3,57 +3,36 @@ package agents
 import (
 	"context"
 	"testing"
+	"time"
+
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockServicesQueryExecutor is a mock implementation of bichatservices.QueryExecutorService for testing.
-type mockServicesQueryExecutor struct {
-	schemaListFn     func(ctx context.Context) ([]bichatservices.TableInfo, error)
-	schemaDescribeFn func(ctx context.Context, tableName string) (*bichatservices.TableSchema, error)
-	executeQueryFn   func(ctx context.Context, sql string, params []any, timeoutMs int) (*bichatservices.QueryResult, error)
-	validateQueryFn  func(sql string) error
+// mockSQLExecutor is a mock implementation of bichatsql.QueryExecutor for testing.
+type mockSQLExecutor struct {
+	executeQueryFn func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error)
 }
 
-func (m *mockServicesQueryExecutor) SchemaList(ctx context.Context) ([]bichatservices.TableInfo, error) {
-	if m.schemaListFn != nil {
-		return m.schemaListFn(ctx)
-	}
-	return []bichatservices.TableInfo{}, nil
-}
-
-func (m *mockServicesQueryExecutor) SchemaDescribe(ctx context.Context, tableName string) (*bichatservices.TableSchema, error) {
-	if m.schemaDescribeFn != nil {
-		return m.schemaDescribeFn(ctx, tableName)
-	}
-	return &bichatservices.TableSchema{}, nil
-}
-
-func (m *mockServicesQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*bichatservices.QueryResult, error) {
+func (m *mockSQLExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	if m.executeQueryFn != nil {
-		return m.executeQueryFn(ctx, sql, params, timeoutMs)
+		return m.executeQueryFn(ctx, sql, params, timeout)
 	}
-	return &bichatservices.QueryResult{
+	return &bichatsql.QueryResult{
 		Columns:  []string{},
 		Rows:     [][]any{},
 		RowCount: 0,
 	}, nil
 }
 
-func (m *mockServicesQueryExecutor) ValidateQuery(sql string) error {
-	if m.validateQueryFn != nil {
-		return m.validateQueryFn(sql)
-	}
-	return nil
-}
-
 func TestNewSQLAgent(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesQueryExecutor{}
+	executor := &mockSQLExecutor{}
 
 	agent, err := NewSQLAgent(executor)
 	require.NoError(t, err)
@@ -80,7 +59,7 @@ func TestNewSQLAgent_NilExecutor(t *testing.T) {
 func TestSQLAgent_CoreTools(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesQueryExecutor{}
+	executor := &mockSQLExecutor{}
 	agent, err := NewSQLAgent(executor)
 	require.NoError(t, err)
 
@@ -109,7 +88,7 @@ func TestSQLAgent_CoreTools(t *testing.T) {
 func TestSQLAgent_WithModel(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesQueryExecutor{}
+	executor := &mockSQLExecutor{}
 
 	agent, err := NewSQLAgent(
 		executor,
@@ -124,7 +103,7 @@ func TestSQLAgent_WithModel(t *testing.T) {
 func TestSQLAgent_SystemPrompt(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesQueryExecutor{}
+	executor := &mockSQLExecutor{}
 	agent, err := NewSQLAgent(executor)
 	require.NoError(t, err)
 
@@ -147,9 +126,24 @@ func TestSQLAgent_SystemPrompt(t *testing.T) {
 func TestSQLAgent_ToolRouting(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesQueryExecutor{
-		executeQueryFn: func(ctx context.Context, sql string, params []any, timeoutMs int) (*bichatservices.QueryResult, error) {
-			return &bichatservices.QueryResult{
+	executor := &mockSQLExecutor{
+		executeQueryFn: func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
+			// Schema tools use pg_catalog/information_schema via adapters.
+			if strings.Contains(sql, "pg_catalog.pg_views") {
+				return &bichatsql.QueryResult{
+					Columns:  []string{"schema", "name", "type"},
+					Rows:     [][]any{{"analytics", "test_view", "view"}},
+					RowCount: 1,
+				}, nil
+			}
+			if strings.Contains(sql, "information_schema.columns") {
+				return &bichatsql.QueryResult{
+					Columns:  []string{"column_name", "data_type", "is_nullable", "column_default", "character_maximum_length", "numeric_precision", "numeric_scale"},
+					Rows:     [][]any{{"id", "integer", "NO", nil, nil, nil, nil}},
+					RowCount: 1,
+				}, nil
+			}
+			return &bichatsql.QueryResult{
 				Columns:  []string{"id", "name"},
 				Rows:     [][]any{{1, "test"}},
 				RowCount: 1,
@@ -211,7 +205,7 @@ func TestSQLAgent_ToolRouting(t *testing.T) {
 func TestSQLAgent_InterfaceCompliance(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesQueryExecutor{}
+	executor := &mockSQLExecutor{}
 	agent, err := NewSQLAgent(executor)
 	require.NoError(t, err)
 
@@ -220,44 +214,4 @@ func TestSQLAgent_InterfaceCompliance(t *testing.T) {
 
 	// Verify agent implements Agent interface
 	var _ agents.Agent = agent
-}
-
-func TestQueryExecutorAdapter(t *testing.T) {
-	t.Parallel()
-
-	// Create mock services executor
-	servicesExec := &mockServicesQueryExecutor{
-		executeQueryFn: func(ctx context.Context, sql string, params []any, timeoutMs int) (*bichatservices.QueryResult, error) {
-			return &bichatservices.QueryResult{
-				Columns:   []string{"id", "name", "email"},
-				Rows:      [][]any{{1, "John", "john@example.com"}, {2, "Jane", "jane@example.com"}},
-				RowCount:  2,
-				Truncated: false,
-				Duration:  10,
-			}, nil
-		},
-	}
-
-	// Create adapter
-	adapter := newQueryExecutorAdapter(servicesExec)
-
-	ctx := context.Background()
-	result, err := adapter.ExecuteQuery(ctx, "SELECT * FROM users", nil, 5000)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Verify conversion from [][]any to []map[string]interface{}
-	assert.Equal(t, []string{"id", "name", "email"}, result.Columns)
-	assert.Equal(t, 2, result.RowCount)
-	assert.Equal(t, int64(10), result.DurationMs)
-	assert.False(t, result.IsLimited)
-
-	// Verify rows are converted to map format
-	assert.Len(t, result.Rows, 2)
-	assert.Equal(t, 1, result.Rows[0]["id"])
-	assert.Equal(t, "John", result.Rows[0]["name"])
-	assert.Equal(t, "john@example.com", result.Rows[0]["email"])
-	assert.Equal(t, 2, result.Rows[1]["id"])
-	assert.Equal(t, "Jane", result.Rows[1]["name"])
-	assert.Equal(t, "jane@example.com", result.Rows[1]["email"])
 }

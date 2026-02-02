@@ -1,19 +1,30 @@
 /**
- * AssistantTurnView component
- * Displays assistant messages with markdown, charts, sources, and downloads
+ * AssistantTurnView Component
+ * Displays assistant messages with markdown, charts, sources, downloads, code outputs, and streaming cursor
  */
 
-import { useState } from 'react'
-import { Message } from '../types'
-import { useChat } from '../context/ChatContext'
-import { MarkdownRenderer } from './MarkdownRenderer'
+import { useState, lazy, Suspense } from 'react'
+import { Copy, ArrowsClockwise } from '@phosphor-icons/react'
+import { formatDistanceToNow } from 'date-fns'
+import CodeOutputsPanel from './CodeOutputsPanel'
+import StreamingCursor from './StreamingCursor'
 import { ChartCard } from './ChartCard'
 import { SourcesPanel } from './SourcesPanel'
 import { DownloadCard } from './DownloadCard'
 import { InlineQuestionForm } from './InlineQuestionForm'
+import { useChat } from '../context/ChatContext'
+import type { Message, CodeOutput } from '../types'
+
+// Lazy load MarkdownRenderer for performance
+const MarkdownRenderer = lazy(() =>
+  import('./MarkdownRenderer').then((module) => ({ default: module.MarkdownRenderer }))
+)
 
 interface AssistantTurnViewProps {
-  message: Message
+  message: Message & {
+    codeOutputs?: CodeOutput[]
+    isStreaming?: boolean
+  }
 }
 
 export function AssistantTurnView({ message }: AssistantTurnViewProps) {
@@ -27,12 +38,38 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
     pendingQuestion.status === 'PENDING' &&
     pendingQuestion.turnId === message.id
 
+  const handleCopyClick = async () => {
+    if (handleCopy) {
+      await handleCopy(message.content)
+    } else {
+      // Fallback to clipboard API
+      try {
+        await navigator.clipboard.writeText(message.content)
+      } catch (err) {
+        console.error('Failed to copy:', err)
+      }
+    }
+  }
+
+  const handleRegenerateClick = async () => {
+    if (handleRegenerate) {
+      await handleRegenerate(message.id)
+    }
+  }
+
   return (
     <div className="flex gap-3 group">
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--bichat-primary)] flex items-center justify-center text-white">
+      {/* Avatar */}
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 dark:bg-primary-700 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
         AI
       </div>
-      <div className="flex-1 flex flex-col gap-2 max-w-2xl">
+
+      <div className="flex-1 flex flex-col gap-2 max-w-[80%]">
+        {/* Code outputs */}
+        {message.codeOutputs && message.codeOutputs.length > 0 && (
+          <CodeOutputsPanel outputs={message.codeOutputs} />
+        )}
+
         {/* Chart visualization */}
         {message.chartData && (
           <div className="mb-2 w-full">
@@ -51,8 +88,17 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
 
         {/* Message bubble */}
         {hasContent && (
-          <div className="rounded-2xl px-5 py-3 bg-[var(--bichat-bubble-assistant)] border border-[var(--bichat-border)]">
-            <MarkdownRenderer content={message.content} citations={message.citations} />
+          <div className="rounded-2xl px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+            <Suspense
+              fallback={
+                <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
+              }
+            >
+              <MarkdownRenderer content={message.content} citations={message.citations} />
+            </Suspense>
+
+            {/* Streaming cursor */}
+            {message.isStreaming && <StreamingCursor />}
 
             {/* Sources panel */}
             {message.citations && message.citations.length > 0 && (
@@ -61,11 +107,11 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
 
             {/* Explanation section */}
             {hasExplanation && (
-              <div className="mt-3 border-t border-[var(--bichat-border)] pt-3">
+              <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
                 <button
                   type="button"
                   onClick={() => setExplanationExpanded(!explanationExpanded)}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                   aria-expanded={explanationExpanded}
                 >
                   <svg
@@ -84,8 +130,10 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
                   <span>How I arrived at this</span>
                 </button>
                 {explanationExpanded && (
-                  <div className="pt-2 text-sm text-gray-600">
-                    <MarkdownRenderer content={message.explanation!} />
+                  <div className="pt-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Suspense fallback={<div>Loading...</div>}>
+                      <MarkdownRenderer content={message.explanation!} />
+                    </Suspense>
                   </div>
                 )}
               </div>
@@ -96,26 +144,32 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
         {/* Inline Question Form */}
         {hasPendingQuestion && <InlineQuestionForm pendingQuestion={pendingQuestion} />}
 
-        {/* Timestamp and actions */}
+        {/* Actions */}
         {hasContent && (
           <div className="flex items-center gap-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-xs text-gray-500">
-              {new Date(message.createdAt).toLocaleTimeString()}
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
             </span>
+
+            {/* Copy button */}
             <button
-              onClick={() => handleCopy(message.content)}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              onClick={handleCopyClick}
+              className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
               aria-label="Copy message"
+              title="Copy"
             >
-              Copy
+              <Copy size={14} />
             </button>
+
+            {/* Regenerate button */}
             {handleRegenerate && (
               <button
-                onClick={() => handleRegenerate(message.id)}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                onClick={handleRegenerateClick}
+                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
                 aria-label="Regenerate message"
+                title="Regenerate"
               >
-                Regenerate
+                <ArrowsClockwise size={14} />
               </button>
             )}
           </div>

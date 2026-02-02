@@ -25,7 +25,7 @@ import (
 // SetupBiChatWithCodeInterpreter demonstrates complete setup with code interpreter
 func SetupBiChatWithCodeInterpreter(
 	chatRepo domain.ChatRepository,
-	queryExecutor bichatservices.QueryExecutorService,
+	queryExecutor bichatsql.QueryExecutor,
 ) (*bichat.ModuleConfig, error) {
 	// Step 1: Create OpenAI client
 	apiKey := os.Getenv("OPENAI_API_KEY")

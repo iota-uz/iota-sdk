@@ -646,8 +646,8 @@ func (m *mockModel) Generate(ctx context.Context, req Request, opts ...GenerateO
 	return nil, nil
 }
 
-func (m *mockModel) Stream(ctx context.Context, req Request, opts ...GenerateOption) types.Generator[Chunk] {
-	return nil
+func (m *mockModel) Stream(ctx context.Context, req Request, opts ...GenerateOption) (types.Generator[Chunk], error) {
+	return nil, nil
 }
 
 func (m *mockModel) Info() ModelInfo {

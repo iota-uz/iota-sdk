@@ -5,26 +5,28 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockQueryExecutor is a mock implementation of QueryExecutorService for testing.
+// mockQueryExecutor is a mock implementation of bichatsql.QueryExecutor for testing.
 type mockQueryExecutor struct {
-	executeQueryFn func(ctx context.Context, sql string, params []any, timeoutMs int) (*tools.QueryResult, error)
+	executeQueryFn func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error)
 }
 
-func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*tools.QueryResult, error) {
+func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	if m.executeQueryFn != nil {
-		return m.executeQueryFn(ctx, sql, params, timeoutMs)
+		return m.executeQueryFn(ctx, sql, params, timeout)
 	}
-	return &tools.QueryResult{
+	return &bichatsql.QueryResult{
 		Columns:  []string{},
-		Rows:     []map[string]interface{}{},
+		Rows:     [][]any{},
 		RowCount: 0,
 	}, nil
 }
@@ -51,10 +53,10 @@ func (m *mockKBSearcher) IsAvailable() bool {
 
 // mockExcelExporter is a mock implementation of ExcelExporter for testing.
 type mockExcelExporter struct {
-	exportFn func(ctx context.Context, data *tools.QueryResult, filename string) (string, error)
+	exportFn func(ctx context.Context, data *bichatsql.QueryResult, filename string) (string, error)
 }
 
-func (m *mockExcelExporter) ExportToExcel(ctx context.Context, data *tools.QueryResult, filename string) (string, error) {
+func (m *mockExcelExporter) ExportToExcel(ctx context.Context, data *bichatsql.QueryResult, filename string) (string, error) {
 	if m.exportFn != nil {
 		return m.exportFn(ctx, data, filename)
 	}
@@ -287,12 +289,25 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 	t.Parallel()
 
 	executor := &mockQueryExecutor{
-		executeQueryFn: func(ctx context.Context, sql string, params []any, timeoutMs int) (*tools.QueryResult, error) {
-			return &tools.QueryResult{
-				Columns: []string{"id", "name"},
-				Rows: []map[string]interface{}{
-					{"id": 1, "name": "test"},
-				},
+		executeQueryFn: func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
+			// Schema tools use pg_catalog/information_schema via adapters.
+			if strings.Contains(sql, "pg_catalog.pg_views") {
+				return &bichatsql.QueryResult{
+					Columns:  []string{"schema", "name", "type"},
+					Rows:     [][]any{{"analytics", "test_view", "view"}},
+					RowCount: 1,
+				}, nil
+			}
+			if strings.Contains(sql, "information_schema.columns") {
+				return &bichatsql.QueryResult{
+					Columns:  []string{"column_name", "data_type", "is_nullable", "column_default", "character_maximum_length", "numeric_precision", "numeric_scale"},
+					Rows:     [][]any{{"id", "integer", "NO", nil, nil, nil, nil}},
+					RowCount: 1,
+				}, nil
+			}
+			return &bichatsql.QueryResult{
+				Columns:  []string{"id", "name"},
+				Rows:     [][]any{{1, "test"}},
 				RowCount: 1,
 			}, nil
 		},
@@ -479,7 +494,7 @@ func TestBuildBISystemPrompt_WithRegistry(t *testing.T) {
 	t.Parallel()
 
 	// Create executor and registry with SQLAgent
-	executor := &mockServicesExecutor{}
+	executor := &mockQueryExecutor{}
 	registry := agents.NewAgentRegistry()
 	sqlAgent, err := NewSQLAgent(executor)
 	require.NoError(t, err)

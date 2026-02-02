@@ -326,7 +326,7 @@ While you can use raw HTTP requests, consider:
   console.log('\n🎉 API documentation generation complete!');
   console.log('\nNext steps:');
   console.log('  1. Review generated docs in docs/content/api/');
-  console.log('  2. Run "npm run build" to test documentation build');
+  console.log('  2. Run "pnpm run build" to test documentation build');
   console.log('  3. Run this script again after GraphQL schema changes');
 }
 

@@ -5,13 +5,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PostgresQueryExecutor implements tools.QueryExecutorService for PostgreSQL.
+// PostgresQueryExecutor implements bichatsql.QueryExecutor for PostgreSQL.
 // It enforces multi-tenant isolation, SQL validation, and query timeouts.
 type PostgresQueryExecutor struct {
 	pool *pgxpool.Pool
@@ -19,7 +19,7 @@ type PostgresQueryExecutor struct {
 
 // NewPostgresQueryExecutor creates a new PostgreSQL query executor.
 // The pool parameter must be a valid *pgxpool.Pool connection.
-func NewPostgresQueryExecutor(pool *pgxpool.Pool) tools.QueryExecutorService {
+func NewPostgresQueryExecutor(pool *pgxpool.Pool) bichatsql.QueryExecutor {
 	return &PostgresQueryExecutor{
 		pool: pool,
 	}
@@ -31,7 +31,7 @@ func NewPostgresQueryExecutor(pool *pgxpool.Pool) tools.QueryExecutorService {
 // Exception: Queries to system catalogs (pg_catalog, information_schema) are allowed without
 // tenant_id filtering for schema introspection. SQL security is enforced by PostgreSQL role
 // permissions (bichat_agent_role has SELECT only on analytics schema).
-func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*tools.QueryResult, error) {
+func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	const op serrors.Op = "PostgresQueryExecutor.ExecuteQuery"
 
 	// SECURITY: Enforce tenant isolation by validating query includes tenant_id filtering
@@ -59,7 +59,6 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	}
 
 	// Apply query timeout
-	timeout := time.Duration(timeoutMs) * time.Millisecond
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -80,8 +79,8 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 		columnNames[i] = string(fd.Name)
 	}
 
-	// Collect rows
-	var results []map[string]interface{}
+	// Collect rows (canonical format: [][]any)
+	var results [][]any
 	maxRows := 1000
 	hitLimit := false
 
@@ -96,9 +95,10 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 			return nil, serrors.E(op, err, "failed to scan row")
 		}
 
-		row := make(map[string]interface{})
-		for i, col := range columnNames {
-			row[col] = e.formatValue(values[i])
+		// Format values and create row slice
+		row := make([]any, len(values))
+		for i, val := range values {
+			row[i] = e.formatValue(val)
 		}
 
 		results = append(results, row)
@@ -108,12 +108,13 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 		return nil, serrors.E(op, err, "error iterating rows")
 	}
 
-	return &tools.QueryResult{
-		Columns:    columnNames,
-		Rows:       results,
-		RowCount:   len(results),
-		IsLimited:  hitLimit,
-		DurationMs: time.Since(start).Milliseconds(),
+	return &bichatsql.QueryResult{
+		Columns:   columnNames,
+		Rows:      results,
+		RowCount:  len(results),
+		Truncated: hitLimit,
+		Duration:  time.Since(start),
+		SQL:       sql,
 	}, nil
 }
 

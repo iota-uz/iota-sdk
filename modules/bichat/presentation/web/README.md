@@ -6,16 +6,16 @@ React + TypeScript frontend for BiChat module, built with Vite.
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start dev server
-npm run dev
+pnpm run dev
 
 # Build for production
-npm run build
+pnpm run build
 
 # Preview production build
-npm run preview
+pnpm run preview
 ```
 
 ## Architecture

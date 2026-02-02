@@ -83,14 +83,14 @@ type QuestionOption struct {
 type ResumeRequest struct {
 	SessionID    uuid.UUID
 	CheckpointID string
-	Answers      map[string]string // Question ID -> Answer
+	Answers      map[string]types.Answer // Question ID -> Answer (supports single-select and multi-select)
 }
 
 // StreamChunk represents a chunk of streaming response
 type StreamChunk struct {
 	Type      ChunkType
 	Content   string
-	Citation  *domain.Citation
+	Citation  *types.Citation
 	Usage     *TokenUsage
 	Error     error
 	Timestamp time.Time

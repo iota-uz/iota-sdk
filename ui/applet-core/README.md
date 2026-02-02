@@ -5,7 +5,7 @@ Core React package for building IOTA SDK applets. Provides context injection, ho
 ## Installation
 
 ```bash
-npm install @iota-uz/applet-core
+pnpm install @iota-uz/applet-core
 ```
 
 ## Quick Start
@@ -401,19 +401,19 @@ All user permissions and translations are automatically passed from backend - no
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Build package
-npm run build
+pnpm run build
 
 # Type check
-npm run typecheck
+pnpm run typecheck
 
 # Lint
-npm run lint
+pnpm run lint
 
 # Development mode (watch)
-npm run dev
+pnpm run dev
 ```
 
 ## License

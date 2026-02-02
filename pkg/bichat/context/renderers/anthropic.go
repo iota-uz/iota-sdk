@@ -1,10 +1,14 @@
 package renderers
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/codecs"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // AnthropicRenderer renders blocks for Anthropic Claude models.
@@ -69,124 +73,197 @@ func (r *AnthropicRenderer) EstimateTokens(block context.ContextBlock) (int, err
 		return 0, err
 	}
 
-	// Estimate system content
-	systemTokens := 0
-	if rendered.SystemContent != "" {
-		systemTokens, err = r.tokenizer.CountTokens(rendered.SystemContent)
+	// Estimate tokens for all messages
+	totalTokens := 0
+	for _, msg := range rendered.Messages {
+		tokens, err := r.tokenizer.CountTokens(msg.Content)
 		if err != nil {
 			return 0, err
 		}
+		totalTokens += tokens
 	}
 
-	// Estimate message content
-	messageTokens := 0
-	if rendered.Message != nil {
-		if msg, ok := rendered.Message.(map[string]any); ok {
-			if content, ok := msg["content"].(string); ok {
-				messageTokens, err = r.tokenizer.CountTokens(content)
-				if err != nil {
-					return 0, err
-				}
-			}
-		}
-	}
-
-	return systemTokens + messageTokens, nil
+	return totalTokens, nil
 }
 
 // renderPinned renders a pinned system block.
 func (r *AnthropicRenderer) renderPinned(block context.ContextBlock) (context.RenderedBlock, error) {
-	// Extract text from payload
 	text, err := extractText(block.Payload)
 	if err != nil {
 		return context.RenderedBlock{}, err
 	}
-
 	return context.RenderedBlock{
-		SystemContent: text,
+		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
 	}, nil
 }
 
 // renderReference renders a reference block.
 func (r *AnthropicRenderer) renderReference(block context.ContextBlock) (context.RenderedBlock, error) {
-	// References typically go in system prompt for Anthropic
 	text, err := extractText(block.Payload)
 	if err != nil {
 		return context.RenderedBlock{}, err
 	}
-
 	return context.RenderedBlock{
-		SystemContent: text,
+		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
 	}, nil
 }
 
 // renderMemory renders a memory block.
 func (r *AnthropicRenderer) renderMemory(block context.ContextBlock) (context.RenderedBlock, error) {
-	// Memory blocks go in system prompt
 	text, err := extractText(block.Payload)
 	if err != nil {
 		return context.RenderedBlock{}, err
 	}
-
 	return context.RenderedBlock{
-		SystemContent: text,
+		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
 	}, nil
 }
 
 // renderState renders a state block.
 func (r *AnthropicRenderer) renderState(block context.ContextBlock) (context.RenderedBlock, error) {
-	// State blocks go in system prompt
 	text, err := extractText(block.Payload)
 	if err != nil {
 		return context.RenderedBlock{}, err
 	}
-
 	return context.RenderedBlock{
-		SystemContent: text,
+		Messages: []types.Message{{Role: types.RoleSystem, Content: text}},
 	}, nil
 }
 
 // renderToolOutput renders a tool output block.
 func (r *AnthropicRenderer) renderToolOutput(block context.ContextBlock) (context.RenderedBlock, error) {
-	// Tool outputs are messages with role "user" and tool_result
-	// For simplicity, we'll render as a user message with the tool output
 	text, err := extractText(block.Payload)
 	if err != nil {
 		return context.RenderedBlock{}, err
 	}
-
 	return context.RenderedBlock{
-		Message: map[string]any{
-			"role":    "user",
-			"content": text,
-		},
+		Messages: []types.Message{{Role: types.RoleSystem, Content: fmt.Sprintf("Tool output: %s", text)}},
 	}, nil
 }
 
 // renderHistory renders a history block.
 func (r *AnthropicRenderer) renderHistory(block context.ContextBlock) (context.RenderedBlock, error) {
-	// History blocks are already in message format
-	// For simplicity, we'll assume the payload is a slice of messages
-	// Real implementation would use the conversation history codec
-	return context.RenderedBlock{
-		Message: block.Payload,
-	}, nil
+	var historyPayload codecs.ConversationHistoryPayload
+	switch v := block.Payload.(type) {
+	case codecs.ConversationHistoryPayload:
+		historyPayload = v
+	case map[string]any:
+		if messages, ok := v["messages"].([]any); ok {
+			for _, msg := range messages {
+				if msgMap, ok := msg.(map[string]any); ok {
+					role, _ := msgMap["role"].(string)
+					content, _ := msgMap["content"].(string)
+					historyPayload.Messages = append(historyPayload.Messages, codecs.ConversationMessage{
+						Role: role, Content: content,
+					})
+				}
+			}
+		}
+		if summary, ok := v["summary"].(string); ok {
+			historyPayload.Summary = summary
+		}
+	default:
+		if data, err := json.Marshal(block.Payload); err == nil {
+			_ = json.Unmarshal(data, &historyPayload)
+		}
+	}
+	var messages []types.Message
+	for _, msg := range historyPayload.Messages {
+		role := types.RoleUser
+		switch msg.Role {
+		case "user":
+			role = types.RoleUser
+		case "assistant":
+			role = types.RoleAssistant
+		case "system":
+			role = types.RoleSystem
+		case "tool":
+			role = types.RoleTool
+		}
+		messages = append(messages, types.Message{Role: role, Content: msg.Content})
+	}
+	if historyPayload.Summary != "" {
+		messages = append(messages, types.Message{
+			Role: types.RoleSystem, Content: fmt.Sprintf("Previous conversation summary: %s", historyPayload.Summary),
+		})
+	}
+	return context.RenderedBlock{Messages: messages}, nil
 }
 
 // renderTurn renders a turn block.
 func (r *AnthropicRenderer) renderTurn(block context.ContextBlock) (context.RenderedBlock, error) {
-	// Turn blocks are user messages
-	text, err := extractText(block.Payload)
-	if err != nil {
-		return context.RenderedBlock{}, err
+	// Parse turn payload (supports both TurnPayload and string for backward compatibility)
+	var turnPayload codecs.TurnPayload
+
+	switch v := block.Payload.(type) {
+	case codecs.TurnPayload:
+		turnPayload = v
+	case map[string]any:
+		if content, ok := v["content"].(string); ok {
+			turnPayload.Content = content
+		}
+		if attachments, ok := v["attachments"].([]any); ok {
+			for _, att := range attachments {
+				if attMap, ok := att.(map[string]any); ok {
+					fileName := ""
+					if v, ok := attMap["fileName"].(string); ok {
+						fileName = v
+					}
+					mimeType := ""
+					if v, ok := attMap["mimeType"].(string); ok {
+						mimeType = v
+					}
+					sizeBytes := int64(0)
+					if v, ok := attMap["sizeBytes"].(float64); ok {
+						sizeBytes = int64(v)
+					} else if v, ok := attMap["sizeBytes"].(int64); ok {
+						sizeBytes = v
+					} else if v, ok := attMap["sizeBytes"].(int); ok {
+						sizeBytes = int64(v)
+					}
+					reference := ""
+					if v, ok := attMap["reference"].(string); ok {
+						reference = v
+					}
+					turnPayload.Attachments = append(turnPayload.Attachments, codecs.TurnAttachment{
+						FileName:  fileName,
+						MimeType:  mimeType,
+						SizeBytes: sizeBytes,
+						Reference: reference,
+					})
+				}
+			}
+		}
+	case string:
+		turnPayload.Content = v
+	default:
+		text, err := extractText(block.Payload)
+		if err != nil {
+			return context.RenderedBlock{}, err
+		}
+		turnPayload.Content = text
 	}
 
-	return context.RenderedBlock{
-		Message: map[string]any{
-			"role":    "user",
-			"content": text,
-		},
-	}, nil
+	// Convert attachments
+	attachments := make([]types.Attachment, 0, len(turnPayload.Attachments))
+	for _, att := range turnPayload.Attachments {
+		var attID uuid.UUID
+		if len(att.Reference) > 11 && att.Reference[:11] == "attachment:" {
+			if id, err := uuid.Parse(att.Reference[11:]); err == nil {
+				attID = id
+			}
+		}
+		attachments = append(attachments, types.Attachment{
+			ID: attID, FileName: att.FileName, MimeType: att.MimeType,
+			SizeBytes: att.SizeBytes, FilePath: att.Reference,
+		})
+	}
+
+	msg := types.Message{Role: types.RoleUser, Content: turnPayload.Content}
+	if len(attachments) > 0 {
+		msg.Attachments = attachments
+	}
+	return context.RenderedBlock{Messages: []types.Message{msg}}, nil
 }
 
 // extractText is a helper to extract text from various payload formats.

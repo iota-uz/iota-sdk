@@ -17,10 +17,10 @@ export interface BiChatContext extends IotaContext {
 const IotaContextInstance = createContext<BiChatContext | null>(null)
 
 export function IotaContextProvider({ children }: { children: ReactNode }) {
-  const context = (window as any).__BICHAT_CONTEXT__ as BiChatContext
+  const context = ((window as any).IOTA_CONTEXT || (window as any).__BICHAT_CONTEXT__) as BiChatContext
 
   if (!context) {
-    throw new Error('BiChat context not found. Ensure the app is served via Go applet controller.')
+    throw new Error('BiChat context not found. Ensure the app is served via Go backend.')
   }
 
   return <IotaContextInstance.Provider value={context}>{children}</IotaContextInstance.Provider>

@@ -6,8 +6,8 @@ import (
 	"regexp"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // validIdentifierPattern validates SQL identifiers (table/column names).
@@ -18,34 +18,15 @@ func isValidIdentifier(name string) bool {
 	return validIdentifierPattern.MatchString(name)
 }
 
-// TableInfo represents information about a database table.
-type TableInfo struct {
-	Schema      string `json:"schema"`
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	RowCount    int64  `json:"row_count,omitempty"`
-	Description string `json:"description,omitempty"`
-}
-
-// TableSchema represents detailed schema information for a table.
-type TableSchema struct {
-	TableName   string                   `json:"table_name"`
-	Schema      string                   `json:"schema"`
-	Columns     []map[string]interface{} `json:"columns"`
-	Indexes     []map[string]interface{} `json:"indexes"`
-	Constraints []map[string]interface{} `json:"constraints"`
-	Samples     map[string][]interface{} `json:"samples"`
-}
-
 // SchemaListTool lists all available tables and views in a schema.
 type SchemaListTool struct {
-	executor QueryExecutorService
+	lister bichatsql.SchemaLister
 }
 
 // NewSchemaListTool creates a new schema list tool.
-func NewSchemaListTool(executor QueryExecutorService) agents.Tool {
+func NewSchemaListTool(lister bichatsql.SchemaLister) agents.Tool {
 	return &SchemaListTool{
-		executor: executor,
+		lister: lister,
 	}
 }
 
@@ -72,21 +53,7 @@ func (t *SchemaListTool) Parameters() map[string]any {
 func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error) {
 	const op serrors.Op = "SchemaListTool.Call"
 
-	// Query analytics schema for tenant-isolated views
-	// Note: This query does NOT include tenant_id filtering because it queries
-	// system catalogs (pg_catalog), not user tables. The views themselves
-	// contain tenant isolation logic via current_setting('app.tenant_id').
-	query := `
-		SELECT
-			schemaname AS schema,
-			viewname AS name,
-			'view' AS type
-		FROM pg_catalog.pg_views
-		WHERE schemaname = 'analytics'
-		ORDER BY name
-	`
-
-	result, err := t.executor.ExecuteQuery(ctx, query, nil, 10000)
+	tables, err := t.lister.SchemaList(ctx)
 	if err != nil {
 		return FormatToolError(
 			ErrCodeQueryError,
@@ -95,7 +62,7 @@ func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error)
 		), serrors.E(op, err, "failed to list schema")
 	}
 
-	if result.RowCount == 0 {
+	if len(tables) == 0 {
 		return FormatToolError(
 			ErrCodeNoData,
 			"no tables or views found in analytics schema",
@@ -104,18 +71,34 @@ func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error)
 		), serrors.E(op, "no tables found")
 	}
 
+	// Convert to map format for tool output
+	result := make([]map[string]any, len(tables))
+	for i, table := range tables {
+		result[i] = map[string]any{
+			"schema": table.Schema,
+			"name":   table.Name,
+			"type":   "view",
+		}
+		if table.RowCount > 0 {
+			result[i]["row_count"] = table.RowCount
+		}
+		if table.Description != "" {
+			result[i]["description"] = table.Description
+		}
+	}
+
 	return agents.FormatToolOutput(result)
 }
 
 // SchemaDescribeTool provides detailed schema information for a specific table.
 type SchemaDescribeTool struct {
-	executor QueryExecutorService
+	describer bichatsql.SchemaDescriber
 }
 
 // NewSchemaDescribeTool creates a new schema describe tool.
-func NewSchemaDescribeTool(executor QueryExecutorService) agents.Tool {
+func NewSchemaDescribeTool(describer bichatsql.SchemaDescriber) agents.Tool {
 	return &SchemaDescribeTool{
-		executor: executor,
+		describer: describer,
 	}
 }
 
@@ -183,22 +166,7 @@ func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, er
 		), serrors.E(op, "invalid table name: must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$")
 	}
 
-	// Query column information
-	columnsQuery := `
-		SELECT
-			column_name,
-			data_type,
-			is_nullable,
-			column_default,
-			character_maximum_length,
-			numeric_precision,
-			numeric_scale
-		FROM information_schema.columns
-		WHERE table_schema = 'analytics' AND table_name = $1
-		ORDER BY ordinal_position
-	`
-
-	result, err := t.executor.ExecuteQuery(ctx, columnsQuery, []any{params.TableName}, 10000)
+	schema, err := t.describer.SchemaDescribe(ctx, params.TableName)
 	if err != nil {
 		return FormatToolError(
 			ErrCodeQueryError,
@@ -207,7 +175,7 @@ func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, er
 		), serrors.E(op, err, "failed to describe schema")
 	}
 
-	if result.RowCount == 0 {
+	if schema == nil || len(schema.Columns) == 0 {
 		return FormatToolError(
 			ErrCodeNoData,
 			fmt.Sprintf("table not found: %s", params.TableName),
@@ -217,162 +185,31 @@ func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, er
 		), serrors.E(op, fmt.Sprintf("table not found: %s", params.TableName))
 	}
 
-	// Format schema information
-	schema := TableSchema{
-		TableName:   params.TableName,
-		Schema:      "analytics",
-		Columns:     result.Rows,
-		Indexes:     []map[string]interface{}{},
-		Constraints: []map[string]interface{}{},
-		Samples:     map[string][]interface{}{},
-	}
-
-	// Attempt to fetch sample data (best effort - don't fail if this errors)
-	sampleData := t.fetchSampleData(ctx, params.TableName)
-	if sampleData != nil {
-		schema.Samples = sampleData
-	}
-
-	return agents.FormatToolOutput(schema)
-}
-
-// fetchSampleData retrieves sample rows and statistics for a table.
-// Returns nil if the query fails (graceful degradation).
-func (t *SchemaDescribeTool) fetchSampleData(ctx context.Context, tableName string) map[string][]interface{} {
-	const op serrors.Op = "SchemaDescribeTool.fetchSampleData"
-
-	// Query for sample rows (limit 4)
-	sampleQuery := fmt.Sprintf("SELECT * FROM analytics.%s LIMIT 4", tableName)
-	sampleResult, err := t.executor.ExecuteQuery(ctx, sampleQuery, nil, 5000)
-	if err != nil {
-		// Log but don't fail - sample data is optional
-		return nil
-	}
-
-	// Query for row count
-	countQuery := fmt.Sprintf("SELECT COUNT(*) as row_count FROM analytics.%s", tableName)
-	countResult, err := t.executor.ExecuteQuery(ctx, countQuery, nil, 5000)
-	if err != nil {
-		// Row count is also optional
-		return nil
-	}
-
-	var rowCount int64
-	if len(countResult.Rows) > 0 {
-		if count, ok := countResult.Rows[0]["row_count"].(int64); ok {
-			rowCount = count
+	// Convert to map format for tool output
+	columns := make([]map[string]interface{}, len(schema.Columns))
+	for i, col := range schema.Columns {
+		colMap := map[string]interface{}{
+			"column_name": col.Name,
+			"data_type":   col.Type,
+			"is_nullable": col.Nullable,
 		}
-	}
-
-	// Query for indexed columns
-	indexQuery := `
-		SELECT
-			i.relname AS index_name,
-			a.attname AS column_name
-		FROM
-			pg_index ix
-			JOIN pg_class t ON t.oid = ix.indrelid
-			JOIN pg_class i ON i.oid = ix.indexrelid
-			JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
-			JOIN pg_namespace n ON n.oid = t.relnamespace
-		WHERE
-			n.nspname = 'analytics'
-			AND t.relname = $1
-		ORDER BY i.relname, a.attnum
-	`
-
-	indexResult, err := t.executor.ExecuteQuery(ctx, indexQuery, []any{tableName}, 5000)
-	if err != nil {
-		// Index information is also optional
-		indexResult = &QueryResult{Rows: []map[string]interface{}{}}
-	}
-
-	// Format sample data as markdown table
-	sampleTable := formatSampleDataTable(sampleResult)
-
-	// Build response with formatted data
-	result := map[string][]interface{}{
-		"sample_rows": make([]interface{}, len(sampleResult.Rows)),
-		"sample_data_table": []interface{}{
-			sampleTable,
-		},
-		"statistics": []interface{}{
-			map[string]interface{}{
-				"total_rows":            rowCount,
-				"has_large_dataset":     rowCount > 1000000,
-				"sample_representative": rowCount <= 1000000,
-			},
-		},
-		"indexed_columns": make([]interface{}, len(indexResult.Rows)),
-	}
-
-	// Convert sample rows
-	for i, row := range sampleResult.Rows {
-		result["sample_rows"][i] = row
-	}
-
-	// Convert index information
-	for i, row := range indexResult.Rows {
-		result["indexed_columns"][i] = row
-	}
-
-	return result
-}
-
-// formatSampleDataTable formats sample rows as a markdown table.
-func formatSampleDataTable(result *QueryResult) string {
-	if result.RowCount == 0 {
-		return "No sample data available."
-	}
-
-	var markdown string
-
-	// Header row
-	markdown += "|"
-	for _, col := range result.Columns {
-		markdown += fmt.Sprintf(" %s |", col)
-	}
-	markdown += "\n"
-
-	// Separator row
-	markdown += "|"
-	for range result.Columns {
-		markdown += " --- |"
-	}
-	markdown += "\n"
-
-	// Data rows
-	for _, row := range result.Rows {
-		markdown += "|"
-		for _, col := range result.Columns {
-			val := row[col]
-			if val == nil {
-				markdown += " NULL |"
-			} else {
-				markdown += fmt.Sprintf(" %v |", val)
-			}
+		if col.DefaultValue != nil {
+			colMap["column_default"] = *col.DefaultValue
 		}
-		markdown += "\n"
+		if col.Description != "" {
+			colMap["description"] = col.Description
+		}
+		columns[i] = colMap
 	}
 
-	return markdown
-}
-
-// DefaultSchemaExecutor is a default implementation using pgxpool.
-// This provides full schema querying capabilities.
-type DefaultSchemaExecutor struct {
-	pool *pgxpool.Pool
-}
-
-// NewDefaultSchemaExecutor creates a new default schema executor.
-func NewDefaultSchemaExecutor(pool *pgxpool.Pool) QueryExecutorService {
-	return &DefaultSchemaExecutor{
-		pool: pool,
+	result := map[string]interface{}{
+		"table_name":  schema.Name,
+		"schema":      schema.Schema,
+		"columns":     columns,
+		"indexes":     []map[string]interface{}{},
+		"constraints": []map[string]interface{}{},
+		"samples":     map[string][]interface{}{},
 	}
-}
 
-// ExecuteQuery executes a SQL query (delegates to DefaultQueryExecutor).
-func (e *DefaultSchemaExecutor) ExecuteQuery(ctx context.Context, query string, params []any, timeoutMs int) (*QueryResult, error) {
-	executor := NewDefaultQueryExecutor(e.pool)
-	return executor.ExecuteQuery(ctx, query, params, timeoutMs)
+	return agents.FormatToolOutput(result)
 }
