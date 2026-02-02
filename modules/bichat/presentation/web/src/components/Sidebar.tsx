@@ -207,7 +207,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
       {/* Header */}
       <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
@@ -227,7 +227,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
             <motion.button
               onClick={onNewChat}
               disabled={creating || result.fetching}
-              className="w-full px-4 py-2.5 rounded-lg font-medium bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               title="New chat"
               aria-label="Create new chat"
               whileTap={{ scale: 0.98 }}

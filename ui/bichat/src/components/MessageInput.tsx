@@ -206,7 +206,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           {/* Queue badge */}
           {messageQueue.length > 0 && (
             <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-              <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded font-medium">
+              <span className="px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded font-medium">
                 {messageQueue.length} message{messageQueue.length > 1 ? 's' : ''} queued
               </span>
             </div>
@@ -228,12 +228,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           >
             {/* Drag overlay */}
             {isDragging && (
-              <div className="absolute inset-0 z-10 bg-purple-50/95 dark:bg-purple-900/90 border-2 border-dashed border-purple-400 rounded-2xl flex items-center justify-center">
+              <div className="absolute inset-0 z-10 bg-primary-50/95 dark:bg-primary-900/90 border-2 border-dashed border-primary-400 rounded-2xl flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-800 flex items-center justify-center">
-                    <Paperclip size={20} className="text-purple-600 dark:text-purple-400" />
+                  <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
+                    <Paperclip size={20} className="text-primary-600 dark:text-primary-400" />
                   </div>
-                  <span className="text-sm text-purple-700 dark:text-purple-300 font-medium">
+                  <span className="text-sm text-primary-700 dark:text-primary-300 font-medium">
                     Drop images here
                   </span>
                 </div>
@@ -244,7 +244,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             <div
               className={`flex items-end gap-2 rounded-2xl p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
                 isFocused
-                  ? 'border-purple-400 dark:border-purple-500 ring-3 ring-purple-500/10 dark:ring-purple-500/15'
+                  ? 'border-primary-400 dark:border-primary-500 ring-3 ring-primary-500/10 dark:ring-primary-500/15'
                   : 'border-gray-200 dark:border-gray-700'
               }`}
             >
@@ -293,7 +293,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="flex-shrink-0 p-2 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-purple-600"
+                className="flex-shrink-0 p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
                 aria-label="Send message"
               >
                 {loading ? (

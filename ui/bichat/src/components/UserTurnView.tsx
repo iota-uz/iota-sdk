@@ -58,7 +58,7 @@ export function UserTurnView({ message }: UserTurnViewProps) {
 
         {/* Message bubble - solid primary color */}
         {message.content && (
-          <div className="bg-purple-600 text-white rounded-2xl rounded-br-sm px-4 py-3">
+          <div className="bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-3">
             <div className="text-[15px] whitespace-pre-wrap break-words leading-relaxed">
               {message.content}
             </div>
@@ -94,7 +94,7 @@ export function UserTurnView({ message }: UserTurnViewProps) {
       </div>
 
       {/* Avatar - solid primary color */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium text-sm">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm">
         U
       </div>
 

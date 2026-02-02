@@ -59,7 +59,7 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
   return (
     <div className="flex gap-3 group">
       {/* Avatar - solid primary color */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium text-xs">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-xs">
         AI
       </div>
 
