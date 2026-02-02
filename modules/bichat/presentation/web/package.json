@@ -7,6 +7,7 @@
     "dev": "pnpm run build:css && vite",
     "build:css": "tailwindcss -i ./src/index.css -o ./dist/style.css --minify",
     "build": "pnpm run build:css && tsc && vite build",
+    "build:watch": "chokidar \"src/**\" \"*.config.*\" \"index.html\" \"tailwind.config.js\" \"tsconfig.json\" \"vite.config.ts\" -c \"pnpm run build\"",
     "preview": "vite preview",
     "codegen": "graphql-codegen"
   },
@@ -37,6 +38,7 @@
     "@graphql-codegen/cli": "^5.0.2",
     "@graphql-codegen/typescript": "^4.0.9",
     "@graphql-codegen/typescript-operations": "^4.2.3",
-    "@graphql-codegen/typescript-urql": "^4.0.0"
+    "@graphql-codegen/typescript-urql": "^4.0.0",
+    "chokidar-cli": "^3.0.0"
   }
 }
