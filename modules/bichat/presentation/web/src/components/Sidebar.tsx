@@ -201,13 +201,20 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
   return (
     <aside
-      className="w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 h-screen flex flex-col overflow-hidden"
+      className="sidebar w-64 h-screen flex flex-col overflow-hidden"
       role="navigation"
       aria-label="Chat sessions"
     >
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">BiChat</h2>
+      {/* Header - refined with brand accent */}
+      <div className="p-5 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-sm">
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">BiChat</h2>
+        </div>
       </div>
 
       {/* TabBar - Only visible if user has ReadAll permission */}
@@ -216,8 +223,33 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
       {/* My Chats View */}
       {activeTab === 'my-chats' && (
         <>
+          {/* New Chat Button - premium gradient */}
+          <div className="px-4 pt-4 pb-2">
+            <motion.button
+              onClick={onNewChat}
+              disabled={creating || result.fetching}
+              className="btn-primary w-full px-4 py-3 rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+              title="New chat"
+              aria-label="Create new chat"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              {creating ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <Plus size={18} weight="bold" />
+                  <span>New Chat</span>
+                </>
+              )}
+            </motion.button>
+          </div>
+
           {/* Search Input */}
-          <div className="mt-3">
+          <div className="px-4 pb-3">
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -225,30 +257,8 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
             />
           </div>
 
-          {/* New Chat Button */}
-          <div className="p-4">
-            <motion.button
-              onClick={onNewChat}
-              disabled={creating || result.fetching}
-              className="w-full px-4 py-3 bg-primary-600 dark:bg-primary-700 text-white rounded-lg hover:bg-primary-700 dark:hover:bg-primary-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              title="New chat"
-              aria-label="Create new chat"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              {creating ? (
-                <span>Creating...</span>
-              ) : (
-                <>
-                  <Plus size={20} className="w-5 h-5" />
-                  <span className="ml-2">New Chat</span>
-                </>
-              )}
-            </motion.button>
-          </div>
-
           {/* Chat History */}
-          <nav className="flex-1 overflow-y-auto px-2 pb-4" aria-label="Chat history">
+          <nav className="flex-1 overflow-y-auto scrollbar-thin px-2 pb-4" aria-label="Chat history">
             {result.fetching && sessions.length === 0 ? (
               <SessionSkeleton count={5} />
             ) : (
@@ -262,20 +272,20 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
                   onRename={handleRenameSession}
                 />
 
-                {/* Empty State */}
+                {/* Empty State - refined */}
                 {filteredSessions.length === 0 && !result.fetching && (
                   <EmptyState
-                    title={searchQuery ? `No chats found matching "${searchQuery}"` : 'No chats yet'}
+                    title={searchQuery ? `No results for "${searchQuery}"` : 'No chats yet'}
                     description={
                       searchQuery
                         ? undefined
-                        : 'Create one to get started!'
+                        : 'Start a conversation to begin'
                     }
                     action={
                       searchQuery ? (
                         <button
                           onClick={() => setSearchQuery('')}
-                          className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                          className="mt-2 text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors"
                         >
                           Clear search
                         </button>
@@ -287,8 +297,8 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
             )}
 
             {result.error && (
-              <div className="mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                <p className="text-xs text-red-600 dark:text-red-400">Failed to load sessions</p>
+              <div className="mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                <p className="text-xs text-red-600 dark:text-red-400 font-medium">Failed to load sessions</p>
               </div>
             )}
           </nav>

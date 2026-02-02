@@ -40,14 +40,18 @@ const SessionItem = memo<SessionItemProps>(
       >
         <Link
           to={`/session/${session.id}`}
-          className={`block px-3 py-2 rounded-lg transition-colors group relative ${
+          className={`block px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
             isActive
-              ? 'bg-primary-50/50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 border-l-4 border-primary-400 dark:border-primary-600'
-              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-4 border-transparent'
+              ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 shadow-sm'
+              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/70'
           }`}
           aria-current={isActive ? 'page' : undefined}
           role="listitem"
         >
+          {/* Active indicator bar */}
+          {isActive && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-gradient-to-b from-primary-400 to-primary-600 rounded-full" />
+          )}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <EditableTitle

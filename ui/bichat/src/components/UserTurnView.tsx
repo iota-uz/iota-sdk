@@ -45,7 +45,7 @@ export function UserTurnView({ message }: UserTurnViewProps) {
 
   return (
     <div className="flex gap-3 justify-end group">
-      <div className="flex-1 flex flex-col items-end max-w-[70%]">
+      <div className="flex-1 flex flex-col items-end max-w-[75%]">
         {/* Attachments */}
         {message.attachments && message.attachments.length > 0 && (
           <div className="mb-2 w-full">
@@ -56,46 +56,48 @@ export function UserTurnView({ message }: UserTurnViewProps) {
           </div>
         )}
 
-        {/* Message bubble */}
+        {/* Message bubble - premium gradient with inner highlight */}
         {message.content && (
-          <div className="rounded-2xl px-5 py-3 bg-primary-600 dark:bg-primary-700 text-white shadow-sm">
-            <div className="text-base whitespace-pre-wrap break-words">{message.content}</div>
+          <div className="bubble-user rounded-2xl rounded-br-md px-5 py-3">
+            <div className="text-[15px] whitespace-pre-wrap break-words leading-relaxed relative z-10">
+              {message.content}
+            </div>
           </div>
         )}
 
-        {/* Actions (visible on hover) */}
-        <div className="flex items-center gap-2 mt-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+        {/* Actions (visible on hover) - refined */}
+        <div className="flex items-center gap-1.5 mt-2 px-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+          <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </span>
 
           {/* Copy button */}
           <button
             onClick={handleCopyClick}
-            className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+            className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
             aria-label="Copy message"
             title="Copy"
           >
-            <Copy size={14} />
+            <Copy size={14} weight="bold" />
           </button>
 
           {/* Edit button */}
           {handleEdit && (
             <button
               onClick={handleEditClick}
-              className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
               aria-label="Edit message"
               title="Edit"
             >
-              <PencilSimple size={14} />
+              <PencilSimple size={14} weight="bold" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Avatar */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-500 dark:bg-primary-600 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
-        U
+      {/* Avatar - premium gradient */}
+      <div className="avatar-primary flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+        <span className="relative z-10">U</span>
       </div>
 
       {/* Image modal */}

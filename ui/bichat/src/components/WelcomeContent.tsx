@@ -1,77 +1,80 @@
 /**
  * WelcomeContent Component
  * Landing page shown when starting a new chat session
- * Features example query cards with icons and animations
+ * Features refined example query cards with premium animations
  */
 
 import { motion } from 'framer-motion'
-import { ChartBar, FileText, Lightbulb, type Icon } from '@phosphor-icons/react'
+import { ChartBar, FileText, Lightbulb, Sparkle, type Icon } from '@phosphor-icons/react'
 
 interface ExamplePrompt {
   category: string
-  categoryColor: string
   icon: Icon
   text: string
+  gradient: string
 }
 
 interface WelcomeContentProps {
   onPromptSelect?: (prompt: string) => void
   title?: string
   description?: string
+  disabled?: boolean
 }
 
 const EXAMPLE_PROMPTS: ExamplePrompt[] = [
   {
     category: 'Data Analysis',
-    categoryColor: 'bg-primary-600 text-white',
     icon: ChartBar,
-    text: 'Show me sales trends for the last quarter'
+    text: 'Show me sales trends for the last quarter',
+    gradient: 'from-violet-500 to-purple-600'
   },
   {
     category: 'Reports',
-    categoryColor: 'bg-primary-500 text-white',
     icon: FileText,
-    text: 'Generate a summary of customer feedback'
+    text: 'Generate a summary of customer feedback',
+    gradient: 'from-purple-500 to-indigo-600'
   },
   {
     category: 'Insights',
-    categoryColor: 'bg-primary-700 text-white',
     icon: Lightbulb,
-    text: 'What are the top performing products?'
+    text: 'What are the top performing products?',
+    gradient: 'from-indigo-500 to-violet-600'
   }
 ]
 
-// Animation variants
+// Animation variants - refined timing
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2
+      staggerChildren: 0.12,
+      delayChildren: 0.1
     }
   }
 }
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 24 },
   visible: {
     opacity: 1,
     y: 0,
     transition: {
-      duration: 0.4,
-      ease: 'easeOut'
+      duration: 0.6,
+      ease: [0.25, 0.1, 0.25, 1]
     }
   }
 }
 
-const cardHoverVariants = {
-  rest: { scale: 1 },
-  hover: {
-    scale: 1.02,
+const cardVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
     transition: {
-      duration: 0.2,
-      ease: 'easeInOut'
+      duration: 0.5,
+      ease: [0.25, 0.1, 0.25, 1]
     }
   }
 }
@@ -79,97 +82,101 @@ const cardHoverVariants = {
 export default function WelcomeContent({
   onPromptSelect,
   title = 'Welcome to BiChat',
-  description = 'Your intelligent business analytics assistant. Ask questions about your data, generate reports, or explore insights.'
+  description = 'Your intelligent business analytics assistant. Ask questions about your data, generate reports, or explore insights.',
+  disabled = false
 }: WelcomeContentProps) {
   const handlePromptClick = (prompt: string) => {
-    if (onPromptSelect) {
+    if (onPromptSelect && !disabled) {
       onPromptSelect(prompt)
     }
   }
 
   return (
     <motion.div
-      className="flex-1 flex items-center justify-center p-8"
+      className="w-full max-w-4xl mx-auto px-6 py-12 text-center"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
-      <div className="max-w-4xl w-full">
-        {/* Header */}
-        <motion.div className="text-center mb-12" variants={itemVariants}>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            {title}
-          </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            {description}
-          </p>
-        </motion.div>
+      {/* Decorative sparkle */}
+      <motion.div
+        className="flex justify-center mb-6"
+        variants={itemVariants}
+      >
+        <div className="p-3 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900/40 dark:to-primary-800/30">
+          <Sparkle size={28} weight="duotone" className="text-primary-600 dark:text-primary-400" />
+        </div>
+      </motion.div>
 
-        {/* Example Prompts Grid */}
+      {/* Title - with gradient text option */}
+      <motion.h1
+        className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-5 tracking-tight"
+        variants={itemVariants}
+      >
+        {title}
+      </motion.h1>
+
+      {/* Description */}
+      <motion.p
+        className="text-lg text-gray-600 dark:text-gray-400 mb-14 max-w-2xl mx-auto leading-relaxed"
+        variants={itemVariants}
+      >
+        {description}
+      </motion.p>
+
+      {/* Quick Start Section */}
+      <motion.div variants={itemVariants}>
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="h-px w-12 bg-gradient-to-r from-transparent to-gray-300 dark:to-gray-700" />
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            Quick Start
+          </h2>
+          <div className="h-px w-12 bg-gradient-to-l from-transparent to-gray-300 dark:to-gray-700" />
+        </div>
+
         <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-          variants={itemVariants}
+          className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+          variants={containerVariants}
         >
-          {EXAMPLE_PROMPTS.map((prompt, index) => {
-            const IconComponent = prompt.icon
-            return (
-              <motion.button
-                key={index}
-                onClick={() => handlePromptClick(prompt.text)}
-                className="group relative p-6 bg-white dark:bg-gray-800 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-primary-500 dark:hover:border-primary-600 transition-all text-left focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
-                variants={cardHoverVariants}
-                initial="rest"
-                whileHover="hover"
-                whileTap={{ scale: 0.98 }}
-              >
-                {/* Category badge */}
-                <div className="mb-4">
-                  <span
-                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${prompt.categoryColor}`}
-                  >
-                    {prompt.category}
-                  </span>
-                </div>
+          {EXAMPLE_PROMPTS.map((prompt, index) => (
+            <motion.button
+              key={index}
+              onClick={() => handlePromptClick(prompt.text)}
+              disabled={disabled}
+              className="card-elevated group relative flex flex-col items-start text-left p-6 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-md"
+              variants={cardVariants}
+              whileHover={disabled ? {} : { y: -4 }}
+              whileTap={disabled ? {} : { scale: 0.98 }}
+            >
+              {/* Icon with gradient background */}
+              <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${prompt.gradient} flex items-center justify-center mb-4 shadow-sm group-hover:shadow-md transition-shadow`}>
+                <prompt.icon
+                  size={22}
+                  weight="fill"
+                  className="text-white"
+                />
+              </div>
 
-                {/* Icon */}
-                <div className="mb-4 text-primary-600 dark:text-primary-500 group-hover:scale-110 transition-transform">
-                  <IconComponent size={32} />
-                </div>
+              {/* Category Badge */}
+              <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-semibold text-primary-700 dark:text-primary-300 bg-primary-50 dark:bg-primary-900/30 mb-3">
+                {prompt.category}
+              </span>
 
-                {/* Prompt text */}
-                <p className="text-gray-700 dark:text-gray-300 font-medium leading-relaxed">
-                  {prompt.text}
-                </p>
+              {/* Prompt Text */}
+              <p className="text-[15px] font-medium text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors leading-relaxed">
+                {prompt.text}
+              </p>
 
-                {/* Hover indicator */}
-                <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <svg
-                    className="w-5 h-5 text-primary-600 dark:text-primary-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M14 5l7 7m0 0l-7 7m7-7H3"
-                    />
-                  </svg>
-                </div>
-              </motion.button>
-            )
-          })}
+              {/* Hover arrow indicator */}
+              <div className="absolute bottom-5 right-5 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-x-1 group-hover:translate-x-0">
+                <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </div>
+            </motion.button>
+          ))}
         </motion.div>
-
-        {/* Footer hint */}
-        <motion.div
-          className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400"
-          variants={itemVariants}
-        >
-          <p>Or start typing your own question below</p>
-        </motion.div>
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

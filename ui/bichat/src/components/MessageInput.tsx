@@ -27,6 +27,8 @@ export interface MessageInputProps {
   placeholder?: string
   maxFiles?: number
   maxFileSize?: number
+  /** Override container classes (default: sticky bottom with border) */
+  containerClassName?: string
 }
 
 const MAX_FILES_DEFAULT = 10
@@ -46,7 +48,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       onUnqueue,
       placeholder = 'Type a message...',
       maxFiles = MAX_FILES_DEFAULT,
-      maxFileSize = MAX_FILE_SIZE_DEFAULT
+      maxFileSize = MAX_FILE_SIZE_DEFAULT,
+      containerClassName
     },
     ref
   ) => {
@@ -193,20 +196,22 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     const canSubmit = !loading && !disabled && (message.trim() || attachments.length > 0)
 
+    const defaultContainerClassName = "sticky bottom-0 p-4 pb-6"
+
     return (
       <div
         ref={containerRef}
-        className="sticky bottom-0 p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700"
+        className={containerClassName ?? defaultContainerClassName}
       >
         <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto">
           {/* Error display */}
           {error && (
-            <div className="mb-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400 flex items-center justify-between">
+            <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400 flex items-center justify-between shadow-sm">
               <span>{error}</span>
               <button
                 type="button"
                 onClick={() => setError(null)}
-                className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded"
+                className="ml-2 p-1.5 hover:bg-red-100 dark:hover:bg-red-800 rounded-lg transition-colors"
                 aria-label="Dismiss error"
               >
                 <X size={14} />
@@ -216,8 +221,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {/* Queue badge */}
           {messageQueue.length > 0 && (
-            <div className="mb-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-              <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded-full">
+            <div className="mb-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+              <span className="px-3 py-1.5 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full font-medium border border-primary-200 dark:border-primary-800">
                 {messageQueue.length} message{messageQueue.length > 1 ? 's' : ''} queued
               </span>
             </div>
@@ -225,7 +230,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {/* Attachment preview */}
           {attachments.length > 0 && (
-            <div className="mb-2">
+            <div className="mb-3">
               <AttachmentGrid attachments={attachments} onRemove={handleRemoveAttachment} />
             </div>
           )}
@@ -239,25 +244,30 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           >
             {/* Drag overlay */}
             {isDragging && (
-              <div className="absolute inset-0 z-10 bg-primary-50/90 dark:bg-primary-900/90 border-2 border-dashed border-primary-400 dark:border-primary-600 rounded-2xl flex items-center justify-center">
-                <div className="text-primary-600 dark:text-primary-400 font-medium">
-                  Drop images here
+              <div className="absolute inset-0 z-10 bg-primary-50/95 dark:bg-primary-900/95 border-2 border-dashed border-primary-400 dark:border-primary-500 rounded-3xl flex items-center justify-center backdrop-blur-sm">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
+                    <Paperclip size={24} weight="duotone" className="text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <span className="text-primary-700 dark:text-primary-300 font-medium">
+                    Drop images here
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* Input container */}
-            <div className="flex items-end gap-2 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-2">
+            {/* Premium input container */}
+            <div className="input-premium flex items-end gap-2 rounded-3xl p-3">
               {/* Attach button */}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading || disabled || attachments.length >= maxFiles}
-                className="flex-shrink-0 p-2 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-shrink-0 p-2.5 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Attach files"
                 title="Attach images"
               >
-                <Paperclip size={20} weight="bold" />
+                <Paperclip size={20} weight="duotone" />
               </button>
 
               {/* Hidden file input */}
@@ -279,7 +289,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                   onChange={(e) => onMessageChange(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={placeholder}
-                  className="flex-1 resize-none bg-transparent border-none outline-none px-2 py-2 w-full text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                  className="flex-1 resize-none bg-transparent border-none outline-none px-2 py-2.5 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-[15px] leading-relaxed"
                   style={{ maxHeight: `${MAX_HEIGHT}px` }}
                   rows={1}
                   disabled={loading || disabled}
@@ -287,15 +297,15 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 />
               </div>
 
-              {/* Send button */}
+              {/* Send button - premium gradient */}
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="flex-shrink-0 p-2 bg-primary-600 dark:bg-primary-700 text-white rounded-xl hover:bg-primary-700 dark:hover:bg-primary-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="btn-primary flex-shrink-0 p-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
                 aria-label="Send message"
               >
                 {loading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <div className="w-5 h-5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <PaperPlaneRight size={20} weight="fill" />
                 )}
@@ -303,11 +313,17 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             </div>
           </div>
 
-          {/* Loading indicator */}
+          {/* Loading indicator - refined */}
           {(loading || fetching) && (
-            <div className="mt-2 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-gray-400 dark:border-gray-500 border-t-transparent rounded-full animate-spin" />
-              <span>{loading ? 'AI is thinking...' : 'Processing...'}</span>
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-full">
+                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
+                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                {loading ? 'AI is thinking...' : 'Processing...'}
+              </span>
             </div>
           )}
         </form>

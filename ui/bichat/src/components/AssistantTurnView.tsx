@@ -59,12 +59,12 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
 
   return (
     <div className="flex gap-3 group">
-      {/* Avatar */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 dark:bg-primary-700 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
-        AI
+      {/* Avatar - premium gradient with inner highlight */}
+      <div className="avatar-primary flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs">
+        <span className="relative z-10">AI</span>
       </div>
 
-      <div className="flex-1 flex flex-col gap-2 max-w-[80%]">
+      <div className="flex-1 flex flex-col gap-3 max-w-[85%]">
         {/* Code outputs */}
         {message.codeOutputs && message.codeOutputs.length > 0 && (
           <CodeOutputsPanel outputs={message.codeOutputs} />
@@ -72,26 +72,29 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
 
         {/* Chart visualization */}
         {message.chartData && (
-          <div className="mb-2 w-full">
+          <div className="mb-1 w-full">
             <ChartCard chartData={message.chartData} />
           </div>
         )}
 
         {/* Artifact cards - for Excel and PDF exports */}
         {message.artifacts && message.artifacts.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="mb-1 flex flex-wrap gap-2">
             {message.artifacts.map((artifact, index) => (
               <DownloadCard key={`${artifact.filename}-${index}`} artifact={artifact} />
             ))}
           </div>
         )}
 
-        {/* Message bubble */}
+        {/* Message bubble - refined assistant styling */}
         {hasContent && (
-          <div className="rounded-2xl px-5 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="bubble-assistant rounded-2xl rounded-bl-md px-5 py-4">
             <Suspense
               fallback={
-                <div className="text-sm text-gray-500 dark:text-gray-400">Loading...</div>
+                <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500">
+                  <div className="w-4 h-4 border-2 border-gray-300 dark:border-gray-600 border-t-transparent rounded-full animate-spin" />
+                  Loading...
+                </div>
               }
             >
               <MarkdownRenderer content={message.content} citations={message.citations} />
@@ -105,17 +108,17 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
               <SourcesPanel citations={message.citations} />
             )}
 
-            {/* Explanation section */}
+            {/* Explanation section - refined */}
             {hasExplanation && (
-              <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3">
+              <div className="mt-4 border-t border-gray-100 dark:border-gray-700/50 pt-4">
                 <button
                   type="button"
                   onClick={() => setExplanationExpanded(!explanationExpanded)}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                   aria-expanded={explanationExpanded}
                 >
                   <svg
-                    className={`w-4 h-4 transition-transform ${explanationExpanded ? 'rotate-90' : ''}`}
+                    className={`w-4 h-4 transition-transform duration-200 ${explanationExpanded ? 'rotate-90' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -127,10 +130,10 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
                       d="M9 5l7 7-7 7"
                     />
                   </svg>
-                  <span>How I arrived at this</span>
+                  <span className="font-medium">How I arrived at this</span>
                 </button>
                 {explanationExpanded && (
-                  <div className="pt-2 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="pt-3 text-sm text-gray-600 dark:text-gray-400">
                     <Suspense fallback={<div>Loading...</div>}>
                       <MarkdownRenderer content={message.explanation!} />
                     </Suspense>
@@ -144,32 +147,32 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
         {/* Inline Question Form */}
         {hasPendingQuestion && <InlineQuestionForm pendingQuestion={pendingQuestion} />}
 
-        {/* Actions */}
+        {/* Actions - refined */}
         {hasContent && (
-          <div className="flex items-center gap-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-1.5 px-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+            <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
               {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
             </span>
 
             {/* Copy button */}
             <button
               onClick={handleCopyClick}
-              className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
               aria-label="Copy message"
               title="Copy"
             >
-              <Copy size={14} />
+              <Copy size={14} weight="bold" />
             </button>
 
             {/* Regenerate button */}
             {handleRegenerate && (
               <button
                 onClick={handleRegenerateClick}
-                className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
                 aria-label="Regenerate message"
                 title="Regenerate"
               >
-                <ArrowsClockwise size={14} />
+                <ArrowsClockwise size={14} weight="bold" />
               </button>
             )}
           </div>
