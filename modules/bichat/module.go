@@ -59,28 +59,19 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	// NOTE: Applet registration disabled - using web controller approach instead
-	// The web controller provides "app inside an app" pattern with IOTA SDK layout
-	// and handles both HTML rendering and asset serving.
-	//
-	// Old applet-based approach (standalone SPA):
-	// bichatApplet := NewBiChatApplet(m.config)
-	// if err := app.RegisterApplet(bichatApplet); err != nil {
-	// 	return err
-	// }
-
 	// Register database schema
 	app.Migrations().RegisterSchema(&MigrationFiles)
 
 	// Register translation files
 	app.RegisterLocaleFiles(&LocaleFiles)
 
-	webController, err := controllers.NewBiChatWebController(app)
-	if err != nil {
-		return fmt.Errorf("failed to create BiChat web controller: %w", err)
+	// Register BiChat applet (unified applet system)
+	bichatApplet := NewBiChatApplet(m.config)
+	if err := app.RegisterApplet(bichatApplet); err != nil {
+		return fmt.Errorf("failed to register BiChat applet: %w", err)
 	}
 
-	controllersToRegister := []application.Controller{webController}
+	controllersToRegister := []application.Controller{}
 
 	// Register ChatController with GraphQL endpoint if config is available
 	if m.config != nil {

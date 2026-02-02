@@ -1,6 +1,7 @@
 /**
  * AssistantTurnView Component
  * Displays assistant messages with markdown, charts, sources, downloads, code outputs, and streaming cursor
+ * Clean, professional design
  */
 
 import { useState, lazy, Suspense } from 'react'
@@ -15,7 +16,6 @@ import { InlineQuestionForm } from './InlineQuestionForm'
 import { useChat } from '../context/ChatContext'
 import type { Message, CodeOutput } from '../types'
 
-// Lazy load MarkdownRenderer for performance
 const MarkdownRenderer = lazy(() =>
   import('./MarkdownRenderer').then((module) => ({ default: module.MarkdownRenderer }))
 )
@@ -42,7 +42,6 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
     if (handleCopy) {
       await handleCopy(message.content)
     } else {
-      // Fallback to clipboard API
       try {
         await navigator.clipboard.writeText(message.content)
       } catch (err) {
@@ -59,9 +58,9 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
 
   return (
     <div className="flex gap-3 group">
-      {/* Avatar - premium gradient with inner highlight */}
-      <div className="avatar-primary flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs">
-        <span className="relative z-10">AI</span>
+      {/* Avatar - solid primary color */}
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium text-xs">
+        AI
       </div>
 
       <div className="flex-1 flex flex-col gap-3 max-w-[85%]">
@@ -77,7 +76,7 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
           </div>
         )}
 
-        {/* Artifact cards - for Excel and PDF exports */}
+        {/* Artifact cards */}
         {message.artifacts && message.artifacts.length > 0 && (
           <div className="mb-1 flex flex-wrap gap-2">
             {message.artifacts.map((artifact, index) => (
@@ -86,9 +85,9 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
           </div>
         )}
 
-        {/* Message bubble - refined assistant styling */}
+        {/* Message bubble - clean card style */}
         {hasContent && (
-          <div className="bubble-assistant rounded-2xl rounded-bl-md px-5 py-4">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-4 py-3">
             <Suspense
               fallback={
                 <div className="flex items-center gap-2 text-sm text-gray-400 dark:text-gray-500">
@@ -108,17 +107,17 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
               <SourcesPanel citations={message.citations} />
             )}
 
-            {/* Explanation section - refined */}
+            {/* Explanation section */}
             {hasExplanation && (
-              <div className="mt-4 border-t border-gray-100 dark:border-gray-700/50 pt-4">
+              <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
                 <button
                   type="button"
                   onClick={() => setExplanationExpanded(!explanationExpanded)}
-                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
+                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   aria-expanded={explanationExpanded}
                 >
                   <svg
-                    className={`w-4 h-4 transition-transform duration-200 ${explanationExpanded ? 'rotate-90' : ''}`}
+                    className={`w-4 h-4 transition-transform duration-150 ${explanationExpanded ? 'rotate-90' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -147,32 +146,30 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
         {/* Inline Question Form */}
         {hasPendingQuestion && <InlineQuestionForm pendingQuestion={pendingQuestion} />}
 
-        {/* Actions - refined */}
+        {/* Actions */}
         {hasContent && (
-          <div className="flex items-center gap-1.5 px-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
             <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
               {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
             </span>
 
-            {/* Copy button */}
             <button
               onClick={handleCopyClick}
-              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
+              className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
               aria-label="Copy message"
               title="Copy"
             >
-              <Copy size={14} weight="bold" />
+              <Copy size={14} weight="regular" />
             </button>
 
-            {/* Regenerate button */}
             {handleRegenerate && (
               <button
                 onClick={handleRegenerateClick}
-                className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
                 aria-label="Regenerate message"
                 title="Regenerate"
               >
-                <ArrowsClockwise size={14} weight="bold" />
+                <ArrowsClockwise size={14} weight="regular" />
               </button>
             )}
           </div>

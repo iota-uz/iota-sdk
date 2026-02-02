@@ -1,17 +1,24 @@
 package applet
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"strings"
 
+	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/sirupsen/logrus"
 )
+
+var htmlNameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 var mimeTypes = map[string]string{
 	".js":    "application/javascript; charset=utf-8",
@@ -66,6 +73,18 @@ func NewAppletController(
 		builder: builder,
 		logger:  logger,
 	}
+}
+
+// Register implements the application.Controller interface.
+// This is the standard method for registering controllers in the application.
+func (c *AppletController) Register(router *mux.Router) {
+	c.RegisterRoutes(router)
+}
+
+// Key implements the application.Controller interface.
+// Returns a unique key for this applet controller.
+func (c *AppletController) Key() string {
+	return "applet_" + c.applet.Name()
 }
 
 // RegisterRoutes registers all routes for the applet.
@@ -144,7 +163,6 @@ func (c *AppletController) registerAssetRoutes(router *mux.Router) {
 // 3. Inject into HTML as window[Config.WindowGlobal]
 // 4. Serve HTML with injected script
 func (c *AppletController) RenderApp(w http.ResponseWriter, r *http.Request) {
-	const op serrors.Op = "AppletController.RenderApp"
 	ctx := r.Context()
 
 	if c.logger != nil {
@@ -152,7 +170,7 @@ func (c *AppletController) RenderApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build context
-	initialContext, err := c.builder.Build(ctx, r)
+	initialContext, err := c.builder.Build(ctx, r, c.applet.BasePath())
 	if err != nil {
 		if c.logger != nil {
 			c.logger.Errorf("Failed to build context: %v", err)
@@ -172,35 +190,90 @@ func (c *AppletController) RenderApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Render HTML with context injection
-	c.renderHTML(w, contextJSON)
+	c.render(ctx, w, r, contextJSON)
 }
 
-// renderHTML renders the HTML page with injected context.
+// render renders either a standalone HTML page or an applet wrapped in a templ layout.
 // The context is injected as: window[Config.WindowGlobal] = {...}
-func (c *AppletController) renderHTML(w http.ResponseWriter, contextJSON []byte) {
+func (c *AppletController) render(ctx context.Context, w http.ResponseWriter, r *http.Request, contextJSON []byte) {
 	config := c.applet.Config()
 
 	// Compute full URL paths by combining applet base path with relative asset paths.
-	// Config paths are relative to the applet (e.g., "/assets"), but HTML needs
-	// absolute paths (e.g., "/bi-chat/assets").
-	assetsURL := c.applet.BasePath() + config.Assets.BasePath
+	assetsPath := config.Assets.BasePath
+	if assetsPath == "" {
+		assetsPath = "/assets"
+	}
+	assetsBasePath := c.applet.BasePath() + assetsPath
 
 	// Build script tag for context injection
-	contextScript := fmt.Sprintf(
-		`<script>window.%s = %s;</script>`,
-		template.JSEscapeString(config.WindowGlobal),
-		contextJSON, // Already valid JSON
-	)
+	// Use safe JSON injection to prevent script tag breakouts
+	contextScript := c.buildSafeContextScript(config.WindowGlobal, contextJSON)
 
-	// Build CSS link tag if CSSPath is provided
-	cssLink := ""
-	if config.Assets.CSSPath != "" {
-		cssURL := c.applet.BasePath() + config.Assets.CSSPath
-		cssLink = fmt.Sprintf(`<link rel="stylesheet" href="%s">`, cssURL)
+	// Resolve assets from manifest (required)
+	var cssLinks, jsScripts string
+	if config.Assets.ManifestPath == "" || config.Assets.Entrypoint == "" {
+		if c.logger != nil {
+			c.logger.Error("Applet asset configuration missing ManifestPath or Entrypoint - manifest-based resolution is required")
+		}
+		http.Error(w, "Applet asset configuration invalid", http.StatusInternalServerError)
+		return
 	}
 
-	// Build HTML page
-	// Note: Future enhancement could load this from embedded FS for customization
+	resolved, err := c.resolveManifestAssets(config, assetsBasePath)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Errorf("Failed to resolve manifest assets: %v", err)
+		}
+		http.Error(w, "Failed to resolve applet assets", http.StatusInternalServerError)
+		return
+	}
+
+	cssLinks = c.buildCSSLinks(resolved.CSSFiles)
+	jsScripts = c.buildJSScripts(resolved.JSFiles)
+
+	// Build mount element
+	mountHTML := c.buildMountElement(config)
+
+	// Prefer rendering inside an existing layout when configured.
+	if config.Layout != nil {
+		title := strings.TrimSpace(config.Title)
+		if title == "" {
+			title = c.applet.Name()
+		}
+
+		// Merge applet CSS into the existing head component (if present).
+		if cssLinks != "" {
+			if existingHead, ok := ctx.Value(constants.HeadKey).(templ.Component); ok && existingHead != nil {
+				mergedHead := templ.ComponentFunc(func(headCtx context.Context, wr io.Writer) error {
+					if err := existingHead.Render(headCtx, wr); err != nil {
+						return err
+					}
+					return templ.Raw(cssLinks).Render(headCtx, wr)
+				})
+				ctx = context.WithValue(ctx, constants.HeadKey, mergedHead)
+			}
+		}
+
+		shell := templ.ComponentFunc(func(shellCtx context.Context, wr io.Writer) error {
+			if _, err := io.WriteString(wr, mountHTML); err != nil {
+				return err
+			}
+			if _, err := io.WriteString(wr, contextScript); err != nil {
+				return err
+			}
+			if _, err := io.WriteString(wr, jsScripts); err != nil {
+				return err
+			}
+			return nil
+		})
+
+		ctx = templ.WithChildren(ctx, shell)
+		layout := config.Layout(title)
+		templ.Handler(layout, templ.WithStreaming()).ServeHTTP(w, r.WithContext(ctx))
+		return
+	}
+
+	// Standalone HTML page (no iota layout).
 	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -210,18 +283,137 @@ func (c *AppletController) renderHTML(w http.ResponseWriter, contextJSON []byte)
     %s
 </head>
 <body>
-    <div id="root"></div>
     %s
-    <script type="module" src="%s/main.js"></script>
+    %s
+    %s
 </body>
 </html>`,
 		c.applet.Name(),
-		cssLink,
+		cssLinks,
+		mountHTML,
 		contextScript,
-		assetsURL,
+		jsScripts,
 	)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(html))
+}
+
+func (c *AppletController) buildMountElement(config Config) string {
+	tag := strings.TrimSpace(config.Mount.Tag)
+	id := strings.TrimSpace(config.Mount.ID)
+	attrs := config.Mount.Attributes
+
+	// Defaults
+	if tag == "" {
+		tag = "div"
+	}
+	if !htmlNameRe.MatchString(tag) {
+		tag = "div"
+		id = "root"
+		attrs = nil
+	}
+	if id == "" && tag == "div" {
+		id = "root"
+	}
+
+	var b strings.Builder
+	b.WriteString("<")
+	b.WriteString(template.HTMLEscapeString(tag))
+
+	if id != "" {
+		b.WriteString(` id="`)
+		b.WriteString(template.HTMLEscapeString(id))
+		b.WriteString(`"`)
+	}
+
+	for k, v := range attrs {
+		k = strings.TrimSpace(k)
+		if k == "" || !htmlNameRe.MatchString(k) {
+			continue
+		}
+		b.WriteString(" ")
+		b.WriteString(template.HTMLEscapeString(k))
+		b.WriteString(`="`)
+		b.WriteString(template.HTMLEscapeString(v))
+		b.WriteString(`"`)
+	}
+
+	// BiChat and similar applets commonly rely on flex layout.
+	// Keep this minimal; applets can override via attributes/styles if needed.
+	if tag != "div" {
+		// no default styling
+	}
+
+	b.WriteString("></")
+	b.WriteString(template.HTMLEscapeString(tag))
+	b.WriteString(">")
+	return b.String()
+}
+
+// resolveManifestAssets resolves assets from a Vite manifest
+func (c *AppletController) resolveManifestAssets(config Config, assetsBasePath string) (*ResolvedAssets, error) {
+	manifest, err := loadManifest(config.Assets.FS, config.Assets.ManifestPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolveAssetsFromManifest(manifest, config.Assets.Entrypoint, assetsBasePath)
+}
+
+// buildCSSLinks builds HTML link tags for CSS files
+func (c *AppletController) buildCSSLinks(cssFiles []string) string {
+	if len(cssFiles) == 0 {
+		return ""
+	}
+
+	var links string
+	for _, cssFile := range cssFiles {
+		links += fmt.Sprintf(`<link rel="stylesheet" href="%s">`, cssFile)
+	}
+	return links
+}
+
+// buildJSScripts builds HTML script tags for JS files
+func (c *AppletController) buildJSScripts(jsFiles []string) string {
+	if len(jsFiles) == 0 {
+		return ""
+	}
+
+	var scripts string
+	for _, jsFile := range jsFiles {
+		scripts += fmt.Sprintf(`<script type="module" src="%s"></script>`, jsFile)
+	}
+	return scripts
+}
+
+// buildSafeContextScript builds a safe script tag for context injection.
+// Escapes sequences that could break out of the script tag (e.g., </script>).
+// Uses JSON encoding with HTML-safe escaping.
+func (c *AppletController) buildSafeContextScript(windowGlobal string, contextJSON []byte) string {
+	// Use bracket notation to avoid requiring WindowGlobal to be a JS identifier.
+	// Also escape any </script>-like sequences in both key and value.
+	keyJSON, _ := json.Marshal(windowGlobal)
+	safeKey := escapeJSONForScriptTag(keyJSON)
+	safeValue := escapeJSONForScriptTag(contextJSON)
+
+	return fmt.Sprintf(`<script>window[%s] = %s;</script>`, safeKey, safeValue)
+}
+
+// escapeJSONForScriptTag escapes JSON to prevent script tag breakouts.
+// This is a defense-in-depth measure - JSON should already be safe, but we
+// escape potentially dangerous sequences anyway.
+// Only escapes </script> sequences (case-insensitive) to prevent script tag termination.
+// We don't escape all `<` characters as that would break valid JSON.
+func escapeJSONForScriptTag(jsonBytes []byte) string {
+	jsonStr := string(jsonBytes)
+	// Replace </script> with <\/script> to prevent script tag termination
+	// This is safe because \/ is valid in JSON (escaped forward slash)
+	// We handle case-insensitive matching for defense-in-depth
+	jsonStr = strings.ReplaceAll(jsonStr, "</script>", "<\\/script>")
+	jsonStr = strings.ReplaceAll(jsonStr, "</SCRIPT>", "<\\/SCRIPT>")
+	jsonStr = strings.ReplaceAll(jsonStr, "</Script>", "<\\/Script>")
+	jsonStr = strings.ReplaceAll(jsonStr, "</sCrIpT>", "<\\/sCrIpT>")
+	return jsonStr
 }

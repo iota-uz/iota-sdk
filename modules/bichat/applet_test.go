@@ -39,7 +39,8 @@ func TestBiChatApplet_Config(t *testing.T) {
 	// Verify assets
 	assert.NotNil(t, config.Assets.FS)
 	assert.Equal(t, "/assets", config.Assets.BasePath)
-	assert.Equal(t, "/assets/main.css", config.Assets.CSSPath)
+	assert.Equal(t, ".vite/manifest.json", config.Assets.ManifestPath)
+	assert.Equal(t, "index.html", config.Assets.Entrypoint)
 
 	// Verify router
 	assert.NotNil(t, config.Router)

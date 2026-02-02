@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gorilla/mux"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/internal/server"
 	"github.com/iota-uz/iota-sdk/modules"
@@ -36,20 +35,6 @@ type noopMetrics struct{}
 
 func (n noopMetrics) RecordDuration(name string, duration time.Duration, labels map[string]string) {}
 func (n noopMetrics) IncrementCounter(name string, labels map[string]string)                       {}
-
-// appletControllerWrapper wraps applet.AppletController to implement application.Controller interface
-type appletControllerWrapper struct {
-	*applet.AppletController
-	key string
-}
-
-func (w *appletControllerWrapper) Register(r *mux.Router) {
-	w.RegisterRoutes(r)
-}
-
-func (w *appletControllerWrapper) Key() string {
-	return w.key
-}
 
 func main() {
 	defer func() {
@@ -161,26 +146,13 @@ func main() {
 	}
 
 	// Register applet controllers for all registered applets
-	appletControllers := make([]application.Controller, 0)
-	allApplets := app.AppletRegistry().All()
-	for _, registeredApplet := range allApplets {
-		// Type assert to full applet.Applet interface
-		fullApplet, ok := registeredApplet.(applet.Applet)
-		if !ok {
-			continue
-		}
-		appletController := applet.NewAppletController(
-			fullApplet,
-			bundle,
-			applet.DefaultSessionConfig,
-			logger,
-			noopMetrics{},
-		)
-		wrapped := &appletControllerWrapper{
-			AppletController: appletController,
-			key:              "applet_" + registeredApplet.Name(),
-		}
-		appletControllers = append(appletControllers, wrapped)
+	appletControllers, err := app.CreateAppletControllers(
+		applet.DefaultSessionConfig,
+		logger,
+		noopMetrics{},
+	)
+	if err != nil {
+		log.Fatalf("failed to create applet controllers: %v", err)
 	}
 
 	app.RegisterControllers(

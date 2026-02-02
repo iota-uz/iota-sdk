@@ -7,8 +7,8 @@
 import { useRef, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { EditableText, type EditableTextRef } from '@iota-uz/bichat-ui'
 import SessionMenu from './SessionMenu'
-import EditableTitle, { type EditableTitleRef } from '../EditableTitle'
 import { sessionItemVariants } from '../../animations/variants'
 import type { ChatSession } from '../../utils/sessionGrouping'
 
@@ -22,7 +22,7 @@ interface SessionItemProps {
 
 const SessionItem = memo<SessionItemProps>(
   ({ session, isActive, onDelete, onTogglePin, onRename }) => {
-    const editableTitleRef = useRef<EditableTitleRef>(null)
+    const editableTitleRef = useRef<EditableTextRef>(null)
 
     // Check if title is being generated (null or empty)
     const isTitleGenerating = !session.title
@@ -54,12 +54,14 @@ const SessionItem = memo<SessionItemProps>(
           )}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <EditableTitle
+              <EditableText
                 ref={editableTitleRef}
-                title={displayTitle}
+                value={displayTitle}
                 onSave={onRename}
                 maxLength={60}
                 isLoading={isTitleGenerating}
+                placeholder="Untitled Chat"
+                size="sm"
               />
             </div>
             <SessionMenu

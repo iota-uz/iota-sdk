@@ -1,6 +1,7 @@
 /**
  * UserTurnView Component
  * Displays user messages with attachments, image modal, and actions
+ * Clean, professional design
  */
 
 import { useState } from 'react'
@@ -25,7 +26,6 @@ export function UserTurnView({ message }: UserTurnViewProps) {
     if (handleCopy) {
       await handleCopy(message.content)
     } else {
-      // Fallback to clipboard API
       try {
         await navigator.clipboard.writeText(message.content)
       } catch (err) {
@@ -56,48 +56,46 @@ export function UserTurnView({ message }: UserTurnViewProps) {
           </div>
         )}
 
-        {/* Message bubble - premium gradient with inner highlight */}
+        {/* Message bubble - solid primary color */}
         {message.content && (
-          <div className="bubble-user rounded-2xl rounded-br-md px-5 py-3">
-            <div className="text-[15px] whitespace-pre-wrap break-words leading-relaxed relative z-10">
+          <div className="bg-purple-600 text-white rounded-2xl rounded-br-sm px-4 py-3">
+            <div className="text-[15px] whitespace-pre-wrap break-words leading-relaxed">
               {message.content}
             </div>
           </div>
         )}
 
-        {/* Actions (visible on hover) - refined */}
-        <div className="flex items-center gap-1.5 mt-2 px-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+        {/* Actions */}
+        <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </span>
 
-          {/* Copy button */}
           <button
             onClick={handleCopyClick}
-            className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
+            className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
             aria-label="Copy message"
             title="Copy"
           >
-            <Copy size={14} weight="bold" />
+            <Copy size={14} weight="regular" />
           </button>
 
-          {/* Edit button */}
           {handleEdit && (
             <button
               onClick={handleEditClick}
-              className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
+              className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
               aria-label="Edit message"
               title="Edit"
             >
-              <PencilSimple size={14} weight="bold" />
+              <PencilSimple size={14} weight="regular" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Avatar - premium gradient */}
-      <div className="avatar-primary flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-        <span className="relative z-10">U</span>
+      {/* Avatar - solid primary color */}
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-medium text-sm">
+        U
       </div>
 
       {/* Image modal */}

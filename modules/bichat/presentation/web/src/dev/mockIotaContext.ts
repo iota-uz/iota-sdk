@@ -1,28 +1,24 @@
 export function injectMockContext(): void {
-  if (import.meta.env.DEV && !(window as any).IOTA_CONTEXT) {
-    (window as any).IOTA_CONTEXT = {
+  if (import.meta.env.DEV && !(window as any).__BICHAT_CONTEXT__) {
+    ;(window as any).__BICHAT_CONTEXT__ = {
       user: {
         id: 1,
-        name: 'Dev User',
         email: 'dev@example.com',
+        firstName: 'Dev',
+        lastName: 'User',
+        permissions: ['bichat.access'],
       },
       tenant: {
         id: '00000000-0000-0000-0000-000000000000',
         name: 'Dev Tenant',
       },
+      locale: {
+        language: 'en',
+        translations: {},
+      },
       config: {
-        locale: 'en',
         graphQLEndpoint: '/bi-chat/graphql',
         streamEndpoint: '/bi-chat/stream',
-      },
-      session: null,
-      extensions: {
-        features: {
-          vision: true,
-          webSearch: true,
-          codeInterpreter: true,
-          multiAgent: false,
-        },
       },
     }
   }

@@ -8,11 +8,10 @@ import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery, useMutation } from 'urql'
 import { Plus } from '@phosphor-icons/react'
-import SearchInput from './SearchInput'
+import { SearchInput, EmptyState } from '@iota-uz/bichat-ui'
 import TabBar from './TabBar'
 import SessionList from './SessionList/SessionList'
 import SessionSkeleton from './SessionSkeleton'
-import EmptyState from './EmptyState'
 import { groupSessionsByDate } from '../utils/sessionGrouping'
 import type { ChatSession } from '../utils/sessionGrouping'
 
@@ -201,19 +200,19 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
   return (
     <aside
-      className="sidebar w-64 h-screen flex flex-col overflow-hidden"
+      className="w-64 h-screen flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
       role="navigation"
       aria-label="Chat sessions"
     >
-      {/* Header - refined with brand accent */}
-      <div className="p-5 border-b border-gray-100 dark:border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-sm">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
           </div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">BiChat</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">BiChat</h2>
         </div>
       </div>
 
@@ -223,25 +222,24 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
       {/* My Chats View */}
       {activeTab === 'my-chats' && (
         <>
-          {/* New Chat Button - premium gradient */}
+          {/* New Chat Button */}
           <div className="px-4 pt-4 pb-2">
             <motion.button
               onClick={onNewChat}
               disabled={creating || result.fetching}
-              className="btn-primary w-full px-4 py-3 rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+              className="w-full px-4 py-2.5 rounded-lg font-medium bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               title="New chat"
               aria-label="Create new chat"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.98 }}
             >
               {creating ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white/50 border-t-transparent rounded-full animate-spin" />
                   <span>Creating...</span>
                 </>
               ) : (
                 <>
-                  <Plus size={18} weight="bold" />
+                  <Plus size={16} weight="bold" />
                   <span>New Chat</span>
                 </>
               )}

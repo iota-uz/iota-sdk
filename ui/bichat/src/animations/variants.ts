@@ -1,71 +1,27 @@
 /**
  * Framer Motion animation variants for BiChat UI
- * Centralized configuration for all motion components
+ * Subtle, professional animations for enterprise applications
  * Respects prefers-reduced-motion for accessibility
  */
 
-// Helper to check if user prefers reduced motion
 const prefersReducedMotion = () => {
   if (typeof window === 'undefined') return false
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 /**
- * Fade in animation for content
+ * Fade in animation
  */
 export const fadeInVariants = {
   initial: { opacity: 0 },
   animate: {
     opacity: 1,
     transition: {
-      duration: prefersReducedMotion() ? 0 : 0.4,
-    },
-  },
-  exit: {
-    opacity: 0,
-    transition: {
-      duration: prefersReducedMotion() ? 0 : 0.2,
-    },
-  },
-}
-
-/**
- * Fade in with slide up animation
- */
-export const fadeInUpVariants = {
-  initial: { opacity: 0, y: 20 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: prefersReducedMotion() ? 0 : 0.4,
-      ease: 'easeOut',
-    },
-  },
-  exit: {
-    opacity: 0,
-    y: 20,
-    transition: {
-      duration: prefersReducedMotion() ? 0 : 0.2,
-    },
-  },
-}
-
-/**
- * Scale fade animation for modals and popups
- */
-export const scaleFadeVariants = {
-  initial: { opacity: 0, scale: 0.95 },
-  animate: {
-    opacity: 1,
-    scale: 1,
-    transition: {
       duration: prefersReducedMotion() ? 0 : 0.2,
     },
   },
   exit: {
     opacity: 0,
-    scale: 0.95,
     transition: {
       duration: prefersReducedMotion() ? 0 : 0.15,
     },
@@ -73,122 +29,154 @@ export const scaleFadeVariants = {
 }
 
 /**
- * Modal backdrop animation
+ * Fade in with subtle slide up
+ */
+export const fadeInUpVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.2,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+  exit: {
+    opacity: 0,
+    y: 8,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.15,
+    },
+  },
+}
+
+/**
+ * Scale fade for modals and popups
+ */
+export const scaleFadeVariants = {
+  initial: { opacity: 0, scale: 0.98 },
+  animate: {
+    opacity: 1,
+    scale: 1,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.15,
+    },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.98,
+    transition: {
+      duration: prefersReducedMotion() ? 0 : 0.1,
+    },
+  },
+}
+
+/**
+ * Modal backdrop
  */
 export const backdropVariants = {
   initial: { opacity: 0 },
   animate: {
     opacity: 1,
     transition: {
-      duration: prefersReducedMotion() ? 0 : 0.2,
+      duration: prefersReducedMotion() ? 0 : 0.15,
     },
   },
   exit: {
     opacity: 0,
     transition: {
-      duration: 0.2,
+      duration: 0.15,
     },
   },
 }
 
 /**
- * Button animation for hover and tap
+ * Button press feedback
  */
 export const buttonVariants = {
-  hover: {
-    scale: 1.05,
-    transition: { duration: 0.2 },
-  },
   tap: {
-    scale: 0.95,
+    scale: 0.98,
   },
 }
 
 /**
- * Stagger container for list animations
+ * Stagger container for lists
  */
 export const staggerContainerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.05,
-      delayChildren: 0.1,
+      staggerChildren: 0.03,
+      delayChildren: 0.05,
     },
   },
 }
 
 /**
- * List item animation (slide from left)
+ * List item animation
  */
 export const listItemVariants = {
-  initial: { opacity: 0, x: -20 },
+  initial: { opacity: 0, x: -8 },
   animate: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.3 },
-  },
-  hover: {
-    x: 4,
     transition: { duration: 0.2 },
   },
   exit: {
     opacity: 0,
-    x: -20,
-    transition: { duration: 0.2 },
+    x: -8,
+    transition: { duration: 0.15 },
   },
 }
 
 /**
- * Message animations - smooth entrance and exit
+ * Message entrance animation
  */
 export const messageVariants = {
   initial: {
     opacity: 0,
-    y: 20,
-    scale: 0.95,
+    y: 8,
   },
   animate: {
     opacity: 1,
     y: 0,
-    scale: 1,
     transition: {
-      duration: prefersReducedMotion() ? 0 : 0.3,
-      ease: 'easeOut',
+      duration: prefersReducedMotion() ? 0 : 0.2,
+      ease: [0.4, 0, 0.2, 1],
     },
   },
   exit: {
     opacity: 0,
-    scale: 0.95,
     transition: {
-      duration: prefersReducedMotion() ? 0 : 0.2,
+      duration: prefersReducedMotion() ? 0 : 0.15,
     },
   },
 }
 
 /**
- * Container for staggered message animations
+ * Container for staggered messages
  */
 export const messageContainerVariants = {
   initial: { opacity: 0 },
   animate: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.1,
+      staggerChildren: 0.05,
+      delayChildren: 0.05,
     },
   },
 }
 
 /**
- * Typing indicator dot animations
+ * Typing indicator dots
  */
 export const typingDotVariants = {
-  initial: { y: 0 },
+  initial: { opacity: 0.4 },
   animate: {
-    y: [-6, 0, -6],
+    opacity: [0.4, 1, 0.4],
     transition: {
-      duration: prefersReducedMotion() ? 0 : 0.6,
+      duration: prefersReducedMotion() ? 0 : 1,
       repeat: Infinity,
       ease: 'easeInOut',
     },
@@ -196,75 +184,63 @@ export const typingDotVariants = {
 }
 
 /**
- * Floating button animations (scroll to bottom, FAB, etc.)
+ * Floating button (scroll to bottom, etc.)
  */
 export const floatingButtonVariants = {
   initial: {
     opacity: 0,
-    scale: 0.8,
-    y: 20,
+    scale: 0.9,
   },
   animate: {
     opacity: 1,
     scale: 1,
-    y: 0,
-    transition: {
-      duration: prefersReducedMotion() ? 0 : 0.3,
-      ease: 'easeOut',
-    },
-  },
-  exit: {
-    opacity: 0,
-    scale: 0.8,
-    y: 20,
     transition: {
       duration: prefersReducedMotion() ? 0 : 0.2,
     },
   },
-  hover: {
-    scale: 1.1,
+  exit: {
+    opacity: 0,
+    scale: 0.9,
     transition: {
-      duration: 0.2,
+      duration: prefersReducedMotion() ? 0 : 0.15,
     },
   },
 }
 
 /**
- * Dropdown menu animation
+ * Dropdown menu
  */
 export const dropdownVariants = {
-  initial: { opacity: 0, scale: 0.95, y: -10 },
+  initial: { opacity: 0, y: -4 },
   animate: {
     opacity: 1,
-    scale: 1,
     y: 0,
-    transition: { duration: prefersReducedMotion() ? 0 : 0.2 },
+    transition: { duration: prefersReducedMotion() ? 0 : 0.15 },
   },
   exit: {
     opacity: 0,
-    scale: 0.95,
-    y: -10,
-    transition: { duration: 0.15 },
+    y: -4,
+    transition: { duration: 0.1 },
   },
 }
 
 /**
- * Toast/notification slide in from top
+ * Toast notification
  */
 export const toastVariants = {
-  initial: { opacity: 0, y: -20 },
+  initial: { opacity: 0, y: -8 },
   animate: {
     opacity: 1,
     y: 0,
     transition: {
-      duration: prefersReducedMotion() ? 0 : 0.3,
+      duration: prefersReducedMotion() ? 0 : 0.2,
     },
   },
   exit: {
     opacity: 0,
-    y: -20,
+    y: -8,
     transition: {
-      duration: prefersReducedMotion() ? 0 : 0.2,
+      duration: prefersReducedMotion() ? 0 : 0.15,
     },
   },
 }

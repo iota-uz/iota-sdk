@@ -71,7 +71,7 @@ export default function HomePage() {
   }, [message, submitMessage])
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto px-4 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 noise-overlay">
+    <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto px-4 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
       {/* Welcome content with example prompts */}
       <WelcomeContent
         onPromptSelect={handlePromptSelect}

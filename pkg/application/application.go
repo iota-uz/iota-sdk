@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
+	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -84,45 +85,7 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 }
 
 // ---- Applet Registry implementation ----
-
-type appletRegistry struct {
-	applets map[string]Applet
-}
-
-func newAppletRegistry() *appletRegistry {
-	return &appletRegistry{
-		applets: make(map[string]Applet),
-	}
-}
-
-func (r *appletRegistry) Get(name string) Applet {
-	return r.applets[name]
-}
-
-func (r *appletRegistry) All() []Applet {
-	applets := make([]Applet, 0, len(r.applets))
-	for _, applet := range r.applets {
-		applets = append(applets, applet)
-	}
-	return applets
-}
-
-func (r *appletRegistry) Has(name string) bool {
-	_, exists := r.applets[name]
-	return exists
-}
-
-func (r *appletRegistry) register(applet Applet) error {
-	name := applet.Name()
-	if name == "" {
-		return fmt.Errorf("applet name cannot be empty")
-	}
-	if r.Has(name) {
-		return fmt.Errorf("applet %q is already registered", name)
-	}
-	r.applets[name] = applet
-	return nil
-}
+// Now uses pkg/applet.Registry directly for unified applet management
 
 // ---- Application implementation ----
 
@@ -158,7 +121,7 @@ func New(opts *ApplicationOptions) Application {
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
-		appletRegistry:     newAppletRegistry(),
+		appletRegistry:     applet.NewRegistry(),
 	}
 }
 
@@ -179,7 +142,7 @@ type application struct {
 	migrations         MigrationManager
 	navItems           []types.NavigationItem
 	supportedLanguages []string
-	appletRegistry     *appletRegistry
+	appletRegistry     applet.Registry
 }
 
 func (app *application) Spotlight() spotlight.Spotlight {
@@ -306,10 +269,57 @@ func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
 }
 
-func (app *application) RegisterApplet(applet Applet) error {
-	return app.appletRegistry.register(applet)
+func (app *application) RegisterApplet(a Applet) error {
+	return app.appletRegistry.Register(a)
 }
 
 func (app *application) AppletRegistry() AppletRegistry {
 	return app.appletRegistry
+}
+
+// CreateAppletControllers creates controllers for all registered applets.
+// This provides a single mounting point for all applets in the application.
+//
+// Parameters:
+//   - sessionConfig: Session configuration for context building
+//   - logger: Logger for applet operations
+//   - metrics: Metrics recorder (can be nil)
+//   - opts: Optional builder options (e.g., WithTenantNameResolver, WithErrorEnricher)
+//
+// Returns a slice of controllers that can be registered via RegisterControllers().
+//
+// Example usage:
+//
+//	controllers, err := app.CreateAppletControllers(
+//		applet.DefaultSessionConfig,
+//		logger,
+//		metrics,
+//	)
+//	if err != nil {
+//		return err
+//	}
+//	app.RegisterControllers(controllers...)
+func (app *application) CreateAppletControllers(
+	sessionConfig applet.SessionConfig,
+	logger *logrus.Logger,
+	metrics applet.MetricsRecorder,
+	opts ...applet.BuilderOption,
+) ([]Controller, error) {
+	registry := app.AppletRegistry()
+	applets := registry.All()
+
+	controllers := make([]Controller, 0, len(applets))
+	for _, a := range applets {
+		controller := applet.NewAppletController(
+			a,
+			app.Bundle(),
+			sessionConfig,
+			logger,
+			metrics,
+			opts...,
+		)
+		controllers = append(controllers, controller)
+	}
+
+	return controllers, nil
 }

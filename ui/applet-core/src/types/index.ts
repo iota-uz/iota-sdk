@@ -10,7 +10,8 @@ export interface InitialContext {
   config: AppConfig
   route: RouteContext
   session: SessionContext
-  custom?: Record<string, unknown>
+  error: ErrorContext | null
+  extensions?: Record<string, unknown>
 }
 
 export interface UserContext {
@@ -47,6 +48,18 @@ export interface SessionContext {
   expiresAt: number
   refreshURL: string
   csrfToken: string
+}
+
+export interface ErrorContext {
+  supportEmail?: string
+  debugMode: boolean
+  errorCodes?: Record<string, string>
+  retryConfig?: RetryConfig
+}
+
+export interface RetryConfig {
+  maxAttempts: number
+  backoffMs: number
 }
 
 /**

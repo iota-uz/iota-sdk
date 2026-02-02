@@ -5,8 +5,11 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/assets"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -74,10 +77,20 @@ func (a *BiChatApplet) Config() applet.Config {
 		},
 
 		// Assets configuration for serving the built React app
+		// Uses Vite manifest for hashed asset resolution
 		Assets: applet.AssetConfig{
-			FS:       distFS,             // Sub-filesystem rooted at dist/ for direct file access
-			BasePath: "/assets",          // URL prefix for asset serving (relative to applet base path)
-			CSSPath:  "/assets/main.css", // CSS file path (relative to applet base path)
+			FS:           distFS,                // Sub-filesystem rooted at dist/ for direct file access
+			BasePath:     "/assets",             // URL prefix for asset serving (relative to applet base path)
+			ManifestPath: ".vite/manifest.json", // Path to Vite manifest within distFS (relative to dist/)
+			Entrypoint:   "index.html",          // Entry point file name (Vite default, matches manifest key)
+		},
+
+		Mount: applet.MountConfig{
+			Tag: "bi-chat-root",
+			Attributes: map[string]string{
+				"base-path": "/bi-chat",
+				"style":     "display: flex; flex: 1; flex-direction: column; min-height: 0; height: 100%; width: 100%;",
+			},
 		},
 
 		// Router uses MuxRouter to extract route parameters (e.g., /sessions/{id})
@@ -89,6 +102,15 @@ func (a *BiChatApplet) Config() applet.Config {
 		// Middleware: Required middleware stack for authenticated applet
 		// Order matters: Authorize -> User -> Localizer -> PageContext
 		Middleware: a.getMiddleware(),
+
+		// Layout: Render inside the standard iota authenticated shell
+		// so the sidebar, navbar, and head assets are present.
+		Layout: func(title string) templ.Component {
+			return layouts.Authenticated(layouts.AuthenticatedProps{
+				BaseProps: layouts.BaseProps{Title: title},
+			})
+		},
+		Title: "BiChat",
 	}
 }
 
@@ -101,11 +123,12 @@ func (a *BiChatApplet) Config() applet.Config {
 //   - This is set up in internal/server/default.go
 func (a *BiChatApplet) getMiddleware() []mux.MiddlewareFunc {
 	return []mux.MiddlewareFunc{
-		middleware.Authorize(),                // Check authentication token
-		middleware.RedirectNotAuthenticated(), // Redirect to /login if not authenticated
-		middleware.ProvideUser(),              // Add user to context from session
-		a.provideLocalizerFromContext(),       // Add localizer using app from context
-		middleware.WithPageContext(),          // Add page context (locale, etc.)
+		middleware.Authorize(),                                        // Check authentication token
+		middleware.RedirectNotAuthenticated(),                         // Redirect to /login if not authenticated
+		middleware.ProvideUser(),                                      // Add user to context from session
+		a.provideLocalizerFromContext(),                               // Add localizer using app from context
+		middleware.NavItemsWithInitialState(sidebar.SidebarCollapsed), // Ensure iota sidebar is visible + collapsed by default
+		middleware.WithPageContext(),                                  // Add page context (locale, etc.)
 	}
 }
 

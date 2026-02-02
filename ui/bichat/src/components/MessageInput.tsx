@@ -1,7 +1,7 @@
 /**
- * MessageInput Component - Complete Rewrite
+ * MessageInput Component
  * Advanced input with file upload, drag-drop, keyboard shortcuts, and message queuing
- * Desktop-only version (no mobile/touch optimizations)
+ * Clean, professional design
  */
 
 import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
@@ -27,7 +27,6 @@ export interface MessageInputProps {
   placeholder?: string
   maxFiles?: number
   maxFileSize?: number
-  /** Override container classes (default: sticky bottom with border) */
   containerClassName?: string
 }
 
@@ -56,12 +55,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [attachments, setAttachments] = useState<ImageAttachment[]>([])
     const [isDragging, setIsDragging] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [isFocused, setIsFocused] = useState(false)
 
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const containerRef = useRef<HTMLDivElement>(null)
 
-    // Expose methods via ref
     useImperativeHandle(ref, () => ({
       focus: () => textareaRef.current?.focus(),
       clear: () => {
@@ -71,7 +70,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       }
     }))
 
-    // Auto-resize textarea
     useEffect(() => {
       const textarea = textareaRef.current
       if (!textarea) return
@@ -81,7 +79,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       textarea.style.height = `${newHeight}px`
     }, [message])
 
-    // Clear error after 5 seconds
     useEffect(() => {
       if (error) {
         const timer = setTimeout(() => setError(null), 5000)
@@ -93,18 +90,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       if (!files || files.length === 0) return
 
       try {
-        // Validate count
         validateFileCount(attachments.length, files.length, maxFiles)
 
         const newAttachments: ImageAttachment[] = []
 
         for (let i = 0; i < files.length; i++) {
           const file = files[i]
-
-          // Validate file
           validateImageFile(file, maxFileSize)
-
-          // Convert to base64
           const base64Data = await convertToBase64(file)
           const preview = createDataUrl(base64Data, file.type)
 
@@ -126,7 +118,6 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
     const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       handleFileSelect(e.target.files)
-      // Reset input so same file can be selected again
       e.target.value = ''
     }
 
@@ -151,13 +142,10 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       e.preventDefault()
       e.stopPropagation()
       setIsDragging(false)
-
-      const files = e.dataTransfer.files
-      await handleFileSelect(files)
+      await handleFileSelect(e.dataTransfer.files)
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Submit on Enter (without Shift)
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         if (!loading && (message.trim() || attachments.length > 0)) {
@@ -165,14 +153,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         }
       }
 
-      // Clear on Escape
       if (e.key === 'Escape') {
         onMessageChange('')
         setAttachments([])
         setError(null)
       }
 
-      // Unqueue on Arrow Up (if input is empty and unqueue function exists)
       if (e.key === 'ArrowUp' && !message.trim() && onUnqueue) {
         const unqueued = onUnqueue()
         if (unqueued) {
@@ -189,13 +175,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       }
 
       onSubmit(e, attachments)
-      // Clear attachments after submit
       setAttachments([])
       setError(null)
     }
 
     const canSubmit = !loading && !disabled && (message.trim() || attachments.length > 0)
-
     const defaultContainerClassName = "sticky bottom-0 p-4 pb-6"
 
     return (
@@ -206,12 +190,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto">
           {/* Error display */}
           {error && (
-            <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-600 dark:text-red-400 flex items-center justify-between shadow-sm">
+            <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400 flex items-center justify-between">
               <span>{error}</span>
               <button
                 type="button"
                 onClick={() => setError(null)}
-                className="ml-2 p-1.5 hover:bg-red-100 dark:hover:bg-red-800 rounded-lg transition-colors"
+                className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded transition-colors"
                 aria-label="Dismiss error"
               >
                 <X size={14} />
@@ -221,8 +205,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
           {/* Queue badge */}
           {messageQueue.length > 0 && (
-            <div className="mb-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-              <span className="px-3 py-1.5 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-full font-medium border border-primary-200 dark:border-primary-800">
+            <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+              <span className="px-2.5 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded font-medium">
                 {messageQueue.length} message{messageQueue.length > 1 ? 's' : ''} queued
               </span>
             </div>
@@ -235,7 +219,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             </div>
           )}
 
-          {/* Input container with drag-drop overlay */}
+          {/* Input container with drag-drop */}
           <div
             className="relative"
             onDragOver={handleDragOver}
@@ -244,30 +228,36 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           >
             {/* Drag overlay */}
             {isDragging && (
-              <div className="absolute inset-0 z-10 bg-primary-50/95 dark:bg-primary-900/95 border-2 border-dashed border-primary-400 dark:border-primary-500 rounded-3xl flex items-center justify-center backdrop-blur-sm">
+              <div className="absolute inset-0 z-10 bg-purple-50/95 dark:bg-purple-900/90 border-2 border-dashed border-purple-400 rounded-2xl flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="w-12 h-12 rounded-full bg-primary-100 dark:bg-primary-800 flex items-center justify-center">
-                    <Paperclip size={24} weight="duotone" className="text-primary-600 dark:text-primary-400" />
+                  <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-800 flex items-center justify-center">
+                    <Paperclip size={20} className="text-purple-600 dark:text-purple-400" />
                   </div>
-                  <span className="text-primary-700 dark:text-primary-300 font-medium">
+                  <span className="text-sm text-purple-700 dark:text-purple-300 font-medium">
                     Drop images here
                   </span>
                 </div>
               </div>
             )}
 
-            {/* Premium input container */}
-            <div className="input-premium flex items-end gap-2 rounded-3xl p-3">
+            {/* Input container - using inline Tailwind classes */}
+            <div
+              className={`flex items-end gap-2 rounded-2xl p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
+                isFocused
+                  ? 'border-purple-400 dark:border-purple-500 ring-3 ring-purple-500/10 dark:ring-purple-500/15'
+                  : 'border-gray-200 dark:border-gray-700'
+              }`}
+            >
               {/* Attach button */}
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading || disabled || attachments.length >= maxFiles}
-                className="flex-shrink-0 p-2.5 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label="Attach files"
                 title="Attach images"
               >
-                <Paperclip size={20} weight="duotone" />
+                <Paperclip size={18} />
               </button>
 
               {/* Hidden file input */}
@@ -282,14 +272,16 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               />
 
               {/* Textarea */}
-              <div className="flex-1 relative">
+              <div className="flex-1">
                 <textarea
                   ref={textareaRef}
                   value={message}
                   onChange={(e) => onMessageChange(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onFocus={() => setIsFocused(true)}
+                  onBlur={() => setIsFocused(false)}
                   placeholder={placeholder}
-                  className="flex-1 resize-none bg-transparent border-none outline-none px-2 py-2.5 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-[15px] leading-relaxed"
+                  className="resize-none bg-transparent border-none outline-none px-1 py-2 w-full text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 text-[15px] leading-relaxed"
                   style={{ maxHeight: `${MAX_HEIGHT}px` }}
                   rows={1}
                   disabled={loading || disabled}
@@ -297,31 +289,31 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 />
               </div>
 
-              {/* Send button - premium gradient */}
+              {/* Send button - using inline Tailwind classes */}
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="btn-primary flex-shrink-0 p-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
+                className="flex-shrink-0 p-2 rounded-lg bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-purple-600"
                 aria-label="Send message"
               >
                 {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-[18px] h-[18px] border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <PaperPlaneRight size={20} weight="fill" />
+                  <PaperPlaneRight size={18} weight="fill" />
                 )}
               </button>
             </div>
           </div>
 
-          {/* Loading indicator - refined */}
+          {/* Loading indicator */}
           {(loading || fetching) && (
-            <div className="mt-4 flex items-center justify-center gap-3">
-              <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-full">
-                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" />
-                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-                <div className="w-2 h-2 bg-primary-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse" />
+                <div className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }} />
+                <div className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }} />
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 {loading ? 'AI is thinking...' : 'Processing...'}
               </span>
             </div>
