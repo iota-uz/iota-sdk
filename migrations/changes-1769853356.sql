@@ -1,93 +1,111 @@
 -- +migrate Up
 -- BiChat module tables for multi-tenant chat sessions, messages, attachments, and HITL checkpoints
-
 -- Drop legacy tables from previous implementation
 DROP TABLE IF EXISTS dialogues CASCADE;
+
 DROP TABLE IF EXISTS prompts CASCADE;
 
+-- Create bichat schema
+CREATE SCHEMA IF NOT EXISTS bichat;
+
 -- Sessions table
-CREATE TABLE IF NOT EXISTS bichat_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title VARCHAR(255) NOT NULL DEFAULT '',
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
-    pinned BOOLEAN NOT NULL DEFAULT false,
-    parent_session_id UUID REFERENCES bichat_sessions(id) ON DELETE SET NULL,
-    pending_question_agent VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT bichat_sessions_status_check CHECK (status IN ('active', 'archived'))
+CREATE TABLE IF NOT EXISTS bichat.sessions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+    user_id bigint NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
+    title varchar(255) NOT NULL DEFAULT '',
+    status varchar(20) NOT NULL DEFAULT 'active',
+    pinned boolean NOT NULL DEFAULT FALSE,
+    parent_session_id uuid REFERENCES bichat.sessions (id) ON DELETE SET NULL,
+    pending_question_agent varchar(100),
+    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    updated_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    CONSTRAINT sessions_status_check CHECK (status IN ('active', 'archived'))
 );
 
 -- Messages table
-CREATE TABLE IF NOT EXISTS bichat_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES bichat_sessions(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS bichat.messages (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    session_id uuid NOT NULL REFERENCES bichat.sessions (id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL,
-    content TEXT NOT NULL,
-    tool_calls JSONB,
-    tool_call_id VARCHAR(255),
-    citations JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT bichat_messages_role_check CHECK (role IN ('user', 'assistant', 'tool', 'system'))
+    content text NOT NULL,
+    tool_calls jsonb,
+    tool_call_id varchar(255),
+    citations jsonb,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    CONSTRAINT messages_role_check CHECK (ROLE IN ('user', 'assistant', 'tool', 'system'))
 );
 
 -- Attachments table
-CREATE TABLE IF NOT EXISTS bichat_attachments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    message_id UUID NOT NULL REFERENCES bichat_messages(id) ON DELETE CASCADE,
-    file_name VARCHAR(255) NOT NULL,
-    mime_type VARCHAR(100) NOT NULL,
-    size_bytes BIGINT NOT NULL,
-    storage_path TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS bichat.attachments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    message_id uuid NOT NULL REFERENCES bichat.messages (id) ON DELETE CASCADE,
+    file_name varchar(255) NOT NULL,
+    mime_type varchar(100) NOT NULL,
+    size_bytes bigint NOT NULL,
+    storage_path text NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
 -- Checkpoints table
-CREATE TABLE IF NOT EXISTS bichat_checkpoints (
-    id VARCHAR(255) PRIMARY KEY,
-    thread_id VARCHAR(255) NOT NULL,
-    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    agent_name VARCHAR(100) NOT NULL,
-    messages JSONB NOT NULL,
-    pending_tools JSONB NOT NULL,
-    interrupt_type VARCHAR(100) NOT NULL,
-    interrupt_data JSONB,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW() + INTERVAL '24 hours'
+CREATE TABLE IF NOT EXISTS bichat.checkpoints (
+    id varchar(255) PRIMARY KEY,
+    thread_id varchar(255) NOT NULL,
+    tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
+    user_id bigint NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
+    agent_name varchar(100) NOT NULL,
+    messages jsonb NOT NULL,
+    pending_tools jsonb NOT NULL,
+    interrupt_type varchar(100) NOT NULL,
+    interrupt_data jsonb,
+    session_id uuid REFERENCES bichat.sessions (id) ON DELETE SET NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    expires_at timestamp with time zone NOT NULL DEFAULT NOW() + interval '24 hours'
 );
 
 -- Indexes for sessions
-CREATE INDEX idx_bichat_sessions_tenant_user ON bichat_sessions(tenant_id, user_id);
-CREATE INDEX idx_bichat_sessions_tenant_id ON bichat_sessions(tenant_id, id);
-CREATE INDEX idx_bichat_sessions_status ON bichat_sessions(status);
-CREATE INDEX idx_bichat_sessions_created_at ON bichat_sessions(created_at DESC);
-CREATE INDEX idx_bichat_sessions_pinned ON bichat_sessions(pinned) WHERE pinned = true;
-CREATE INDEX idx_bichat_sessions_parent ON bichat_sessions(parent_session_id) WHERE parent_session_id IS NOT NULL;
+CREATE INDEX idx_sessions_tenant_user ON bichat.sessions (tenant_id, user_id);
+
+CREATE INDEX idx_sessions_tenant_id ON bichat.sessions (tenant_id, id);
+
+CREATE INDEX idx_sessions_status ON bichat.sessions (status);
+
+CREATE INDEX idx_sessions_created_at ON bichat.sessions (created_at DESC);
+
+CREATE INDEX idx_sessions_pinned ON bichat.sessions (pinned)
+WHERE
+    pinned = TRUE;
+
+CREATE INDEX idx_sessions_parent ON bichat.sessions (parent_session_id)
+WHERE
+    parent_session_id IS NOT NULL;
 
 -- Indexes for messages
-CREATE INDEX idx_bichat_messages_session ON bichat_messages(session_id, created_at DESC);
-CREATE INDEX idx_bichat_messages_created_at ON bichat_messages(created_at);
-CREATE INDEX idx_bichat_messages_role ON bichat_messages(role);
-CREATE INDEX idx_bichat_messages_tool_call ON bichat_messages(tool_call_id) WHERE tool_call_id IS NOT NULL;
+CREATE INDEX idx_messages_session ON bichat.messages (session_id, created_at DESC);
+
+CREATE INDEX idx_messages_created_at ON bichat.messages (created_at);
+
+CREATE INDEX idx_messages_role ON bichat.messages (ROLE);
+
+CREATE INDEX idx_messages_tool_call ON bichat.messages (tool_call_id)
+WHERE
+    tool_call_id IS NOT NULL;
 
 -- Indexes for attachments
-CREATE INDEX idx_bichat_attachments_message ON bichat_attachments(message_id);
-CREATE INDEX idx_bichat_attachments_created_at ON bichat_attachments(created_at);
+CREATE INDEX idx_attachments_message ON bichat.attachments (message_id);
+
+CREATE INDEX idx_attachments_created_at ON bichat.attachments (created_at);
 
 -- Indexes for checkpoints
-CREATE INDEX idx_bichat_checkpoints_thread ON bichat_checkpoints(thread_id);
-CREATE INDEX idx_bichat_checkpoints_tenant_user ON bichat_checkpoints(tenant_id, user_id);
-CREATE INDEX idx_bichat_checkpoints_expires ON bichat_checkpoints(expires_at);
+CREATE INDEX idx_checkpoints_thread ON bichat.checkpoints (thread_id);
 
--- Add session_id column to bichat_checkpoints for multi-tenant isolation and session tracking
-ALTER TABLE bichat_checkpoints
-ADD COLUMN session_id UUID;
+CREATE INDEX idx_checkpoints_tenant_user ON bichat.checkpoints (tenant_id, user_id);
 
--- Add index for session_id lookups
-CREATE INDEX idx_bichat_checkpoints_session ON bichat_checkpoints(session_id) WHERE session_id IS NOT NULL;
+CREATE INDEX idx_checkpoints_expires ON bichat.checkpoints (expires_at);
+
+CREATE INDEX idx_checkpoints_session ON bichat.checkpoints (session_id)
+WHERE
+    session_id IS NOT NULL;
 
 -- +migrate StatementBegin
 -- Create analytics schema for BiChat query executor
@@ -97,90 +115,442 @@ CREATE SCHEMA IF NOT EXISTS analytics;
 -- Create bichat_agent_role with restricted permissions (SELECT only)
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'bichat_agent_role') THEN
-        CREATE ROLE bichat_agent_role;
-    END IF;
+    IF NOT EXISTS (
+        SELECT
+        FROM
+            pg_catalog.pg_roles
+        WHERE
+            rolname = 'bichat_agent_role') THEN
+    CREATE ROLE bichat_agent_role;
+END IF;
 EXCEPTION
     WHEN duplicate_object THEN
         NULL;
 END
 $$;
 
--- Grant USAGE on analytics schema only
+-- Grant USAGE on analytics and bichat schemas
 GRANT USAGE ON SCHEMA analytics TO bichat_agent_role;
+
+GRANT USAGE ON SCHEMA bichat TO bichat_agent_role;
 
 -- Grant SELECT on all current and future tables/views in analytics schema
 GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO bichat_agent_role;
-ALTER DEFAULT PRIVILEGES IN SCHEMA analytics GRANT SELECT ON TABLES TO bichat_agent_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA analytics GRANT
+SELECT
+    ON TABLES TO bichat_agent_role;
+
+-- Grant SELECT on all current and future tables in bichat schema
+GRANT SELECT ON ALL TABLES IN SCHEMA bichat TO bichat_agent_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA bichat GRANT
+SELECT
+    ON TABLES TO bichat_agent_role;
 
 -- Revoke all permissions on public schema and other schemas
 REVOKE ALL ON SCHEMA public FROM bichat_agent_role;
+
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM bichat_agent_role;
 
 -- Block access to system schemas
 REVOKE ALL ON SCHEMA pg_catalog FROM bichat_agent_role;
+
 REVOKE ALL ON SCHEMA information_schema FROM bichat_agent_role;
 
--- NOTE: Child projects should create their own denormalized views in the analytics schema
--- Example pattern for child projects:
---
--- CREATE OR REPLACE VIEW analytics.payments_summary AS
--- SELECT
---     id,
---     tenant_id,
---     amount,
---     status,
---     created_at
--- FROM public.payments
--- WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
---
--- CREATE OR REPLACE VIEW analytics.clients_overview AS
--- SELECT
---     id,
---     tenant_id,
---     name,
---     email,
---     total_orders
--- FROM public.clients
--- WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
+-- Create denormalized views for all tenant-scoped tables
+-- Public schema tables
+CREATE OR REPLACE VIEW analytics.clients AS
+SELECT
+    *
+FROM
+    public.clients
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
 
--- Placeholder structure for child projects to extend
-COMMENT ON SCHEMA analytics IS 'Denormalized views for BiChat query executor. Child projects should create tenant-isolated views here using current_setting(''app.tenant_id'', true)::UUID pattern.';
+CREATE OR REPLACE VIEW analytics.counterparty AS
+SELECT
+    *
+FROM
+    public.counterparty
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.employees AS
+SELECT
+    *
+FROM
+    public.employees
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.users AS
+SELECT
+    *
+FROM
+    public.users
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.warehouse_units AS
+SELECT
+    *
+FROM
+    public.warehouse_units
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.warehouse_positions AS
+SELECT
+    *
+FROM
+    public.warehouse_positions
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.warehouse_products AS
+SELECT
+    *
+FROM
+    public.warehouse_products
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.warehouse_orders AS
+SELECT
+    *
+FROM
+    public.warehouse_orders
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.inventory AS
+SELECT
+    *
+FROM
+    public.inventory
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.inventory_checks AS
+SELECT
+    *
+FROM
+    public.inventory_checks
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.inventory_check_results AS
+SELECT
+    *
+FROM
+    public.inventory_check_results
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.transactions AS
+SELECT
+    *
+FROM
+    public.transactions
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.payments AS
+SELECT
+    *
+FROM
+    public.payments
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.expenses AS
+SELECT
+    *
+FROM
+    public.expenses
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.expense_categories AS
+SELECT
+    *
+FROM
+    public.expense_categories
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.payment_categories AS
+SELECT
+    *
+FROM
+    public.payment_categories
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.money_accounts AS
+SELECT
+    *
+FROM
+    public.money_accounts
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.debts AS
+SELECT
+    *
+FROM
+    public.debts
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.projects AS
+SELECT
+    *
+FROM
+    public.projects
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.billing_transactions AS
+SELECT
+    *
+FROM
+    public.billing_transactions
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.uploads AS
+SELECT
+    *
+FROM
+    public.uploads
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.sessions AS
+SELECT
+    *
+FROM
+    public.sessions
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.chats AS
+SELECT
+    *
+FROM
+    public.chats
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.dialogues AS
+SELECT
+    *
+FROM
+    public.dialogues
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.message_templates AS
+SELECT
+    *
+FROM
+    public.message_templates
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.action_logs AS
+SELECT
+    *
+FROM
+    public.action_logs
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.authentication_logs AS
+SELECT
+    *
+FROM
+    public.authentication_logs
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.positions AS
+SELECT
+    *
+FROM
+    public.positions
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.roles AS
+SELECT
+    *
+FROM
+    public.roles
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.prompts AS
+SELECT
+    *
+FROM
+    public.prompts
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.passports AS
+SELECT
+    *
+FROM
+    public.passports
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.user_groups AS
+SELECT
+    *
+FROM
+    public.user_groups
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.companies AS
+SELECT
+    *
+FROM
+    public.companies
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.chat_members AS
+SELECT
+    *
+FROM
+    public.chat_members
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.ai_chat_configs AS
+SELECT
+    *
+FROM
+    public.ai_chat_configs
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+CREATE OR REPLACE VIEW analytics.permissions AS
+SELECT
+    *
+FROM
+    public.permissions
+WHERE
+    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+
+COMMENT ON SCHEMA analytics IS 'Denormalized views for BiChat query executor with automatic tenant isolation using current_setting(''app.tenant_id'', true)::UUID pattern.';
+
 -- +migrate StatementEnd
-
 -- Code interpreter outputs table
-CREATE TABLE IF NOT EXISTS bichat_code_interpreter_outputs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    message_id UUID NOT NULL REFERENCES bichat_messages(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    mime_type VARCHAR(100) NOT NULL,
-    url TEXT NOT NULL,
-    size_bytes BIGINT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS bichat.code_interpreter_outputs (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    message_id uuid NOT NULL REFERENCES bichat.messages (id) ON DELETE CASCADE,
+    name varchar(255) NOT NULL,
+    mime_type varchar(100) NOT NULL,
+    url text NOT NULL,
+    size_bytes bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
 -- Index for fast lookup by message
-CREATE INDEX idx_bichat_code_outputs_message ON bichat_code_interpreter_outputs(message_id);
+CREATE INDEX idx_code_outputs_message ON bichat.code_interpreter_outputs (message_id);
 
 -- Index for created_at ordering
-CREATE INDEX idx_bichat_code_outputs_created_at ON bichat_code_interpreter_outputs(created_at);
+CREATE INDEX idx_code_outputs_created_at ON bichat.code_interpreter_outputs (created_at);
 
 -- +migrate Down
--- Drop code_interpreter_outputs table
-DROP TABLE IF EXISTS bichat_code_interpreter_outputs CASCADE;
+-- Drop bichat schema (cascades to all tables and indexes)
+DROP SCHEMA IF EXISTS bichat CASCADE;
 
 -- +migrate StatementBegin
+-- Drop analytics views (explicit drops for clarity, though CASCADE will handle them)
+DROP VIEW IF EXISTS analytics.permissions;
+
+DROP VIEW IF EXISTS analytics.ai_chat_configs;
+
+DROP VIEW IF EXISTS analytics.chat_members;
+
+DROP VIEW IF EXISTS analytics.companies;
+
+DROP VIEW IF EXISTS analytics.user_groups;
+
+DROP VIEW IF EXISTS analytics.passports;
+
+DROP VIEW IF EXISTS analytics.prompts;
+
+DROP VIEW IF EXISTS analytics.roles;
+
+DROP VIEW IF EXISTS analytics.positions;
+
+DROP VIEW IF EXISTS analytics.authentication_logs;
+
+DROP VIEW IF EXISTS analytics.action_logs;
+
+DROP VIEW IF EXISTS analytics.message_templates;
+
+DROP VIEW IF EXISTS analytics.dialogues;
+
+DROP VIEW IF EXISTS analytics.chats;
+
+DROP VIEW IF EXISTS analytics.tabs;
+
+DROP VIEW IF EXISTS analytics.sessions;
+
+DROP VIEW IF EXISTS analytics.uploads;
+
+DROP VIEW IF EXISTS analytics.billing_transactions;
+
+DROP VIEW IF EXISTS analytics.projects;
+
+DROP VIEW IF EXISTS analytics.debts;
+
+DROP VIEW IF EXISTS analytics.money_accounts;
+
+DROP VIEW IF EXISTS analytics.payment_categories;
+
+DROP VIEW IF EXISTS analytics.expense_categories;
+
+DROP VIEW IF EXISTS analytics.expenses;
+
+DROP VIEW IF EXISTS analytics.payments;
+
+DROP VIEW IF EXISTS analytics.transactions;
+
+DROP VIEW IF EXISTS analytics.inventory_check_results;
+
+DROP VIEW IF EXISTS analytics.inventory_checks;
+
+DROP VIEW IF EXISTS analytics.inventory;
+
+DROP VIEW IF EXISTS analytics.warehouse_orders;
+
+DROP VIEW IF EXISTS analytics.warehouse_products;
+
+DROP VIEW IF EXISTS analytics.warehouse_positions;
+
+DROP VIEW IF EXISTS analytics.warehouse_units;
+
+DROP VIEW IF EXISTS analytics.users;
+
+DROP VIEW IF EXISTS analytics.employees;
+
+DROP VIEW IF EXISTS analytics.counterparty;
+
+DROP VIEW IF EXISTS analytics.clients;
+
 -- Drop analytics schema and bichat_agent_role
 DROP SCHEMA IF EXISTS analytics CASCADE;
+
 DROP ROLE IF EXISTS bichat_agent_role;
+
 -- +migrate StatementEnd
-
--- Remove session_id column and index
-DROP INDEX IF EXISTS idx_bichat_checkpoints_session;
-ALTER TABLE bichat_checkpoints
-DROP COLUMN IF EXISTS session_id;
-
-DROP TABLE IF EXISTS bichat_checkpoints CASCADE;
-DROP TABLE IF EXISTS bichat_attachments CASCADE;
-DROP TABLE IF EXISTS bichat_messages CASCADE;
-DROP TABLE IF EXISTS bichat_sessions CASCADE;
