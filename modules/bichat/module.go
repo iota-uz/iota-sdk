@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 )
@@ -73,12 +75,29 @@ func (m *Module) Register(app application.Application) error {
 
 	controllersToRegister := []application.Controller{}
 
-	// Register ChatController with GraphQL endpoint if config is available
+	// Register GraphQL schema and controllers if config is available
 	if m.config != nil {
 		// Build services (fail fast - no try/continue)
 		if err := m.config.BuildServices(); err != nil {
 			return fmt.Errorf("failed to build BiChat services: %w", err)
 		}
+
+		// Register GraphQL schema (accessible at /query/bichat via core's GraphQLController)
+		resolver := resolvers.NewResolver(
+			app,
+			m.config.ChatService(),
+			m.config.AgentService(),
+			m.config.AttachmentService(),
+			m.config.ArtifactService(),
+		)
+		app.RegisterGraphSchema(application.GraphSchema{
+			Value: generated.NewExecutableSchema(
+				generated.Config{
+					Resolvers: resolver,
+				},
+			),
+			BasePath: "/bichat",
+		})
 
 		// Create and register ChatController with all services
 		chatController := controllers.NewChatController(
@@ -92,7 +111,7 @@ func (m *Module) Register(app application.Application) error {
 		controllersToRegister = append(controllersToRegister, chatController)
 
 		if m.config.Logger != nil {
-			m.config.Logger.Info("Registered BiChat ChatController with GraphQL endpoint at /bi-chat/graphql")
+			m.config.Logger.Info("Registered BiChat GraphQL schema at /query/bichat and REST endpoints at /bi-chat/*")
 		}
 	}
 

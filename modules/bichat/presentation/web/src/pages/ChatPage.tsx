@@ -20,6 +20,14 @@ const SessionQuery = `
         role
         content
         createdAt
+        codeOutputs {
+          id
+          name
+          mimeType
+          url
+          size
+          createdAt
+        }
         toolCalls {
           id
           name
@@ -85,9 +93,37 @@ export default function ChatPage() {
           citations: msg.citations?.map((c: any, idx: number) => ({
             id: `${msg.id}-citation-${idx}`,
             source: c.source,
+            title: c.title,
             url: c.url,
             excerpt: c.excerpt,
           })),
+          codeOutputs: (msg.codeOutputs || []).map((o: any) => {
+            const mimeType = (o.mimeType || '').toString()
+            if (mimeType.startsWith('image/')) {
+              return {
+                type: 'image',
+                content: {
+                  filename: o.name,
+                  mimeType: o.mimeType,
+                  sizeBytes: o.size,
+                  base64Data: '',
+                  preview: o.url,
+                },
+              }
+            }
+
+            return {
+              type: 'file',
+              content: {
+                id: o.id,
+                name: o.name,
+                mimeType: o.mimeType,
+                url: o.url,
+                size: o.size,
+                createdAt: o.createdAt,
+              },
+            }
+          }),
         })) as Message[],
         pendingQuestion: null,
       }

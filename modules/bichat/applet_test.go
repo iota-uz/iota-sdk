@@ -33,7 +33,7 @@ func TestBiChatApplet_Config(t *testing.T) {
 	assert.Equal(t, "__BICHAT_CONTEXT__", config.WindowGlobal)
 
 	// Verify endpoints
-	assert.Equal(t, "/bi-chat/graphql", config.Endpoints.GraphQL)
+	assert.Equal(t, "/query/bichat", config.Endpoints.GraphQL)
 	assert.Equal(t, "/bi-chat/stream", config.Endpoints.Stream)
 
 	// Verify assets

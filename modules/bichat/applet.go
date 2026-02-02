@@ -72,8 +72,8 @@ func (a *BiChatApplet) Config() applet.Config {
 
 		// Endpoints configures API endpoint paths
 		Endpoints: applet.EndpointConfig{
-			GraphQL: "/bi-chat/graphql", // GraphQL API endpoint
-			Stream:  "/bi-chat/stream",  // SSE streaming endpoint
+			GraphQL: "/query/bichat",   // GraphQL API endpoint (via core's GraphQLController)
+			Stream:  "/bi-chat/stream", // SSE streaming endpoint
 		},
 
 		// Assets configuration for serving the built React app

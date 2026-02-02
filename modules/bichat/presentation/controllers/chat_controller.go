@@ -5,13 +5,10 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/bichat/permissions"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -70,10 +67,7 @@ func (c *ChatController) Register(r *mux.Router) {
 	subRouter := r.PathPrefix("/bi-chat").Subrouter()
 	subRouter.Use(commonMiddleware...)
 
-	// GraphQL endpoint
-	c.registerGraphQL(subRouter)
-
-	// Session routes
+	// Session routes (GraphQL is now handled by core's GraphQLController at /query/bichat)
 	subRouter.HandleFunc("/sessions", c.ListSessions).Methods("GET")
 	subRouter.HandleFunc("/sessions", c.CreateSession).Methods("POST")
 	subRouter.HandleFunc("/sessions/{id}", c.GetSession).Methods("GET")
@@ -84,37 +78,8 @@ func (c *ChatController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/sessions/{id}", c.DeleteSession).Methods("DELETE")
 }
 
-// registerGraphQL registers the GraphQL endpoint.
-// GraphQL endpoint requires agentService and attachmentService to be configured.
-func (c *ChatController) registerGraphQL(r *mux.Router) {
-	// Services should always be available (fail-fast in module.Register)
-	// This check is defensive - should never happen in production
-	if c.agentService == nil || c.attachmentService == nil {
-		panic("BUG: ChatController created with nil services - should have failed in module.Register")
-	}
-
-	// Create resolver with all required services
-	resolver := resolvers.NewResolver(
-		c.app,
-		c.chatService,
-		c.agentService,
-		c.attachmentService,
-		c.artifactService,
-	)
-
-	// Create GraphQL schema
-	schema := generated.NewExecutableSchema(
-		generated.Config{
-			Resolvers: resolver,
-		},
-	)
-
-	// Create GraphQL handler
-	graphqlHandler := handler.NewDefaultServer(schema)
-
-	// Register GraphQL endpoint
-	r.Handle("/graphql", graphqlHandler).Methods("GET", "POST")
-}
+// GraphQL registration has been moved to module.go
+// BiChat GraphQL schema is now accessible at /query/bichat via core's GraphQLController
 
 // ListSessions returns all sessions for the current user.
 func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {

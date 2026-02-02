@@ -9,6 +9,7 @@ import { Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react'
 import AttachmentGrid from './AttachmentGrid'
 import { validateImageFile, validateFileCount, convertToBase64, createDataUrl } from '../utils/fileUtils'
 import type { ImageAttachment, QueuedMessage } from '../types'
+import { useTranslation } from '../hooks/useTranslation'
 
 export interface MessageInputRef {
   focus: () => void
@@ -45,17 +46,21 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       onMessageChange,
       onSubmit,
       onUnqueue,
-      placeholder = 'Type a message...',
+      placeholder: placeholderOverride,
       maxFiles = MAX_FILES_DEFAULT,
       maxFileSize = MAX_FILE_SIZE_DEFAULT,
-      containerClassName
+      containerClassName,
     },
     ref
   ) => {
+    const { t } = useTranslation()
     const [attachments, setAttachments] = useState<ImageAttachment[]>([])
     const [isDragging, setIsDragging] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isFocused, setIsFocused] = useState(false)
+
+    // Use override or translation
+    const placeholder = placeholderOverride || t('input.placeholder')
 
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -196,7 +201,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 type="button"
                 onClick={() => setError(null)}
                 className="ml-2 p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded transition-colors"
-                aria-label="Dismiss error"
+                aria-label={t('input.dismissError')}
               >
                 <X size={14} />
               </button>
@@ -207,7 +212,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           {messageQueue.length > 0 && (
             <div className="mb-3 text-xs text-gray-500 dark:text-gray-400">
               <span className="px-2.5 py-1 bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded font-medium">
-                {messageQueue.length} message{messageQueue.length > 1 ? 's' : ''} queued
+                {t('input.messagesQueued', { count: messageQueue.length })}
               </span>
             </div>
           )}
@@ -234,7 +239,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     <Paperclip size={20} className="text-primary-600 dark:text-primary-400" />
                   </div>
                   <span className="text-sm text-primary-700 dark:text-primary-300 font-medium">
-                    Drop images here
+                    {t('input.dropImages')}
                   </span>
                 </div>
               </div>
@@ -254,8 +259,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading || disabled || attachments.length >= maxFiles}
                 className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                aria-label="Attach files"
-                title="Attach images"
+                aria-label={t('input.attachFiles')}
+                title={t('input.attachImages')}
               >
                 <Paperclip size={18} />
               </button>
@@ -294,7 +299,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 type="submit"
                 disabled={!canSubmit}
                 className="flex-shrink-0 p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
-                aria-label="Send message"
+                aria-label={t('input.sendMessage')}
               >
                 {loading ? (
                   <div className="w-[18px] h-[18px] border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
@@ -314,7 +319,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 <div className="w-1.5 h-1.5 bg-gray-400 dark:bg-gray-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }} />
               </div>
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {loading ? 'AI is thinking...' : 'Processing...'}
+                {loading ? t('input.aiThinking') : t('input.processing')}
               </span>
             </div>
           )}
