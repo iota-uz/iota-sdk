@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -131,6 +132,40 @@ func CreateTestTenant(ctx context.Context, pool *pgxpool.Pool) (*composables.Ten
 	}
 
 	return testTenant, nil
+}
+
+func CreateTestUser(ctx context.Context, pool *pgxpool.Pool, u user.User, tenantID uuid.UUID) error {
+	firstName := u.FirstName()
+	if firstName == "" {
+		firstName = "Test"
+	}
+	lastName := u.LastName()
+	if lastName == "" {
+		lastName = "User"
+	}
+	uiLanguage := string(u.UILanguage())
+	if uiLanguage == "" {
+		uiLanguage = "en"
+	}
+
+	// Keep insert minimal and tolerant to schema evolution.
+	_, err := pool.Exec(
+		ctx,
+		`INSERT INTO users (id, tenant_id, first_name, last_name, email, ui_language, type, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+		 ON CONFLICT (id) DO NOTHING`,
+		u.ID(),
+		tenantID,
+		firstName,
+		lastName,
+		u.Email().Value(),
+		uiLanguage,
+		string(u.Type()),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create test user: %w", err)
+	}
+	return nil
 }
 
 const (
@@ -261,11 +296,55 @@ func CreateDB(name string) {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
+	// Best-effort cleanup: if a previous test left connections open, DROP DATABASE
+	// will fail with "being accessed by other users".
+	_, err = db.ExecContext(
+		context.Background(),
+		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+		strings.ToLower(sanitizedName),
+	)
+	if err != nil {
+		panic(err)
+	}
+
 	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
 	if err != nil {
 		panic(err)
 	}
 	_, err = db.ExecContext(context.Background(), fmt.Sprintf("CREATE DATABASE %s", sanitizedName))
+	if err != nil {
+		panic(err)
+	}
+}
+
+func DropDB(name string) {
+	sanitizedName := sanitizeDBName(name)
+
+	c := configuration.Use()
+	adminConnStr := fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
+		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+	)
+	db, err := sql.Open("postgres", adminConnStr)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("[WARNING] Error closing DropDB connection: %v", err)
+		}
+	}()
+
+	_, err = db.ExecContext(
+		context.Background(),
+		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
+		strings.ToLower(sanitizedName),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
 	if err != nil {
 		panic(err)
 	}

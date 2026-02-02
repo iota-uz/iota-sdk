@@ -97,6 +97,14 @@ func WithUser(u user.User) Option {
 	}
 }
 
+// WithSeedUserInDB persists the provided test user in the database.
+// By default, WithUser only sets the user in context; it is not inserted into DB.
+func WithSeedUserInDB() Option {
+	return func(tc *TestContext) {
+		tc.seedUserInDB = true
+	}
+}
+
 // applyOptions applies all options to the test context
 func (tc *TestContext) applyOptions(opts ...Option) *TestContext {
 	for _, opt := range opts {
