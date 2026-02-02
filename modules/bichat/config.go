@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
@@ -94,6 +95,11 @@ type ModuleConfig struct {
 
 	// Feature toggles
 	DisableTitleGeneration bool // Disable auto-title generation
+
+	// Optional: View access control for SQL execution
+	// When configured, SQL queries are validated against user permissions
+	// before execution to the analytics schema views
+	ViewAccessConfig *permissions.Config
 
 	// Internal: Created services (initialized during BuildServices)
 	chatService       bichatservices.ChatService
@@ -245,6 +251,23 @@ func WithNoOpAttachmentStorage() ConfigOption {
 func WithTitleGenerationDisabled() ConfigOption {
 	return func(c *ModuleConfig) {
 		c.DisableTitleGeneration = true
+	}
+}
+
+// WithViewAccessConfig configures permission-based view access control for SQL execution.
+// When configured, the SQL execute and schema tools will validate user permissions
+// against the analytics schema views before execution.
+//
+// Example:
+//
+//	viewConfig := permissions.NewConfig("analytics", []permissions.ViewPermission{
+//	    {ViewName: "expenses", Required: []permission.Permission{financeperm.ExpenseRead}},
+//	    {ViewName: "payments", Required: []permission.Permission{financeperm.PaymentRead}},
+//	})
+//	cfg := bichat.NewModuleConfig(..., bichat.WithViewAccessConfig(viewConfig))
+func WithViewAccessConfig(cfg *permissions.Config) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ViewAccessConfig = cfg
 	}
 }
 

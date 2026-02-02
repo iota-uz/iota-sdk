@@ -9,23 +9,46 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// SQLExecuteToolOption configures a SQLExecuteTool.
+type SQLExecuteToolOption func(*SQLExecuteTool)
+
 // SQLExecuteTool executes SQL queries against a database via bichatsql.QueryExecutor.
 // It validates queries to ensure they are read-only and enforces row limits.
+// Optionally checks view permissions before executing queries.
 type SQLExecuteTool struct {
-	executor bichatsql.QueryExecutor
+	executor   bichatsql.QueryExecutor
+	viewAccess permissions.ViewAccessControl
 }
 
 // NewSQLExecuteTool creates a new SQL execute tool.
 // The executor parameter provides database access and should be provided by the consumer.
-func NewSQLExecuteTool(executor bichatsql.QueryExecutor) agents.Tool {
-	return &SQLExecuteTool{
+// Optional WithViewAccessControl option enables permission checking.
+func NewSQLExecuteTool(executor bichatsql.QueryExecutor, opts ...SQLExecuteToolOption) agents.Tool {
+	tool := &SQLExecuteTool{
 		executor: executor,
+	}
+
+	for _, opt := range opts {
+		opt(tool)
+	}
+
+	return tool
+}
+
+// WithViewAccessControl adds view permission checking to the SQL execute tool.
+// When configured, the tool will validate that the user has permission to access
+// all views referenced in the SQL query before execution.
+func WithViewAccessControl(vac permissions.ViewAccessControl) SQLExecuteToolOption {
+	return func(t *SQLExecuteTool) {
+		t.viewAccess = vac
 	}
 }
 
@@ -116,6 +139,36 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			HintNoWriteOperations,
 			HintUseSchemaList,
 		), serrors.E(op, err)
+	}
+
+	// Check view permissions if configured
+	if t.viewAccess != nil {
+		deniedViews, err := t.viewAccess.CheckQueryPermissions(ctx, params.Query)
+		if err != nil {
+			return FormatToolError(
+				ErrCodeQueryError,
+				fmt.Sprintf("failed to check query permissions: %v", err),
+				"Contact administrator if this error persists",
+			), serrors.E(op, err)
+		}
+
+		if len(deniedViews) > 0 {
+			// Get user for personalized error message
+			user, userErr := composables.UseUser(ctx)
+			userName := "User"
+			if userErr == nil {
+				userName = fmt.Sprintf("%s %s", user.FirstName(), user.LastName())
+			}
+
+			errMsg := permissions.FormatPermissionError(userName, deniedViews)
+
+			return FormatToolError(
+				ErrCodePermissionDenied,
+				errMsg,
+				HintRequestAccess,
+				HintCheckAccessibleViews,
+			), nil
+		}
 	}
 
 	// Check for placeholder/parameter mismatch

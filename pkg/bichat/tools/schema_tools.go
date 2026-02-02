@@ -6,7 +6,9 @@ import (
 	"regexp"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -18,15 +20,36 @@ func isValidIdentifier(name string) bool {
 	return validIdentifierPattern.MatchString(name)
 }
 
+// SchemaListToolOption configures a SchemaListTool.
+type SchemaListToolOption func(*SchemaListTool)
+
 // SchemaListTool lists all available tables and views in a schema.
+// Optionally annotates views with access status based on user permissions.
 type SchemaListTool struct {
-	lister bichatsql.SchemaLister
+	lister     bichatsql.SchemaLister
+	viewAccess permissions.ViewAccessControl
 }
 
 // NewSchemaListTool creates a new schema list tool.
-func NewSchemaListTool(lister bichatsql.SchemaLister) agents.Tool {
-	return &SchemaListTool{
+// The lister parameter provides schema listing functionality.
+// Optional WithSchemaListViewAccess option enables permission-based access annotations.
+func NewSchemaListTool(lister bichatsql.SchemaLister, opts ...SchemaListToolOption) agents.Tool {
+	tool := &SchemaListTool{
 		lister: lister,
+	}
+
+	for _, opt := range opts {
+		opt(tool)
+	}
+
+	return tool
+}
+
+// WithSchemaListViewAccess adds view permission checking to the schema list tool.
+// When configured, the tool will annotate each view with "access": "ok" or "access": "denied".
+func WithSchemaListViewAccess(vac permissions.ViewAccessControl) SchemaListToolOption {
+	return func(t *SchemaListTool) {
+		t.viewAccess = vac
 	}
 }
 
@@ -38,7 +61,7 @@ func (t *SchemaListTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SchemaListTool) Description() string {
 	return "List all available tables and views in the analytics schema. " +
-		"Returns table names with row counts and descriptions."
+		"Returns table names with row counts, descriptions, and access status."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -71,6 +94,16 @@ func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error)
 		), serrors.E(op, "no tables found")
 	}
 
+	// Check permissions if view access control is configured
+	var viewInfos []permissions.ViewInfo
+	if t.viewAccess != nil {
+		viewNames := make([]string, len(tables))
+		for i, table := range tables {
+			viewNames[i] = table.Name
+		}
+		viewInfos, _ = t.viewAccess.GetAccessibleViews(ctx, viewNames)
+	}
+
 	// Convert to map format for tool output
 	result := make([]map[string]any, len(tables))
 	for i, table := range tables {
@@ -85,20 +118,46 @@ func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error)
 		if table.Description != "" {
 			result[i]["description"] = table.Description
 		}
+
+		// Add access status if permission checking is enabled
+		if t.viewAccess != nil && i < len(viewInfos) {
+			result[i]["access"] = viewInfos[i].Access
+		}
 	}
 
 	return agents.FormatToolOutput(result)
 }
 
+// SchemaDescribeToolOption configures a SchemaDescribeTool.
+type SchemaDescribeToolOption func(*SchemaDescribeTool)
+
 // SchemaDescribeTool provides detailed schema information for a specific table.
+// Optionally checks permissions before returning schema details.
 type SchemaDescribeTool struct {
-	describer bichatsql.SchemaDescriber
+	describer  bichatsql.SchemaDescriber
+	viewAccess permissions.ViewAccessControl
 }
 
 // NewSchemaDescribeTool creates a new schema describe tool.
-func NewSchemaDescribeTool(describer bichatsql.SchemaDescriber) agents.Tool {
-	return &SchemaDescribeTool{
+// The describer parameter provides schema description functionality.
+// Optional WithSchemaDescribeViewAccess option enables permission checking.
+func NewSchemaDescribeTool(describer bichatsql.SchemaDescriber, opts ...SchemaDescribeToolOption) agents.Tool {
+	tool := &SchemaDescribeTool{
 		describer: describer,
+	}
+
+	for _, opt := range opts {
+		opt(tool)
+	}
+
+	return tool
+}
+
+// WithSchemaDescribeViewAccess adds view permission checking to the schema describe tool.
+// When configured, the tool will deny access to views the user doesn't have permission for.
+func WithSchemaDescribeViewAccess(vac permissions.ViewAccessControl) SchemaDescribeToolOption {
+	return func(t *SchemaDescribeTool) {
+		t.viewAccess = vac
 	}
 }
 
@@ -110,7 +169,8 @@ func (t *SchemaDescribeTool) Name() string {
 // Description returns the tool description for the LLM.
 func (t *SchemaDescribeTool) Description() string {
 	return "Get detailed schema information for a specific table or view. " +
-		"Returns column names, types, constraints, indexes, and sample values."
+		"Returns column names, types, constraints, indexes, and sample values. " +
+		"Only accessible views can be described."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -164,6 +224,43 @@ func (t *SchemaDescribeTool) Call(ctx context.Context, input string) (string, er
 			"Table names must start with letter or underscore",
 			"Use schema_list to see valid table names",
 		), serrors.E(op, "invalid table name: must match pattern ^[a-zA-Z_][a-zA-Z0-9_]*$")
+	}
+
+	// Check view permission if configured
+	if t.viewAccess != nil {
+		canAccess, err := t.viewAccess.CanAccess(ctx, params.TableName)
+		if err != nil {
+			return FormatToolError(
+				ErrCodeQueryError,
+				fmt.Sprintf("failed to check view access: %v", err),
+				"Contact administrator if this error persists",
+			), serrors.E(op, err)
+		}
+
+		if !canAccess {
+			// Get user for personalized error message
+			user, userErr := composables.UseUser(ctx)
+			userName := "User"
+			if userErr == nil {
+				userName = fmt.Sprintf("%s %s", user.FirstName(), user.LastName())
+			}
+
+			// Get required permissions
+			requiredPerms := t.viewAccess.GetRequiredPermissions(params.TableName)
+			deniedViews := []permissions.DeniedView{{
+				Name:                params.TableName,
+				RequiredPermissions: requiredPerms,
+			}}
+
+			errMsg := permissions.FormatPermissionError(userName, deniedViews)
+
+			return FormatToolError(
+				ErrCodePermissionDenied,
+				errMsg,
+				HintRequestAccess,
+				HintCheckAccessibleViews,
+			), nil
+		}
 	}
 
 	schema, err := t.describer.SchemaDescribe(ctx, params.TableName)
