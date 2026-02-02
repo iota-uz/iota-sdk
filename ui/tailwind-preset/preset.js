@@ -7,7 +7,7 @@
  * Usage:
  * ```js
  * // In applet's tailwind.config.js
- * const iotaPreset = require('@iota-uz/tailwind-preset')
+ * const iotaPreset = require('@iotauz/tailwind-preset')
  *
  * module.exports = {
  *   presets: [iotaPreset],

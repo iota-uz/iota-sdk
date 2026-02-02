@@ -1,5 +1,5 @@
 {
-  "name": "@iota-uz/applet-core",
+  "name": "@iotauz/applet-core",
   "version": "0.1.0",
   "description": "Core React package for IOTA SDK applets - context injection, hooks, and utilities",
   "main": "dist/index.js",

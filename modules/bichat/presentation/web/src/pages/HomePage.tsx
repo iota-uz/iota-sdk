@@ -7,7 +7,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from 'urql'
-import { WelcomeContent, MessageInput, type MessageInputRef } from '@iota-uz/bichat-ui'
+import { WelcomeContent, MessageInput, type MessageInputRef } from '@iotauz/bichat-ui'
 
 const CREATE_SESSION_MUTATION = `
   mutation CreateSession {
@@ -19,9 +19,11 @@ const CREATE_SESSION_MUTATION = `
 `
 
 const SEND_MESSAGE_MUTATION = `
-  mutation SendMessage($sessionId: ID!, $content: String!) {
+  mutation SendMessage($sessionId: UUID!, $content: String!) {
     sendMessage(sessionId: $sessionId, content: $content) {
-      id
+      session {
+        id
+      }
     }
   }
 `

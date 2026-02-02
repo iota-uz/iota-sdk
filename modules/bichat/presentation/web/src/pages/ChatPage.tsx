@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useMemo } from 'react'
-import { ChatSession } from '@iota-uz/bichat-ui'
-import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iota-uz/bichat-ui'
+import { ChatSession } from '@iotauz/bichat-ui'
+import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iotauz/bichat-ui'
 import { useClient } from 'urql'
 import { useIotaContext } from '../contexts/IotaContext'
 
@@ -44,8 +44,8 @@ export default function ChatPage() {
   const dataSource = useMemo<ChatDataSource>(() => ({
     async createSession(): Promise<Session> {
       const mutation = `
-        mutation CreateSession($title: String) {
-          createSession(title: $title) {
+        mutation CreateSession {
+          createSession {
             id
             title
             status
@@ -55,7 +55,7 @@ export default function ChatPage() {
           }
         }
       `
-      const result = await client.mutation(mutation, { title: 'New Chat' }).toPromise()
+      const result = await client.mutation(mutation, {}).toPromise()
       if (result.error) throw new Error(result.error.message)
       return result.data.createSession
     },
@@ -103,6 +103,7 @@ export default function ChatPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           sessionId,
           content,
@@ -140,12 +141,28 @@ export default function ChatPage() {
               const data = line.slice(6)
               try {
                 const chunk = JSON.parse(data)
+                
+                // Map backend chunk types to frontend types
+                // Backend sends: "content", "citation", "done", "error" (lowercase)
+                // Frontend expects: "chunk", "error", "done", "user_message"
+                let chunkType: 'chunk' | 'error' | 'done' | 'user_message'
+                if (chunk.type === 'content' || chunk.type === 'citation') {
+                  chunkType = 'chunk'
+                } else if (chunk.type === 'done') {
+                  chunkType = 'done'
+                } else if (chunk.type === 'error') {
+                  chunkType = 'error'
+                } else {
+                  // Fallback: use lowercase version
+                  chunkType = chunk.type.toLowerCase() as 'chunk' | 'error' | 'done' | 'user_message'
+                }
+                
                 yield {
-                  type: chunk.type === 'CONTENT' ? 'chunk' : chunk.type.toLowerCase(),
+                  type: chunkType,
                   content: chunk.content,
                   error: chunk.error,
                 }
-                if (chunk.type === 'DONE' || chunk.type === 'ERROR') return
+                if (chunk.type === 'done' || chunk.type === 'error') return
               } catch (parseErr) {
                 console.error('Failed to parse SSE data:', parseErr)
               }

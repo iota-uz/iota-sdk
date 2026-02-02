@@ -1,4 +1,4 @@
-# @iota-uz/tailwind-preset
+# @iotauz/tailwind-preset
 
 Shared Tailwind CSS preset for IOTA SDK applets. Provides unified design tokens, typography, and styling across all React/Next.js applets.
 
@@ -13,7 +13,7 @@ Shared Tailwind CSS preset for IOTA SDK applets. Provides unified design tokens,
 ## Installation
 
 ```bash
-pnpm install @iota-uz/tailwind-preset
+pnpm install @iotauz/tailwind-preset
 ```
 
 ## Usage
@@ -21,7 +21,7 @@ pnpm install @iota-uz/tailwind-preset
 ### In Your Applet's `tailwind.config.js`
 
 ```js
-const iotaPreset = require('@iota-uz/tailwind-preset')
+const iotaPreset = require('@iotauz/tailwind-preset')
 
 module.exports = {
   presets: [iotaPreset],
@@ -226,7 +226,7 @@ document.documentElement.style.setProperty('--color-primary-600', '#7c3aed')
 You can extend or override the preset in your applet's Tailwind config:
 
 ```js
-const iotaPreset = require('@iota-uz/tailwind-preset')
+const iotaPreset = require('@iotauz/tailwind-preset')
 
 module.exports = {
   presets: [iotaPreset],

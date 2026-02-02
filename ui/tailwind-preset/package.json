@@ -1,5 +1,5 @@
 {
-  "name": "@iota-uz/tailwind-preset",
+  "name": "@iotauz/tailwind-preset",
   "version": "1.0.0",
   "description": "Shared Tailwind CSS preset for IOTA SDK applets",
   "main": "preset.js",

@@ -1,5 +1,5 @@
 /**
- * @iota-uz/applet-core - Core React package for IOTA SDK applets
+ * @iotauz/applet-core - Core React package for IOTA SDK applets
  *
  * Provides context injection, hooks, and utilities for building React applets
  * that integrate seamlessly with the IOTA SDK runtime.

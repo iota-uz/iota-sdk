@@ -12,7 +12,7 @@
     "codegen": "graphql-codegen"
   },
   "dependencies": {
-    "@iota-uz/bichat-ui": "file:../../../../ui/bichat",
+    "@iotauz/bichat-ui": "file:../../../../ui/bichat",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",

@@ -8,7 +8,7 @@ import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery, useMutation } from 'urql'
 import { Plus } from '@phosphor-icons/react'
-import { SearchInput, EmptyState } from '@iota-uz/bichat-ui'
+import { SearchInput, EmptyState } from '@iotauz/bichat-ui'
 import TabBar from './TabBar'
 import SessionList from './SessionList/SessionList'
 import SessionSkeleton from './SessionSkeleton'
@@ -204,18 +204,6 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
       role="navigation"
       aria-label="Chat sessions"
     >
-      {/* Header */}
-      <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary-600 flex items-center justify-center">
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-          </div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">BiChat</h2>
-        </div>
-      </div>
-
       {/* TabBar - Only visible if user has ReadAll permission */}
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} showAllChats={canReadAllChats} />
 
