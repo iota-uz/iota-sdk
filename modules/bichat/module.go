@@ -87,6 +87,7 @@ func (m *Module) Register(app application.Application) error {
 			m.config.ChatRepo,
 			m.config.AgentService(),
 			m.config.AttachmentService(),
+			m.config.ArtifactService(),
 		)
 		controllersToRegister = append(controllersToRegister, chatController)
 

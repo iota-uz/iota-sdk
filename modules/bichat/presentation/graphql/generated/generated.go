@@ -42,6 +42,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Session() SessionResolver
 	Subscription() SubscriptionResolver
 }
 
@@ -212,6 +213,9 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	MessageStream(ctx context.Context, sessionID string) (<-chan *model.MessageChunk, error)
+}
+type SessionResolver interface {
+	Artifacts(ctx context.Context, obj *model.Session, limit *int, offset *int, types []string) ([]*model.Artifact, error)
 }
 
 type executableSchema struct {

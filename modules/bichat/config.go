@@ -99,6 +99,7 @@ type ModuleConfig struct {
 	chatService       bichatservices.ChatService
 	agentService      bichatservices.AgentService
 	attachmentService bichatservices.AttachmentService
+	artifactService   bichatservices.ArtifactService
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -559,6 +560,27 @@ func (c *ModuleConfig) BuildServices() error {
 		c.attachmentService = services.NewAttachmentService(fileStorage)
 	}
 
+	// Build ArtifactService (uses same file storage as attachments)
+	if c.artifactService == nil {
+		var fileStorage storage.FileStorage
+
+		if c.DisableAttachmentStorage {
+			fileStorage = storage.NewNoOpFileStorage()
+		} else {
+			// Create LocalFileStorage with configured paths
+			fs, err := storage.NewLocalFileStorage(
+				c.AttachmentStorageBasePath,
+				c.AttachmentStorageBaseURL,
+			)
+			if err != nil {
+				return serrors.E(op, err, "failed to create artifact storage")
+			}
+			fileStorage = fs
+		}
+
+		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage)
+	}
+
 	return nil
 }
 
@@ -578,6 +600,12 @@ func (c *ModuleConfig) AgentService() bichatservices.AgentService {
 // Returns nil if BuildServices hasn't been called yet.
 func (c *ModuleConfig) AttachmentService() bichatservices.AttachmentService {
 	return c.attachmentService
+}
+
+// ArtifactService returns the cached ArtifactService instance.
+// Returns nil if BuildServices hasn't been called yet.
+func (c *ModuleConfig) ArtifactService() bichatservices.ArtifactService {
+	return c.artifactService
 }
 
 // String provides a human-readable representation of the configuration

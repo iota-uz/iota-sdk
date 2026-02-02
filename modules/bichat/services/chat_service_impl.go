@@ -248,8 +248,8 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	var interrupt *bichatservices.Interrupt
 
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
@@ -369,8 +369,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var interrupted bool
 
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
@@ -469,8 +469,14 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		return nil, serrors.E(op, err)
 	}
 
+	// Convert map[string]string to map[string]types.Answer
+	answersMap := make(map[string]types.Answer, len(req.Answers))
+	for questionID, answerValue := range req.Answers {
+		answersMap[questionID] = types.NewAnswer(answerValue)
+	}
+
 	// Resume agent execution with answers
-	gen, err := s.agentService.ResumeWithAnswer(ctx, req.SessionID, req.CheckpointID, req.Answers)
+	gen, err := s.agentService.ResumeWithAnswer(ctx, req.SessionID, req.CheckpointID, answersMap)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -480,8 +486,8 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	var assistantContent strings.Builder
 
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {

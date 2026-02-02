@@ -334,6 +334,26 @@ func (m *mockChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID)
 	return nil
 }
 
+func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact *domain.Artifact) error {
+	return nil
+}
+
+func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (*domain.Artifact, error) {
+	return nil, errors.New("artifact not found")
+}
+
+func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Artifact, error) {
+	return nil, nil
+}
+
+func (m *mockChatRepository) DeleteArtifact(ctx context.Context, id uuid.UUID) error {
+	return nil
+}
+
+func (m *mockChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error {
+	return nil
+}
+
 func TestNewAgentService(t *testing.T) {
 	t.Parallel()
 

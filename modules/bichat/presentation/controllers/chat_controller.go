@@ -15,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -28,6 +27,7 @@ type ChatController struct {
 	chatRepo          domain.ChatRepository
 	agentService      services.AgentService
 	attachmentService services.AttachmentService
+	artifactService   services.ArtifactService
 }
 
 // NewChatController creates a new chat controller.
@@ -38,6 +38,7 @@ func NewChatController(
 	chatRepo domain.ChatRepository,
 	agentService services.AgentService,
 	attachmentService services.AttachmentService,
+	artifactService services.ArtifactService,
 ) *ChatController {
 	return &ChatController{
 		app:               app,
@@ -45,6 +46,7 @@ func NewChatController(
 		chatRepo:          chatRepo,
 		agentService:      agentService,
 		attachmentService: attachmentService,
+		artifactService:   artifactService,
 	}
 }
 
@@ -97,6 +99,7 @@ func (c *ChatController) registerGraphQL(r *mux.Router) {
 		c.chatService,
 		c.agentService,
 		c.attachmentService,
+		c.artifactService,
 	)
 
 	// Create GraphQL schema
@@ -304,16 +307,10 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Convert answers from map[string]string to map[string]types.Answer
-	canonicalAnswers := make(map[string]types.Answer, len(req.Answers))
-	for qid, answerStr := range req.Answers {
-		canonicalAnswers[qid] = types.NewAnswer(answerStr)
-	}
-
 	response, err := c.chatService.ResumeWithAnswer(r.Context(), services.ResumeRequest{
 		SessionID:    sessionID,
 		CheckpointID: req.CheckpointID,
-		Answers:      canonicalAnswers,
+		Answers:      req.Answers,
 	})
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
