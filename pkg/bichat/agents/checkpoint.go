@@ -254,7 +254,7 @@ func NewPostgresCheckpointer() *PostgresCheckpointer {
 
 const (
 	checkpointInsertQuery = `
-		INSERT INTO bichat_checkpoints (
+		INSERT INTO bichat.checkpoints (
 			id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 			interrupt_type, interrupt_data, created_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -263,21 +263,21 @@ const (
 	checkpointSelectQuery = `
 		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 		       interrupt_type, interrupt_data, created_at
-		FROM bichat_checkpoints
+		FROM bichat.checkpoints
 		WHERE id = $1 AND tenant_id = $2
 	`
 
 	checkpointSelectByThreadQuery = `
 		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 		       interrupt_type, interrupt_data, created_at
-		FROM bichat_checkpoints
+		FROM bichat.checkpoints
 		WHERE thread_id = $1 AND tenant_id = $2
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
 
 	checkpointDeleteQuery = `
-		DELETE FROM bichat_checkpoints
+		DELETE FROM bichat.checkpoints
 		WHERE id = $1 AND tenant_id = $2
 	`
 )

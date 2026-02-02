@@ -63,6 +63,7 @@ func toGraphQLMessage(m *types.Message) *model.Message {
 		ToolCalls:   toGraphQLToolCalls(m.ToolCalls),
 		Attachments: toGraphQLAttachments(m.Attachments),
 		Citations:   toGraphQLCitations(m.Citations),
+		CodeOutputs: toGraphQLCodeOutputs(m.CodeOutputs),
 		CreatedAt:   m.CreatedAt,
 	}
 
@@ -71,6 +72,26 @@ func toGraphQLMessage(m *types.Message) *model.Message {
 	}
 
 	return gqlMessage
+}
+
+// toGraphQLCodeOutputs converts []types.CodeInterpreterOutput to []*model.CodeInterpreterOutput
+func toGraphQLCodeOutputs(outputs []types.CodeInterpreterOutput) []*model.CodeInterpreterOutput {
+	if len(outputs) == 0 {
+		return []*model.CodeInterpreterOutput{}
+	}
+
+	result := make([]*model.CodeInterpreterOutput, len(outputs))
+	for i, o := range outputs {
+		result[i] = &model.CodeInterpreterOutput{
+			ID:        o.ID.String(),
+			Name:      o.Name,
+			MimeType:  o.MimeType,
+			URL:       o.URL,
+			Size:      o.Size,
+			CreatedAt: o.CreatedAt,
+		}
+	}
+	return result
 }
 
 // toGraphQLMessageRole converts types.Role to GraphQL MessageRole

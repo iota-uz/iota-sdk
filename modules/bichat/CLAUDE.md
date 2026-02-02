@@ -89,7 +89,7 @@ if (extensions.features.vision) {
 ```go
 // CRITICAL: Always use tenant isolation
 tenantID, err := composables.UseTenantID(ctx)
-query := "SELECT * FROM bichat_sessions WHERE tenant_id = $1 AND id = $2"
+query := "SELECT * FROM bichat.sessions WHERE tenant_id = $1 AND id = $2"
 ```
 
 ### SSE Streaming (Critical)
@@ -132,18 +132,18 @@ cfg := bichat.NewModuleConfig(
 
 See: `infrastructure/persistence/schema/bichat-schema.sql`
 
-**Key Tables:**
-- `bichat_sessions` - Chat sessions (tenant_id, user_id, status, pinned)
-- `bichat_messages` - Messages (session_id, role, content, tool_calls, citations)
-- `bichat_attachments` - File attachments (message_id, file_name, storage_path)
-- `bichat_checkpoints` - HITL checkpoints (thread_id, expires_at)
+**Key Tables (schema `bichat`):**
+- `bichat.sessions` - Chat sessions (tenant_id, user_id, status, pinned)
+- `bichat.messages` - Messages (session_id, role, content, tool_calls, citations)
+- `bichat.attachments` - File attachments (message_id, file_name, storage_path)
+- `bichat.checkpoints` - HITL checkpoints (thread_id, expires_at)
 
-**Note**: `citations` column in `bichat_messages` stores JSONB array of web search citations with fields: Type, Title, URL, Excerpt, StartIndex, EndIndex.
+**Note**: `citations` column in `bichat.messages` stores JSONB array of web search citations with fields: Type, Title, URL, Excerpt, StartIndex, EndIndex.
 
 **Critical Indexes:**
-- `idx_bichat_sessions_tenant_user` - Multi-tenant queries
-- `idx_bichat_messages_session` - Message listing
-- `idx_bichat_checkpoints_thread` - Checkpoint lookup
+- `idx_sessions_tenant_user` on `bichat.sessions` - Multi-tenant queries
+- `idx_messages_session` on `bichat.messages` - Message listing
+- `idx_checkpoints_thread` on `bichat.checkpoints` - Checkpoint lookup
 
 ## API Endpoints
 

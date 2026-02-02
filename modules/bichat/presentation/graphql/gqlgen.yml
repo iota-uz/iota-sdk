@@ -10,9 +10,10 @@ model:
   package: model
 
 resolver:
-  filename: resolvers/resolver.go
-  type: Resolver
+  layout: follow-schema
+  dir: resolvers
   package: resolvers
+  filename_template: "{name}.resolvers.go"
 
 models:
   Int64:
