@@ -25,11 +25,48 @@ export interface AppConfig {
   streamEndpoint: string
 }
 
+export interface Extensions {
+  branding?: {
+    appName?: string
+    logoUrl?: string
+    theme?: {
+      primary?: string
+      secondary?: string
+      accent?: string
+    }
+    welcome?: {
+      title?: string
+      description?: string
+      examplePrompts?: Array<{
+        category: string
+        text: string
+        icon: string
+      }>
+    }
+    colors?: {
+      primary?: string
+      secondary?: string
+      accent?: string
+    }
+    logo?: {
+      src?: string
+      alt?: string
+    }
+  }
+  features?: {
+    vision?: boolean
+    webSearch?: boolean
+    codeInterpreter?: boolean
+    multiAgent?: boolean
+  }
+}
+
 export interface IotaContext {
   user: UserContext
   tenant: TenantContext
   locale: LocaleContext
   config: AppConfig
+  extensions?: Extensions
 }
 
 declare global {

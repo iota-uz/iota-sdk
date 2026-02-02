@@ -161,3 +161,37 @@ export interface ChatSessionContextValue {
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   cancel: () => void
 }
+
+// Translations
+export type Translations = Record<string, string>
+
+// Branding
+export interface ExamplePrompt {
+  category: string
+  text: string
+  icon: string
+}
+
+export interface BrandingConfig {
+  appName: string
+  logoUrl?: string
+  theme?: {
+    primary?: string
+    secondary?: string
+    accent?: string
+  }
+  welcome?: {
+    title?: string
+    description?: string
+    examplePrompts?: ExamplePrompt[]
+  }
+  colors?: {
+    primary?: string
+    secondary?: string
+    accent?: string
+  }
+  logo?: {
+    src?: string
+    alt?: string
+  }
+}
