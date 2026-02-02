@@ -14,6 +14,10 @@ modules/bichat/presentation/assets/dist/
 bin/
 logs/
 
+# Build artifacts
+dist/
+**/dist/
+
 go.work*
 
 **/.claude/settings.local.json
