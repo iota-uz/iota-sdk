@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,15 +54,15 @@ func TestAskUserQuestionTool_Call_Success(t *testing.T) {
 	result, err := tool.Call(ctx, input)
 	require.NoError(t, err)
 
-	// Parse result as InterruptData
-	var interruptData InterruptData
-	err = json.Unmarshal([]byte(result), &interruptData)
+	// Parse result as AskUserQuestionPayload
+	var payload types.AskUserQuestionPayload
+	err = json.Unmarshal([]byte(result), &payload)
 	require.NoError(t, err)
 
-	assert.Equal(t, "ask_user_question", interruptData.Type)
-	assert.Len(t, interruptData.Questions, 1)
+	assert.Equal(t, types.InterruptTypeAskUserQuestion, payload.Type)
+	assert.Len(t, payload.Questions, 1)
 
-	q := interruptData.Questions[0]
+	q := payload.Questions[0]
 	assert.Equal(t, "What is your preferred time range?", q.Question)
 	assert.Equal(t, "Time Range", q.Header)
 	assert.False(t, q.MultiSelect)
@@ -101,15 +102,15 @@ func TestAskUserQuestionTool_Call_MultipleQuestions(t *testing.T) {
 	result, err := tool.Call(ctx, input)
 	require.NoError(t, err)
 
-	var interruptData InterruptData
-	err = json.Unmarshal([]byte(result), &interruptData)
+	var payload types.AskUserQuestionPayload
+	err = json.Unmarshal([]byte(result), &payload)
 	require.NoError(t, err)
 
-	assert.Len(t, interruptData.Questions, 2)
-	assert.Equal(t, "Metric", interruptData.Questions[0].Header)
-	assert.False(t, interruptData.Questions[0].MultiSelect)
-	assert.Equal(t, "Region", interruptData.Questions[1].Header)
-	assert.True(t, interruptData.Questions[1].MultiSelect)
+	assert.Len(t, payload.Questions, 2)
+	assert.Equal(t, "Metric", payload.Questions[0].Header)
+	assert.False(t, payload.Questions[0].MultiSelect)
+	assert.Equal(t, "Region", payload.Questions[1].Header)
+	assert.True(t, payload.Questions[1].MultiSelect)
 }
 
 func TestAskUserQuestionTool_Call_WithMetadata(t *testing.T) {
@@ -136,12 +137,12 @@ func TestAskUserQuestionTool_Call_WithMetadata(t *testing.T) {
 	result, err := tool.Call(ctx, input)
 	require.NoError(t, err)
 
-	var interruptData InterruptData
-	err = json.Unmarshal([]byte(result), &interruptData)
+	var payload types.AskUserQuestionPayload
+	err = json.Unmarshal([]byte(result), &payload)
 	require.NoError(t, err)
 
-	require.NotNil(t, interruptData.Metadata)
-	assert.Equal(t, "remember", interruptData.Metadata.Source)
+	require.NotNil(t, payload.Metadata)
+	assert.Equal(t, "remember", payload.Metadata.Source)
 }
 
 func TestAskUserQuestionTool_Call_ValidationErrors(t *testing.T) {
@@ -249,71 +250,5 @@ func TestAskUserQuestionTool_Call_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestAskUserQuestionHandler_HandleInterrupt(t *testing.T) {
-	handler := NewAskUserQuestionHandler()
-	ctx := context.Background()
-
-	input := `{
-		"questions": [
-			{
-				"question": "Confirm action?",
-				"header": "Confirm",
-				"multiSelect": false,
-				"options": [
-					{"label": "Yes", "description": "Proceed"},
-					{"label": "No", "description": "Cancel"}
-				]
-			}
-		]
-	}`
-
-	data, err := handler.HandleInterrupt(ctx, "ask_user_question", input)
-	require.NoError(t, err)
-	assert.NotEmpty(t, data)
-
-	// Verify checkpoint data can be unmarshaled
-	var interruptData InterruptData
-	err = json.Unmarshal(data, &interruptData)
-	require.NoError(t, err)
-	assert.Equal(t, "ask_user_question", interruptData.Type)
-	assert.Len(t, interruptData.Questions, 1)
-}
-
-func TestAskUserQuestionHandler_ResumeFromInterrupt(t *testing.T) {
-	handler := NewAskUserQuestionHandler()
-	ctx := context.Background()
-
-	// Checkpoint data
-	checkpointData := json.RawMessage(`{
-		"type": "ask_user_question",
-		"questions": [
-			{
-				"question": "Select metric?",
-				"header": "Metric",
-				"multiSelect": false,
-				"options": [
-					{"label": "Revenue", "description": "Total revenue"},
-					{"label": "Profit", "description": "Net profit"}
-				]
-			}
-		]
-	}`)
-
-	// User answers
-	answer := `{"Metric": "Revenue"}`
-
-	result, err := handler.ResumeFromInterrupt(ctx, checkpointData, answer)
-	require.NoError(t, err)
-
-	// Parse result
-	var resultData map[string]interface{}
-	err = json.Unmarshal([]byte(result), &resultData)
-	require.NoError(t, err)
-
-	assert.Contains(t, resultData, "questions")
-	assert.Contains(t, resultData, "answers")
-
-	answers, ok := resultData["answers"].(map[string]interface{})
-	require.True(t, ok)
-	assert.Equal(t, "Revenue", answers["Metric"])
-}
+// Tests for NewAskUserQuestionHandler removed - InterruptHandler interface deprecated.
+// The executor now handles interrupts directly via tool call detection and resume.

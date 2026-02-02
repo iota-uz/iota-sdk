@@ -2,6 +2,7 @@ package agents
 
 import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -10,7 +11,7 @@ import (
 // It provides SQL querying, schema exploration, charting, and optional export capabilities.
 type DefaultBIAgent struct {
 	*agents.BaseAgent
-	executor              tools.QueryExecutorService
+	executor              bichatsql.QueryExecutor
 	kbSearcher            tools.KBSearcher
 	exportTools           []agents.Tool // Optional export tools (Excel, PDF)
 	model                 string        // Store model separately to apply during initialization
@@ -63,7 +64,7 @@ func WithExportTools(exportTools ...agents.Tool) BIAgentOption {
 // The executor parameter is required for SQL querying capabilities.
 // Additional tools (KB search) can be added via options.
 func NewDefaultBIAgent(
-	executor tools.QueryExecutorService,
+	executor bichatsql.QueryExecutor,
 	opts ...BIAgentOption,
 ) (*DefaultBIAgent, error) {
 	const op serrors.Op = "NewDefaultBIAgent"
@@ -83,11 +84,15 @@ func NewDefaultBIAgent(
 		opt(agent)
 	}
 
+	// Create schema adapters using the query executor
+	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
+
 	// Build core tools list
 	agentTools := []agents.Tool{
 		tools.NewGetCurrentTimeTool(),
-		tools.NewSchemaListTool(executor),
-		tools.NewSchemaDescribeTool(executor),
+		tools.NewSchemaListTool(schemaLister),
+		tools.NewSchemaDescribeTool(schemaDescriber),
 		tools.NewSQLExecuteTool(executor),
 		tools.NewDrawChartTool(),
 		tools.NewAskUserQuestionTool(),

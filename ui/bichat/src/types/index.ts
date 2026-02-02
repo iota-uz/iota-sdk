@@ -26,7 +26,6 @@ export interface Message {
   createdAt: string
   toolCalls?: ToolCall[]
   citations?: Citation[]
-  codeOutputs?: CodeOutput[]
   chartData?: ChartData
   artifacts?: Artifact[]
   explanation?: string
@@ -39,20 +38,10 @@ export interface ToolCall {
 }
 
 export interface Citation {
-  id?: string // Optional - backend doesn't always provide id
+  id: string
   source: string
-  title?: string
   url?: string
   excerpt?: string
-}
-
-export interface CodeOutputFile {
-  id: string
-  name: string
-  mimeType: string
-  url: string
-  size: number
-  createdAt: string
 }
 
 export interface Attachment {
@@ -74,8 +63,8 @@ export interface ImageAttachment {
 
 // Code interpreter output
 export interface CodeOutput {
-  type: 'image' | 'text' | 'error' | 'file'
-  content: string | ImageAttachment | CodeOutputFile
+  type: 'image' | 'text' | 'error'
+  content: string | ImageAttachment
 }
 
 // Queued message for offline/loading state
@@ -93,17 +82,12 @@ export interface ChartData {
 }
 
 export interface Artifact {
-  id: string
-  sessionID: string
-  messageID?: string
-  type: string  // Extensible: "code_output", "chart", "export", etc.
-  name: string
+  type: 'excel' | 'pdf'
+  filename: string
+  url: string
+  sizeReadable?: string
+  rowCount?: number
   description?: string
-  mimeType?: string
-  url?: string
-  sizeBytes: number
-  metadata?: Record<string, any>  // JSON metadata (chart spec, row counts, etc.)
-  createdAt: string
 }
 
 export interface PendingQuestion {
@@ -176,84 +160,4 @@ export interface ChatSessionContextValue {
   handleUnqueue: () => { content: string; attachments: ImageAttachment[] } | null
   sendMessage: (content: string, attachments?: Attachment[]) => Promise<void>
   cancel: () => void
-}
-
-// =========================================================================
-// Branding & Customization Types
-// =========================================================================
-
-/**
- * Example prompt shown on the welcome screen.
- */
-export interface ExamplePrompt {
-  /** Category label (e.g., "Analysis", "Reports") */
-  category: string
-  /** The actual prompt text that gets sent when clicked */
-  text: string
-  /** Icon identifier from Phosphor Icons (e.g., "chart-bar", "file-text") */
-  icon?: string
-}
-
-/**
- * Welcome screen configuration.
- */
-export interface WelcomeConfig {
-  /** Main heading on the welcome screen */
-  title?: string
-  /** Subtitle/description text */
-  description?: string
-  /** Suggested prompts shown to users */
-  examplePrompts?: ExamplePrompt[]
-}
-
-/**
- * Theme configuration for visual customization.
- */
-export interface ThemeConfig {
-  /** Main accent color (hex format) */
-  primaryColor?: string
-  /** Chat background color */
-  backgroundColor?: string
-  /** Primary text color */
-  textColor?: string
-}
-
-/**
- * Branding configuration for the chat interface.
- * Injected from backend via window.__BICHAT_CONTEXT__.branding
- */
-export interface BrandingConfig {
-  /** Application name displayed in the UI */
-  appName?: string
-  /** URL to the application logo */
-  logoUrl?: string
-  /** Welcome screen configuration */
-  welcome?: WelcomeConfig
-  /** Theme configuration */
-  theme?: ThemeConfig
-}
-
-/**
- * Translation strings for the UI (flat key-value map).
- * Keys use dot notation (e.g., "welcome.title", "chat.newChat").
- */
-export type Translations = Record<string, string>
-
-/**
- * Feature flags passed from backend.
- */
-export interface FeatureFlags {
-  vision: boolean
-  webSearch: boolean
-  codeInterpreter: boolean
-  multiAgent: boolean
-}
-
-/**
- * Custom context extensions injected via window.__BICHAT_CONTEXT__.
- */
-export interface BiChatContextExtensions {
-  features: FeatureFlags
-  branding: BrandingConfig
-  translations: Translations
 }

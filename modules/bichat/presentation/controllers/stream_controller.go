@@ -53,7 +53,7 @@ func (c *StreamController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	}
 
-	subRouter := r.PathPrefix("/bichat").Subrouter()
+	subRouter := r.PathPrefix("/bi-chat").Subrouter()
 	subRouter.Use(commonMiddleware...)
 
 	// Stream route

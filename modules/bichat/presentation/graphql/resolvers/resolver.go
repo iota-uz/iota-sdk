@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -23,22 +24,20 @@ type Resolver struct {
 	chatService       services.ChatService
 	agentService      services.AgentService
 	attachmentService services.AttachmentService
-	artifactService   services.ArtifactService
 }
 
+// NewResolver creates a new GraphQL resolver with required services.
 func NewResolver(
 	app application.Application,
 	chatService services.ChatService,
 	agentService services.AgentService,
 	attachmentService services.AttachmentService,
-	artifactService services.ArtifactService,
 ) *Resolver {
 	return &Resolver{
 		app:               app,
 		chatService:       chatService,
 		agentService:      agentService,
 		attachmentService: attachmentService,
-		artifactService:   artifactService,
 	}
 }
 
@@ -189,16 +188,41 @@ func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID strin
 	}
 
 	// Parse answers JSON string to map[string]string
-	var answersMap map[string]string
-	if err := json.Unmarshal([]byte(answers), &answersMap); err != nil {
+	// Parse answers JSON (can be map[string]string or map[string][]string for multi-select)
+	var answersRaw map[string]interface{}
+	if err := json.Unmarshal([]byte(answers), &answersRaw); err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, "invalid answers JSON", err)
+	}
+
+	// Convert to canonical types.Answer format
+	canonicalAnswers := make(map[string]types.Answer, len(answersRaw))
+	for qid, value := range answersRaw {
+		// Handle both string (single-select) and []string (multi-select)
+		switch v := value.(type) {
+		case string:
+			canonicalAnswers[qid] = types.NewAnswer(v)
+		case []interface{}:
+			// Multi-select: convert []interface{} to []string
+			strs := make([]string, 0, len(v))
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					strs = append(strs, s)
+				}
+			}
+			canonicalAnswers[qid] = types.NewMultiAnswer(strs)
+		default:
+			// Try to marshal as JSON for complex types
+			if data, err := json.Marshal(v); err == nil {
+				canonicalAnswers[qid] = types.Answer{Value: data}
+			}
+		}
 	}
 
 	// Call service
 	req := services.ResumeRequest{
 		SessionID:    sid,
 		CheckpointID: checkpointID,
-		Answers:      answersMap,
+		Answers:      canonicalAnswers,
 	}
 
 	resp, err := r.chatService.ResumeWithAnswer(ctx, req)
@@ -346,53 +370,9 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 	return true, nil
 }
 
-// CancelPendingQuestion is the resolver for the cancelPendingQuestion field.
-func (r *mutationResolver) CancelPendingQuestion(ctx context.Context, sessionID string) (*model.Session, error) {
-	const op serrors.Op = "Resolver.CancelPendingQuestion"
-
-	// Parse UUID
-	sid, err := uuid.Parse(sessionID)
-	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
-	}
-
-	// Get authenticated user
-	user, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, serrors.E(op, serrors.PermissionDenied, err)
-	}
-	if user == nil {
-		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
-	}
-
-	// Verify session ownership
-	session, err := r.chatService.GetSession(ctx, sid)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	if session.UserID != int64(user.ID()) {
-		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
-	}
-
-	// Cancel pending question
-	updatedSession, err := r.chatService.CancelPendingQuestion(ctx, sid)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	return toGraphQLSession(updatedSession), nil
-}
-
 // Sessions is the resolver for the sessions field.
-// Sessions are scoped by tenant and user from context.
 func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) ([]*model.Session, error) {
 	const op serrors.Op = "Resolver.Sessions"
-
-	// Extract tenant ID for tenant filtering
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
-	}
 
 	user, err := composables.UseUser(ctx)
 	if err != nil {
@@ -418,19 +398,9 @@ func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) (
 		Offset: o,
 	}
 
-	// ListUserSessions filters by tenant_id internally, but we explicitly pass tenantID
-	// to ensure tenant isolation is enforced at the resolver level
 	sessions, err := r.chatService.ListUserSessions(ctx, userID, opts)
 	if err != nil {
 		return nil, serrors.E(op, err)
-	}
-
-	// Verify all returned sessions belong to the tenant (defense in depth)
-	// The service layer should already filter by tenant, but we verify here
-	for _, s := range sessions {
-		if s.TenantID != tenantID {
-			return nil, serrors.E(op, serrors.PermissionDenied, "tenant mismatch detected")
-		}
 	}
 
 	// Convert to GraphQL models
@@ -451,31 +421,9 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 		return nil, serrors.E(op, serrors.KindValidation, err)
 	}
 
-	// Get authenticated user and tenant
-	user, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, serrors.E(op, serrors.PermissionDenied, err)
-	}
-	if user == nil {
-		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
-	}
-
-	tenantID, err := composables.UseTenantID(ctx)
-	if err != nil {
-		return nil, serrors.E(op, serrors.KindValidation, err)
-	}
-
 	session, err := r.chatService.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
-	}
-
-	// Verify ownership and tenant match
-	if session.UserID != int64(user.ID()) {
-		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
-	}
-	if session.TenantID != tenantID {
-		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to tenant")
 	}
 
 	return toGraphQLSession(session), nil
@@ -488,24 +436,6 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	sid, err := uuid.Parse(sessionID)
 	if err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, err)
-	}
-
-	// Get authenticated user first
-	user, err := composables.UseUser(ctx)
-	if err != nil {
-		return nil, serrors.E(op, serrors.PermissionDenied, err)
-	}
-	if user == nil {
-		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
-	}
-
-	// Verify session ownership before fetching messages
-	session, err := r.chatService.GetSession(ctx, sid)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-	if session.UserID != int64(user.ID()) {
-		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
 	// Set defaults
@@ -537,13 +467,6 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	return result, nil
 }
 
-// Session returns the Session resolver (for Session.artifacts).
-func (r *Resolver) Session() generated.SessionResolver {
-	return &sessionResolver{r}
-}
-
-// MessageStream is the resolver for the messageStream field.
-//
 // IMPORTANT LIMITATION:
 // This is a placeholder implementation. GraphQL subscriptions require WebSocket infrastructure
 // and don't fit well with the chat streaming model where messages are sent as mutations.
@@ -645,4 +568,13 @@ func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subsc
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
-type sessionResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	type Resolver struct {}
+*/

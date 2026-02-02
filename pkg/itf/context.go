@@ -2,10 +2,6 @@ package itf
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"runtime"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,47 +9,21 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var (
-	repoMigrationsDirOnce sync.Once
-	repoMigrationsDir     string
-)
-
-// ensureRepoMigrationsDir initializes the repo migrations directory once.
-// This prevents race conditions when multiple tests run in parallel.
-func ensureRepoMigrationsDir() string {
-	repoMigrationsDirOnce.Do(func() {
-		_, thisFile, _, ok := runtime.Caller(1)
-		if !ok {
-			panic("failed to resolve itf/context.go path")
-		}
-		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
-		repoMigrationsDir = filepath.Join(repoRoot, "migrations")
-		if _, err := os.Stat(repoMigrationsDir); err != nil {
-			panic("failed to stat migrations dir " + repoMigrationsDir + ": " + err.Error())
-		}
-		os.Setenv("MIGRATIONS_DIR", repoMigrationsDir)
-		configuration.Use().MigrationsDir = repoMigrationsDir
-	})
-	return repoMigrationsDir
-}
-
 // TestContext provides a fluent API for building test contexts
 type TestContext struct {
-	ctx          context.Context
-	pool         *pgxpool.Pool
-	tx           pgx.Tx
-	app          application.Application
-	tenant       *composables.Tenant
-	user         user.User
-	seedUserInDB bool
-	modules      []application.Module
-	dbName       string
+	ctx     context.Context
+	pool    *pgxpool.Pool
+	tx      pgx.Tx
+	app     application.Application
+	tenant  *composables.Tenant
+	user    user.User
+	modules []application.Module
+	dbName  string
 }
 
 // New creates a new TestContext builder
@@ -91,18 +61,12 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 
 	// Set default db name if not set
 	if tc.dbName == "" {
-		// Multiple itf.Setup calls can happen in a single test; ensure each gets its own DB.
-		tc.dbName = tb.Name() + "_" + uuid.NewString()[:8]
+		tc.dbName = tb.Name()
 	}
 
 	// Create test database
 	CreateDB(tc.dbName)
 	tc.pool = NewPool(DbOpts(tc.dbName))
-
-	// Force migrations dir to the repo-level `migrations/` so ITF tests run the real
-	// sql-migrate migrations and don't depend on schema collection (which parses SQL).
-	// Use sync.Once to initialize once, preventing race conditions in parallel tests.
-	ensureRepoMigrationsDir()
 
 	// Setup application
 	app, err := SetupApplication(tc.pool, tc.modules...)
@@ -117,13 +81,6 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		tb.Fatal(err)
 	}
 	tc.tenant = tenant
-
-	// Optionally seed a DB user for FK constraints.
-	if tc.user != nil && tc.seedUserInDB {
-		if err := CreateTestUser(tc.ctx, tc.pool, tc.user, tc.tenant.ID); err != nil {
-			tb.Fatal(err)
-		}
-	}
 
 	// Begin transaction
 	tx, err := tc.pool.Begin(tc.ctx)
@@ -141,7 +98,6 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 			tb.Logf("Warning: failed to rollback transaction: %v", err)
 		}
 		tc.pool.Close()
-		DropDB(tc.dbName)
 	})
 
 	return &TestEnvironment{

@@ -248,8 +248,8 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	var interrupt *bichatservices.Interrupt
 
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
@@ -267,8 +267,10 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 					CheckpointID: event.Interrupt.CheckpointID,
 					Questions:    event.Interrupt.Questions,
 				}
-				// Update session with pending question agent
-				session.PendingQuestionAgent = stringPtr("default-agent") // TODO: Use actual agent name
+				// Update session with pending question agent name
+				if event.Interrupt.AgentName != "" {
+					session.PendingQuestionAgent = &event.Interrupt.AgentName
+				}
 				if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 					return nil, serrors.E(op, err)
 				}
@@ -369,8 +371,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	var interrupted bool
 
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
@@ -395,8 +397,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case bichatservices.EventTypeInterrupt:
 			interrupted = true
-			// Update session with pending question
-			session.PendingQuestionAgent = stringPtr("default-agent") // TODO: Use actual agent name
+			// Update session with pending question agent name
+			if event.Interrupt != nil && event.Interrupt.AgentName != "" {
+				session.PendingQuestionAgent = &event.Interrupt.AgentName
+			}
 			if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 				return serrors.E(op, err)
 			}
@@ -469,7 +473,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		return nil, serrors.E(op, err)
 	}
 
-	// Resume agent execution with answers
+	// Resume agent execution with answers (already in canonical format)
 	gen, err := s.agentService.ResumeWithAnswer(ctx, req.SessionID, req.CheckpointID, req.Answers)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -480,8 +484,8 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	var assistantContent strings.Builder
 
 	for {
-		event, err := gen.Next()
-		if errors.Is(err, bichatservices.ErrGeneratorDone) {
+		event, err := gen.Next(ctx)
+		if errors.Is(err, types.ErrGeneratorDone) {
 			break
 		}
 		if err != nil {
@@ -522,35 +526,6 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		Session:          session,
 		Interrupt:        nil,
 	}, nil
-}
-
-// CancelPendingQuestion cancels a pending HITL question without resuming execution.
-// This clears the pending question state from the session.
-func (s *chatServiceImpl) CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error) {
-	const op serrors.Op = "chatServiceImpl.CancelPendingQuestion"
-
-	// Get session
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	// Check if there's a pending question
-	if session.PendingQuestionAgent == nil {
-		return nil, serrors.E(op, serrors.KindValidation, "no pending question to cancel")
-	}
-
-	// Clear pending question agent
-	session.PendingQuestionAgent = nil
-	session.UpdatedAt = time.Now()
-
-	// Save changes
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	return session, nil
 }
 
 // GenerateSessionTitle generates a title for a session based on first message.
@@ -601,11 +576,6 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 	}
 
 	return nil
-}
-
-// stringPtr returns a pointer to a string.
-func stringPtr(s string) *string {
-	return &s
 }
 
 // maybeGenerateTitleAsync triggers async title generation if this is the first message in the session.

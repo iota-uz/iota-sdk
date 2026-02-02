@@ -288,7 +288,7 @@ func TestContextBuilder_Build_Success(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Request now has CSRF token
-		initialCtx, err := builder.Build(ctx, r)
+		initialCtx, err := builder.Build(ctx, r, "")
 		require.NoError(t, err)
 		require.NotNil(t, initialCtx)
 
@@ -353,7 +353,7 @@ func TestContextBuilder_Build_MissingUser(t *testing.T) {
 	ctx := context.Background()
 	r := httptest.NewRequest(http.MethodGet, "/test", nil)
 
-	initialCtx, err := builder.Build(ctx, r)
+	initialCtx, err := builder.Build(ctx, r, "")
 	assert.Error(t, err)
 	assert.Nil(t, initialCtx)
 	assert.Contains(t, err.Error(), "user extraction failed")
@@ -387,7 +387,7 @@ func TestContextBuilder_Build_MissingTenant(t *testing.T) {
 
 	r := httptest.NewRequest(http.MethodGet, "/test", nil)
 
-	initialCtx, err := builder.Build(ctx, r)
+	initialCtx, err := builder.Build(ctx, r, "")
 	assert.Error(t, err)
 	assert.Nil(t, initialCtx)
 	assert.Contains(t, err.Error(), "tenant extraction failed")
@@ -653,7 +653,7 @@ func TestContextBuilder_Build_WithCustomContext(t *testing.T) {
 		csrf.Secure(false),
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		initialCtx, err := builder.Build(ctx, r)
+		initialCtx, err := builder.Build(ctx, r, "")
 		require.NoError(t, err)
 		require.NotNil(t, initialCtx)
 
@@ -690,7 +690,7 @@ func TestContextBuilder_Build_WithMuxRouter(t *testing.T) {
 		csrf.Secure(false),
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		initialCtx, err := builder.Build(ctx, r)
+		initialCtx, err := builder.Build(ctx, r, "")
 		require.NoError(t, err)
 		require.NotNil(t, initialCtx)
 
@@ -723,7 +723,7 @@ func TestContextBuilder_Build_MetricsRecorded(t *testing.T) {
 		csrf.Secure(false),
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := builder.Build(ctx, r)
+		_, err := builder.Build(ctx, r, "")
 		require.NoError(t, err)
 
 		// Verify metrics were recorded
@@ -910,7 +910,7 @@ func TestContextBuilder_Build_WithSessionStore(t *testing.T) {
 		csrf.Secure(false),
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		initialCtx, err := builder.Build(ctx, r)
+		initialCtx, err := builder.Build(ctx, r, "")
 		require.NoError(t, err)
 		require.NotNil(t, initialCtx)
 

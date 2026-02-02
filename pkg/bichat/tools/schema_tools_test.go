@@ -4,163 +4,70 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 )
 
-// mockSchemaExecutor implements QueryExecutorService for testing.
-type mockSchemaExecutor struct {
-	columnsResult *QueryResult
-	sampleResult  *QueryResult
-	countResult   *QueryResult
-	indexResult   *QueryResult
-	err           error
+// mockSchemaDescriber implements bichatsql.SchemaDescriber for testing.
+type mockSchemaDescriber struct {
+	schema *bichatsql.TableSchema
+	err    error
 }
 
-func (m *mockSchemaExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*QueryResult, error) {
+func (m *mockSchemaDescriber) SchemaDescribe(ctx context.Context, tableName string) (*bichatsql.TableSchema, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-
-	// Route to appropriate result based on query content
-	if strings.Contains(sql, "pg_catalog.pg_views") {
-		// Schema list query
-		return m.columnsResult, nil
+	if m.schema != nil {
+		return m.schema, nil
 	}
-	if strings.Contains(sql, "information_schema.columns") {
-		return m.columnsResult, nil
-	}
-	if strings.Contains(sql, "COUNT(*)") {
-		return m.countResult, nil
-	}
-	if strings.Contains(sql, "pg_index") {
-		return m.indexResult, nil
-	}
-	if strings.Contains(sql, "LIMIT 4") {
-		return m.sampleResult, nil
-	}
-
-	return &QueryResult{Columns: []string{}, Rows: []map[string]interface{}{}}, nil
+	return &bichatsql.TableSchema{
+		Name:   tableName,
+		Schema: "public",
+		Columns: []bichatsql.ColumnInfo{
+			{Name: "id", Type: "integer", IsPrimaryKey: true},
+			{Name: "name", Type: "text"},
+		},
+	}, nil
 }
 
-func TestFormatSampleDataTable(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		result   *QueryResult
-		wantRows int
-	}{
-		{
-			name: "empty result",
-			result: &QueryResult{
-				Columns:  []string{},
-				Rows:     []map[string]interface{}{},
-				RowCount: 0,
-			},
-			wantRows: 0,
-		},
-		{
-			name: "with data rows",
-			result: &QueryResult{
-				Columns: []string{"id", "name", "amount"},
-				Rows: []map[string]interface{}{
-					{"id": int64(1), "name": "Alice", "amount": 100.5},
-					{"id": int64(2), "name": "Bob", "amount": 200.0},
-				},
-				RowCount: 2,
-			},
-			wantRows: 2,
-		},
-		{
-			name: "with null values",
-			result: &QueryResult{
-				Columns: []string{"id", "name", "amount"},
-				Rows: []map[string]interface{}{
-					{"id": int64(1), "name": "Alice", "amount": nil},
-					{"id": int64(2), "name": nil, "amount": 200.0},
-				},
-				RowCount: 2,
-			},
-			wantRows: 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			result := formatSampleDataTable(tt.result)
-
-			if tt.wantRows == 0 {
-				if result != "No sample data available." {
-					t.Errorf("expected 'No sample data available.', got: %s", result)
-				}
-				return
-			}
-
-			// Verify markdown format
-			if !strings.Contains(result, "|") {
-				t.Errorf("expected markdown table format, got: %s", result)
-			}
-
-			// Verify header row
-			for _, col := range tt.result.Columns {
-				if !strings.Contains(result, col) {
-					t.Errorf("expected column %s in output, got: %s", col, result)
-				}
-			}
-
-			// Verify separator row
-			if !strings.Contains(result, "---") {
-				t.Errorf("expected separator row with ---, got: %s", result)
-			}
-
-			// Count rows (header + separator + data rows)
-			lines := strings.Split(strings.TrimSpace(result), "\n")
-			expectedLines := 2 + tt.wantRows // header + separator + data
-			if len(lines) != expectedLines {
-				t.Errorf("expected %d lines, got %d", expectedLines, len(lines))
-			}
-		})
-	}
+// mockSchemaLister implements bichatsql.SchemaLister for testing.
+type mockSchemaLister struct {
+	tables []bichatsql.TableInfo
+	err    error
 }
+
+func (m *mockSchemaLister) SchemaList(ctx context.Context) ([]bichatsql.TableInfo, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.tables != nil {
+		return m.tables, nil
+	}
+	return []bichatsql.TableInfo{
+		{Name: "users", Schema: "public", RowCount: 100, Description: "User accounts"},
+		{Name: "orders", Schema: "public", RowCount: 1000, Description: "Customer orders"},
+	}, nil
+}
+
+// TestFormatSampleDataTable removed - formatSampleDataTable function was removed in Phase 6.
+// Schema describe now uses sql.SchemaDescriber interface directly.
 
 func TestSchemaDescribeToolWithSampleData(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockSchemaExecutor{
-		columnsResult: &QueryResult{
-			Columns: []string{"column_name", "data_type", "is_nullable"},
-			Rows: []map[string]interface{}{
-				{"column_name": "id", "data_type": "integer", "is_nullable": "NO"},
-				{"column_name": "name", "data_type": "text", "is_nullable": "YES"},
+	describer := &mockSchemaDescriber{
+		schema: &bichatsql.TableSchema{
+			Name:   "users",
+			Schema: "public",
+			Columns: []bichatsql.ColumnInfo{
+				{Name: "id", Type: "integer", IsPrimaryKey: true},
+				{Name: "name", Type: "text"},
 			},
-			RowCount: 2,
-		},
-		sampleResult: &QueryResult{
-			Columns: []string{"id", "name"},
-			Rows: []map[string]interface{}{
-				{"id": int64(1), "name": "Alice"},
-				{"id": int64(2), "name": "Bob"},
-			},
-			RowCount: 2,
-		},
-		countResult: &QueryResult{
-			Columns: []string{"row_count"},
-			Rows: []map[string]interface{}{
-				{"row_count": int64(150000)},
-			},
-			RowCount: 1,
-		},
-		indexResult: &QueryResult{
-			Columns: []string{"index_name", "column_name"},
-			Rows: []map[string]interface{}{
-				{"index_name": "idx_users_id", "column_name": "id"},
-			},
-			RowCount: 1,
 		},
 	}
 
-	tool := NewSchemaDescribeTool(executor)
+	tool := NewSchemaDescribeTool(describer)
 
 	input := `{"table_name": "users"}`
 	result, err := tool.Call(context.Background(), input)
@@ -201,34 +108,17 @@ func TestSchemaDescribeToolWithSampleData(t *testing.T) {
 func TestSchemaDescribeToolLargeDataset(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockSchemaExecutor{
-		columnsResult: &QueryResult{
-			Columns: []string{"column_name", "data_type"},
-			Rows: []map[string]interface{}{
-				{"column_name": "id", "data_type": "integer"},
+	describer := &mockSchemaDescriber{
+		schema: &bichatsql.TableSchema{
+			Name:   "large_table",
+			Schema: "public",
+			Columns: []bichatsql.ColumnInfo{
+				{Name: "id", Type: "integer", IsPrimaryKey: true},
 			},
-			RowCount: 1,
-		},
-		sampleResult: &QueryResult{
-			Columns:  []string{"id"},
-			Rows:     []map[string]interface{}{{"id": int64(1)}},
-			RowCount: 1,
-		},
-		countResult: &QueryResult{
-			Columns: []string{"row_count"},
-			Rows: []map[string]interface{}{
-				{"row_count": int64(2000000)}, // > 1M rows
-			},
-			RowCount: 1,
-		},
-		indexResult: &QueryResult{
-			Columns:  []string{"index_name", "column_name"},
-			Rows:     []map[string]interface{}{},
-			RowCount: 0,
 		},
 	}
 
-	tool := NewSchemaDescribeTool(executor)
+	tool := NewSchemaDescribeTool(describer)
 
 	input := `{"table_name": "large_table"}`
 	result, err := tool.Call(context.Background(), input)
@@ -274,8 +164,8 @@ func TestSchemaDescribeToolInvalidTableName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			executor := &mockSchemaExecutor{}
-			tool := NewSchemaDescribeTool(executor)
+			describer := &mockSchemaDescriber{}
+			tool := NewSchemaDescribeTool(describer)
 
 			input := `{"table_name": "` + tt.tableName + `"}`
 			result, err := tool.Call(context.Background(), input)
@@ -300,18 +190,14 @@ func TestSchemaDescribeToolInvalidTableName(t *testing.T) {
 func TestSchemaListTool(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockSchemaExecutor{
-		columnsResult: &QueryResult{
-			Columns: []string{"schema", "name", "type"},
-			Rows: []map[string]interface{}{
-				{"schema": "analytics", "name": "policies", "type": "view"},
-				{"schema": "analytics", "name": "payments", "type": "view"},
-			},
-			RowCount: 2,
+	lister := &mockSchemaLister{
+		tables: []bichatsql.TableInfo{
+			{Name: "policies", Schema: "analytics", RowCount: 100, Description: "Policy view"},
+			{Name: "payments", Schema: "analytics", RowCount: 200, Description: "Payment view"},
 		},
 	}
 
-	tool := NewSchemaListTool(executor)
+	tool := NewSchemaListTool(lister)
 
 	result, err := tool.Call(context.Background(), `{}`)
 	if err != nil {

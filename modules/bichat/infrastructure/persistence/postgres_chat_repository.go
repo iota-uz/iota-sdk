@@ -18,7 +18,7 @@ import (
 const (
 	// Session queries
 	insertSessionQuery = `
-		INSERT INTO bichat.sessions (
+		INSERT INTO bichat_sessions (
 			id, tenant_id, user_id, title, status, pinned,
 			parent_session_id, pending_question_agent, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -26,11 +26,11 @@ const (
 	selectSessionQuery = `
 		SELECT id, tenant_id, user_id, title, status, pinned,
 			   parent_session_id, pending_question_agent, created_at, updated_at
-		FROM bichat.sessions
+		FROM bichat_sessions
 		WHERE tenant_id = $1 AND id = $2
 	`
 	updateSessionQuery = `
-		UPDATE bichat.sessions
+		UPDATE bichat_sessions
 		SET title = $1, status = $2, pinned = $3,
 			parent_session_id = $4, pending_question_agent = $5,
 			updated_at = $6
@@ -39,39 +39,39 @@ const (
 	listUserSessionsQuery = `
 		SELECT id, tenant_id, user_id, title, status, pinned,
 			   parent_session_id, pending_question_agent, created_at, updated_at
-		FROM bichat.sessions
+		FROM bichat_sessions
 		WHERE tenant_id = $1 AND user_id = $2
 		ORDER BY pinned DESC, created_at DESC
 		LIMIT $3 OFFSET $4
 	`
 	deleteSessionQuery = `
-		DELETE FROM bichat.sessions
+		DELETE FROM bichat_sessions
 		WHERE tenant_id = $1 AND id = $2
 	`
 
 	// Message queries
 	insertMessageQuery = `
-		INSERT INTO bichat.messages (
+		INSERT INTO bichat_messages (
 			id, session_id, role, content, tool_calls, tool_call_id, citations, created_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	selectMessageQuery = `
 		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
-		FROM bichat.messages m
-		JOIN bichat.sessions s ON m.session_id = s.id
+		FROM bichat_messages m
+		JOIN bichat_sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.id = $2
 	`
 	selectSessionMessagesQuery = `
 		SELECT m.id, m.session_id, m.role, m.content, m.tool_calls, m.tool_call_id, m.citations, m.created_at
-		FROM bichat.messages m
-		JOIN bichat.sessions s ON m.session_id = s.id
+		FROM bichat_messages m
+		JOIN bichat_sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND m.session_id = $2
 		ORDER BY m.created_at ASC
 		LIMIT $3 OFFSET $4
 	`
 	truncateMessagesFromQuery = `
-		DELETE FROM bichat.messages m
-		USING bichat.sessions s
+		DELETE FROM bichat_messages m
+		USING bichat_sessions s
 		WHERE m.session_id = s.id
 		  AND s.tenant_id = $1
 		  AND m.session_id = $2
@@ -80,28 +80,28 @@ const (
 
 	// Attachment queries
 	insertAttachmentQuery = `
-		INSERT INTO bichat.attachments (
+		INSERT INTO bichat_attachments (
 			id, message_id, file_name, mime_type, size_bytes, storage_path, created_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	selectAttachmentQuery = `
 		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
-		FROM bichat.attachments a
-		JOIN bichat.messages m ON a.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
+		FROM bichat_attachments a
+		JOIN bichat_messages m ON a.message_id = m.id
+		JOIN bichat_sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND a.id = $2
 	`
 	selectMessageAttachmentsQuery = `
 		SELECT a.id, a.message_id, a.file_name, a.mime_type, a.size_bytes, a.storage_path, a.created_at
-		FROM bichat.attachments a
-		JOIN bichat.messages m ON a.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
+		FROM bichat_attachments a
+		JOIN bichat_messages m ON a.message_id = m.id
+		JOIN bichat_sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND a.message_id = $2
 		ORDER BY a.created_at ASC
 	`
 	deleteAttachmentQuery = `
-		DELETE FROM bichat.attachments a
-		USING bichat.messages m, bichat.sessions s
+		DELETE FROM bichat_attachments a
+		USING bichat_messages m, bichat_sessions s
 		WHERE a.message_id = m.id
 		  AND m.session_id = s.id
 		  AND s.tenant_id = $1
@@ -110,15 +110,15 @@ const (
 
 	// Code interpreter output queries
 	insertCodeOutputQuery = `
-		INSERT INTO bichat.code_interpreter_outputs (
+		INSERT INTO bichat_code_interpreter_outputs (
 			id, message_id, name, mime_type, url, size_bytes, created_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
 	selectMessageCodeOutputsQuery = `
 		SELECT o.id, o.message_id, o.name, o.mime_type, o.url, o.size_bytes, o.created_at
-		FROM bichat.code_interpreter_outputs o
-		JOIN bichat.messages m ON o.message_id = m.id
-		JOIN bichat.sessions s ON m.session_id = s.id
+		FROM bichat_code_interpreter_outputs o
+		JOIN bichat_messages m ON o.message_id = m.id
+		JOIN bichat_sessions s ON m.session_id = s.id
 		WHERE s.tenant_id = $1 AND o.message_id = $2
 		ORDER BY o.created_at ASC
 	`

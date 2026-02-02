@@ -10,7 +10,6 @@ import { formatDistanceToNow } from 'date-fns'
 import AttachmentGrid from './AttachmentGrid'
 import ImageModal from './ImageModal'
 import { useChat } from '../context/ChatContext'
-import { useTranslation } from '../hooks/useTranslation'
 import type { Message, ImageAttachment } from '../types'
 
 interface UserTurnViewProps {
@@ -21,7 +20,6 @@ interface UserTurnViewProps {
 
 export function UserTurnView({ message }: UserTurnViewProps) {
   const { handleEdit, handleCopy } = useChat()
-  const { t } = useTranslation()
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
 
   const handleCopyClick = async () => {
@@ -76,8 +74,8 @@ export function UserTurnView({ message }: UserTurnViewProps) {
           <button
             onClick={handleCopyClick}
             className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
-            aria-label={t('message.copy')}
-            title={t('message.copy')}
+            aria-label="Copy message"
+            title="Copy"
           >
             <Copy size={14} weight="regular" />
           </button>
@@ -86,8 +84,8 @@ export function UserTurnView({ message }: UserTurnViewProps) {
             <button
               onClick={handleEditClick}
               className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
-              aria-label={t('message.edit')}
-              title={t('message.edit')}
+              aria-label="Edit message"
+              title="Edit"
             >
               <PencilSimple size={14} weight="regular" />
             </button>

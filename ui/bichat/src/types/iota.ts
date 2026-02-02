@@ -2,8 +2,6 @@
  * Type definitions matching Go structs for server-side context
  */
 
-import type { BrandingConfig, FeatureFlags, Translations } from './index'
-
 export interface UserContext {
   id: number
   email: string
@@ -27,25 +25,11 @@ export interface AppConfig {
   streamEndpoint: string
 }
 
-/**
- * Extensions injected by BiChat module for customization.
- */
-export interface ContextExtensions {
-  /** Feature flags for capabilities */
-  features: FeatureFlags
-  /** Branding configuration for UI customization */
-  branding: BrandingConfig
-  /** Translations for the current locale */
-  translations: Translations
-}
-
 export interface IotaContext {
   user: UserContext
   tenant: TenantContext
   locale: LocaleContext
   config: AppConfig
-  /** BiChat-specific extensions for customization */
-  extensions?: ContextExtensions
 }
 
 declare global {

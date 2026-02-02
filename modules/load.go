@@ -24,7 +24,6 @@ var (
 		core.NewModule(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}),
-		bichat.NewModule(),
 		hrm.NewModule(),
 		finance.NewModule(),
 		projects.NewModule(),

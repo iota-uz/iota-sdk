@@ -55,6 +55,18 @@ func (r *appletRegistry) Register(applet Applet) error {
 	name := applet.Name()
 	basePath := applet.BasePath()
 
+	// Validate name is not empty
+	if name == "" {
+		return serrors.E(op, serrors.KindValidation,
+			"applet name cannot be empty")
+	}
+
+	// Validate base path is not empty
+	if basePath == "" {
+		return serrors.E(op, serrors.KindValidation,
+			"applet base path cannot be empty")
+	}
+
 	// Check for duplicate name
 	if _, exists := r.appletsByName[name]; exists {
 		return serrors.E(op, serrors.KindValidation,

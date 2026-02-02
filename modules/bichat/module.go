@@ -3,8 +3,10 @@ package bichat
 import (
 	"context"
 	"embed"
+	"fmt"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 )
@@ -57,24 +59,43 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	// Create BiChat applet with configuration
-	// Configuration is optional - if not set, feature flags default to false
-	bichatApplet := NewBiChatApplet(m.config)
-
-	// Register BiChat applet for React app integration
-	// This registers the applet in the application registry and sets up:
-	// - Context injection (window.__BICHAT_CONTEXT__)
-	// - Asset serving (/bichat/assets/*)
-	// - Route handling (/bichat/*)
-	if err := app.RegisterApplet(bichatApplet); err != nil {
-		return err
-	}
-
 	// Register database schema
 	app.Migrations().RegisterSchema(&MigrationFiles)
 
 	// Register translation files
 	app.RegisterLocaleFiles(&LocaleFiles)
+
+	// Register BiChat applet (unified applet system)
+	bichatApplet := NewBiChatApplet(m.config)
+	if err := app.RegisterApplet(bichatApplet); err != nil {
+		return fmt.Errorf("failed to register BiChat applet: %w", err)
+	}
+
+	controllersToRegister := []application.Controller{}
+
+	// Register ChatController with GraphQL endpoint if config is available
+	if m.config != nil {
+		// Build services (fail fast - no try/continue)
+		if err := m.config.BuildServices(); err != nil {
+			return fmt.Errorf("failed to build BiChat services: %w", err)
+		}
+
+		// Create and register ChatController with all services
+		chatController := controllers.NewChatController(
+			app,
+			m.config.ChatService(),
+			m.config.ChatRepo,
+			m.config.AgentService(),
+			m.config.AttachmentService(),
+		)
+		controllersToRegister = append(controllersToRegister, chatController)
+
+		if m.config.Logger != nil {
+			m.config.Logger.Info("Registered BiChat ChatController with GraphQL endpoint at /bi-chat/graphql")
+		}
+	}
+
+	app.RegisterControllers(controllersToRegister...)
 
 	return nil
 }

@@ -5,7 +5,6 @@
 
 import { useState } from 'react'
 import { Citation } from '../types'
-import { useTranslation } from '../hooks/useTranslation'
 
 interface SourcesPanelProps {
   citations: Citation[]
@@ -13,7 +12,6 @@ interface SourcesPanelProps {
 
 export function SourcesPanel({ citations }: SourcesPanelProps) {
   const [expanded, setExpanded] = useState(false)
-  const { t } = useTranslation()
 
   if (!citations || citations.length === 0) {
     return null
@@ -24,7 +22,7 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
         aria-expanded={expanded}
       >
         <svg
@@ -40,13 +38,13 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
             d="M9 5l7 7-7 7"
           />
         </svg>
-        <span>{t('sources.citations', { count: citations.length })}</span>
+        <span>{citations.length} {citations.length === 1 ? 'source' : 'sources'}</span>
       </button>
       {expanded && (
         <div className="mt-2 space-y-2">
           {citations.map((citation, index) => (
             <div
-              key={citation.id ?? `citation-${index}`}
+              key={citation.id}
               className="p-3 bg-gray-50 rounded-lg text-sm"
             >
               <div className="flex items-start gap-2">
@@ -54,10 +52,7 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
                   {index + 1}
                 </span>
                 <div className="flex-1">
-                  <div className="font-medium text-gray-900">{citation.title || citation.source}</div>
-                  {citation.title && (
-                    <div className="text-xs text-gray-500 mt-0.5">{citation.source}</div>
-                  )}
+                  <div className="font-medium text-gray-900">{citation.source}</div>
                   {citation.url && (
                     <a
                       href={citation.url}

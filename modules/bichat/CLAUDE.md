@@ -12,24 +12,35 @@ modules/bichat/
 ├── infrastructure/
 │   ├── persistence/
 │   │   ├── chat_repository.go   # PostgreSQL implementation
+│   │   ├── postgres_chat_repository_test.go
 │   │   └── schema/              # SQL migrations
-│   └── llmproviders/
-│       └── openai_provider.go   # LLM provider
+│   ├── llmproviders/
+│   │   ├── openai_model.go      # OpenAI implementation of agents.Model
+│   │   └── openai_model_test.go
+│   ├── logs/
+│   └── postgres_executor.go     # SQL execution tool implementation
 ├── services/
-│   └── agent_service_impl.go    # Agent orchestration with event streaming
+│   ├── agent_service_impl.go    # Agent orchestration with event streaming
+│   ├── chat_service_impl.go     # Chat session management
+│   ├── attachment_service.go    # File upload handling
+│   └── title_generation_service.go # AI session title generator
 ├── presentation/
 │   ├── assets/
 │   │   ├── embed.go             # Embedded React build (dist/)
-│   │   └── dist/                # React build output (created by npm build)
+│   │   └── dist/                # React build output (created by pnpm build)
 │   ├── controllers/
-│   │   ├── chat_controller.go   # GraphQL endpoints
-│   │   ├── stream_controller.go # SSE streaming (line ~65 critical)
-│   │   └── web_controller.go    # DEPRECATED: Use applet system instead
+│   │   ├── chat_controller.go   # GraphQL/REST endpoints
+│   │   ├── stream_controller.go # SSE streaming
+│   │   └── web_controller_test.go
 │   ├── graphql/
+│   │   ├── model/
+│   │   ├── generated/
 │   │   └── schema.graphql       # GraphQL schema
-│   └── templates/pages/bichat/  # HTMX templates (for legacy routes)
+│   └── locales/                 # i18n files
 └── agents/
-    └── default_agent.go         # Default BI agent
+    ├── default_agent.go         # Default BI agent
+    ├── sql_agent.go             # Specialized SQL agent
+    └── query_executor_adapter.go # Tool adapter
 ```
 
 ## Applet System Integration
@@ -89,7 +100,7 @@ if (extensions.features.vision) {
 ```go
 // CRITICAL: Always use tenant isolation
 tenantID, err := composables.UseTenantID(ctx)
-query := "SELECT * FROM bichat.sessions WHERE tenant_id = $1 AND id = $2"
+query := "SELECT * FROM bichat_sessions WHERE tenant_id = $1 AND id = $2"
 ```
 
 ### SSE Streaming (Critical)
@@ -132,18 +143,18 @@ cfg := bichat.NewModuleConfig(
 
 See: `infrastructure/persistence/schema/bichat-schema.sql`
 
-**Key Tables (schema `bichat`):**
-- `bichat.sessions` - Chat sessions (tenant_id, user_id, status, pinned)
-- `bichat.messages` - Messages (session_id, role, content, tool_calls, citations)
-- `bichat.attachments` - File attachments (message_id, file_name, storage_path)
-- `bichat.checkpoints` - HITL checkpoints (thread_id, expires_at)
+**Key Tables:**
+- `bichat_sessions` - Chat sessions (tenant_id, user_id, status, pinned)
+- `bichat_messages` - Messages (session_id, role, content, tool_calls, citations)
+- `bichat_attachments` - File attachments (message_id, file_name, storage_path)
+- `bichat_checkpoints` - HITL checkpoints (thread_id, expires_at)
 
-**Note**: `citations` column in `bichat.messages` stores JSONB array of web search citations with fields: Type, Title, URL, Excerpt, StartIndex, EndIndex.
+**Note**: `citations` column in `bichat_messages` stores JSONB array of web search citations with fields: Type, Title, URL, Excerpt, StartIndex, EndIndex.
 
 **Critical Indexes:**
-- `idx_sessions_tenant_user` on `bichat.sessions` - Multi-tenant queries
-- `idx_messages_session` on `bichat.messages` - Message listing
-- `idx_checkpoints_thread` on `bichat.checkpoints` - Checkpoint lookup
+- `idx_bichat_sessions_tenant_user` - Multi-tenant queries
+- `idx_bichat_messages_session` - Message listing
+- `idx_bichat_checkpoints_thread` - Checkpoint lookup
 
 ## API Endpoints
 
@@ -383,3 +394,116 @@ func TestChatRepo(t *testing.T) {
     // test...
 }
 ```
+
+## Migration Guide: Fail-Fast Refactoring
+
+The BiChat module now uses a **fail-fast** approach - configuration errors are caught at startup instead of allowing degraded functionality at runtime.
+
+### Breaking Changes
+
+1. **Attachment storage now required** - Must provide paths or explicitly disable
+2. **Module registration can fail** - Must check error from `app.RegisterModule()`
+3. **AnthropicRenderer default** - Proper context rendering (was stub)
+4. **TiktokenEstimator default** - Accurate token counting (~10-50ms overhead)
+
+### Old Code (Silent Failures)
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    model,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+)
+
+module := bichat.NewModuleWithConfig(cfg)
+app.RegisterModule(module) // No error check - failures logged but hidden
+```
+
+**Problems**:
+- Attachments silently discarded (NoOp fallback)
+- Title generation fails silently
+- GraphQL becomes unavailable without indication
+- Token counting disabled (returns 0)
+
+### New Code (Fail Fast)
+
+```go
+cfg := bichat.NewModuleConfig(
+    composables.UseTenantID,
+    composables.UseUserID,
+    chatRepo,
+    model,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    // REQUIRED: Attachment storage configuration
+    bichat.WithAttachmentStorage(
+        "/var/lib/bichat/attachments",
+        "https://example.com/bichat/attachments",
+    ),
+)
+
+module := bichat.NewModuleWithConfig(cfg)
+if err := app.RegisterModule(module); err != nil {
+    log.Fatalf("Failed to register BiChat: %v", err)
+}
+```
+
+### Optional Configurations
+
+**Disable Attachments** (testing only):
+```go
+cfg := bichat.NewModuleConfig(
+    ...,
+    bichat.WithNoOpAttachmentStorage(), // Explicit disable
+)
+```
+
+**Disable Auto-Titles**:
+```go
+cfg := bichat.NewModuleConfig(
+    ...,
+    bichat.WithTitleGenerationDisabled(), // Users must provide titles manually
+)
+```
+
+**Custom Renderer**:
+```go
+customRenderer := myrenderers.NewCustomRenderer()
+cfg := bichat.NewModuleConfig(
+    ...,
+    bichat.WithRenderer(customRenderer),
+)
+```
+
+### Error Messages
+
+All errors are descriptive and actionable:
+
+```
+"AttachmentStorageBasePath required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()"
+"OverflowStrategy=compact requires accurate TokenEstimator (not NoOp)"
+"failed to create title generation service: model returned error"
+"failed to create attachment storage: directory /var/lib/bichat/attachments is not writable"
+```
+
+### Troubleshooting
+
+**Error: "AttachmentStorageBasePath required"**
+- Solution: Add `bichat.WithAttachmentStorage("/path", "https://url")` to config
+- Or: Use `bichat.WithNoOpAttachmentStorage()` for testing
+
+**Error: "failed to create attachment storage: permission denied"**
+- Solution: Ensure directory exists and is writable by application user
+- Check: `mkdir -p /var/lib/bichat/attachments && chown app:app /var/lib/bichat/attachments`
+
+**Error: "failed to build BiChat services"**
+- Solution: Check logs for underlying error (title generation, storage, etc.)
+- Enable debug logging: `cfg.Logger.SetLevel(logrus.DebugLevel)`
+
+**Module registration fails at startup**
+- This is expected behavior - fix configuration and restart
+- Old behavior: Module loaded with broken features
+- New behavior: Application fails fast with clear error message

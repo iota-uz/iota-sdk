@@ -4,6 +4,9 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
+
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 )
 
 func TestValidateQueryParameters(t *testing.T) {
@@ -188,16 +191,30 @@ func TestValidateReadOnlyQuery(t *testing.T) {
 	}
 }
 
+// mockSQLExecutorForValidation implements bichatsql.QueryExecutor for testing.
+type mockSQLExecutorForValidation struct {
+	result *bichatsql.QueryResult
+	err    error
+}
+
+func (m *mockSQLExecutorForValidation) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if m.result != nil {
+		return m.result, nil
+	}
+	return &bichatsql.QueryResult{
+		Columns:  []string{"id", "name"},
+		Rows:     [][]any{{int64(1), "Alice"}},
+		RowCount: 1,
+	}, nil
+}
+
 func TestSQLExecuteToolParameterValidation(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockSchemaExecutor{
-		columnsResult: &QueryResult{
-			Columns:  []string{"id", "name"},
-			Rows:     []map[string]interface{}{{"id": int64(1), "name": "Alice"}},
-			RowCount: 1,
-		},
-	}
+	executor := &mockSQLExecutorForValidation{}
 
 	tool := NewSQLExecuteTool(executor)
 

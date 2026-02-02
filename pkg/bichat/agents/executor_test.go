@@ -71,7 +71,7 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 	}, nil
 }
 
-func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk] {
+func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.currentIndex >= len(m.responses) {
 			return fmt.Errorf("no more mock responses")
@@ -118,7 +118,7 @@ func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 		}
 
 		return nil
-	})
+	}), nil
 }
 
 func (m *mockModel) Info() agents.ModelInfo {
@@ -667,9 +667,9 @@ func TestExecutor_Resume(t *testing.T) {
 	}
 	json.Unmarshal([]byte(checkpoint.PendingTools[0].Arguments), &questionsData)
 
-	answers := map[string]string{}
+	answers := map[string]types.Answer{}
 	if len(questionsData.Questions) > 0 {
-		answers[questionsData.Questions[0].ID] = "blue"
+		answers[questionsData.Questions[0].ID] = types.NewAnswer("blue")
 	}
 
 	gen := executor.Resume(ctx, checkpointID, answers)
@@ -786,10 +786,10 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 	)
 
 	// Resume execution with all 3 answers
-	answers := map[string]string{
-		"q1": "Q1 2024",
-		"q2": "Revenue",
-		"q3": "North America",
+	answers := map[string]types.Answer{
+		"q1": types.NewAnswer("Q1 2024"),
+		"q2": types.NewAnswer("Revenue"),
+		"q3": types.NewAnswer("North America"),
 	}
 
 	gen := executor.Resume(ctx, checkpointID, answers)
@@ -895,8 +895,8 @@ func TestExecutor_Resume_MissingAnswer(t *testing.T) {
 	)
 
 	// Resume with only one answer (missing q2)
-	answers := map[string]string{
-		"q1": "2024",
+	answers := map[string]types.Answer{
+		"q1": types.NewAnswer("2024"),
 		// Missing "q2"
 	}
 

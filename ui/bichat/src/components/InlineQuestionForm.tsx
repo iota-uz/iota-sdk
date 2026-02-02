@@ -6,7 +6,6 @@
 import { useState } from 'react'
 import { PendingQuestion, QuestionAnswers } from '../types'
 import { useChat } from '../context/ChatContext'
-import { useTranslation } from '../hooks/useTranslation'
 
 interface InlineQuestionFormProps {
   pendingQuestion: PendingQuestion
@@ -14,7 +13,6 @@ interface InlineQuestionFormProps {
 
 export function InlineQuestionForm({ pendingQuestion }: InlineQuestionFormProps) {
   const { handleSubmitQuestionAnswers, handleCancelPendingQuestion } = useChat()
-  const { t } = useTranslation()
   const [answers, setAnswers] = useState<QuestionAnswers>({})
   const [textInput, setTextInput] = useState('')
 
@@ -100,14 +98,14 @@ export function InlineQuestionForm({ pendingQuestion }: InlineQuestionFormProps)
             type="submit"
             className="px-4 py-2 bg-[var(--bichat-primary)] text-white rounded-lg hover:opacity-90 transition-opacity"
           >
-            {t('question.submit')}
+            Submit Answer
           </button>
           <button
             type="button"
             onClick={handleCancelPendingQuestion}
             className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            {t('message.cancel')}
+            Cancel
           </button>
         </div>
       </form>

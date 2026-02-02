@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -15,7 +17,7 @@ import (
 // ExportQueryToExcelTool executes a SQL query and exports results directly to Excel.
 // This is a query-driven approach that executes fresh SQL and generates Excel in one step.
 type ExportQueryToExcelTool struct {
-	executor   QueryExecutorService
+	executor   bichatsql.QueryExecutor
 	outputDir  string
 	baseURL    string
 	exportOpts *excel.ExportOptions
@@ -54,7 +56,7 @@ func WithQueryStyleOptions(opts *excel.StyleOptions) ExportQueryToolOption {
 }
 
 // NewExportQueryToExcelTool creates a new export query to Excel tool.
-func NewExportQueryToExcelTool(executor QueryExecutorService, opts ...ExportQueryToolOption) agents.Tool {
+func NewExportQueryToExcelTool(executor bichatsql.QueryExecutor, opts ...ExportQueryToolOption) agents.Tool {
 	tool := &ExportQueryToExcelTool{
 		executor:   executor,
 		exportOpts: excel.DefaultOptions(),
@@ -170,7 +172,7 @@ func (t *ExportQueryToExcelTool) Call(ctx context.Context, input string) (string
 	querySql := applyRowLimit(params.SQL, 50000)
 
 	// Execute query
-	result, err := t.executor.ExecuteQuery(ctx, querySql, nil, 60000) // 60 second timeout for exports
+	result, err := t.executor.ExecuteQuery(ctx, querySql, nil, 60*time.Second) // 60 second timeout for exports
 	if err != nil {
 		return FormatToolError(
 			ErrCodeQueryError,

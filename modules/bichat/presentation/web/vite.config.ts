@@ -7,23 +7,20 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@iota-uz/bichat-ui': path.resolve(__dirname, '../../../../ui/bichat/src'),
     },
-    dedupe: ['react', 'react-dom', '@phosphor-icons/react', 'date-fns'],
   },
-  base: '/bichat/assets/',
+  base: '/bi-chat/assets/',
+  assetsInclude: ['**/*.css'],
   build: {
     outDir: '../assets/dist',
     emptyOutDir: true,
+    manifest: true,
+    cssCodeSplit: false, // Bundle all CSS into a single file
     rollupOptions: {
       output: {
-        entryFileNames: 'main.js',
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name?.endsWith('.css')) {
-            return 'main.css'
-          }
-          return 'assets/[name].[ext]'
-        },
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
   },

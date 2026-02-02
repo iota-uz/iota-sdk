@@ -6,8 +6,9 @@ import (
 )
 
 // sanitizeForJSON removes or escapes dangerous characters before JSON serialization.
-// Prevents XSS attacks by HTML-escaping string values in nested maps.
-// Returns a new sanitized map without modifying the original.
+// Prevents XSS attacks by HTML-escaping string values in nested maps and arrays.
+// Returns a new sanitized structure without modifying the original.
+// Supports: maps, arrays/slices, strings, and basic JSON primitives (numbers, bools, null).
 func sanitizeForJSON(data map[string]interface{}) map[string]interface{} {
 	if data == nil {
 		return nil
@@ -15,19 +16,46 @@ func sanitizeForJSON(data map[string]interface{}) map[string]interface{} {
 
 	sanitized := make(map[string]interface{}, len(data))
 	for key, value := range data {
-		switch v := value.(type) {
-		case string:
-			// HTML-escape string values to prevent XSS
-			sanitized[key] = html.EscapeString(v)
-		case map[string]interface{}:
-			// Recursively sanitize nested maps
-			sanitized[key] = sanitizeForJSON(v)
-		default:
-			// Pass through non-string, non-map values unchanged
-			sanitized[key] = value
-		}
+		sanitized[key] = sanitizeValue(value)
 	}
 	return sanitized
+}
+
+// sanitizeValue recursively sanitizes a value, handling maps, arrays, and strings.
+func sanitizeValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case string:
+		// HTML-escape string values to prevent XSS
+		return html.EscapeString(v)
+	case map[string]interface{}:
+		// Recursively sanitize nested maps
+		return sanitizeForJSON(v)
+	case []interface{}:
+		// Recursively sanitize arrays/slices
+		sanitized := make([]interface{}, len(v))
+		for i, item := range v {
+			sanitized[i] = sanitizeValue(item)
+		}
+		return sanitized
+	case []string:
+		// Handle []string specifically (common case)
+		sanitized := make([]string, len(v))
+		for i, s := range v {
+			sanitized[i] = html.EscapeString(s)
+		}
+		return sanitized
+	case []map[string]interface{}:
+		// Handle []map[string]interface{} specifically
+		sanitized := make([]map[string]interface{}, len(v))
+		for i, m := range v {
+			sanitized[i] = sanitizeForJSON(m)
+		}
+		return sanitized
+	default:
+		// Pass through basic JSON primitives (numbers, bools, null) unchanged
+		// These are safe and don't need sanitization
+		return value
+	}
 }
 
 // validatePermissions ensures permissions are valid permission names.

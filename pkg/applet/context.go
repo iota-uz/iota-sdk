@@ -73,7 +73,9 @@ func NewContextBuilder(
 // Performance target: <20ms for typical request
 // Logs: Entry/exit with user/tenant/duration
 // Metrics: build_duration, translation_load_time, tenant_resolution_time
-func (b *ContextBuilder) Build(ctx context.Context, r *http.Request) (*InitialContext, error) {
+//
+// basePath is the applet's base path (e.g., "/bi-chat") used for route parsing.
+func (b *ContextBuilder) Build(ctx context.Context, r *http.Request, basePath string) (*InitialContext, error) {
 	const op serrors.Op = "ContextBuilder.Build"
 	start := time.Now()
 
@@ -137,7 +139,7 @@ func (b *ContextBuilder) Build(ctx context.Context, r *http.Request) (*InitialCo
 	if router == nil {
 		router = NewDefaultRouter()
 	}
-	route := router.ParseRoute(r, "")
+	route := router.ParseRoute(r, basePath)
 
 	// Build session context
 	session := buildSessionContext(r, b.sessionConfig, b.sessionStore)

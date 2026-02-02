@@ -8,6 +8,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/codecs"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
 // mockRenderer is a simple test renderer that estimates tokens based on string length
@@ -24,27 +25,24 @@ func newMockRenderer() *mockRenderer {
 func (r *mockRenderer) Render(block context.ContextBlock) (context.RenderedBlock, error) {
 	switch block.Meta.Kind {
 	case context.KindPinned:
-		// System blocks go in SystemContent
+		// System blocks produce system messages
 		content, ok := block.Payload.(string)
 		if !ok {
 			return context.RenderedBlock{}, errors.New("invalid system payload")
 		}
 		return context.RenderedBlock{
-			SystemContent: content,
+			Messages: []types.Message{{Role: types.RoleSystem, Content: content}},
 		}, nil
 
 	default:
-		// Other blocks go in Message
+		// Other blocks produce user messages
 		content, ok := block.Payload.(string)
 		if !ok {
 			// Try to extract from structured payload
 			content = "rendered content"
 		}
 		return context.RenderedBlock{
-			Message: map[string]interface{}{
-				"role":    "user",
-				"content": content,
-			},
+			Messages: []types.Message{{Role: types.RoleUser, Content: content}},
 		}, nil
 	}
 }
@@ -192,9 +190,16 @@ func TestCompiler_Overflow_Truncate(t *testing.T) {
 		t.Errorf("Token count (%d) exceeds available budget (%d)", compiled.TotalTokens, availableTokens)
 	}
 
-	// System block should be preserved
-	if compiled.SystemPrompt == "" {
-		t.Error("Expected system prompt to be preserved")
+	// System block should be preserved as system messages
+	hasSystemMessage := false
+	for _, msg := range compiled.Messages {
+		if msg.Role == types.RoleSystem {
+			hasSystemMessage = true
+			break
+		}
+	}
+	if !hasSystemMessage {
+		t.Error("Expected system message to be preserved")
 	}
 }
 
@@ -219,8 +224,15 @@ func TestCompiler_EmptyContext(t *testing.T) {
 	}
 
 	// Verify empty results
-	if compiled.SystemPrompt != "" {
-		t.Error("Expected empty system prompt")
+	hasSystemMessage := false
+	for _, msg := range compiled.Messages {
+		if msg.Role == types.RoleSystem {
+			hasSystemMessage = true
+			break
+		}
+	}
+	if hasSystemMessage {
+		t.Error("Expected no system messages")
 	}
 	if len(compiled.Messages) != 0 {
 		t.Errorf("Expected 0 messages, got %d", len(compiled.Messages))
@@ -296,12 +308,19 @@ func TestCompiler_SensitivityFiltering(t *testing.T) {
 				t.Errorf("Expected %d excluded blocks, got %d", tt.expectedExcluded, compiled.ExcludedBlocks)
 			}
 
-			if !strings.Contains(compiled.SystemPrompt, tt.shouldContainText) {
-				t.Errorf("Expected system prompt to contain '%s'", tt.shouldContainText)
+			// Check system messages for expected text
+			systemContent := ""
+			for _, msg := range compiled.Messages {
+				if msg.Role == types.RoleSystem {
+					systemContent += msg.Content + " "
+				}
+			}
+			if !strings.Contains(systemContent, tt.shouldContainText) {
+				t.Errorf("Expected system messages to contain '%s'", tt.shouldContainText)
 			}
 
-			if tt.shouldNotContain != "" && strings.Contains(compiled.SystemPrompt, tt.shouldNotContain) {
-				t.Errorf("Expected system prompt NOT to contain '%s'", tt.shouldNotContain)
+			if tt.shouldNotContain != "" && strings.Contains(systemContent, tt.shouldNotContain) {
+				t.Errorf("Expected system messages NOT to contain '%s'", tt.shouldNotContain)
 			}
 		})
 	}
@@ -431,15 +450,21 @@ func TestCompiler_MultipleSystemBlocks(t *testing.T) {
 		t.Fatalf("Compilation failed: %v", err)
 	}
 
-	// All system blocks should be combined in SystemPrompt
-	if !strings.Contains(compiled.SystemPrompt, "Rule 1") {
-		t.Error("Expected SystemPrompt to contain 'Rule 1'")
+	// All system blocks should be present as system messages
+	systemContent := ""
+	for _, msg := range compiled.Messages {
+		if msg.Role == types.RoleSystem {
+			systemContent += msg.Content + " "
+		}
 	}
-	if !strings.Contains(compiled.SystemPrompt, "Rule 2") {
-		t.Error("Expected SystemPrompt to contain 'Rule 2'")
+	if !strings.Contains(systemContent, "Rule 1") {
+		t.Error("Expected system messages to contain 'Rule 1'")
 	}
-	if !strings.Contains(compiled.SystemPrompt, "Rule 3") {
-		t.Error("Expected SystemPrompt to contain 'Rule 3'")
+	if !strings.Contains(systemContent, "Rule 2") {
+		t.Error("Expected system messages to contain 'Rule 2'")
+	}
+	if !strings.Contains(systemContent, "Rule 3") {
+		t.Error("Expected system messages to contain 'Rule 3'")
 	}
 }
 
@@ -474,9 +499,16 @@ func TestCompiler_BlockOrdering(t *testing.T) {
 		t.Fatalf("Compilation failed: %v", err)
 	}
 
-	// System should come first (in SystemPrompt)
-	if compiled.SystemPrompt == "" {
-		t.Error("Expected SystemPrompt to be populated")
+	// System should come first (as system messages)
+	hasSystemMessage := false
+	for _, msg := range compiled.Messages {
+		if msg.Role == types.RoleSystem {
+			hasSystemMessage = true
+			break
+		}
+	}
+	if !hasSystemMessage {
+		t.Error("Expected system messages to be present")
 	}
 
 	// History and Turn should be in Messages

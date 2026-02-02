@@ -1,41 +1,5 @@
-import { createContext, useContext, ReactNode } from 'react'
-import type { IotaContext } from '@iota-uz/bichat-ui'
-
 /**
- * Extended BiChat context with feature flags
+ * Re-export IotaContext from @iotauz/bichat-ui
+ * The base implementation handles window.__BICHAT_CONTEXT__ injection
  */
-export interface BiChatContext extends IotaContext {
-  extensions: {
-    features: {
-      vision: boolean
-      webSearch: boolean
-      codeInterpreter: boolean
-      multiAgent: boolean
-    }
-    branding: Record<string, any>
-    translations: Record<string, string>
-  }
-}
-
-const IotaContextInstance = createContext<BiChatContext | null>(null)
-
-export function IotaContextProvider({ children }: { children: ReactNode }) {
-  const context = (window as any).__BICHAT_CONTEXT__ as BiChatContext
-
-  if (!context) {
-    throw new Error('BiChat context not found. Ensure the app is served via Go applet controller.')
-  }
-
-  return <IotaContextInstance.Provider value={context}>{children}</IotaContextInstance.Provider>
-}
-
-export function useIotaContext() {
-  const context = useContext(IotaContextInstance)
-  if (!context) throw new Error('useIotaContext must be used within IotaContextProvider')
-  return context
-}
-
-export function hasPermission(permission: string): boolean {
-  const { user } = useIotaContext()
-  return user.permissions.includes(permission)
-}
+export { IotaContextProvider, useIotaContext } from '@iotauz/bichat-ui'

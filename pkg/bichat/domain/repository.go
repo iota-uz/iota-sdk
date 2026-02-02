@@ -12,8 +12,6 @@ import (
 type ListOptions struct {
 	Limit  int
 	Offset int
-	// Types filters GetSessionArtifacts by artifact type (optional)
-	Types []ArtifactType
 }
 
 // ChatRepository defines the persistence interface for chat domain models.
@@ -41,11 +39,4 @@ type ChatRepository interface {
 	GetAttachment(ctx context.Context, id uuid.UUID) (*Attachment, error)
 	GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]*Attachment, error)
 	DeleteAttachment(ctx context.Context, id uuid.UUID) error
-
-	// Artifact operations
-	SaveArtifact(ctx context.Context, artifact *Artifact) error
-	GetArtifact(ctx context.Context, id uuid.UUID) (*Artifact, error)
-	GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts ListOptions) ([]*Artifact, error)
-	DeleteArtifact(ctx context.Context, id uuid.UUID) error
-	UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) error
 }

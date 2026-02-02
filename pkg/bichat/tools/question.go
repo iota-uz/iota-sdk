@@ -2,49 +2,45 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// QuestionOption represents a single option in a question.
-type QuestionOption struct {
-	Label       string `json:"label"`       // Display text (1-5 words, concise)
-	Description string `json:"description"` // Explanation of what this option means
+// Internal types for parsing tool input JSON (not part of public API)
+// These match the JSON schema but convert to canonical types.AskUserQuestionPayload
+
+// questionOptionInput represents an option in the tool input JSON.
+type questionOptionInput struct {
+	ID          string `json:"id,omitempty"` // Stable identifier (auto-generated if missing)
+	Label       string `json:"label"`        // Display text
+	Description string `json:"description"`  // Explanation
 }
 
-// UserQuestion represents a question posed to the user.
-type UserQuestion struct {
-	Question    string           `json:"question"`    // The complete question (must end with ?)
-	Header      string           `json:"header"`      // Short label (max 12 chars) - displays as chip/tag
-	MultiSelect bool             `json:"multiSelect"` // Allow multiple selections (default: false)
-	Options     []QuestionOption `json:"options"`     // 2-4 options required
+// userQuestionInput represents a question in the tool input JSON.
+type userQuestionInput struct {
+	ID          string                `json:"id,omitempty"` // Stable identifier (auto-generated if missing)
+	Question    string                `json:"question"`     // The complete question (must end with ?)
+	Header      string                `json:"header"`       // Short label (max 12 chars)
+	MultiSelect bool                  `json:"multiSelect"`  // Allow multiple selections
+	Options     []questionOptionInput `json:"options"`      // 2-4 options required
 }
 
-// QuestionMetadata represents optional metadata for the question request.
-type QuestionMetadata struct {
-	Source string `json:"source,omitempty"` // Optional tracking (e.g., "remember")
+// questionMetadataInput represents optional metadata in the tool input JSON.
+type questionMetadataInput struct {
+	Source string `json:"source,omitempty"`
 }
 
-// InterruptData represents the data for an interrupt event.
-// This is what gets saved in the checkpoint for HITL resumption.
-type InterruptData struct {
-	Type      string            `json:"type"`               // "ask_user_question"
-	Questions []UserQuestion    `json:"questions"`          // The questions to ask
-	Metadata  *QuestionMetadata `json:"metadata,omitempty"` // Optional metadata
-}
-
-// AskUserQuestionTool is a special tool that triggers a HITL (Human-in-the-Loop) interrupt.
+// AskUserQuestionTool is a tool that triggers a HITL (Human-in-the-Loop) interrupt.
 // When called, the executor will pause execution, save a checkpoint, and wait for user input.
-// This tool does NOT implement the standard Tool interface - it's handled specially by the executor.
-// Instead, use NewAskUserQuestionHandler() to create an InterruptHandler.
+// The executor handles interrupt detection and checkpointing automatically.
 type AskUserQuestionTool struct{}
 
 // NewAskUserQuestionTool creates a tool that asks the user for clarification.
-// NOTE: This tool should be registered with the executor's interrupt handler registry,
-// not the regular tool registry. The executor will handle it specially.
+// Register this tool with the agent's tool registry. The executor will automatically
+// detect when this tool is called and trigger an interrupt event.
 func NewAskUserQuestionTool() agents.Tool {
 	return &AskUserQuestionTool{}
 }
@@ -75,6 +71,10 @@ func (t *AskUserQuestionTool) Parameters() map[string]any {
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
+						"id": map[string]any{
+							"type":        "string",
+							"description": "Stable identifier for the question (auto-generated if not provided)",
+						},
 						"question": map[string]any{
 							"type":        "string",
 							"description": "The complete question (must end with ?)",
@@ -98,6 +98,10 @@ func (t *AskUserQuestionTool) Parameters() map[string]any {
 							"items": map[string]any{
 								"type": "object",
 								"properties": map[string]any{
+									"id": map[string]any{
+										"type":        "string",
+										"description": "Stable identifier for the option (auto-generated if not provided)",
+									},
 									"label": map[string]any{
 										"type":        "string",
 										"description": "Display text (1-5 words, concise)",
@@ -131,8 +135,8 @@ func (t *AskUserQuestionTool) Parameters() map[string]any {
 
 // askQuestionInput represents the parsed input parameters.
 type askQuestionInput struct {
-	Questions []UserQuestion    `json:"questions"`
-	Metadata  *QuestionMetadata `json:"metadata,omitempty"`
+	Questions []userQuestionInput    `json:"questions"`
+	Metadata  *questionMetadataInput `json:"metadata,omitempty"`
 }
 
 // Call executes the ask user question operation.
@@ -233,106 +237,76 @@ func (t *AskUserQuestionTool) Call(ctx context.Context, input string) (string, e
 		}
 	}
 
-	// Create interrupt data
-	interruptData := InterruptData{
-		Type:      "ask_user_question",
-		Questions: params.Questions,
-		Metadata:  params.Metadata,
+	// Generate IDs for questions and options if not provided
+	canonicalQuestions := make([]types.AskUserQuestion, 0, len(params.Questions))
+	questionIDs := make(map[string]bool)
+
+	for i, q := range params.Questions {
+		// Generate question ID if missing
+		qid := q.ID
+		if qid == "" {
+			qid = fmt.Sprintf("q%d", i+1)
+		}
+		if questionIDs[qid] {
+			return FormatToolError(
+				ErrCodeInvalidRequest,
+				fmt.Sprintf("duplicate question ID: %s", qid),
+				HintCheckFieldFormat,
+				"Question IDs must be unique",
+			), serrors.E(op, fmt.Sprintf("duplicate question ID: %s", qid))
+		}
+		questionIDs[qid] = true
+
+		// Convert options with IDs
+		canonicalOptions := make([]types.QuestionOption, 0, len(q.Options))
+		optionIDs := make(map[string]bool)
+		for j, opt := range q.Options {
+			// Generate option ID if missing
+			oid := opt.ID
+			if oid == "" {
+				oid = fmt.Sprintf("%s_opt%d", qid, j+1)
+			}
+			if optionIDs[oid] {
+				return FormatToolError(
+					ErrCodeInvalidRequest,
+					fmt.Sprintf("question[%d]: duplicate option ID: %s", i, oid),
+					HintCheckFieldFormat,
+					"Option IDs must be unique within a question",
+				), serrors.E(op, fmt.Sprintf("question[%d]: duplicate option ID: %s", i, oid))
+			}
+			optionIDs[oid] = true
+
+			canonicalOptions = append(canonicalOptions, types.QuestionOption{
+				ID:          oid,
+				Label:       opt.Label,
+				Description: opt.Description,
+			})
+		}
+
+		canonicalQuestions = append(canonicalQuestions, types.AskUserQuestion{
+			ID:          qid,
+			Question:    q.Question,
+			Header:      q.Header,
+			MultiSelect: q.MultiSelect,
+			Options:     canonicalOptions,
+		})
+	}
+
+	// Create canonical interrupt payload
+	var metadata *types.QuestionMetadata
+	if params.Metadata != nil {
+		metadata = &types.QuestionMetadata{
+			Source: params.Metadata.Source,
+		}
+	}
+
+	payload := types.AskUserQuestionPayload{
+		Type:      types.InterruptTypeAskUserQuestion,
+		Questions: canonicalQuestions,
+		Metadata:  metadata,
 	}
 
 	// Return interrupt signal as JSON
 	// The executor will detect this and trigger an interrupt
-	return agents.FormatToolOutput(interruptData)
-}
-
-// NewAskUserQuestionHandler creates an InterruptHandler for ask_user_question.
-// This should be registered with the executor's interrupt handler registry.
-//
-// Example usage:
-//
-//	handler := tools.NewAskUserQuestionHandler()
-//	executor.RegisterInterruptHandler(agents.ToolAskUserQuestion, handler)
-func NewAskUserQuestionHandler() InterruptHandler {
-	return &askUserQuestionHandler{}
-}
-
-// InterruptHandler handles HITL interrupts.
-// This interface matches the one expected by the executor.
-type InterruptHandler interface {
-	// HandleInterrupt processes an interrupt and returns the data to save in the checkpoint.
-	HandleInterrupt(ctx context.Context, toolName, input string) (json.RawMessage, error)
-
-	// ResumeFromInterrupt processes the user's answer and returns the result to feed back to the agent.
-	ResumeFromInterrupt(ctx context.Context, checkpointData json.RawMessage, answer string) (string, error)
-}
-
-// askUserQuestionHandler implements the InterruptHandler for ask_user_question.
-type askUserQuestionHandler struct{}
-
-// HandleInterrupt saves the question data for the checkpoint.
-func (h *askUserQuestionHandler) HandleInterrupt(ctx context.Context, toolName, input string) (json.RawMessage, error) {
-	const op serrors.Op = "askUserQuestionHandler.HandleInterrupt"
-
-	// Parse the tool input to get the questions
-	params, err := agents.ParseToolInput[askQuestionInput](input)
-	if err != nil {
-		return nil, serrors.E(op, err, "failed to parse input")
-	}
-
-	// Validate questions
-	if len(params.Questions) == 0 {
-		return nil, serrors.E(op, "at least one question is required")
-	}
-
-	// Build the interrupt data
-	interruptData := InterruptData{
-		Type:      "ask_user_question",
-		Questions: params.Questions,
-		Metadata:  params.Metadata,
-	}
-
-	// Save as checkpoint data
-	data, err := json.Marshal(interruptData)
-	if err != nil {
-		return nil, serrors.E(op, err, "failed to marshal questions")
-	}
-
-	return data, nil
-}
-
-// ResumeFromInterrupt processes the user's answer and returns it to the agent.
-// The answer should be a JSON object mapping question headers to selected options.
-// For single-select questions: { "header1": "selected_label" }
-// For multi-select questions: { "header2": ["label1", "label2"] }
-func (h *askUserQuestionHandler) ResumeFromInterrupt(ctx context.Context, checkpointData json.RawMessage, answer string) (string, error) {
-	const op serrors.Op = "askUserQuestionHandler.ResumeFromInterrupt"
-
-	// Parse the saved interrupt data
-	var interruptData InterruptData
-	if err := json.Unmarshal(checkpointData, &interruptData); err != nil {
-		return "", serrors.E(op, err, "failed to unmarshal interrupt data")
-	}
-
-	// Parse the user's answers
-	var answers map[string]interface{}
-	if err := json.Unmarshal([]byte(answer), &answers); err != nil {
-		return "", serrors.E(op, err, "failed to parse user answers")
-	}
-
-	// Format the result to return to the agent
-	result := map[string]interface{}{
-		"questions": interruptData.Questions,
-		"answers":   answers,
-	}
-
-	if interruptData.Metadata != nil {
-		result["metadata"] = interruptData.Metadata
-	}
-
-	data, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return "", serrors.E(op, err, "failed to marshal result")
-	}
-
-	return string(data), nil
+	return agents.FormatToolOutput(payload)
 }

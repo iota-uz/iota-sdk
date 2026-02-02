@@ -1,5 +1,7 @@
 package context
 
+import "github.com/iota-uz/iota-sdk/pkg/bichat/types"
+
 // Renderer converts blocks to provider-specific formats and estimates tokens.
 // Each provider (Anthropic, OpenAI, Gemini) has different message formats and tokenization.
 type Renderer interface {
@@ -14,16 +16,13 @@ type Renderer interface {
 }
 
 // RenderedBlock is the type-safe output of rendering.
-// Different providers have different message structures.
+// Renderers now produce canonical types.Message instances instead of provider-specific formats.
 type RenderedBlock struct {
-	// SystemContent is for system/pinned blocks (goes in system field).
-	SystemContent string
-
-	// Message is for history/turn blocks (provider-specific format).
-	// For Anthropic: map with "role" and "content"
-	// For OpenAI: map with "role" and "content"
-	// For Gemini: map with "role" and "parts"
-	Message any
+	// Messages contains 0..n canonical messages from this block.
+	// System blocks produce system-role messages.
+	// History blocks produce one message per history entry.
+	// Turn blocks produce user-role messages.
+	Messages []types.Message
 
 	// Metadata contains provider-specific metadata.
 	Metadata map[string]any

@@ -7,14 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
+	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -53,7 +57,7 @@ type ModuleConfig struct {
 	AgentRegistry *agents.AgentRegistry
 
 	// Optional services (can be nil)
-	QueryExecutor bichatservices.QueryExecutorService
+	QueryExecutor bichatsql.QueryExecutor
 	KBSearcher    kb.KBSearcher
 	TenantService *coreservices.TenantService
 
@@ -79,6 +83,22 @@ type ModuleConfig struct {
 	EnableWebSearch       bool // Enable web search tool
 	EnableCodeInterpreter bool // Enable code execution capabilities
 	EnableMultiAgent      bool // Enable multi-agent orchestration
+
+	// Renderer for context block formatting (required, defaults to AnthropicRenderer)
+	Renderer bichatcontext.Renderer
+
+	// Attachment storage configuration
+	AttachmentStorageBasePath string // e.g., "/var/lib/bichat/attachments"
+	AttachmentStorageBaseURL  string // e.g., "https://example.com/bichat/attachments"
+	DisableAttachmentStorage  bool   // Explicit disable (testing only)
+
+	// Feature toggles
+	DisableTitleGeneration bool // Disable auto-title generation
+
+	// Internal: Created services (initialized during BuildServices)
+	chatService       bichatservices.ChatService
+	agentService      bichatservices.AgentService
+	attachmentService bichatservices.AttachmentService
 }
 
 // ConfigOption is a functional option for ModuleConfig
@@ -92,7 +112,7 @@ func WithModelRegistry(registry ModelRegistry) ConfigOption {
 }
 
 // WithQueryExecutor sets the SQL query executor service
-func WithQueryExecutor(executor bichatservices.QueryExecutorService) ConfigOption {
+func WithQueryExecutor(executor bichatsql.QueryExecutor) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.QueryExecutor = executor
 	}
@@ -190,6 +210,43 @@ func WithObservability(provider observability.Provider) ConfigOption {
 	}
 }
 
+// WithRenderer sets a custom renderer for context block formatting.
+// If not provided, defaults to AnthropicRenderer.
+func WithRenderer(renderer bichatcontext.Renderer) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.Renderer = renderer
+	}
+}
+
+// WithAttachmentStorage configures file storage for attachments.
+// Both basePath and baseURL are required for attachment support.
+//
+// Example:
+//
+//	bichat.WithAttachmentStorage("/var/lib/bichat/attachments", "https://example.com/bichat/attachments")
+func WithAttachmentStorage(basePath, baseURL string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.AttachmentStorageBasePath = basePath
+		c.AttachmentStorageBaseURL = baseURL
+	}
+}
+
+// WithNoOpAttachmentStorage disables attachment storage (testing only).
+// Use this explicitly in tests to bypass attachment storage requirements.
+func WithNoOpAttachmentStorage() ConfigOption {
+	return func(c *ModuleConfig) {
+		c.DisableAttachmentStorage = true
+	}
+}
+
+// WithTitleGenerationDisabled disables automatic session title generation.
+// When disabled, users must manually provide session titles.
+func WithTitleGenerationDisabled() ConfigOption {
+	return func(c *ModuleConfig) {
+		c.DisableTitleGeneration = true
+	}
+}
+
 // NewModuleConfig creates a new module configuration with required dependencies.
 // Use ConfigOption functions to set optional dependencies.
 func NewModuleConfig(
@@ -226,8 +283,16 @@ func NewModuleConfig(
 		cfg.Checkpointer = agents.NewInMemoryCheckpointer()
 	}
 
+	// Default to proper token estimator (not NoOp)
 	if cfg.TokenEstimator == nil {
-		cfg.TokenEstimator = agents.NewNoOpTokenEstimator()
+		cfg.TokenEstimator = agents.NewTiktokenEstimator("cl100k_base")
+	} else if _, isNoOp := cfg.TokenEstimator.(*agents.NoOpTokenEstimator); isNoOp {
+		cfg.Logger.Warn("NoOpTokenEstimator configured - context window management disabled")
+	}
+
+	// Default to AnthropicRenderer
+	if cfg.Renderer == nil {
+		cfg.Renderer = renderers.NewAnthropicRenderer()
 	}
 
 	// Wire summarizer to context policy if compaction is enabled
@@ -314,6 +379,49 @@ func (c *ModuleConfig) Validate() error {
 	if c.ContextPolicy.ContextWindow == 0 {
 		return errors.New("ContextPolicy.ContextWindow must be set")
 	}
+
+	// Validate Renderer
+	if c.Renderer == nil {
+		return errors.New("Renderer is required")
+	}
+
+	// Validate TokenEstimator
+	if c.TokenEstimator == nil {
+		return errors.New("TokenEstimator is required")
+	}
+
+	// Validate OverflowStrategy
+	validStrategies := map[bichatcontext.OverflowStrategy]bool{
+		bichatcontext.OverflowError:    true,
+		bichatcontext.OverflowTruncate: true,
+		bichatcontext.OverflowCompact:  true,
+	}
+	if !validStrategies[c.ContextPolicy.OverflowStrategy] {
+		return fmt.Errorf("invalid OverflowStrategy: %s (must be error/truncate/compact)", c.ContextPolicy.OverflowStrategy)
+	}
+
+	// Validate OverflowCompact configuration
+	if c.ContextPolicy.OverflowStrategy == bichatcontext.OverflowCompact {
+		if c.ContextPolicy.Compaction == nil {
+			return errors.New("OverflowStrategy=compact requires Compaction config")
+		}
+
+		// Warn if using NoOp estimator with compaction
+		if _, isNoOp := c.TokenEstimator.(*agents.NoOpTokenEstimator); isNoOp {
+			return errors.New("OverflowStrategy=compact requires accurate TokenEstimator (not NoOp)")
+		}
+	}
+
+	// Validate attachment storage if enabled
+	if !c.DisableAttachmentStorage {
+		if c.AttachmentStorageBasePath == "" {
+			return errors.New("AttachmentStorageBasePath required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+		}
+		if c.AttachmentStorageBaseURL == "" {
+			return errors.New("AttachmentStorageBaseURL required - use WithAttachmentStorage(path, url) or WithNoOpAttachmentStorage()")
+		}
+	}
+
 	return nil
 }
 
@@ -381,6 +489,95 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 		RedactRestricted: true,
 		// Summarizer will be set automatically by NewModuleConfig
 	}
+}
+
+// BuildServices creates and initializes all BiChat services from the configuration.
+// This should be called after NewModuleConfig and before registering the module.
+// Services are cached in the config and reused on subsequent calls.
+//
+// This method fails fast - any error in service creation returns immediately.
+func (c *ModuleConfig) BuildServices() error {
+	const op serrors.Op = "ModuleConfig.BuildServices"
+
+	// Validate configuration first
+	if err := c.Validate(); err != nil {
+		return serrors.E(op, err)
+	}
+
+	// Build AgentService first (ChatService depends on it)
+	if c.agentService == nil {
+		c.agentService = services.NewAgentService(services.AgentServiceConfig{
+			Agent:         c.ParentAgent,
+			Model:         c.Model,
+			Policy:        c.ContextPolicy,
+			Renderer:      c.Renderer, // Use configured renderer
+			Checkpointer:  c.Checkpointer,
+			EventBus:      c.EventBus,
+			ChatRepo:      c.ChatRepo,
+			AgentRegistry: c.AgentRegistry,
+		})
+	}
+
+	// Build TitleGenerationService (required unless disabled)
+	var titleService services.TitleGenerationService
+	if !c.DisableTitleGeneration {
+		titleSvc, err := services.NewTitleGenerationService(c.Model, c.ChatRepo)
+		if err != nil {
+			return serrors.E(op, err, "failed to create title generation service")
+		}
+		titleService = titleSvc
+	}
+
+	// Build ChatService
+	if c.chatService == nil {
+		c.chatService = services.NewChatService(
+			c.ChatRepo,
+			c.agentService,
+			c.Model,
+			titleService, // Can be nil if disabled
+		)
+	}
+
+	// Build AttachmentService (required unless disabled)
+	if c.attachmentService == nil {
+		var fileStorage storage.FileStorage
+
+		if c.DisableAttachmentStorage {
+			fileStorage = storage.NewNoOpFileStorage()
+		} else {
+			// Create LocalFileStorage with configured paths
+			fs, err := storage.NewLocalFileStorage(
+				c.AttachmentStorageBasePath,
+				c.AttachmentStorageBaseURL,
+			)
+			if err != nil {
+				return serrors.E(op, err, "failed to create attachment storage")
+			}
+			fileStorage = fs
+		}
+
+		c.attachmentService = services.NewAttachmentService(fileStorage)
+	}
+
+	return nil
+}
+
+// ChatService returns the cached ChatService instance.
+// Returns nil if BuildServices hasn't been called yet.
+func (c *ModuleConfig) ChatService() bichatservices.ChatService {
+	return c.chatService
+}
+
+// AgentService returns the cached AgentService instance.
+// Returns nil if BuildServices hasn't been called yet.
+func (c *ModuleConfig) AgentService() bichatservices.AgentService {
+	return c.agentService
+}
+
+// AttachmentService returns the cached AttachmentService instance.
+// Returns nil if BuildServices hasn't been called yet.
+func (c *ModuleConfig) AttachmentService() bichatservices.AttachmentService {
+	return c.attachmentService
 }
 
 // String provides a human-readable representation of the configuration

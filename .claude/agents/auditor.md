@@ -15,7 +15,7 @@ description: |
   user: "Feature is done—can you review for any issues before I open a PR?"
   assistant: "I'll use `auditor` to inspect for slop, forgotten updates, and pattern violations."
   </example>
-tools: Read, Grep, Glob, Bash, TodoWrite, Skill, BashOutput, KillShell, WebFetch, WebSearch, mcp__sequential-thinking__sequentialthinking
+tools: Read, Grep, Glob, Bash(git status:*), Bash(git diff:*), Bash(go vet:*), Bash(make:*), WebFetch, WebSearch, mcp__sequential-thinking__sequentialthinking
 model: opus
 ---
 

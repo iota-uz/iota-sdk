@@ -14,7 +14,7 @@ import (
 type MockModel struct {
 	generateFunc func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error)
 	infoFunc     func() agents.ModelInfo
-	streamFunc   func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk]
+	streamFunc   func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error)
 	pricingFunc  func() agents.ModelPricing
 }
 
@@ -35,11 +35,11 @@ func (m *MockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 	}, nil
 }
 
-func (m *MockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk] {
+func (m *MockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
 	if m.streamFunc != nil {
 		return m.streamFunc(ctx, req, opts...)
 	}
-	return nil
+	return nil, nil
 }
 
 func (m *MockModel) Info() agents.ModelInfo {

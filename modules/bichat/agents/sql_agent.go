@@ -4,7 +4,7 @@ import (
 	_ "embed"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -23,7 +23,7 @@ var sqlAgentPrompt string
 //
 // Usage:
 //
-//	executor := tools.NewDefaultQueryExecutor(dbPool)
+//	executor := infrastructure.NewPostgresQueryExecutor(dbPool)
 //	sqlAgent, err := NewSQLAgent(executor)
 //	if err != nil {
 //	    return err
@@ -34,7 +34,7 @@ var sqlAgentPrompt string
 //	registry.Register(sqlAgent)
 type SQLAgent struct {
 	*agents.BaseAgent
-	executor bichatservices.QueryExecutorService
+	executor bichatsql.QueryExecutor
 	model    string
 }
 
@@ -51,7 +51,7 @@ func WithSQLAgentModel(model string) SQLAgentOption {
 // NewSQLAgent creates a new SQL analyst agent with the specified options.
 // The executor parameter is required for database access.
 func NewSQLAgent(
-	executor bichatservices.QueryExecutorService,
+	executor bichatsql.QueryExecutor,
 	opts ...SQLAgentOption,
 ) (*SQLAgent, error) {
 	const op serrors.Op = "NewSQLAgent"
@@ -71,14 +71,15 @@ func NewSQLAgent(
 		opt(agent)
 	}
 
-	// Create adapter to bridge bichatservices.QueryExecutorService -> tools.QueryExecutorService
-	toolsExecutor := newQueryExecutorAdapter(executor)
+	// Create schema adapters using the query executor
+	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
 
 	// Build core tools list (SQL-specific only)
 	agentTools := []agents.Tool{
-		tools.NewSchemaListTool(toolsExecutor),
-		tools.NewSchemaDescribeTool(toolsExecutor),
-		tools.NewSQLExecuteTool(toolsExecutor),
+		tools.NewSchemaListTool(schemaLister),
+		tools.NewSchemaDescribeTool(schemaDescriber),
+		tools.NewSQLExecuteTool(executor),
 	}
 
 	// Create base agent with configured model

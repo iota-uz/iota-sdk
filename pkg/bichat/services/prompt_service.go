@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 )
 
 // PromptService provides dynamic prompt rendering capabilities.
@@ -20,7 +22,7 @@ type PromptService interface {
 // PromptData contains all contextual data for prompt rendering
 type PromptData struct {
 	// Database schema information
-	Tables []TableInfo
+	Tables []bichatsql.TableInfo
 
 	// Business context
 	TenantName       string

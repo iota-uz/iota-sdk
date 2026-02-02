@@ -9,7 +9,6 @@
       }
     },
     "Title": "BI-聊天",
-    "NewDialog": "新对话",
     "NewChat": "新聊天",
     "MessagePlaceholder": "输入消息...",
     "SendMessage": "发送消息",
@@ -21,7 +20,7 @@
     "Export": "导出",
     "History": {
       "Empty": "空历史记录",
-      "HelpText": "按 \"新对话\" 开始新对话"
+      "HelpText": "按 \"新聊天\" 开始新聊天"
     },
     "Permissions": {
       "Access": "访问BI聊天",

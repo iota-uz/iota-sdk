@@ -12,11 +12,8 @@ import (
 
 // CompiledContext is the result of compiling a context graph with a renderer and policy.
 type CompiledContext struct {
-	// SystemPrompt is the combined system prompt from all pinned blocks.
-	SystemPrompt string
-
-	// Messages are the rendered messages for the provider.
-	Messages []any
+	// Messages are the canonical rendered messages (no provider-specific formats).
+	Messages []types.Message
 
 	// TotalTokens is the total estimated token count.
 	TotalTokens int
@@ -122,13 +119,12 @@ func (b *ContextBuilder) Compile(renderer Renderer, policy ContextPolicy) (*Comp
 	}
 
 	// Render blocks
-	systemPrompt, messages, err := renderBlocks(finalBlocks, renderer)
+	messages, err := renderBlocks(finalBlocks, renderer)
 	if err != nil {
 		return nil, fmt.Errorf("%s: failed to render blocks: %w", op, err)
 	}
 
 	return &CompiledContext{
-		SystemPrompt:   systemPrompt,
 		Messages:       messages,
 		TotalTokens:    totalTokens,
 		TokensByKind:   tokensByKind,
@@ -486,29 +482,18 @@ func createSummaryBlock(summary string, summaryTokens int) ContextBlock {
 }
 
 // renderBlocks renders all blocks using the renderer.
-func renderBlocks(blocks []ContextBlock, renderer Renderer) (string, []any, error) {
-	var systemPrompt string
-	var messages []any
+func renderBlocks(blocks []ContextBlock, renderer Renderer) ([]types.Message, error) {
+	var messages []types.Message
 
 	for _, block := range blocks {
 		rendered, err := renderer.Render(block)
 		if err != nil {
-			return "", nil, fmt.Errorf("failed to render block %s: %w", block.Hash, err)
+			return nil, fmt.Errorf("failed to render block %s: %w", block.Hash, err)
 		}
 
-		// System content goes into system prompt
-		if rendered.SystemContent != "" {
-			if systemPrompt != "" {
-				systemPrompt += "\n\n"
-			}
-			systemPrompt += rendered.SystemContent
-		}
-
-		// Messages go into message array
-		if rendered.Message != nil {
-			messages = append(messages, rendered.Message)
-		}
+		// Append all rendered messages
+		messages = append(messages, rendered.Messages...)
 	}
 
-	return systemPrompt, messages, nil
+	return messages, nil
 }

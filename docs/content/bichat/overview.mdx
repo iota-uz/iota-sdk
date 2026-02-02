@@ -1,256 +1,128 @@
 ---
 title: 'BiChat Module'
-description: 'AI-powered business intelligence chat for data insights'
+description: 'Agent-powered business intelligence chat for data insights'
 ---
 
 # BiChat Module
 
-The BiChat (Business Intelligence Chat) module provides AI-powered conversational interface for querying business data and gaining insights.
+The BiChat (Business Intelligence Chat) module provides an agent-powered conversational interface for querying business data and gaining insights. Built on the `pkg/bichat` foundation, it uses a multi-agent orchestration system to handle complex data analysis tasks.
 
 ## Purpose
 
 This module enables:
-- Natural language data queries
-- AI-powered business insights
-- Conversational analytics
-- Report generation via chat
-- Data exploration through dialogue
+- **Natural Language Data Queries**: Ask questions about your business data in plain English.
+- **Multi-Agent Analysis**: A parent BI agent coordinates with specialized sub-agents (like the SQL Analyst) to solve complex tasks.
+- **Real-time Data Exploration**: Live execution of SQL queries against your business database.
+- **HITL (Human-in-the-Loop)**: Agents can pause execution to ask the user for clarification or missing information.
+- **Data Export**: Export query results directly to Excel.
 
 ## Key Concepts
 
-### Dialogue
+### Agents
 
-Chat conversation entity:
-- **Messages** - User and AI exchanges
-- **Context** - Conversation history
-- **Session** - User session association
-- **Status** - Active, Archived
+The system uses an orchestration pattern:
+- **BI Agent (Parent)**: The primary interface that understands user intent and coordinates the workflow.
+- **SQL Analyst (Sub-agent)**: Specialized in understanding database schema and generating precise SQL queries.
+- **Delegation Tool**: Allows agents to hand off tasks to specialized sub-agents when needed.
 
-### Embedding
+### Sessions & Messages
 
-AI vector representations:
-- **Data embeddings** - Vector representations of business data
-- **Query embeddings** - User query vectorization
-- **Semantic search** - Find relevant data by meaning
-- **Similarity matching** - Compare data points
+- **Session**: A continuous conversation context tied to a user and tenant.
+- **Message**: Individual exchanges between the user and agents, supporting text and file attachments.
+- **Context Management**: Content-addressed context building that intelligently summarizes history to fit LLM token windows.
 
-### AI Integration
+### HITL (Human-in-the-Loop)
 
-Artificial intelligence services:
-- **Natural language processing** - Understand user queries
-- **Data analysis** - Process and analyze data
-- **Response generation** - Create human-readable answers
-- **Context awareness** - Maintain conversation context
+When an agent needs more information (e.g., "Which warehouse should I check?"), it uses the `ask_user_question` tool. This triggers an interrupt, saves the agent's state as a **Checkpoint**, and waits for a user answer before resuming.
 
 ## Architecture
 
 ```mermaid
 graph TB
     subgraph "BiChat Module Architecture"
-        A[Chat Interface] --> B[DialogueService]
-        B --> C[Query Processor]
-        C --> D[EmbeddingService]
+        A[React SPA] --> B[GraphQL/SSE Controllers]
+        B --> C[AgentService]
         
-        subgraph "AI Pipeline"
-            D --> E[Vector Database]
-            C --> F[LLM Service]
-            F --> G[Response Generator]
+        subgraph "Agent Framework (pkg/bichat)"
+            C --> D[Executor]
+            D --> E[Parent BI Agent]
+            E --> F[Sub-Agents (SQL Analyst)]
         end
         
-        subgraph "Data Sources"
-            C --> H[Finance Data]
-            C --> I[Warehouse Data]
-            C --> J[CRM Data]
-            C --> K[Project Data]
+        subgraph "Tools"
+            E --> G[Knowledge Base Search]
+            F --> H[SQL Execute]
+            E --> I[Chart Generation]
+            E --> J[Excel Export]
         end
     end
     
-    B --> L[(Dialogue Storage)]
-    E --> M[(Vector Store)]
+    C --> K[(PostgreSQL Storage)]
+    E --> L[LLM Provider (OpenAI)]
 ```
-
-## Data Flow
-
-### Chat Query Processing
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Chat
-    participant Processor
-    participant Embedding
-    participant LLM
-    participant Data
-    
-    User->>Chat: Ask question
-    Chat->>Processor: Process query
-    Processor->>Embedding: Vectorize query
-    Embedding->>Embedding: Semantic search
-    Embedding-->>Processor: Relevant context
-    Processor->>Data: Fetch data
-    Data-->>Processor: Raw results
-    Processor->>LLM: Generate response
-    LLM-->>Processor: Natural language answer
-    Processor-->>Chat: Formatted response
-    Chat-->>User: Display answer
-```
-
-## Components
-
-### Chat Interface
-
-User interaction layer:
-- **Chat UI** - Message input and display
-- **History** - Previous conversations
-- **Suggestions** - Query suggestions
-- **Export** - Save chat transcripts
-
-### Query Processing
-
-Natural language understanding:
-- **Intent recognition** - What user wants
-- **Entity extraction** - Identify data entities
-- **Query building** - Convert to data queries
-- **Context management** - Maintain conversation flow
-
-### Embedding Service
-
-Vector representation:
-- **Data indexing** - Convert data to vectors
-- **Query embedding** - Vectorize user queries
-- **Similarity search** - Find related data
-- **Context retrieval** - Relevant information
-
-### LLM Integration
-
-AI response generation:
-- **Query interpretation** - Understand questions
-- **Data synthesis** - Combine multiple data points
-- **Insight generation** - Identify patterns
-- **Response formatting** - Human-readable answers
 
 ## API Reference
 
-### REST Endpoints
+### REST/SSE Endpoints
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/bichat/dialogues` | GET | List conversations |
-| `/bichat/dialogues` | POST | Start new chat |
-| `/bichat/dialogues/:id` | GET | Get conversation |
-| `/bichat/dialogues/:id/messages` | POST | Send message |
-| `/bichat/embeddings/sync` | POST | Sync data embeddings |
+| `/bi-chat` | GET | Serves the React SPA |
+| `/bi-chat/stream` | POST | SSE streaming endpoint for agent responses |
+| `/bi-chat/graphql` | POST | GraphQL API for session management |
 
-### WebSocket
+### GraphQL Operations
 
-Real-time chat via WebSocket:
-- `ws://host/bichat/stream` - Live message streaming
-- Bi-directional communication
-- Typing indicators
-- Message delivery confirmation
+**Queries:**
+- `sessions`: List user's chat sessions
+- `session(id)`: Get detailed session state
+- `messages(sessionId)`: Get conversation history
+
+**Mutations:**
+- `createSession(title)`: Start a new conversation
+- `sendMessage(sessionId, content, attachments)`: Send a message to the agent
+- `resumeWithAnswer(sessionId, checkpointId, answers)`: Resume after an interrupt
+- `archiveSession(id)`: Archive a session
+- `deleteSession(id)`: Permanently remove a session
 
 ## Permissions
 
-| Permission | Description |
-|------------|-------------|
-| `bichat.use` | Access chat interface |
-| `bichat.history.view` | View chat history |
-| `bichat.history.delete` | Delete conversations |
-| `bichat.embeddings.manage` | Manage data embeddings |
-| `bichat.ai.configure` | Configure AI settings |
+| Permission | Resource | Description |
+|------------|----------|-------------|
+| `BiChat.Access` | `bichat` | Access the BI Chat interface and their own sessions |
+| `BiChat.ReadAll` | `bichat` | View chat sessions from all users in the tenant |
+| `BiChat.Export` | `bichat` | Use data export tools within the chat |
 
 ## Data Sources
 
-### Available Data
+The **SQL Analyst** agent has read-only access to the `analytics` schema in the database. Developers should create tenant-isolated views in this schema to expose data to BiChat:
 
-BiChat can query across modules:
-
-| Module | Data Access |
-|--------|-------------|
-| **Finance** | Transactions, accounts, reports |
-| **Warehouse** | Inventory, orders, products |
-| **CRM** | Clients, chats, communications |
-| **Projects** | Projects, stages, payments |
-| **HRM** | Employees, positions |
-
-### Query Examples
-
-Natural language queries:
-- "What were sales last month?"
-- "Show me top 10 products by revenue"
-- "How many new clients this quarter?"
-- "Compare this month vs last month expenses"
-- "Which projects are overdue?"
-
-## Integration
-
-### AI Provider
-
-Configurable AI backends:
-- **OpenAI** - GPT models
-- **Anthropic** - Claude models
-- **Local models** - Self-hosted LLMs
-- **Custom providers** - BYO AI service
-
-### Embedding Store
-
-Vector database options:
-- **Pinecone** - Managed vector DB
-- **Weaviate** - Open source vector search
-- **PostgreSQL pgvector** - Extension-based
-- **Redis** - In-memory vectors
-
-### Events
-
-| Event | Description |
-|-------|-------------|
-| `DialogueCreated` | New chat started |
-| `MessageSent` | User sent message |
-| `ResponseGenerated` | AI responded |
-| `EmbeddingSynced` | Data re-indexed |
-| `QueryProcessed` | Query analyzed |
+```sql
+CREATE VIEW analytics.tenant_sales AS
+SELECT * FROM sales 
+WHERE tenant_id = current_setting('app.tenant_id', true)::UUID;
+```
 
 ## Configuration
 
-### AI Settings
+The module is configured via `ModuleConfig` in Go:
 
-Configuration options:
-- **Model selection** - Choose LLM provider
-- **Temperature** - Response creativity
-- **Max tokens** - Response length limit
-- **Context window** - Conversation memory
+```go
+cfg := bichat.NewModuleConfig(
+    chatRepo,
+    llmModel,
+    bichat.DefaultContextPolicy(),
+    parentAgent,
+    bichat.WithQueryExecutor(executor),
+    bichat.WithVision(true),
+    bichat.WithMultiAgent(true),
+)
+```
 
-### Data Sync
+## Environment Variables
 
-Embedding synchronization:
-- **Sync schedule** - Automatic re-indexing
-- **Data scope** - Which modules to include
-- **Batch size** - Processing chunks
-- **Incremental updates** - Delta changes only
-
-## Best Practices
-
-1. **Data privacy** - Don't expose sensitive data
-2. **Query limits** - Rate limiting for cost control
-3. **Context limits** - Manage conversation length
-4. **Feedback loop** - Improve based on ratings
-5. **Monitoring** - Track query success rates
-6. **Caching** - Cache frequent queries
-
-## Security Considerations
-
-### Data Access
-
-BiChat respects permissions:
-- Only query data user can access
-- Respect RBAC permissions
-- Filter by tenant
-- Audit all queries
-
-### AI Safety
-
-Content filtering:
-- Input validation
-- Output filtering
-- Sensitive data detection
-- Prompt injection protection
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENAI_API_KEY` | Yes | API key for OpenAI |
+| `OPENAI_MODEL` | No | Default model (defaults to `gpt-4o`) |
+| `BICHAT_CONTEXT_WINDOW` | No | Max tokens for context (default: 200k) |

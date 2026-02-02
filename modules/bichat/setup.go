@@ -51,6 +51,16 @@ func ValidateBiChatDependencies(pool *pgxpool.Pool) error {
 //        bichat.DefaultContextPolicy(),
 //        parentAgent,
 //        bichat.WithQueryExecutor(executor),
+//        bichat.WithAttachmentStorage(
+//            "/var/lib/bichat/attachments",
+//            "https://example.com/bichat/attachments",
+//        ),
 //    )
+//
+// 5. Register module (must check error):
+//    module := bichat.NewModuleWithConfig(cfg)
+//    if err := app.RegisterModule(module); err != nil {
+//        log.Fatalf("Failed to register BiChat: %v", err)
+//    }
 //
 // See CLAUDE.md for complete setup instructions.

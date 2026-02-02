@@ -1,11 +1,9 @@
 import { useParams } from 'react-router-dom'
 import { useMemo } from 'react'
-// TODO: Fix bichat-ui package setup to enable ChatSession import
-// import { ChatSession } from '@iota-uz/bichat-ui'
-import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iota-uz/bichat-ui'
+import { ChatSession } from '@iotauz/bichat-ui'
+import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iotauz/bichat-ui'
 import { useClient } from 'urql'
 import { useIotaContext } from '../contexts/IotaContext'
-import { ArtifactsSidebar } from '../components/ArtifactsSidebar'
 
 const SessionQuery = `
   query Session($id: UUID!) {
@@ -16,19 +14,6 @@ const SessionQuery = `
       pinned
       createdAt
       updatedAt
-      artifacts {
-        id
-        sessionID
-        messageID
-        type
-        name
-        description
-        mimeType
-        url
-        sizeBytes
-        metadata
-        createdAt
-      }
       messages {
         id
         sessionID
@@ -59,8 +44,8 @@ export default function ChatPage() {
   const dataSource = useMemo<ChatDataSource>(() => ({
     async createSession(): Promise<Session> {
       const mutation = `
-        mutation CreateSession($title: String) {
-          createSession(title: $title) {
+        mutation CreateSession {
+          createSession {
             id
             title
             status
@@ -70,11 +55,8 @@ export default function ChatPage() {
           }
         }
       `
-      const result = await client.mutation(mutation, { title: 'New Chat' }).toPromise()
+      const result = await client.mutation(mutation, {}).toPromise()
       if (result.error) throw new Error(result.error.message)
-      if (!result.data || !result.data.createSession) {
-        throw new Error('Failed to create session: missing response data')
-      }
       return result.data.createSession
     },
 
@@ -121,6 +103,7 @@ export default function ChatPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           sessionId,
           content,
@@ -158,27 +141,28 @@ export default function ChatPage() {
               const data = line.slice(6)
               try {
                 const chunk = JSON.parse(data)
-                // Validate chunk type against allowed StreamChunk types
-                const chunkType = chunk.type?.toLowerCase()
-                let validType: 'chunk' | 'error' | 'done' | 'user_message' = 'chunk'
-                if (chunkType === 'content' || chunkType === 'chunk') {
-                  validType = 'chunk'
-                } else if (chunkType === 'error') {
-                  validType = 'error'
-                } else if (chunkType === 'done') {
-                  validType = 'done'
-                } else if (chunkType === 'user_message') {
-                  validType = 'user_message'
+                
+                // Map backend chunk types to frontend types
+                // Backend sends: "content", "citation", "done", "error" (lowercase)
+                // Frontend expects: "chunk", "error", "done", "user_message"
+                let chunkType: 'chunk' | 'error' | 'done' | 'user_message'
+                if (chunk.type === 'content' || chunk.type === 'citation') {
+                  chunkType = 'chunk'
+                } else if (chunk.type === 'done') {
+                  chunkType = 'done'
+                } else if (chunk.type === 'error') {
+                  chunkType = 'error'
                 } else {
-                  // Default to 'chunk' for unknown types
-                  validType = 'chunk'
+                  // Fallback: use lowercase version
+                  chunkType = chunk.type.toLowerCase() as 'chunk' | 'error' | 'done' | 'user_message'
                 }
+                
                 yield {
-                  type: validType,
+                  type: chunkType,
                   content: chunk.content,
                   error: chunk.error,
                 }
-                if (chunk.type === 'DONE' || chunk.type === 'ERROR' || validType === 'done' || validType === 'error') return
+                if (chunk.type === 'done' || chunk.type === 'error') return
               } catch (parseErr) {
                 console.error('Failed to parse SSE data:', parseErr)
               }
@@ -209,19 +193,7 @@ export default function ChatPage() {
       return { success: true }
     },
 
-    async cancelPendingQuestion(_questionId: string): Promise<{ success: boolean; error?: string }> {
-      const mutation = `
-        mutation CancelPendingQuestion($sessionId: UUID!) {
-          cancelPendingQuestion(sessionId: $sessionId) {
-            id
-            pendingQuestionAgent
-          }
-        }
-      `
-      const result = await client.mutation(mutation, { sessionId: id }).toPromise()
-      if (result.error) {
-        return { success: false, error: result.error.message }
-      }
+    async cancelPendingQuestion(): Promise<{ success: boolean; error?: string }> {
       return { success: true }
     },
   }), [client, context.config.streamEndpoint])
@@ -234,17 +206,5 @@ export default function ChatPage() {
     )
   }
 
-  return (
-    <div className="flex h-full">
-      <main className="flex-1 overflow-hidden">
-        {/* TODO: Re-enable ChatSession when bichat-ui package is properly configured */}
-        {/* <ChatSession dataSource={dataSource} sessionId={id} /> */}
-        <div className="p-8 text-center text-gray-500">
-          <p>Chat interface temporarily disabled while setting up artifact integration.</p>
-          <p className="text-sm mt-2">The artifact sidebar is functional →</p>
-        </div>
-      </main>
-      <ArtifactsSidebar sessionId={id} />
-    </div>
-  )
+  return <ChatSession dataSource={dataSource} sessionId={id} />
 }

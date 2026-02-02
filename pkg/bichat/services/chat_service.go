@@ -30,9 +30,6 @@ type ChatService interface {
 	// Resume after user answers questions (HITL)
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
 
-	// Cancel pending question - clears HITL state without resuming
-	CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error)
-
 	// Generate session title from first message
 	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
 }
@@ -86,14 +83,14 @@ type QuestionOption struct {
 type ResumeRequest struct {
 	SessionID    uuid.UUID
 	CheckpointID string
-	Answers      map[string]string // Question ID -> Answer
+	Answers      map[string]types.Answer // Question ID -> Answer (supports single-select and multi-select)
 }
 
 // StreamChunk represents a chunk of streaming response
 type StreamChunk struct {
 	Type      ChunkType
 	Content   string
-	Citation  *domain.Citation
+	Citation  *types.Citation
 	Usage     *TokenUsage
 	Error     error
 	Timestamp time.Time

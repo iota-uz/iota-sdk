@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,60 +21,26 @@ import (
 // 4. Create a delegation tool with runtime session/tenant IDs
 // 5. Execute with delegation support
 
-// mockServicesExecutor implements bichatservices.QueryExecutorService for testing.
-type mockServicesExecutor struct {
-	schemaListFn     func(ctx context.Context) ([]bichatservices.TableInfo, error)
-	schemaDescribeFn func(ctx context.Context, tableName string) (*bichatservices.TableSchema, error)
-	executeQueryFn   func(ctx context.Context, sql string, params []any, timeoutMs int) (*bichatservices.QueryResult, error)
-	validateQueryFn  func(sql string) error
+// mockExampleExecutor implements bichatsql.QueryExecutor for testing.
+type mockExampleExecutor struct {
+	executeQueryFn func(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error)
 }
 
-func (m *mockServicesExecutor) SchemaList(ctx context.Context) ([]bichatservices.TableInfo, error) {
-	if m.schemaListFn != nil {
-		return m.schemaListFn(ctx)
-	}
-	return []bichatservices.TableInfo{
-		{Name: "users", Schema: "public", RowCount: 100, Description: "User accounts"},
-		{Name: "orders", Schema: "public", RowCount: 1000, Description: "Customer orders"},
-	}, nil
-}
-
-func (m *mockServicesExecutor) SchemaDescribe(ctx context.Context, tableName string) (*bichatservices.TableSchema, error) {
-	if m.schemaDescribeFn != nil {
-		return m.schemaDescribeFn(ctx, tableName)
-	}
-	return &bichatservices.TableSchema{
-		Name:   tableName,
-		Schema: "public",
-		Columns: []bichatservices.ColumnInfo{
-			{Name: "id", Type: "integer", IsPrimaryKey: true},
-			{Name: "name", Type: "varchar(255)"},
-		},
-	}, nil
-}
-
-func (m *mockServicesExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeoutMs int) (*bichatservices.QueryResult, error) {
+func (m *mockExampleExecutor) ExecuteQuery(ctx context.Context, sql string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
 	if m.executeQueryFn != nil {
-		return m.executeQueryFn(ctx, sql, params, timeoutMs)
+		return m.executeQueryFn(ctx, sql, params, timeout)
 	}
-	return &bichatservices.QueryResult{
+	return &bichatsql.QueryResult{
 		Columns:  []string{"id", "name", "total"},
 		Rows:     [][]any{{1, "John", 1000}, {2, "Jane", 2000}},
 		RowCount: 2,
 	}, nil
 }
 
-func (m *mockServicesExecutor) ValidateQuery(sql string) error {
-	if m.validateQueryFn != nil {
-		return m.validateQueryFn(sql)
-	}
-	return nil
-}
-
 // Example_MultiAgentOrchestration demonstrates the complete setup and usage of multi-agent orchestration.
 func Example_multiAgentOrchestration() {
 	// 1. Create query executor (in real app, this would be PostgreSQL connection)
-	executor := &mockServicesExecutor{}
+	executor := &mockExampleExecutor{}
 
 	// 2. Create agent registry
 	registry := agents.NewAgentRegistry()
@@ -109,7 +76,7 @@ func TestMultiAgentSetup(t *testing.T) {
 	t.Parallel()
 
 	// Create query executor
-	executor := &mockServicesExecutor{}
+	executor := &mockExampleExecutor{}
 
 	// Create agent registry
 	registry := agents.NewAgentRegistry()
@@ -145,7 +112,7 @@ func TestMultiAgentSetup(t *testing.T) {
 func TestDelegationToolCreation(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesExecutor{}
+	executor := &mockExampleExecutor{}
 	registry := agents.NewAgentRegistry()
 
 	// Register SQLAgent
@@ -183,7 +150,7 @@ func TestDelegationToolCreation(t *testing.T) {
 func TestAgentRegistryDescribe(t *testing.T) {
 	t.Parallel()
 
-	executor := &mockServicesExecutor{}
+	executor := &mockExampleExecutor{}
 	registry := agents.NewAgentRegistry()
 
 	// Register SQLAgent

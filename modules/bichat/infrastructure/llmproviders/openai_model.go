@@ -144,20 +144,21 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 
 // Stream sends a streaming completion request to OpenAI.
 // Returns a Generator that yields Chunk objects as tokens arrive.
-func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk] {
+func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
+	const op serrors.Op = "OpenAIModel.Stream"
+
 	config := agents.ApplyGenerateOptions(opts...)
 
+	// Build OpenAI streaming request
+	oaiReq := m.buildChatCompletionRequest(req, config)
+
+	// Create stream immediately to catch errors early
+	stream, err := m.client.CreateChatCompletionStream(ctx, oaiReq)
+	if err != nil {
+		return nil, serrors.E(op, err, "failed to create OpenAI stream")
+	}
+
 	return types.NewGenerator(ctx, func(genCtx context.Context, yield func(agents.Chunk) bool) error {
-		const op serrors.Op = "OpenAIModel.Stream"
-
-		// Build OpenAI streaming request
-		oaiReq := m.buildChatCompletionRequest(req, config)
-
-		// Create stream
-		stream, err := m.client.CreateChatCompletionStream(genCtx, oaiReq)
-		if err != nil {
-			return serrors.E(op, err, "failed to create OpenAI stream")
-		}
 		defer stream.Close()
 
 		// Accumulate tool calls across chunks
@@ -260,7 +261,7 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 				return nil // Stream complete
 			}
 		}
-	}, types.WithBufferSize(10)) // Buffer up to 10 chunks
+	}, types.WithBufferSize(10)), nil // Buffer up to 10 chunks
 }
 
 // Info returns model metadata including capabilities.

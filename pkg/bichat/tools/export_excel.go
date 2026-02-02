@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -100,8 +101,8 @@ func (t *ExportToExcelTool) Parameters() map[string]any {
 
 // excelExportInput represents the parsed input parameters.
 type excelExportInput struct {
-	Data     *QueryResult `json:"data"`
-	Filename string       `json:"filename,omitempty"`
+	Data     *bichatsql.QueryResult `json:"data"`
+	Filename string                 `json:"filename,omitempty"`
 }
 
 // excelExportOutput represents the formatted output.

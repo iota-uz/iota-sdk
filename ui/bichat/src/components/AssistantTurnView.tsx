@@ -14,7 +14,6 @@ import { SourcesPanel } from './SourcesPanel'
 import { DownloadCard } from './DownloadCard'
 import { InlineQuestionForm } from './InlineQuestionForm'
 import { useChat } from '../context/ChatContext'
-import { useTranslation } from '../hooks/useTranslation'
 import type { Message, CodeOutput } from '../types'
 
 const MarkdownRenderer = lazy(() =>
@@ -30,7 +29,6 @@ interface AssistantTurnViewProps {
 
 export function AssistantTurnView({ message }: AssistantTurnViewProps) {
   const { handleCopy, handleRegenerate, pendingQuestion } = useChat()
-  const { t } = useTranslation()
   const [explanationExpanded, setExplanationExpanded] = useState(false)
 
   const hasContent = message.content?.trim().length > 0
@@ -158,8 +156,8 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
             <button
               onClick={handleCopyClick}
               className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
-              aria-label={t('message.copy')}
-              title={t('message.copy')}
+              aria-label="Copy message"
+              title="Copy"
             >
               <Copy size={14} weight="regular" />
             </button>
@@ -168,8 +166,8 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
               <button
                 onClick={handleRegenerateClick}
                 className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
-                aria-label={t('message.regenerate')}
-                title={t('message.regenerate')}
+                aria-label="Regenerate message"
+                title="Regenerate"
               >
                 <ArrowsClockwise size={14} weight="regular" />
               </button>

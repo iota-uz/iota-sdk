@@ -2,8 +2,9 @@ package applet
 
 import (
 	"context"
-	"embed"
+	"io/fs"
 
+	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
 )
 
@@ -46,6 +47,40 @@ type Config struct {
 	// These are applied AFTER standard SDK middleware (Auth, User, Localizer, PageContext).
 	// If nil, no custom middleware is applied.
 	Middleware []mux.MiddlewareFunc
+
+	// Layout, when set, renders the applet inside an existing templ layout.
+	// The controller will pass the applet shell as `children` to the returned component.
+	// When nil, the controller renders a standalone HTML document.
+	Layout LayoutFactory
+
+	// Title is used as the page title when Layout is set.
+	// When empty, applet.Name() is used.
+	Title string
+
+	// Mount controls what root element is rendered into the applet HTML shell.
+	// Default is <div id="root"></div>.
+	Mount MountConfig
+}
+
+// LayoutFactory produces a layout component for an applet request.
+// The returned component is expected to render `{ children... }` somewhere.
+type LayoutFactory func(title string) templ.Component
+
+// MountConfig describes the DOM element that the frontend app mounts into.
+// This prevents "blank screen" failures when different applets expect different roots
+// (e.g., a custom element vs a #root div).
+type MountConfig struct {
+	// Tag is the HTML tag name to render.
+	// Examples: "div" (default), "bi-chat-root".
+	Tag string
+
+	// ID is rendered as the element id attribute when non-empty.
+	// Default: "root" (only when Tag is empty or "div").
+	ID string
+
+	// Attributes are rendered as HTML attributes on the mount element.
+	// Example: {"base-path": "/bi-chat"}.
+	Attributes map[string]string
 }
 
 // EndpointConfig contains URL paths for applet API endpoints
@@ -57,17 +92,26 @@ type EndpointConfig struct {
 
 // AssetConfig contains configuration for serving applet static assets (JS, CSS, images)
 type AssetConfig struct {
-	// FS is the embedded filesystem containing applet assets
-	// Example: //go:embed dist/* from React build output
-	FS *embed.FS
+	// FS is the filesystem containing applet assets.
+	// Can be an embedded FS (*embed.FS) or a sub-filesystem (fs.Sub result).
+	// Example: fs.Sub(embedFS, "dist") to serve files from dist/ subdirectory
+	FS fs.FS
 
 	// BasePath is the URL path prefix for serving assets
 	// Example: "/bichat/assets" serves files from FS at /bichat/assets/*
 	BasePath string
 
-	// CSSPath is the URL path to the compiled CSS file (optional)
-	// Example: "/bichat/assets/styles.css"
-	CSSPath string
+	// ManifestPath is the path to the Vite manifest.json file within FS (optional)
+	// If provided, assets will be resolved from the manifest instead of using fixed names.
+	// Example: ".vite/manifest.json" or "dist/.vite/manifest.json"
+	// When set, Entrypoint must also be set to specify the entry file name.
+	ManifestPath string
+
+	// Entrypoint is the entry file name used to look up assets in the manifest (optional)
+	// Example: "src/main.tsx" or "index.html"
+	// This should match the entry point configured in vite.config.ts
+	// Required if ManifestPath is set.
+	Entrypoint string
 }
 
 // ContextExtender is a function that adds custom fields to InitialContext.Custom.
