@@ -524,6 +524,35 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}, nil
 }
 
+// CancelPendingQuestion cancels a pending HITL question without resuming execution.
+// This clears the pending question state from the session.
+func (s *chatServiceImpl) CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error) {
+	const op serrors.Op = "chatServiceImpl.CancelPendingQuestion"
+
+	// Get session
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	// Check if there's a pending question
+	if session.PendingQuestionAgent == nil {
+		return nil, serrors.E(op, serrors.KindValidation, "no pending question to cancel")
+	}
+
+	// Clear pending question agent
+	session.PendingQuestionAgent = nil
+	session.UpdatedAt = time.Now()
+
+	// Save changes
+	err = s.chatRepo.UpdateSession(ctx, session)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	return session, nil
+}
+
 // GenerateSessionTitle generates a title for a session based on first message.
 func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error {
 	const op serrors.Op = "chatServiceImpl.GenerateSessionTitle"

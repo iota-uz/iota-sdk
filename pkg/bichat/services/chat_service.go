@@ -30,6 +30,9 @@ type ChatService interface {
 	// Resume after user answers questions (HITL)
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
 
+	// Cancel pending question - clears HITL state without resuming
+	CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error)
+
 	// Generate session title from first message
 	GenerateSessionTitle(ctx context.Context, sessionID uuid.UUID) error
 }

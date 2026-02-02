@@ -1,9 +1,11 @@
 import { useParams } from 'react-router-dom'
 import { useMemo } from 'react'
-import { ChatSession } from '@iota-uz/bichat-ui'
+// TODO: Fix bichat-ui package setup to enable ChatSession import
+// import { ChatSession } from '@iota-uz/bichat-ui'
 import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iota-uz/bichat-ui'
 import { useClient } from 'urql'
 import { useIotaContext } from '../contexts/IotaContext'
+import { ArtifactsSidebar } from '../components/ArtifactsSidebar'
 
 const SessionQuery = `
   query Session($id: UUID!) {
@@ -14,6 +16,19 @@ const SessionQuery = `
       pinned
       createdAt
       updatedAt
+      artifacts {
+        id
+        sessionID
+        messageID
+        type
+        name
+        description
+        mimeType
+        url
+        sizeBytes
+        metadata
+        createdAt
+      }
       messages {
         id
         sessionID
@@ -194,26 +209,19 @@ export default function ChatPage() {
       return { success: true }
     },
 
-    async cancelPendingQuestion(questionId: string): Promise<{ success: boolean; error?: string }> {
-      // Note: GraphQL schema may need a cancelPendingQuestion mutation
-      // For now, we'll use a placeholder that returns success
-      // TODO: Implement actual cancellation mutation when available
-      // const mutation = `
-      //   mutation CancelPendingQuestion($sessionId: UUID!, $questionId: String!) {
-      //     cancelPendingQuestion(sessionId: $sessionId, questionId: $questionId) {
-      //       success
-      //     }
-      //   }
-      // `
-      // const result = await client.mutation(mutation, { sessionId: id, questionId }).toPromise()
-      // if (result.error) {
-      //   return { success: false, error: result.error.message }
-      // }
-      // return { success: true }
-      
-      // Placeholder implementation - returns success for now
-      // This should be replaced with actual GraphQL mutation when available
-      console.warn('cancelPendingQuestion called but not yet implemented', { questionId })
+    async cancelPendingQuestion(_questionId: string): Promise<{ success: boolean; error?: string }> {
+      const mutation = `
+        mutation CancelPendingQuestion($sessionId: UUID!) {
+          cancelPendingQuestion(sessionId: $sessionId) {
+            id
+            pendingQuestionAgent
+          }
+        }
+      `
+      const result = await client.mutation(mutation, { sessionId: id }).toPromise()
+      if (result.error) {
+        return { success: false, error: result.error.message }
+      }
       return { success: true }
     },
   }), [client, context.config.streamEndpoint])
@@ -226,5 +234,17 @@ export default function ChatPage() {
     )
   }
 
-  return <ChatSession dataSource={dataSource} sessionId={id} />
+  return (
+    <div className="flex h-full">
+      <main className="flex-1 overflow-hidden">
+        {/* TODO: Re-enable ChatSession when bichat-ui package is properly configured */}
+        {/* <ChatSession dataSource={dataSource} sessionId={id} /> */}
+        <div className="p-8 text-center text-gray-500">
+          <p>Chat interface temporarily disabled while setting up artifact integration.</p>
+          <p className="text-sm mt-2">The artifact sidebar is functional →</p>
+        </div>
+      </main>
+      <ArtifactsSidebar sessionId={id} />
+    </div>
+  )
 }

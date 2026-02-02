@@ -208,6 +208,9 @@ type Mutation {
   # Delete a session
   deleteSession(id: UUID!): Boolean!
 
+  # Cancel a pending HITL question without resuming
+  cancelPendingQuestion(sessionId: UUID!): Session!
+
   # Delete an artifact (and its file from storage if any)
   deleteArtifact(id: UUID!): Boolean!
 

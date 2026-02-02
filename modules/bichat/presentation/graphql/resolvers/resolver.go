@@ -346,6 +346,43 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 	return true, nil
 }
 
+// CancelPendingQuestion is the resolver for the cancelPendingQuestion field.
+func (r *mutationResolver) CancelPendingQuestion(ctx context.Context, sessionID string) (*model.Session, error) {
+	const op serrors.Op = "Resolver.CancelPendingQuestion"
+
+	// Parse UUID
+	sid, err := uuid.Parse(sessionID)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
+	}
+
+	// Get authenticated user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
+
+	// Verify session ownership
+	session, err := r.chatService.GetSession(ctx, sid)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if session.UserID != int64(user.ID()) {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
+	}
+
+	// Cancel pending question
+	updatedSession, err := r.chatService.CancelPendingQuestion(ctx, sid)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	return toGraphQLSession(updatedSession), nil
+}
+
 // Sessions is the resolver for the sessions field.
 // Sessions are scoped by tenant and user from context.
 func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) ([]*model.Session, error) {

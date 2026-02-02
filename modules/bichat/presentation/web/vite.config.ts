@@ -7,7 +7,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@iota-uz/bichat-ui': path.resolve(__dirname, '../../../../ui/bichat/src'),
     },
+    dedupe: ['react', 'react-dom', '@phosphor-icons/react', 'date-fns'],
   },
   base: '/bichat/assets/',
   build: {

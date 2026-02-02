@@ -1,0 +1,22 @@
+{
+  "name": "@iota-uz/bichat-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.29.3"
+  }
+}

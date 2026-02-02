@@ -10,7 +10,10 @@ export interface BiChatContext extends IotaContext {
       vision: boolean
       webSearch: boolean
       codeInterpreter: boolean
+      multiAgent: boolean
     }
+    branding: Record<string, any>
+    translations: Record<string, string>
   }
 }
 

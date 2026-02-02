@@ -93,12 +93,17 @@ export interface ChartData {
 }
 
 export interface Artifact {
-  type: 'excel' | 'pdf'
-  filename: string
-  url: string
-  sizeReadable?: string
-  rowCount?: number
+  id: string
+  sessionID: string
+  messageID?: string
+  type: string  // Extensible: "code_output", "chart", "export", etc.
+  name: string
   description?: string
+  mimeType?: string
+  url?: string
+  sizeBytes: number
+  metadata?: Record<string, any>  // JSON metadata (chart spec, row counts, etc.)
+  createdAt: string
 }
 
 export interface PendingQuestion {
