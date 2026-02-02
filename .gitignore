@@ -10,6 +10,7 @@ static
 uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css
+modules/bichat/presentation/assets/dist/
 bin/
 logs/
 
