@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -17,6 +18,30 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var (
+	repoMigrationsDirOnce sync.Once
+	repoMigrationsDir     string
+)
+
+// ensureRepoMigrationsDir initializes the repo migrations directory once.
+// This prevents race conditions when multiple tests run in parallel.
+func ensureRepoMigrationsDir() string {
+	repoMigrationsDirOnce.Do(func() {
+		_, thisFile, _, ok := runtime.Caller(1)
+		if !ok {
+			panic("failed to resolve itf/context.go path")
+		}
+		repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
+		repoMigrationsDir = filepath.Join(repoRoot, "migrations")
+		if _, err := os.Stat(repoMigrationsDir); err != nil {
+			panic("failed to stat migrations dir " + repoMigrationsDir + ": " + err.Error())
+		}
+		os.Setenv("MIGRATIONS_DIR", repoMigrationsDir)
+		configuration.Use().MigrationsDir = repoMigrationsDir
+	})
+	return repoMigrationsDir
+}
 
 // TestContext provides a fluent API for building test contexts
 type TestContext struct {
@@ -76,28 +101,8 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 
 	// Force migrations dir to the repo-level `migrations/` so ITF tests run the real
 	// sql-migrate migrations and don't depend on schema collection (which parses SQL).
-	oldMigrationsDir := configuration.Use().MigrationsDir
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		tb.Fatal("failed to resolve itf/context.go path")
-	}
-	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", ".."))
-	repoMigrationsDir := filepath.Join(repoRoot, "migrations")
-	if _, err := os.Stat(repoMigrationsDir); err != nil {
-		tb.Fatalf("failed to stat migrations dir %s: %v", repoMigrationsDir, err)
-	}
-	os.Setenv("MIGRATIONS_DIR", repoMigrationsDir)
-	// configuration.Use() is a singleton and reads env only once; update the already
-	// loaded configuration so migration manager uses our repo migrations dir.
-	configuration.Use().MigrationsDir = repoMigrationsDir
-	tb.Cleanup(func() {
-		if oldMigrationsDir == "" {
-			os.Unsetenv("MIGRATIONS_DIR")
-		} else {
-			os.Setenv("MIGRATIONS_DIR", oldMigrationsDir)
-		}
-		configuration.Use().MigrationsDir = oldMigrationsDir
-	})
+	// Use sync.Once to initialize once, preventing race conditions in parallel tests.
+	ensureRepoMigrationsDir()
 
 	// Setup application
 	app, err := SetupApplication(tc.pool, tc.modules...)

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+	"sync"
 	"text/template"
 )
 
@@ -29,6 +30,7 @@ type FilePromptLoader struct {
 	basePath  string
 	extension string
 	cache     map[string]*template.Template
+	mu        sync.RWMutex
 }
 
 // FilePromptLoaderOption is a functional option for FilePromptLoader.
@@ -86,8 +88,11 @@ func NewEmbedPromptLoader(efs embed.FS, opts ...FilePromptLoaderOption) *FilePro
 //	{{ .BusinessRules }}
 //	{{ range .DataSources }}...{{ end }}
 func (l *FilePromptLoader) Load(ctx context.Context, agentType string, vars map[string]any) (string, error) {
-	// Check cache first
+	// Check cache first (read lock)
+	l.mu.RLock()
 	tmpl, ok := l.cache[agentType]
+	l.mu.RUnlock()
+
 	if !ok {
 		// Build file path
 		filename := agentType + l.extension
@@ -102,12 +107,22 @@ func (l *FilePromptLoader) Load(ctx context.Context, agentType string, vars map[
 		}
 
 		// Parse template
-		tmpl, err = template.New(agentType).Parse(string(content))
+		parsedTmpl, err := template.New(agentType).Parse(string(content))
 		if err != nil {
 			return "", fmt.Errorf("failed to parse prompt template %q: %w", agentType, err)
 		}
 
-		l.cache[agentType] = tmpl
+		// Double-checked locking: re-check cache and store if still missing
+		l.mu.Lock()
+		if existingTmpl, exists := l.cache[agentType]; exists {
+			// Another goroutine already parsed it, use existing
+			tmpl = existingTmpl
+		} else {
+			// Store parsed template
+			l.cache[agentType] = parsedTmpl
+			tmpl = parsedTmpl
+		}
+		l.mu.Unlock()
 	}
 
 	// Render template

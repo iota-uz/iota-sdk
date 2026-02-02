@@ -2,7 +2,6 @@ package llmproviders
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -16,7 +15,7 @@ func TestNewOpenAIModel_MissingAPIKey(t *testing.T) {
 	t.Parallel()
 
 	// Clear API key
-	os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "")
 
 	_, err := NewOpenAIModel()
 	assert.Error(t, err)
@@ -27,8 +26,7 @@ func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
 	t.Parallel()
 
 	// Set fake API key
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -38,11 +36,8 @@ func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
 func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
-
-	// No OPENAI_MODEL set
-	os.Unsetenv("OPENAI_MODEL")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
+	t.Setenv("OPENAI_MODEL", "")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -54,10 +49,8 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	os.Setenv("OPENAI_MODEL", "gpt-4-turbo")
-	defer os.Unsetenv("OPENAI_API_KEY")
-	defer os.Unsetenv("OPENAI_MODEL")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
+	t.Setenv("OPENAI_MODEL", "gpt-4-turbo")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -69,10 +62,8 @@ func TestNewOpenAIModel_CustomModel(t *testing.T) {
 func TestOpenAIModel_Info(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	os.Setenv("OPENAI_MODEL", "gpt-4")
-	defer os.Unsetenv("OPENAI_API_KEY")
-	defer os.Unsetenv("OPENAI_MODEL")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
+	t.Setenv("OPENAI_MODEL", "gpt-4")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -88,8 +79,7 @@ func TestOpenAIModel_Info(t *testing.T) {
 func TestOpenAIModel_HasCapability(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -103,8 +93,7 @@ func TestOpenAIModel_HasCapability(t *testing.T) {
 func TestOpenAIModel_BuildRequest(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -164,8 +153,7 @@ func TestOpenAIModel_BuildRequest(t *testing.T) {
 func TestOpenAIModel_BuildRequest_WebSearchTool(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -209,8 +197,7 @@ func TestOpenAIModel_BuildRequest_WebSearchTool(t *testing.T) {
 func TestOpenAIModel_BuildRequest_CodeInterpreterSkipped(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "sk-test-key")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -400,9 +387,6 @@ if current emission trends persist. Several mitigation strategies have been prop
 func TestExtractCitationsFromResponse_EmptyResponse(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
-
 	// Import openai to access types
 	var resp openai.ChatCompletionResponse
 
@@ -413,9 +397,6 @@ func TestExtractCitationsFromResponse_EmptyResponse(t *testing.T) {
 
 func TestExtractCitationsFromResponse_NoChoices(t *testing.T) {
 	t.Parallel()
-
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
 
 	resp := openai.ChatCompletionResponse{
 		ID:      "test-id",
@@ -428,9 +409,6 @@ func TestExtractCitationsFromResponse_NoChoices(t *testing.T) {
 
 func TestExtractCitationsFromResponse_WithCitations(t *testing.T) {
 	t.Parallel()
-
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
 
 	resp := openai.ChatCompletionResponse{
 		ID: "test-id",
@@ -457,9 +435,6 @@ func TestExtractCitationsFromResponse_WithCitations(t *testing.T) {
 
 func TestExtractCitationsFromResponse_NoCitationMarkers(t *testing.T) {
 	t.Parallel()
-
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
 
 	resp := openai.ChatCompletionResponse{
 		ID: "test-id",

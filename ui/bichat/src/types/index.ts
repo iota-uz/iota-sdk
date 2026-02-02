@@ -39,7 +39,7 @@ export interface ToolCall {
 }
 
 export interface Citation {
-  id: string
+  id?: string // Optional - backend doesn't always provide id
   source: string
   title?: string
   url?: string

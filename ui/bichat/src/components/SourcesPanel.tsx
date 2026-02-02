@@ -46,7 +46,7 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
         <div className="mt-2 space-y-2">
           {citations.map((citation, index) => (
             <div
-              key={citation.id}
+              key={citation.id ?? `citation-${index}`}
               className="p-3 bg-gray-50 rounded-lg text-sm"
             >
               <div className="flex items-start gap-2">

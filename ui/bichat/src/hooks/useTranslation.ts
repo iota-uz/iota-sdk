@@ -33,10 +33,12 @@ export function useTranslation() {
     let text = translations[key] || key
 
     // Simple interpolation: replace {key} with params[key]
+    // Use split/join instead of regex to avoid ReDoS vulnerability
     if (params) {
       Object.keys(params).forEach((paramKey) => {
         const value = params[paramKey]
-        text = text.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(value))
+        const placeholder = `{${paramKey}}`
+        text = text.split(placeholder).join(String(value))
       })
     }
 

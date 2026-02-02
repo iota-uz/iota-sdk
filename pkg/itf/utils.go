@@ -307,11 +307,13 @@ func CreateDB(name string) {
 		panic(err)
 	}
 
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	// Use pgx.Identifier to safely sanitize database name
+	dbName := pgx.Identifier{sanitizedName}.Sanitize()
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", dbName))
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("CREATE DATABASE %s", sanitizedName))
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("CREATE DATABASE %s", dbName))
 	if err != nil {
 		panic(err)
 	}
@@ -344,7 +346,9 @@ func DropDB(name string) {
 		panic(err)
 	}
 
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	// Use pgx.Identifier to safely sanitize database name
+	dbName := pgx.Identifier{sanitizedName}.Sanitize()
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", dbName))
 	if err != nil {
 		panic(err)
 	}

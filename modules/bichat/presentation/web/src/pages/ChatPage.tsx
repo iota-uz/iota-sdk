@@ -57,6 +57,9 @@ export default function ChatPage() {
       `
       const result = await client.mutation(mutation, { title: 'New Chat' }).toPromise()
       if (result.error) throw new Error(result.error.message)
+      if (!result.data || !result.data.createSession) {
+        throw new Error('Failed to create session: missing response data')
+      }
       return result.data.createSession
     },
 
@@ -140,12 +143,27 @@ export default function ChatPage() {
               const data = line.slice(6)
               try {
                 const chunk = JSON.parse(data)
+                // Validate chunk type against allowed StreamChunk types
+                const chunkType = chunk.type?.toLowerCase()
+                let validType: 'chunk' | 'error' | 'done' | 'user_message' = 'chunk'
+                if (chunkType === 'content' || chunkType === 'chunk') {
+                  validType = 'chunk'
+                } else if (chunkType === 'error') {
+                  validType = 'error'
+                } else if (chunkType === 'done') {
+                  validType = 'done'
+                } else if (chunkType === 'user_message') {
+                  validType = 'user_message'
+                } else {
+                  // Default to 'chunk' for unknown types
+                  validType = 'chunk'
+                }
                 yield {
-                  type: chunk.type === 'CONTENT' ? 'chunk' : chunk.type.toLowerCase(),
+                  type: validType,
                   content: chunk.content,
                   error: chunk.error,
                 }
-                if (chunk.type === 'DONE' || chunk.type === 'ERROR') return
+                if (chunk.type === 'DONE' || chunk.type === 'ERROR' || validType === 'done' || validType === 'error') return
               } catch (parseErr) {
                 console.error('Failed to parse SSE data:', parseErr)
               }
@@ -176,7 +194,26 @@ export default function ChatPage() {
       return { success: true }
     },
 
-    async cancelPendingQuestion(): Promise<{ success: boolean; error?: string }> {
+    async cancelPendingQuestion(questionId: string): Promise<{ success: boolean; error?: string }> {
+      // Note: GraphQL schema may need a cancelPendingQuestion mutation
+      // For now, we'll use a placeholder that returns success
+      // TODO: Implement actual cancellation mutation when available
+      // const mutation = `
+      //   mutation CancelPendingQuestion($sessionId: UUID!, $questionId: String!) {
+      //     cancelPendingQuestion(sessionId: $sessionId, questionId: $questionId) {
+      //       success
+      //     }
+      //   }
+      // `
+      // const result = await client.mutation(mutation, { sessionId: id, questionId }).toPromise()
+      // if (result.error) {
+      //   return { success: false, error: result.error.message }
+      // }
+      // return { success: true }
+      
+      // Placeholder implementation - returns success for now
+      // This should be replaced with actual GraphQL mutation when available
+      console.warn('cancelPendingQuestion called but not yet implemented', { questionId })
       return { success: true }
     },
   }), [client, context.config.streamEndpoint])
