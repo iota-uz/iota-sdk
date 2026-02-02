@@ -2,33 +2,11 @@ package bichat
 
 import (
 	"context"
-	"io/fs"
-	"net/http"
 
-	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/assets"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/branding"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/middleware"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
-
-// distFS is a sub-filesystem of DistFS rooted at "dist/".
-// This allows the AppletController to access files directly (e.g., "main.js" instead of "dist/main.js").
-var distFS fs.FS
-
-func init() {
-	var err error
-	distFS, err = fs.Sub(assets.DistFS, "dist")
-	if err != nil {
-		panic("failed to create distFS sub-filesystem: " + err.Error())
-	}
-}
 
 // BiChatApplet implements the applet.Applet interface for BiChat.
 // This enables BiChat to integrate with the SDK's generic applet system,
@@ -59,14 +37,11 @@ func (a *BiChatApplet) Name() string {
 
 // BasePath returns the URL path where BiChat is mounted.
 func (a *BiChatApplet) BasePath() string {
-	return "/bi-chat"
+	return "/bichat"
 }
 
 // Config returns the applet configuration for BiChat.
 // This configures how the SDK integrates with the BiChat React application.
-//
-// Note: This requires the application to be available in the context.
-// The middleware uses composables.UseApp() which depends on prior middleware setup.
 func (a *BiChatApplet) Config() applet.Config {
 	return applet.Config{
 		// WindowGlobal specifies the JavaScript global variable for context injection
@@ -75,25 +50,15 @@ func (a *BiChatApplet) Config() applet.Config {
 
 		// Endpoints configures API endpoint paths
 		Endpoints: applet.EndpointConfig{
-			GraphQL: "/bi-chat/graphql", // GraphQL API endpoint
-			Stream:  "/bi-chat/stream",  // SSE streaming endpoint
+			GraphQL: "/bichat/graphql", // GraphQL API endpoint
+			Stream:  "/bichat/stream",  // SSE streaming endpoint
 		},
 
 		// Assets configuration for serving the built React app
-		// Uses Vite manifest for hashed asset resolution
 		Assets: applet.AssetConfig{
-			FS:           distFS,                // Sub-filesystem rooted at dist/ for direct file access
-			BasePath:     "/assets",             // URL prefix for asset serving (relative to applet base path)
-			ManifestPath: ".vite/manifest.json", // Path to Vite manifest within distFS (relative to dist/)
-			Entrypoint:   "index.html",          // Entry point file name (Vite default, matches manifest key)
-		},
-
-		Mount: applet.MountConfig{
-			Tag: "bi-chat-root",
-			Attributes: map[string]string{
-				"base-path": "/bi-chat",
-				"style":     "display: flex; flex: 1; flex-direction: column; min-height: 0; height: 100%; width: 100%;",
-			},
+			FS:       &assets.DistFS,            // Embedded filesystem from presentation/assets/dist/
+			BasePath: "/bichat/assets",          // URL prefix for asset serving
+			CSSPath:  "/bichat/assets/main.css", // CSS file path (updated when React build available)
 		},
 
 		// Router uses MuxRouter to extract route parameters (e.g., /sessions/{id})
@@ -102,64 +67,14 @@ func (a *BiChatApplet) Config() applet.Config {
 		// CustomContext injects BiChat feature flags into InitialContext.Extensions
 		CustomContext: a.buildCustomContext,
 
-		// Middleware: Required middleware stack for authenticated applet
-		// Order matters: Authorize -> User -> Localizer -> PageContext
-		Middleware: a.getMiddleware(),
-
-		// Layout: Render inside the standard iota authenticated shell
-		// so the sidebar, navbar, and head assets are present.
-		Layout: func(title string) templ.Component {
-			return layouts.Authenticated(layouts.AuthenticatedProps{
-				BaseProps: layouts.BaseProps{Title: title},
-			})
-		},
-		Title: "BiChat",
-	}
-}
-
-// getMiddleware returns the required middleware stack for BiChat.
-// This creates the same middleware stack as the old WebController.
-//
-// Prerequisites:
-//   - The global middleware must have already added the app to context via:
-//     middleware.Provide(constants.AppKey, app)
-//   - This is set up in internal/server/default.go
-func (a *BiChatApplet) getMiddleware() []mux.MiddlewareFunc {
-	return []mux.MiddlewareFunc{
-		middleware.Authorize(),                                        // Check authentication token
-		middleware.RedirectNotAuthenticated(),                         // Redirect to /login if not authenticated
-		middleware.ProvideUser(),                                      // Add user to context from session
-		a.provideLocalizerFromContext(),                               // Add localizer using app from context
-		middleware.NavItemsWithInitialState(sidebar.SidebarCollapsed), // Ensure iota sidebar is visible + collapsed by default
-		middleware.WithPageContext(),                                  // Add page context (locale, etc.)
-	}
-}
-
-// provideLocalizerFromContext creates a middleware that extracts the app from context
-// and uses it to provide the localizer. This works around the issue that the applet
-// config doesn't have direct access to the app instance, but the global middleware
-// has already added it to the request context.
-func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Get app from context (added by global middleware)
-			app, err := application.UseApp(r.Context())
-			if err != nil {
-				panic("app not found in context - ensure middleware.Provide(constants.AppKey, app) runs first")
-			}
-
-			// Create the ProvideLocalizer middleware dynamically
-			localizerMiddleware := middleware.ProvideLocalizer(app)
-
-			// Apply it and continue
-			localizerMiddleware(next).ServeHTTP(w, r)
-		})
+		// Middleware: Use standard SDK middleware (Auth, User, Localizer, PageContext)
+		// BiChat doesn't need custom middleware - relies on SDK defaults
+		Middleware: []mux.MiddlewareFunc{},
 	}
 }
 
 // buildCustomContext creates custom context fields for the BiChat React app.
-// This passes feature flags, branding, and translations from ModuleConfig to
-// the frontend via InitialContext.Extensions.
+// This passes feature flags from ModuleConfig to the frontend via InitialContext.Extensions.
 //
 // Extensions structure:
 //
@@ -169,32 +84,11 @@ func (a *BiChatApplet) provideLocalizerFromContext() mux.MiddlewareFunc {
 //	    "webSearch": false,
 //	    "codeInterpreter": true,
 //	    "multiAgent": false
-//	  },
-//	  "branding": {
-//	    "appName": "BiChat",
-//	    "logoUrl": "/assets/logo.svg",
-//	    "welcome": { "title": "...", "description": "...", "examplePrompts": [...] }
-//	  },
-//	  "translations": {
-//	    "welcome.title": "Welcome",
-//	    "chat.newChat": "New Chat",
-//	    ...
 //	  }
 //	}
 func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]interface{}, error) {
-	// Determine current locale from context (defaults to "en")
-	locale := "en"
-	if pageCtx := safeUsePageCtx(ctx); pageCtx != nil {
-		if loc := pageCtx.GetLocale(); loc.String() != "" && loc.String() != "und" {
-			locale = loc.String()
-		}
-	}
-
 	// If no config provided, return minimal defaults
 	if a.config == nil {
-		defaultBranding := branding.DefaultConfig()
-		defaultTranslations := branding.DefaultTranslations()
-
 		return map[string]interface{}{
 			"features": map[string]bool{
 				"vision":          false,
@@ -202,8 +96,6 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 				"codeInterpreter": false,
 				"multiAgent":      false,
 			},
-			"branding":     a.brandingToMap(defaultBranding),
-			"translations": defaultTranslations["en"],
 		}, nil
 	}
 
@@ -215,85 +107,7 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		"multiAgent":      a.config.EnableMultiAgent,
 	}
 
-	// Get translations for current locale
-	translations := a.getTranslationsForLocale(locale)
-
 	return map[string]interface{}{
-		"features":     features,
-		"branding":     a.brandingToMap(a.config.Branding),
-		"translations": translations,
+		"features": features,
 	}, nil
-}
-
-// brandingToMap converts branding.Config to a map for JSON serialization.
-func (a *BiChatApplet) brandingToMap(cfg branding.Config) map[string]interface{} {
-	// Build example prompts array
-	examplePrompts := make([]map[string]string, len(cfg.Welcome.ExamplePrompts))
-	for i, p := range cfg.Welcome.ExamplePrompts {
-		examplePrompts[i] = map[string]string{
-			"category": p.Category,
-			"text":     p.Text,
-			"icon":     p.Icon,
-		}
-	}
-
-	result := map[string]interface{}{
-		"appName": cfg.AppName,
-		"welcome": map[string]interface{}{
-			"title":          cfg.Welcome.Title,
-			"description":    cfg.Welcome.Description,
-			"examplePrompts": examplePrompts,
-		},
-	}
-
-	if cfg.LogoURL != "" {
-		result["logoUrl"] = cfg.LogoURL
-	}
-
-	if cfg.Theme != nil {
-		theme := map[string]string{}
-		if cfg.Theme.PrimaryColor != "" {
-			theme["primaryColor"] = cfg.Theme.PrimaryColor
-		}
-		if cfg.Theme.BackgroundColor != "" {
-			theme["backgroundColor"] = cfg.Theme.BackgroundColor
-		}
-		if cfg.Theme.TextColor != "" {
-			theme["textColor"] = cfg.Theme.TextColor
-		}
-		if len(theme) > 0 {
-			result["theme"] = theme
-		}
-	}
-
-	return result
-}
-
-// getTranslationsForLocale returns translations for the given locale.
-// Falls back to English if locale is not available.
-func (a *BiChatApplet) getTranslationsForLocale(locale string) map[string]string {
-	// If custom translations provider is configured, use it
-	if a.config != nil && a.config.Translations != nil {
-		return a.config.Translations.GetAll(locale)
-	}
-
-	// Fall back to default translations
-	defaults := branding.DefaultTranslations()
-	if translations, ok := defaults[locale]; ok {
-		return translations
-	}
-
-	// Final fallback to English
-	return defaults["en"]
-}
-
-// safeUsePageCtx attempts to get the PageContextProvider from context.
-// Returns nil if the context is not available (instead of panicking).
-func safeUsePageCtx(ctx context.Context) (result types.PageContextProvider) {
-	defer func() {
-		if r := recover(); r != nil {
-			result = nil
-		}
-	}()
-	return composables.UsePageCtx(ctx)
 }

@@ -49,6 +49,8 @@ type Application interface {
 	Services() map[reflect.Type]interface{}
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
+	RegisterApplet(applet Applet) error
+	AppletRegistry() AppletRegistry
 }
 
 type Seeder interface {
@@ -66,4 +68,21 @@ type Controller interface {
 type Module interface {
 	Name() string
 	Register(app Application) error
+}
+
+// Applet represents a React/Next.js application that integrates with the SDK
+// This is a forward declaration - full implementation will be in pkg/applet
+type Applet interface {
+	Name() string     // Unique applet identifier (e.g., "bichat", "analytics")
+	BasePath() string // URL base path (e.g., "/bichat", "/analytics")
+}
+
+// AppletRegistry provides access to registered applets
+type AppletRegistry interface {
+	// Get retrieves an applet by name, returns nil if not found
+	Get(name string) Applet
+	// All returns all registered applets
+	All() []Applet
+	// Has checks if an applet is registered
+	Has(name string) bool
 }

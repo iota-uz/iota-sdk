@@ -2,7 +2,6 @@ package llmproviders
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"testing"
 
@@ -12,61 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestEnrichCitationsFromWebSearchTool_PopulatesMetadata(t *testing.T) {
-	t.Parallel()
-
-	messages := []types.Message{
-		{
-			Role: types.RoleAssistant,
-			ToolCalls: []types.ToolCall{
-				{ID: "call-1", Name: "web_search", Arguments: `{"query":"foo"}`},
-			},
-		},
-		{
-			Role:       types.RoleTool,
-			ToolCallID: ptr("call-1"),
-			Content: mustJSON(t, webSearchToolResult{
-				Query: "foo",
-				Results: []webSearchToolResultItem{
-					{Index: 1, Title: "Example 1", URL: "https://example.com/1", Snippet: "Snippet 1"},
-					{Index: 2, Title: "Example 2", URL: "https://example.com/2", Snippet: "Snippet 2"},
-				},
-			}),
-		},
-	}
-
-	citations := []types.Citation{
-		{Type: "web", Title: "Citation [1]", StartIndex: 0, EndIndex: 3},
-		{Type: "web", Title: "Citation [2]", StartIndex: 10, EndIndex: 13},
-	}
-
-	enriched := enrichCitationsFromWebSearchTool(messages, citations)
-	require.Len(t, enriched, 2)
-
-	assert.Equal(t, "Example 1", enriched[0].Title)
-	assert.Equal(t, "https://example.com/1", enriched[0].URL)
-	assert.Equal(t, "Snippet 1", enriched[0].Excerpt)
-	assert.Equal(t, 0, enriched[0].StartIndex)
-	assert.Equal(t, 3, enriched[0].EndIndex)
-
-	assert.Equal(t, "Example 2", enriched[1].Title)
-	assert.Equal(t, "https://example.com/2", enriched[1].URL)
-	assert.Equal(t, "Snippet 2", enriched[1].Excerpt)
-	assert.Equal(t, 10, enriched[1].StartIndex)
-	assert.Equal(t, 13, enriched[1].EndIndex)
-}
-
-func ptr[T any](v T) *T {
-	return &v
-}
-
-func mustJSON(t *testing.T, v any) string {
-	t.Helper()
-	b, err := json.Marshal(v)
-	require.NoError(t, err)
-	return string(b)
-}
 
 func TestNewOpenAIModel_MissingAPIKey(t *testing.T) {
 	t.Parallel()

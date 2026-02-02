@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { useMemo } from 'react'
-import { ChatSession } from '@iotauz/bichat-ui'
-import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iotauz/bichat-ui'
+import { ChatSession } from '@iota-uz/bichat-ui'
+import type { ChatDataSource, Session, Message, StreamChunk, Attachment, QuestionAnswers } from '@iota-uz/bichat-ui'
 import { useClient } from 'urql'
 import { useIotaContext } from '../contexts/IotaContext'
 
@@ -20,14 +20,6 @@ const SessionQuery = `
         role
         content
         createdAt
-        codeOutputs {
-          id
-          name
-          mimeType
-          url
-          size
-          createdAt
-        }
         toolCalls {
           id
           name
@@ -52,8 +44,8 @@ export default function ChatPage() {
   const dataSource = useMemo<ChatDataSource>(() => ({
     async createSession(): Promise<Session> {
       const mutation = `
-        mutation CreateSession {
-          createSession {
+        mutation CreateSession($title: String) {
+          createSession(title: $title) {
             id
             title
             status
@@ -63,7 +55,7 @@ export default function ChatPage() {
           }
         }
       `
-      const result = await client.mutation(mutation, {}).toPromise()
+      const result = await client.mutation(mutation, { title: 'New Chat' }).toPromise()
       if (result.error) throw new Error(result.error.message)
       return result.data.createSession
     },
@@ -93,37 +85,9 @@ export default function ChatPage() {
           citations: msg.citations?.map((c: any, idx: number) => ({
             id: `${msg.id}-citation-${idx}`,
             source: c.source,
-            title: c.title,
             url: c.url,
             excerpt: c.excerpt,
           })),
-          codeOutputs: (msg.codeOutputs || []).map((o: any) => {
-            const mimeType = (o.mimeType || '').toString()
-            if (mimeType.startsWith('image/')) {
-              return {
-                type: 'image',
-                content: {
-                  filename: o.name,
-                  mimeType: o.mimeType,
-                  sizeBytes: o.size,
-                  base64Data: '',
-                  preview: o.url,
-                },
-              }
-            }
-
-            return {
-              type: 'file',
-              content: {
-                id: o.id,
-                name: o.name,
-                mimeType: o.mimeType,
-                url: o.url,
-                size: o.size,
-                createdAt: o.createdAt,
-              },
-            }
-          }),
         })) as Message[],
         pendingQuestion: null,
       }
@@ -139,7 +103,6 @@ export default function ChatPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           sessionId,
           content,
@@ -177,28 +140,12 @@ export default function ChatPage() {
               const data = line.slice(6)
               try {
                 const chunk = JSON.parse(data)
-                
-                // Map backend chunk types to frontend types
-                // Backend sends: "content", "citation", "done", "error" (lowercase)
-                // Frontend expects: "chunk", "error", "done", "user_message"
-                let chunkType: 'chunk' | 'error' | 'done' | 'user_message'
-                if (chunk.type === 'content' || chunk.type === 'citation') {
-                  chunkType = 'chunk'
-                } else if (chunk.type === 'done') {
-                  chunkType = 'done'
-                } else if (chunk.type === 'error') {
-                  chunkType = 'error'
-                } else {
-                  // Fallback: use lowercase version
-                  chunkType = chunk.type.toLowerCase() as 'chunk' | 'error' | 'done' | 'user_message'
-                }
-                
                 yield {
-                  type: chunkType,
+                  type: chunk.type === 'CONTENT' ? 'chunk' : chunk.type.toLowerCase(),
                   content: chunk.content,
                   error: chunk.error,
                 }
-                if (chunk.type === 'done' || chunk.type === 'error') return
+                if (chunk.type === 'DONE' || chunk.type === 'ERROR') return
               } catch (parseErr) {
                 console.error('Failed to parse SSE data:', parseErr)
               }

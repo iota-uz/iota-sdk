@@ -2,9 +2,7 @@ package infrastructure
 
 import (
 	"context"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -12,13 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	if err := os.Chdir("../../.."); err != nil {
-		panic(err)
-	}
-	os.Exit(m.Run())
-}
 
 func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 	t.Parallel()
@@ -29,7 +20,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 	// Context without tenant ID
 	ctx := context.Background()
 
-	_, err := executor.ExecuteQuery(ctx, "SELECT 1 WHERE tenant_id = $1", nil, 5*time.Second)
+	_, err := executor.ExecuteQuery(ctx, "SELECT 1", nil, 5000)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant ID required")
 }
@@ -73,24 +64,23 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	require.NoError(t, err)
 
 	// Test 1: Execute query WITH explicit tenant filter (correct usage)
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_tenant_data WHERE tenant_id = $1 ORDER BY value", nil, 5*time.Second)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_tenant_data WHERE tenant_id = $1 ORDER BY value", nil, 5000)
 	require.NoError(t, err)
 
 	// Verify ONLY current tenant's data is returned
 	assert.Equal(t, 2, result.RowCount, "should only see current tenant's 2 rows")
 	assert.Len(t, result.Rows, 2)
-	assert.Equal(t, "Alice", result.ToMap(0)["name"])
-	assert.Equal(t, "Bob", result.ToMap(1)["name"])
+	assert.Equal(t, "Alice", result.Rows[0]["name"])
+	assert.Equal(t, "Bob", result.Rows[1]["name"])
 
 	// Verify other tenant's data is NOT visible
-	for i := range result.Rows {
-		rowMap := result.ToMap(i)
-		assert.NotEqual(t, "Charlie", rowMap["name"])
-		assert.NotEqual(t, "David", rowMap["name"])
+	for _, row := range result.Rows {
+		assert.NotEqual(t, "Charlie", row["name"])
+		assert.NotEqual(t, "David", row["name"])
 	}
 
 	// Test 2: Execute query WITHOUT tenant filter (should be rejected)
-	_, err = executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_tenant_data ORDER BY value", nil, 5*time.Second)
+	_, err = executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_tenant_data ORDER BY value", nil, 5000)
 	assert.Error(t, err, "query without tenant_id filter should be rejected")
 	assert.Contains(t, err.Error(), "must include WHERE tenant_id")
 }
@@ -126,7 +116,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute query with tenant_id filter
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_data WHERE tenant_id = $1 ORDER BY value", nil, 5*time.Second)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_data WHERE tenant_id = $1 ORDER BY value", nil, 5000)
 	require.NoError(t, err)
 
 	assert.Len(t, result.Columns, 2)
@@ -134,8 +124,8 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	assert.Contains(t, result.Columns, "value")
 	assert.Equal(t, 3, result.RowCount)
 	assert.Len(t, result.Rows, 3)
-	assert.Equal(t, "Alice", result.ToMap(0)["name"])
-	assert.Greater(t, result.Duration.Milliseconds(), int64(0))
+	assert.Equal(t, "Alice", result.Rows[0]["name"])
+	assert.Greater(t, result.DurationMs, int64(0))
 }
 
 func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
@@ -173,13 +163,13 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 		env.Ctx,
 		"SELECT name, price FROM test_products WHERE tenant_id = $1 AND price > $2 ORDER BY price",
 		[]any{10.0},
-		5*time.Second,
+		5000,
 	)
 	require.NoError(t, err)
 
 	assert.Equal(t, 2, result.RowCount)
-	assert.Equal(t, "Widget A", result.ToMap(0)["name"])
-	assert.Equal(t, "Widget B", result.ToMap(1)["name"])
+	assert.Equal(t, "Widget A", result.Rows[0]["name"])
+	assert.Equal(t, "Widget B", result.Rows[1]["name"])
 }
 
 func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
@@ -206,7 +196,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute query with very short timeout (1ms) on a slow query
-	_, err = executor.ExecuteQuery(env.Ctx, "SELECT pg_sleep(1) FROM test_timeout WHERE tenant_id = $1", nil, 1*time.Millisecond)
+	_, err = executor.ExecuteQuery(env.Ctx, "SELECT pg_sleep(1) FROM test_timeout WHERE tenant_id = $1", nil, 1)
 	assert.Error(t, err)
 	// Timeout errors vary by driver, just check that it failed
 }
@@ -239,12 +229,12 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute query with tenant_id filter
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT * FROM test_large WHERE tenant_id = $1", nil, 10*time.Second)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT * FROM test_large WHERE tenant_id = $1", nil, 10000)
 	require.NoError(t, err)
 
 	// Should be limited to 1000 rows
 	assert.Equal(t, 1000, result.RowCount)
-	assert.True(t, result.Truncated)
+	assert.True(t, result.IsLimited)
 }
 
 func TestPostgresQueryExecutor_FormatValue(t *testing.T) {

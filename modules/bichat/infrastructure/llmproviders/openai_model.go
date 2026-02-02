@@ -2,7 +2,6 @@ package llmproviders
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -112,10 +111,11 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 		}
 	}
 
-	// Extract citation markers from assistant content, then enrich them with metadata
-	// from the latest web_search tool result (if present in req.Messages).
+	// Extract citations from response metadata (if present)
+	// TODO: OpenAI Responses API returns citations in metadata when web_search tool is used
+	// Once go-openai library supports citation metadata, extract and map citations here
+	// Expected format: response metadata contains web search results with title, URL, snippet
 	citations := extractCitationsFromResponse(&resp)
-	citations = enrichCitationsFromWebSearchTool(req.Messages, citations)
 	if len(citations) > 0 {
 		msg.Citations = citations
 	}
@@ -144,21 +144,20 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 
 // Stream sends a streaming completion request to OpenAI.
 // Returns a Generator that yields Chunk objects as tokens arrive.
-func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
-	const op serrors.Op = "OpenAIModel.Stream"
-
+func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) types.Generator[agents.Chunk] {
 	config := agents.ApplyGenerateOptions(opts...)
 
-	// Build OpenAI streaming request
-	oaiReq := m.buildChatCompletionRequest(req, config)
-
-	// Create stream immediately to catch errors early
-	stream, err := m.client.CreateChatCompletionStream(ctx, oaiReq)
-	if err != nil {
-		return nil, serrors.E(op, err, "failed to create OpenAI stream")
-	}
-
 	return types.NewGenerator(ctx, func(genCtx context.Context, yield func(agents.Chunk) bool) error {
+		const op serrors.Op = "OpenAIModel.Stream"
+
+		// Build OpenAI streaming request
+		oaiReq := m.buildChatCompletionRequest(req, config)
+
+		// Create stream
+		stream, err := m.client.CreateChatCompletionStream(genCtx, oaiReq)
+		if err != nil {
+			return serrors.E(op, err, "failed to create OpenAI stream")
+		}
 		defer stream.Close()
 
 		// Accumulate tool calls across chunks
@@ -261,7 +260,7 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 				return nil // Stream complete
 			}
 		}
-	}, types.WithBufferSize(10)), nil // Buffer up to 10 chunks
+	}, types.WithBufferSize(10)) // Buffer up to 10 chunks
 }
 
 // Info returns model metadata including capabilities.
@@ -527,108 +526,6 @@ func extractCitationsFromResponse(resp *openai.ChatCompletionResponse) []types.C
 
 	// Step 3: No citations found
 	return nil
-}
-
-type webSearchToolResult struct {
-	Query   string                    `json:"query"`
-	Results []webSearchToolResultItem `json:"results"`
-}
-
-type webSearchToolResultItem struct {
-	Index   int    `json:"index"`
-	Title   string `json:"title"`
-	URL     string `json:"url"`
-	Snippet string `json:"snippet"`
-}
-
-func enrichCitationsFromWebSearchTool(messages []types.Message, citations []types.Citation) []types.Citation {
-	if len(citations) == 0 || len(messages) == 0 {
-		return citations
-	}
-
-	// Find last assistant web_search tool call.
-	var lastWebSearchToolCallID string
-	for i := len(messages) - 1; i >= 0; i-- {
-		m := messages[i]
-		if m.Role != types.RoleAssistant {
-			continue
-		}
-		for _, tc := range m.ToolCalls {
-			if tc.Name == "web_search" {
-				lastWebSearchToolCallID = tc.ID
-				break
-			}
-		}
-		if lastWebSearchToolCallID != "" {
-			break
-		}
-	}
-	if lastWebSearchToolCallID == "" {
-		return citations
-	}
-
-	// Find matching tool response.
-	var toolJSON string
-	for i := len(messages) - 1; i >= 0; i-- {
-		m := messages[i]
-		if m.Role != types.RoleTool || m.ToolCallID == nil {
-			continue
-		}
-		if *m.ToolCallID == lastWebSearchToolCallID {
-			toolJSON = m.Content
-			break
-		}
-	}
-	if toolJSON == "" {
-		return citations
-	}
-
-	var parsed webSearchToolResult
-	if err := json.Unmarshal([]byte(toolJSON), &parsed); err != nil {
-		return citations
-	}
-	if len(parsed.Results) == 0 {
-		return citations
-	}
-
-	byIndex := make(map[int]webSearchToolResultItem, len(parsed.Results))
-	for _, r := range parsed.Results {
-		if r.Index <= 0 {
-			continue
-		}
-		byIndex[r.Index] = r
-	}
-
-	// Titles from marker parser are "Citation [N]".
-	for i := range citations {
-		n := extractCitationNumberFromTitle(citations[i].Title)
-		if n <= 0 {
-			continue
-		}
-		if res, ok := byIndex[n]; ok {
-			if res.Title != "" {
-				citations[i].Title = res.Title
-			}
-			citations[i].URL = res.URL
-			citations[i].Excerpt = res.Snippet
-		}
-	}
-
-	return citations
-}
-
-func extractCitationNumberFromTitle(title string) int {
-	// Expected: "Citation [N]"
-	pattern := regexp.MustCompile(`\[(\d+)\]`)
-	m := pattern.FindStringSubmatch(title)
-	if len(m) != 2 {
-		return 0
-	}
-	n, err := strconv.Atoi(m[1])
-	if err != nil {
-		return 0
-	}
-	return n
 }
 
 // extractCitationMarkersFromContent parses citation markers like [1], [2] from text.

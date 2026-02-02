@@ -8,12 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 // Session Operations Tests
@@ -21,9 +18,6 @@ import (
 func TestPostgresChatRepository_CreateSession(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
-	require.NotNil(t, env)
-	require.NotNil(t, env.Tenant)
-	require.NotNil(t, env.User)
 
 	repo := persistence.NewPostgresChatRepository()
 
@@ -54,9 +48,6 @@ func TestPostgresChatRepository_CreateSession(t *testing.T) {
 func TestPostgresChatRepository_CreateSession_WithParentAndPendingAgent(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
-	require.NotNil(t, env)
-	require.NotNil(t, env.Tenant)
-	require.NotNil(t, env.User)
 
 	repo := persistence.NewPostgresChatRepository()
 
@@ -1408,9 +1399,6 @@ func TestPostgresChatRepository_GetSession_WithSQLNullTypes(t *testing.T) {
 func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {
 	t.Parallel()
 	env := setupTest(t)
-	require.NotNil(t, env)
-	require.NotNil(t, env.Tenant)
-	require.NotNil(t, env.User)
 
 	repo := persistence.NewPostgresChatRepository()
 
@@ -1423,17 +1411,10 @@ func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Try to get with different tenant context by reusing the same DB but changing tenant_id.
-	// Use a different DB name to avoid dropping an in-use DB when tests run in parallel.
-	envOther := itf.Setup(t, itf.WithModules(modules.BuiltInModules...), itf.WithDatabase(t.Name()+"_other"))
-	if envOther == nil || envOther.Tenant == nil {
-		// If test environment couldn't be created (e.g. local DB not available),
-		// skip this isolation test instead of panicking.
-		t.Skip("test environment not available")
-	}
-	ctxOtherTenant := composables.WithTenantID(env.Ctx, envOther.Tenant.ID)
+	// Try to get with different tenant context (simulated by new environment)
+	envOther := setupTest(t)
 
-	_, err = repo.GetSession(ctxOtherTenant, session.ID)
+	_, err = repo.GetSession(envOther.Ctx, session.ID)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound,
 		"Session should not be accessible from different tenant context")

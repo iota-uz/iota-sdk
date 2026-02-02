@@ -83,6 +83,47 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
 }
 
+// ---- Applet Registry implementation ----
+
+type appletRegistry struct {
+	applets map[string]Applet
+}
+
+func newAppletRegistry() *appletRegistry {
+	return &appletRegistry{
+		applets: make(map[string]Applet),
+	}
+}
+
+func (r *appletRegistry) Get(name string) Applet {
+	return r.applets[name]
+}
+
+func (r *appletRegistry) All() []Applet {
+	applets := make([]Applet, 0, len(r.applets))
+	for _, applet := range r.applets {
+		applets = append(applets, applet)
+	}
+	return applets
+}
+
+func (r *appletRegistry) Has(name string) bool {
+	_, exists := r.applets[name]
+	return exists
+}
+
+func (r *appletRegistry) register(applet Applet) error {
+	name := applet.Name()
+	if name == "" {
+		return fmt.Errorf("applet name cannot be empty")
+	}
+	if r.Has(name) {
+		return fmt.Errorf("applet %q is already registered", name)
+	}
+	r.applets[name] = applet
+	return nil
+}
+
 // ---- Application implementation ----
 
 type ApplicationOptions struct {
@@ -117,6 +158,7 @@ func New(opts *ApplicationOptions) Application {
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
+		appletRegistry:     newAppletRegistry(),
 	}
 }
 
@@ -137,6 +179,7 @@ type application struct {
 	migrations         MigrationManager
 	navItems           []types.NavigationItem
 	supportedLanguages []string
+	appletRegistry     *appletRegistry
 }
 
 func (app *application) Spotlight() spotlight.Spotlight {
@@ -261,4 +304,12 @@ func (app *application) Bundle() *i18n.Bundle {
 
 func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
+}
+
+func (app *application) RegisterApplet(applet Applet) error {
+	return app.appletRegistry.register(applet)
+}
+
+func (app *application) AppletRegistry() AppletRegistry {
+	return app.appletRegistry
 }
