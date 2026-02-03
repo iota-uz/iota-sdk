@@ -208,7 +208,7 @@ jobs:
           COVERAGE_THRESHOLD: 10
           COVERAGE_MAX_FILES_DISPLAY: 100
           COVERAGE_IGNORE_PATTERNS: "cmd/,*_templ.go,viewmodels/"
-        run: node ./.github/scripts/coverage-report.js --file coverage.out --output github
+        run: node ./.github/scripts/coverage-report.cjs --file coverage.out --output github
 
       - name: Generate HTML coverage report
         run: go tool cover -html=coverage.out -o coverage.html
