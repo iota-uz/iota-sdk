@@ -1,8 +1,8 @@
 /**
  * SessionSkeleton Component
- * Loading skeleton for session list using reusable Skeleton from @iotauz/iota-sdk/bichat
+ * Loading skeleton for session list using reusable Skeleton from @iota-uz/iota-sdk/bichat
  */
-import { SkeletonGroup, ListItemSkeleton } from '@iotauz/iota-sdk/bichat'
+import { SkeletonGroup, ListItemSkeleton } from '@iota-uz/iota-sdk/bichat'
 
 interface SessionSkeletonProps {
   count?: number

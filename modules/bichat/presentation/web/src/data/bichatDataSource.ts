@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import type { ChatDataSource } from '@iotauz/iota-sdk/bichat'
-import { createHttpDataSource } from '@iotauz/iota-sdk/bichat'
+import type { ChatDataSource } from '@iota-uz/iota-sdk/bichat'
+import { createHttpDataSource } from '@iota-uz/iota-sdk/bichat'
 import { useIotaContext } from '../contexts/IotaContext'
 
 export function useBiChatDataSource(

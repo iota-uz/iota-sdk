@@ -11,7 +11,7 @@ importers:
       '@headlessui/react':
         specifier: ^2.2.0
         version: 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@iotauz/iota-sdk':
+      '@iota-uz/iota-sdk':
         specifier: file:../../../../
         version: file:../../../..(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react':
@@ -860,7 +860,7 @@ packages:
       '@types/node':
         optional: true
 
-  '@iotauz/iota-sdk@file:../../../..':
+  '@iota-uz/iota-sdk@file:../../../..':
     resolution: {directory: ../../../.., type: directory}
     engines: {node: '>=18'}
     peerDependencies:
@@ -4182,7 +4182,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.2.0
 
-  '@iotauz/iota-sdk@file:../../../..(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@iota-uz/iota-sdk@file:../../../..(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@phosphor-icons/react': 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       date-fns: 3.6.0

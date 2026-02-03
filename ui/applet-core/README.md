@@ -1,11 +1,11 @@
-# @iotauz/iota-sdk (Applet Core)
+# @iota-uz/iota-sdk (Applet Core)
 
 Core React package for building IOTA SDK applets. Provides context injection, hooks, and utilities for seamless integration with the IOTA SDK runtime.
 
 ## Installation
 
 ```bash
-pnpm install @iotauz/iota-sdk
+pnpm install @iota-uz/iota-sdk
 ```
 
 ## Quick Start
@@ -13,7 +13,7 @@ pnpm install @iotauz/iota-sdk
 ### Basic Setup
 
 ```tsx
-import { AppletProvider } from '@iotauz/iota-sdk'
+import { AppletProvider } from '@iota-uz/iota-sdk'
 import App from './App'
 
 function Root() {
@@ -35,8 +35,8 @@ import {
   useSession,
   useRoute,
   useConfig
-} from '@iotauz/iota-sdk'
-} from '@iotauz/iota-sdk'
+} from '@iota-uz/iota-sdk'
+} from '@iota-uz/iota-sdk'
 
 function App() {
   const { firstName, email } = useUser()
@@ -300,7 +300,7 @@ import type {
   PermissionsHook,
   SessionHook,
   StreamingHook
-} from '@iotauz/iota-sdk'
+} from '@iota-uz/iota-sdk'
 ```
 
 ### InitialContext
@@ -326,7 +326,7 @@ interface InitialContext {
 For cases where provider setup is not possible:
 
 ```tsx
-import { useAppletContextDirect } from '@iotauz/iota-sdk'
+import { useAppletContextDirect } from '@iota-uz/iota-sdk'
 
 const context = useAppletContextDirect('__BICHAT_CONTEXT__')
 ```

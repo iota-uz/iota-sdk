@@ -7,7 +7,7 @@
 import { useRef, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { EditableText, type EditableTextRef } from '@iotauz/iota-sdk/bichat'
+import { EditableText, type EditableTextRef } from '@iota-uz/iota-sdk/bichat'
 import SessionMenu from './SessionMenu'
 import { sessionItemVariants } from '../../animations/variants'
 import type { ChatSession } from '../../utils/sessionGrouping'

@@ -23,7 +23,7 @@ pnpm run preview
 - **Context**: Reads session data from `window.__BICHAT_CONTEXT__` injected by Go backend
 - **GraphQL**: Uses urql client for queries/mutations
 - **Routing**: React Router with `/` (sessions list) and `/session/:id` (chat interface)
-- **UI**: Imports shared components from `@iotauz/iota-sdk/bichat`
+- **UI**: Imports shared components from `@iota-uz/iota-sdk/bichat`
 
 ## Integration with Go Backend
 

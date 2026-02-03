@@ -1,23 +1,23 @@
 # IOTA SDK
 
-## NPM: @iotauz/iota-sdk
+## NPM: @iota-uz/iota-sdk
 
 This repo now ships a unified public NPM package for UI + Tailwind sharing:
-- Applet Core (React utilities): `@iotauz/iota-sdk`
-- BIChat UI (React): `@iotauz/iota-sdk/bichat`
-- Tailwind v4 inputs + config helper: `@iotauz/iota-sdk/tailwind/*`
-- Bundled assets (fonts): serve `node_modules/@iotauz/iota-sdk/assets` at `/assets`
+- Applet Core (React utilities): `@iota-uz/iota-sdk`
+- BIChat UI (React): `@iota-uz/iota-sdk/bichat`
+- Tailwind v4 inputs + config helper: `@iota-uz/iota-sdk/tailwind/*`
+- Bundled assets (fonts): serve `node_modules/@iota-uz/iota-sdk/assets` at `/assets`
 
 Tailwind (consumer compiles):
 
 ```bash
 pnpm add -D tailwindcss @tailwindcss/cli
-pnpm add @iotauz/iota-sdk
+pnpm add @iota-uz/iota-sdk
 ```
 
 ```js
 // tailwind.config.cjs
-const createIotaTailwindConfig = require('@iotauz/iota-sdk/tailwind/create-config')
+const createIotaTailwindConfig = require('@iota-uz/iota-sdk/tailwind/create-config')
 
 module.exports = createIotaTailwindConfig({
   content: ['./src/**/*.{ts,tsx,js,jsx,html}'],
@@ -27,7 +27,7 @@ module.exports = createIotaTailwindConfig({
 
 ```bash
 tailwindcss \
-  --input ./node_modules/@iotauz/iota-sdk/tailwind/main.css \
+  --input ./node_modules/@iota-uz/iota-sdk/tailwind/main.css \
   --output ./public/assets/main.css \
   --minify
 ```

@@ -1,4 +1,4 @@
-name: Publish @iotauz/iota-sdk
+name: Publish @iota-uz/iota-sdk
 
 on:
   push:
@@ -48,8 +48,8 @@ jobs:
 
       - name: Verify version not published
         run: |
-          if npm view @iotauz/iota-sdk@${{ steps.version.outputs.version }} version >/dev/null 2>&1; then
-            echo "Version already exists on npm: @iotauz/iota-sdk@${{ steps.version.outputs.version }}"
+          if npm view @iota-uz/iota-sdk@${{ steps.version.outputs.version }} version >/dev/null 2>&1; then
+            echo "Version already exists on npm: @iota-uz/iota-sdk@${{ steps.version.outputs.version }}"
             exit 1
           fi
 
@@ -63,6 +63,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
-            --title "@iotauz/iota-sdk v${{ steps.version.outputs.version }}" \
-            --notes "Published @iotauz/iota-sdk@${{ steps.version.outputs.version }} to npm."
+            --title "@iota-uz/iota-sdk v${{ steps.version.outputs.version }}" \
+            --notes "Published @iota-uz/iota-sdk@${{ steps.version.outputs.version }} to npm."
 

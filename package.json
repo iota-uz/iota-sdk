@@ -1,5 +1,5 @@
 {
-  "name": "@iotauz/iota-sdk",
+  "name": "@iota-uz/iota-sdk",
   "version": "0.1.0",
   "description": "IOTA SDK UI utilities, Tailwind configuration, and React components for building IOTA SDK applets.",
   "license": "MIT",
