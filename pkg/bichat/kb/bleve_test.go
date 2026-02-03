@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 func TestBleveIndex_CRUD(t *testing.T) {
@@ -383,7 +384,10 @@ func TestBleveIndex_Rebuild(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Old documents should be gone
-	oldDoc, _ := searcher.GetDocument(ctx, "old1")
+	oldDoc, err := searcher.GetDocument(ctx, "old1")
+	if err != nil && !errors.Is(err, kb.ErrDocumentNotFound) {
+		t.Fatalf("GetDocument(old1) unexpected error: %v", err)
+	}
 	if oldDoc != nil {
 		t.Error("Expected old document to be removed after rebuild")
 	}
@@ -474,5 +478,5 @@ var errMockWatchNotImplemented = errors.New("mock document source: watch not imp
 
 func (m *mockDocumentSource) Watch(ctx context.Context) (<-chan kb.DocumentChange, error) {
 	// Not implemented for this test
-	return nil, errMockWatchNotImplemented
+	return nil, serrors.E("watch", errMockWatchNotImplemented)
 }

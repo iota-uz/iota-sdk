@@ -324,7 +324,7 @@ func compactBlocks(
 	if err != nil {
 		// Summarization failed, fall back to truncation
 		finalBlocks, totalTokens, tokensByKind := truncateBlocks(blocks, blockTokens, availableTokens, policy.KindPriorities)
-		return finalBlocks, totalTokens, tokensByKind, err
+		return finalBlocks, totalTokens, tokensByKind, nil
 	}
 
 	// Create a new summarized history block to replace the original history blocks

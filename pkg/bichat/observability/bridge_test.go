@@ -189,6 +189,7 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 
 	tenantID := uuid.New()
 	var wg sync.WaitGroup
+	errCh := make(chan error, 20)
 
 	// Launch 10 goroutines emitting requests
 	for i := 0; i < 10; i++ {
@@ -201,7 +202,7 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				"claude-3-5-sonnet-20241022", "anthropic",
 				3, 5, 1000,
 			)
-			_ = bus.Publish(context.Background(), requestEvent)
+			errCh <- bus.Publish(context.Background(), requestEvent)
 		}()
 	}
 
@@ -216,11 +217,15 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				"claude-3-5-sonnet-20241022", "anthropic",
 				950, 120, 1070, 1234, "stop", 2,
 			)
-			_ = bus.Publish(context.Background(), responseEvent)
+			errCh <- bus.Publish(context.Background(), responseEvent)
 		}()
 	}
 
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify no panics (test passes if no race conditions)
@@ -248,7 +253,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		"claude-3-5-sonnet-20241022", "anthropic",
 		3, 5, 1000,
 	)
-	_ = bus.Publish(context.Background(), requestEvent)
+	require.NoError(t, bus.Publish(context.Background(), requestEvent))
 	time.Sleep(50 * time.Millisecond)
 
 	responseEvent := events.NewLLMResponseEvent(
@@ -256,7 +261,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		"claude-3-5-sonnet-20241022", "anthropic",
 		950, 120, 1070, 1234, "stop", 2,
 	)
-	_ = bus.Publish(context.Background(), responseEvent)
+	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
 	// Wait longer for all async handlers (3 providers) to process
 	time.Sleep(300 * time.Millisecond)

@@ -284,8 +284,8 @@ func TestContextBuilder_Build_Success(t *testing.T) {
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Request now has CSRF token
 		initialCtx, err := builder.Build(ctx, r, "")
-		assert.NoError(t, err)
-		assert.NotNil(t, initialCtx)
+		require.NoError(t, err)
+		require.NotNil(t, initialCtx)
 
 		// Verify user context
 		assert.Equal(t, int64(42), initialCtx.User.ID)

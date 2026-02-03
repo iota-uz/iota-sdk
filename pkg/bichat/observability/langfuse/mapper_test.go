@@ -8,6 +8,7 @@ import (
 	"github.com/henomis/langfuse-go/model"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // 7. Mapper Tests (2 tests)
@@ -163,7 +164,9 @@ func TestMappers_AllFields(t *testing.T) {
 		assert.Equal(t, "call-456", metadata["call_id"])
 
 		// Input/output
-		assert.JSONEq(t, `{"query": "SELECT * FROM users"}`, metadata["input"].(string))
+		val, ok := metadata["input"].(string)
+		require.True(t, ok, "metadata[\"input\"] should be a string")
+		assert.JSONEq(t, `{"query": "SELECT * FROM users"}`, val)
 		assert.Equal(t, `{"rows": 10}`, metadata["output"])
 
 		// Custom attributes
