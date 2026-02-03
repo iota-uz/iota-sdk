@@ -262,6 +262,18 @@ func CreateDB(name string) {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
+
+	// Terminate all connections to the database before dropping
+	// This prevents "database is being accessed by other users" errors
+	// when parallel tests try to create/drop the same database
+	terminateSQL := fmt.Sprintf(`
+		SELECT pg_terminate_backend(pg_stat_activity.pid)
+		FROM pg_stat_activity
+		WHERE pg_stat_activity.datname = '%s'
+		AND pid <> pg_backend_pid()
+	`, sanitizedName)
+	_, _ = db.ExecContext(context.Background(), terminateSQL) // Ignore errors - database might not exist
+
 	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
 	if err != nil {
 		panic(err)
