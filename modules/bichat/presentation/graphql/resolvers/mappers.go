@@ -21,6 +21,7 @@ func toGraphQLSession(s domain.Session) *model.Session {
 		Title:     s.Title(),
 		Status:    toGraphQLSessionStatus(s.Status()),
 		Pinned:    s.Pinned(),
+		IsSystem:  false, // Deprecated: no longer in domain
 		CreatedAt: s.CreatedAt(),
 		UpdatedAt: s.UpdatedAt(),
 		Messages:  []*model.Message{},

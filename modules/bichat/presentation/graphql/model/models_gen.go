@@ -109,6 +109,7 @@ type Session struct {
 	Title                string        `json:"title"`
 	Status               SessionStatus `json:"status"`
 	Pinned               bool          `json:"pinned"`
+	IsSystem             bool          `json:"isSystem"`
 	ParentSessionID      *string       `json:"parentSessionID,omitempty"`
 	PendingQuestionAgent *string       `json:"pendingQuestionAgent,omitempty"`
 	CreatedAt            time.Time     `json:"createdAt"`
