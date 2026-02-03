@@ -2,6 +2,19 @@ FROM golang:1.23.2
 
 WORKDIR /build
 
+ARG JUST_VERSION=1.46.0
+RUN set -eux; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64|amd64) target="x86_64-unknown-linux-musl" ;; \
+      aarch64|arm64) target="aarch64-unknown-linux-musl" ;; \
+      *) echo "Unsupported arch for just: $arch" ; exit 1 ;; \
+    esac; \
+    curl -sSfL "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-${target}.tar.gz" \
+      | tar -xz -C /usr/local/bin just; \
+    chmod +x /usr/local/bin/just; \
+    just --version
+
 COPY scripts/install.sh .
 RUN chmod +x install.sh && ./install.sh && go install github.com/a-h/templ/cmd/templ@v0.3.856
 
@@ -12,4 +25,3 @@ RUN go mod download
 COPY . .
 
 CMD ["sh", "-c", "go vet -tags dev ./... && golangci-lint run --build-tags dev ./... && go test -tags dev -v ./..."]
-

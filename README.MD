@@ -107,7 +107,7 @@ various industries. Here's what's in the pipeline:
 Install all required development tools with a single command:
 
 ```bash
-make install-tools
+just install-tools
 ```
 
 This installs the following tools with correct versions:

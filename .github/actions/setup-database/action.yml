@@ -67,7 +67,7 @@ runs:
       run: |
         set -euo pipefail
         echo "::group::Running database migrations"
-        if ! make db migrate up; then
+        if ! just db migrate up; then
           echo "::error::Database migrations failed for database: ${{ inputs.db-name }}"
           exit 1
         fi
