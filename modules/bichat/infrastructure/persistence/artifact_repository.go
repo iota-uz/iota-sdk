@@ -49,7 +49,7 @@ const (
 var ErrArtifactNotFound = errors.New("artifact not found")
 
 // SaveArtifact persists an artifact with tenant isolation.
-func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact *domain.Artifact) error {
+func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
 	const op serrors.Op = "PostgresChatRepository.SaveArtifact"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -60,10 +60,6 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact *dom
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return serrors.E(op, err)
-	}
-
-	if artifact.CreatedAt.IsZero() {
-		artifact.CreatedAt = time.Now()
 	}
 
 	model, err := models.ArtifactModelFromDomain(artifact)
@@ -114,7 +110,7 @@ func (r *PostgresChatRepository) SaveArtifact(ctx context.Context, artifact *dom
 }
 
 // GetArtifact retrieves an artifact by ID.
-func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (*domain.Artifact, error) {
+func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
 	const op serrors.Op = "PostgresChatRepository.GetArtifact"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -153,7 +149,7 @@ func (r *PostgresChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) 
 }
 
 // GetSessionArtifacts returns artifacts for a session with pagination and optional type filter.
-func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Artifact, error) {
+func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
 	const op serrors.Op = "PostgresChatRepository.GetSessionArtifacts"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -201,7 +197,7 @@ func (r *PostgresChatRepository) GetSessionArtifacts(ctx context.Context, sessio
 	}
 	defer rows.Close()
 
-	var artifacts []*domain.Artifact
+	var artifacts []domain.Artifact
 	for rows.Next() {
 		var m models.ArtifactModel
 		err := rows.Scan(

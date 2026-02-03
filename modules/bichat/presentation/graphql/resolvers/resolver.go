@@ -179,7 +179,7 @@ func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID strin
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -296,7 +296,7 @@ func (r *mutationResolver) UpdateSessionTitle(ctx context.Context, id string, ti
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -333,7 +333,7 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return false, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -370,7 +370,7 @@ func (r *mutationResolver) CancelPendingQuestion(ctx context.Context, sessionID 
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -444,7 +444,7 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, err)
 	}
-	if user == nil || int64(user.ID()) != session.UserID {
+	if user == nil || int64(user.ID()) != session.UserID() {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
 	}
 
@@ -469,7 +469,7 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, err)
 	}
-	if user == nil || int64(user.ID()) != session.UserID {
+	if user == nil || int64(user.ID()) != session.UserID() {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
 	}
 

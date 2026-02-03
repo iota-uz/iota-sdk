@@ -13,19 +13,19 @@ func TestSession_Creation(t *testing.T) {
 	t.Run("basic creation with defaults", func(t *testing.T) {
 		session := domain.NewSession()
 
-		if session.ID == uuid.Nil {
+		if session.ID() == uuid.Nil {
 			t.Error("Expected non-nil UUID")
 		}
-		if session.Status != domain.SessionStatusActive {
-			t.Errorf("Expected status Active, got %s", session.Status)
+		if session.Status() != domain.SessionStatusActive {
+			t.Errorf("Expected status Active, got %s", session.Status())
 		}
-		if session.Pinned {
+		if session.Pinned() {
 			t.Error("Expected Pinned to be false by default")
 		}
-		if session.CreatedAt.IsZero() {
+		if session.CreatedAt().IsZero() {
 			t.Error("Expected CreatedAt to be set")
 		}
-		if session.UpdatedAt.IsZero() {
+		if session.UpdatedAt().IsZero() {
 			t.Error("Expected UpdatedAt to be set")
 		}
 	})
@@ -45,23 +45,23 @@ func TestSession_Creation(t *testing.T) {
 			domain.WithStatus(domain.SessionStatusArchived),
 		)
 
-		if session.TenantID != tenantID {
-			t.Errorf("Expected TenantID %s, got %s", tenantID, session.TenantID)
+		if session.TenantID() != tenantID {
+			t.Errorf("Expected TenantID %s, got %s", tenantID, session.TenantID())
 		}
-		if session.UserID != userID {
-			t.Errorf("Expected UserID %d, got %d", userID, session.UserID)
+		if session.UserID() != userID {
+			t.Errorf("Expected UserID %d, got %d", userID, session.UserID())
 		}
-		if session.Title != title {
-			t.Errorf("Expected Title '%s', got '%s'", title, session.Title)
+		if session.Title() != title {
+			t.Errorf("Expected Title '%s', got '%s'", title, session.Title())
 		}
-		if !session.Pinned {
+		if !session.Pinned() {
 			t.Error("Expected Pinned to be true")
 		}
-		if session.ParentSessionID == nil || *session.ParentSessionID != parentID {
+		if session.ParentSessionID() == nil || *session.ParentSessionID() != parentID {
 			t.Error("Expected ParentSessionID to be set")
 		}
-		if session.Status != domain.SessionStatusArchived {
-			t.Errorf("Expected status Archived, got %s", session.Status)
+		if session.Status() != domain.SessionStatusArchived {
+			t.Errorf("Expected status Archived, got %s", session.Status())
 		}
 	})
 
@@ -69,8 +69,8 @@ func TestSession_Creation(t *testing.T) {
 		customID := uuid.New()
 		session := domain.NewSession(domain.WithID(customID))
 
-		if session.ID != customID {
-			t.Errorf("Expected ID %s, got %s", customID, session.ID)
+		if session.ID() != customID {
+			t.Errorf("Expected ID %s, got %s", customID, session.ID())
 		}
 	})
 
@@ -80,11 +80,11 @@ func TestSession_Creation(t *testing.T) {
 			domain.WithPendingQuestionAgent(agentName),
 		)
 
-		if session.PendingQuestionAgent == nil {
+		if session.PendingQuestionAgent() == nil {
 			t.Fatal("Expected PendingQuestionAgent to be set")
 		}
-		if *session.PendingQuestionAgent != agentName {
-			t.Errorf("Expected agent '%s', got '%s'", agentName, *session.PendingQuestionAgent)
+		if *session.PendingQuestionAgent() != agentName {
+			t.Errorf("Expected agent '%s', got '%s'", agentName, *session.PendingQuestionAgent())
 		}
 	})
 }
@@ -98,14 +98,13 @@ func TestSession_Validation(t *testing.T) {
 		domain.WithTitle("Test Session"),
 	)
 
-	// Basic validation checks
-	if session.TenantID == uuid.Nil {
+	if session.TenantID() == uuid.Nil {
 		t.Error("Expected non-nil TenantID")
 	}
-	if session.UserID == 0 {
+	if session.UserID() == 0 {
 		t.Error("Expected non-zero UserID")
 	}
-	if session.Title == "" {
+	if session.Title() == "" {
 		t.Error("Expected non-empty Title")
 	}
 }
@@ -274,26 +273,25 @@ func TestSession_MultipleOptions(t *testing.T) {
 		domain.WithStatus(domain.SessionStatusArchived),
 	)
 
-	// Verify all options were applied
-	if session.TenantID != tenantID {
+	if session.TenantID() != tenantID {
 		t.Error("TenantID not set correctly")
 	}
-	if session.UserID != userID {
+	if session.UserID() != userID {
 		t.Error("UserID not set correctly")
 	}
-	if session.Title != title {
+	if session.Title() != title {
 		t.Error("Title not set correctly")
 	}
-	if !session.Pinned {
+	if !session.Pinned() {
 		t.Error("Pinned not set correctly")
 	}
-	if !session.HasParent() || *session.ParentSessionID != parentID {
+	if !session.HasParent() || *session.ParentSessionID() != parentID {
 		t.Error("ParentSessionID not set correctly")
 	}
-	if !session.HasPendingQuestion() || *session.PendingQuestionAgent != agent {
+	if !session.HasPendingQuestion() || *session.PendingQuestionAgent() != agent {
 		t.Error("PendingQuestionAgent not set correctly")
 	}
-	if session.Status != domain.SessionStatusArchived {
+	if session.Status() != domain.SessionStatusArchived {
 		t.Error("Status not set correctly")
 	}
 }

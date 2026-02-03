@@ -52,6 +52,44 @@ func (c *ChatController) Key() string {
 	return "bichat.ChatController"
 }
 
+// sessionResponse is the JSON shape for session endpoints
+type sessionResponse struct {
+	ID                   string    `json:"id"`
+	TenantID             string    `json:"tenant_id"`
+	UserID               int64     `json:"user_id"`
+	Title                string    `json:"title"`
+	Status               string    `json:"status"`
+	Pinned               bool     `json:"pinned"`
+	ParentSessionID      *string   `json:"parent_session_id,omitempty"`
+	PendingQuestionAgent *string   `json:"pending_question_agent,omitempty"`
+	CreatedAt            string   `json:"created_at"`
+	UpdatedAt            string   `json:"updated_at"`
+}
+
+func sessionToResponse(s domain.Session) sessionResponse {
+	if s == nil {
+		return sessionResponse{}
+	}
+	resp := sessionResponse{
+		ID:        s.ID().String(),
+		TenantID:  s.TenantID().String(),
+		UserID:    s.UserID(),
+		Title:     s.Title(),
+		Status:    string(s.Status()),
+		Pinned:    s.Pinned(),
+		CreatedAt: s.CreatedAt().Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: s.UpdatedAt().Format("2006-01-02T15:04:05Z07:00"),
+	}
+	if pid := s.ParentSessionID(); pid != nil {
+		str := pid.String()
+		resp.ParentSessionID = &str
+	}
+	if agent := s.PendingQuestionAgent(); agent != nil {
+		resp.PendingQuestionAgent = agent
+	}
+	return resp
+}
+
 // Register registers HTTP routes for the controller.
 func (c *ChatController) Register(r *mux.Router) {
 	commonMiddleware := []mux.MiddlewareFunc{
@@ -103,8 +141,11 @@ func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
-
-	c.sendJSON(w, sessions, http.StatusOK)
+	resp := make([]sessionResponse, len(sessions))
+	for i, s := range sessions {
+		resp[i] = sessionToResponse(s)
+	}
+	c.sendJSON(w, resp, http.StatusOK)
 }
 
 // CreateSession creates a new chat session.
@@ -136,8 +177,7 @@ func (c *ChatController) CreateSession(w http.ResponseWriter, r *http.Request) {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
-
-	c.sendJSON(w, session, http.StatusCreated)
+	c.sendJSON(w, sessionToResponse(session), http.StatusCreated)
 }
 
 // GetSession returns details for a specific session.
@@ -167,13 +207,11 @@ func (c *ChatController) GetSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check permission (user owns session or has read_all permission)
-	if session.UserID != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
+	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
 		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
-
-	c.sendJSON(w, session, http.StatusOK)
+	c.sendJSON(w, sessionToResponse(session), http.StatusOK)
 }
 
 // SendMessage sends a new message to a session.
@@ -200,8 +238,7 @@ func (c *ChatController) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// User must own the session OR have BiChatReadAll permission
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		if err := composables.CanUser(r.Context(), permissions.BiChatReadAll); err != nil {
 			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 			return
@@ -255,8 +292,7 @@ func (c *ChatController) ResumeWithAnswer(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// User must own the session OR have BiChatReadAll permission
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		if err := composables.CanUser(r.Context(), permissions.BiChatReadAll); err != nil {
 			c.sendError(w, serrors.E(op, serrors.PermissionDenied, errors.New("access denied")), http.StatusForbidden)
 			return
@@ -313,7 +349,7 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
@@ -323,8 +359,7 @@ func (c *ChatController) ArchiveSession(w http.ResponseWriter, r *http.Request) 
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
-
-	c.sendJSON(w, updatedSession, http.StatusOK)
+	c.sendJSON(w, sessionToResponse(updatedSession), http.StatusOK)
 }
 
 // TogglePin toggles the pinned status of a session.
@@ -355,26 +390,21 @@ func (c *ChatController) TogglePin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check permission (user owns session)
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}
-
-	// Toggle pin status
-	var updatedSession *domain.Session
-	if session.Pinned {
+	var updatedSession domain.Session
+	if session.Pinned() {
 		updatedSession, err = c.chatService.UnpinSession(r.Context(), sessionID)
 	} else {
 		updatedSession, err = c.chatService.PinSession(r.Context(), sessionID)
 	}
-
 	if err != nil {
 		c.sendError(w, serrors.E(op, err), http.StatusInternalServerError)
 		return
 	}
-
-	c.sendJSON(w, updatedSession, http.StatusOK)
+	c.sendJSON(w, sessionToResponse(updatedSession), http.StatusOK)
 }
 
 // DeleteSession deletes a session and all its messages.
@@ -405,7 +435,7 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		c.sendError(w, serrors.E(op, errors.New("access denied")), http.StatusForbidden)
 		return
 	}

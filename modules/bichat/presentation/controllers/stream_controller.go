@@ -113,7 +113,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check permission (user owns session or has read_all permission)
-	if session.UserID != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
+	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}

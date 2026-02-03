@@ -695,7 +695,7 @@ func TestExecutor_Resume(t *testing.T) {
 	if finalResult == nil {
 		t.Fatal("Expected final result, got nil")
 	}
-	if finalResult.Message.Content != "Your favorite color is blue!" {
+	if finalResult.Message.Content() != "Your favorite color is blue!" {
 		t.Errorf("Expected result 'Your favorite color is blue!', got '%s'", finalResult.Message.Content)
 	}
 
@@ -720,8 +720,8 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 		"thread-multi",
 		"test-agent",
 		[]types.Message{
-			{Role: types.RoleUser, Content: "I need to analyze data"},
-			{Role: types.RoleAssistant, Content: "I need some clarifications."},
+			types.UserMessage("I need to analyze data"),
+			types.AssistantMessage("I need some clarifications."),
 		},
 		agents.WithPendingTools([]types.ToolCall{
 			{
@@ -815,7 +815,7 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 	if finalResult == nil {
 		t.Fatal("Expected final result, got nil")
 	}
-	if finalResult.Message.Content != "Analyzing Q1 2024 revenue for North America..." {
+	if finalResult.Message.Content() != "Analyzing Q1 2024 revenue for North America..." {
 		t.Errorf("Expected result 'Analyzing Q1 2024 revenue for North America...', got '%s'", finalResult.Message.Content)
 	}
 
@@ -840,8 +840,8 @@ func TestExecutor_Resume_MissingAnswer(t *testing.T) {
 		"thread-missing",
 		"test-agent",
 		[]types.Message{
-			{Role: types.RoleUser, Content: "Show me data"},
-			{Role: types.RoleAssistant, Content: "I need to ask you something."},
+			types.UserMessage("Show me data"),
+			types.AssistantMessage("I need to ask you something."),
 		},
 		agents.WithPendingTools([]types.ToolCall{
 			{

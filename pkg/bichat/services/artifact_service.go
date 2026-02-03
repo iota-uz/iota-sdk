@@ -11,10 +11,10 @@ import (
 
 // ArtifactService provides artifact read, update, and delete with optional file cleanup.
 type ArtifactService interface {
-	GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Artifact, error)
-	GetArtifact(ctx context.Context, id uuid.UUID) (*domain.Artifact, error)
+	GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error)
+	GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error)
 	DeleteArtifact(ctx context.Context, id uuid.UUID) error
-	UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) (*domain.Artifact, error)
+	UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) (domain.Artifact, error)
 }
 
 type artifactService struct {
@@ -31,7 +31,7 @@ func NewArtifactService(repo domain.ChatRepository, fileStorage storage.FileStor
 }
 
 // GetSessionArtifacts returns artifacts for a session with pagination and optional type filter.
-func (s *artifactService) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Artifact, error) {
+func (s *artifactService) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
 	const op serrors.Op = "ArtifactService.GetSessionArtifacts"
 	list, err := s.repo.GetSessionArtifacts(ctx, sessionID, opts)
 	if err != nil {
@@ -41,7 +41,7 @@ func (s *artifactService) GetSessionArtifacts(ctx context.Context, sessionID uui
 }
 
 // GetArtifact returns an artifact by ID.
-func (s *artifactService) GetArtifact(ctx context.Context, id uuid.UUID) (*domain.Artifact, error) {
+func (s *artifactService) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
 	const op serrors.Op = "ArtifactService.GetArtifact"
 	a, err := s.repo.GetArtifact(ctx, id)
 	if err != nil {
@@ -59,8 +59,8 @@ func (s *artifactService) DeleteArtifact(ctx context.Context, id uuid.UUID) erro
 		return serrors.E(op, err)
 	}
 
-	if artifact.URL != "" && s.storage != nil {
-		_ = s.storage.Delete(ctx, artifact.URL)
+	if artifact.URL() != "" && s.storage != nil {
+		_ = s.storage.Delete(ctx, artifact.URL())
 	}
 
 	if err := s.repo.DeleteArtifact(ctx, id); err != nil {
@@ -70,7 +70,7 @@ func (s *artifactService) DeleteArtifact(ctx context.Context, id uuid.UUID) erro
 }
 
 // UpdateArtifact updates an artifact's name and description and returns the updated artifact.
-func (s *artifactService) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) (*domain.Artifact, error) {
+func (s *artifactService) UpdateArtifact(ctx context.Context, id uuid.UUID, name, description string) (domain.Artifact, error) {
 	const op serrors.Op = "ArtifactService.UpdateArtifact"
 
 	if err := s.repo.UpdateArtifact(ctx, id, name, description); err != nil {

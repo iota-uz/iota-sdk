@@ -12,8 +12,8 @@ import (
 // ExampleUserMessage demonstrates creating a user message.
 func ExampleUserMessage() {
 	msg := types.UserMessage("Hello, assistant!")
-	fmt.Printf("Role: %s\n", msg.Role)
-	fmt.Printf("Content: %s\n", msg.Content)
+	fmt.Printf("Role: %s\n", msg.Role())
+	fmt.Printf("Content: %s\n", msg.Content())
 	// Output:
 	// Role: user
 	// Content: Hello, assistant!
@@ -31,8 +31,8 @@ func ExampleAssistantMessage() {
 			},
 		),
 	)
-	fmt.Printf("Role: %s\n", msg.Role)
-	fmt.Printf("Tool calls: %d\n", len(msg.ToolCalls))
+	fmt.Printf("Role: %s\n", msg.Role())
+	fmt.Printf("Tool calls: %d\n", len(msg.ToolCalls()))
 	// Output:
 	// Role: assistant
 	// Tool calls: 1
@@ -41,8 +41,8 @@ func ExampleAssistantMessage() {
 // ExampleToolResponse demonstrates creating a tool response message.
 func ExampleToolResponse() {
 	msg := types.ToolResponse("call_123", "Search results found")
-	fmt.Printf("Role: %s\n", msg.Role)
-	fmt.Printf("Tool call ID: %s\n", *msg.ToolCallID)
+	fmt.Printf("Role: %s\n", msg.Role())
+	fmt.Printf("Tool call ID: %s\n", *msg.ToolCallID())
 	// Output:
 	// Role: tool
 	// Tool call ID: call_123

@@ -73,8 +73,7 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 		return serrors.E(op, err, "failed to get session")
 	}
 
-	// Skip if session already has a title
-	if session.Title != "" {
+	if session.Title() != "" {
 		return nil
 	}
 
@@ -120,9 +119,8 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 		return nil // Give up, keep empty title
 	}
 
-	// Update session title
-	session.Title = title
-	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
+	updated := session.UpdateTitle(title)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return serrors.E(op, err, "failed to update session title")
 	}
 

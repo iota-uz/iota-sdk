@@ -405,33 +405,27 @@ func extractMessagesFromHistoryBlocks(historyBlocks []ContextBlock) []types.Mess
 
 		// Convert to types.Message
 		for _, msg := range payload.Messages {
-			message := types.Message{
-				Content: msg.Content,
-			}
-
-			// Map role string to types.Role
+			role := types.RoleUser // Default fallback
 			switch msg.Role {
 			case "user":
-				message.Role = types.RoleUser
+				role = types.RoleUser
 			case "assistant":
-				message.Role = types.RoleAssistant
+				role = types.RoleAssistant
 			case "system":
-				message.Role = types.RoleSystem
+				role = types.RoleSystem
 			case "tool":
-				message.Role = types.RoleTool
-			default:
-				message.Role = types.RoleUser // Default fallback
+				role = types.RoleTool
 			}
 
-			messages = append(messages, message)
+			messages = append(messages, types.NewMessage(
+				types.WithRole(role),
+				types.WithContent(msg.Content),
+			))
 		}
 
 		// If there's a summary already, include it as a system message
 		if payload.Summary != "" {
-			messages = append(messages, types.Message{
-				Role:    types.RoleSystem,
-				Content: fmt.Sprintf("Previous conversation summary: %s", payload.Summary),
-			})
+			messages = append(messages, types.SystemMessage(fmt.Sprintf("Previous conversation summary: %s", payload.Summary)))
 		}
 	}
 

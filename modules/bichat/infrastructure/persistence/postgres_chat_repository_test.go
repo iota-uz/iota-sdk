@@ -31,18 +31,17 @@ func TestPostgresChatRepository_CreateSession(t *testing.T) {
 
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
-	assert.NotEmpty(t, session.CreatedAt)
-	assert.NotEmpty(t, session.UpdatedAt)
+	assert.False(t, session.CreatedAt().IsZero())
+	assert.False(t, session.UpdatedAt().IsZero())
 
-	// Verify session was created by retrieving it
-	retrieved, err := repo.GetSession(env.Ctx, session.ID)
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Equal(t, session.ID, retrieved.ID)
-	assert.Equal(t, session.Title, retrieved.Title)
-	assert.Equal(t, session.Status, retrieved.Status)
-	assert.Equal(t, session.Pinned, retrieved.Pinned)
-	assert.Equal(t, env.Tenant.ID, retrieved.TenantID)
-	assert.Equal(t, int64(env.User.ID()), retrieved.UserID)
+	assert.Equal(t, session.ID(), retrieved.ID())
+	assert.Equal(t, session.Title(), retrieved.Title())
+	assert.Equal(t, session.Status(), retrieved.Status())
+	assert.Equal(t, session.Pinned(), retrieved.Pinned())
+	assert.Equal(t, env.Tenant.ID, retrieved.TenantID())
+	assert.Equal(t, int64(env.User.ID()), retrieved.UserID())
 }
 
 func TestPostgresChatRepository_CreateSession_WithParentAndPendingAgent(t *testing.T) {
@@ -66,19 +65,19 @@ func TestPostgresChatRepository_CreateSession_WithParentAndPendingAgent(t *testi
 		domain.WithTenantID(env.Tenant.ID),
 		domain.WithUserID(int64(env.User.ID())),
 		domain.WithTitle("Child Session"),
-		domain.WithParentSessionID(parentSession.ID),
+		domain.WithParentSessionID(parentSession.ID()),
 		domain.WithPendingQuestionAgent(agent),
 	)
 	err = repo.CreateSession(env.Ctx, childSession)
 	require.NoError(t, err)
 
 	// Verify parent and pending agent fields
-	retrieved, err := repo.GetSession(env.Ctx, childSession.ID)
+	retrieved, err := repo.GetSession(env.Ctx, childSession.ID())
 	require.NoError(t, err)
-	require.NotNil(t, retrieved.ParentSessionID)
-	assert.Equal(t, parentSession.ID, *retrieved.ParentSessionID)
-	require.NotNil(t, retrieved.PendingQuestionAgent)
-	assert.Equal(t, agent, *retrieved.PendingQuestionAgent)
+	require.NotNil(t, retrieved.ParentSessionID())
+	assert.Equal(t, parentSession.ID(), *retrieved.ParentSessionID())
+	require.NotNil(t, retrieved.PendingQuestionAgent())
+	assert.Equal(t, agent, *retrieved.PendingQuestionAgent())
 }
 
 func TestPostgresChatRepository_GetSession(t *testing.T) {
@@ -96,13 +95,12 @@ func TestPostgresChatRepository_GetSession(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Retrieve the session
-	retrieved, err := repo.GetSession(env.Ctx, session.ID)
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Equal(t, session.ID, retrieved.ID)
-	assert.Equal(t, session.Title, retrieved.Title)
-	assert.Equal(t, env.Tenant.ID, retrieved.TenantID)
-	assert.Equal(t, int64(env.User.ID()), retrieved.UserID)
+	assert.Equal(t, session.ID(), retrieved.ID())
+	assert.Equal(t, session.Title(), retrieved.Title())
+	assert.Equal(t, env.Tenant.ID, retrieved.TenantID())
+	assert.Equal(t, int64(env.User.ID()), retrieved.UserID())
 }
 
 func TestPostgresChatRepository_GetSession_NotFound(t *testing.T) {
@@ -135,24 +133,22 @@ func TestPostgresChatRepository_UpdateSession(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Update session fields
-	session.Title = "Updated Title"
-	session.Status = domain.SessionStatusArchived
-	session.Pinned = true
 	agent := "new_agent"
-	session.PendingQuestionAgent = &agent
-
-	err = repo.UpdateSession(env.Ctx, session)
+	updated := session.
+		UpdateTitle("Updated Title").
+		UpdateStatus(domain.SessionStatusArchived).
+		UpdatePinned(true).
+		UpdatePendingQuestionAgent(&agent)
+	err = repo.UpdateSession(env.Ctx, updated)
 	require.NoError(t, err)
 
-	// Verify updates
-	retrieved, err := repo.GetSession(env.Ctx, session.ID)
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Equal(t, "Updated Title", retrieved.Title)
-	assert.Equal(t, domain.SessionStatusArchived, retrieved.Status)
-	assert.True(t, retrieved.Pinned)
-	require.NotNil(t, retrieved.PendingQuestionAgent)
-	assert.Equal(t, "new_agent", *retrieved.PendingQuestionAgent)
+	assert.Equal(t, "Updated Title", retrieved.Title())
+	assert.Equal(t, domain.SessionStatusArchived, retrieved.Status())
+	assert.True(t, retrieved.Pinned())
+	require.NotNil(t, retrieved.PendingQuestionAgent())
+	assert.Equal(t, "new_agent", *retrieved.PendingQuestionAgent())
 }
 
 func TestPostgresChatRepository_UpdateSession_NotFound(t *testing.T) {
@@ -180,31 +176,35 @@ func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	// Create multiple sessions with explicit timestamps
 	baseTime := time.Now()
-	sessions := []*domain.Session{
+	sessions := []domain.Session{
 		domain.NewSession(
 			domain.WithTenantID(env.Tenant.ID),
 			domain.WithUserID(int64(env.User.ID())),
 			domain.WithTitle("Session 1"),
 			domain.WithPinned(false),
+			domain.WithCreatedAt(baseTime),
+			domain.WithUpdatedAt(baseTime),
 		),
 		domain.NewSession(
 			domain.WithTenantID(env.Tenant.ID),
 			domain.WithUserID(int64(env.User.ID())),
 			domain.WithTitle("Session 2 Pinned"),
 			domain.WithPinned(true),
+			domain.WithCreatedAt(baseTime.Add(10*time.Millisecond)),
+			domain.WithUpdatedAt(baseTime.Add(10*time.Millisecond)),
 		),
 		domain.NewSession(
 			domain.WithTenantID(env.Tenant.ID),
 			domain.WithUserID(int64(env.User.ID())),
 			domain.WithTitle("Session 3"),
 			domain.WithPinned(false),
+			domain.WithCreatedAt(baseTime.Add(20*time.Millisecond)),
+			domain.WithUpdatedAt(baseTime.Add(20*time.Millisecond)),
 		),
 	}
 
-	for i, session := range sessions {
-		session.CreatedAt = baseTime.Add(time.Duration(i) * 10 * time.Millisecond)
+	for _, session := range sessions {
 		err := repo.CreateSession(env.Ctx, session)
 		require.NoError(t, err)
 	}
@@ -240,15 +240,15 @@ func TestPostgresChatRepository_ListUserSessions_Pagination(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	// Create 5 sessions with explicit timestamps
 	baseTime := time.Now()
 	for i := 0; i < 5; i++ {
 		session := domain.NewSession(
 			domain.WithTenantID(env.Tenant.ID),
 			domain.WithUserID(int64(env.User.ID())),
 			domain.WithTitle("Session "+string('A'+byte(i))),
+			domain.WithCreatedAt(baseTime.Add(time.Duration(i)*5*time.Millisecond)),
+			domain.WithUpdatedAt(baseTime.Add(time.Duration(i)*5*time.Millisecond)),
 		)
-		session.CreatedAt = baseTime.Add(time.Duration(i) * 5 * time.Millisecond)
 		err := repo.CreateSession(env.Ctx, session)
 		require.NoError(t, err)
 	}
@@ -276,11 +276,11 @@ func TestPostgresChatRepository_DeleteSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete the session
-	err = repo.DeleteSession(env.Ctx, session.ID)
+	err = repo.DeleteSession(env.Ctx, session.ID())
 	require.NoError(t, err)
 
 	// Verify deletion
-	_, err = repo.GetSession(env.Ctx, session.ID)
+	_, err = repo.GetSession(env.Ctx, session.ID())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
 }
@@ -302,19 +302,19 @@ func TestPostgresChatRepository_DeleteSession_CascadeToMessages(t *testing.T) {
 
 	// Create messages for the session
 	msg1 := types.UserMessage("Hello",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg1)
 	require.NoError(t, err)
 
 	msg2 := types.AssistantMessage("Hi there",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg2)
 	require.NoError(t, err)
 
 	// Delete the session (should cascade to messages)
-	err = repo.DeleteSession(env.Ctx, session.ID)
+	err = repo.DeleteSession(env.Ctx, session.ID())
 	require.NoError(t, err)
 
 	// Verify messages are also deleted
@@ -358,7 +358,7 @@ func TestPostgresChatRepository_SaveMessage(t *testing.T) {
 
 	// Create and save a message
 	msg := types.UserMessage("Test message content",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -370,7 +370,7 @@ func TestPostgresChatRepository_SaveMessage(t *testing.T) {
 	assert.Equal(t, msg.ID, retrieved.ID)
 	assert.Equal(t, msg.Content, retrieved.Content)
 	assert.Equal(t, msg.Role, retrieved.Role)
-	assert.Equal(t, session.ID, retrieved.SessionID)
+	assert.Equal(t, session.ID(), retrieved.SessionID)
 }
 
 func TestPostgresChatRepository_SaveMessage_WithToolCalls(t *testing.T) {
@@ -403,7 +403,7 @@ func TestPostgresChatRepository_SaveMessage_WithToolCalls(t *testing.T) {
 	}
 
 	msg := types.AssistantMessage("Let me check that",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 		types.WithToolCalls(toolCalls...),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
@@ -455,7 +455,7 @@ func TestPostgresChatRepository_SaveMessage_WithCitations(t *testing.T) {
 	}
 
 	msg := types.AssistantMessage("Based on the data...",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 		types.WithCitations(citations...),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
@@ -488,7 +488,7 @@ func TestPostgresChatRepository_SaveMessage_EmptyToolCallsAndCitations(t *testin
 
 	// Create message with empty tool calls and citations
 	msg := types.UserMessage("Simple message",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -516,7 +516,7 @@ func TestPostgresChatRepository_GetMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Test content",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -559,13 +559,13 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 	baseTime := time.Now()
 	messages := []*types.Message{
 		types.UserMessage("First message",
-			types.WithSessionID(session.ID),
+			types.WithSessionID(session.ID()),
 		),
 		types.AssistantMessage("Second message",
-			types.WithSessionID(session.ID),
+			types.WithSessionID(session.ID()),
 		),
 		types.UserMessage("Third message",
-			types.WithSessionID(session.ID),
+			types.WithSessionID(session.ID()),
 		),
 	}
 
@@ -577,7 +577,7 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 
 	// Retrieve all messages
 	opts := domain.ListOptions{Limit: 10, Offset: 0}
-	retrieved, err := repo.GetSessionMessages(env.Ctx, session.ID, opts)
+	retrieved, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(retrieved), 3)
 
@@ -608,7 +608,7 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 	baseTime := time.Now()
 	for i := 0; i < 5; i++ {
 		msg := types.UserMessage("Message "+string('A'+byte(i)),
-			types.WithSessionID(session.ID),
+			types.WithSessionID(session.ID()),
 		)
 		msg.CreatedAt = baseTime.Add(time.Duration(i) * 5 * time.Millisecond)
 		err = repo.SaveMessage(env.Ctx, msg)
@@ -617,7 +617,7 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 
 	// Test pagination
 	opts := domain.ListOptions{Limit: 2, Offset: 1}
-	retrieved, err := repo.GetSessionMessages(env.Ctx, session.ID, opts)
+	retrieved, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
 	assert.Equal(t, 2, len(retrieved))
 }
@@ -639,7 +639,7 @@ func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 
 	// Create messages at different times
 	msg1 := types.UserMessage("Message 1",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg1)
 	require.NoError(t, err)
@@ -649,26 +649,26 @@ func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	msg2 := types.UserMessage("Message 2",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg2)
 	require.NoError(t, err)
 	time.Sleep(50 * time.Millisecond)
 
 	msg3 := types.UserMessage("Message 3",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg3)
 	require.NoError(t, err)
 
 	// Truncate from truncatePoint (should delete msg2 and msg3)
-	deleted, err := repo.TruncateMessagesFrom(env.Ctx, session.ID, truncatePoint)
+	deleted, err := repo.TruncateMessagesFrom(env.Ctx, session.ID(), truncatePoint)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), deleted)
 
 	// Verify only msg1 remains
 	opts := domain.ListOptions{Limit: 10, Offset: 0}
-	remaining, err := repo.GetSessionMessages(env.Ctx, session.ID, opts)
+	remaining, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
 	assert.Equal(t, 1, len(remaining))
 	assert.Equal(t, "Message 1", remaining[0].Content)
@@ -690,14 +690,14 @@ func TestPostgresChatRepository_TruncateMessagesFrom_NoMatch(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Test",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
 
 	// Truncate from future time (should delete nothing)
 	futureTime := time.Now().Add(1 * time.Hour)
-	deleted, err := repo.TruncateMessagesFrom(env.Ctx, session.ID, futureTime)
+	deleted, err := repo.TruncateMessagesFrom(env.Ctx, session.ID(), futureTime)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), deleted)
 }
@@ -720,7 +720,7 @@ func TestPostgresChatRepository_SaveAttachment(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Message with attachment",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -763,7 +763,7 @@ func TestPostgresChatRepository_SaveAttachment_SpecialCharacters(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Test",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -801,7 +801,7 @@ func TestPostgresChatRepository_GetAttachment(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Test",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -851,7 +851,7 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Message with multiple attachments",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -915,7 +915,7 @@ func TestPostgresChatRepository_GetMessageAttachments_Empty(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Message without attachments",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -942,7 +942,7 @@ func TestPostgresChatRepository_DeleteAttachment(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Test",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -1130,7 +1130,7 @@ func TestPostgresChatRepository_EmptyTitle(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify empty title is preserved
-	retrieved, err := repo.GetSession(env.Ctx, session.ID)
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
 	assert.Equal(t, "", retrieved.Title)
 }
@@ -1151,7 +1151,7 @@ func TestPostgresChatRepository_NilParentSessionID(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify nil parent is handled correctly
-	retrieved, err := repo.GetSession(env.Ctx, session.ID)
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
 	assert.Nil(t, retrieved.ParentSessionID)
 }
@@ -1173,7 +1173,7 @@ func TestPostgresChatRepository_PaginationBoundaries(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		msg := types.UserMessage("Message "+string('A'+byte(i)),
-			types.WithSessionID(session.ID),
+			types.WithSessionID(session.ID()),
 		)
 		err = repo.SaveMessage(env.Ctx, msg)
 		require.NoError(t, err)
@@ -1181,14 +1181,14 @@ func TestPostgresChatRepository_PaginationBoundaries(t *testing.T) {
 
 	t.Run("Limit 0", func(t *testing.T) {
 		opts := domain.ListOptions{Limit: 0, Offset: 0}
-		messages, err := repo.GetSessionMessages(env.Ctx, session.ID, opts)
+		messages, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 		require.NoError(t, err)
 		assert.Empty(t, messages)
 	})
 
 	t.Run("Offset exceeds total", func(t *testing.T) {
 		opts := domain.ListOptions{Limit: 10, Offset: 100}
-		messages, err := repo.GetSessionMessages(env.Ctx, session.ID, opts)
+		messages, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 		require.NoError(t, err)
 		assert.Empty(t, messages)
 	})
@@ -1210,7 +1210,7 @@ func TestPostgresChatRepository_LargeAttachment(t *testing.T) {
 	require.NoError(t, err)
 
 	msg := types.UserMessage("Test",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -1250,7 +1250,7 @@ func TestPostgresChatRepository_ToolCallID(t *testing.T) {
 	// Create tool response message
 	toolCallID := "call_123"
 	msg := types.ToolResponse(toolCallID, "Tool execution result")
-	msg.SessionID = session.ID
+	msg.SessionID = session.ID()
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
 
@@ -1296,7 +1296,7 @@ func TestPostgresChatRepository_UpdateSession_NullParent(t *testing.T) {
 		domain.WithTenantID(env.Tenant.ID),
 		domain.WithUserID(int64(env.User.ID())),
 		domain.WithTitle("Child"),
-		domain.WithParentSessionID(parentSession.ID),
+		domain.WithParentSessionID(parentSession.ID()),
 	)
 	err = repo.CreateSession(env.Ctx, childSession)
 	require.NoError(t, err)
@@ -1329,7 +1329,7 @@ func TestPostgresChatRepository_MessageWithNilToolCallID(t *testing.T) {
 
 	// Create message without tool_call_id (user message)
 	msg := types.UserMessage("Regular message",
-		types.WithSessionID(session.ID),
+		types.WithSessionID(session.ID()),
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
@@ -1355,18 +1355,16 @@ func TestPostgresChatRepository_UpdateSessionTimestamp(t *testing.T) {
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	originalUpdatedAt := session.UpdatedAt
+	originalUpdatedAt := session.UpdatedAt()
 	time.Sleep(100 * time.Millisecond)
 
-	// Update session
-	session.Title = "Updated"
-	err = repo.UpdateSession(env.Ctx, session)
+	updated := session.UpdateTitle("Updated")
+	err = repo.UpdateSession(env.Ctx, updated)
 	require.NoError(t, err)
 
-	// Verify updated_at changed
-	retrieved, err := repo.GetSession(env.Ctx, session.ID)
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.True(t, retrieved.UpdatedAt.After(originalUpdatedAt),
+	assert.True(t, retrieved.UpdatedAt().After(originalUpdatedAt),
 		"updated_at should be updated automatically")
 }
 
@@ -1376,24 +1374,18 @@ func TestPostgresChatRepository_GetSession_WithSQLNullTypes(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
-	// Create session with SQL NULL types (ParentSessionID and PendingQuestionAgent)
 	session := domain.NewSession(
 		domain.WithTenantID(env.Tenant.ID),
 		domain.WithUserID(int64(env.User.ID())),
 		domain.WithTitle("NULL Fields Test"),
 	)
-	// Explicitly set to nil to test NULL handling
-	session.ParentSessionID = nil
-	session.PendingQuestionAgent = nil
-
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
-	// Retrieve and verify NULL fields are handled correctly
-	retrieved, err := repo.GetSession(env.Ctx, session.ID)
+	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Nil(t, retrieved.ParentSessionID)
-	assert.Nil(t, retrieved.PendingQuestionAgent)
+	assert.Nil(t, retrieved.ParentSessionID())
+	assert.Nil(t, retrieved.PendingQuestionAgent())
 }
 
 func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {
@@ -1414,7 +1406,7 @@ func TestPostgresChatRepository_InvalidTenantContext(t *testing.T) {
 	// Try to get with different tenant context (simulated by new environment)
 	envOther := setupTest(t)
 
-	_, err = repo.GetSession(envOther.Ctx, session.ID)
+	_, err = repo.GetSession(envOther.Ctx, session.ID())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, persistence.ErrSessionNotFound,
 		"Session should not be accessible from different tenant context")

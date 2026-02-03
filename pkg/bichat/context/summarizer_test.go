@@ -23,10 +23,7 @@ func (m *MockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 		return m.generateFunc(ctx, req, opts...)
 	}
 	return &agents.Response{
-		Message: types.Message{
-			Role:    types.RoleAssistant,
-			Content: "Mock summary of conversation",
-		},
+		Message: types.AssistantMessage("Mock summary of conversation"),
 		Usage: types.TokenUsage{
 			PromptTokens:     100,
 			CompletionTokens: 50,
@@ -82,7 +79,7 @@ func (e *MockTokenEstimator) EstimateMessages(ctx context.Context, messages []ty
 	}
 	total := 0
 	for _, msg := range messages {
-		total += len(msg.Content) / 4
+		total += len(msg.Content()) / 4
 	}
 	return total, nil
 }
@@ -110,19 +107,16 @@ func TestLLMHistorySummarizer_SummarizeMessages_Success(t *testing.T) {
 		generateFunc: func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
 			// Verify system prompt is set
 			assert.Greater(t, len(req.Messages), 0)
-			assert.Equal(t, types.RoleSystem, req.Messages[0].Role)
-			assert.Contains(t, req.Messages[0].Content, "conversation summarizer")
+			assert.Equal(t, types.RoleSystem, req.Messages[0].Role())
+			assert.Contains(t, req.Messages[0].Content(), "conversation summarizer")
 
 			// Verify user prompt contains messages
 			assert.Equal(t, 2, len(req.Messages))
-			assert.Equal(t, types.RoleUser, req.Messages[1].Role)
-			assert.Contains(t, req.Messages[1].Content, "Conversation to summarize")
+			assert.Equal(t, types.RoleUser, req.Messages[1].Role())
+			assert.Contains(t, req.Messages[1].Content(), "Conversation to summarize")
 
 			return &agents.Response{
-				Message: types.Message{
-					Role:    types.RoleAssistant,
-					Content: expectedSummary,
-				},
+				Message: types.AssistantMessage(expectedSummary),
 				Usage: types.TokenUsage{
 					PromptTokens:     200,
 					CompletionTokens: 25,
@@ -144,19 +138,17 @@ func TestLLMHistorySummarizer_SummarizeMessages_Success(t *testing.T) {
 	summarizer := NewLLMHistorySummarizer(model, estimator)
 
 	messages := []types.Message{
-		*types.UserMessage("Show me Q1 sales data"),
-		*types.AssistantMessage("Let me fetch that for you."),
-		{
-			Role:    types.RoleAssistant,
-			Content: "Here's the Q1 sales analysis: revenue grew 20% YoY.",
-			ToolCalls: []types.ToolCall{
-				{
+		types.UserMessage("Show me Q1 sales data"),
+		types.AssistantMessage("Let me fetch that for you."),
+		types.AssistantMessage("Here's the Q1 sales analysis: revenue grew 20% YoY.",
+			types.WithToolCalls(
+				types.ToolCall{
 					ID:        "call_1",
 					Name:      "sql_execute",
 					Arguments: `{"query": "SELECT * FROM sales WHERE quarter = 'Q1'"}`,
 				},
-			},
-		},
+			),
+		),
 	}
 
 	summary, tokens, err := summarizer.SummarizeMessages(context.Background(), messages, 500)
@@ -172,10 +164,7 @@ func TestLLMHistorySummarizer_SummarizeMessages_TokenReduction(t *testing.T) {
 	model := &MockModel{
 		generateFunc: func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
 			return &agents.Response{
-				Message: types.Message{
-					Role:    types.RoleAssistant,
-					Content: "Concise summary",
-				},
+				Message: types.AssistantMessage("Concise summary"),
 				Usage: types.TokenUsage{
 					CompletionTokens: 10,
 				},
@@ -198,10 +187,10 @@ func TestLLMHistorySummarizer_SummarizeMessages_TokenReduction(t *testing.T) {
 
 	// Create long conversation
 	messages := []types.Message{
-		*types.UserMessage("Long message " + string(make([]byte, 1000))),
-		*types.AssistantMessage("Long response " + string(make([]byte, 1000))),
-		*types.UserMessage("Another long message " + string(make([]byte, 1000))),
-		*types.AssistantMessage("Another long response " + string(make([]byte, 1000))),
+		types.UserMessage("Long message " + string(make([]byte, 1000))),
+		types.AssistantMessage("Long response " + string(make([]byte, 1000))),
+		types.UserMessage("Another long message " + string(make([]byte, 1000))),
+		types.AssistantMessage("Another long response " + string(make([]byte, 1000))),
 	}
 
 	originalTokens, _ := estimator.EstimateMessages(context.Background(), messages)
@@ -222,14 +211,11 @@ func TestLLMHistorySummarizer_WithCustomSystemPrompt(t *testing.T) {
 		generateFunc: func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
 			// Verify custom system prompt is used
 			assert.Greater(t, len(req.Messages), 0)
-			assert.Equal(t, types.RoleSystem, req.Messages[0].Role)
-			assert.Equal(t, customPrompt, req.Messages[0].Content)
+			assert.Equal(t, types.RoleSystem, req.Messages[0].Role())
+			assert.Equal(t, customPrompt, req.Messages[0].Content())
 
 			return &agents.Response{
-				Message: types.Message{
-					Role:    types.RoleAssistant,
-					Content: "Custom summary",
-				},
+				Message: types.AssistantMessage("Custom summary"),
 			}, nil
 		},
 	}
@@ -238,7 +224,7 @@ func TestLLMHistorySummarizer_WithCustomSystemPrompt(t *testing.T) {
 	summarizer := NewLLMHistorySummarizer(model, estimator, WithSystemPrompt(customPrompt))
 
 	messages := []types.Message{
-		*types.UserMessage("Test message"),
+		types.UserMessage("Test message"),
 	}
 
 	summary, _, err := summarizer.SummarizeMessages(context.Background(), messages, 500)
@@ -295,10 +281,7 @@ func TestLLMHistorySummarizer_TargetTokens_MaxTokensCalculation(t *testing.T) {
 					}
 
 					return &agents.Response{
-						Message: types.Message{
-							Role:    types.RoleAssistant,
-							Content: "Summary",
-						},
+						Message: types.AssistantMessage("Summary"),
 					}, nil
 				},
 			}
@@ -307,7 +290,7 @@ func TestLLMHistorySummarizer_TargetTokens_MaxTokensCalculation(t *testing.T) {
 			summarizer := NewLLMHistorySummarizer(model, estimator)
 
 			_, _, err := summarizer.SummarizeMessages(context.Background(),
-				[]types.Message{*types.UserMessage("Test")},
+				[]types.Message{types.UserMessage("Test")},
 				tt.targetTokens)
 
 			require.NoError(t, err)
@@ -323,15 +306,12 @@ func TestLLMHistorySummarizer_ToolCallsIncluded(t *testing.T) {
 		generateFunc: func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
 			// Verify tool calls are mentioned in prompt
 			assert.Equal(t, 2, len(req.Messages))
-			userPrompt := req.Messages[1].Content
+			userPrompt := req.Messages[1].Content()
 			assert.Contains(t, userPrompt, "tool calls")
 			assert.Contains(t, userPrompt, "sql_execute")
 
 			return &agents.Response{
-				Message: types.Message{
-					Role:    types.RoleAssistant,
-					Content: "Summary with tool call info",
-				},
+				Message: types.AssistantMessage("Summary with tool call info"),
 			}, nil
 		},
 	}
@@ -340,17 +320,15 @@ func TestLLMHistorySummarizer_ToolCallsIncluded(t *testing.T) {
 	summarizer := NewLLMHistorySummarizer(model, estimator)
 
 	messages := []types.Message{
-		{
-			Role:    types.RoleAssistant,
-			Content: "Executing query...",
-			ToolCalls: []types.ToolCall{
-				{
+		types.AssistantMessage("Executing query...",
+			types.WithToolCalls(
+				types.ToolCall{
 					ID:        "call_1",
 					Name:      "sql_execute",
 					Arguments: `{"query": "SELECT * FROM sales"}`,
 				},
-			},
-		},
+			),
+		),
 	}
 
 	summary, _, err := summarizer.SummarizeMessages(context.Background(), messages, 500)
@@ -365,8 +343,8 @@ func TestNoOpSummarizer_AlwaysReturnsEmpty(t *testing.T) {
 	summarizer := NewNoOpSummarizer()
 
 	messages := []types.Message{
-		*types.UserMessage("Test message"),
-		*types.AssistantMessage("Test response"),
+		types.UserMessage("Test message"),
+		types.AssistantMessage("Test response"),
 	}
 
 	summary, tokens, err := summarizer.SummarizeMessages(context.Background(), messages, 500)
@@ -380,16 +358,14 @@ func TestBuildSummarizationPrompt(t *testing.T) {
 	t.Parallel()
 
 	messages := []types.Message{
-		*types.UserMessage("Hello"),
-		*types.AssistantMessage("Hi there!"),
-		{
-			Role:    types.RoleAssistant,
-			Content: "Running query",
-			ToolCalls: []types.ToolCall{
-				{Name: "sql_execute"},
-				{Name: "export_excel"},
-			},
-		},
+		types.UserMessage("Hello"),
+		types.AssistantMessage("Hi there!"),
+		types.AssistantMessage("Running query",
+			types.WithToolCalls(
+				types.ToolCall{Name: "sql_execute"},
+				types.ToolCall{Name: "export_excel"},
+			),
+		),
 	}
 
 	prompt := buildSummarizationPrompt(messages, 500)
@@ -411,7 +387,7 @@ func TestBuildSummarizationPrompt_TruncatesLongMessages(t *testing.T) {
 
 	longContent := string(make([]byte, 3000))
 	messages := []types.Message{
-		*types.UserMessage(longContent),
+		types.UserMessage(longContent),
 	}
 
 	prompt := buildSummarizationPrompt(messages, 500)

@@ -340,7 +340,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			gen.Close()
 
 			// Build response message
-			responseMessage = *types.AssistantMessage(joinStrings(chunks), types.WithToolCalls(toolCalls...))
+			responseMessage = types.AssistantMessage(joinStrings(chunks), types.WithToolCalls(toolCalls...))
 			messages = append(messages, responseMessage)
 
 			// Emit LLM response event
@@ -476,15 +476,15 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						// Find the tool result
 						var resultContent string
 						for _, tr := range toolResults {
-							if tr.ToolCallID != nil && *tr.ToolCallID == tc.ID {
-								resultContent = tr.Content
+							if tr.ToolCallID() != nil && *tr.ToolCallID() == tc.ID {
+								resultContent = tr.Content()
 								break
 							}
 						}
 
 						// Termination tool called, return result
 						result := &Response{
-							Message:      *types.AssistantMessage(resultContent),
+							Message:      types.AssistantMessage(resultContent),
 							FinishReason: "tool_calls",
 						}
 						if usage != nil {
@@ -585,7 +585,7 @@ func (e *Executor) Resume(ctx context.Context, checkpointID string, answers map[
 
 				// Create tool response message with all answers (JSON-encoded)
 				encoded, _ := json.Marshal(responseData)
-				messages = append(messages, *types.ToolResponse(tc.ID, string(encoded)))
+				messages = append(messages, types.ToolResponse(tc.ID, string(encoded)))
 			}
 		}
 
@@ -749,7 +749,7 @@ func (e *Executor) executeToolCalls(
 		}
 
 		// Add tool result message
-		results = append(results, *types.ToolResponse(tc.ID, result))
+		results = append(results, types.ToolResponse(tc.ID, result))
 	}
 
 	return results, nil, nil

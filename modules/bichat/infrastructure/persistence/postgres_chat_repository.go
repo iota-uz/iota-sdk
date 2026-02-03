@@ -141,7 +141,7 @@ func NewPostgresChatRepository() domain.ChatRepository {
 // Session operations
 
 // CreateSession creates a new session in the database.
-func (r *PostgresChatRepository) CreateSession(ctx context.Context, session *domain.Session) error {
+func (r *PostgresChatRepository) CreateSession(ctx context.Context, session domain.Session) error {
 	const op serrors.Op = "PostgresChatRepository.CreateSession"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -154,25 +154,26 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session *dom
 		return serrors.E(op, err)
 	}
 
-	now := time.Now()
-	if session.CreatedAt.IsZero() {
-		session.CreatedAt = now
+	createdAt := session.CreatedAt()
+	updatedAt := session.UpdatedAt()
+	if createdAt.IsZero() {
+		createdAt = time.Now()
 	}
-	if session.UpdatedAt.IsZero() {
-		session.UpdatedAt = now
+	if updatedAt.IsZero() {
+		updatedAt = createdAt
 	}
 
 	_, err = tx.Exec(ctx, insertSessionQuery,
-		session.ID,
+		session.ID(),
 		tenantID,
-		session.UserID,
-		session.Title,
-		session.Status,
-		session.Pinned,
-		session.ParentSessionID,
-		session.PendingQuestionAgent,
-		session.CreatedAt,
-		session.UpdatedAt,
+		session.UserID(),
+		session.Title(),
+		session.Status(),
+		session.Pinned(),
+		session.ParentSessionID(),
+		session.PendingQuestionAgent(),
+		createdAt,
+		updatedAt,
 	)
 	if err != nil {
 		return serrors.E(op, err)
@@ -182,7 +183,7 @@ func (r *PostgresChatRepository) CreateSession(ctx context.Context, session *dom
 }
 
 // GetSession retrieves a session by ID.
-func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
+func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "PostgresChatRepository.GetSession"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -195,18 +196,21 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
-	var session domain.Session
+	var (
+		sid                   uuid.UUID
+		tenantIDRow           uuid.UUID
+		userID                int64
+		title                 string
+		status                domain.SessionStatus
+		pinned                bool
+		parentSessionID      *uuid.UUID
+		pendingQuestionAgent *string
+		createdAt            time.Time
+		updatedAt            time.Time
+	)
 	err = tx.QueryRow(ctx, selectSessionQuery, tenantID, id).Scan(
-		&session.ID,
-		&session.TenantID,
-		&session.UserID,
-		&session.Title,
-		&session.Status,
-		&session.Pinned,
-		&session.ParentSessionID,
-		&session.PendingQuestionAgent,
-		&session.CreatedAt,
-		&session.UpdatedAt,
+		&sid, &tenantIDRow, &userID, &title, &status, &pinned,
+		&parentSessionID, &pendingQuestionAgent, &createdAt, &updatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -215,11 +219,27 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
-	return &session, nil
+	opts := []domain.SessionOption{
+		domain.WithID(sid),
+		domain.WithTenantID(tenantIDRow),
+		domain.WithUserID(userID),
+		domain.WithTitle(title),
+		domain.WithStatus(status),
+		domain.WithPinned(pinned),
+		domain.WithCreatedAt(createdAt),
+		domain.WithUpdatedAt(updatedAt),
+	}
+	if parentSessionID != nil {
+		opts = append(opts, domain.WithParentSessionID(*parentSessionID))
+	}
+	if pendingQuestionAgent != nil {
+		opts = append(opts, domain.WithPendingQuestionAgent(*pendingQuestionAgent))
+	}
+	return domain.NewSession(opts...), nil
 }
 
 // UpdateSession updates an existing session.
-func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *domain.Session) error {
+func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session domain.Session) error {
 	const op serrors.Op = "PostgresChatRepository.UpdateSession"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -232,18 +252,15 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *dom
 		return serrors.E(op, err)
 	}
 
-	// Set updated_at in application layer
-	session.UpdatedAt = time.Now()
-
 	result, err := tx.Exec(ctx, updateSessionQuery,
-		session.Title,
-		session.Status,
-		session.Pinned,
-		session.ParentSessionID,
-		session.PendingQuestionAgent,
-		session.UpdatedAt,
+		session.Title(),
+		session.Status(),
+		session.Pinned(),
+		session.ParentSessionID(),
+		session.PendingQuestionAgent(),
+		session.UpdatedAt(),
 		tenantID,
-		session.ID,
+		session.ID(),
 	)
 	if err != nil {
 		return serrors.E(op, err)
@@ -258,7 +275,7 @@ func (r *PostgresChatRepository) UpdateSession(ctx context.Context, session *dom
 }
 
 // ListUserSessions lists all sessions for a user with pagination.
-func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]*domain.Session, error) {
+func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	const op serrors.Op = "PostgresChatRepository.ListUserSessions"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -277,25 +294,44 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 	}
 	defer rows.Close()
 
-	var sessions []*domain.Session
+	var sessions []domain.Session
 	for rows.Next() {
-		var session domain.Session
+		var (
+			sid                   uuid.UUID
+			tenantIDRow           uuid.UUID
+			userIDRow             int64
+			title                 string
+			status                domain.SessionStatus
+			pinned                bool
+			parentSessionID      *uuid.UUID
+			pendingQuestionAgent *string
+			createdAt            time.Time
+			updatedAt            time.Time
+		)
 		err := rows.Scan(
-			&session.ID,
-			&session.TenantID,
-			&session.UserID,
-			&session.Title,
-			&session.Status,
-			&session.Pinned,
-			&session.ParentSessionID,
-			&session.PendingQuestionAgent,
-			&session.CreatedAt,
-			&session.UpdatedAt,
+			&sid, &tenantIDRow, &userIDRow, &title, &status, &pinned,
+			&parentSessionID, &pendingQuestionAgent, &createdAt, &updatedAt,
 		)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
-		sessions = append(sessions, &session)
+		opts := []domain.SessionOption{
+			domain.WithID(sid),
+			domain.WithTenantID(tenantIDRow),
+			domain.WithUserID(userIDRow),
+			domain.WithTitle(title),
+			domain.WithStatus(status),
+			domain.WithPinned(pinned),
+			domain.WithCreatedAt(createdAt),
+			domain.WithUpdatedAt(updatedAt),
+		}
+		if parentSessionID != nil {
+			opts = append(opts, domain.WithParentSessionID(*parentSessionID))
+		}
+		if pendingQuestionAgent != nil {
+			opts = append(opts, domain.WithPendingQuestionAgent(*pendingQuestionAgent))
+		}
+		sessions = append(sessions, domain.NewSession(opts...))
 	}
 
 	if err := rows.Err(); err != nil {

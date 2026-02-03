@@ -10,28 +10,15 @@ import (
 type SessionStatus string
 
 const (
-	// SessionStatusActive indicates an active, usable session
-	SessionStatusActive SessionStatus = "active"
-	// SessionStatusArchived indicates an archived session
+	SessionStatusActive   SessionStatus = "active"
 	SessionStatusArchived SessionStatus = "archived"
 )
 
-// String returns the string representation of SessionStatus
-func (s SessionStatus) String() string {
-	return string(s)
-}
+func (s SessionStatus) String() string { return string(s) }
 
-// IsActive returns true if the session is active
-func (s SessionStatus) IsActive() bool {
-	return s == SessionStatusActive
-}
+func (s SessionStatus) IsActive() bool   { return s == SessionStatusActive }
+func (s SessionStatus) IsArchived() bool { return s == SessionStatusArchived }
 
-// IsArchived returns true if the session is archived
-func (s SessionStatus) IsArchived() bool {
-	return s == SessionStatusArchived
-}
-
-// Valid returns true if the status is a valid value
 func (s SessionStatus) Valid() bool {
 	switch s {
 	case SessionStatusActive, SessionStatusArchived:
@@ -42,118 +29,141 @@ func (s SessionStatus) Valid() bool {
 }
 
 // Session represents a chat conversation aggregate root.
-// This is a struct (not interface) following idiomatic Go patterns.
-type Session struct {
-	ID                   uuid.UUID
-	TenantID             uuid.UUID
-	UserID               int64
-	Title                string
-	Status               SessionStatus
-	Pinned               bool
-	ParentSessionID      *uuid.UUID
-	PendingQuestionAgent *string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+// Interface following the same design as other aggregates (e.g. ExpenseCategory, AuthLog).
+type Session interface {
+	ID() uuid.UUID
+	TenantID() uuid.UUID
+	UserID() int64
+	Title() string
+	Status() SessionStatus
+	Pinned() bool
+	ParentSessionID() *uuid.UUID
+	PendingQuestionAgent() *string
+	CreatedAt() time.Time
+	UpdatedAt() time.Time
+
+	IsActive() bool
+	IsArchived() bool
+	IsPinned() bool
+	HasParent() bool
+	HasPendingQuestion() bool
+
+	UpdateStatus(status SessionStatus) Session
+	UpdateTitle(title string) Session
+	UpdatePinned(pinned bool) Session
+	UpdatePendingQuestionAgent(agent *string) Session
+	UpdateUpdatedAt(t time.Time) Session
 }
 
-// NewSession creates a new session with the given parameters.
-// Use functional options for optional fields.
-func NewSession(opts ...SessionOption) *Session {
-	s := &Session{
-		ID:        uuid.New(),
-		Status:    SessionStatusActive,
-		Pinned:    false,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
+type session struct {
+	id                   uuid.UUID
+	tenantID             uuid.UUID
+	userID               int64
+	title                string
+	status                SessionStatus
+	pinned                bool
+	parentSessionID      *uuid.UUID
+	pendingQuestionAgent *string
+	createdAt            time.Time
+	updatedAt            time.Time
+}
 
+// SessionOption configures a session in NewSession.
+type SessionOption func(*session)
+
+func WithID(id uuid.UUID) SessionOption {
+	return func(s *session) { s.id = id }
+}
+func WithTenantID(tenantID uuid.UUID) SessionOption {
+	return func(s *session) { s.tenantID = tenantID }
+}
+func WithUserID(userID int64) SessionOption {
+	return func(s *session) { s.userID = userID }
+}
+func WithTitle(title string) SessionOption {
+	return func(s *session) { s.title = title }
+}
+func WithStatus(status SessionStatus) SessionOption {
+	return func(s *session) { s.status = status }
+}
+func WithPinned(pinned bool) SessionOption {
+	return func(s *session) { s.pinned = pinned }
+}
+func WithParentSessionID(parentID uuid.UUID) SessionOption {
+	return func(s *session) { s.parentSessionID = &parentID }
+}
+func WithPendingQuestionAgent(agent string) SessionOption {
+	return func(s *session) { s.pendingQuestionAgent = &agent }
+}
+func WithCreatedAt(t time.Time) SessionOption {
+	return func(s *session) { s.createdAt = t }
+}
+func WithUpdatedAt(t time.Time) SessionOption {
+	return func(s *session) { s.updatedAt = t }
+}
+
+// NewSession creates a new session with the given options.
+func NewSession(opts ...SessionOption) Session {
+	s := &session{
+		id:        uuid.New(),
+		status:    SessionStatusActive,
+		pinned:    false,
+		createdAt: time.Now(),
+		updatedAt: time.Now(),
+	}
 	for _, opt := range opts {
 		opt(s)
 	}
-
 	return s
 }
 
-// SessionOption is a functional option for creating sessions
-type SessionOption func(*Session)
+func (s *session) ID() uuid.UUID                      { return s.id }
+func (s *session) TenantID() uuid.UUID                { return s.tenantID }
+func (s *session) UserID() int64                      { return s.userID }
+func (s *session) Title() string                      { return s.title }
+func (s *session) Status() SessionStatus               { return s.status }
+func (s *session) Pinned() bool                       { return s.pinned }
+func (s *session) ParentSessionID() *uuid.UUID        { return s.parentSessionID }
+func (s *session) PendingQuestionAgent() *string     { return s.pendingQuestionAgent }
+func (s *session) CreatedAt() time.Time               { return s.createdAt }
+func (s *session) UpdatedAt() time.Time               { return s.updatedAt }
 
-// WithID sets the session ID
-func WithID(id uuid.UUID) SessionOption {
-	return func(s *Session) {
-		s.ID = id
-	}
+func (s *session) IsActive() bool   { return s.status.IsActive() }
+func (s *session) IsArchived() bool { return s.status.IsArchived() }
+func (s *session) IsPinned() bool   { return s.pinned }
+func (s *session) HasParent() bool  { return s.parentSessionID != nil }
+func (s *session) HasPendingQuestion() bool { return s.pendingQuestionAgent != nil }
+
+func (s *session) UpdateStatus(status SessionStatus) Session {
+	c := *s
+	c.status = status
+	c.updatedAt = time.Now()
+	return &c
 }
 
-// WithTenantID sets the tenant ID
-func WithTenantID(tenantID uuid.UUID) SessionOption {
-	return func(s *Session) {
-		s.TenantID = tenantID
-	}
+func (s *session) UpdateTitle(title string) Session {
+	c := *s
+	c.title = title
+	c.updatedAt = time.Now()
+	return &c
 }
 
-// WithUserID sets the user ID
-func WithUserID(userID int64) SessionOption {
-	return func(s *Session) {
-		s.UserID = userID
-	}
+func (s *session) UpdatePinned(pinned bool) Session {
+	c := *s
+	c.pinned = pinned
+	c.updatedAt = time.Now()
+	return &c
 }
 
-// WithTitle sets the session title
-func WithTitle(title string) SessionOption {
-	return func(s *Session) {
-		s.Title = title
-	}
+func (s *session) UpdatePendingQuestionAgent(agent *string) Session {
+	c := *s
+	c.pendingQuestionAgent = agent
+	c.updatedAt = time.Now()
+	return &c
 }
 
-// WithStatus sets the session status
-func WithStatus(status SessionStatus) SessionOption {
-	return func(s *Session) {
-		s.Status = status
-	}
-}
-
-// WithPinned sets the pinned status
-func WithPinned(pinned bool) SessionOption {
-	return func(s *Session) {
-		s.Pinned = pinned
-	}
-}
-
-// WithParentSessionID sets the parent session ID
-func WithParentSessionID(parentID uuid.UUID) SessionOption {
-	return func(s *Session) {
-		s.ParentSessionID = &parentID
-	}
-}
-
-// WithPendingQuestionAgent sets the pending question agent
-func WithPendingQuestionAgent(agent string) SessionOption {
-	return func(s *Session) {
-		s.PendingQuestionAgent = &agent
-	}
-}
-
-// IsActive returns true if the session is active
-func (s *Session) IsActive() bool {
-	return s.Status.IsActive()
-}
-
-// IsArchived returns true if the session is archived
-func (s *Session) IsArchived() bool {
-	return s.Status.IsArchived()
-}
-
-// IsPinned returns true if the session is pinned
-func (s *Session) IsPinned() bool {
-	return s.Pinned
-}
-
-// HasParent returns true if the session has a parent
-func (s *Session) HasParent() bool {
-	return s.ParentSessionID != nil
-}
-
-// HasPendingQuestion returns true if the session has a pending question
-func (s *Session) HasPendingQuestion() bool {
-	return s.PendingQuestionAgent != nil
+func (s *session) UpdateUpdatedAt(t time.Time) Session {
+	c := *s
+	c.updatedAt = t
+	return &c
 }

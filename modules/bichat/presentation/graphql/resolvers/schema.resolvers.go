@@ -30,11 +30,11 @@ func (r *mutationResolver) DeleteArtifact(ctx context.Context, id string) (bool,
 	if err != nil {
 		return false, serrors.E(op, serrors.PermissionDenied, "unauthorized", err)
 	}
-	session, err := r.chatService.GetSession(ctx, a.SessionID)
+	session, err := r.chatService.GetSession(ctx, a.SessionID())
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return false, serrors.E(op, serrors.PermissionDenied, "artifact does not belong to user")
 	}
 
@@ -61,11 +61,11 @@ func (r *mutationResolver) UpdateArtifact(ctx context.Context, id string, name *
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, "unauthorized", err)
 	}
-	session, err := r.chatService.GetSession(ctx, a.SessionID)
+	session, err := r.chatService.GetSession(ctx, a.SessionID())
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "artifact does not belong to user")
 	}
 
@@ -102,11 +102,11 @@ func (r *queryResolver) Artifact(ctx context.Context, id string) (*model.Artifac
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, "unauthorized", err)
 	}
-	session, err := r.chatService.GetSession(ctx, a.SessionID)
+	session, err := r.chatService.GetSession(ctx, a.SessionID())
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "artifact does not belong to user")
 	}
 
@@ -130,7 +130,7 @@ func (r *sessionResolver) Artifacts(ctx context.Context, obj *model.Session, lim
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 

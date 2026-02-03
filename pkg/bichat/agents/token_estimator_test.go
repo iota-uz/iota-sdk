@@ -84,7 +84,7 @@ func TestTiktokenEstimator_EstimateMessages(t *testing.T) {
 		{
 			name: "single user message",
 			messages: []types.Message{
-				*types.UserMessage("Show me sales data"),
+				types.UserMessage("Show me sales data"),
 			},
 			wantMinToken: 8,
 			wantMaxToken: 12,
@@ -92,8 +92,8 @@ func TestTiktokenEstimator_EstimateMessages(t *testing.T) {
 		{
 			name: "conversation with assistant",
 			messages: []types.Message{
-				*types.UserMessage("What is revenue?"),
-				*types.AssistantMessage("Revenue is the total income."),
+				types.UserMessage("What is revenue?"),
+				types.AssistantMessage("Revenue is the total income."),
 			},
 			wantMinToken: 15,
 			wantMaxToken: 25,
@@ -101,17 +101,15 @@ func TestTiktokenEstimator_EstimateMessages(t *testing.T) {
 		{
 			name: "message with tool calls",
 			messages: []types.Message{
-				{
-					Role:    types.RoleAssistant,
-					Content: "Let me check the database.",
-					ToolCalls: []types.ToolCall{
-						{
+				types.AssistantMessage("Let me check the database.",
+					types.WithToolCalls(
+						types.ToolCall{
 							ID:        "call-1",
 							Name:      "sql_execute",
 							Arguments: `{"query": "SELECT * FROM sales"}`,
 						},
-					},
-				},
+					),
+				),
 			},
 			wantMinToken: 20,
 			wantMaxToken: 35,
@@ -197,7 +195,7 @@ func TestCharacterBasedEstimator_EstimateMessages(t *testing.T) {
 		{
 			name: "single user message",
 			messages: []types.Message{
-				*types.UserMessage("Show me sales data"),
+				types.UserMessage("Show me sales data"),
 			},
 			wantMinToken: 8,
 			wantMaxToken: 12,
@@ -205,8 +203,8 @@ func TestCharacterBasedEstimator_EstimateMessages(t *testing.T) {
 		{
 			name: "conversation with assistant",
 			messages: []types.Message{
-				*types.UserMessage("What is revenue?"),
-				*types.AssistantMessage("Revenue is the total income."),
+				types.UserMessage("What is revenue?"),
+				types.AssistantMessage("Revenue is the total income."),
 			},
 			wantMinToken: 15,
 			wantMaxToken: 25,
@@ -274,7 +272,7 @@ func TestNoOpTokenEstimator(t *testing.T) {
 
 	// EstimateMessages always returns 0
 	messages := []types.Message{
-		*types.UserMessage("test"),
+		types.UserMessage("test"),
 	}
 	tokens, err = estimator.EstimateMessages(ctx, messages)
 	require.NoError(t, err)
@@ -308,8 +306,8 @@ func BenchmarkTiktokenEstimator_EstimateMessages(b *testing.B) {
 	ctx := context.Background()
 	estimator := NewTiktokenEstimator("cl100k_base")
 	messages := []types.Message{
-		*types.UserMessage("What is revenue?"),
-		*types.AssistantMessage("Revenue is the total income."),
+		types.UserMessage("What is revenue?"),
+		types.AssistantMessage("Revenue is the total income."),
 	}
 
 	b.ResetTimer()
@@ -322,8 +320,8 @@ func BenchmarkCharacterBasedEstimator_EstimateMessages(b *testing.B) {
 	ctx := context.Background()
 	estimator := NewCharacterBasedEstimator(4.0)
 	messages := []types.Message{
-		*types.UserMessage("What is revenue?"),
-		*types.AssistantMessage("Revenue is the total income."),
+		types.UserMessage("What is revenue?"),
+		types.AssistantMessage("Revenue is the total income."),
 	}
 
 	b.ResetTimer()

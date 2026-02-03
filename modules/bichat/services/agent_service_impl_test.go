@@ -226,28 +226,25 @@ func (m *mockCheckpointer) LoadAndDelete(ctx context.Context, checkpointID strin
 
 // mockChatRepository is a test implementation of domain.ChatRepository
 type mockChatRepository struct {
-	sessions    map[uuid.UUID]*domain.Session
+	sessions    map[uuid.UUID]domain.Session
 	messages    map[uuid.UUID][]*types.Message
-	attachments map[uuid.UUID]*domain.Attachment
+	attachments map[uuid.UUID]domain.Attachment
 }
 
 func newMockChatRepository() *mockChatRepository {
 	return &mockChatRepository{
-		sessions:    make(map[uuid.UUID]*domain.Session),
+		sessions:    make(map[uuid.UUID]domain.Session),
 		messages:    make(map[uuid.UUID][]*types.Message),
-		attachments: make(map[uuid.UUID]*domain.Attachment),
+		attachments: make(map[uuid.UUID]domain.Attachment),
 	}
 }
 
-func (m *mockChatRepository) CreateSession(ctx context.Context, session *domain.Session) error {
-	if session.ID == uuid.Nil {
-		session.ID = uuid.New()
-	}
-	m.sessions[session.ID] = session
+func (m *mockChatRepository) CreateSession(ctx context.Context, session domain.Session) error {
+	m.sessions[session.ID()] = session
 	return nil
 }
 
-func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
+func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (domain.Session, error) {
 	session, exists := m.sessions[id]
 	if !exists {
 		return nil, errors.New("session not found")
@@ -255,13 +252,13 @@ func (m *mockChatRepository) GetSession(ctx context.Context, id uuid.UUID) (*dom
 	return session, nil
 }
 
-func (m *mockChatRepository) UpdateSession(ctx context.Context, session *domain.Session) error {
-	m.sessions[session.ID] = session
+func (m *mockChatRepository) UpdateSession(ctx context.Context, session domain.Session) error {
+	m.sessions[session.ID()] = session
 	return nil
 }
 
-func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]*domain.Session, error) {
-	var sessions []*domain.Session
+func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
+	var sessions []domain.Session
 	for _, session := range m.sessions {
 		sessions = append(sessions, session)
 	}
@@ -305,15 +302,12 @@ func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID
 	return 0, nil
 }
 
-func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment *domain.Attachment) error {
-	if attachment.ID == uuid.Nil {
-		attachment.ID = uuid.New()
-	}
+func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
 	m.attachments[attachment.ID] = attachment
 	return nil
 }
 
-func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
+func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
 	att, exists := m.attachments[id]
 	if !exists {
 		return nil, errors.New("attachment not found")
@@ -321,8 +315,8 @@ func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*
 	return att, nil
 }
 
-func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]*domain.Attachment, error) {
-	var atts []*domain.Attachment
+func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
+	var atts []domain.Attachment
 	for _, att := range m.attachments {
 		atts = append(atts, att)
 	}
@@ -334,15 +328,15 @@ func (m *mockChatRepository) DeleteAttachment(ctx context.Context, id uuid.UUID)
 	return nil
 }
 
-func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact *domain.Artifact) error {
+func (m *mockChatRepository) SaveArtifact(ctx context.Context, artifact domain.Artifact) error {
 	return nil
 }
 
-func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (*domain.Artifact, error) {
+func (m *mockChatRepository) GetArtifact(ctx context.Context, id uuid.UUID) (domain.Artifact, error) {
 	return nil, errors.New("artifact not found")
 }
 
-func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*domain.Artifact, error) {
+func (m *mockChatRepository) GetSessionArtifacts(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]domain.Artifact, error) {
 	return nil, nil
 }
 

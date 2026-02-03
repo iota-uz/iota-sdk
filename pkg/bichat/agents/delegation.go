@@ -179,7 +179,7 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 	// Prepare child messages
 	metadata := extendedAgent.Metadata()
 	taskMessage := types.UserMessage(args.Prompt)
-	childMessages := []types.Message{*taskMessage}
+	childMessages := []types.Message{taskMessage}
 
 	// Create child executor with filtered tools to prevent recursion
 	// CRITICAL: Remove delegation tool from child's tool list
@@ -212,7 +212,7 @@ func (t *DelegationTool) Call(ctx context.Context, input string) (string, error)
 		switch event.Type {
 		case EventTypeDone:
 			if event.Result != nil {
-				finalContent = event.Result.Message.Content
+				finalContent = event.Result.Message.Content()
 				finalUsage = event.Result.Usage
 			}
 		case EventTypeError:
