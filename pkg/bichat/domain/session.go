@@ -10,8 +10,8 @@ import (
 type SessionStatus string
 
 const (
-	SessionStatusActive   SessionStatus = "active"
-	SessionStatusArchived SessionStatus = "archived"
+	SessionStatusActive   SessionStatus = "ACTIVE"
+	SessionStatusArchived SessionStatus = "ARCHIVED"
 )
 
 func (s SessionStatus) String() string { return string(s) }

@@ -3,20 +3,43 @@ package resolvers
 // THIS CODE WILL BE UPDATED WITH SCHEMA CHANGES. PREVIOUS IMPLEMENTATION FOR SCHEMA CHANGES WILL BE KEPT IN THE COMMENT SECTION. IMPLEMENTATION FOR UNCHANGED SCHEMA WILL BE KEPT.
 
 import (
-	"context"
-	"encoding/json"
-	"time"
+"context"
+"fmt"
+"io"
+"strconv"
+"time"
+"sync"
+"errors"
+"bytes"
+gqlparser "github.com/vektah/gqlparser/v2"
+"github.com/vektah/gqlparser/v2/ast"
+"github.com/99designs/gqlgen/graphql"
+"github.com/99designs/gqlgen/graphql/introspection"
+"encoding/json"
+"github.com/google/uuid"
+"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
+"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"
+"github.com/iota-uz/iota-sdk/pkg/application"
+"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
+"github.com/iota-uz/iota-sdk/pkg/bichat/services"
+"github.com/iota-uz/iota-sdk/pkg/composables"
+"github.com/iota-uz/iota-sdk/pkg/serrors")
 
-	"github.com/99designs/gqlgen/graphql"
-	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
-)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 type Resolver struct {
 	app               application.Application
@@ -74,7 +97,7 @@ func (r *mutationResolver) CreateSession(ctx context.Context, title *string) (*m
 	}
 
 	return toGraphQLSession(session), nil
-}
+	}
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, sessionID string, content string, attachments []*graphql.Upload) (*model.SendMessageResponse, error) {
@@ -124,7 +147,7 @@ func (r *mutationResolver) SendMessage(ctx context.Context, sessionID string, co
 			return nil, serrors.E(op, err, "failed to save attachment")
 		}
 
-		domainAttachments = append(domainAttachments, *attachment)
+		domainAttachments = append(domainAttachments, attachment)
 	}
 
 	// Call service
@@ -153,7 +176,7 @@ func (r *mutationResolver) SendMessage(ctx context.Context, sessionID string, co
 	}
 
 	return gqlResp, nil
-}
+	}
 
 // ResumeWithAnswer is the resolver for the resumeWithAnswer field.
 func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID string, checkpointID string, answers string) (*model.SendMessageResponse, error) {
@@ -219,7 +242,7 @@ func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID strin
 	}
 
 	return gqlResp, nil
-}
+	}
 
 // ArchiveSession is the resolver for the archiveSession field.
 func (r *mutationResolver) ArchiveSession(ctx context.Context, id string) (*model.Session, error) {
@@ -236,7 +259,7 @@ func (r *mutationResolver) ArchiveSession(ctx context.Context, id string) (*mode
 	}
 
 	return toGraphQLSession(session), nil
-}
+	}
 
 // PinSession is the resolver for the pinSession field.
 func (r *mutationResolver) PinSession(ctx context.Context, id string) (*model.Session, error) {
@@ -253,7 +276,7 @@ func (r *mutationResolver) PinSession(ctx context.Context, id string) (*model.Se
 	}
 
 	return toGraphQLSession(session), nil
-}
+	}
 
 // UnpinSession is the resolver for the unpinSession field.
 func (r *mutationResolver) UnpinSession(ctx context.Context, id string) (*model.Session, error) {
@@ -270,7 +293,7 @@ func (r *mutationResolver) UnpinSession(ctx context.Context, id string) (*model.
 	}
 
 	return toGraphQLSession(session), nil
-}
+	}
 
 // UpdateSessionTitle is the resolver for the updateSessionTitle field.
 func (r *mutationResolver) UpdateSessionTitle(ctx context.Context, id string, title string) (*model.Session, error) {
@@ -307,7 +330,7 @@ func (r *mutationResolver) UpdateSessionTitle(ctx context.Context, id string, ti
 	}
 
 	return toGraphQLSession(updatedSession), nil
-}
+	}
 
 // DeleteSession is the resolver for the deleteSession field.
 func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, error) {
@@ -344,7 +367,7 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 	}
 
 	return true, nil
-}
+	}
 
 // CancelPendingQuestion is the resolver for the cancelPendingQuestion field.
 func (r *mutationResolver) CancelPendingQuestion(ctx context.Context, sessionID string) (*model.Session, error) {
@@ -381,7 +404,77 @@ func (r *mutationResolver) CancelPendingQuestion(ctx context.Context, sessionID 
 	}
 
 	return toGraphQLSession(updatedSession), nil
-}
+	}
+
+// DeleteArtifact is the resolver for the deleteArtifact field.
+func (r *mutationResolver) DeleteArtifact(ctx context.Context, id string) (bool, error) {
+	const op serrors.Op = "Resolver.DeleteArtifact"
+	artifactID, err := uuid.Parse(id)
+	if err != nil {
+		return false, serrors.E(op, serrors.KindValidation, "invalid artifact ID", err)
+	}
+
+	// Verify session ownership before deletion
+	a, err := r.artifactService.GetArtifact(ctx, artifactID)
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return false, serrors.E(op, serrors.PermissionDenied, "unauthorized", err)
+	}
+	session, err := r.chatService.GetSession(ctx, a.SessionID())
+	if err != nil {
+		return false, serrors.E(op, err)
+	}
+	if session.UserID() != int64(user.ID()) {
+		return false, serrors.E(op, serrors.PermissionDenied, "artifact does not belong to user")
+	}
+
+	if err := r.artifactService.DeleteArtifact(ctx, artifactID); err != nil {
+		return false, serrors.E(op, err)
+	}
+	return true, nil
+	}
+
+// UpdateArtifact is the resolver for the updateArtifact field.
+func (r *mutationResolver) UpdateArtifact(ctx context.Context, id string, name *string, description *string) (*model.Artifact, error) {
+	const op serrors.Op = "Resolver.UpdateArtifact"
+	artifactID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, "invalid artifact ID", err)
+	}
+
+	// Verify session ownership before update
+	a, err := r.artifactService.GetArtifact(ctx, artifactID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "unauthorized", err)
+	}
+	session, err := r.chatService.GetSession(ctx, a.SessionID())
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if session.UserID() != int64(user.ID()) {
+		return nil, serrors.E(op, serrors.PermissionDenied, "artifact does not belong to user")
+	}
+
+	n, d := "", ""
+	if name != nil {
+		n = *name
+	}
+	if description != nil {
+		d = *description
+	}
+	a, err = r.artifactService.UpdateArtifact(ctx, artifactID, n, d)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return toGraphQLArtifact(a), nil
+	}
 
 // Sessions is the resolver for the sessions field.
 // Sessions are scoped by tenant and user from context (ListUserSessions uses UseTenantID and userID).
@@ -424,7 +517,7 @@ func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) (
 	}
 
 	return result, nil
-}
+	}
 
 // Session is the resolver for the session field.
 func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session, error) {
@@ -449,7 +542,7 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 	}
 
 	return toGraphQLSession(session), nil
-}
+	}
 
 // Messages is the resolver for the messages field.
 func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *int, offset *int) ([]*model.Message, error) {
@@ -500,12 +593,37 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	}
 
 	return result, nil
-}
+	}
 
-// Session returns the Session resolver (for Session.artifacts).
-func (r *Resolver) Session() generated.SessionResolver {
-	return &sessionResolver{r}
-}
+// Artifact is the resolver for the artifact field.
+func (r *queryResolver) Artifact(ctx context.Context, id string) (*model.Artifact, error) {
+	const op serrors.Op = "Resolver.Artifact"
+	artifactID, err := uuid.Parse(id)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, "invalid artifact ID", err)
+	}
+
+	// Get artifact
+	a, err := r.artifactService.GetArtifact(ctx, artifactID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	// Verify session ownership
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "unauthorized", err)
+	}
+	session, err := r.chatService.GetSession(ctx, a.SessionID())
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if session.UserID() != int64(user.ID()) {
+		return nil, serrors.E(op, serrors.PermissionDenied, "artifact does not belong to user")
+	}
+
+	return toGraphQLArtifact(a), nil
+	}
 
 // MessageStream is the resolver for the messageStream field.
 //
@@ -596,7 +714,9 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, sessionID stri
 	}()
 
 	return ch, nil
-}
+	}
+
+
 
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
@@ -605,9 +725,53 @@ func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResol
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
 // Subscription returns generated.SubscriptionResolver implementation.
-func (r *Resolver) Subscription() generated.SubscriptionResolver { return &subscriptionResolver{r} }
+func (r *Resolver) Subscription() generated.SubscriptionResolver {
+	return &subscriptionResolver{r}
+}
 
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+// Session returns generated.SessionResolver implementation.
+func (r *Resolver) Session() generated.SessionResolver { return &sessionResolver{r} }
+
+
+type mutationResolver struct { *Resolver }
+type queryResolver struct { *Resolver }
+type subscriptionResolver struct { *Resolver }
+type sessionResolver struct { *Resolver }
+
+
+
+    // !!! WARNING !!!
+    // The code below was going to be deleted when updating resolvers. It has been copied here so you have
+    // one last chance to move it out of harms way if you want. There are two reasons this happens:
+	//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+	//    it when you're done.
+	//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+	/*
+	type Resolver struct {
+	app               application.Application
+	chatService       services.ChatService
+	agentService      services.AgentService
+	attachmentService services.AttachmentService
+	artifactService   services.ArtifactService
+}
+func NewResolver(
+	app application.Application,
+	chatService services.ChatService,
+	agentService services.AgentService,
+	attachmentService services.AttachmentService,
+	artifactService services.ArtifactService,
+) *Resolver {
+	return &Resolver{
+		app:               app,
+		chatService:       chatService,
+		agentService:      agentService,
+		attachmentService: attachmentService,
+		artifactService:   artifactService,
+	}
+}
+func (r *Resolver) Session() generated.SessionResolver {
+	return &sessionResolver{r}
+}
 type sessionResolver struct{ *Resolver }
+	*/
+

@@ -10,6 +10,35 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
+// checkpointDTO is used for JSON serialization of Checkpoint.
+// Since Message is now an interface, we need to serialize messages to a storable format.
+type checkpointDTO struct {
+	ID            string              `json:"id"`
+	ThreadID      string              `json:"thread_id"`
+	AgentName     string              `json:"agent_name"`
+	SessionID     uuid.UUID           `json:"session_id"`
+	TenantID      uuid.UUID           `json:"tenant_id"`
+	Messages      []messageDTO        `json:"messages"`
+	PendingTools  []types.ToolCall    `json:"pending_tools"`
+	InterruptType string              `json:"interrupt_type"`
+	InterruptData json.RawMessage     `json:"interrupt_data,omitempty"`
+	CreatedAt     time.Time           `json:"created_at"`
+}
+
+// messageDTO is used for JSON serialization of Message interface.
+type messageDTO struct {
+	ID           uuid.UUID     `json:"id"`
+	SessionID    uuid.UUID     `json:"session_id"`
+	Role         types.Role    `json:"role"`
+	Content      string        `json:"content"`
+	ToolCalls    []types.ToolCall `json:"tool_calls"`
+	ToolCallID   *string       `json:"tool_call_id"`
+	Attachments  []types.Attachment `json:"attachments"`
+	Citations    []types.Citation `json:"citations"`
+	CodeOutputs  []types.CodeInterpreterOutput `json:"code_outputs"`
+	CreatedAt    time.Time     `json:"created_at"`
+}
+
 // Checkpoint represents a saved state for Human-in-the-Loop (HITL) support.
 // It captures the conversation state when agent execution is paused for user input.
 type Checkpoint struct {
@@ -23,6 +52,97 @@ type Checkpoint struct {
 	InterruptType string           `json:"interrupt_type"`
 	InterruptData json.RawMessage  `json:"interrupt_data,omitempty"`
 	CreatedAt     time.Time        `json:"created_at"`
+}
+
+// MarshalJSON implements json.Marshaler for Checkpoint.
+// Converts Message interfaces to messageDTO for serialization.
+func (cp *Checkpoint) MarshalJSON() ([]byte, error) {
+	dto := checkpointDTO{
+		ID:            cp.ID,
+		ThreadID:      cp.ThreadID,
+		AgentName:     cp.AgentName,
+		SessionID:     cp.SessionID,
+		TenantID:      cp.TenantID,
+		Messages:      make([]messageDTO, len(cp.Messages)),
+		PendingTools:  cp.PendingTools,
+		InterruptType: cp.InterruptType,
+		InterruptData: cp.InterruptData,
+		CreatedAt:     cp.CreatedAt,
+	}
+
+	// Convert Message interfaces to DTOs
+	for i, msg := range cp.Messages {
+		dto.Messages[i] = messageDTO{
+			ID:          msg.ID(),
+			SessionID:   msg.SessionID(),
+			Role:        msg.Role(),
+			Content:     msg.Content(),
+			ToolCalls:   msg.ToolCalls(),
+			ToolCallID:  msg.ToolCallID(),
+			Attachments: msg.Attachments(),
+			Citations:   msg.Citations(),
+			CodeOutputs: msg.CodeOutputs(),
+			CreatedAt:   msg.CreatedAt(),
+		}
+	}
+
+	return json.Marshal(dto)
+}
+
+// UnmarshalJSON implements json.Unmarshaler for Checkpoint.
+// Converts messageDTO back to Message interfaces.
+func (cp *Checkpoint) UnmarshalJSON(data []byte) error {
+	var dto checkpointDTO
+	if err := json.Unmarshal(data, &dto); err != nil {
+		return err
+	}
+
+	cp.ID = dto.ID
+	cp.ThreadID = dto.ThreadID
+	cp.AgentName = dto.AgentName
+	cp.SessionID = dto.SessionID
+	cp.TenantID = dto.TenantID
+	cp.PendingTools = dto.PendingTools
+	cp.InterruptType = dto.InterruptType
+	cp.InterruptData = dto.InterruptData
+	cp.CreatedAt = dto.CreatedAt
+
+	// Convert DTOs back to Message interfaces
+	cp.Messages = make([]types.Message, len(dto.Messages))
+	for i, msgDTO := range dto.Messages {
+		opts := []types.MessageOption{
+			types.WithMessageID(msgDTO.ID),
+			types.WithSessionID(msgDTO.SessionID),
+			types.WithRole(msgDTO.Role),
+			types.WithContent(msgDTO.Content),
+		}
+
+		if len(msgDTO.ToolCalls) > 0 {
+			opts = append(opts, types.WithToolCalls(msgDTO.ToolCalls...))
+		}
+
+		if msgDTO.ToolCallID != nil {
+			opts = append(opts, types.WithToolCallID(*msgDTO.ToolCallID))
+		}
+
+		if len(msgDTO.Attachments) > 0 {
+			opts = append(opts, types.WithAttachments(msgDTO.Attachments...))
+		}
+
+		if len(msgDTO.Citations) > 0 {
+			opts = append(opts, types.WithCitations(msgDTO.Citations...))
+		}
+
+		if len(msgDTO.CodeOutputs) > 0 {
+			opts = append(opts, types.WithCodeOutputs(msgDTO.CodeOutputs...))
+		}
+
+		opts = append(opts, types.WithCreatedAt(msgDTO.CreatedAt))
+
+		cp.Messages[i] = types.NewMessage(opts...)
+	}
+
+	return nil
 }
 
 // NewCheckpoint creates a new checkpoint with the given parameters.

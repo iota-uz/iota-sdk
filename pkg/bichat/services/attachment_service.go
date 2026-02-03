@@ -32,7 +32,7 @@ type AttachmentService interface {
 		size int64,
 		reader io.Reader,
 		tenantID, userID uuid.UUID,
-	) (*domain.Attachment, error)
+	) (domain.Attachment, error)
 
 	// ValidateMultiple validates a batch of file uploads without saving.
 	// Used for pre-flight validation before processing uploads.

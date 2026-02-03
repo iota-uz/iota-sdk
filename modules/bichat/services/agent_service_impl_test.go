@@ -71,7 +71,7 @@ type mockModel struct {
 func newMockModel() *mockModel {
 	return &mockModel{
 		response: &agents.Response{
-			Message: *types.AssistantMessage("Test response"),
+			Message: types.AssistantMessage("Test response"),
 			Usage: types.TokenUsage{
 				PromptTokens:     10,
 				CompletionTokens: 20,
@@ -158,8 +158,8 @@ type mockRenderer struct{}
 func (m *mockRenderer) Render(block bichatctx.ContextBlock) (bichatctx.RenderedBlock, error) {
 	return bichatctx.RenderedBlock{
 		Messages: []types.Message{
-			{Role: types.RoleSystem, Content: "test system content"},
-			{Role: types.RoleUser, Content: "test"},
+			types.SystemMessage("test system content"),
+			types.UserMessage("test"),
 		},
 	}, nil
 }
@@ -227,14 +227,14 @@ func (m *mockCheckpointer) LoadAndDelete(ctx context.Context, checkpointID strin
 // mockChatRepository is a test implementation of domain.ChatRepository
 type mockChatRepository struct {
 	sessions    map[uuid.UUID]domain.Session
-	messages    map[uuid.UUID][]*types.Message
+	messages    map[uuid.UUID][]types.Message
 	attachments map[uuid.UUID]domain.Attachment
 }
 
 func newMockChatRepository() *mockChatRepository {
 	return &mockChatRepository{
 		sessions:    make(map[uuid.UUID]domain.Session),
-		messages:    make(map[uuid.UUID][]*types.Message),
+		messages:    make(map[uuid.UUID][]types.Message),
 		attachments: make(map[uuid.UUID]domain.Attachment),
 	}
 }
@@ -271,18 +271,16 @@ func (m *mockChatRepository) DeleteSession(ctx context.Context, id uuid.UUID) er
 	return nil
 }
 
-func (m *mockChatRepository) SaveMessage(ctx context.Context, msg *types.Message) error {
-	if msg.ID == uuid.Nil {
-		msg.ID = uuid.New()
-	}
-	m.messages[msg.SessionID] = append(m.messages[msg.SessionID], msg)
+func (m *mockChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
+	sessionID := msg.SessionID()
+	m.messages[sessionID] = append(m.messages[sessionID], msg)
 	return nil
 }
 
-func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*types.Message, error) {
+func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
 	for _, msgs := range m.messages {
 		for _, msg := range msgs {
-			if msg.ID == id {
+			if msg.ID() == id {
 				return msg, nil
 			}
 		}
@@ -290,10 +288,10 @@ func (m *mockChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*typ
 	return nil, errors.New("message not found")
 }
 
-func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
+func (m *mockChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
 	msgs, exists := m.messages[sessionID]
 	if !exists {
-		return []*types.Message{}, nil
+		return []types.Message{}, nil
 	}
 	return msgs, nil
 }
@@ -303,7 +301,7 @@ func (m *mockChatRepository) TruncateMessagesFrom(ctx context.Context, sessionID
 }
 
 func (m *mockChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
-	m.attachments[attachment.ID] = attachment
+	m.attachments[attachment.ID()] = attachment
 	return nil
 }
 
@@ -529,7 +527,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 		"test-thread",
 		"test_agent",
 		[]types.Message{
-			*types.UserMessage("What is 2+2?"),
+			types.UserMessage("What is 2+2?"),
 		},
 	)
 	checkpointID, err := checkpointer.Save(ctx, checkpoint)
@@ -742,7 +740,7 @@ func TestConvertExecutorEvent_Done(t *testing.T) {
 		Type: agents.EventTypeDone,
 		Done: true,
 		Result: &agents.Response{
-			Message: *types.AssistantMessage("Final response"),
+			Message: types.AssistantMessage("Final response"),
 			Usage: types.TokenUsage{
 				PromptTokens:     100,
 				CompletionTokens: 50,

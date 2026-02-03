@@ -48,25 +48,25 @@ func toGraphQLSessionStatus(status domain.SessionStatus) model.SessionStatus {
 }
 
 // toGraphQLMessage converts a types.Message to a GraphQL Message
-func toGraphQLMessage(m *types.Message) *model.Message {
+func toGraphQLMessage(m types.Message) *model.Message {
 	if m == nil {
 		return nil
 	}
 
 	gqlMessage := &model.Message{
-		ID:          m.ID.String(),
-		SessionID:   m.SessionID.String(),
-		Role:        toGraphQLMessageRole(m.Role),
-		Content:     m.Content,
-		ToolCalls:   toGraphQLToolCalls(m.ToolCalls),
-		Attachments: toGraphQLAttachments(m.Attachments),
-		Citations:   toGraphQLCitations(m.Citations),
-		CodeOutputs: toGraphQLCodeOutputs(m.CodeOutputs),
-		CreatedAt:   m.CreatedAt,
+		ID:          m.ID().String(),
+		SessionID:   m.SessionID().String(),
+		Role:        toGraphQLMessageRole(m.Role()),
+		Content:     m.Content(),
+		ToolCalls:   toGraphQLToolCalls(m.ToolCalls()),
+		Attachments: toGraphQLAttachments(m.Attachments()),
+		Citations:   toGraphQLCitations(m.Citations()),
+		CodeOutputs: toGraphQLCodeOutputs(m.CodeOutputs()),
+		CreatedAt:   m.CreatedAt(),
 	}
 
-	if m.ToolCallID != nil {
-		gqlMessage.ToolCallID = m.ToolCallID
+	if m.ToolCallID() != nil {
+		gqlMessage.ToolCallID = m.ToolCallID()
 	}
 
 	return gqlMessage

@@ -28,9 +28,9 @@ type ChatRepository interface {
 	DeleteSession(ctx context.Context, id uuid.UUID) error
 
 	// Message operations
-	SaveMessage(ctx context.Context, msg *types.Message) error
-	GetMessage(ctx context.Context, id uuid.UUID) (*types.Message, error)
-	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts ListOptions) ([]*types.Message, error)
+	SaveMessage(ctx context.Context, msg types.Message) error
+	GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error)
+	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts ListOptions) ([]types.Message, error)
 	// TruncateMessagesFrom deletes all messages in a session from a given timestamp forward.
 	// Returns the number of messages deleted.
 	// Used for regenerate/edit functionality.

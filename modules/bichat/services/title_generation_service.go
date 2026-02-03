@@ -94,11 +94,11 @@ func (s *titleGenerationService) GenerateSessionTitle(ctx context.Context, sessi
 	// Extract first user message
 	var userMsg, assistantMsg string
 	for _, msg := range messages {
-		if msg.Role == types.RoleUser && userMsg == "" {
-			userMsg = msg.Content
+		if msg.Role() == types.RoleUser && userMsg == "" {
+			userMsg = msg.Content()
 		}
-		if msg.Role == types.RoleAssistant && assistantMsg == "" {
-			assistantMsg = msg.Content
+		if msg.Role() == types.RoleAssistant && assistantMsg == "" {
+			assistantMsg = msg.Content()
 		}
 	}
 
@@ -158,10 +158,7 @@ func (s *titleGenerationService) generateTitleWithLLM(ctx context.Context, userM
 	// Create request
 	req := agents.Request{
 		Messages: []types.Message{
-			{
-				Role:    types.RoleUser,
-				Content: prompt,
-			},
+			types.UserMessage(prompt),
 		},
 	}
 
@@ -171,7 +168,7 @@ func (s *titleGenerationService) generateTitleWithLLM(ctx context.Context, userM
 		return "", serrors.E(op, err, "LLM generation failed")
 	}
 
-	title := strings.TrimSpace(resp.Message.Content)
+	title := strings.TrimSpace(resp.Message.Content())
 	return title, nil
 }
 

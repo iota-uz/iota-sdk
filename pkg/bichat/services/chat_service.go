@@ -25,7 +25,7 @@ type ChatService interface {
 	// Message management
 	SendMessage(ctx context.Context, req SendMessageRequest) (*SendMessageResponse, error)
 	SendMessageStream(ctx context.Context, req SendMessageRequest, onChunk func(StreamChunk)) error
-	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error)
+	GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error)
 
 	// Resume after user answers questions (HITL)
 	ResumeWithAnswer(ctx context.Context, req ResumeRequest) (*SendMessageResponse, error)
@@ -47,10 +47,10 @@ type SendMessageRequest struct {
 
 // SendMessageResponse contains the result of sending a message
 type SendMessageResponse struct {
-	UserMessage      *types.Message  // The user's message
-	AssistantMessage *types.Message  // The assistant's message (nil if interrupted)
-	Session          domain.Session  // Updated session
-	Interrupt        *Interrupt      // Non-nil if agent has questions (HITL)
+	UserMessage      types.Message  // The user's message
+	AssistantMessage types.Message  // The assistant's message (nil if interrupted)
+	Session          domain.Session // Updated session
+	Interrupt        *Interrupt     // Non-nil if agent has questions (HITL)
 }
 
 // Interrupt represents a pause in execution waiting for user input (HITL pattern)

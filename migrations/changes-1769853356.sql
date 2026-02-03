@@ -14,13 +14,13 @@ CREATE TABLE IF NOT EXISTS bichat.sessions (
     tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
     user_id bigint NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
     title varchar(255) NOT NULL DEFAULT '',
-    status varchar(20) NOT NULL DEFAULT 'active',
+    status varchar(20) NOT NULL DEFAULT 'ACTIVE',
     pinned boolean NOT NULL DEFAULT FALSE,
     parent_session_id uuid REFERENCES bichat.sessions (id) ON DELETE SET NULL,
     pending_question_agent varchar(100),
     created_at timestamp with time zone NOT NULL DEFAULT NOW(),
     updated_at timestamp with time zone NOT NULL DEFAULT NOW(),
-    CONSTRAINT sessions_status_check CHECK (status IN ('active', 'archived'))
+    CONSTRAINT sessions_status_check CHECK (status IN ('ACTIVE', 'ARCHIVED'))
 );
 
 -- Messages table
@@ -68,9 +68,13 @@ CREATE INDEX idx_sessions_tenant_user ON bichat.sessions (tenant_id, user_id);
 
 CREATE INDEX idx_sessions_tenant_id ON bichat.sessions (tenant_id, id);
 
+CREATE INDEX idx_sessions_user_status ON bichat.sessions (user_id, status, created_at DESC);
+
 CREATE INDEX idx_sessions_status ON bichat.sessions (status);
 
 CREATE INDEX idx_sessions_created_at ON bichat.sessions (created_at DESC);
+
+CREATE INDEX idx_sessions_status_pinned ON bichat.sessions (status, pinned, created_at DESC);
 
 CREATE INDEX idx_sessions_pinned ON bichat.sessions (pinned)
 WHERE

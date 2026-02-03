@@ -158,13 +158,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	}
 
 	// Create user message
-	userMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleUser,
-		Content:   req.Content,
-		CreatedAt: time.Now(),
-	}
+	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
 
 	// Save user message
 	err = s.chatRepo.SaveMessage(ctx, userMsg)
@@ -175,15 +169,13 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
-		domainAttachments[i] = domain.Attachment{
-			ID:        att.ID,
-			MessageID: userMsg.ID,
-			FileName:  att.FileName,
-			MimeType:  att.MimeType,
-			SizeBytes: att.SizeBytes,
-			FilePath:  att.FilePath,
-			CreatedAt: att.CreatedAt,
-		}
+		domainAttachments[i] = domain.NewAttachment(
+			domain.WithAttachmentMessageID(userMsg.ID()),
+			domain.WithFileName(att.FileName()),
+			domain.WithMimeType(att.MimeType()),
+			domain.WithSizeBytes(att.SizeBytes()),
+			domain.WithFilePath(att.FilePath()),
+		)
 	}
 
 	// Process message with agent
@@ -241,13 +233,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	}
 
 	// Create and save assistant message
-	assistantMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleAssistant,
-		Content:   assistantContent.String(),
-		CreatedAt: time.Now(),
-	}
+	assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
 
 	err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 	if err != nil {
@@ -280,13 +266,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	}
 
 	// Create user message
-	userMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleUser,
-		Content:   req.Content,
-		CreatedAt: time.Now(),
-	}
+	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
 
 	// Save user message
 	err = s.chatRepo.SaveMessage(ctx, userMsg)
@@ -297,15 +277,13 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
-		domainAttachments[i] = domain.Attachment{
-			ID:        att.ID,
-			MessageID: userMsg.ID,
-			FileName:  att.FileName,
-			MimeType:  att.MimeType,
-			SizeBytes: att.SizeBytes,
-			FilePath:  att.FilePath,
-			CreatedAt: att.CreatedAt,
-		}
+		domainAttachments[i] = domain.NewAttachment(
+			domain.WithAttachmentMessageID(userMsg.ID()),
+			domain.WithFileName(att.FileName()),
+			domain.WithMimeType(att.MimeType()),
+			domain.WithSizeBytes(att.SizeBytes()),
+			domain.WithFilePath(att.FilePath()),
+		)
 	}
 
 	// Process message with agent
@@ -374,13 +352,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 	// Save assistant message if not interrupted
 	if !interrupted {
-		assistantMsg := &types.Message{
-			ID:        uuid.New(),
-			SessionID: req.SessionID,
-			Role:      types.RoleAssistant,
-			Content:   assistantContent.String(),
-			CreatedAt: time.Now(),
-		}
+		assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
 
 		err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 		if err != nil {
@@ -389,7 +361,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		session = session.UpdateUpdatedAt(time.Now())
 		if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
-			return nil, serrors.E(op, err)
+			return serrors.E(op, err)
 		}
 		s.maybeGenerateTitleAsync(ctx, req.SessionID)
 	}
@@ -398,7 +370,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 }
 
 // GetSessionMessages retrieves all messages for a session.
-func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
+func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
 	const op serrors.Op = "chatServiceImpl.GetSessionMessages"
 
 	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
@@ -451,13 +423,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}
 
 	// Create and save assistant message
-	assistantMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleAssistant,
-		Content:   assistantContent.String(),
-		CreatedAt: time.Now(),
-	}
+	assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
 
 	err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 	if err != nil {
@@ -465,8 +431,8 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}
 
 	// Clear pending question agent
-	session.PendingQuestionAgent = nil
-	session.UpdatedAt = time.Now()
+	session = session.UpdatePendingQuestionAgent(nil)
+	session = session.UpdateUpdatedAt(time.Now())
 	err = s.chatRepo.UpdateSession(ctx, session)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -521,22 +487,22 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 	}
 
 	firstMessage := messages[0]
-	if firstMessage.Role != types.RoleUser {
+	if firstMessage.Role() != types.RoleUser {
 		return serrors.E(op, serrors.KindValidation, "first message is not a user message")
 	}
 
 	// Generate title using LLM
-	prompt := fmt.Sprintf("Generate a short, concise title (max 5 words) for a chat conversation that starts with this user message: \"%s\"\n\nProvide only the title, no quotes or extra text.", firstMessage.Content)
+	prompt := fmt.Sprintf("Generate a short, concise title (max 5 words) for a chat conversation that starts with this user message: \"%s\"\n\nProvide only the title, no quotes or extra text.", firstMessage.Content())
 
 	titleMsg := types.SystemMessage(prompt)
 	resp, err := s.model.Generate(ctx, agents.Request{
-		Messages: []types.Message{*titleMsg},
+		Messages: []types.Message{titleMsg},
 	}, agents.WithMaxTokens(20))
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	title := strings.TrimSpace(resp.Message.Content)
+	title := strings.TrimSpace(resp.Message.Content())
 	title = strings.Trim(title, "\"'")
 	updated := session.UpdateTitle(title)
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {

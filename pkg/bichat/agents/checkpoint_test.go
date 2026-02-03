@@ -68,8 +68,8 @@ func TestCheckpoint_JSONSerialization(t *testing.T) {
 
 	// Verify messages
 	require.Len(t, decoded.Messages, 2)
-	assert.Equal(t, types.RoleUser, decoded.Messages[0].Role)
-	assert.Equal(t, "Hello", decoded.Messages[0].Content)
+	assert.Equal(t, types.RoleUser, decoded.Messages[0].Role())
+	assert.Equal(t, "Hello", decoded.Messages[0].Content())
 	assert.Equal(t, types.RoleAssistant, decoded.Messages[1].Role())
 	assert.Equal(t, "Hi there!", decoded.Messages[1].Content())
 	require.Len(t, decoded.Messages[1].ToolCalls(), 1)
@@ -106,7 +106,7 @@ func TestInMemoryCheckpointer_CRUD(t *testing.T) {
 		assert.Equal(t, checkpoint.ThreadID, loaded.ThreadID)
 		assert.Equal(t, checkpoint.AgentName, loaded.AgentName)
 		assert.Len(t, loaded.Messages, 1)
-		assert.Equal(t, "Test message", loaded.Messages[0].Content)
+		assert.Equal(t, "Test message", loaded.Messages[0].Content())
 	})
 
 	t.Run("LoadByThreadID", func(t *testing.T) {

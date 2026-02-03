@@ -57,11 +57,7 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 	}
 
 	return &agents.Response{
-		Message: types.Message{
-			Role:      types.RoleAssistant,
-			Content:   resp.content,
-			ToolCalls: resp.toolCalls,
-		},
+		Message: types.AssistantMessage(resp.content, types.WithToolCalls(resp.toolCalls...)),
 		Usage: types.TokenUsage{
 			PromptTokens:     10,
 			CompletionTokens: 20,
@@ -240,7 +236,7 @@ func TestExecutor_SingleTurn(t *testing.T) {
 	// Execute
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Hello"},
+			types.UserMessage("Hello"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -292,8 +288,8 @@ func TestExecutor_SingleTurn(t *testing.T) {
 	if finalResult == nil {
 		t.Fatal("Expected final result, got nil")
 	}
-	if finalResult.Message.Content != "Hello! How can I help you today?" {
-		t.Errorf("Expected result content 'Hello! How can I help you today?', got '%s'", finalResult.Message.Content)
+	if finalResult.Message.Content() != "Hello! How can I help you today?" {
+		t.Errorf("Expected result content 'Hello! How can I help you today?', got '%s'", finalResult.Message.Content())
 	}
 	if finalResult.FinishReason != "stop" {
 		t.Errorf("Expected finish reason 'stop', got '%s'", finalResult.FinishReason)
@@ -350,7 +346,7 @@ func TestExecutor_ToolCalls(t *testing.T) {
 	// Execute
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "What's the weather in San Francisco?"},
+			types.UserMessage("What's the weather in San Francisco?"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -459,7 +455,7 @@ func TestExecutor_MultiTurn(t *testing.T) {
 
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Calculate double the current price"},
+			types.UserMessage("Calculate double the current price"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -508,14 +504,16 @@ func TestExecutor_Interrupt(t *testing.T) {
 					ID:   "call_1",
 					Name: agents.ToolAskUserQuestion,
 					Arguments: `{
+						"type": "ask_user_question",
 						"questions": [
 							{
+								"id": "q1",
 								"question": "What is your favorite color?",
 								"header": "Color",
 								"multiSelect": false,
 								"options": [
-									{"label": "Red", "description": "Warm and vibrant"},
-									{"label": "Blue", "description": "Cool and calming"}
+									{"id": "opt1", "label": "Red", "description": "Warm and vibrant"},
+									{"id": "opt2", "label": "Blue", "description": "Cool and calming"}
 								]
 							}
 						]
@@ -536,7 +534,7 @@ func TestExecutor_Interrupt(t *testing.T) {
 
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Hello"},
+			types.UserMessage("Hello"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -613,22 +611,24 @@ func TestExecutor_Resume(t *testing.T) {
 		"thread-123",
 		"test-agent",
 		[]types.Message{
-			{Role: types.RoleUser, Content: "Hello"},
-			{Role: types.RoleAssistant, Content: "I need to ask you something."},
+			types.UserMessage("Hello"),
+			types.AssistantMessage("I need to ask you something."),
 		},
 		agents.WithPendingTools([]types.ToolCall{
 			{
 				ID:   "call_1",
 				Name: agents.ToolAskUserQuestion,
 				Arguments: `{
+					"type": "ask_user_question",
 					"questions": [
 						{
+							"id": "q1",
 							"question": "What is your favorite color?",
 							"header": "Color",
 							"multiSelect": false,
 							"options": [
-								{"label": "Red", "description": "Warm and vibrant"},
-								{"label": "Blue", "description": "Cool and calming"}
+								{"id": "opt1", "label": "Red", "description": "Warm and vibrant"},
+								{"id": "opt2", "label": "Blue", "description": "Cool and calming"}
 							]
 						}
 					]
@@ -696,7 +696,7 @@ func TestExecutor_Resume(t *testing.T) {
 		t.Fatal("Expected final result, got nil")
 	}
 	if finalResult.Message.Content() != "Your favorite color is blue!" {
-		t.Errorf("Expected result 'Your favorite color is blue!', got '%s'", finalResult.Message.Content)
+		t.Errorf("Expected result 'Your favorite color is blue!', got '%s'", finalResult.Message.Content())
 	}
 
 	// Verify checkpoint was deleted
@@ -816,7 +816,7 @@ func TestExecutor_Resume_MultipleQuestions(t *testing.T) {
 		t.Fatal("Expected final result, got nil")
 	}
 	if finalResult.Message.Content() != "Analyzing Q1 2024 revenue for North America..." {
-		t.Errorf("Expected result 'Analyzing Q1 2024 revenue for North America...', got '%s'", finalResult.Message.Content)
+		t.Errorf("Expected result 'Analyzing Q1 2024 revenue for North America...', got '%s'", finalResult.Message.Content())
 	}
 
 	// Verify checkpoint was deleted
@@ -955,7 +955,7 @@ func TestExecutor_Cancellation(t *testing.T) {
 
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Hello"},
+			types.UserMessage("Hello"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -1017,7 +1017,7 @@ func TestExecutor_MaxIterations(t *testing.T) {
 
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Start looping"},
+			types.UserMessage("Start looping"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -1070,7 +1070,7 @@ func TestExecutor_StreamingChunks(t *testing.T) {
 
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Hello"},
+			types.UserMessage("Hello"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -1141,7 +1141,7 @@ func TestExecutor_TerminationTool(t *testing.T) {
 
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "What is the answer?"},
+			types.UserMessage("What is the answer?"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -1181,8 +1181,8 @@ func TestExecutor_TerminationTool(t *testing.T) {
 		t.Fatal("Expected final result, got nil")
 	}
 
-	if finalResult.Message.Content != "The answer is 42" {
-		t.Errorf("Expected result 'The answer is 42', got '%s'", finalResult.Message.Content)
+	if finalResult.Message.Content() != "The answer is 42" {
+		t.Errorf("Expected result 'The answer is 42', got '%s'", finalResult.Message.Content())
 	}
 }
 
@@ -1202,14 +1202,16 @@ func TestExecutor_NoCheckpointerInterruptFails(t *testing.T) {
 					ID:   "call_1",
 					Name: agents.ToolAskUserQuestion,
 					Arguments: `{
+						"type": "ask_user_question",
 						"questions": [
 							{
+								"id": "q1",
 								"question": "Test?",
 								"header": "Test",
 								"multiSelect": false,
 								"options": [
-									{"label": "Yes", "description": "Affirmative"},
-									{"label": "No", "description": "Negative"}
+									{"id": "opt1", "label": "Yes", "description": "Affirmative"},
+									{"id": "opt2", "label": "No", "description": "Negative"}
 								]
 							}
 						]
@@ -1225,7 +1227,7 @@ func TestExecutor_NoCheckpointerInterruptFails(t *testing.T) {
 
 	input := agents.Input{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Hello"},
+			types.UserMessage("Hello"),
 		},
 		SessionID: uuid.New(),
 		TenantID:  uuid.New(),
@@ -1311,7 +1313,7 @@ func TestExecutor_ConcurrentExecution(t *testing.T) {
 
 			input := agents.Input{
 				Messages: []types.Message{
-					{Role: types.RoleUser, Content: fmt.Sprintf("Test %d", idx)},
+					types.UserMessage(fmt.Sprintf("Test %d", idx)),
 				},
 				SessionID: uuid.New(),
 				TenantID:  uuid.New(),

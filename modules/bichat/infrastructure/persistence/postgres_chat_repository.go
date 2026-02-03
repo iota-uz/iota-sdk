@@ -371,7 +371,7 @@ func (r *PostgresChatRepository) DeleteSession(ctx context.Context, id uuid.UUID
 // Message operations
 
 // SaveMessage saves a message to the database.
-func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *types.Message) error {
+func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg types.Message) error {
 	const op serrors.Op = "PostgresChatRepository.SaveMessage"
 
 	tx, err := composables.UseTx(ctx)
@@ -380,38 +380,40 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *types.Mes
 	}
 
 	// Marshal JSONB fields
-	toolCallsJSON, err := json.Marshal(msg.ToolCalls)
+	toolCallsJSON, err := json.Marshal(msg.ToolCalls())
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	citationsJSON, err := json.Marshal(msg.Citations)
+	citationsJSON, err := json.Marshal(msg.Citations())
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	if msg.CreatedAt.IsZero() {
-		msg.CreatedAt = time.Now()
+	createdAt := msg.CreatedAt()
+	if createdAt.IsZero() {
+		createdAt = time.Now()
 	}
 
 	_, err = tx.Exec(ctx, insertMessageQuery,
-		msg.ID,
-		msg.SessionID,
-		msg.Role,
-		msg.Content,
+		msg.ID(),
+		msg.SessionID(),
+		msg.Role(),
+		msg.Content(),
 		toolCallsJSON,
-		msg.ToolCallID,
+		msg.ToolCallID(),
 		citationsJSON,
-		msg.CreatedAt,
+		createdAt,
 	)
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
 	// Save code interpreter outputs if present
-	for _, output := range msg.CodeOutputs {
-		if output.CreatedAt.IsZero() {
-			output.CreatedAt = time.Now()
+	for _, output := range msg.CodeOutputs() {
+		outputCreatedAt := output.CreatedAt
+		if outputCreatedAt.IsZero() {
+			outputCreatedAt = time.Now()
 		}
 
 		_, err = tx.Exec(ctx, insertCodeOutputQuery,
@@ -421,7 +423,7 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *types.Mes
 			output.MimeType,
 			output.URL,
 			output.Size,
-			output.CreatedAt,
+			outputCreatedAt,
 		)
 		if err != nil {
 			return serrors.E(op, err)
@@ -432,7 +434,7 @@ func (r *PostgresChatRepository) SaveMessage(ctx context.Context, msg *types.Mes
 }
 
 // GetMessage retrieves a message by ID.
-func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (*types.Message, error) {
+func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (types.Message, error) {
 	const op serrors.Op = "PostgresChatRepository.GetMessage"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -445,18 +447,26 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 		return nil, serrors.E(op, err)
 	}
 
-	var msg types.Message
-	var toolCallsJSON, citationsJSON []byte
+	var (
+		msgID         uuid.UUID
+		sessionID     uuid.UUID
+		role          types.Role
+		content       string
+		toolCallsJSON []byte
+		toolCallID    *string
+		citationsJSON []byte
+		createdAt     time.Time
+	)
 
 	err = tx.QueryRow(ctx, selectMessageQuery, tenantID, id).Scan(
-		&msg.ID,
-		&msg.SessionID,
-		&msg.Role,
-		&msg.Content,
+		&msgID,
+		&sessionID,
+		&role,
+		&content,
 		&toolCallsJSON,
-		&msg.ToolCallID,
+		&toolCallID,
 		&citationsJSON,
-		&msg.CreatedAt,
+		&createdAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -466,26 +476,48 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	}
 
 	// Unmarshal JSONB fields
-	if err := json.Unmarshal(toolCallsJSON, &msg.ToolCalls); err != nil {
+	var toolCalls []types.ToolCall
+	if err := json.Unmarshal(toolCallsJSON, &toolCalls); err != nil {
 		return nil, serrors.E(op, err)
 	}
 
-	if err := json.Unmarshal(citationsJSON, &msg.Citations); err != nil {
+	var citations []types.Citation
+	if err := json.Unmarshal(citationsJSON, &citations); err != nil {
 		return nil, serrors.E(op, err)
 	}
 
 	// Load code interpreter outputs
-	codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msg.ID)
+	codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msgID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	msg.CodeOutputs = codeOutputs
 
-	return &msg, nil
+	// Build message options
+	opts := []types.MessageOption{
+		types.WithMessageID(msgID),
+		types.WithSessionID(sessionID),
+		types.WithRole(role),
+		types.WithContent(content),
+		types.WithCreatedAt(createdAt),
+	}
+	if len(toolCalls) > 0 {
+		opts = append(opts, types.WithToolCalls(toolCalls...))
+	}
+	if toolCallID != nil {
+		opts = append(opts, types.WithToolCallID(*toolCallID))
+	}
+	if len(citations) > 0 {
+		opts = append(opts, types.WithCitations(citations...))
+	}
+	if len(codeOutputs) > 0 {
+		opts = append(opts, types.WithCodeOutputs(codeOutputs...))
+	}
+
+	return types.NewMessage(opts...), nil
 }
 
 // GetSessionMessages retrieves all messages for a session with pagination.
-func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
+func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
 	const op serrors.Op = "PostgresChatRepository.GetSessionMessages"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -504,48 +536,76 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	}
 	defer rows.Close()
 
-	var messages []*types.Message
+	var messages []types.Message
 	for rows.Next() {
-		var msg types.Message
-		var toolCallsJSON, citationsJSON []byte
+		var (
+			msgID         uuid.UUID
+			sessID        uuid.UUID
+			role          types.Role
+			content       string
+			toolCallsJSON []byte
+			toolCallID    *string
+			citationsJSON []byte
+			createdAt     time.Time
+		)
 
 		err := rows.Scan(
-			&msg.ID,
-			&msg.SessionID,
-			&msg.Role,
-			&msg.Content,
+			&msgID,
+			&sessID,
+			&role,
+			&content,
 			&toolCallsJSON,
-			&msg.ToolCallID,
+			&toolCallID,
 			&citationsJSON,
-			&msg.CreatedAt,
+			&createdAt,
 		)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
 
 		// Unmarshal JSONB fields
-		if err := json.Unmarshal(toolCallsJSON, &msg.ToolCalls); err != nil {
+		var toolCalls []types.ToolCall
+		if err := json.Unmarshal(toolCallsJSON, &toolCalls); err != nil {
 			return nil, serrors.E(op, err)
 		}
 
-		if err := json.Unmarshal(citationsJSON, &msg.Citations); err != nil {
+		var citations []types.Citation
+		if err := json.Unmarshal(citationsJSON, &citations); err != nil {
 			return nil, serrors.E(op, err)
 		}
 
-		messages = append(messages, &msg)
+		// Load code interpreter outputs
+		codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msgID)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+
+		// Build message options
+		msgOpts := []types.MessageOption{
+			types.WithMessageID(msgID),
+			types.WithSessionID(sessID),
+			types.WithRole(role),
+			types.WithContent(content),
+			types.WithCreatedAt(createdAt),
+		}
+		if len(toolCalls) > 0 {
+			msgOpts = append(msgOpts, types.WithToolCalls(toolCalls...))
+		}
+		if toolCallID != nil {
+			msgOpts = append(msgOpts, types.WithToolCallID(*toolCallID))
+		}
+		if len(citations) > 0 {
+			msgOpts = append(msgOpts, types.WithCitations(citations...))
+		}
+		if len(codeOutputs) > 0 {
+			msgOpts = append(msgOpts, types.WithCodeOutputs(codeOutputs...))
+		}
+
+		messages = append(messages, types.NewMessage(msgOpts...))
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, serrors.E(op, err)
-	}
-
-	// Load code interpreter outputs for all messages in a batch
-	for _, msg := range messages {
-		codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msg.ID)
-		if err != nil {
-			return nil, serrors.E(op, err)
-		}
-		msg.CodeOutputs = codeOutputs
 	}
 
 	return messages, nil
@@ -576,7 +636,7 @@ func (r *PostgresChatRepository) TruncateMessagesFrom(ctx context.Context, sessi
 // Attachment operations
 
 // SaveAttachment saves an attachment to the database.
-func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment *domain.Attachment) error {
+func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment domain.Attachment) error {
 	const op serrors.Op = "PostgresChatRepository.SaveAttachment"
 
 	tx, err := composables.UseTx(ctx)
@@ -584,18 +644,19 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 		return serrors.E(op, err)
 	}
 
-	if attachment.CreatedAt.IsZero() {
-		attachment.CreatedAt = time.Now()
+	createdAt := attachment.CreatedAt()
+	if createdAt.IsZero() {
+		createdAt = time.Now()
 	}
 
 	_, err = tx.Exec(ctx, insertAttachmentQuery,
-		attachment.ID,
-		attachment.MessageID,
-		attachment.FileName,
-		attachment.MimeType,
-		attachment.SizeBytes,
-		attachment.FilePath,
-		attachment.CreatedAt,
+		attachment.ID(),
+		attachment.MessageID(),
+		attachment.FileName(),
+		attachment.MimeType(),
+		attachment.SizeBytes(),
+		attachment.FilePath(),
+		createdAt,
 	)
 	if err != nil {
 		return serrors.E(op, err)
@@ -605,7 +666,7 @@ func (r *PostgresChatRepository) SaveAttachment(ctx context.Context, attachment 
 }
 
 // GetAttachment retrieves an attachment by ID.
-func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (*domain.Attachment, error) {
+func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (domain.Attachment, error) {
 	const op serrors.Op = "PostgresChatRepository.GetAttachment"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -618,15 +679,23 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 		return nil, serrors.E(op, err)
 	}
 
-	var attachment domain.Attachment
+	var (
+		aid        uuid.UUID
+		messageID  uuid.UUID
+		fileName   string
+		mimeType   string
+		sizeBytes  int64
+		filePath   string
+		createdAt  time.Time
+	)
 	err = tx.QueryRow(ctx, selectAttachmentQuery, tenantID, id).Scan(
-		&attachment.ID,
-		&attachment.MessageID,
-		&attachment.FileName,
-		&attachment.MimeType,
-		&attachment.SizeBytes,
-		&attachment.FilePath,
-		&attachment.CreatedAt,
+		&aid,
+		&messageID,
+		&fileName,
+		&mimeType,
+		&sizeBytes,
+		&filePath,
+		&createdAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -635,11 +704,19 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 		return nil, serrors.E(op, err)
 	}
 
-	return &attachment, nil
+	return domain.NewAttachment(
+		domain.WithAttachmentID(aid),
+		domain.WithAttachmentMessageID(messageID),
+		domain.WithFileName(fileName),
+		domain.WithMimeType(mimeType),
+		domain.WithSizeBytes(sizeBytes),
+		domain.WithFilePath(filePath),
+		domain.WithAttachmentCreatedAt(createdAt),
+	), nil
 }
 
 // GetMessageAttachments retrieves all attachments for a message.
-func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]*domain.Attachment, error) {
+func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
 	const op serrors.Op = "PostgresChatRepository.GetMessageAttachments"
 
 	tenantID, err := composables.UseTenantID(ctx)
@@ -658,22 +735,38 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 	}
 	defer rows.Close()
 
-	var attachments []*domain.Attachment
+	var attachments []domain.Attachment
 	for rows.Next() {
-		var attachment domain.Attachment
+		var (
+			aid        uuid.UUID
+			msgID      uuid.UUID
+			fileName   string
+			mimeType   string
+			sizeBytes  int64
+			filePath   string
+			createdAt  time.Time
+		)
 		err := rows.Scan(
-			&attachment.ID,
-			&attachment.MessageID,
-			&attachment.FileName,
-			&attachment.MimeType,
-			&attachment.SizeBytes,
-			&attachment.FilePath,
-			&attachment.CreatedAt,
+			&aid,
+			&msgID,
+			&fileName,
+			&mimeType,
+			&sizeBytes,
+			&filePath,
+			&createdAt,
 		)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
-		attachments = append(attachments, &attachment)
+		attachments = append(attachments, domain.NewAttachment(
+			domain.WithAttachmentID(aid),
+			domain.WithAttachmentMessageID(msgID),
+			domain.WithFileName(fileName),
+			domain.WithMimeType(mimeType),
+			domain.WithSizeBytes(sizeBytes),
+			domain.WithFilePath(filePath),
+			domain.WithAttachmentCreatedAt(createdAt),
+		))
 	}
 
 	if err := rows.Err(); err != nil {

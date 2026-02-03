@@ -12,13 +12,13 @@ CREATE TABLE IF NOT EXISTS bichat_sessions (
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL DEFAULT '',
-    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     pinned BOOLEAN NOT NULL DEFAULT false,
     parent_session_id UUID REFERENCES bichat_sessions(id) ON DELETE SET NULL,
     pending_question_agent VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT bichat_sessions_status_check CHECK (status IN ('active', 'archived'))
+    CONSTRAINT bichat_sessions_status_check CHECK (status IN ('ACTIVE', 'ARCHIVED'))
 );
 
 -- Messages table for individual messages in sessions
@@ -71,11 +71,17 @@ CREATE INDEX IF NOT EXISTS idx_bichat_sessions_tenant_user
 CREATE INDEX IF NOT EXISTS idx_bichat_sessions_tenant_id
     ON bichat_sessions(tenant_id, id);
 
+CREATE INDEX IF NOT EXISTS idx_bichat_sessions_user_status
+    ON bichat_sessions(user_id, status, created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_bichat_sessions_status
     ON bichat_sessions(status);
 
 CREATE INDEX IF NOT EXISTS idx_bichat_sessions_created_at
     ON bichat_sessions(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_bichat_sessions_status_pinned
+    ON bichat_sessions(status, pinned, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_bichat_sessions_pinned
     ON bichat_sessions(pinned) WHERE pinned = true;

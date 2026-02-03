@@ -116,8 +116,8 @@ func TestSessionStatus_Values(t *testing.T) {
 		status   domain.SessionStatus
 		expected string
 	}{
-		{domain.SessionStatusActive, "active"},
-		{domain.SessionStatusArchived, "archived"},
+		{domain.SessionStatusActive, "ACTIVE"},
+		{domain.SessionStatusArchived, "ARCHIVED"},
 	}
 
 	for _, tt := range tests {
