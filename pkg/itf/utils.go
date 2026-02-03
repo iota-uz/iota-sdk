@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -293,9 +294,17 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	if err := modules.Load(app, mods...); err != nil {
 		return nil, err
 	}
-	if err := app.Migrations().Run(); err != nil {
-		return nil, err
+
+	// Only run migrations if migrations directory exists
+	// In CI, migrations are applied via `make db migrate up` before tests run,
+	// so we skip re-running them to avoid "no such file" errors when tests
+	// run from subdirectories where migrations/ path doesn't resolve.
+	if _, err := os.Stat(conf.MigrationsDir); err == nil {
+		if err := app.Migrations().Run(); err != nil {
+			return nil, err
+		}
 	}
+
 	return app, nil
 }
 
@@ -312,11 +321,15 @@ func GetTestContext() *TestFixtures {
 	if err := modules.Load(app, modules.BuiltInModules...); err != nil {
 		panic(err)
 	}
-	if err := app.Migrations().Rollback(); err != nil {
-		panic(err)
-	}
-	if err := app.Migrations().Run(); err != nil {
-		panic(err)
+
+	// Only run migrations if migrations directory exists
+	if _, err := os.Stat(conf.MigrationsDir); err == nil {
+		if err := app.Migrations().Rollback(); err != nil {
+			panic(err)
+		}
+		if err := app.Migrations().Run(); err != nil {
+			panic(err)
+		}
 	}
 
 	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)
