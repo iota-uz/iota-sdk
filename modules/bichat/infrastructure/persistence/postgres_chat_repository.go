@@ -516,6 +516,18 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 	return types.NewMessage(opts...), nil
 }
 
+// messageData holds intermediate message data before code outputs are loaded.
+type messageData struct {
+	msgID         uuid.UUID
+	sessID        uuid.UUID
+	role          types.Role
+	content       string
+	toolCalls     []types.ToolCall
+	toolCallID    *string
+	citations     []types.Citation
+	createdAt     time.Time
+}
+
 // GetSessionMessages retrieves all messages for a session with pagination.
 func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
 	const op serrors.Op = "PostgresChatRepository.GetSessionMessages"
@@ -536,7 +548,9 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	}
 	defer rows.Close()
 
-	var messages []types.Message
+	// First pass: collect all message data without nested queries
+	// This avoids "conn busy" error from nested queries on the same connection
+	var messagesData []messageData
 	for rows.Next() {
 		var (
 			msgID         uuid.UUID
@@ -574,38 +588,52 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 			return nil, serrors.E(op, err)
 		}
 
-		// Load code interpreter outputs
-		codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, msgID)
+		messagesData = append(messagesData, messageData{
+			msgID:      msgID,
+			sessID:     sessID,
+			role:       role,
+			content:    content,
+			toolCalls:  toolCalls,
+			toolCallID: toolCallID,
+			citations:  citations,
+			createdAt:  createdAt,
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	// Second pass: load code outputs for each message (rows are now closed)
+	var messages []types.Message
+	for _, md := range messagesData {
+		codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, md.msgID)
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
 
 		// Build message options
 		msgOpts := []types.MessageOption{
-			types.WithMessageID(msgID),
-			types.WithSessionID(sessID),
-			types.WithRole(role),
-			types.WithContent(content),
-			types.WithCreatedAt(createdAt),
+			types.WithMessageID(md.msgID),
+			types.WithSessionID(md.sessID),
+			types.WithRole(md.role),
+			types.WithContent(md.content),
+			types.WithCreatedAt(md.createdAt),
 		}
-		if len(toolCalls) > 0 {
-			msgOpts = append(msgOpts, types.WithToolCalls(toolCalls...))
+		if len(md.toolCalls) > 0 {
+			msgOpts = append(msgOpts, types.WithToolCalls(md.toolCalls...))
 		}
-		if toolCallID != nil {
-			msgOpts = append(msgOpts, types.WithToolCallID(*toolCallID))
+		if md.toolCallID != nil {
+			msgOpts = append(msgOpts, types.WithToolCallID(*md.toolCallID))
 		}
-		if len(citations) > 0 {
-			msgOpts = append(msgOpts, types.WithCitations(citations...))
+		if len(md.citations) > 0 {
+			msgOpts = append(msgOpts, types.WithCitations(md.citations...))
 		}
 		if len(codeOutputs) > 0 {
 			msgOpts = append(msgOpts, types.WithCodeOutputs(codeOutputs...))
 		}
 
 		messages = append(messages, types.NewMessage(msgOpts...))
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err)
 	}
 
 	return messages, nil

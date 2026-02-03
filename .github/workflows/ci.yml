@@ -333,7 +333,9 @@ jobs:
           DB_USER: postgres
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
-          GO_APP_ENV: production
+          # Use development mode for E2E tests to ensure cookies work over HTTP
+          # (production mode sets Secure: true on cookies, which requires HTTPS)
+          GO_APP_ENV: development
           ENABLE_TEST_ENDPOINTS: true
         run: |
           go run -tags dev cmd/server/main.go &
