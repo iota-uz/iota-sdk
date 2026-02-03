@@ -69,7 +69,7 @@ db:
 		echo "  clean   - Remove postgres-data directory"; \
 		echo "  reset   - Stop, clean, and restart local database"; \
 		echo "  seed    - Seed database with test data"; \
-		echo "  migrate - Run database migrations (up/down/redo/collect)"; \
+		echo "  migrate - Run database migrations (up/down/redo/status/collect)"; \
 	fi
 
 # Run tests with optional subcommands (test, watch, coverage, verbose, package, docker)
