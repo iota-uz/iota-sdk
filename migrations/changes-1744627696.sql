@@ -316,97 +316,97 @@ CREATE INDEX employees_last_name_idx ON employees (last_name);
 
 -- +migrate Down
 -- Undo CREATE_INDEX: employees_last_name_idx
-DROP INDEX employees_last_name_idx;
+DROP INDEX IF EXISTS employees_last_name_idx;
 
 -- Undo CREATE_INDEX: idx_clients_tenant_id
-DROP INDEX idx_clients_tenant_id;
+DROP INDEX IF EXISTS idx_clients_tenant_id;
 
 -- Undo CREATE_INDEX: money_accounts_tenant_id_idx
-DROP INDEX money_accounts_tenant_id_idx;
+DROP INDEX IF EXISTS money_accounts_tenant_id_idx;
 
 -- Undo CREATE_INDEX: tabs_tenant_id_idx
-DROP INDEX tabs_tenant_id_idx;
+DROP INDEX IF EXISTS tabs_tenant_id_idx;
 
 -- Undo CREATE_INDEX: uploads_tenant_id_idx
-DROP INDEX uploads_tenant_id_idx;
+DROP INDEX IF EXISTS uploads_tenant_id_idx;
 
 -- Undo CREATE_INDEX: roles_tenant_id_idx
-DROP INDEX roles_tenant_id_idx;
+DROP INDEX IF EXISTS roles_tenant_id_idx;
 
 -- Undo CREATE_INDEX: employees_phone_idx
-DROP INDEX employees_phone_idx;
+DROP INDEX IF EXISTS employees_phone_idx;
 
 -- Undo CREATE_INDEX: expense_categories_tenant_id_idx
-DROP INDEX expense_categories_tenant_id_idx;
+DROP INDEX IF EXISTS expense_categories_tenant_id_idx;
 
 -- Undo CREATE_INDEX: idx_chats_tenant_id
-DROP INDEX idx_chats_tenant_id;
+DROP INDEX IF EXISTS idx_chats_tenant_id;
 
 -- Undo CREATE_INDEX: permissions_tenant_id_idx
-DROP INDEX permissions_tenant_id_idx;
+DROP INDEX IF EXISTS permissions_tenant_id_idx;
 
 -- Undo CREATE_INDEX: warehouse_orders_tenant_id_idx
-DROP INDEX warehouse_orders_tenant_id_idx;
+DROP INDEX IF EXISTS warehouse_orders_tenant_id_idx;
 
 -- Undo CREATE_INDEX: positions_tenant_id_idx
-DROP INDEX positions_tenant_id_idx;
+DROP INDEX IF EXISTS positions_tenant_id_idx;
 
 -- Undo CREATE_INDEX: idx_message_templates_tenant_id
-DROP INDEX idx_message_templates_tenant_id;
+DROP INDEX IF EXISTS idx_message_templates_tenant_id;
 
 -- Undo CREATE_INDEX: transactions_tenant_id_idx
-DROP INDEX transactions_tenant_id_idx;
+DROP INDEX IF EXISTS transactions_tenant_id_idx;
 
 -- Undo CREATE_INDEX: warehouse_products_tenant_id_idx
-DROP INDEX warehouse_products_tenant_id_idx;
+DROP INDEX IF EXISTS warehouse_products_tenant_id_idx;
 
 -- Undo CREATE_INDEX: prompts_tenant_id_idx
 DROP INDEX IF EXISTS prompts_tenant_id_idx;
 
 -- Undo CREATE_INDEX: sessions_tenant_id_idx
-DROP INDEX sessions_tenant_id_idx;
+DROP INDEX IF EXISTS sessions_tenant_id_idx;
 
 -- Undo CREATE_INDEX: inventory_check_results_tenant_id_idx
-DROP INDEX inventory_check_results_tenant_id_idx;
+DROP INDEX IF EXISTS inventory_check_results_tenant_id_idx;
 
 -- Undo CREATE_INDEX: employees_email_idx
-DROP INDEX employees_email_idx;
+DROP INDEX IF EXISTS employees_email_idx;
 
 -- Undo CREATE_INDEX: dialogues_tenant_id_idx
-DROP INDEX dialogues_tenant_id_idx;
+DROP INDEX IF EXISTS dialogues_tenant_id_idx;
 
 -- Undo CREATE_INDEX: authentication_logs_tenant_id_idx
-DROP INDEX authentication_logs_tenant_id_idx;
+DROP INDEX IF EXISTS authentication_logs_tenant_id_idx;
 
 -- Undo CREATE_INDEX: inventory_tenant_id_idx
-DROP INDEX inventory_tenant_id_idx;
+DROP INDEX IF EXISTS inventory_tenant_id_idx;
 
 -- Undo CREATE_INDEX: employees_first_name_idx
-DROP INDEX employees_first_name_idx;
+DROP INDEX IF EXISTS employees_first_name_idx;
 
 -- Undo CREATE_INDEX: inventory_checks_tenant_id_idx
-DROP INDEX inventory_checks_tenant_id_idx;
+DROP INDEX IF EXISTS inventory_checks_tenant_id_idx;
 
 -- Undo CREATE_INDEX: users_tenant_id_idx
-DROP INDEX users_tenant_id_idx;
+DROP INDEX IF EXISTS users_tenant_id_idx;
 
 -- Undo CREATE_INDEX: warehouse_positions_tenant_id_idx
-DROP INDEX warehouse_positions_tenant_id_idx;
+DROP INDEX IF EXISTS warehouse_positions_tenant_id_idx;
 
 -- Undo CREATE_INDEX: warehouse_units_tenant_id_idx
-DROP INDEX warehouse_units_tenant_id_idx;
+DROP INDEX IF EXISTS warehouse_units_tenant_id_idx;
 
 -- Undo CREATE_INDEX: employees_tenant_id_idx
-DROP INDEX employees_tenant_id_idx;
+DROP INDEX IF EXISTS employees_tenant_id_idx;
 
 -- Undo CREATE_INDEX: action_logs_tenant_id_idx
-DROP INDEX action_logs_tenant_id_idx;
+DROP INDEX IF EXISTS action_logs_tenant_id_idx;
 
 -- Undo CREATE_INDEX: counterparty_tenant_id_idx
-DROP INDEX counterparty_tenant_id_idx;
+DROP INDEX IF EXISTS counterparty_tenant_id_idx;
 
 -- Undo CREATE_INDEX: user_groups_tenant_id_idx
-DROP INDEX user_groups_tenant_id_idx;
+DROP INDEX IF EXISTS user_groups_tenant_id_idx;
 
 ALTER TABLE warehouse_products
     DROP CONSTRAINT IF EXISTS warehouse_products_tenant_id_rfid_key;
