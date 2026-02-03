@@ -45,8 +45,8 @@ export function MessageList({ renderUserMessage, renderAssistantMessage }: Messa
   }
 
   return (
-    <div className="relative flex-1">
-      <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 h-full">
+    <div className="relative flex-1 min-h-0">
+      <div ref={containerRef} className="h-full overflow-y-auto px-4 py-6">
         <div className="max-w-4xl mx-auto space-y-6">
           {messages.map((message) => (
             <TurnBubble

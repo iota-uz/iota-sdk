@@ -125,6 +125,14 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// 6. Stream chunks
+	type streamChunkDTO struct {
+		Type     string               `json:"type"`
+		Content  string               `json:"content,omitempty"`
+		Citation *domain.Citation     `json:"citation,omitempty"`
+		Usage    *services.TokenUsage `json:"usage,omitempty"`
+		Error    string               `json:"error,omitempty"`
+	}
+
 	err = c.chatService.SendMessageStream(r.Context(), services.SendMessageRequest{
 		SessionID:   req.SessionID,
 		UserID:      int64(user.ID()),
@@ -138,25 +146,27 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		default:
 		}
 
-		// Serialize chunk to JSON
-		data, err := json.Marshal(chunk)
-		if err != nil {
-			c.sendSSEEvent(w, flusher, "error", map[string]string{
-				"type":  "error",
-				"error": "Failed to serialize chunk",
-			})
-			return
+		payload := streamChunkDTO{
+			Type:     string(chunk.Type),
+			Content:  chunk.Content,
+			Citation: chunk.Citation,
+			Usage:    chunk.Usage,
+		}
+		if chunk.Error != nil {
+			// Avoid leaking internal errors to the client.
+			if chunk.Type == services.ChunkTypeError {
+				payload.Error = "An error occurred while processing your request"
+			} else {
+				payload.Error = chunk.Error.Error()
+			}
 		}
 
-		// Write SSE event based on chunk type
-		eventType := "chunk"
-		if chunk.Type == services.ChunkTypeError {
-			eventType = "error"
-		} else if chunk.Type == services.ChunkTypeDone {
-			eventType = "done"
+		// Event name is for SSE clients that care; our frontend reads `data:` lines.
+		eventName := payload.Type
+		if eventName == "" {
+			eventName = "chunk"
 		}
-
-		c.sendSSEEvent(w, flusher, eventType, json.RawMessage(data))
+		c.sendSSEEvent(w, flusher, eventName, payload)
 	})
 
 	if err != nil {

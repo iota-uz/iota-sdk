@@ -16,12 +16,12 @@ export default function Layout() {
   }
 
   return (
-    <div className="flex flex-1 w-full min-h-screen overflow-hidden">
+    <div className="flex flex-1 w-full h-full min-h-0 overflow-hidden">
       {/* Sidebar - always visible (desktop-only) */}
       <Sidebar onNewChat={handleNewChat} creating={false} />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <Outlet />
       </main>
     </div>

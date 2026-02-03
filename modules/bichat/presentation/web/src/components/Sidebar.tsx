@@ -200,7 +200,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
   return (
     <aside
-      className="w-64 h-screen flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
+      className="w-64 h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
       role="navigation"
       aria-label="Chat sessions"
     >

@@ -110,6 +110,12 @@ func (m *Module) Register(app application.Application) error {
 		)
 		controllersToRegister = append(controllersToRegister, chatController)
 
+		streamController := controllers.NewStreamController(
+			app,
+			m.config.ChatService(),
+		)
+		controllersToRegister = append(controllersToRegister, streamController)
+
 		if m.config.Logger != nil {
 			m.config.Logger.Info("Registered BiChat GraphQL schema at /query/bichat and REST endpoints at /bi-chat/*")
 		}
