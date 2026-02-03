@@ -361,7 +361,7 @@ DROP INDEX transactions_tenant_id_idx;
 DROP INDEX warehouse_products_tenant_id_idx;
 
 -- Undo CREATE_INDEX: prompts_tenant_id_idx
-DROP INDEX prompts_tenant_id_idx;
+DROP INDEX IF EXISTS prompts_tenant_id_idx;
 
 -- Undo CREATE_INDEX: sessions_tenant_id_idx
 DROP INDEX sessions_tenant_id_idx;
