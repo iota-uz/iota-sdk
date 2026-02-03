@@ -1,4 +1,5 @@
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 
 const repoRoot = path.resolve(process.cwd())
@@ -44,3 +45,24 @@ await cp(
   path.join(repoRoot, 'ui/tailwind/create-config.cjs'),
   createConfigPath,
 )
+
+const compiledInputPath = path.join(repoRoot, 'ui/tailwind/compiled-input.css')
+const compiledCssPath = path.join(outDir, 'compiled.css')
+
+const compiled = spawnSync(
+  'pnpm',
+  [
+    'exec',
+    'tailwindcss',
+    '--input',
+    compiledInputPath,
+    '--output',
+    compiledCssPath,
+    '--minify',
+  ],
+  { cwd: repoRoot, stdio: 'inherit' },
+)
+
+if (compiled.status !== 0) {
+  throw new Error(`tailwindcss compilation failed with exit code ${compiled.status}`)
+}

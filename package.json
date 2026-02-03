@@ -1,6 +1,6 @@
 {
   "name": "@iota-uz/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "IOTA SDK UI utilities, Tailwind configuration, and React components for building IOTA SDK applets.",
   "license": "MIT",
   "private": false,
@@ -32,6 +32,7 @@
     "./bichat/styles.css": "./dist/bichat/styles.css",
     "./tailwind/main.css": "./tailwind/main.css",
     "./tailwind/iota.css": "./tailwind/iota.css",
+    "./tailwind/compiled.css": "./tailwind/compiled.css",
     "./tailwind/create-config": "./tailwind/create-config.cjs",
     "./assets/*": "./assets/*",
     "./assets/fonts/*": "./assets/fonts/*"
