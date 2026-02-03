@@ -329,9 +329,12 @@ jobs:
           # Wait for server to be ready (timeout: 60 seconds)
           timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
 
-          # Warm up app (login page + test endpoints) so first Playwright request is stable
-          curl -s -o /dev/null http://localhost:3201/login || true
-          curl -s -o /dev/null http://localhost:3201/__test__/health || true
+          # Warm up and verify server accepts login (POST can be heavy; retry until ready)
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3201/login -d 'Email=test@gmail.com&Password=TestPass123!') || true
+            if [ "$code" = "302" ] || [ "$code" = "200" ]; then echo "Server ready (HTTP $code)"; break; fi
+            echo "Attempt $i: HTTP $code, waiting 3s..."; sleep 3
+          done
           sleep 5
 
       - name: Run Playwright Tests

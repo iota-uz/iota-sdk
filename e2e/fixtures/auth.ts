@@ -36,6 +36,7 @@ export async function login(page: Page, email: string, password: string) {
 			const msg = err instanceof Error ? err.message : String(err);
 			const isRetryable = attempt < LOGIN_ATTEMPTS && (
 				msg.includes('ERR_EMPTY_RESPONSE') ||
+				msg.includes('socket hang up') ||
 				msg.includes('timeout') ||
 				msg.includes('Timeout') ||
 				msg.includes('Still on login')
