@@ -13,30 +13,30 @@ import (
 // checkpointDTO is used for JSON serialization of Checkpoint.
 // Since Message is now an interface, we need to serialize messages to a storable format.
 type checkpointDTO struct {
-	ID            string              `json:"id"`
-	ThreadID      string              `json:"thread_id"`
-	AgentName     string              `json:"agent_name"`
-	SessionID     uuid.UUID           `json:"session_id"`
-	TenantID      uuid.UUID           `json:"tenant_id"`
-	Messages      []messageDTO        `json:"messages"`
-	PendingTools  []types.ToolCall    `json:"pending_tools"`
-	InterruptType string              `json:"interrupt_type"`
-	InterruptData json.RawMessage     `json:"interrupt_data,omitempty"`
-	CreatedAt     time.Time           `json:"created_at"`
+	ID            string           `json:"id"`
+	ThreadID      string           `json:"thread_id"`
+	AgentName     string           `json:"agent_name"`
+	SessionID     uuid.UUID        `json:"session_id"`
+	TenantID      uuid.UUID        `json:"tenant_id"`
+	Messages      []messageDTO     `json:"messages"`
+	PendingTools  []types.ToolCall `json:"pending_tools"`
+	InterruptType string           `json:"interrupt_type"`
+	InterruptData json.RawMessage  `json:"interrupt_data,omitempty"`
+	CreatedAt     time.Time        `json:"created_at"`
 }
 
 // messageDTO is used for JSON serialization of Message interface.
 type messageDTO struct {
-	ID           uuid.UUID     `json:"id"`
-	SessionID    uuid.UUID     `json:"session_id"`
-	Role         types.Role    `json:"role"`
-	Content      string        `json:"content"`
-	ToolCalls    []types.ToolCall `json:"tool_calls"`
-	ToolCallID   *string       `json:"tool_call_id"`
-	Attachments  []types.Attachment `json:"attachments"`
-	Citations    []types.Citation `json:"citations"`
-	CodeOutputs  []types.CodeInterpreterOutput `json:"code_outputs"`
-	CreatedAt    time.Time     `json:"created_at"`
+	ID          uuid.UUID                     `json:"id"`
+	SessionID   uuid.UUID                     `json:"session_id"`
+	Role        types.Role                    `json:"role"`
+	Content     string                        `json:"content"`
+	ToolCalls   []types.ToolCall              `json:"tool_calls"`
+	ToolCallID  *string                       `json:"tool_call_id"`
+	Attachments []types.Attachment            `json:"attachments"`
+	Citations   []types.Citation              `json:"citations"`
+	CodeOutputs []types.CodeInterpreterOutput `json:"code_outputs"`
+	CreatedAt   time.Time                     `json:"created_at"`
 }
 
 // Checkpoint represents a saved state for Human-in-the-Loop (HITL) support.

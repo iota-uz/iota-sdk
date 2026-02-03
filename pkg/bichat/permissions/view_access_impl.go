@@ -2,13 +2,13 @@ package permissions
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // tableReferenceRegex matches table/view references in SQL queries.
@@ -48,11 +48,12 @@ func NewViewAccessControl(config *Config) ViewAccessControl {
 
 // CanAccess checks if the current user can access the specified view.
 func (v *viewAccessControl) CanAccess(ctx context.Context, viewName string) (bool, error) {
+	const op serrors.Op = "viewAccessControl.CanAccess"
+
 	// Get user from context
 	u, err := composables.UseUser(ctx)
 	if err != nil {
-		// No user in context - deny access
-		return false, fmt.Errorf("failed to get user from context: %w", err)
+		return false, serrors.E(op, "failed to get user from context", err)
 	}
 
 	// Normalize view name for lookup
@@ -121,12 +122,13 @@ func (v *viewAccessControl) hasPermission(u user.User, reqPerm permission.Permis
 
 // GetAccessibleViews returns view information with access status for all provided views.
 func (v *viewAccessControl) GetAccessibleViews(ctx context.Context, views []string) ([]ViewInfo, error) {
+	const op serrors.Op = "viewAccessControl.GetAccessibleViews"
 	result := make([]ViewInfo, 0, len(views))
 
 	for _, viewName := range views {
 		canAccess, err := v.CanAccess(ctx, viewName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to check access for view %s: %w", viewName, err)
+			return nil, serrors.E(op, "failed to check access for view "+viewName, err)
 		}
 
 		access := "denied"
@@ -145,10 +147,11 @@ func (v *viewAccessControl) GetAccessibleViews(ctx context.Context, views []stri
 
 // CheckQueryPermissions parses SQL and checks if user has access to all referenced views.
 func (v *viewAccessControl) CheckQueryPermissions(ctx context.Context, sql string) ([]DeniedView, error) {
+	const op serrors.Op = "viewAccessControl.CheckQueryPermissions"
+
 	// Extract all table references from the SQL
 	matches := tableReferenceRegex.FindAllStringSubmatch(sql, -1)
 	if len(matches) == 0 {
-		// No table references found - nothing to check
 		return nil, nil
 	}
 
@@ -159,19 +162,17 @@ func (v *viewAccessControl) CheckQueryPermissions(ctx context.Context, sql strin
 			schemaName := strings.ToLower(match[1])
 			viewName := strings.ToLower(match[2])
 
-			// Only check views in our configured schema (if schema is configured)
 			if v.schemaNameLower == "" || schemaName == v.schemaNameLower {
 				viewSet[viewName] = true
 			}
 		}
 	}
 
-	// Check access to each view
 	var deniedViews []DeniedView
 	for viewName := range viewSet {
 		canAccess, err := v.CanAccess(ctx, viewName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to check access for view %s: %w", viewName, err)
+			return nil, serrors.E(op, "failed to check access for view "+viewName, err)
 		}
 
 		if !canAccess {

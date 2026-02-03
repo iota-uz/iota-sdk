@@ -129,10 +129,10 @@ func TestMessage_Creation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		role     types.Role
-		content  string
-		factory  func() types.Message
+		name    string
+		role    types.Role
+		content string
+		factory func() types.Message
 	}{
 		{
 			name:    "user message",

@@ -28,16 +28,16 @@ type Message interface {
 }
 
 type message struct {
-	id           uuid.UUID
-	sessionID    uuid.UUID
-	role         Role
-	content      string
-	toolCalls    []ToolCall
-	toolCallID   *string
-	attachments  []Attachment
-	citations    []Citation
-	codeOutputs  []CodeInterpreterOutput
-	createdAt    time.Time
+	id          uuid.UUID
+	sessionID   uuid.UUID
+	role        Role
+	content     string
+	toolCalls   []ToolCall
+	toolCallID  *string
+	attachments []Attachment
+	citations   []Citation
+	codeOutputs []CodeInterpreterOutput
+	createdAt   time.Time
 }
 
 // MessageOption is a functional option for configuring a Message.

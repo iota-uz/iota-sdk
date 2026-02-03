@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChatSession } from '@iotauz/bichat-ui'
 import { useBiChatDataSource } from '../data/bichatDataSource'
@@ -6,7 +7,11 @@ export default function ChatPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const dataSource = useBiChatDataSource((sessionId: string) => navigate(`/session/${sessionId}`))
+  const onNavigateToSession = useCallback(
+    (sessionId: string) => navigate(`/session/${sessionId}`),
+    [navigate]
+  )
+  const dataSource = useBiChatDataSource(onNavigateToSession)
 
   if (!id) {
     return (

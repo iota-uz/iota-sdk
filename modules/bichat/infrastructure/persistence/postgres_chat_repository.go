@@ -197,12 +197,12 @@ func (r *PostgresChatRepository) GetSession(ctx context.Context, id uuid.UUID) (
 	}
 
 	var (
-		sid                   uuid.UUID
-		tenantIDRow           uuid.UUID
-		userID                int64
-		title                 string
-		status                domain.SessionStatus
-		pinned                bool
+		sid                  uuid.UUID
+		tenantIDRow          uuid.UUID
+		userID               int64
+		title                string
+		status               domain.SessionStatus
+		pinned               bool
 		parentSessionID      *uuid.UUID
 		pendingQuestionAgent *string
 		createdAt            time.Time
@@ -297,12 +297,12 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 	var sessions []domain.Session
 	for rows.Next() {
 		var (
-			sid                   uuid.UUID
-			tenantIDRow           uuid.UUID
-			userIDRow             int64
-			title                 string
-			status                domain.SessionStatus
-			pinned                bool
+			sid                  uuid.UUID
+			tenantIDRow          uuid.UUID
+			userIDRow            int64
+			title                string
+			status               domain.SessionStatus
+			pinned               bool
 			parentSessionID      *uuid.UUID
 			pendingQuestionAgent *string
 			createdAt            time.Time
@@ -680,13 +680,13 @@ func (r *PostgresChatRepository) GetAttachment(ctx context.Context, id uuid.UUID
 	}
 
 	var (
-		aid        uuid.UUID
-		messageID  uuid.UUID
-		fileName   string
-		mimeType   string
-		sizeBytes  int64
-		filePath   string
-		createdAt  time.Time
+		aid       uuid.UUID
+		messageID uuid.UUID
+		fileName  string
+		mimeType  string
+		sizeBytes int64
+		filePath  string
+		createdAt time.Time
 	)
 	err = tx.QueryRow(ctx, selectAttachmentQuery, tenantID, id).Scan(
 		&aid,
@@ -738,13 +738,13 @@ func (r *PostgresChatRepository) GetMessageAttachments(ctx context.Context, mess
 	var attachments []domain.Attachment
 	for rows.Next() {
 		var (
-			aid        uuid.UUID
-			msgID      uuid.UUID
-			fileName   string
-			mimeType   string
-			sizeBytes  int64
-			filePath   string
-			createdAt  time.Time
+			aid       uuid.UUID
+			msgID     uuid.UUID
+			fileName  string
+			mimeType  string
+			sizeBytes int64
+			filePath  string
+			createdAt time.Time
 		)
 		err := rows.Scan(
 			&aid,

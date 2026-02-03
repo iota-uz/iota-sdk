@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewAttachment(t *testing.T) {
@@ -13,27 +15,13 @@ func TestNewAttachment(t *testing.T) {
 	t.Run("creates attachment with defaults", func(t *testing.T) {
 		att := NewAttachment()
 
-		if att.ID() == uuid.Nil {
-			t.Error("Expected non-nil ID")
-		}
-		if att.MessageID() != uuid.Nil {
-			t.Error("Expected nil MessageID by default")
-		}
-		if att.FileName() != "" {
-			t.Error("Expected empty FileName by default")
-		}
-		if att.MimeType() != "" {
-			t.Error("Expected empty MimeType by default")
-		}
-		if att.SizeBytes() != 0 {
-			t.Error("Expected 0 SizeBytes by default")
-		}
-		if att.FilePath() != "" {
-			t.Error("Expected empty FilePath by default")
-		}
-		if att.CreatedAt().IsZero() {
-			t.Error("Expected CreatedAt to be set")
-		}
+		require.NotEqual(t, uuid.Nil, att.ID(), "expected non-nil ID")
+		assert.Equal(t, uuid.Nil, att.MessageID(), "expected nil MessageID by default")
+		assert.Empty(t, att.FileName(), "expected empty FileName by default")
+		assert.Empty(t, att.MimeType(), "expected empty MimeType by default")
+		assert.Equal(t, int64(0), att.SizeBytes(), "expected 0 SizeBytes by default")
+		assert.Empty(t, att.FilePath(), "expected empty FilePath by default")
+		assert.False(t, att.CreatedAt().IsZero(), "expected CreatedAt to be set")
 	})
 
 	t.Run("creates attachment with options", func(t *testing.T) {
@@ -51,27 +39,13 @@ func TestNewAttachment(t *testing.T) {
 			WithAttachmentCreatedAt(customTime),
 		)
 
-		if att.ID() != customID {
-			t.Errorf("Expected ID %s, got %s", customID, att.ID())
-		}
-		if att.MessageID() != msgID {
-			t.Errorf("Expected MessageID %s, got %s", msgID, att.MessageID())
-		}
-		if att.FileName() != "test.png" {
-			t.Errorf("Expected FileName 'test.png', got '%s'", att.FileName())
-		}
-		if att.MimeType() != "image/png" {
-			t.Errorf("Expected MimeType 'image/png', got '%s'", att.MimeType())
-		}
-		if att.SizeBytes() != 2048 {
-			t.Errorf("Expected SizeBytes 2048, got %d", att.SizeBytes())
-		}
-		if att.FilePath() != "/path/to/file" {
-			t.Errorf("Expected FilePath '/path/to/file', got '%s'", att.FilePath())
-		}
-		if !att.CreatedAt().Equal(customTime) {
-			t.Errorf("Expected CreatedAt %v, got %v", customTime, att.CreatedAt())
-		}
+		require.Equal(t, customID, att.ID())
+		require.Equal(t, msgID, att.MessageID())
+		assert.Equal(t, "test.png", att.FileName())
+		assert.Equal(t, "image/png", att.MimeType())
+		assert.Equal(t, int64(2048), att.SizeBytes())
+		assert.Equal(t, "/path/to/file", att.FilePath())
+		assert.True(t, att.CreatedAt().Equal(customTime), "expected CreatedAt to match custom time")
 	})
 }
 
@@ -93,10 +67,10 @@ func TestAttachment_IsImage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		att := NewAttachment(WithMimeType(tt.mimeType))
-		if att.IsImage() != tt.expected {
-			t.Errorf("IsImage() for %q: expected %v, got %v", tt.mimeType, tt.expected, att.IsImage())
-		}
+		t.Run(tt.mimeType, func(t *testing.T) {
+			att := NewAttachment(WithMimeType(tt.mimeType))
+			assert.Equal(t, tt.expected, att.IsImage(), "IsImage() for mimeType %q", tt.mimeType)
+		})
 	}
 }
 
@@ -118,16 +92,17 @@ func TestAttachment_IsDocument(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		att := NewAttachment(WithMimeType(tt.mimeType))
-		if att.IsDocument() != tt.expected {
-			t.Errorf("IsDocument() for %q: expected %v, got %v", tt.mimeType, tt.expected, att.IsDocument())
-		}
+		t.Run(tt.mimeType, func(t *testing.T) {
+			att := NewAttachment(WithMimeType(tt.mimeType))
+			assert.Equal(t, tt.expected, att.IsDocument(), "IsDocument() for mimeType %q", tt.mimeType)
+		})
 	}
 }
 
-func TestAttachment_ImplementsInterface(t *testing.T) {
+func TestNewAttachment_ReturnsConcreteType(t *testing.T) {
 	t.Parallel()
 
-	// This test ensures Attachment is an interface and the implementation satisfies it
-	var _ Attachment = NewAttachment()
+	att := NewAttachment()
+	require.NotNil(t, att)
+	require.NotEqual(t, uuid.Nil, att.ID())
 }

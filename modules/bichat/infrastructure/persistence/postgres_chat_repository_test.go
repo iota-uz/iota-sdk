@@ -567,14 +567,14 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 
 	msg2 := types.AssistantMessage("Second message",
 		types.WithSessionID(session.ID()),
-		types.WithCreatedAt(baseTime.Add(10 * time.Millisecond)),
+		types.WithCreatedAt(baseTime.Add(10*time.Millisecond)),
 	)
 	err = repo.SaveMessage(env.Ctx, msg2)
 	require.NoError(t, err)
 
 	msg3 := types.UserMessage("Third message",
 		types.WithSessionID(session.ID()),
-		types.WithCreatedAt(baseTime.Add(20 * time.Millisecond)),
+		types.WithCreatedAt(baseTime.Add(20*time.Millisecond)),
 	)
 	err = repo.SaveMessage(env.Ctx, msg3)
 	require.NoError(t, err)
@@ -613,7 +613,7 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		msg := types.UserMessage("Message "+string('A'+byte(i)),
 			types.WithSessionID(session.ID()),
-			types.WithCreatedAt(baseTime.Add(time.Duration(i) * 5 * time.Millisecond)),
+			types.WithCreatedAt(baseTime.Add(time.Duration(i)*5*time.Millisecond)),
 		)
 		err = repo.SaveMessage(env.Ctx, msg)
 		require.NoError(t, err)
@@ -880,7 +880,7 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 		domain.WithMimeType("image/jpeg"),
 		domain.WithSizeBytes(2048),
 		domain.WithFilePath("/uploads/image.jpg"),
-		domain.WithAttachmentCreatedAt(baseTime.Add(5 * time.Millisecond)),
+		domain.WithAttachmentCreatedAt(baseTime.Add(5*time.Millisecond)),
 	)
 	err = repo.SaveAttachment(env.Ctx, att2)
 	require.NoError(t, err)
@@ -891,7 +891,7 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 		domain.WithMimeType("text/csv"),
 		domain.WithSizeBytes(512),
 		domain.WithFilePath("/uploads/data.csv"),
-		domain.WithAttachmentCreatedAt(baseTime.Add(10 * time.Millisecond)),
+		domain.WithAttachmentCreatedAt(baseTime.Add(10*time.Millisecond)),
 	)
 	err = repo.SaveAttachment(env.Ctx, att3)
 	require.NoError(t, err)
@@ -1140,7 +1140,7 @@ func TestPostgresChatRepository_EmptyTitle(t *testing.T) {
 	// Verify empty title is preserved
 	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Equal(t, "", retrieved.Title)
+	assert.Empty(t, retrieved.Title())
 }
 
 func TestPostgresChatRepository_NilParentSessionID(t *testing.T) {
@@ -1161,7 +1161,7 @@ func TestPostgresChatRepository_NilParentSessionID(t *testing.T) {
 	// Verify nil parent is handled correctly
 	retrieved, err := repo.GetSession(env.Ctx, session.ID())
 	require.NoError(t, err)
-	assert.Nil(t, retrieved.ParentSessionID)
+	assert.Nil(t, retrieved.ParentSessionID())
 }
 
 func TestPostgresChatRepository_PaginationBoundaries(t *testing.T) {

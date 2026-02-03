@@ -61,8 +61,8 @@ type ArtifactOption func(*artifact)
 // NewArtifact creates a new artifact with the given options.
 func NewArtifact(opts ...ArtifactOption) Artifact {
 	a := &artifact{
-		id:       uuid.New(),
-		metadata: make(map[string]any),
+		id:        uuid.New(),
+		metadata:  make(map[string]any),
 		createdAt: time.Now(),
 	}
 	for _, opt := range opts {

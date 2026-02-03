@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:embed presentation/locales/*.json
@@ -82,13 +83,20 @@ func (m *Module) Register(app application.Application) error {
 			return fmt.Errorf("failed to build BiChat services: %w", err)
 		}
 
+		chatService := m.config.ChatService()
+		agentService := m.config.AgentService()
+		attachmentService := m.config.AttachmentService()
+		artifactService := m.config.ArtifactService()
+		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
+		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
+
 		// Register GraphQL schema (accessible at /query/bichat via core's GraphQLController)
 		resolver := resolvers.NewResolver(
 			app,
-			m.config.ChatService(),
-			m.config.AgentService(),
-			m.config.AttachmentService(),
-			m.config.ArtifactService(),
+			chatService,
+			agentService,
+			attachmentService,
+			artifactService,
 		)
 		app.RegisterGraphSchema(application.GraphSchema{
 			Value: generated.NewExecutableSchema(
@@ -102,17 +110,17 @@ func (m *Module) Register(app application.Application) error {
 		// Create and register ChatController with all services
 		chatController := controllers.NewChatController(
 			app,
-			m.config.ChatService(),
+			chatService,
 			m.config.ChatRepo,
-			m.config.AgentService(),
-			m.config.AttachmentService(),
-			m.config.ArtifactService(),
+			agentService,
+			attachmentService,
+			artifactService,
 		)
 		controllersToRegister = append(controllersToRegister, chatController)
 
 		streamController := controllers.NewStreamController(
 			app,
-			m.config.ChatService(),
+			chatService,
 		)
 		controllersToRegister = append(controllersToRegister, streamController)
 

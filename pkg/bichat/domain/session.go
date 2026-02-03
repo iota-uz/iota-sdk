@@ -60,8 +60,8 @@ type session struct {
 	tenantID             uuid.UUID
 	userID               int64
 	title                string
-	status                SessionStatus
-	pinned                bool
+	status               SessionStatus
+	pinned               bool
 	parentSessionID      *uuid.UUID
 	pendingQuestionAgent *string
 	createdAt            time.Time
@@ -117,21 +117,21 @@ func NewSession(opts ...SessionOption) Session {
 	return s
 }
 
-func (s *session) ID() uuid.UUID                      { return s.id }
-func (s *session) TenantID() uuid.UUID                { return s.tenantID }
-func (s *session) UserID() int64                      { return s.userID }
-func (s *session) Title() string                      { return s.title }
-func (s *session) Status() SessionStatus               { return s.status }
-func (s *session) Pinned() bool                       { return s.pinned }
-func (s *session) ParentSessionID() *uuid.UUID        { return s.parentSessionID }
-func (s *session) PendingQuestionAgent() *string     { return s.pendingQuestionAgent }
-func (s *session) CreatedAt() time.Time               { return s.createdAt }
-func (s *session) UpdatedAt() time.Time               { return s.updatedAt }
+func (s *session) ID() uuid.UUID                 { return s.id }
+func (s *session) TenantID() uuid.UUID           { return s.tenantID }
+func (s *session) UserID() int64                 { return s.userID }
+func (s *session) Title() string                 { return s.title }
+func (s *session) Status() SessionStatus         { return s.status }
+func (s *session) Pinned() bool                  { return s.pinned }
+func (s *session) ParentSessionID() *uuid.UUID   { return s.parentSessionID }
+func (s *session) PendingQuestionAgent() *string { return s.pendingQuestionAgent }
+func (s *session) CreatedAt() time.Time          { return s.createdAt }
+func (s *session) UpdatedAt() time.Time          { return s.updatedAt }
 
-func (s *session) IsActive() bool   { return s.status.IsActive() }
-func (s *session) IsArchived() bool { return s.status.IsArchived() }
-func (s *session) IsPinned() bool   { return s.pinned }
-func (s *session) HasParent() bool  { return s.parentSessionID != nil }
+func (s *session) IsActive() bool           { return s.status.IsActive() }
+func (s *session) IsArchived() bool         { return s.status.IsArchived() }
+func (s *session) IsPinned() bool           { return s.pinned }
+func (s *session) HasParent() bool          { return s.parentSessionID != nil }
 func (s *session) HasPendingQuestion() bool { return s.pendingQuestionAgent != nil }
 
 func (s *session) UpdateStatus(status SessionStatus) Session {
