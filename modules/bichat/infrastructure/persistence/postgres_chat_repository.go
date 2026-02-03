@@ -605,7 +605,7 @@ func (r *PostgresChatRepository) GetSessionMessages(ctx context.Context, session
 	}
 
 	// Second pass: load code outputs for each message (rows are now closed)
-	var messages []types.Message
+	messages := make([]types.Message, 0, len(messagesData))
 	for _, md := range messagesData {
 		codeOutputs, err := r.loadCodeOutputsForMessage(ctx, tenantID, md.msgID)
 		if err != nil {
