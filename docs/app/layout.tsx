@@ -5,8 +5,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Logo } from './Logo'
-import { EnvironmentProvider } from '../contexts/EnvironmentContext'
-import { EnvironmentSelector } from './EnvironmentSelector'
 import '../styles/globals.css'
 import 'nextra-theme-docs/style.css'
 
@@ -32,9 +30,6 @@ const navbar = (
         API Reference
       </Link>
     </nav>
-    <div className="flex items-center gap-2">
-      <EnvironmentSelector />
-    </div>
   </Navbar>
 )
 
@@ -51,18 +46,15 @@ export default async function RootLayout({ children }: LayoutProps) {
     <html lang="en" dir="ltr" suppressHydrationWarning>
       <Head />
       <body>
-        <EnvironmentProvider>
-          <Layout
-            navbar={navbar}
-            sidebar={{ defaultMenuCollapseLevel: 1, toggleButton: true }}
-            toc={{ backToTop: true }}
-            pageMap={pageMap}
-            
-            lastUpdated={<LastUpdated>Last updated on</LastUpdated>}
-          >
-            {children}
-          </Layout>
-        </EnvironmentProvider>
+        <Layout
+          navbar={navbar}
+          sidebar={{ defaultMenuCollapseLevel: 1, toggleButton: true }}
+          toc={{ backToTop: true }}
+          pageMap={pageMap}
+          lastUpdated={<LastUpdated>Last updated on</LastUpdated>}
+        >
+          {children}
+        </Layout>
       </body>
     </html>
   )
