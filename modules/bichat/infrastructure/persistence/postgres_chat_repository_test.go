@@ -220,14 +220,14 @@ func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 
 	// First session should be the pinned one
 	assert.True(t, retrieved[0].Pinned(), "First session should be pinned")
-	assert.Equal(t, "Session 2 Pinned", retrieved[0].Title)
+	assert.Equal(t, "Session 2 Pinned", retrieved[0].Title())
 
 	// Remaining non-pinned sessions should be ordered by created_at DESC (Session 3, then Session 1)
 	assert.False(t, retrieved[1].Pinned(), "Second session should not be pinned")
-	assert.Equal(t, "Session 3", retrieved[1].Title, "Second session should be Session 3 (most recent non-pinned)")
+	assert.Equal(t, "Session 3", retrieved[1].Title(), "Second session should be Session 3 (most recent non-pinned)")
 
 	assert.False(t, retrieved[2].Pinned(), "Third session should not be pinned")
-	assert.Equal(t, "Session 1", retrieved[2].Title, "Third session should be Session 1 (oldest non-pinned)")
+	assert.Equal(t, "Session 1", retrieved[2].Title(), "Third session should be Session 1 (oldest non-pinned)")
 
 	// Verify timestamp ordering for non-pinned sessions (DESC)
 	assert.True(t, retrieved[1].CreatedAt().After(retrieved[2].CreatedAt()) || retrieved[1].CreatedAt().Equal(retrieved[2].CreatedAt()),
@@ -587,9 +587,9 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 
 	// Verify ordering (created_at ASC)
 	if len(retrieved) >= 3 {
-		assert.Equal(t, "First message", retrieved[0].Content)
-		assert.Equal(t, "Second message", retrieved[1].Content)
-		assert.Equal(t, "Third message", retrieved[2].Content)
+		assert.Equal(t, "First message", retrieved[0].Content())
+		assert.Equal(t, "Second message", retrieved[1].Content())
+		assert.Equal(t, "Third message", retrieved[2].Content())
 	}
 }
 
@@ -675,7 +675,7 @@ func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 	remaining, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
 	assert.Len(t, remaining, 1)
-	assert.Equal(t, "Message 1", remaining[0].Content)
+	assert.Equal(t, "Message 1", remaining[0].Content())
 }
 
 func TestPostgresChatRepository_TruncateMessagesFrom_NoMatch(t *testing.T) {
@@ -902,9 +902,9 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 	assert.Len(t, retrieved, 3)
 
 	// Verify ordering (created_at ASC)
-	assert.Equal(t, "doc1.pdf", retrieved[0].FileName)
-	assert.Equal(t, "image.jpg", retrieved[1].FileName)
-	assert.Equal(t, "data.csv", retrieved[2].FileName)
+	assert.Equal(t, "doc1.pdf", retrieved[0].FileName())
+	assert.Equal(t, "image.jpg", retrieved[1].FileName())
+	assert.Equal(t, "data.csv", retrieved[2].FileName())
 }
 
 func TestPostgresChatRepository_GetMessageAttachments_Empty(t *testing.T) {
