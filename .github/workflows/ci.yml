@@ -12,17 +12,14 @@ jobs:
     timeout-minutes: 15
     name: Code Quality & Formatting
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+	    steps:
+	      - name: Checkout repository
+	        uses: actions/checkout@v4
 
-      - name: Install just
-        uses: taiki-e/install-action@just
-
-      - name: Set up Go
-        uses: useblacksmith/setup-go@v6
-        with:
-          go-version: "1.23.2"
+	      - name: Set up Go
+	        uses: useblacksmith/setup-go@v6
+	        with:
+	          go-version: "1.23.2"
 
       - name: Install golangci-lint
         run: |
@@ -147,13 +144,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install just
-        uses: taiki-e/install-action@just
-
       - name: Set up Go
         uses: useblacksmith/setup-go@v6
         with:
           go-version: "1.23.2"
+
+      - name: Install just
+        uses: taiki-e/install-action@just
 
       - name: Install tools
         run: |
@@ -226,7 +223,7 @@ jobs:
           DB_PASSWORD: postgres
         run: just db migrate down
 
-  test-e2e:
+	  test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     name: E2E Tests
 
@@ -269,19 +266,22 @@ jobs:
         options: >-
           --tmpfs /data:rw,size=6g
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+	    steps:
+	      - name: Checkout repository
+	        uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: useblacksmith/setup-go@v6
-        with:
-          go-version: "1.23.2"
+	      - name: Set up Go
+	        uses: useblacksmith/setup-go@v6
+	        with:
+	          go-version: "1.23.2"
 
-      - name: Install tools
-        run: |
-          # Install templ (needed for CSS generation)
-          go install github.com/a-h/templ/cmd/templ@v0.3.857
+	      - name: Install just
+	        uses: taiki-e/install-action@just
+
+	      - name: Install tools
+	        run: |
+	          # Install templ (needed for CSS generation)
+	          go install github.com/a-h/templ/cmd/templ@v0.3.857
 
           # Install TailwindCSS
           echo "Installing TailwindCSS for x64 architecture..."

@@ -55,9 +55,9 @@ compose cmd="help":
 db cmd="help" direction="":
   case "{{cmd}}" in \
     local) docker compose -f compose.dev.yml up db ;; \
-    stop) docker compose -f compose.dev.yml down db ;; \
+    stop) docker compose -f compose.dev.yml stop db ;; \
     clean) docker volume rm iota-sdk-data || true ;; \
-    reset) docker compose -f compose.dev.yml down db && docker volume rm iota-sdk-data || true && docker compose -f compose.dev.yml up db ;; \
+    reset) docker compose -f compose.dev.yml stop db && docker volume rm iota-sdk-data || true && docker compose -f compose.dev.yml up db ;; \
     seed) go run cmd/command/main.go seed ;; \
     migrate) go run cmd/command/main.go migrate {{direction}} ;; \
     *) \
