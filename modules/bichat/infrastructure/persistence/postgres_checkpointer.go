@@ -21,30 +21,30 @@ func NewPostgresCheckpointer() agents.Checkpointer {
 
 const (
 	checkpointInsertQuery = `
-		INSERT INTO bichat_checkpoints (
-			id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
-			interrupt_type, interrupt_data, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO bichat.checkpoints (
+			id, thread_id, tenant_id, user_id, agent_name, messages, pending_tools,
+			interrupt_type, interrupt_data, session_id, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
 	checkpointSelectQuery = `
 		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 		       interrupt_type, interrupt_data, created_at
-		FROM bichat_checkpoints
+		FROM bichat.checkpoints
 		WHERE id = $1 AND tenant_id = $2
 	`
 
 	checkpointSelectByThreadQuery = `
 		SELECT id, tenant_id, session_id, thread_id, agent_name, messages, pending_tools,
 		       interrupt_type, interrupt_data, created_at
-		FROM bichat_checkpoints
+		FROM bichat.checkpoints
 		WHERE thread_id = $1 AND tenant_id = $2
 		ORDER BY created_at DESC
 		LIMIT 1
 	`
 
 	checkpointDeleteQuery = `
-		DELETE FROM bichat_checkpoints
+		DELETE FROM bichat.checkpoints
 		WHERE id = $1 AND tenant_id = $2
 	`
 )
@@ -52,6 +52,11 @@ const (
 // Save saves a checkpoint to PostgreSQL.
 func (p *PostgresCheckpointer) Save(ctx context.Context, checkpoint *agents.Checkpoint) (string, error) {
 	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	user, err := composables.UseUser(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -74,14 +79,15 @@ func (p *PostgresCheckpointer) Save(ctx context.Context, checkpoint *agents.Chec
 
 	_, err = tx.Exec(ctx, checkpointInsertQuery,
 		checkpoint.ID,
-		tenantID,
-		checkpoint.SessionID,
 		checkpoint.ThreadID,
+		tenantID,
+		user.ID(),
 		checkpoint.AgentName,
 		messagesJSON,
 		pendingToolsJSON,
 		checkpoint.InterruptType,
 		checkpoint.InterruptData,
+		checkpoint.SessionID,
 		checkpoint.CreatedAt,
 	)
 	if err != nil {
