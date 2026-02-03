@@ -210,7 +210,7 @@ func (c *AppletController) render(ctx context.Context, w http.ResponseWriter, r 
 	contextScript, err := c.buildSafeContextScript(config.WindowGlobal, contextJSON)
 	if err != nil {
 		if c.logger != nil {
-			c.logger.Error("Failed to build context script", "error", err)
+			c.logger.WithError(err).Error("Failed to build context script")
 		}
 		http.Error(w, "Failed to inject context", http.StatusInternalServerError)
 		return

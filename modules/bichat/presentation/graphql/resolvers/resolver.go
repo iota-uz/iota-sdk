@@ -10,6 +10,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 
 	"encoding/json"
+
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"

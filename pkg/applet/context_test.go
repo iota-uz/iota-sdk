@@ -650,21 +650,22 @@ func TestContextBuilder_Build_WithCustomContext(t *testing.T) {
 		[]byte("32-byte-long-secret-key-for-testing!"),
 		csrf.Secure(false),
 	)
-	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		initialCtx, err := builder.Build(ctx, r, "")
-		assert.NoError(t, err)
-		assert.NotNil(t, initialCtx)
-		if err != nil || initialCtx == nil {
-			return
-		}
+	var capturedCtx *InitialContext
+	var capturedErr error
 
-		assert.NotNil(t, initialCtx.Extensions)
-		assert.Equal(t, "customValue", initialCtx.Extensions["customField"])
-		assert.Equal(t, 42, initialCtx.Extensions["userId"])
+	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedCtx, capturedErr = builder.Build(ctx, r, "")
 	}))
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
+
+	// Assert after handler completes
+	require.NoError(t, capturedErr)
+	require.NotNil(t, capturedCtx)
+	assert.NotNil(t, capturedCtx.Extensions)
+	assert.Equal(t, "customValue", capturedCtx.Extensions["customField"])
+	assert.Equal(t, 42, capturedCtx.Extensions["userId"])
 }
 
 func TestContextBuilder_Build_WithMuxRouter(t *testing.T) {
@@ -690,20 +691,20 @@ func TestContextBuilder_Build_WithMuxRouter(t *testing.T) {
 		[]byte("32-byte-long-secret-key-for-testing!"),
 		csrf.Secure(false),
 	)
-	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		initialCtx, err := builder.Build(ctx, r, "")
-		assert.NoError(t, err)
-		assert.NotNil(t, initialCtx)
-		if err != nil || initialCtx == nil {
-			return
-		}
+	var capturedCtx *InitialContext
+	var capturedErr error
 
-		// Verify route context has query params
-		assert.Equal(t, "history", initialCtx.Route.Query["tab"])
+	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedCtx, capturedErr = builder.Build(ctx, r, "")
 	}))
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
+
+	// Assert after handler completes
+	require.NoError(t, capturedErr)
+	require.NotNil(t, capturedCtx)
+	assert.Equal(t, "history", capturedCtx.Route.Query["tab"])
 }
 
 func TestContextBuilder_Build_MetricsRecorded(t *testing.T) {

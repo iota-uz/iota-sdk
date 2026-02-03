@@ -464,10 +464,13 @@ func createSummaryBlock(summary string, summaryTokens int) ContextBlock {
 		if err != nil {
 			// CRITICAL: Include error details and UUID to maintain unique hash per failure
 			// This prevents different marshal failures from producing the same hash
+			// WARNING: This is an error path - investigate why marshaling failed
 			fallbackContent := fmt.Sprintf(`{"error":"marshal_failed","message":%q,"uuid":%q}`,
 				err.Error(),
 				uuid.New().String())
 			canonicalized = []byte(fallbackContent)
+			// Note: Logging omitted here as this is a foundational package with no logger dependency.
+			// Callers should monitor for error patterns in fallback content.
 		}
 	}
 
