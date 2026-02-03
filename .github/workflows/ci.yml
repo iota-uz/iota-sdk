@@ -150,7 +150,9 @@ jobs:
           go-version: "1.23.2"
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
 
       - name: Install tools
         run: |
@@ -276,7 +278,9 @@ jobs:
           go-version: "1.23.2"
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
 
       - name: Install tools
         run: |

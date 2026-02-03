@@ -156,7 +156,9 @@ jobs:
 
       - name: Install just
         if: inputs.setup_level != 'minimal'
-        uses: taiki-e/install-action@just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
 
       - name: Generate CSS
         if: inputs.setup_level != 'minimal'

@@ -95,7 +95,9 @@ jobs:
         run: cd e2e && pnpm exec playwright install chromium
 
       - name: Install just
-        uses: taiki-e/install-action@just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: '1.46.0'
 
       - name: Generate CSS
         run: just css
