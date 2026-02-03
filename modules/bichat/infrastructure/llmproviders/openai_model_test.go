@@ -16,7 +16,7 @@ func TestNewOpenAIModel_MissingAPIKey(t *testing.T) {
 	t.Parallel()
 
 	// Clear API key
-	_ = os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Unsetenv("OPENAI_API_KEY"))
 
 	_, err := NewOpenAIModel()
 	require.Error(t, err)
@@ -27,8 +27,8 @@ func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
 	t.Parallel()
 
 	// Set fake API key
-	_ = os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -38,11 +38,11 @@ func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
 func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	t.Parallel()
 
-	_ = os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
 
 	// No OPENAI_MODEL set
-	_ = os.Unsetenv("OPENAI_MODEL")
+	require.NoError(t, os.Unsetenv("OPENAI_MODEL"))
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -54,10 +54,10 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
 	t.Parallel()
 
-	_ = os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	_ = os.Setenv("OPENAI_MODEL", "gpt-4-turbo")
-	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
-	defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4-turbo"))
+	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
+	defer func() { require.NoError(t, os.Unsetenv("OPENAI_MODEL")) }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)

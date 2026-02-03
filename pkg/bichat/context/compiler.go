@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
@@ -461,7 +462,12 @@ func createSummaryBlock(summary string, summaryTokens int) ContextBlock {
 		// Fallback: use regular JSON encoding
 		canonicalized, err = json.Marshal(payload)
 		if err != nil {
-			canonicalized = []byte("{}")
+			// CRITICAL: Include error details and UUID to maintain unique hash per failure
+			// This prevents different marshal failures from producing the same hash
+			fallbackContent := fmt.Sprintf(`{"error":"marshal_failed","message":%q,"uuid":%q}`,
+				err.Error(),
+				uuid.New().String())
+			canonicalized = []byte(fallbackContent)
 		}
 	}
 

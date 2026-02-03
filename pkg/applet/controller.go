@@ -207,7 +207,14 @@ func (c *AppletController) render(ctx context.Context, w http.ResponseWriter, r 
 
 	// Build script tag for context injection
 	// Use safe JSON injection to prevent script tag breakouts
-	contextScript := c.buildSafeContextScript(config.WindowGlobal, contextJSON)
+	contextScript, err := c.buildSafeContextScript(config.WindowGlobal, contextJSON)
+	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("Failed to build context script", "error", err)
+		}
+		http.Error(w, "Failed to inject context", http.StatusInternalServerError)
+		return
+	}
 
 	// Resolve assets from manifest (required)
 	var cssLinks, jsScripts string
@@ -389,17 +396,17 @@ func (c *AppletController) buildJSScripts(jsFiles []string) string {
 // buildSafeContextScript builds a safe script tag for context injection.
 // Escapes sequences that could break out of the script tag (e.g., </script>).
 // Uses JSON encoding with HTML-safe escaping.
-func (c *AppletController) buildSafeContextScript(windowGlobal string, contextJSON []byte) string {
+func (c *AppletController) buildSafeContextScript(windowGlobal string, contextJSON []byte) (string, error) {
 	// Use bracket notation to avoid requiring WindowGlobal to be a JS identifier.
 	// Also escape any </script>-like sequences in both key and value.
 	keyJSON, err := json.Marshal(windowGlobal)
 	if err != nil {
-		return fmt.Sprintf(`<script>window[""] = %s;</script>`, escapeJSONForScriptTag(contextJSON))
+		return "", fmt.Errorf("failed to marshal window global key: %w", err)
 	}
 	safeKey := escapeJSONForScriptTag(keyJSON)
 	safeValue := escapeJSONForScriptTag(contextJSON)
 
-	return fmt.Sprintf(`<script>window[%s] = %s;</script>`, safeKey, safeValue)
+	return fmt.Sprintf(`<script>window[%s] = %s;</script>`, safeKey, safeValue), nil
 }
 
 // escapeJSONForScriptTag escapes JSON to prevent script tag breakouts.

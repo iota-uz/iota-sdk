@@ -158,7 +158,11 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 	}
 
 	return types.NewGenerator(ctx, func(genCtx context.Context, yield func(agents.Chunk) bool) error {
-		defer func() { _ = stream.Close() }()
+		defer func() {
+			// Best-effort cleanup: stream errors after processing are non-fatal
+			// Stream has already delivered all chunks, close is for resource cleanup only
+			_ = stream.Close()
+		}()
 
 		// Accumulate tool calls across chunks
 		toolCallsMap := make(map[int]*types.ToolCall)
