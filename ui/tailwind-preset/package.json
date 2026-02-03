@@ -1,0 +1,30 @@
+{
+  "name": "@iotauz/tailwind-preset",
+  "version": "1.0.0",
+  "description": "Shared Tailwind CSS preset for IOTA SDK applets",
+  "main": "preset.js",
+  "files": [
+    "preset.js",
+    "colors.js",
+    "typography.js"
+  ],
+  "scripts": {
+    "build": "echo 'No build step required - using plain JS modules'",
+    "lint": "echo 'Lint: verify preset.js, colors.js, typography.js syntax'"
+  },
+  "keywords": [
+    "tailwindcss",
+    "preset",
+    "iota-sdk",
+    "design-tokens"
+  ],
+  "author": "IOTA SDK",
+  "license": "MIT",
+  "peerDependencies": {
+    "tailwindcss": "^3.0.0"
+  },
+  "dependencies": {
+    "@tailwindcss/forms": "^0.5.7",
+    "@tailwindcss/typography": "^0.5.10"
+  }
+}

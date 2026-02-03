@@ -9,11 +9,23 @@
 			}
 		},
 		"Title": "BI-Chat",
-		"NewDialog": "Yangi suhbat",
+		"NewChat": "Yangi chat",
 		"MessagePlaceholder": "Xabar yozing...",
+		"SendMessage": "Xabar yuborish",
+		"Loading": "Yuklanmoqda...",
+		"Error": "Xato",
+		"Retry": "Qayta urinish",
+		"Cancel": "Bekor qilish",
+		"Submit": "Yuborish",
+		"Export": "Eksport",
 		"History": {
 			"Empty": "Tarix bo'sh",
-			"HelpText": "Yangi suhbat boshlash uchun \"Yangi suhbat\" tugmasini bosing"
+			"HelpText": "Yangi chat boshlash uchun \"Yangi chat\" tugmasini bosing"
+		},
+		"Permissions": {
+			"Access": "BI-chatga kirish",
+			"ReadAll": "Barcha sessiyalarni ko'rish",
+			"Export": "Ma'lumotlarni eksport qilish"
 		}
 	}
 }

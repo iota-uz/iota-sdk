@@ -225,7 +225,7 @@ tunnel:
 clean:
 	rm -rf $(TAILWIND_OUTPUT)
 
-# Development watch mode - run templ and tailwind in watch mode concurrently
+# Development watch mode and dev servers
 dev:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "watch" ]; then \
 		echo "Starting development watch mode (templ + tailwind)..."; \
@@ -233,9 +233,12 @@ dev:
 		templ generate --watch & \
 		tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --watch & \
 		wait; \
+	elif [ "$(word 2,$(MAKECMDGOALS))" = "bichat" ]; then \
+		./scripts/dev-bichat.sh; \
 	else \
-		echo "Usage: make dev [watch]"; \
-		echo "  watch - Run templ and tailwind in watch mode concurrently"; \
+		echo "Usage: make dev [watch|bichat]"; \
+		echo "  watch  - Run templ and tailwind in watch mode concurrently"; \
+		echo "  bichat - Air + bichat web rebuild on change (Ctrl+C stops both)"; \
 	fi
 
 # Full setup
@@ -245,7 +248,7 @@ setup: deps css
 	make check lint
 
 # Prevents make from treating the argument as an undefined target
-watch coverage verbose docker score report prod linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports serve:
+watch coverage verbose docker score report prod linux docker-base docker-prod up down restart logs local stop reset seed migrate install help imports serve fmt bichat:
 	@:
 
 .PHONY: deps db test css compose setup e2e build graph docs tunnel clean generate check fix superadmin \

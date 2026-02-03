@@ -1,0 +1,474 @@
+# NPM Package Publishing Workflow
+#
+# Publishes @iotauz scoped packages to npm registry
+#
+# Usage:
+#   1. Update package.json version in ui/{package}/
+#   2. Merge to main branch
+#   3. Run workflow with dry_run: true first
+#   4. Run workflow with dry_run: false to publish
+#
+# Safety:
+#   - Validates version not already published
+#   - Checks git tag doesn't exist
+#   - Dry-run mode enabled by default
+#   - Creates git tags only after successful publish
+#
+# Pre-releases:
+#   - Use version like 0.2.0-beta.1
+#   - Set dist_tag to 'beta' or 'alpha'
+#   - Users install with: npm install @iotauz/pkg@beta
+
+name: Publish NPM Packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_bichat_ui:
+        description: 'Publish @iotauz/bichat-ui'
+        required: false
+        type: boolean
+        default: false
+      publish_applet_core:
+        description: 'Publish @iotauz/applet-core'
+        required: false
+        type: boolean
+        default: false
+      publish_tailwind_preset:
+        description: 'Publish @iotauz/tailwind-preset'
+        required: false
+        type: boolean
+        default: false
+      publish_all:
+        description: 'Publish all packages (overrides individual selections)'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Dry run mode (npm publish --dry-run, no git tags)'
+        required: false
+        type: boolean
+        default: true
+      dist_tag:
+        description: 'NPM dist-tag (latest, beta, alpha, next, etc.)'
+        required: false
+        type: string
+        default: 'latest'
+
+concurrency:
+  group: npm-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate versions and prerequisites
+    runs-on: ubuntu-latest
+    outputs:
+      bichat-ui-version: ${{ steps.versions.outputs.bichat-ui-version }}
+      applet-core-version: ${{ steps.versions.outputs.applet-core-version }}
+      tailwind-preset-version: ${{ steps.versions.outputs.tailwind-preset-version }}
+      should-publish-bichat-ui: ${{ steps.check.outputs.should-publish-bichat-ui }}
+      should-publish-applet-core: ${{ steps.check.outputs.should-publish-applet-core }}
+      should-publish-tailwind-preset: ${{ steps.check.outputs.should-publish-tailwind-preset }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check at least one package selected
+        id: check
+        run: |
+          if [ "${{ inputs.publish_all }}" = "true" ]; then
+            echo "should-publish-bichat-ui=true" >> $GITHUB_OUTPUT
+            echo "should-publish-applet-core=true" >> $GITHUB_OUTPUT
+            echo "should-publish-tailwind-preset=true" >> $GITHUB_OUTPUT
+          else
+            echo "should-publish-bichat-ui=${{ inputs.publish_bichat_ui }}" >> $GITHUB_OUTPUT
+            echo "should-publish-applet-core=${{ inputs.publish_applet_core }}" >> $GITHUB_OUTPUT
+            echo "should-publish-tailwind-preset=${{ inputs.publish_tailwind_preset }}" >> $GITHUB_OUTPUT
+          fi
+
+          # Check at least one is true
+          if [ "${{ inputs.publish_all }}" != "true" ] && \
+             [ "${{ inputs.publish_bichat_ui }}" != "true" ] && \
+             [ "${{ inputs.publish_applet_core }}" != "true" ] && \
+             [ "${{ inputs.publish_tailwind_preset }}" != "true" ]; then
+            echo "❌ Error: No packages selected for publishing"
+            echo "Please select at least one package or use publish_all"
+            exit 1
+          fi
+          echo "✅ Package selection validated"
+
+      - name: Extract versions from package.json
+        id: versions
+        run: |
+          if [ "${{ steps.check.outputs.should-publish-bichat-ui }}" = "true" ]; then
+            BICHAT_UI_VERSION=$(node -p "require('./ui/bichat/package.json').version")
+            echo "bichat-ui-version=$BICHAT_UI_VERSION" >> $GITHUB_OUTPUT
+            echo "📦 @iotauz/bichat-ui version: $BICHAT_UI_VERSION"
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-applet-core }}" = "true" ]; then
+            APPLET_CORE_VERSION=$(node -p "require('./ui/applet-core/package.json').version")
+            echo "applet-core-version=$APPLET_CORE_VERSION" >> $GITHUB_OUTPUT
+            echo "📦 @iotauz/applet-core version: $APPLET_CORE_VERSION"
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-tailwind-preset }}" = "true" ]; then
+            TAILWIND_PRESET_VERSION=$(node -p "require('./ui/tailwind-preset/package.json').version")
+            echo "tailwind-preset-version=$TAILWIND_PRESET_VERSION" >> $GITHUB_OUTPUT
+            echo "📦 @iotauz/tailwind-preset version: $TAILWIND_PRESET_VERSION"
+          fi
+
+      - name: Validate semver format
+        run: |
+          SEMVER_REGEX='^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$'
+
+          if [ "${{ steps.check.outputs.should-publish-bichat-ui }}" = "true" ]; then
+            if ! echo "${{ steps.versions.outputs.bichat-ui-version }}" | grep -qE "$SEMVER_REGEX"; then
+              echo "❌ Invalid version for bichat-ui: ${{ steps.versions.outputs.bichat-ui-version }}"
+              exit 1
+            fi
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-applet-core }}" = "true" ]; then
+            if ! echo "${{ steps.versions.outputs.applet-core-version }}" | grep -qE "$SEMVER_REGEX"; then
+              echo "❌ Invalid version for applet-core: ${{ steps.versions.outputs.applet-core-version }}"
+              exit 1
+            fi
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-tailwind-preset }}" = "true" ]; then
+            if ! echo "${{ steps.versions.outputs.tailwind-preset-version }}" | grep -qE "$SEMVER_REGEX"; then
+              echo "❌ Invalid version for tailwind-preset: ${{ steps.versions.outputs.tailwind-preset-version }}"
+              exit 1
+            fi
+          fi
+
+          echo "✅ All versions are valid semver"
+
+      - name: Check npm registry for existing versions
+        run: |
+          if [ "${{ steps.check.outputs.should-publish-bichat-ui }}" = "true" ]; then
+            if npm view @iotauz/bichat-ui@${{ steps.versions.outputs.bichat-ui-version }} version 2>/dev/null; then
+              echo "❌ Version ${{ steps.versions.outputs.bichat-ui-version }} already exists on npm for @iotauz/bichat-ui"
+              exit 1
+            fi
+            echo "✅ @iotauz/bichat-ui@${{ steps.versions.outputs.bichat-ui-version }} is available"
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-applet-core }}" = "true" ]; then
+            if npm view @iotauz/applet-core@${{ steps.versions.outputs.applet-core-version }} version 2>/dev/null; then
+              echo "❌ Version ${{ steps.versions.outputs.applet-core-version }} already exists on npm for @iotauz/applet-core"
+              exit 1
+            fi
+            echo "✅ @iotauz/applet-core@${{ steps.versions.outputs.applet-core-version }} is available"
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-tailwind-preset }}" = "true" ]; then
+            if npm view @iotauz/tailwind-preset@${{ steps.versions.outputs.tailwind-preset-version }} version 2>/dev/null; then
+              echo "❌ Version ${{ steps.versions.outputs.tailwind-preset-version }} already exists on npm for @iotauz/tailwind-preset"
+              exit 1
+            fi
+            echo "✅ @iotauz/tailwind-preset@${{ steps.versions.outputs.tailwind-preset-version }} is available"
+          fi
+
+      - name: Check git tags
+        run: |
+          if [ "${{ steps.check.outputs.should-publish-bichat-ui }}" = "true" ]; then
+            if git tag -l "bichat-ui-v${{ steps.versions.outputs.bichat-ui-version }}" | grep -q "."; then
+              echo "❌ Git tag bichat-ui-v${{ steps.versions.outputs.bichat-ui-version }} already exists"
+              exit 1
+            fi
+            echo "✅ Git tag bichat-ui-v${{ steps.versions.outputs.bichat-ui-version }} is available"
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-applet-core }}" = "true" ]; then
+            if git tag -l "applet-core-v${{ steps.versions.outputs.applet-core-version }}" | grep -q "."; then
+              echo "❌ Git tag applet-core-v${{ steps.versions.outputs.applet-core-version }} already exists"
+              exit 1
+            fi
+            echo "✅ Git tag applet-core-v${{ steps.versions.outputs.applet-core-version }} is available"
+          fi
+
+          if [ "${{ steps.check.outputs.should-publish-tailwind-preset }}" = "true" ]; then
+            if git tag -l "tailwind-preset-v${{ steps.versions.outputs.tailwind-preset-version }}" | grep -q "."; then
+              echo "❌ Git tag tailwind-preset-v${{ steps.versions.outputs.tailwind-preset-version }} already exists"
+              exit 1
+            fi
+            echo "✅ Git tag tailwind-preset-v${{ steps.versions.outputs.tailwind-preset-version }} is available"
+          fi
+
+  build-bichat-ui:
+    name: Build @iotauz/bichat-ui
+    needs: validate
+    if: needs.validate.outputs.should-publish-bichat-ui == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.19.0
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: ui/bichat
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package
+        working-directory: ui/bichat
+        run: pnpm build
+
+      - name: Verify build outputs
+        working-directory: ui/bichat
+        run: |
+          echo "🔍 Verifying build outputs..."
+          test -f dist/index.es.js || { echo "❌ Missing dist/index.es.js"; exit 1; }
+          test -f dist/index.umd.js || { echo "❌ Missing dist/index.umd.js"; exit 1; }
+          test -f dist/index.d.ts || { echo "❌ Missing dist/index.d.ts"; exit 1; }
+          test -f dist/style.css || { echo "❌ Missing dist/style.css"; exit 1; }
+          echo "✅ All build outputs verified"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bichat-ui-dist
+          path: ui/bichat/dist/
+          retention-days: 1
+
+  build-applet-core:
+    name: Build @iotauz/applet-core
+    needs: validate
+    if: needs.validate.outputs.should-publish-applet-core == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/applet-core/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ui/applet-core
+        run: npm ci
+
+      - name: Build package
+        working-directory: ui/applet-core
+        run: npm run build
+
+      - name: Verify build outputs
+        working-directory: ui/applet-core
+        run: |
+          echo "🔍 Verifying build outputs..."
+          test -f dist/index.js || { echo "❌ Missing dist/index.js"; exit 1; }
+          test -f dist/index.d.ts || { echo "❌ Missing dist/index.d.ts"; exit 1; }
+          echo "✅ All build outputs verified"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: applet-core-dist
+          path: ui/applet-core/dist/
+          retention-days: 1
+
+  verify-tailwind-preset:
+    name: Verify @iotauz/tailwind-preset
+    needs: validate
+    if: needs.validate.outputs.should-publish-tailwind-preset == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/tailwind-preset/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ui/tailwind-preset
+        run: npm ci
+
+      - name: Verify source files
+        working-directory: ui/tailwind-preset
+        run: |
+          echo "🔍 Verifying source files..."
+          test -f preset.js || { echo "❌ Missing preset.js"; exit 1; }
+          test -f colors.js || { echo "❌ Missing colors.js"; exit 1; }
+          test -f typography.js || { echo "❌ Missing typography.js"; exit 1; }
+          echo "✅ All source files verified"
+
+      - name: Validate JavaScript syntax
+        working-directory: ui/tailwind-preset
+        run: |
+          echo "🔍 Validating JavaScript syntax..."
+          node -c preset.js
+          node -c colors.js
+          node -c typography.js
+          echo "✅ JavaScript syntax is valid"
+
+  publish:
+    name: Publish packages to npm
+    needs: [validate, build-bichat-ui, build-applet-core, verify-tailwind-preset]
+    if: always() && needs.validate.result == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - name: bichat-ui
+            path: ui/bichat
+            npm_name: '@iotauz/bichat-ui'
+            needs_build: true
+            pkg_manager: pnpm
+          - name: applet-core
+            path: ui/applet-core
+            npm_name: '@iotauz/applet-core'
+            needs_build: true
+            pkg_manager: npm
+          - name: tailwind-preset
+            path: ui/tailwind-preset
+            npm_name: '@iotauz/tailwind-preset'
+            needs_build: false
+            pkg_manager: npm
+
+    steps:
+      - name: Check if package should be published
+        id: should-publish
+        run: |
+          SHOULD_PUBLISH="${{ needs.validate.outputs[format('should-publish-{0}', matrix.package.name)] }}"
+          echo "should_publish=$SHOULD_PUBLISH" >> $GITHUB_OUTPUT
+
+          if [ "$SHOULD_PUBLISH" != "true" ]; then
+            echo "⏭️ Skipping ${{ matrix.package.npm_name }} (not selected for publishing)"
+            exit 0
+          fi
+
+      - name: Checkout repository
+        if: steps.should-publish.outputs.should_publish == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js with npm registry
+        if: steps.should-publish.outputs.should_publish == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Setup pnpm
+        if: steps.should-publish.outputs.should_publish == 'true' && matrix.package.pkg_manager == 'pnpm'
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.19.0
+
+      - name: Download build artifacts
+        if: steps.should-publish.outputs.should_publish == 'true' && matrix.package.needs_build
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.package.name }}-dist
+          path: ${{ matrix.package.path }}/dist/
+
+      - name: Get package version
+        if: steps.should-publish.outputs.should_publish == 'true'
+        id: version
+        working-directory: ${{ matrix.package.path }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Publishing ${{ matrix.package.npm_name }}@$VERSION"
+
+      - name: Publish to npm (dry-run)
+        if: steps.should-publish.outputs.should_publish == 'true' && inputs.dry_run == true
+        working-directory: ${{ matrix.package.path }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "🔍 Dry-run mode: Showing what would be published..."
+          ${{ matrix.package.pkg_manager }} publish --dry-run --tag ${{ inputs.dist_tag }} --access public
+
+      - name: Publish to npm
+        if: steps.should-publish.outputs.should_publish == 'true' && inputs.dry_run == false
+        working-directory: ${{ matrix.package.path }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "🚀 Publishing ${{ matrix.package.npm_name }}@${{ steps.version.outputs.version }}..."
+          ${{ matrix.package.pkg_manager }} publish --tag ${{ inputs.dist_tag }} --access public
+          echo "✅ Successfully published to npm"
+
+      - name: Create git tag
+        if: steps.should-publish.outputs.should_publish == 'true' && inputs.dry_run == false
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          TAG_NAME="${{ matrix.package.name }}-v${{ steps.version.outputs.version }}"
+          git tag "$TAG_NAME" -m "Release ${{ matrix.package.npm_name }}@${{ steps.version.outputs.version }}"
+          git push origin "$TAG_NAME"
+          echo "✅ Created git tag: $TAG_NAME"
+
+      - name: Create GitHub release
+        if: steps.should-publish.outputs.should_publish == 'true' && inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="${{ matrix.package.name }}-v${{ steps.version.outputs.version }}"
+          gh release create "$TAG_NAME" \
+            --title "${{ matrix.package.npm_name }} v${{ steps.version.outputs.version }}" \
+            --notes "Published ${{ matrix.package.npm_name }}@${{ steps.version.outputs.version }} to npm registry.
+
+            Install:
+            \`\`\`bash
+            npm install ${{ matrix.package.npm_name }}@${{ steps.version.outputs.version }}
+            \`\`\`
+
+            NPM Registry: https://www.npmjs.com/package/${{ matrix.package.npm_name }}/v/${{ steps.version.outputs.version }}"
+          echo "✅ Created GitHub release: $TAG_NAME"
+
+      - name: Summary
+        if: steps.should-publish.outputs.should_publish == 'true'
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "### 🔍 Dry-run completed for ${{ matrix.package.npm_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "Version ${{ steps.version.outputs.version }} would be published with tag \`${{ inputs.dist_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ✅ Successfully published ${{ matrix.package.npm_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tag**: ${{ inputs.dist_tag }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **NPM**: https://www.npmjs.com/package/${{ matrix.package.npm_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Git Tag**: ${{ matrix.package.name }}-v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          fi

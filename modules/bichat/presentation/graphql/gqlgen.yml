@@ -1,0 +1,25 @@
+schema:
+  - schema.graphql
+
+exec:
+  filename: generated/generated.go
+  package: generated
+
+model:
+  filename: model/models_gen.go
+  package: model
+
+resolver:
+  filename: resolvers/resolver.go
+  type: Resolver
+  package: resolvers
+
+models:
+  Int64:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int64
+  Upload:
+    model:
+      - github.com/99designs/gqlgen/graphql.Upload
+
+skip_validation: false

@@ -10,13 +10,21 @@ static
 uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css
+modules/bichat/presentation/assets/dist/
 bin/
 logs/
+
+# Build artifacts
+dist/
+**/dist/
 
 go.work*
 
 **/.claude/settings.local.json
 .claude/backlog
+
+# Local scratch (history rewrite tooling)
+.git-rewrite/
 
 # E2E test artifacts
 e2e/playwright-report/

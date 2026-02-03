@@ -1,0 +1,11 @@
+Generate a concise, descriptive 5-7 word title for this conversation based on the user's first message and the assistant's response. The title should capture the main topic or intent clearly and professionally.
+
+Return ONLY the title, no quotes, no additional text, and no extra formatting.
+
+User's first message:
+{{.UserMessage}}
+
+Assistant's response:
+{{.AssistantMessage}}
+
+Title:

@@ -5,6 +5,7 @@ import (
 	"embed"
 	"reflect"
 
+	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -15,6 +16,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 type GraphSchema struct {
@@ -49,6 +51,14 @@ type Application interface {
 	Services() map[reflect.Type]interface{}
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
+	RegisterApplet(applet Applet) error
+	AppletRegistry() AppletRegistry
+	CreateAppletControllers(
+		sessionConfig applet.SessionConfig,
+		logger *logrus.Logger,
+		metrics applet.MetricsRecorder,
+		opts ...applet.BuilderOption,
+	) ([]Controller, error)
 }
 
 type Seeder interface {
@@ -67,3 +77,12 @@ type Module interface {
 	Name() string
 	Register(app Application) error
 }
+
+// Applet represents a React/Next.js application that integrates with the SDK
+// This is now an alias for applet.Applet to unify the applet system.
+// All applets should implement applet.Applet directly, which includes Config().
+type Applet = applet.Applet
+
+// AppletRegistry is now an alias for applet.Registry to unify the registry system.
+// The application uses pkg/applet.Registry directly for all applet operations.
+type AppletRegistry = applet.Registry
