@@ -92,19 +92,6 @@ The script automatically detects your OS (macOS/Linux) and architecture, downloa
 
 For full setup instructions, see the [Installation Guide](https://iota-uz.github.io/iota-sdk/getting-started/installation.html).
 
-### DevHub CLI
-
-DevHub is a powerful Terminal User Interface (TUI) for managing development services. It provides centralized control over all your project's services from a single interface.
-
-**Installation:**
-```bash
-go install github.com/iota-uz/devhub/cmd/devhub@latest
-```
-
-Learn more in the [DevHub documentation](https://github.com/iota-uz/devhub).
-
----
-
 ## 🔐 Super Admin
 
 IOTA SDK includes a separate Super Admin server for managing tenants and platform-wide operations. This deployment is isolated from the main application and requires super admin authentication for all routes.
