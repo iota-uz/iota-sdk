@@ -59,9 +59,12 @@ func (tc *TestContext) WithDBName(tb testing.TB, name string) *TestContext {
 func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	tb.Helper()
 
-	// Set default db name if not set
+	// Set default db name if not set, adding a unique suffix to avoid conflicts
+	// between parallel test runs
 	if tc.dbName == "" {
-		tc.dbName = tb.Name()
+		// Generate a short unique suffix using UUID
+		uniqueSuffix := uuid.New().String()[:8]
+		tc.dbName = tb.Name() + "_" + uniqueSuffix
 	}
 
 	// Create test database
