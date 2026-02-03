@@ -1,20 +1,20 @@
 ---
-title: 'NPM Package (@iota-uz/iota-sdk)'
+title: 'NPM Package (@iota-uz/sdk)'
 description: 'Use IOTA SDK UI utilities + Tailwind v4 inputs in external projects'
 ---
 
-# NPM Package (`@iota-uz/iota-sdk`)
+# NPM Package (`@iota-uz/sdk`)
 
-`@iota-uz/iota-sdk` is the unified public NPM package that ships:
-- React utilities for applets (`@iota-uz/iota-sdk`)
-- BIChat UI (`@iota-uz/iota-sdk/bichat`)
-- Tailwind v4 inputs + config helper (`@iota-uz/iota-sdk/tailwind/*`)
-- Bundled assets (fonts) under `@iota-uz/iota-sdk/assets`
+`@iota-uz/sdk` is the unified public NPM package that ships:
+- React utilities for applets (`@iota-uz/sdk`)
+- BIChat UI (`@iota-uz/sdk/bichat`)
+- Tailwind v4 inputs + config helper (`@iota-uz/sdk/tailwind/*`)
+- Bundled assets (fonts) under `@iota-uz/sdk/assets`
 
 ## Install
 
 ```bash
-pnpm add @iota-uz/iota-sdk
+pnpm add @iota-uz/sdk
 pnpm add -D tailwindcss@4.1.18 @tailwindcss/cli@4.1.18
 ```
 
@@ -24,7 +24,7 @@ pnpm add -D tailwindcss@4.1.18 @tailwindcss/cli@4.1.18
 
 ```js
 // tailwind.config.cjs
-const createIotaTailwindConfig = require('@iota-uz/iota-sdk/tailwind/create-config')
+const createIotaTailwindConfig = require('@iota-uz/sdk/tailwind/create-config')
 
 module.exports = createIotaTailwindConfig({
   content: ['./src/**/*.{ts,tsx,js,jsx,html}'],
@@ -39,7 +39,7 @@ Tailwind v4 loads config via `@config`, so your input CSS should reference your 
 ```css
 /* src/tailwind.css */
 @config "../tailwind.config.cjs";
-@import "@iota-uz/iota-sdk/tailwind/main.css";
+@import "@iota-uz/sdk/tailwind/main.css";
 
 /* Add your own layers/custom CSS below if needed */
 ```
@@ -53,11 +53,11 @@ pnpm exec tailwindcss --input ./src/tailwind.css --output ./public/assets/main.c
 ## BIChat UI
 
 ```ts
-import { BiChatApp } from '@iota-uz/iota-sdk/bichat'
-import '@iota-uz/iota-sdk/bichat/styles.css'
+import { BiChatApp } from '@iota-uz/sdk/bichat'
+import '@iota-uz/sdk/bichat/styles.css'
 ```
 
 ## Assets (fonts)
 
-If you use SDK fonts, serve `node_modules/@iota-uz/iota-sdk/assets` at `/assets` so URLs like `/assets/fonts/...` resolve.
+If you use SDK fonts, serve `node_modules/@iota-uz/sdk/assets` at `/assets` so URLs like `/assets/fonts/...` resolve.
 

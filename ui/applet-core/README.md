@@ -1,6 +1,6 @@
 # Applet Core (moved)
 
-Applet Core is now part of the unified package: `@iota-uz/iota-sdk`.
+Applet Core is now part of the unified package: `@iota-uz/sdk`.
 
 - Docs: `README.MD` and `docs/content/getting-started/npm-package.mdx`
 
@@ -187,7 +187,7 @@ import type {
   PermissionsHook,
   SessionHook,
   StreamingHook
-} from '@iota-uz/iota-sdk'
+} from '@iota-uz/sdk'
 ```
 
 ### InitialContext
@@ -213,7 +213,7 @@ interface InitialContext {
 For cases where provider setup is not possible:
 
 ```tsx
-import { useAppletContextDirect } from '@iota-uz/iota-sdk'
+import { useAppletContextDirect } from '@iota-uz/sdk'
 
 const context = useAppletContextDirect('__BICHAT_CONTEXT__')
 ```

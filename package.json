@@ -1,5 +1,5 @@
 {
-  "name": "@iota-uz/iota-sdk",
+  "name": "@iota-uz/sdk",
   "version": "0.1.0",
   "description": "IOTA SDK UI utilities, Tailwind configuration, and React components for building IOTA SDK applets.",
   "license": "MIT",
@@ -67,5 +67,11 @@
     "tailwindcss": "4.1.18",
     "tsup": "^8.5.0",
     "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@parcel/watcher"
+    ]
   }
 }

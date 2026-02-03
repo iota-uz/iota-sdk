@@ -18,7 +18,7 @@ import {
   RateLimiter,
   BiChatConfig,
   useChat,
-} from '@iota-uz/iota-sdk/bichat'
+} from '@iota-uz/sdk/bichat'
 
 // 1. Define your configuration
 const biChatConfig: BiChatConfig = {
