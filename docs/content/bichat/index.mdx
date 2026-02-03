@@ -46,7 +46,7 @@ graph TB
         subgraph "Agent Framework (pkg/bichat)"
             C --> D[Executor]
             D --> E[Parent BI Agent]
-            E --> F[Sub-Agents (SQL Analyst)]
+            E --> F["Sub-Agents (SQL Analyst)"]
         end
         
         subgraph "Tools"
@@ -58,7 +58,7 @@ graph TB
     end
     
     C --> K[(PostgreSQL Storage)]
-    E --> L[LLM Provider (OpenAI)]
+    E --> L["LLM Provider (OpenAI)"]
 ```
 
 ## API Reference

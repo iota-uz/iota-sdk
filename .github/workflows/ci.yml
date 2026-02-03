@@ -380,14 +380,18 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 10.19.0
 
       - name: Install documentation dependencies
         working-directory: ./docs
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate Mermaid diagrams
+        working-directory: ./docs
+        run: pnpm run check:mermaid
 
       - name: Build documentation
         working-directory: ./docs

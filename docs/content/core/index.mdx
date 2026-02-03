@@ -203,9 +203,9 @@ Other modules access Core services via the registry:
 
 ```mermaid
 graph LR
-    A[Finance Module] -->|app.Service()| B[UserService]
-    C[Warehouse Module] -->|app.Service()| D[UploadService]
-    E[CRM Module] -->|app.Service()| F[SessionService]
+    A[Finance Module] -->|"app.Service()"| B[UserService]
+    C[Warehouse Module] -->|"app.Service()"| D[UploadService]
+    E[CRM Module] -->|"app.Service()"| F[SessionService]
 ```
 
 ### Shared Entities
