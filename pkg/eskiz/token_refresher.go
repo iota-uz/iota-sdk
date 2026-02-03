@@ -51,10 +51,9 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			}
 		}
 
-		select {
-		case <-ctx.Done():
+		// Check context cancellation before making API call
+		if ctx.Err() != nil {
 			return "", ctx.Err()
-		default:
 		}
 
 		resp, httpResp, err := r.client.DefaultApi.
