@@ -115,7 +115,7 @@ col 2+: if string → labels[columnName], else → fields[columnName]
 
 3. **Import Cycles**: Never import `datasource` from `ui/` or vice versa. `executor` orchestrates between layers.
 
-4. **Template Changes**: Always run `templ generate && make css` after modifying .templ files.
+4. **Template Changes**: Always run `templ generate && just css` after modifying .templ files.
 
 5. **Query Timeout**: Default 30s. Long queries need optimization or pagination.
 
@@ -123,7 +123,7 @@ col 2+: if string → labels[columnName], else → fields[columnName]
 
 ```bash
 # Common fixes
-templ generate && make css              # After template changes
+templ generate && just css              # After template changes
 go vet ./...                            # Check types
 
 # Debug empty charts

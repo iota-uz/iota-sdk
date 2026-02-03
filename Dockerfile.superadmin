@@ -1,7 +1,7 @@
 FROM golang:1.23.2-alpine AS base
 
 RUN apk update && apk upgrade
-RUN apk add --no-cache make git curl bash
+RUN apk add --no-cache just git curl bash
 
 WORKDIR /build
 
@@ -16,7 +16,7 @@ FROM base AS build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make css
+RUN just css
 RUN go build -o run_superadmin cmd/superadmin/main.go && \
     go build -o command cmd/command/main.go && \
     go build -o collect_logs cmd/collect-logs/main.go

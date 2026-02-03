@@ -29,15 +29,15 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 go vet ./...
 
 # After template/css changes  
-templ generate && make css
+templ generate && just css
 
 # Testing
-make test                          # All tests
+just test                          # All tests
 go test -v ./path -run TestName    # Single test
 
 # Other
-make check tr                      # Validate translations
-make db migrate up                 # Apply migrations
+just check tr                      # Validate translations
+just db migrate up                 # Apply migrations
 ```
 
 **Never run `go build`** - use `go vet` instead.
@@ -68,7 +68,7 @@ modules/{module}/
 5. **Templates**: `templates/pages/{entity}/` - list.templ, edit.templ, new.templ
 6. **Localization**: Add keys to en/ru/uz.json
 7. **Registration**: Add to `module.go`, `links.go`
-8. **Verify**: `go vet ./...` and `templ generate && make css`
+8. **Verify**: `go vet ./...` and `templ generate && just css`
 
 ## Multi-Agent Orchestration
 
@@ -110,8 +110,8 @@ general-purpose && editor && auditor
 - Creating fixtures/page objects
 
 ```bash
-make e2e run      # Interactive UI mode
-make e2e ci       # Headless CI mode
+just e2e run      # Interactive UI mode
+just e2e ci       # Headless CI mode
 cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
 ```
 

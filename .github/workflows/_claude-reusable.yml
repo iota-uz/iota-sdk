@@ -154,9 +154,13 @@ jobs:
         if: inputs.setup_level == 'full' && inputs.mcp_playwright
         run: cd e2e && pnpm exec playwright install chromium
 
+      - name: Install just
+        if: inputs.setup_level != 'minimal'
+        uses: taiki-e/install-action@just
+
       - name: Generate CSS
         if: inputs.setup_level != 'minimal'
-        run: make css
+        run: just css
 
       - name: Setup Database
         if: inputs.setup_level == 'full'

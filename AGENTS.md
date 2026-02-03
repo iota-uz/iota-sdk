@@ -99,7 +99,7 @@ modules/{module}/
 
 ### 8. Verification
 - Run `go vet ./...` to verify compilation
-- Run `templ generate && make css` if templates were modified
+- Run `templ generate && just css` if templates were modified
 
 ## Technology Stack
 
@@ -122,25 +122,25 @@ modules/{module}/
 ## Build/Lint/Test Commands
 
 ### Code Quality Commands:
-- Format Go code and templates: `make fix fmt`
-- Organize and format Go imports: `make fix imports`
-- Lint code (check unused variables/functions): `make check lint`
-- Check translation files: `make check tr`
+- Format Go code and templates: `just fix fmt`
+- Organize and format Go imports: `just fix imports`
+- Lint code (check unused variables/functions): `just check lint`
+- Check translation files: `just check tr`
 
 ### Other Commands:
-- After changes to css or .templ files: `templ generate && make css`
+- After changes to css or .templ files: `templ generate && just css`
 - After changes to Go code: `go vet ./...`
 - **Never run `go build`** - use `go vet` instead
-- Run all tests: `make test` or `go test -v ./...`
+- Run all tests: `just test` or `go test -v ./...`
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
-- Apply migrations: `make db migrate up`
+- Apply migrations: `just db migrate up`
 
 ## E2E Testing
 
 ```bash
-make e2e run      # Interactive UI mode
-make e2e ci       # Headless CI mode
+just e2e run      # Interactive UI mode
+just e2e ci       # Headless CI mode
 cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
 ```
 
@@ -164,4 +164,3 @@ cd e2e && npx playwright test tests/module/specific.spec.ts  # Single test
 ### HTMX Best Practices
 - Use `htmx.IsHxRequest(r)` to check if a request is from HTMX
 - Use `htmx.SetTrigger(w, "eventName", payload)` for setting HTMX response triggers
-

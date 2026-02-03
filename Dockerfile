@@ -1,7 +1,7 @@
 FROM golang:1.24.10-alpine AS base
 
 RUN apk update && apk upgrade
-RUN apk add --no-cache make git curl bash
+RUN apk add --no-cache just git curl bash
 
 WORKDIR /build
 
@@ -16,8 +16,8 @@ FROM base AS build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make css
-RUN make build linux && go build -o command cmd/command/main.go && go build -o collect_logs cmd/collect-logs/main.go
+RUN just css
+RUN just build linux && go build -o command cmd/command/main.go && go build -o collect_logs cmd/collect-logs/main.go
 
 # Default final base image to Alpine Linux
 FROM alpine:3.21 AS production
@@ -43,4 +43,3 @@ ENV PATH=/home/iota-user:$PATH
 RUN chmod +x ./start.sh
 USER iota-user
 CMD ["./start.sh"]
-

@@ -316,8 +316,11 @@ jobs:
       - name: Install Playwright browsers
         run: cd e2e && pnpm exec playwright install chromium
 
+      - name: Install just
+        uses: taiki-e/install-action@just
+
       - name: Generate CSS
-        run: make css
+        run: just css
 
       - name: Setup Database
         uses: ./.github/actions/setup-database
