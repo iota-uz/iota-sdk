@@ -54,11 +54,15 @@ jobs:
 
       - name: Test generated files are up to date
         run: |
+          # Install just (inline to work around runner caching issues)
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          just --version
           just generate
           git diff --exit-code
 
       - name: Check translation files
-        run: just check tr
+        run: |
+          just check tr
 
       - name: Check templ files formatting
         run: |
