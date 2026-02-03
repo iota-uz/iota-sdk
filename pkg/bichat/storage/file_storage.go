@@ -37,7 +37,7 @@ type FileStorage interface {
 	// Returns:
 	//   - url: Public URL to access the file
 	//   - error: Any error during storage
-	Save(ctx context.Context, filename string, content io.Reader, metadata FileMetadata) (url string, error error)
+	Save(ctx context.Context, filename string, content io.Reader, metadata FileMetadata) (url string, err error)
 
 	// Get retrieves a file by its URL.
 	//

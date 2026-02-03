@@ -114,6 +114,8 @@ func (r *queryResolver) Artifact(ctx context.Context, id string) (*model.Artifac
 }
 
 // Artifacts is the resolver for the Session.artifacts field.
+//
+//nolint:unused
 func (r *sessionResolver) Artifacts(ctx context.Context, obj *model.Session, limit *int, offset *int, types []string) ([]*model.Artifact, error) {
 	const op serrors.Op = "Resolver.Artifacts"
 	sessionID, err := uuid.Parse(obj.ID)
@@ -143,7 +145,7 @@ func (r *sessionResolver) Artifacts(ctx context.Context, obj *model.Session, lim
 	}
 
 	// Convert []string types to []ArtifactType
-	var artifactTypes []domain.ArtifactType
+	artifactTypes := make([]domain.ArtifactType, 0, len(types))
 	for _, t := range types {
 		artifactTypes = append(artifactTypes, domain.ArtifactType(t))
 	}

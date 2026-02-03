@@ -16,10 +16,10 @@ func TestNewOpenAIModel_MissingAPIKey(t *testing.T) {
 	t.Parallel()
 
 	// Clear API key
-	os.Unsetenv("OPENAI_API_KEY")
+	_ = os.Unsetenv("OPENAI_API_KEY")
 
 	_, err := NewOpenAIModel()
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "OPENAI_API_KEY")
 }
 
@@ -27,8 +27,8 @@ func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
 	t.Parallel()
 
 	// Set fake API key
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	_ = os.Setenv("OPENAI_API_KEY", "sk-test-key")
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -38,11 +38,11 @@ func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
 func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	_ = os.Setenv("OPENAI_API_KEY", "sk-test-key")
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	// No OPENAI_MODEL set
-	os.Unsetenv("OPENAI_MODEL")
+	_ = os.Unsetenv("OPENAI_MODEL")
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -54,10 +54,10 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	os.Setenv("OPENAI_MODEL", "gpt-4-turbo")
-	defer os.Unsetenv("OPENAI_API_KEY")
-	defer os.Unsetenv("OPENAI_MODEL")
+	_ = os.Setenv("OPENAI_API_KEY", "sk-test-key")
+	_ = os.Setenv("OPENAI_MODEL", "gpt-4-turbo")
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
+	defer func() { _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -69,10 +69,9 @@ func TestNewOpenAIModel_CustomModel(t *testing.T) {
 func TestOpenAIModel_Info(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	os.Setenv("OPENAI_MODEL", "gpt-4")
-	defer os.Unsetenv("OPENAI_API_KEY")
-	defer os.Unsetenv("OPENAI_MODEL")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -88,8 +87,8 @@ func TestOpenAIModel_Info(t *testing.T) {
 func TestOpenAIModel_HasCapability(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -103,8 +102,8 @@ func TestOpenAIModel_HasCapability(t *testing.T) {
 func TestOpenAIModel_BuildRequest(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -151,15 +150,15 @@ func TestOpenAIModel_BuildRequest(t *testing.T) {
 	assert.Len(t, oaiReq.Tools, 1)
 	assert.Equal(t, "test_tool", oaiReq.Tools[0].Function.Name)
 	assert.Equal(t, 100, oaiReq.MaxTokens)
-	assert.Equal(t, float32(0.7), oaiReq.Temperature)
+	assert.InDelta(t, 0.7, oaiReq.Temperature, 1e-6)
 	assert.NotNil(t, oaiReq.ResponseFormat)
 }
 
 func TestOpenAIModel_BuildRequest_WebSearchTool(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -200,8 +199,8 @@ func TestOpenAIModel_BuildRequest_WebSearchTool(t *testing.T) {
 func TestOpenAIModel_BuildRequest_CodeInterpreterSkipped(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	model, err := NewOpenAIModel()
 	require.NoError(t, err)
@@ -229,7 +228,7 @@ func TestOpenAIModel_BuildRequest_CodeInterpreterSkipped(t *testing.T) {
 	oaiReq := oaiModel.buildChatCompletionRequest(req, config)
 
 	// Verify code_interpreter tool is skipped
-	assert.Len(t, oaiReq.Tools, 0, "code_interpreter tool should be skipped")
+	assert.Empty(t, oaiReq.Tools, "code_interpreter tool should be skipped")
 }
 
 func TestExtractCitationMarkersFromContent_NoCitations(t *testing.T) {
@@ -372,13 +371,13 @@ if current emission trends persist. Several mitigation strategies have been prop
 	for i, citation := range citations {
 		assert.Equal(t, "web", citation.Type, "Citation %d should be type web", i)
 		assert.NotEmpty(t, citation.Title, "Citation %d should have title", i)
-		assert.True(t, citation.StartIndex >= 0, "Citation %d should have valid start index", i)
-		assert.True(t, citation.EndIndex > citation.StartIndex, "Citation %d should have valid end index", i)
+		assert.GreaterOrEqual(t, citation.StartIndex, 0, "Citation %d should have valid start index", i)
+		assert.Greater(t, citation.EndIndex, citation.StartIndex, "Citation %d should have valid end index", i)
 	}
 
 	// Verify positions are in order
 	for i := 1; i < len(citations); i++ {
-		assert.True(t, citations[i].StartIndex > citations[i-1].StartIndex,
+		assert.Greater(t, citations[i].StartIndex, citations[i-1].StartIndex,
 			"Citations should be in document order")
 	}
 }
@@ -386,8 +385,8 @@ if current emission trends persist. Several mitigation strategies have been prop
 func TestExtractCitationsFromResponse_EmptyResponse(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	t.Cleanup(func() { _ = os.Unsetenv("OPENAI_API_KEY") })
 
 	// Import openai to access types
 	var resp openai.ChatCompletionResponse
@@ -400,8 +399,8 @@ func TestExtractCitationsFromResponse_EmptyResponse(t *testing.T) {
 func TestExtractCitationsFromResponse_NoChoices(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	t.Cleanup(func() { _ = os.Unsetenv("OPENAI_API_KEY") })
 
 	resp := openai.ChatCompletionResponse{
 		ID:      "test-id",
@@ -415,8 +414,8 @@ func TestExtractCitationsFromResponse_NoChoices(t *testing.T) {
 func TestExtractCitationsFromResponse_WithCitations(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	t.Cleanup(func() { _ = os.Unsetenv("OPENAI_API_KEY") })
 
 	resp := openai.ChatCompletionResponse{
 		ID: "test-id",
@@ -444,8 +443,8 @@ func TestExtractCitationsFromResponse_WithCitations(t *testing.T) {
 func TestExtractCitationsFromResponse_NoCitationMarkers(t *testing.T) {
 	t.Parallel()
 
-	os.Setenv("OPENAI_API_KEY", "sk-test-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
+	t.Cleanup(func() { _ = os.Unsetenv("OPENAI_API_KEY") })
 
 	resp := openai.ChatCompletionResponse{
 		ID: "test-id",

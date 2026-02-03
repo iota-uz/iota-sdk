@@ -324,7 +324,7 @@ func compactBlocks(
 	if err != nil {
 		// Summarization failed, fall back to truncation
 		finalBlocks, totalTokens, tokensByKind := truncateBlocks(blocks, blockTokens, availableTokens, policy.KindPriorities)
-		return finalBlocks, totalTokens, tokensByKind, nil
+		return finalBlocks, totalTokens, tokensByKind, err
 	}
 
 	// Create a new summarized history block to replace the original history blocks
@@ -459,7 +459,10 @@ func createSummaryBlock(summary string, summaryTokens int) ContextBlock {
 	canonicalized, err := SortedJSONBytes(payload)
 	if err != nil {
 		// Fallback: use regular JSON encoding
-		canonicalized, _ = json.Marshal(payload)
+		canonicalized, err = json.Marshal(payload)
+		if err != nil {
+			canonicalized = []byte("{}")
+		}
 	}
 
 	// Compute content-addressed hash

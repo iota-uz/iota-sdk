@@ -205,9 +205,3 @@ func (c *StreamController) sendSSEEvent(w http.ResponseWriter, flusher http.Flus
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", jsonData)
 	flusher.Flush()
 }
-
-// sendSSEComment sends an SSE comment for keep-alive
-func (c *StreamController) sendSSEComment(w http.ResponseWriter, flusher http.Flusher, comment string) {
-	_, _ = fmt.Fprintf(w, ": %s\n\n", comment)
-	flusher.Flush()
-}

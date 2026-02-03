@@ -64,8 +64,8 @@ func TestMappers_AllFields(t *testing.T) {
 		assert.Equal(t, "custom_value", metadata["custom_field"])
 		assert.Equal(t, 100, metadata["cache_read_tokens"])
 		assert.Equal(t, 50, metadata["cache_write_tokens"])
-		assert.Equal(t, 3.0, metadata["input_price_per_1m"])
-		assert.Equal(t, 15.0, metadata["output_price_per_1m"])
+		assert.InEpsilon(t, 3.0, metadata["input_price_per_1m"], 1e-9)
+		assert.InEpsilon(t, 15.0, metadata["output_price_per_1m"], 1e-9)
 	})
 
 	t.Run("mapGenerationToLangfuse - minimal fields", func(t *testing.T) {
@@ -163,7 +163,7 @@ func TestMappers_AllFields(t *testing.T) {
 		assert.Equal(t, "call-456", metadata["call_id"])
 
 		// Input/output
-		assert.Equal(t, `{"query": "SELECT * FROM users"}`, metadata["input"])
+		assert.JSONEq(t, `{"query": "SELECT * FROM users"}`, metadata["input"].(string))
 		assert.Equal(t, `{"rows": 10}`, metadata["output"])
 
 		// Custom attributes
@@ -263,7 +263,7 @@ func TestMappers_AllFields(t *testing.T) {
 		// Core fields
 		assert.Equal(t, "completed", metadata["status"])
 		assert.Equal(t, userID.String(), metadata["user_id"])
-		assert.Equal(t, 0.05, metadata["total_cost"])
+		assert.InEpsilon(t, 0.05, metadata["total_cost"], 1e-9)
 		assert.Equal(t, 2500, metadata["total_tokens"])
 
 		// Custom attributes
@@ -536,7 +536,7 @@ func TestMappers_EdgeCases(t *testing.T) {
 		// All types should be preserved
 		assert.Equal(t, "test", metadata["string_val"])
 		assert.Equal(t, 42, metadata["int_val"])
-		assert.Equal(t, 3.14, metadata["float_val"])
+		assert.InEpsilon(t, 3.14, metadata["float_val"], 1e-9)
 		assert.Equal(t, true, metadata["bool_val"])
 		assert.Equal(t, []string{"a", "b"}, metadata["array_val"])
 		assert.Equal(t, map[string]int{"x": 1}, metadata["map_val"])

@@ -348,7 +348,7 @@ func TestAccuracyComparison(t *testing.T) {
 	}
 
 	for _, text := range testCases {
-		t.Run(text[:min(20, len(text))], func(t *testing.T) {
+		t.Run(text[:minInt(20, len(text))], func(t *testing.T) {
 			tiktokenCount, err := tiktoken.EstimateTokens(ctx, text)
 			require.NoError(t, err)
 
@@ -366,7 +366,7 @@ func TestAccuracyComparison(t *testing.T) {
 }
 
 // Helper functions
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

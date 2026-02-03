@@ -211,10 +211,6 @@ func (a *mockAgent) setToolResult(toolName, result string) {
 	a.toolResults[toolName] = result
 }
 
-func (a *mockAgent) setToolError(toolName string, err error) {
-	a.toolErrors[toolName] = err
-}
-
 // TestExecutor_SingleTurn tests basic request/response without tools.
 func TestExecutor_SingleTurn(t *testing.T) {
 	t.Parallel()
@@ -267,6 +263,8 @@ func TestExecutor_SingleTurn(t *testing.T) {
 			finalResult = event.Result
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
+		case agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeInterrupt:
+			// no-op for this test
 		}
 	}
 
@@ -377,6 +375,8 @@ func TestExecutor_ToolCalls(t *testing.T) {
 			toolEndEvent = event.Tool
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
+		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone:
+			// no-op for this test
 		}
 	}
 
@@ -665,7 +665,7 @@ func TestExecutor_Resume(t *testing.T) {
 			Text string `json:"text"`
 		} `json:"questions"`
 	}
-	json.Unmarshal([]byte(checkpoint.PendingTools[0].Arguments), &questionsData)
+	_ = json.Unmarshal([]byte(checkpoint.PendingTools[0].Arguments), &questionsData)
 
 	answers := map[string]types.Answer{}
 	if len(questionsData.Questions) > 0 {

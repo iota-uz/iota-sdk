@@ -40,13 +40,6 @@ linters-settings:
 linters:
   enable:
     - asasalint
-  disable:
-    - errcheck      # many test setup/teardown; enable incrementally
-    - exhaustive    # many switches; add default cases incrementally
-    - forbidigo     # println in debug/example code
-    - unused        # mocks and reserved code in tests
-    - predeclared   # id/err variable naming
-    - prealloc      # slice preallocation style
     - asciicheck
     - bidichk
     - bodyclose
@@ -116,8 +109,8 @@ linters:
     - staticcheck
     #    - stylecheck
     - testableexamples
-    # - testifylint  # disabled: style-only, many test updates needed
-    # - thelper      # disabled: test helper convention
+    - testifylint
+    - thelper
     - unconvert
     #    - unparam
     - unused

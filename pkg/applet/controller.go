@@ -342,9 +342,7 @@ func (c *AppletController) buildMountElement(config Config) string {
 
 	// BiChat and similar applets commonly rely on flex layout.
 	// Keep this minimal; applets can override via attributes/styles if needed.
-	if tag != "div" {
-		// no default styling
-	}
+	// No default styling when tag != "div".
 
 	b.WriteString("></")
 	b.WriteString(template.HTMLEscapeString(tag))

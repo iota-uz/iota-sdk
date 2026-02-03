@@ -307,7 +307,7 @@ func (r *ModelRegistry) SetDefault(name string) error {
 
 // HasCapability checks if a model supports a specific capability.
 // Returns false if the model is not found.
-func (r *ModelRegistry) HasCapability(name string, cap Capability) bool {
+func (r *ModelRegistry) HasCapability(name string, capability Capability) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -316,5 +316,5 @@ func (r *ModelRegistry) HasCapability(name string, cap Capability) bool {
 		return false
 	}
 
-	return model.HasCapability(cap)
+	return model.HasCapability(capability)
 }

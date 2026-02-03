@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWebSearchTool_Name(t *testing.T) {
@@ -56,7 +57,7 @@ func TestWebSearchTool_Call(t *testing.T) {
 
 	// Should return formatted error with helpful message
 	assert.NotEmpty(t, result)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, result, "SERVICE_UNAVAILABLE")
 	assert.Contains(t, result, "not yet implemented")
 	assert.Contains(t, err.Error(), "web_search implementation pending")

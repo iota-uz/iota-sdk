@@ -257,7 +257,7 @@ func TestPostgresChatRepository_ListUserSessions_Pagination(t *testing.T) {
 	opts := domain.ListOptions{Limit: 2, Offset: 1}
 	retrieved, err := repo.ListUserSessions(env.Ctx, int64(env.User.ID()), opts)
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(retrieved))
+	assert.Len(t, retrieved, 2)
 }
 
 func TestPostgresChatRepository_DeleteSession(t *testing.T) {
@@ -320,11 +320,11 @@ func TestPostgresChatRepository_DeleteSession_CascadeToMessages(t *testing.T) {
 	// Verify messages are also deleted
 	_, err = repo.GetMessage(env.Ctx, msg1.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.ErrorIs(t, err, persistence.ErrMessageNotFound)
 
 	_, err = repo.GetMessage(env.Ctx, msg2.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.ErrorIs(t, err, persistence.ErrMessageNotFound)
 }
 
 func TestPostgresChatRepository_DeleteSession_NotFound(t *testing.T) {
@@ -623,7 +623,7 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 	opts := domain.ListOptions{Limit: 2, Offset: 1}
 	retrieved, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(retrieved))
+	assert.Len(t, retrieved, 2)
 }
 
 func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
@@ -674,7 +674,7 @@ func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 	opts := domain.ListOptions{Limit: 10, Offset: 0}
 	remaining, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(remaining))
+	assert.Len(t, remaining, 1)
 	assert.Equal(t, "Message 1", remaining[0].Content)
 }
 
@@ -899,7 +899,7 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 	// Retrieve all attachments for the message
 	retrieved, err := repo.GetMessageAttachments(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(retrieved))
+	assert.Len(t, retrieved, 3)
 
 	// Verify ordering (created_at ASC)
 	assert.Equal(t, "doc1.pdf", retrieved[0].FileName)
@@ -1009,7 +1009,7 @@ func TestPostgresChatRepository_TenantIsolation_Sessions(t *testing.T) {
 	// Try to access Tenant A's session from Tenant B's context
 	_, err = repo.GetSession(envB.Ctx, sessionA.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 
 	// Verify Tenant A can still access their session
 	retrieved, err := repo.GetSession(envA.Ctx, sessionA.ID())

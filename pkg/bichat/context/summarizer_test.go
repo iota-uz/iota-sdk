@@ -2,6 +2,7 @@ package context
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
@@ -9,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var errMockNoStream = errors.New("mock model: no stream configured")
 
 // MockModel implements agents.Model for testing
 type MockModel struct {
@@ -36,7 +39,7 @@ func (m *MockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 	if m.streamFunc != nil {
 		return m.streamFunc(ctx, req, opts...)
 	}
-	return nil, nil
+	return nil, errMockNoStream
 }
 
 func (m *MockModel) Info() agents.ModelInfo {
@@ -106,12 +109,12 @@ func TestLLMHistorySummarizer_SummarizeMessages_Success(t *testing.T) {
 	model := &MockModel{
 		generateFunc: func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
 			// Verify system prompt is set
-			assert.Greater(t, len(req.Messages), 0)
+			assert.NotEmpty(t, req.Messages)
 			assert.Equal(t, types.RoleSystem, req.Messages[0].Role())
 			assert.Contains(t, req.Messages[0].Content(), "conversation summarizer")
 
 			// Verify user prompt contains messages
-			assert.Equal(t, 2, len(req.Messages))
+			assert.Len(t, req.Messages, 2)
 			assert.Equal(t, types.RoleUser, req.Messages[1].Role())
 			assert.Contains(t, req.Messages[1].Content(), "Conversation to summarize")
 
@@ -210,7 +213,7 @@ func TestLLMHistorySummarizer_WithCustomSystemPrompt(t *testing.T) {
 	model := &MockModel{
 		generateFunc: func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
 			// Verify custom system prompt is used
-			assert.Greater(t, len(req.Messages), 0)
+			assert.NotEmpty(t, req.Messages)
 			assert.Equal(t, types.RoleSystem, req.Messages[0].Role())
 			assert.Equal(t, customPrompt, req.Messages[0].Content())
 
@@ -304,7 +307,7 @@ func TestLLMHistorySummarizer_ToolCallsIncluded(t *testing.T) {
 	model := &MockModel{
 		generateFunc: func(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
 			// Verify tool calls are mentioned in prompt
-			assert.Equal(t, 2, len(req.Messages))
+			assert.Len(t, req.Messages, 2)
 			userPrompt := req.Messages[1].Content()
 			assert.Contains(t, userPrompt, "tool calls")
 			assert.Contains(t, userPrompt, "sql_execute")

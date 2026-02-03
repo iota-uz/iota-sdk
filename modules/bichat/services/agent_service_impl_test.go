@@ -258,7 +258,7 @@ func (m *mockChatRepository) UpdateSession(ctx context.Context, session domain.S
 }
 
 func (m *mockChatRepository) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
-	var sessions []domain.Session
+	sessions := make([]domain.Session, 0, len(m.sessions))
 	for _, session := range m.sessions {
 		sessions = append(sessions, session)
 	}
@@ -314,7 +314,7 @@ func (m *mockChatRepository) GetAttachment(ctx context.Context, id uuid.UUID) (d
 }
 
 func (m *mockChatRepository) GetMessageAttachments(ctx context.Context, messageID uuid.UUID) ([]domain.Attachment, error) {
-	var atts []domain.Attachment
+	atts := make([]domain.Attachment, 0, len(m.attachments))
 	for _, att := range m.attachments {
 		atts = append(atts, att)
 	}
@@ -487,7 +487,7 @@ func TestProcessMessage_MissingTenantID(t *testing.T) {
 	gen, err := service.ProcessMessage(ctx, sessionID, content, attachments)
 
 	// Should fail without tenant ID
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, gen)
 }
 
@@ -603,7 +603,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 	gen, err := service.ResumeWithAnswer(ctx, sessionID, "", answers)
 
 	// Should fail with validation error
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, gen)
 }
 
@@ -643,7 +643,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	gen, err := service.ResumeWithAnswer(ctx, sessionID, checkpointID, answers)
 
 	// Should fail without tenant ID
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, gen)
 }
 
@@ -679,7 +679,7 @@ func TestConvertExecutorEvent_ToolStart(t *testing.T) {
 	assert.Equal(t, services.EventTypeToolStart, serviceEvent.Type)
 	require.NotNil(t, serviceEvent.Tool)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
-	assert.Equal(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
+	assert.JSONEq(t, `{"param": "value"}`, serviceEvent.Tool.Arguments)
 }
 
 func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
@@ -701,7 +701,7 @@ func TestConvertExecutorEvent_ToolEnd(t *testing.T) {
 	require.NotNil(t, serviceEvent.Tool)
 	assert.Equal(t, "test_tool", serviceEvent.Tool.Name)
 	assert.Equal(t, "tool result", serviceEvent.Tool.Result)
-	assert.Nil(t, serviceEvent.Tool.Error)
+	assert.NoError(t, serviceEvent.Tool.Error)
 }
 
 func TestConvertExecutorEvent_Interrupt(t *testing.T) {

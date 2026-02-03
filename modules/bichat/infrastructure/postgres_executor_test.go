@@ -22,7 +22,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := executor.ExecuteQuery(ctx, "SELECT 1 WHERE tenant_id = $1", nil, 5*time.Second)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant ID required")
 }
 
@@ -83,7 +83,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 
 	// Test 2: Execute query WITHOUT tenant filter (should be rejected)
 	_, err = executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_tenant_data ORDER BY value", nil, 5*time.Second)
-	assert.Error(t, err, "query without tenant_id filter should be rejected")
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must include WHERE tenant_id")
 }
 
@@ -127,7 +127,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	assert.Equal(t, 3, result.RowCount)
 	assert.Len(t, result.Rows, 3)
 	assert.Equal(t, "Alice", result.ToMap(0)["name"])
-	assert.Greater(t, result.Duration.Milliseconds(), int64(0))
+	assert.Positive(t, result.Duration.Milliseconds())
 }
 
 func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {

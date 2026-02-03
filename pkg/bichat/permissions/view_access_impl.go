@@ -76,8 +76,10 @@ func (v *viewAccessControl) CanAccess(ctx context.Context, viewName string) (boo
 	case LogicAll:
 		// AND logic: user needs ALL permissions
 		return v.hasAllPermissions(u, vp.Required), nil
+	case LogicAny:
+		// User needs ANY ONE permission
+		return v.hasAnyPermission(u, vp.Required), nil
 	default:
-		// LogicAny (default): user needs ANY ONE permission
 		return v.hasAnyPermission(u, vp.Required), nil
 	}
 }

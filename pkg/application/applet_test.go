@@ -53,7 +53,7 @@ func TestAppletRegistry_Register(t *testing.T) {
 		require.NoError(t, err)
 
 		err = registry.Register(applet2)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "already registered")
 	})
 
@@ -63,7 +63,7 @@ func TestAppletRegistry_Register(t *testing.T) {
 		applet := &mockApplet{name: "", basePath: "/test"}
 
 		err := registry.Register(applet)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be empty")
 	})
 }
@@ -135,7 +135,7 @@ func TestAppletRegistry_All(t *testing.T) {
 		registry := applet.NewRegistry()
 
 		all := registry.All()
-		assert.Len(t, all, 0)
+		assert.Empty(t, all)
 	})
 }
 
@@ -190,7 +190,7 @@ func TestApplication_AppletRegistry(t *testing.T) {
 
 		// Registry should be empty initially
 		all := registry.All()
-		assert.Len(t, all, 0)
+		assert.Empty(t, all)
 	})
 
 	t.Run("registry is shared across calls", func(t *testing.T) {
