@@ -85,10 +85,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     }, [message])
 
     useEffect(() => {
-      if (error) {
-        const timer = setTimeout(() => setError(null), 5000)
-        return () => clearTimeout(timer)
-      }
+      if (!error) return
+      const timer = setTimeout(() => setError(null), 5000)
+      return () => clearTimeout(timer)
     }, [error])
 
     const handleFileSelect = async (files: FileList | null) => {

@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChatSession } from '@iotauz/bichat-ui'
+import { ChatSession } from '@iotauz/iota-sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 
 export default function ChatPage() {

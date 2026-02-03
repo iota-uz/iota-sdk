@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@config "../../../../../tailwind.config.js";
+@import "tailwindcss";
 
 @font-face {
   font-family: "Inter";
@@ -258,7 +257,7 @@
     color: oklch(var(--white));
   }
 
-  ::popover-open {
+  :popover-open {
     width: 200px;
     height: 100px;
     position: absolute;

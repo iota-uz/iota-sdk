@@ -96,13 +96,13 @@ test:
 # Compile TailwindCSS with optional subcommands (css, watch, dev, clean)
 css:
 	@if [ "$(word 2,$(MAKECMDGOALS))" = "watch" ]; then \
-		tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify --watch; \
+		pnpm exec tailwindcss --input $(TAILWIND_INPUT) --output $(TAILWIND_OUTPUT) --minify --watch; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "dev" ]; then \
-		tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT); \
+		pnpm exec tailwindcss --input $(TAILWIND_INPUT) --output $(TAILWIND_OUTPUT); \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "clean" ]; then \
 		rm -rf $(TAILWIND_OUTPUT); \
 	else \
-		tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --minify; \
+		pnpm exec tailwindcss --input $(TAILWIND_INPUT) --output $(TAILWIND_OUTPUT) --minify; \
 	fi
 
 # E2E testing management with subcommands (setup, test, reset, seed, run, clean)
@@ -231,7 +231,7 @@ dev:
 		echo "Starting development watch mode (templ + tailwind)..."; \
 		trap 'kill %1 %2 2>/dev/null; exit' INT TERM; \
 		templ generate --watch & \
-		tailwindcss -c tailwind.config.js -i $(TAILWIND_INPUT) -o $(TAILWIND_OUTPUT) --watch & \
+		pnpm exec tailwindcss --input $(TAILWIND_INPUT) --output $(TAILWIND_OUTPUT) --watch & \
 		wait; \
 	elif [ "$(word 2,$(MAKECMDGOALS))" = "bichat" ]; then \
 		./scripts/dev-bichat.sh; \

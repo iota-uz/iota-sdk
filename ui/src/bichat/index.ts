@@ -107,4 +107,4 @@ export type { HttpDataSourceConfig } from './data/HttpDataSource'
 export { MessageRole } from './types'
 
 // Styles (import separately)
-// import '@iotauz/bichat-ui/styles.css'
+// import '@iotauz/iota-sdk/bichat/styles.css'

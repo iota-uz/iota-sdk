@@ -12,7 +12,7 @@ import {
   WelcomeContent,
   MessageList,
   MessageInput,
-} from '@iotauz/bichat-ui'
+} from '@iotauz/iota-sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 
 type LocationState = {
