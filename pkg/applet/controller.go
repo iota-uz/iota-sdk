@@ -297,7 +297,7 @@ func (c *AppletController) render(ctx context.Context, w http.ResponseWriter, r 
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(html))
+	_, _ = w.Write([]byte(html))
 }
 
 func (c *AppletController) buildMountElement(config Config) string {
@@ -394,7 +394,10 @@ func (c *AppletController) buildJSScripts(jsFiles []string) string {
 func (c *AppletController) buildSafeContextScript(windowGlobal string, contextJSON []byte) string {
 	// Use bracket notation to avoid requiring WindowGlobal to be a JS identifier.
 	// Also escape any </script>-like sequences in both key and value.
-	keyJSON, _ := json.Marshal(windowGlobal)
+	keyJSON, err := json.Marshal(windowGlobal)
+	if err != nil {
+		return fmt.Sprintf(`<script>window[""] = %s;</script>`, escapeJSONForScriptTag(contextJSON))
+	}
 	safeKey := escapeJSONForScriptTag(keyJSON)
 	safeValue := escapeJSONForScriptTag(contextJSON)
 

@@ -262,7 +262,6 @@ func TestExtractCitationMarkersFromContent_NoCitations(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			citations := extractCitationMarkersFromContent(tc.content)
@@ -333,7 +332,6 @@ func TestExtractCitationMarkersFromContent_WithCitations(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // Capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			citations := extractCitationMarkersFromContent(tc.content)

@@ -125,7 +125,7 @@ func (s *LocalFileStorage) Save(ctx context.Context, filename string, content io
 	if err != nil {
 		return "", fmt.Errorf("%s: failed to create file: %w", op, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Copy content to file
 	written, err := io.Copy(file, content)

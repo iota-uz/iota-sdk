@@ -454,13 +454,13 @@ func (c *ChatController) DeleteSession(w http.ResponseWriter, r *http.Request) {
 func (c *ChatController) sendJSON(w http.ResponseWriter, data interface{}, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 func (c *ChatController) sendError(w http.ResponseWriter, err error, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"error": err.Error(),
 	})
 }

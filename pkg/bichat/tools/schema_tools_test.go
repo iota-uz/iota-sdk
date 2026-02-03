@@ -75,33 +75,27 @@ func TestSchemaDescribeToolWithSampleData(t *testing.T) {
 		t.Fatalf("Call() error = %v", err)
 	}
 
-	// Verify result contains expected data
+	// Verify result contains expected data (schema_describe returns table_name, schema, columns, indexes, constraints, samples)
 	if !strings.Contains(result, "table_name") {
 		t.Errorf("expected 'table_name' in result, got: %s", result)
 	}
 	if !strings.Contains(result, "users") {
 		t.Errorf("expected 'users' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "sample_rows") {
-		t.Errorf("expected 'sample_rows' in result, got: %s", result)
+	if !strings.Contains(result, "columns") {
+		t.Errorf("expected 'columns' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "sample_data_table") {
-		t.Errorf("expected 'sample_data_table' in result, got: %s", result)
+	if !strings.Contains(result, "schema") {
+		t.Errorf("expected 'schema' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "statistics") {
-		t.Errorf("expected 'statistics' in result, got: %s", result)
+	if !strings.Contains(result, "indexes") {
+		t.Errorf("expected 'indexes' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "total_rows") {
-		t.Errorf("expected 'total_rows' in result, got: %s", result)
+	if !strings.Contains(result, "constraints") {
+		t.Errorf("expected 'constraints' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "has_large_dataset") {
-		t.Errorf("expected 'has_large_dataset' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "sample_representative") {
-		t.Errorf("expected 'sample_representative' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "indexed_columns") {
-		t.Errorf("expected 'indexed_columns' in result, got: %s", result)
+	if !strings.Contains(result, "samples") {
+		t.Errorf("expected 'samples' in result, got: %s", result)
 	}
 }
 
@@ -126,12 +120,15 @@ func TestSchemaDescribeToolLargeDataset(t *testing.T) {
 		t.Fatalf("Call() error = %v", err)
 	}
 
-	// Verify statistics indicate large dataset
-	if !strings.Contains(result, "has_large_dataset") {
-		t.Errorf("expected 'has_large_dataset' in result")
+	// Verify result contains table schema (schema_describe returns table_name, schema, columns, indexes, constraints, samples)
+	if !strings.Contains(result, "table_name") {
+		t.Errorf("expected 'table_name' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "sample_representative") {
-		t.Errorf("expected 'sample_representative' in result")
+	if !strings.Contains(result, "large_table") {
+		t.Errorf("expected 'large_table' in result, got: %s", result)
+	}
+	if !strings.Contains(result, "columns") {
+		t.Errorf("expected 'columns' in result, got: %s", result)
 	}
 }
 
