@@ -35,7 +35,8 @@ func TestTokenRefresher_RefreshToken_TimeoutContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	time.Sleep(2 * time.Millisecond)
+	// Wait for context to definitely expire
+	<-ctx.Done()
 
 	refresher := &tokenRefresher{}
 
@@ -73,7 +74,8 @@ func TestTokenRefresher_RefreshTokenLocked_TimeoutContext(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
 	defer cancel()
 
-	time.Sleep(2 * time.Millisecond)
+	// Wait for context to definitely expire
+	<-ctx.Done()
 
 	refresher := &tokenRefresher{}
 
