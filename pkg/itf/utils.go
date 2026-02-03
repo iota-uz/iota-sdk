@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -336,8 +337,10 @@ func SetupApplication(pool *pgxpool.Pool, mods ...application.Module) (applicati
 	// run from subdirectories where migrations/ path doesn't resolve.
 	if _, err := os.Stat(conf.MigrationsDir); err == nil {
 		if err := app.Migrations().Run(); err != nil {
-			return nil, err
+			return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to run migrations")
 		}
+	} else if !os.IsNotExist(err) {
+		return nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "failed to stat migrations directory")
 	}
 
 	return app, nil
@@ -360,11 +363,13 @@ func GetTestContext() *TestFixtures {
 	// Only run migrations if migrations directory exists
 	if _, err := os.Stat(conf.MigrationsDir); err == nil {
 		if err := app.Migrations().Rollback(); err != nil {
-			panic(err)
+			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to rollback migrations"))
 		}
 		if err := app.Migrations().Run(); err != nil {
-			panic(err)
+			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to run migrations"))
 		}
+	} else if !os.IsNotExist(err) {
+		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to stat migrations directory"))
 	}
 
 	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)

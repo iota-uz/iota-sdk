@@ -610,9 +610,6 @@ type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
 
-// sessionResolver implements generated.SessionResolver (used by gqlgen codegen).
-//
-//nolint:unused
 type sessionResolver struct{ *Resolver }
 
 // !!! WARNING !!!

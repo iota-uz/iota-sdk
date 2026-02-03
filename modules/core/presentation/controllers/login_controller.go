@@ -179,7 +179,7 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	// Use InTx to ensure the session is committed before the redirect is sent.
 	// This prevents a race condition where the client follows the redirect
 	// before the session transaction commits, causing session lookup to fail.
-	logger.Info("POST /login: starting authentication", "email", dto.Email)
+	logger.Info("POST /login: starting authentication")
 
 	var cookie *http.Cookie
 	err = composables.InTx(r.Context(), func(ctx context.Context) error {

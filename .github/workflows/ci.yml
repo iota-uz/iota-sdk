@@ -54,11 +54,6 @@ jobs:
 
       - name: Test generated files are up to date
         run: |
-          # Ensure just is installed (fallback for runner caching issues)
-          if ! command -v just &> /dev/null; then
-            curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-          fi
-          just --version
           just generate
           git diff --exit-code
 
