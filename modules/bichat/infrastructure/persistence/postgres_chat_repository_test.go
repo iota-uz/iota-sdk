@@ -362,15 +362,15 @@ func TestPostgresChatRepository_SaveMessage(t *testing.T) {
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
-	assert.NotEmpty(t, msg.CreatedAt)
+	assert.NotEmpty(t, msg.CreatedAt())
 
 	// Verify message was saved
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Equal(t, msg.ID(), retrieved.ID)
-	assert.Equal(t, msg.Content, retrieved.Content)
-	assert.Equal(t, msg.Role, retrieved.Role)
-	assert.Equal(t, session.ID(), retrieved.SessionID)
+	assert.Equal(t, msg.ID(), retrieved.ID())
+	assert.Equal(t, msg.Content(), retrieved.Content())
+	assert.Equal(t, msg.Role(), retrieved.Role())
+	assert.Equal(t, session.ID(), retrieved.SessionID())
 }
 
 func TestPostgresChatRepository_SaveMessage_WithToolCalls(t *testing.T) {
@@ -464,7 +464,7 @@ func TestPostgresChatRepository_SaveMessage_WithCitations(t *testing.T) {
 	// Verify citations are saved and retrieved
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	require.Len(t, retrieved.Citations, 2)
+	require.Len(t, retrieved.Citations(), 2)
 	assert.Equal(t, "database", retrieved.Citations()[0].Type)
 	assert.Equal(t, "Users Table", retrieved.Citations()[0].Title)
 	assert.Equal(t, "web", retrieved.Citations()[1].Type)
@@ -496,8 +496,8 @@ func TestPostgresChatRepository_SaveMessage_EmptyToolCallsAndCitations(t *testin
 	// Verify empty arrays are handled correctly
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Empty(t, retrieved.ToolCalls)
-	assert.Empty(t, retrieved.Citations)
+	assert.Empty(t, retrieved.ToolCalls())
+	assert.Empty(t, retrieved.Citations())
 }
 
 func TestPostgresChatRepository_GetMessage(t *testing.T) {
@@ -524,8 +524,8 @@ func TestPostgresChatRepository_GetMessage(t *testing.T) {
 	// Retrieve the message
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Equal(t, msg.ID(), retrieved.ID)
-	assert.Equal(t, msg.Content, retrieved.Content)
+	assert.Equal(t, msg.ID(), retrieved.ID())
+	assert.Equal(t, msg.Content(), retrieved.Content())
 }
 
 func TestPostgresChatRepository_GetMessage_NotFound(t *testing.T) {
@@ -739,16 +739,16 @@ func TestPostgresChatRepository_SaveAttachment(t *testing.T) {
 	)
 	err = repo.SaveAttachment(env.Ctx, attachment)
 	require.NoError(t, err)
-	assert.NotEmpty(t, attachment.CreatedAt)
+	assert.NotEmpty(t, attachment.CreatedAt())
 
 	// Verify attachment was saved
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, attachment.ID(), retrieved.ID)
-	assert.Equal(t, attachment.FileName, retrieved.FileName)
-	assert.Equal(t, attachment.MimeType, retrieved.MimeType)
-	assert.Equal(t, attachment.SizeBytes, retrieved.SizeBytes)
-	assert.Equal(t, attachment.FilePath, retrieved.FilePath)
+	assert.Equal(t, attachment.ID(), retrieved.ID())
+	assert.Equal(t, attachment.FileName(), retrieved.FileName())
+	assert.Equal(t, attachment.MimeType(), retrieved.MimeType())
+	assert.Equal(t, attachment.SizeBytes(), retrieved.SizeBytes())
+	assert.Equal(t, attachment.FilePath(), retrieved.FilePath())
 }
 
 func TestPostgresChatRepository_SaveAttachment_SpecialCharacters(t *testing.T) {
@@ -786,7 +786,7 @@ func TestPostgresChatRepository_SaveAttachment_SpecialCharacters(t *testing.T) {
 	// Verify special characters are preserved
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, "файл-тест (копия) #1.pdf", retrieved.FileName)
+	assert.Equal(t, "файл-тест (копия) #1.pdf", retrieved.FileName())
 }
 
 func TestPostgresChatRepository_GetAttachment(t *testing.T) {
@@ -823,8 +823,8 @@ func TestPostgresChatRepository_GetAttachment(t *testing.T) {
 	// Retrieve the attachment
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, attachment.ID(), retrieved.ID)
-	assert.Equal(t, "image.png", retrieved.FileName)
+	assert.Equal(t, attachment.ID(), retrieved.ID())
+	assert.Equal(t, "image.png", retrieved.FileName())
 }
 
 func TestPostgresChatRepository_GetAttachment_NotFound(t *testing.T) {
@@ -1014,7 +1014,7 @@ func TestPostgresChatRepository_TenantIsolation_Sessions(t *testing.T) {
 	// Verify Tenant A can still access their session
 	retrieved, err := repo.GetSession(envA.Ctx, sessionA.ID())
 	require.NoError(t, err)
-	assert.Equal(t, sessionA.ID(), retrieved.ID)
+	assert.Equal(t, sessionA.ID(), retrieved.ID())
 }
 
 func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {
@@ -1237,7 +1237,7 @@ func TestPostgresChatRepository_LargeAttachment(t *testing.T) {
 	// Verify large size is preserved
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, int64(100*1024*1024), retrieved.SizeBytes)
+	assert.Equal(t, int64(100*1024*1024), retrieved.SizeBytes())
 }
 
 func TestPostgresChatRepository_ToolCallID(t *testing.T) {
@@ -1344,7 +1344,7 @@ func TestPostgresChatRepository_MessageWithNilToolCallID(t *testing.T) {
 	// Verify nil tool_call_id is handled correctly
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Nil(t, retrieved.ToolCallID)
+	assert.Nil(t, retrieved.ToolCallID())
 }
 
 func TestPostgresChatRepository_UpdateSessionTimestamp(t *testing.T) {

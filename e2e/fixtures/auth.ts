@@ -4,47 +4,24 @@
 
 import { Page } from '@playwright/test';
 
-const LOGIN_ATTEMPTS = 3;
-const RETRY_DELAY_MS = 4000;
-
 /**
- * Login via API request then load app. Avoids ERR_EMPTY_RESPONSE on form redirect in CI.
- * Form field names match modules/core login: Email, Password.
+ * Login helper function
  *
  * @param page - Playwright page object
  * @param email - User email
  * @param password - User password
  */
 export async function login(page: Page, email: string, password: string) {
-	for (let attempt = 1; attempt <= LOGIN_ATTEMPTS; attempt++) {
-		try {
-			const response = await page.request.post('/login', {
-				form: { Email: email, Password: password },
-				maxRedirects: 2,
-				timeout: 30000,
-			});
-			if (!response.ok() && response.status() !== 302) {
-				throw new Error(`Login failed: ${response.status()} ${await response.text()}`);
-			}
-			await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 15000 });
-			const url = page.url();
-			if (url.includes('/login')) {
-				throw new Error('Still on login page after POST');
-			}
-			return;
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			const isRetryable = attempt < LOGIN_ATTEMPTS && (
-				msg.includes('ERR_EMPTY_RESPONSE') ||
-				msg.includes('socket hang up') ||
-				msg.includes('timeout') ||
-				msg.includes('Timeout') ||
-				msg.includes('Still on login')
-			);
-			if (!isRetryable) throw err;
-			await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
-		}
-	}
+	await page.goto('/login');
+	await page.fill('[type=email]', email);
+	await page.fill('[type=password]', password);
+
+	// Wait for navigation BEFORE clicking submit (Playwright best practice)
+	// This prevents race conditions where navigation completes before waitForURL is called
+	await Promise.all([
+		page.waitForURL(url => !url.pathname.includes('/login')),
+		page.click('[type=submit]')
+	]);
 }
 
 /**

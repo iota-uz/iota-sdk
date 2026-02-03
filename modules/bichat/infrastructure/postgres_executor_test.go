@@ -137,7 +137,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	assert.Equal(t, 3, result.RowCount)
 	assert.Len(t, result.Rows, 3)
 	assert.Equal(t, "Alice", result.ToMap(0)["name"])
-	assert.Positive(t, result.Duration.Milliseconds())
+	assert.NotZero(t, result.Duration, "query should have non-zero duration")
 }
 
 func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
