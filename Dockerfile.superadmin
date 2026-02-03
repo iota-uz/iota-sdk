@@ -1,20 +1,19 @@
 FROM golang:1.23.2-alpine AS base
 
-ARG JUST_VERSION=1.25.2
+ARG JUST_VERSION=1.46.0
 
 RUN apk update && apk upgrade
 RUN apk add --no-cache git curl bash ca-certificates && update-ca-certificates && \
-    (apk add --no-cache just || ( \
-      arch="$(apk --print-arch)" ; \
-      case "$arch" in \
-        x86_64) target="x86_64-unknown-linux-musl" ;; \
-        aarch64) target="aarch64-unknown-linux-musl" ;; \
-        *) echo "Unsupported arch for just: $arch" ; exit 1 ;; \
-      esac ; \
-      curl -sSfL "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-${target}.tar.gz" \
-        | tar -xz -C /usr/local/bin just ; \
-      chmod +x /usr/local/bin/just ; \
-    )) && just --version
+    arch="$(apk --print-arch)" && \
+    case "$arch" in \
+      x86_64) target="x86_64-unknown-linux-musl" ;; \
+      aarch64) target="aarch64-unknown-linux-musl" ;; \
+      *) echo "Unsupported arch for just: $arch" ; exit 1 ;; \
+    esac && \
+    curl -sSfL "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-${target}.tar.gz" \
+      | tar -xz -C /usr/local/bin just && \
+    chmod +x /usr/local/bin/just && \
+    just --version
 
 WORKDIR /build
 

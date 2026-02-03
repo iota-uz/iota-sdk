@@ -2,7 +2,7 @@ FROM golang:1.23.2
 
 WORKDIR /build
 
-ARG JUST_VERSION=1.25.2
+ARG JUST_VERSION=1.46.0
 RUN set -eux; \
     arch="$(uname -m)"; \
     case "$arch" in \
