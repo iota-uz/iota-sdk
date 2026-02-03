@@ -4,25 +4,42 @@
 
 import { Page } from '@playwright/test';
 
+const LOGIN_ATTEMPTS = 3;
+const LOGIN_NAV_TIMEOUT_MS = 60000;
+const RETRY_DELAY_MS = 4000;
+
 /**
- * Login helper function
+ * Login helper function. Retries on network errors (e.g. ERR_EMPTY_RESPONSE in CI).
  *
  * @param page - Playwright page object
  * @param email - User email
  * @param password - User password
  */
 export async function login(page: Page, email: string, password: string) {
-	await page.goto('/login');
-	await page.fill('[type=email]', email);
-	await page.fill('[type=password]', password);
+	for (let attempt = 1; attempt <= LOGIN_ATTEMPTS; attempt++) {
+		try {
+			await page.goto('/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+			await page.waitForSelector('[type=submit]', { state: 'visible', timeout: 10000 });
+			await page.fill('[type=email]', email);
+			await page.fill('[type=password]', password);
 
-	// Wait for navigation BEFORE clicking submit (Playwright best practice)
-	// This prevents race conditions where navigation completes before waitForURL is called.
-	// Use a longer timeout in CI where the server may be under load.
-	await Promise.all([
-		page.waitForURL(url => !url.pathname.includes('/login'), { timeout: 60000 }),
-		page.click('[type=submit]')
-	]);
+			// Wait for navigation after submit (Playwright: start wait, then trigger)
+			await Promise.all([
+				page.waitForURL(url => !url.pathname.includes('/login'), { timeout: LOGIN_NAV_TIMEOUT_MS }),
+				page.click('[type=submit]')
+			]);
+			return;
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			const isRetryable = attempt < LOGIN_ATTEMPTS && (
+				msg.includes('ERR_EMPTY_RESPONSE') ||
+				msg.includes('timeout') ||
+				msg.includes('Timeout')
+			);
+			if (!isRetryable) throw err;
+			await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+		}
+	}
 }
 
 /**

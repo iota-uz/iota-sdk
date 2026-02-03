@@ -329,6 +329,11 @@ jobs:
           # Wait for server to be ready (timeout: 60 seconds)
           timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
 
+          # Warm up app (login page + test endpoints) so first Playwright request is stable
+          curl -s -o /dev/null http://localhost:3201/login || true
+          curl -s -o /dev/null http://localhost:3201/__test__/health || true
+          sleep 5
+
       - name: Run Playwright Tests
         env:
           BASE_URL: http://localhost:3201
