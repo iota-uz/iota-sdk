@@ -137,6 +137,8 @@ func main() {
 				if err := bichatModule.Register(app); err != nil {
 					logger.Warnf("Failed to register BiChat module: %v", err)
 				} else {
+					// Register BiChat navigation items (only when module is loaded)
+					app.RegisterNavItems(bichat.NavItems...)
 					logger.Info("BiChat module registered successfully")
 				}
 			}
