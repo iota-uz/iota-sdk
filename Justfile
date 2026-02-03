@@ -4,7 +4,7 @@ set dotenv-load
 DEV_COMPOSE_FILE := "compose.dev.yml"
 TESTING_COMPOSE_FILE := "compose.testing.yml"
 
-TAILWIND_INPUT := "modules/core/presentation/assets/css/main.css"
+TAILWIND_INPUT := "styles/tailwind/input.css"
 TAILWIND_OUTPUT := "modules/core/presentation/assets/css/main.min.css"
 
 GO_TEST_TAG := "dev"
