@@ -13,8 +13,7 @@ import (
 )
 
 func TestNewOpenAIModel_MissingAPIKey(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	// Clear API key
 	require.NoError(t, os.Unsetenv("OPENAI_API_KEY"))
 
@@ -24,8 +23,7 @@ func TestNewOpenAIModel_MissingAPIKey(t *testing.T) {
 }
 
 func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	// Set fake API key
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
@@ -36,8 +34,7 @@ func TestNewOpenAIModel_WithAPIKey(t *testing.T) {
 }
 
 func TestNewOpenAIModel_DefaultModel(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
 
@@ -52,8 +49,7 @@ func TestNewOpenAIModel_DefaultModel(t *testing.T) {
 }
 
 func TestNewOpenAIModel_CustomModel(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4-turbo"))
 	defer func() { require.NoError(t, os.Unsetenv("OPENAI_API_KEY")) }()
@@ -67,8 +63,7 @@ func TestNewOpenAIModel_CustomModel(t *testing.T) {
 }
 
 func TestOpenAIModel_Info(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	require.NoError(t, os.Setenv("OPENAI_MODEL", "gpt-4"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY"); _ = os.Unsetenv("OPENAI_MODEL") }()
@@ -85,8 +80,7 @@ func TestOpenAIModel_Info(t *testing.T) {
 }
 
 func TestOpenAIModel_HasCapability(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
@@ -100,8 +94,7 @@ func TestOpenAIModel_HasCapability(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildRequest(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
@@ -155,8 +148,7 @@ func TestOpenAIModel_BuildRequest(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildRequest_WebSearchTool(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
@@ -197,8 +189,7 @@ func TestOpenAIModel_BuildRequest_WebSearchTool(t *testing.T) {
 }
 
 func TestOpenAIModel_BuildRequest_CodeInterpreterSkipped(t *testing.T) {
-	t.Parallel()
-
+	// Not parallel: modifies global environment variable
 	require.NoError(t, os.Setenv("OPENAI_API_KEY", "sk-test-key"))
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
