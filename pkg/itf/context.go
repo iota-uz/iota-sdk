@@ -95,12 +95,15 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	// Build context with all composables
 	tc.ctx = tc.buildContext()
 
-	// Setup cleanup
+	// Setup cleanup - drop test database to free disk space
+	dbName := tc.dbName
 	tb.Cleanup(func() {
 		if err := tx.Rollback(tc.ctx); err != nil && err != pgx.ErrTxClosed {
 			tb.Logf("Warning: failed to rollback transaction: %v", err)
 		}
 		tc.pool.Close()
+		// Drop the test database to free disk space
+		DropDB(dbName)
 	})
 
 	return &TestEnvironment{

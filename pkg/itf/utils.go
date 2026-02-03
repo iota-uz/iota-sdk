@@ -272,6 +272,41 @@ func CreateDB(name string) {
 	}
 }
 
+// DropDB drops a test database. Used for cleanup after tests to free disk space.
+func DropDB(name string) {
+	sanitizedName := sanitizeDBName(name)
+
+	c := configuration.Use()
+	adminConnStr := fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
+		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+	)
+	db, err := sql.Open("postgres", adminConnStr)
+	if err != nil {
+		log.Printf("[WARNING] Failed to open connection for DropDB: %v", err)
+		return
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("[WARNING] Error closing DropDB connection: %v", err)
+		}
+	}()
+
+	// Terminate any remaining connections to the database
+	terminateSQL := fmt.Sprintf(`
+		SELECT pg_terminate_backend(pg_stat_activity.pid)
+		FROM pg_stat_activity
+		WHERE pg_stat_activity.datname = '%s'
+		AND pid <> pg_backend_pid()
+	`, sanitizedName)
+	_, _ = db.ExecContext(context.Background(), terminateSQL)
+
+	_, err = db.ExecContext(context.Background(), fmt.Sprintf("DROP DATABASE IF EXISTS %s", sanitizedName))
+	if err != nil {
+		log.Printf("[WARNING] Failed to drop database %s: %v", sanitizedName, err)
+	}
+}
+
 func DbOpts(name string) string {
 	sanitizedName := sanitizeDBName(name)
 
