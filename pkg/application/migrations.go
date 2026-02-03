@@ -18,6 +18,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 )
 
+// MigrationStatus represents the status of a single migration
+type MigrationStatus struct {
+	ID        string
+	Applied   bool
+	AppliedAt *time.Time
+}
+
 // MigrationManager is an interface for handling database migrations
 type MigrationManager interface {
 	// CollectSchema collects schema changes from embedded modules and generates SQL migration
@@ -26,6 +33,8 @@ type MigrationManager interface {
 	Run() error
 	// Rollback rolls back the last applied migration
 	Rollback() error
+	// Status returns the status of all migrations (applied and pending)
+	Status(ctx context.Context) ([]MigrationStatus, error)
 	// RegisterSchema registers an embedded filesystem containing schema definitions
 	RegisterSchema(fs ...*embed.FS)
 	// SchemaFSs returns all registered schema embedded filesystems
@@ -191,4 +200,49 @@ func (m *migrationManager) Rollback() error {
 	}
 	m.logger.Infof("Rolled back %d migrations", applied)
 	return nil
+}
+
+// Status returns the status of all migrations (applied and pending)
+func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error) {
+	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	migrationSource := &migrate.FileMigrationSource{
+		Dir: m.migrationsDir,
+	}
+
+	// Get all migrations from source
+	migrations, err := migrationSource.FindMigrations()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find migrations: %w", err)
+	}
+
+	// Get applied migrations from database
+	ms := migrate.MigrationSet{}
+	records, err := ms.GetMigrationRecords(db, "postgres")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get migration records: %w", err)
+	}
+
+	// Create a map of applied migrations for quick lookup
+	appliedMap := make(map[string]time.Time)
+	for _, record := range records {
+		appliedMap[record.Id] = record.AppliedAt
+	}
+
+	// Build status list
+	statuses := make([]MigrationStatus, 0, len(migrations))
+	for _, migration := range migrations {
+		status := MigrationStatus{
+			ID: migration.Id,
+		}
+		if appliedAt, found := appliedMap[migration.Id]; found {
+			status.Applied = true
+			status.AppliedAt = &appliedAt
+		} else {
+			status.Applied = false
+			status.AppliedAt = nil
+		}
+		statuses = append(statuses, status)
+	}
+
+	return statuses, nil
 }

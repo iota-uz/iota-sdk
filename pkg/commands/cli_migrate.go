@@ -18,6 +18,9 @@ func NewMigrateCommand() *cobra.Command {
   # Rollback last migration
   command migrate down
 
+  # Show migration status
+  command migrate status
+
   # Collect schema changes
   command migrate collect`,
 	}
@@ -27,6 +30,7 @@ func NewMigrateCommand() *cobra.Command {
 	migrateCmd.AddCommand(newMigrateDownCmd())
 	migrateCmd.AddCommand(newMigrateRedoCmd())
 	migrateCmd.AddCommand(newMigrateCollectCmd())
+	migrateCmd.AddCommand(newMigrateStatusCmd())
 
 	return migrateCmd
 }
@@ -71,6 +75,17 @@ func newMigrateCollectCmd() *cobra.Command {
 		Long:  `Scans all modules for schema changes and collects them into migration files.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return MigrateWithSubcommand("collect", modules.BuiltInModules...)
+		},
+	}
+}
+
+func newMigrateStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show migration status",
+		Long:  `Displays the status of all migrations, showing which are applied and which are pending.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return MigrateWithSubcommand("status", modules.BuiltInModules...)
 		},
 	}
 }

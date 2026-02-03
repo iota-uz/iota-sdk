@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', or 'collect' subcommands")
+	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', 'status', or 'collect' subcommands")
 )
 
 // ensureDirectories creates necessary directories if they don't exist
@@ -56,7 +56,7 @@ func Migrate(mods ...application.Module) error {
 		defer pool.Close()
 		return handleSchemaCommands(ctx, command, app, conf.Logger().Level)
 
-	case "up", "down", "redo":
+	case "up", "down", "redo", "status":
 		// DDL migrations only need database pool - don't load modules
 		pool, err := common.GetDefaultDatabasePool()
 		if err != nil {
@@ -66,7 +66,7 @@ func Migrate(mods ...application.Module) error {
 		return handleMigrationCommands(ctx, command, application.NewMigrationManager(pool))
 
 	default:
-		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'collect'", command)
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status', 'collect'", command)
 	}
 }
 
@@ -96,8 +96,25 @@ func handleSchemaCommands(
 	}
 }
 
+// printMigrationStatus prints the status of migrations in a formatted table
+func printMigrationStatus(statuses []application.MigrationStatus) {
+	fmt.Println("Migration ID                    Status      Applied At")
+	fmt.Println("-----------------------------------------------------------")
+	for _, status := range statuses {
+		appliedStatus := "pending"
+		appliedAt := "-"
+		if status.Applied {
+			appliedStatus = "applied"
+			if status.AppliedAt != nil {
+				appliedAt = status.AppliedAt.Format("2006-01-02 15:04:05")
+			}
+		}
+		fmt.Printf("%-30s  %-10s  %s\n", status.ID, appliedStatus, appliedAt)
+	}
+}
+
 func handleMigrationCommands(
-	_ context.Context,
+	ctx context.Context,
 	command string,
 	migrationManager application.MigrationManager,
 ) error {
@@ -117,9 +134,15 @@ func handleMigrationCommands(
 		if err := migrationManager.Run(); err != nil {
 			return errors.Join(err, errors.New("failed to run migrations"))
 		}
+	case "status":
+		statuses, err := migrationManager.Status(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get migration status: %w", err)
+		}
+		printMigrationStatus(statuses)
 
 	default:
-		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'collect'", command)
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status', 'collect'", command)
 	}
 
 	return nil
