@@ -1,51 +1,26 @@
 export default {
   index: 'Overview',
-  'getting-started': {
-    title: 'Getting Started',
+  'getting-started': 'Getting Started',
+  architecture: 'Architecture',
+  modules: {
+    title: 'Modules',
     type: 'menu',
     items: {
-      index: 'Introduction',
-      installation: 'Installation',
-      quickstart: 'Quick Start',
-      'project-structure': 'Project Structure'
+      core: { title: 'Core Module', href: '/core' },
+      finance: { title: 'Finance', href: '/finance' },
+      warehouse: { title: 'Warehouse', href: '/warehouse' },
+      projects: { title: 'Projects', href: '/projects' },
+      hrm: { title: 'HRM', href: '/hrm' },
+      billing: { title: 'Billing', href: '/billing' },
+      superadmin: { title: 'SuperAdmin', href: '/superadmin' },
+      bichat: { title: 'BiChat', href: '/bichat' }
     }
   },
-  architecture: {
-    title: 'Architecture',
-    type: 'menu',
-    items: {
-      index: 'Overview',
-      'domain-driven-design': 'Domain-Driven Design',
-      'module-system': 'Module System',
-      'multi-tenancy': 'Multi-Tenancy',
-      'frontend-stack': 'Frontend Stack'
-    }
-  },
-  '-- Modules': {
-    type: 'separator',
-    title: 'Modules'
-  },
-  core: 'Core Module',
-  finance: 'Finance',
-  warehouse: 'Warehouse',
-  projects: 'Projects',
-  hrm: 'HRM',
-  billing: 'Billing',
-  superadmin: 'SuperAdmin',
-  bichat: 'BiChat',
   '-- API': {
     type: 'separator',
     title: 'API & Reference'
   },
-  api: {
-    title: 'API Reference',
-    type: 'menu',
-    items: {
-      index: 'Overview',
-      core: 'Core API',
-      warehouse: 'Warehouse API'
-    }
-  },
+  api: 'API Reference',
   advanced: 'Advanced Topics',
   '-- Infrastructure': {
     type: 'separator',

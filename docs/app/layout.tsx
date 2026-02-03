@@ -2,6 +2,7 @@ import { Layout, Navbar, LastUpdated } from 'nextra-theme-docs'
 import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Logo } from './Logo'
 import { EnvironmentProvider } from '../contexts/EnvironmentContext'
@@ -20,6 +21,17 @@ export const metadata: Metadata = {
 
 const navbar = (
   <Navbar logo={<Logo />}>
+    <nav className="hidden md:flex items-center gap-5 text-sm">
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/getting-started">
+        Getting Started
+      </Link>
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/architecture">
+        Architecture
+      </Link>
+      <Link className="text-gray-300 hover:text-white transition-colors" href="/api">
+        API Reference
+      </Link>
+    </nav>
     <div className="flex items-center gap-2">
       <EnvironmentSelector />
     </div>
