@@ -518,14 +518,14 @@ func (r *PostgresChatRepository) GetMessage(ctx context.Context, id uuid.UUID) (
 
 // messageData holds intermediate message data before code outputs are loaded.
 type messageData struct {
-	msgID         uuid.UUID
-	sessID        uuid.UUID
-	role          types.Role
-	content       string
-	toolCalls     []types.ToolCall
-	toolCallID    *string
-	citations     []types.Citation
-	createdAt     time.Time
+	msgID      uuid.UUID
+	sessID     uuid.UUID
+	role       types.Role
+	content    string
+	toolCalls  []types.ToolCall
+	toolCallID *string
+	citations  []types.Citation
+	createdAt  time.Time
 }
 
 // GetSessionMessages retrieves all messages for a session with pagination.
