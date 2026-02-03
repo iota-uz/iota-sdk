@@ -250,6 +250,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     }
     this.open = false;
     this.openedWithKeyboard = false;
+    this.searchQuery = '';
+    this.options = this.allOptions;
     if (this.selectedValues.size === 0) {
       this.$refs.select.value = "";
     }
@@ -294,7 +296,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       this.activeValue = option.value;
     }
     if (!searchValue) {
-      this.options = this.$el.querySelectorAll("option");
+      this.options = this.allOptions;
     }
   },
   highlightMatchingOption(pressedKey) {
