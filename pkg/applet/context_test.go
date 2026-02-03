@@ -284,8 +284,11 @@ func TestContextBuilder_Build_Success(t *testing.T) {
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Request now has CSRF token
 		initialCtx, err := builder.Build(ctx, r, "")
-		require.NoError(t, err)
-		require.NotNil(t, initialCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, initialCtx)
+		if err != nil || initialCtx == nil {
+			return
+		}
 
 		// Verify user context
 		assert.Equal(t, int64(42), initialCtx.User.ID)
@@ -651,6 +654,9 @@ func TestContextBuilder_Build_WithCustomContext(t *testing.T) {
 		initialCtx, err := builder.Build(ctx, r, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, initialCtx)
+		if err != nil || initialCtx == nil {
+			return
+		}
 
 		assert.NotNil(t, initialCtx.Extensions)
 		assert.Equal(t, "customValue", initialCtx.Extensions["customField"])
@@ -688,6 +694,9 @@ func TestContextBuilder_Build_WithMuxRouter(t *testing.T) {
 		initialCtx, err := builder.Build(ctx, r, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, initialCtx)
+		if err != nil || initialCtx == nil {
+			return
+		}
 
 		// Verify route context has query params
 		assert.Equal(t, "history", initialCtx.Route.Query["tab"])
@@ -720,6 +729,9 @@ func TestContextBuilder_Build_MetricsRecorded(t *testing.T) {
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := builder.Build(ctx, r, "")
 		assert.NoError(t, err)
+		if err != nil {
+			return
+		}
 
 		// Verify metrics were recorded
 		assert.NotEmpty(t, metrics.durations)
@@ -908,6 +920,9 @@ func TestContextBuilder_Build_WithSessionStore(t *testing.T) {
 		initialCtx, err := builder.Build(ctx, r, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, initialCtx)
+		if err != nil || initialCtx == nil {
+			return
+		}
 
 		// Verify session uses actual expiry from store (48 hours)
 		expectedExpiry := actualExpiry.UnixMilli()

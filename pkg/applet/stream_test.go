@@ -211,8 +211,11 @@ func TestStreamContextBuilder_Build_Success(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Verify lightweight context
 		assert.Equal(t, int64(42), streamCtx.UserID)
@@ -310,8 +313,11 @@ func TestStreamContextBuilder_Build_WithCustomContext(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Verify custom context is included
 		assert.NotNil(t, streamCtx.Extensions)
@@ -389,8 +395,11 @@ func TestStreamContextBuilder_Build_WithCustomContextError(t *testing.T) {
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Should succeed but log warning (error is swallowed)
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Extensions should be nil due to error
 		assert.Nil(t, streamCtx.Extensions)
@@ -425,8 +434,11 @@ func TestStreamContextBuilder_VerifyLightweight(t *testing.T) {
 	)
 	handler := csrfMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		streamCtx, err := builder.Build(ctx, r)
-		require.NoError(t, err)
-		require.NotNil(t, streamCtx)
+		assert.NoError(t, err)
+		assert.NotNil(t, streamCtx)
+		if err != nil || streamCtx == nil {
+			return
+		}
 
 		// Verify StreamContext is truly lightweight
 		// It should only have: UserID, TenantID, Permissions, CSRFToken, Session

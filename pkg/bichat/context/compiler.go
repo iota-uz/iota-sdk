@@ -322,9 +322,9 @@ func compactBlocks(
 	// Generate summary using configured summarizer
 	summary, summaryTokens, err := policy.Summarizer.SummarizeMessages(ctx, historyMessages, targetSummaryTokens)
 	if err != nil {
-		// Summarization failed, fall back to truncation
+		// Summarization failed, fall back to truncation (success path; intentionally return nil)
 		finalBlocks, totalTokens, tokensByKind := truncateBlocks(blocks, blockTokens, availableTokens, policy.KindPriorities)
-		return finalBlocks, totalTokens, tokensByKind, nil
+		return finalBlocks, totalTokens, tokensByKind, nil //nolint:nilerr // truncation is the intended fallback success
 	}
 
 	// Create a new summarized history block to replace the original history blocks
