@@ -26,10 +26,10 @@ module.exports = createIotaTailwindConfig({
 ```
 
 ```bash
-tailwindcss \
-  --input ./node_modules/@iota-uz/iota-sdk/tailwind/main.css \
-  --output ./public/assets/main.css \
-  --minify
+# Create an input CSS file in your project (example: ./src/tailwind.css):
+#   @config "../tailwind.config.cjs";
+#   @import "@iota-uz/iota-sdk/tailwind/main.css";
+tailwindcss --input ./src/tailwind.css --output ./public/assets/main.css --minify
 ```
 
 ![Dashboard](images/showcase.jpg)
@@ -115,7 +115,7 @@ This installs the following tools with correct versions:
 - **air** v1.61.5 - Hot reload for Go applications
 - **goimports** - Go imports organizer
 - **golangci-lint** v1.64.8 - Go linter
-- **TailwindCSS** v3.4.13 - Standalone CSS CLI
+- **TailwindCSS** v4 (via `pnpm` at repo root)
 - **cloudflared** - Cloudflare tunnel client
 
 The script automatically detects your OS (macOS/Linux) and architecture, downloads binaries, creates symlinks, and configures your PATH.
