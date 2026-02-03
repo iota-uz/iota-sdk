@@ -28,13 +28,18 @@ jobs:
           go install github.com/a-h/templ/cmd/templ@v0.3.857
           templ --help
 
-      - name: Install TailwindCSS
-        run: |
-          echo "Installing TailwindCSS for x64 architecture..."
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.19.0
+
+      - name: Install JS dependencies (Tailwind v4)
+        run: pnpm install --frozen-lockfile
 
       - name: Install pg_formatter for SQL formatting
         run: |
@@ -155,13 +160,6 @@ jobs:
         run: |
           # Install templ (needed for CSS generation)
           go install github.com/a-h/templ/cmd/templ@v0.3.857
-
-          # Install TailwindCSS
-          echo "Installing TailwindCSS for x64 architecture..."
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
 
       - name: Download Go dependencies
         run: go mod download
@@ -284,12 +282,18 @@ jobs:
           # Install templ (needed for CSS generation)
           go install github.com/a-h/templ/cmd/templ@v0.3.857
 
-          # Install TailwindCSS
-          echo "Installing TailwindCSS for x64 architecture..."
-          mkdir -p downloaded
-          curl -sL -o downloaded/tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.15/tailwindcss-linux-x64
-          chmod +x downloaded/tailwindcss
-          echo "$PWD/downloaded" >> $GITHUB_PATH
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10.19.0
+
+      - name: Install JS dependencies (Tailwind v4)
+        run: pnpm install --frozen-lockfile
 
       - name: Download Go dependencies
         run: go mod download

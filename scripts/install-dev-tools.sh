@@ -35,7 +35,6 @@ download_file() {
 # Tool versions (from go.mod and installation.md)
 TEMPL_VERSION="v0.3.857"
 AIR_VERSION="v1.61.5"
-TAILWINDCSS_VERSION="v3.4.13"
 GOLANGCI_LINT_VERSION="v1.64.8"
 
 echo -e "${GREEN}========================================${NC}"
@@ -55,19 +54,17 @@ fi
 if [[ "$OS" == "Darwin" ]]; then
     # macOS
     if [[ "$ARCH" == "arm64" ]]; then
-        TAILWIND_ARCH="macos-arm64"
         BIN_DIR="/opt/homebrew/bin"
     else
-        TAILWIND_ARCH="macos-x64"
         BIN_DIR="/usr/local/bin"
     fi
     PACKAGE_MANAGER="brew"
 else
     # Linux
     if [[ "$ARCH" == "x86_64" ]]; then
-        TAILWIND_ARCH="linux-x64"
+        :
     elif [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
-        TAILWIND_ARCH="linux-arm64"
+        :
     else
         echo -e "${RED}Error: Unsupported architecture: $ARCH${NC}"
         exit 1
@@ -152,23 +149,9 @@ else
     exit 1
 fi
 
-# Install TailwindCSS standalone
-echo -n "Installing TailwindCSS $TAILWINDCSS_VERSION... "
-TAILWIND_URL="https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWINDCSS_VERSION}/tailwindcss-${TAILWIND_ARCH}"
-if download_file "$TAILWIND_URL" "$GOPATH/bin/tailwindcss"; then
-    chmod +x "$GOPATH/bin/tailwindcss"
-    # Validate the binary
-    if [[ ! -x "$GOPATH/bin/tailwindcss" ]] || [[ ! -s "$GOPATH/bin/tailwindcss" ]]; then
-        echo -e "${RED}✗ Downloaded binary is invalid${NC}"
-        rm -f "$GOPATH/bin/tailwindcss"
-        exit 1
-    fi
-    echo -e "${GREEN}✓${NC}"
-else
-    echo -e "${RED}✗ Failed${NC}"
-    exit 1
-fi
 echo ""
+echo -e "${YELLOW}TailwindCSS is provided via pnpm at the repo root.${NC}"
+echo -e "${YELLOW}Run: pnpm install --frozen-lockfile && just css${NC}"
 
 echo -e "${YELLOW}Installing additional packages...${NC}"
 
@@ -209,7 +192,7 @@ echo ""
 echo -e "${YELLOW}Creating symlinks in $BIN_DIR...${NC}"
 
 # Create symlinks for all tools
-TOOLS=("templ" "air" "goimports" "golangci-lint" "tailwindcss")
+TOOLS=("templ" "air" "goimports" "golangci-lint")
 
 # Check if we need sudo for creating symlinks
 NEEDS_SUDO=false
@@ -266,7 +249,6 @@ verify_tool "templ" "templ version"
 verify_tool "air" "air -v 2>&1 | tail -1"
 verify_tool "goimports" "echo 'installed'"
 verify_tool "golangci-lint" "golangci-lint version 2>&1 | head -1"
-verify_tool "tailwindcss" "echo 'installed'"
 verify_tool "cloudflared" "cloudflared --version 2>&1"
 
 echo ""

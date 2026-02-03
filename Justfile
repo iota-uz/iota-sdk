@@ -4,7 +4,6 @@ set dotenv-load
 DEV_COMPOSE_FILE := "compose.dev.yml"
 TESTING_COMPOSE_FILE := "compose.testing.yml"
 
-TAILWIND_CONFIG := "tailwind.config.js"
 TAILWIND_INPUT := "modules/core/presentation/assets/css/main.css"
 TAILWIND_OUTPUT := "modules/core/presentation/assets/css/main.min.css"
 
@@ -203,7 +202,7 @@ coverage-report:
 [group("assets")]
 [doc("Build Tailwind CSS. Extra arguments are passed to `tailwindcss`")]
 css *args="":
-  tailwindcss -c {{TAILWIND_CONFIG}} -i {{TAILWIND_INPUT}} -o {{TAILWIND_OUTPUT}} --minify {{args}}
+  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --minify {{args}}
 
 [group("assets")]
 [doc("Remove generated CSS file")]
@@ -382,7 +381,7 @@ _dev-watch:
   echo "Starting development watch mode (templ + tailwind)..."
   trap 'kill %1 %2 2>/dev/null || true; exit' INT TERM
   templ generate --watch &
-  tailwindcss -c {{TAILWIND_CONFIG}} -i {{TAILWIND_INPUT}} -o {{TAILWIND_OUTPUT}} --watch &
+  pnpm exec tailwindcss --input {{TAILWIND_INPUT}} --output {{TAILWIND_OUTPUT}} --watch &
   wait
 
 [group("dev")]

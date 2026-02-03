@@ -12,7 +12,7 @@
     "codegen": "graphql-codegen"
   },
   "dependencies": {
-    "@iotauz/bichat-ui": "file:../../../../ui/bichat",
+    "@iota-uz/sdk": "file:../../../../",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0",
@@ -32,7 +32,8 @@
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.3",
     "vite": "^5.4.2",
-    "tailwindcss": "^3.4.10",
+    "@tailwindcss/cli": "4.1.18",
+    "tailwindcss": "4.1.18",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.41",
     "@graphql-codegen/cli": "^5.0.2",

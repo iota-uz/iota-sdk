@@ -1,0 +1,77 @@
+{
+  "name": "@iota-uz/sdk",
+  "version": "0.1.0",
+  "description": "IOTA SDK UI utilities, Tailwind configuration, and React components for building IOTA SDK applets.",
+  "license": "MIT",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "tailwind",
+    "assets",
+    "README.MD",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./bichat": {
+      "types": "./dist/bichat/index.d.ts",
+      "import": "./dist/bichat/index.mjs",
+      "require": "./dist/bichat/index.cjs"
+    },
+    "./bichat/styles.css": "./dist/bichat/styles.css",
+    "./tailwind/main.css": "./tailwind/main.css",
+    "./tailwind/iota.css": "./tailwind/iota.css",
+    "./tailwind/create-config": "./tailwind/create-config.cjs",
+    "./assets/*": "./assets/*",
+    "./assets/fonts/*": "./assets/fonts/*"
+  },
+  "scripts": {
+    "build": "pnpm run build:js && pnpm run build:tailwind && pnpm run build:assets",
+    "prepare": "pnpm run build",
+    "build:js": "tsup",
+    "build:tailwind": "node ./scripts/build-tailwind-files.mjs",
+    "build:assets": "node ./scripts/build-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"no lint\""
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.0",
+    "date-fns": "^3.0.0",
+    "framer-motion": "^11.0.0",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "recharts": "^2.12.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.1.18",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "tailwindcss": "4.1.18",
+    "tsup": "^8.5.0",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@parcel/watcher"
+    ]
+  }
+}
