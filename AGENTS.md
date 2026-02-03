@@ -131,7 +131,7 @@ modules/{module}/
 - After changes to css or .templ files: `templ generate && just css`
 - After changes to Go code: `go vet ./...`
 - **Never run `go build`** - use `go vet` instead
-- Run all tests: `just test` or `go test -v ./...`
+- Run all tests: `just test -v` or `go test -v ./...`
 - Run single test: `go test -v ./path/to/package -run TestName`
 - Run specific subtest: `go test -v ./path/to/package -run TestName/SubtestName`
 - Apply migrations: `just db migrate up`

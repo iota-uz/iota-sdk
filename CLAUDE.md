@@ -32,7 +32,7 @@ go vet ./...
 templ generate && just css
 
 # Testing
-just test                          # All tests
+just test -v                       # All tests (verbose)
 go test -v ./path -run TestName    # Single test
 
 # Other

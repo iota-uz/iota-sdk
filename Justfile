@@ -21,6 +21,7 @@ help:
   @echo "Examples:"
   @echo "  just setup"
   @echo "  just css"
+  @echo "  just css --watch"
   @echo "  just dev watch"
   @echo "  just db migrate up"
   @echo "  just test -v"
