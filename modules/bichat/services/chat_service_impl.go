@@ -44,144 +44,94 @@ func NewChatService(
 }
 
 // CreateSession creates a new chat session.
-func (s *chatServiceImpl) CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (*domain.Session, error) {
+func (s *chatServiceImpl) CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.CreateSession"
 
-	// Create session entity
-	session := &domain.Session{
-		ID:       uuid.New(),
-		TenantID: tenantID,
-		UserID:   userID,
-		Title:    title,
-		Status:   domain.SessionStatusActive,
-		Pinned:   false,
-	}
-
-	// Save to database
-	err := s.chatRepo.CreateSession(ctx, session)
-	if err != nil {
+	session := domain.NewSession(
+		domain.WithTenantID(tenantID),
+		domain.WithUserID(userID),
+		domain.WithTitle(title),
+	)
+	if err := s.chatRepo.CreateSession(ctx, session); err != nil {
 		return nil, serrors.E(op, err)
 	}
-
 	return session, nil
 }
 
 // GetSession retrieves a session by ID.
-func (s *chatServiceImpl) GetSession(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error) {
+func (s *chatServiceImpl) GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.GetSession"
-
-	session, err := s.chatRepo.GetSession(ctx, sessionID)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	return session, nil
+	return s.chatRepo.GetSession(ctx, sessionID)
 }
 
 // ListUserSessions lists all sessions for a user.
-func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]*domain.Session, error) {
+func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.ListUserSessions"
-
-	sessions, err := s.chatRepo.ListUserSessions(ctx, userID, opts)
-	if err != nil {
-		return nil, serrors.E(op, err)
-	}
-
-	return sessions, nil
+	return s.chatRepo.ListUserSessions(ctx, userID, opts)
 }
 
 // ArchiveSession archives a session.
-func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error) {
+func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.ArchiveSession"
 
-	// Get session
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	// Update status
-	session.Status = domain.SessionStatusArchived
-
-	// Save changes
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
+	updated := session.UpdateStatus(domain.SessionStatusArchived)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	return session, nil
+	return updated, nil
 }
 
 // PinSession pins a session.
-func (s *chatServiceImpl) PinSession(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error) {
+func (s *chatServiceImpl) PinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.PinSession"
 
-	// Get session
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	// Update pinned status
-	session.Pinned = true
-
-	// Save changes
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
+	updated := session.UpdatePinned(true)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	return session, nil
+	return updated, nil
 }
 
 // UnpinSession unpins a session.
-func (s *chatServiceImpl) UnpinSession(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error) {
+func (s *chatServiceImpl) UnpinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.UnpinSession"
 
-	// Get session
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	// Update pinned status
-	session.Pinned = false
-
-	// Save changes
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
+	updated := session.UpdatePinned(false)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	return session, nil
+	return updated, nil
 }
 
 // UpdateSessionTitle updates the title of a session.
-func (s *chatServiceImpl) UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (*domain.Session, error) {
+func (s *chatServiceImpl) UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.UpdateSessionTitle"
 
-	// Validate title
 	if title == "" {
 		return nil, serrors.E(op, serrors.KindValidation, "title cannot be empty")
 	}
 
-	// Get session
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	// Update title
-	session.Title = title
-	session.UpdatedAt = time.Now()
-
-	// Save changes
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
+	updated := session.UpdateTitle(title)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	return session, nil
+	return updated, nil
 }
 
 // DeleteSession deletes a session and all its messages.
@@ -208,13 +158,7 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	}
 
 	// Create user message
-	userMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleUser,
-		Content:   req.Content,
-		CreatedAt: time.Now(),
-	}
+	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
 
 	// Save user message
 	err = s.chatRepo.SaveMessage(ctx, userMsg)
@@ -225,15 +169,13 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
-		domainAttachments[i] = domain.Attachment{
-			ID:        att.ID,
-			MessageID: userMsg.ID,
-			FileName:  att.FileName,
-			MimeType:  att.MimeType,
-			SizeBytes: att.SizeBytes,
-			FilePath:  att.FilePath,
-			CreatedAt: att.CreatedAt,
-		}
+		domainAttachments[i] = domain.NewAttachment(
+			domain.WithAttachmentMessageID(userMsg.ID()),
+			domain.WithFileName(att.FileName()),
+			domain.WithMimeType(att.MimeType()),
+			domain.WithSizeBytes(att.SizeBytes()),
+			domain.WithFilePath(att.FilePath()),
+		)
 	}
 
 	// Process message with agent
@@ -268,7 +210,11 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 					Questions:    event.Interrupt.Questions,
 				}
 				// Update session with pending question agent
-				session.PendingQuestionAgent = stringPtr("default-agent") // TODO: Use actual agent name
+				agentName := event.Interrupt.AgentName
+				if agentName == "" {
+					agentName = "default-agent"
+				}
+				session = session.UpdatePendingQuestionAgent(&agentName)
 				if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 					return nil, serrors.E(op, err)
 				}
@@ -287,27 +233,18 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	}
 
 	// Create and save assistant message
-	assistantMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleAssistant,
-		Content:   assistantContent.String(),
-		CreatedAt: time.Now(),
-	}
+	assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
 
 	err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
 
-	// Update session
-	session.UpdatedAt = time.Now()
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
+	session = session.UpdateUpdatedAt(time.Now())
+	if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 		return nil, serrors.E(op, err)
 	}
 
-	// Trigger async title generation for first message
 	s.maybeGenerateTitleAsync(ctx, req.SessionID)
 
 	return &bichatservices.SendMessageResponse{
@@ -329,13 +266,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	}
 
 	// Create user message
-	userMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleUser,
-		Content:   req.Content,
-		CreatedAt: time.Now(),
-	}
+	userMsg := types.UserMessage(req.Content, types.WithSessionID(req.SessionID))
 
 	// Save user message
 	err = s.chatRepo.SaveMessage(ctx, userMsg)
@@ -346,15 +277,13 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Convert attachments to domain attachments
 	domainAttachments := make([]domain.Attachment, len(req.Attachments))
 	for i, att := range req.Attachments {
-		domainAttachments[i] = domain.Attachment{
-			ID:        att.ID,
-			MessageID: userMsg.ID,
-			FileName:  att.FileName,
-			MimeType:  att.MimeType,
-			SizeBytes: att.SizeBytes,
-			FilePath:  att.FilePath,
-			CreatedAt: att.CreatedAt,
-		}
+		domainAttachments[i] = domain.NewAttachment(
+			domain.WithAttachmentMessageID(userMsg.ID()),
+			domain.WithFileName(att.FileName()),
+			domain.WithMimeType(att.MimeType()),
+			domain.WithSizeBytes(att.SizeBytes()),
+			domain.WithFilePath(att.FilePath()),
+		)
 	}
 
 	// Process message with agent
@@ -395,8 +324,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 		case bichatservices.EventTypeInterrupt:
 			interrupted = true
-			// Update session with pending question
-			session.PendingQuestionAgent = stringPtr("default-agent") // TODO: Use actual agent name
+			agentName := event.Interrupt.AgentName
+			if agentName == "" {
+				agentName = "default-agent"
+			}
+			session = session.UpdatePendingQuestionAgent(&agentName)
 			if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 				return serrors.E(op, err)
 			}
@@ -420,27 +352,17 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 	// Save assistant message if not interrupted
 	if !interrupted {
-		assistantMsg := &types.Message{
-			ID:        uuid.New(),
-			SessionID: req.SessionID,
-			Role:      types.RoleAssistant,
-			Content:   assistantContent.String(),
-			CreatedAt: time.Now(),
-		}
+		assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
 
 		err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 		if err != nil {
 			return serrors.E(op, err)
 		}
 
-		// Update session
-		session.UpdatedAt = time.Now()
-		err = s.chatRepo.UpdateSession(ctx, session)
-		if err != nil {
+		session = session.UpdateUpdatedAt(time.Now())
+		if err := s.chatRepo.UpdateSession(ctx, session); err != nil {
 			return serrors.E(op, err)
 		}
-
-		// Trigger async title generation for first message
 		s.maybeGenerateTitleAsync(ctx, req.SessionID)
 	}
 
@@ -448,7 +370,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 }
 
 // GetSessionMessages retrieves all messages for a session.
-func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]*types.Message, error) {
+func (s *chatServiceImpl) GetSessionMessages(ctx context.Context, sessionID uuid.UUID, opts domain.ListOptions) ([]types.Message, error) {
 	const op serrors.Op = "chatServiceImpl.GetSessionMessages"
 
 	messages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
@@ -501,13 +423,7 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}
 
 	// Create and save assistant message
-	assistantMsg := &types.Message{
-		ID:        uuid.New(),
-		SessionID: req.SessionID,
-		Role:      types.RoleAssistant,
-		Content:   assistantContent.String(),
-		CreatedAt: time.Now(),
-	}
+	assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
 
 	err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 	if err != nil {
@@ -515,8 +431,8 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}
 
 	// Clear pending question agent
-	session.PendingQuestionAgent = nil
-	session.UpdatedAt = time.Now()
+	session = session.UpdatePendingQuestionAgent(nil)
+	session = session.UpdateUpdatedAt(time.Now())
 	err = s.chatRepo.UpdateSession(ctx, session)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -532,31 +448,21 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 // CancelPendingQuestion cancels a pending HITL question without resuming execution.
 // This clears the pending question state from the session.
-func (s *chatServiceImpl) CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (*domain.Session, error) {
+func (s *chatServiceImpl) CancelPendingQuestion(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.CancelPendingQuestion"
 
-	// Get session
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	// Check if there's a pending question
-	if session.PendingQuestionAgent == nil {
+	if !session.HasPendingQuestion() {
 		return nil, serrors.E(op, serrors.KindValidation, "no pending question to cancel")
 	}
-
-	// Clear pending question agent
-	session.PendingQuestionAgent = nil
-	session.UpdatedAt = time.Now()
-
-	// Save changes
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
+	updated := session.UpdatePendingQuestionAgent(nil)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
-
-	return session, nil
+	return updated, nil
 }
 
 // GenerateSessionTitle generates a title for a session based on first message.
@@ -581,31 +487,27 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 	}
 
 	firstMessage := messages[0]
-	if firstMessage.Role != types.RoleUser {
+	if firstMessage.Role() != types.RoleUser {
 		return serrors.E(op, serrors.KindValidation, "first message is not a user message")
 	}
 
 	// Generate title using LLM
-	prompt := fmt.Sprintf("Generate a short, concise title (max 5 words) for a chat conversation that starts with this user message: \"%s\"\n\nProvide only the title, no quotes or extra text.", firstMessage.Content)
+	prompt := fmt.Sprintf("Generate a short, concise title (max 5 words) for a chat conversation that starts with this user message: \"%s\"\n\nProvide only the title, no quotes or extra text.", firstMessage.Content())
 
 	titleMsg := types.SystemMessage(prompt)
 	resp, err := s.model.Generate(ctx, agents.Request{
-		Messages: []types.Message{*titleMsg},
+		Messages: []types.Message{titleMsg},
 	}, agents.WithMaxTokens(20))
 	if err != nil {
 		return serrors.E(op, err)
 	}
 
-	// Update session title
-	title := strings.TrimSpace(resp.Message.Content)
-	title = strings.Trim(title, "\"'") // Remove quotes if present
-	session.Title = title
-
-	err = s.chatRepo.UpdateSession(ctx, session)
-	if err != nil {
+	title := strings.TrimSpace(resp.Message.Content())
+	title = strings.Trim(title, "\"'")
+	updated := session.UpdateTitle(title)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return serrors.E(op, err)
 	}
-
 	return nil
 }
 

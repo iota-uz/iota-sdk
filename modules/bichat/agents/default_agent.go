@@ -2,6 +2,7 @@ package agents
 
 import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -16,7 +17,8 @@ type DefaultBIAgent struct {
 	exportTools           []agents.Tool // Optional export tools (Excel, PDF)
 	model                 string        // Store model separately to apply during initialization
 	enableCodeInterpreter bool
-	agentRegistry         *agents.AgentRegistry // Optional registry for multi-agent delegation
+	agentRegistry         *agents.AgentRegistry         // Optional registry for multi-agent delegation
+	viewAccess            permissions.ViewAccessControl // Optional view permission control for SQL
 }
 
 // BIAgentOption is a functional option for configuring DefaultBIAgent.
@@ -60,6 +62,15 @@ func WithExportTools(exportTools ...agents.Tool) BIAgentOption {
 	}
 }
 
+// WithViewAccessControl enables permission-based view access control for SQL execution.
+// When configured, schema_list, schema_describe, and sql_execute tools will validate
+// user permissions against analytics schema views before execution.
+func WithViewAccessControl(vac permissions.ViewAccessControl) BIAgentOption {
+	return func(a *DefaultBIAgent) {
+		a.viewAccess = vac
+	}
+}
+
 // NewDefaultBIAgent creates a new default BI agent with the specified options.
 // The executor parameter is required for SQL querying capabilities.
 // Additional tools (KB search) can be added via options.
@@ -88,12 +99,12 @@ func NewDefaultBIAgent(
 	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor)
 	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
 
-	// Build core tools list
+	// Build core tools list with optional view access control
 	agentTools := []agents.Tool{
 		tools.NewGetCurrentTimeTool(),
-		tools.NewSchemaListTool(schemaLister),
-		tools.NewSchemaDescribeTool(schemaDescriber),
-		tools.NewSQLExecuteTool(executor),
+		tools.NewSchemaListTool(schemaLister, tools.WithSchemaListViewAccess(agent.viewAccess)),
+		tools.NewSchemaDescribeTool(schemaDescriber, tools.WithSchemaDescribeViewAccess(agent.viewAccess)),
+		tools.NewSQLExecuteTool(executor, tools.WithViewAccessControl(agent.viewAccess)),
 		tools.NewDrawChartTool(),
 		tools.NewAskUserQuestionTool(),
 	}

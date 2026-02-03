@@ -10,32 +10,29 @@ import (
 )
 
 // toGraphQLSession converts a domain Session to a GraphQL Session
-func toGraphQLSession(s *domain.Session) *model.Session {
+func toGraphQLSession(s domain.Session) *model.Session {
 	if s == nil {
 		return nil
 	}
-
 	gqlSession := &model.Session{
-		ID:        s.ID.String(),
-		TenantID:  s.TenantID.String(),
-		UserID:    int(s.UserID),
-		Title:     s.Title,
-		Status:    toGraphQLSessionStatus(s.Status),
-		Pinned:    s.Pinned,
-		CreatedAt: s.CreatedAt,
-		UpdatedAt: s.UpdatedAt,
-		Messages:  []*model.Message{}, // Messages loaded separately
+		ID:        s.ID().String(),
+		TenantID:  s.TenantID().String(),
+		UserID:    int(s.UserID()),
+		Title:     s.Title(),
+		Status:    toGraphQLSessionStatus(s.Status()),
+		Pinned:    s.Pinned(),
+		IsSystem:  false, // Deprecated: no longer in domain
+		CreatedAt: s.CreatedAt(),
+		UpdatedAt: s.UpdatedAt(),
+		Messages:  []*model.Message{},
 	}
-
-	if s.ParentSessionID != nil {
-		parentID := s.ParentSessionID.String()
+	if pid := s.ParentSessionID(); pid != nil {
+		parentID := pid.String()
 		gqlSession.ParentSessionID = &parentID
 	}
-
-	if s.PendingQuestionAgent != nil {
-		gqlSession.PendingQuestionAgent = s.PendingQuestionAgent
+	if agent := s.PendingQuestionAgent(); agent != nil {
+		gqlSession.PendingQuestionAgent = agent
 	}
-
 	return gqlSession
 }
 
@@ -52,25 +49,25 @@ func toGraphQLSessionStatus(status domain.SessionStatus) model.SessionStatus {
 }
 
 // toGraphQLMessage converts a types.Message to a GraphQL Message
-func toGraphQLMessage(m *types.Message) *model.Message {
+func toGraphQLMessage(m types.Message) *model.Message {
 	if m == nil {
 		return nil
 	}
 
 	gqlMessage := &model.Message{
-		ID:          m.ID.String(),
-		SessionID:   m.SessionID.String(),
-		Role:        toGraphQLMessageRole(m.Role),
-		Content:     m.Content,
-		ToolCalls:   toGraphQLToolCalls(m.ToolCalls),
-		Attachments: toGraphQLAttachments(m.Attachments),
-		Citations:   toGraphQLCitations(m.Citations),
-		CodeOutputs: toGraphQLCodeOutputs(m.CodeOutputs),
-		CreatedAt:   m.CreatedAt,
+		ID:          m.ID().String(),
+		SessionID:   m.SessionID().String(),
+		Role:        toGraphQLMessageRole(m.Role()),
+		Content:     m.Content(),
+		ToolCalls:   toGraphQLToolCalls(m.ToolCalls()),
+		Attachments: toGraphQLAttachments(m.Attachments()),
+		Citations:   toGraphQLCitations(m.Citations()),
+		CodeOutputs: toGraphQLCodeOutputs(m.CodeOutputs()),
+		CreatedAt:   m.CreatedAt(),
 	}
 
-	if m.ToolCallID != nil {
-		gqlMessage.ToolCallID = m.ToolCallID
+	if m.ToolCallID() != nil {
+		gqlMessage.ToolCallID = m.ToolCallID()
 	}
 
 	return gqlMessage
@@ -214,33 +211,36 @@ func toGraphQLQuestion(q services.Question) *model.Question {
 }
 
 // toGraphQLArtifact converts a domain.Artifact to a GraphQL Artifact.
-func toGraphQLArtifact(a *domain.Artifact) *model.Artifact {
+func toGraphQLArtifact(a domain.Artifact) *model.Artifact {
 	if a == nil {
 		return nil
 	}
 	gql := &model.Artifact{
-		ID:        a.ID.String(),
-		SessionID: a.SessionID.String(),
-		Type:      string(a.Type),
-		Name:      a.Name,
-		SizeBytes: a.SizeBytes,
-		CreatedAt: a.CreatedAt,
+		ID:        a.ID().String(),
+		SessionID: a.SessionID().String(),
+		Type:      string(a.Type()),
+		Name:      a.Name(),
+		SizeBytes: a.SizeBytes(),
+		CreatedAt: a.CreatedAt(),
 	}
-	if a.MessageID != nil {
-		s := a.MessageID.String()
+	if a.MessageID() != nil {
+		s := a.MessageID().String()
 		gql.MessageID = &s
 	}
-	if a.Description != "" {
-		gql.Description = &a.Description
+	if a.Description() != "" {
+		desc := a.Description()
+		gql.Description = &desc
 	}
-	if a.MimeType != "" {
-		gql.MimeType = &a.MimeType
+	if a.MimeType() != "" {
+		mimeType := a.MimeType()
+		gql.MimeType = &mimeType
 	}
-	if a.URL != "" {
-		gql.URL = &a.URL
+	if a.URL() != "" {
+		url := a.URL()
+		gql.URL = &url
 	}
-	if len(a.Metadata) > 0 {
-		b, err := json.Marshal(a.Metadata)
+	if len(a.Metadata()) > 0 {
+		b, err := json.Marshal(a.Metadata())
 		if err == nil {
 			s := string(b)
 			gql.Metadata = &s

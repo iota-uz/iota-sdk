@@ -42,7 +42,6 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
-	Session() SessionResolver
 	Subscription() SubscriptionResolver
 }
 
@@ -162,6 +161,7 @@ type ComplexityRoot struct {
 		Artifacts            func(childComplexity int, limit *int, offset *int, types []string) int
 		CreatedAt            func(childComplexity int) int
 		ID                   func(childComplexity int) int
+		IsSystem             func(childComplexity int) int
 		Messages             func(childComplexity int, limit *int, offset *int) int
 		ParentSessionID      func(childComplexity int) int
 		PendingQuestionAgent func(childComplexity int) int
@@ -213,9 +213,6 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	MessageStream(ctx context.Context, sessionID string) (<-chan *model.MessageChunk, error)
-}
-type SessionResolver interface {
-	Artifacts(ctx context.Context, obj *model.Session, limit *int, offset *int, types []string) ([]*model.Artifact, error)
 }
 
 type executableSchema struct {
@@ -842,6 +839,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Session.ID(childComplexity), true
 
+	case "Session.isSystem":
+		if e.complexity.Session.IsSystem == nil {
+			break
+		}
+
+		return e.complexity.Session.IsSystem(childComplexity), true
+
 	case "Session.messages":
 		if e.complexity.Session.Messages == nil {
 			break
@@ -1116,6 +1120,7 @@ type Session {
   title: String!
   status: SessionStatus!
   pinned: Boolean!
+  isSystem: Boolean!
   parentSessionID: UUID
   pendingQuestionAgent: String
   createdAt: Time!
@@ -4478,6 +4483,8 @@ func (ec *executionContext) fieldContext_Mutation_createSession(ctx context.Cont
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -4689,6 +4696,8 @@ func (ec *executionContext) fieldContext_Mutation_archiveSession(ctx context.Con
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -4770,6 +4779,8 @@ func (ec *executionContext) fieldContext_Mutation_pinSession(ctx context.Context
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -4851,6 +4862,8 @@ func (ec *executionContext) fieldContext_Mutation_unpinSession(ctx context.Conte
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -4932,6 +4945,8 @@ func (ec *executionContext) fieldContext_Mutation_updateSessionTitle(ctx context
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -5068,6 +5083,8 @@ func (ec *executionContext) fieldContext_Mutation_cancelPendingQuestion(ctx cont
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -5283,6 +5300,8 @@ func (ec *executionContext) fieldContext_Query_sessions(ctx context.Context, fie
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -5361,6 +5380,8 @@ func (ec *executionContext) fieldContext_Query_session(ctx context.Context, fiel
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -6167,6 +6188,8 @@ func (ec *executionContext) fieldContext_SendMessageResponse_session(_ context.C
 				return ec.fieldContext_Session_status(ctx, field)
 			case "pinned":
 				return ec.fieldContext_Session_pinned(ctx, field)
+			case "isSystem":
+				return ec.fieldContext_Session_isSystem(ctx, field)
 			case "parentSessionID":
 				return ec.fieldContext_Session_parentSessionID(ctx, field)
 			case "pendingQuestionAgent":
@@ -6485,6 +6508,50 @@ func (ec *executionContext) _Session_pinned(ctx context.Context, field graphql.C
 }
 
 func (ec *executionContext) fieldContext_Session_pinned(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Session",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Session_isSystem(ctx context.Context, field graphql.CollectedField, obj *model.Session) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Session_isSystem(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsSystem, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Session_isSystem(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Session",
 		Field:      field,
@@ -9905,6 +9972,11 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 			}
 		case "pinned":
 			out.Values[i] = ec._Session_pinned(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isSystem":
+			out.Values[i] = ec._Session_isSystem(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

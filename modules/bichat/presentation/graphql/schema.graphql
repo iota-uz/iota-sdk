@@ -15,6 +15,7 @@ type Session {
   title: String!
   status: SessionStatus!
   pinned: Boolean!
+  isSystem: Boolean!
   parentSessionID: UUID
   pendingQuestionAgent: String
   createdAt: Time!

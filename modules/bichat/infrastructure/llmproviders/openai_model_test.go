@@ -114,14 +114,8 @@ func TestOpenAIModel_BuildRequest(t *testing.T) {
 	// Build request with messages and tools
 	req := agents.Request{
 		Messages: []types.Message{
-			{
-				Role:    types.RoleSystem,
-				Content: "You are a helpful assistant",
-			},
-			{
-				Role:    types.RoleUser,
-				Content: "Hello",
-			},
+			types.SystemMessage("You are a helpful assistant"),
+			types.UserMessage("Hello"),
 		},
 		Tools: []agents.Tool{
 			agents.NewTool(
@@ -175,10 +169,7 @@ func TestOpenAIModel_BuildRequest_WebSearchTool(t *testing.T) {
 	// Build request with web_search tool
 	req := agents.Request{
 		Messages: []types.Message{
-			{
-				Role:    types.RoleUser,
-				Content: "Search for current weather",
-			},
+			types.UserMessage("Search for current weather"),
 		},
 		Tools: []agents.Tool{
 			agents.NewTool(
@@ -220,10 +211,7 @@ func TestOpenAIModel_BuildRequest_CodeInterpreterSkipped(t *testing.T) {
 	// Build request with code_interpreter tool (should be skipped)
 	req := agents.Request{
 		Messages: []types.Message{
-			{
-				Role:    types.RoleUser,
-				Content: "Run some code",
-			},
+			types.UserMessage("Run some code"),
 		},
 		Tools: []agents.Tool{
 			agents.NewTool(

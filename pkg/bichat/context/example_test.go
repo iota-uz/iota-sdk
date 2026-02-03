@@ -61,7 +61,7 @@ func Example() {
 	// System messages are now in compiled.Messages
 	systemMsgCount := 0
 	for _, msg := range compiled.Messages {
-		if msg.Role == types.RoleSystem {
+		if msg.Role() == types.RoleSystem {
 			systemMsgCount++
 		}
 	}
@@ -69,10 +69,10 @@ func Example() {
 	fmt.Printf("Messages count: %d\n", len(compiled.Messages))
 
 	// Output:
-	// Total tokens: 37
+	// Total tokens: 53
 	// Truncated: false
-	// System messages count: 1
-	// Messages count: 2
+	// System messages count: 2
+	// Messages count: 5
 }
 
 // Example_biQueries demonstrates BI-specific codecs for SQL queries.

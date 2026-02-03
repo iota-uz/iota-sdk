@@ -119,7 +119,7 @@ func (c *AppletController) RegisterRoutes(router *mux.Router) {
 	// Register both root path variants to handle with/without trailing slash
 	appletRouter.HandleFunc("", c.RenderApp).Methods("GET")
 	appletRouter.HandleFunc("/", c.RenderApp).Methods("GET")
-	appletRouter.PathPrefix("/").HandlerFunc(c.RenderApp) // Catch-all for sub-paths
+	appletRouter.PathPrefix("/").HandlerFunc(c.RenderApp).Methods("GET", "HEAD") // Catch-all for sub-paths
 
 	if c.logger != nil {
 		c.logger.Infof("AppletController.RegisterRoutes: Successfully registered routes for %s", c.applet.BasePath())

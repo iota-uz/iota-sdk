@@ -132,36 +132,43 @@ func TestMessage_Creation(t *testing.T) {
 		name    string
 		role    types.Role
 		content string
+		factory func() types.Message
 	}{
 		{
 			name:    "user message",
 			role:    types.RoleUser,
 			content: "Hello, how are you?",
+			factory: func() types.Message {
+				return types.UserMessage("Hello, how are you?")
+			},
 		},
 		{
 			name:    "assistant message",
 			role:    types.RoleAssistant,
 			content: "I'm doing well, thank you!",
+			factory: func() types.Message {
+				return types.AssistantMessage("I'm doing well, thank you!")
+			},
 		},
 		{
 			name:    "system message",
 			role:    types.RoleSystem,
 			content: "You are a helpful assistant.",
+			factory: func() types.Message {
+				return types.SystemMessage("You are a helpful assistant.")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := types.Message{
-				Role:    tt.role,
-				Content: tt.content,
-			}
+			msg := tt.factory()
 
-			if msg.Role != tt.role {
-				t.Errorf("Expected role '%s', got '%s'", tt.role, msg.Role)
+			if msg.Role() != tt.role {
+				t.Errorf("Expected role '%s', got '%s'", tt.role, msg.Role())
 			}
-			if msg.Content != tt.content {
-				t.Errorf("Expected content '%s', got '%s'", tt.content, msg.Content)
+			if msg.Content() != tt.content {
+				t.Errorf("Expected content '%s', got '%s'", tt.content, msg.Content())
 			}
 		})
 	}
@@ -330,7 +337,7 @@ func TestRequest_Creation(t *testing.T) {
 
 	req := agents.Request{
 		Messages: []types.Message{
-			{Role: types.RoleUser, Content: "Hello"},
+			types.UserMessage("Hello"),
 		},
 		Tools: []agents.Tool{
 			testTool,
@@ -343,8 +350,8 @@ func TestRequest_Creation(t *testing.T) {
 	if len(req.Tools) != 1 {
 		t.Errorf("Expected 1 tool, got %d", len(req.Tools))
 	}
-	if req.Messages[0].Role != types.RoleUser {
-		t.Errorf("Expected role 'user', got '%s'", req.Messages[0].Role)
+	if req.Messages[0].Role() != types.RoleUser {
+		t.Errorf("Expected role 'user', got '%s'", req.Messages[0].Role())
 	}
 }
 
@@ -352,10 +359,7 @@ func TestResponse_Creation(t *testing.T) {
 	t.Parallel()
 
 	resp := agents.Response{
-		Message: types.Message{
-			Role:    types.RoleAssistant,
-			Content: "Hello!",
-		},
+		Message: types.AssistantMessage("Hello!"),
 		Usage: types.TokenUsage{
 			PromptTokens:     10,
 			CompletionTokens: 5,
@@ -365,8 +369,8 @@ func TestResponse_Creation(t *testing.T) {
 		Thinking:     "I should greet the user",
 	}
 
-	if resp.Message.Role != types.RoleAssistant {
-		t.Errorf("Expected role 'assistant', got '%s'", resp.Message.Role)
+	if resp.Message.Role() != types.RoleAssistant {
+		t.Errorf("Expected role 'assistant', got '%s'", resp.Message.Role())
 	}
 	if resp.Usage.TotalTokens != 15 {
 		t.Errorf("Expected 15 total tokens, got %d", resp.Usage.TotalTokens)

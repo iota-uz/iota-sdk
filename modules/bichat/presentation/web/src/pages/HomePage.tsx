@@ -1,105 +1,115 @@
 /**
- * HomePage - Landing page with example queries and chat input
- * Shown at root when no session is selected
- * Matches shyona's ChatGPT-style centered layout
+ * Landing page + "new chat" view.
+ * Uses ChatSessionProvider with sessionId="new" so the first message streams via SSE.
  */
 
-import { useState, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useMutation } from 'urql'
-import { WelcomeContent, MessageInput, type MessageInputRef } from '@iotauz/bichat-ui'
+import { useEffect, useMemo, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  ChatSessionProvider,
+  useChat,
+  ChatHeader,
+  WelcomeContent,
+  MessageList,
+  MessageInput,
+} from '@iotauz/bichat-ui'
+import { useBiChatDataSource } from '../data/bichatDataSource'
 
-const CREATE_SESSION_MUTATION = `
-  mutation CreateSession {
-    createSession {
-      id
-      title
-    }
-  }
-`
+type LocationState = {
+  prompt?: string
+}
 
-const SEND_MESSAGE_MUTATION = `
-  mutation SendMessage($sessionId: UUID!, $content: String!) {
-    sendMessage(sessionId: $sessionId, content: $content) {
-      session {
-        id
-      }
-    }
+function LandingChat({ initialPrompt }: { initialPrompt: string }) {
+  const {
+    session,
+    messages,
+    fetching,
+    error,
+    message,
+    setMessage,
+    loading,
+    handleSubmit,
+    sendMessage,
+    messageQueue,
+    handleUnqueue,
+  } = useChat()
+
+  const seededRef = useRef(false)
+
+  useEffect(() => {
+    if (!initialPrompt || seededRef.current) return
+    seededRef.current = true
+    void sendMessage(initialPrompt)
+  }, [initialPrompt, sendMessage])
+
+  if (fetching) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-gray-500 dark:text-gray-400">Loading...</div>
+      </div>
+    )
   }
-`
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-red-500 dark:text-red-400">Error: {error}</div>
+      </div>
+    )
+  }
+
+  const showWelcome = !session && messages.length === 0
+
+  return (
+    <main className="flex-1 flex flex-col overflow-hidden min-h-0 bg-gray-50 dark:bg-gray-900">
+      <ChatHeader session={session} />
+
+      {showWelcome ? (
+        <div className="flex-1 flex items-center justify-center overflow-auto">
+          <WelcomeContent
+            onPromptSelect={(prompt) => {
+              void sendMessage(prompt)
+            }}
+            disabled={loading}
+          />
+        </div>
+      ) : (
+        <MessageList />
+      )}
+
+      <MessageInput
+        message={message}
+        loading={loading}
+        fetching={fetching}
+        onMessageChange={setMessage}
+        onSubmit={handleSubmit}
+        messageQueue={messageQueue}
+        onUnqueue={handleUnqueue}
+        placeholder="Ask BiChat about your business data..."
+      />
+    </main>
+  )
+}
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const [, createSession] = useMutation(CREATE_SESSION_MUTATION)
-  const [, sendMessage] = useMutation(SEND_MESSAGE_MUTATION)
+  const location = useLocation()
 
-  const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-  const inputRef = useRef<MessageInputRef>(null)
+  const initialPrompt = useMemo(() => {
+    const state = (location.state || {}) as LocationState
+    return state.prompt?.trim() || ''
+  }, [location.state])
 
-  // Submit message - creates session and sends message
-  const submitMessage = useCallback(async (content: string) => {
-    if (!content.trim() || loading) return
+  useEffect(() => {
+    if (!initialPrompt) return
+    navigate('.', { replace: true, state: {} })
+  }, [initialPrompt, navigate])
 
-    setLoading(true)
-    try {
-      // Create a new session
-      const result = await createSession({})
-      if (result.data?.createSession) {
-        const sessionId = result.data.createSession.id
-
-        // Send the message
-        await sendMessage({ sessionId, content: content.trim() })
-
-        // Navigate to the session
-        navigate(`/session/${sessionId}`)
-      }
-    } catch (error) {
-      console.error('Failed to create session:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [createSession, sendMessage, navigate, loading])
-
-  // Handle example prompt click
-  const handlePromptSelect = useCallback((promptText: string) => {
-    submitMessage(promptText)
-  }, [submitMessage])
-
-  // Handle form submit
-  const handleSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault()
-    submitMessage(message)
-  }, [message, submitMessage])
+  const dataSource = useBiChatDataSource((sessionId: string) => navigate(`/session/${sessionId}`))
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto px-4 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
-      {/* Welcome content with example prompts */}
-      <WelcomeContent
-        onPromptSelect={handlePromptSelect}
-        disabled={loading}
-      />
-
-      {/* Centered input - premium floating design */}
-      <div className="w-full max-w-4xl pb-10 relative z-10">
-        <MessageInput
-          ref={inputRef}
-          message={message}
-          loading={loading}
-          disabled={loading}
-          onMessageChange={setMessage}
-          onSubmit={handleSubmit}
-          placeholder="Ask BiChat about your business data..."
-          containerClassName="p-4"
-        />
-
-        {/* AI disclaimer - refined */}
-        <div className="mt-4 text-center">
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            BiChat is powered by AI. Responses may not always be accurate.
-          </p>
-        </div>
-      </div>
-    </div>
+    <ChatSessionProvider dataSource={dataSource} sessionId="new">
+      <LandingChat initialPrompt={initialPrompt} />
+    </ChatSessionProvider>
   )
 }

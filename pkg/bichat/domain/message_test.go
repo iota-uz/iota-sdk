@@ -13,19 +13,19 @@ func TestMessage_Creation(t *testing.T) {
 	t.Run("basic creation with defaults", func(t *testing.T) {
 		msg := types.UserMessage("")
 
-		if msg.ID == uuid.Nil {
+		if msg.ID() == uuid.Nil {
 			t.Error("Expected non-nil UUID")
 		}
-		if len(msg.ToolCalls) != 0 {
+		if len(msg.ToolCalls()) != 0 {
 			t.Error("Expected empty ToolCalls slice")
 		}
-		if len(msg.Attachments) != 0 {
+		if len(msg.Attachments()) != 0 {
 			t.Error("Expected empty Attachments slice")
 		}
-		if len(msg.Citations) != 0 {
+		if len(msg.Citations()) != 0 {
 			t.Error("Expected empty Citations slice")
 		}
-		if msg.CreatedAt.IsZero() {
+		if msg.CreatedAt().IsZero() {
 			t.Error("Expected CreatedAt to be set")
 		}
 	})
@@ -39,14 +39,14 @@ func TestMessage_Creation(t *testing.T) {
 			types.WithSessionID(sessionID),
 		)
 
-		if msg.SessionID != sessionID {
-			t.Errorf("Expected SessionID %s, got %s", sessionID, msg.SessionID)
+		if msg.SessionID() != sessionID {
+			t.Errorf("Expected SessionID %s, got %s", sessionID, msg.SessionID())
 		}
-		if msg.Role != types.RoleUser {
-			t.Errorf("Expected Role %s, got %s", types.RoleUser, msg.Role)
+		if msg.Role() != types.RoleUser {
+			t.Errorf("Expected Role %s, got %s", types.RoleUser, msg.Role())
 		}
-		if msg.Content != content {
-			t.Errorf("Expected Content '%s', got '%s'", content, msg.Content)
+		if msg.Content() != content {
+			t.Errorf("Expected Content '%s', got '%s'", content, msg.Content())
 		}
 	})
 
@@ -58,10 +58,10 @@ func TestMessage_Creation(t *testing.T) {
 
 		msg := types.UserMessage("", types.WithToolCalls(toolCalls...))
 
-		if len(msg.ToolCalls) != 2 {
-			t.Errorf("Expected 2 tool calls, got %d", len(msg.ToolCalls))
+		if len(msg.ToolCalls()) != 2 {
+			t.Errorf("Expected 2 tool calls, got %d", len(msg.ToolCalls()))
 		}
-		if msg.ToolCalls[0].ID != "call_1" {
+		if msg.ToolCalls()[0].ID != "call_1" {
 			t.Error("ToolCall ID not set correctly")
 		}
 	})
@@ -70,11 +70,11 @@ func TestMessage_Creation(t *testing.T) {
 		toolCallID := "call_123"
 		msg := types.ToolResponse(toolCallID, "result")
 
-		if msg.ToolCallID == nil {
+		if msg.ToolCallID() == nil {
 			t.Fatal("Expected ToolCallID to be set")
 		}
-		if *msg.ToolCallID != toolCallID {
-			t.Errorf("Expected ToolCallID '%s', got '%s'", toolCallID, *msg.ToolCallID)
+		if *msg.ToolCallID() != toolCallID {
+			t.Errorf("Expected ToolCallID '%s', got '%s'", toolCallID, *msg.ToolCallID())
 		}
 	})
 
@@ -82,8 +82,8 @@ func TestMessage_Creation(t *testing.T) {
 		customID := uuid.New()
 		msg := types.UserMessage("", types.WithMessageID(customID))
 
-		if msg.ID != customID {
-			t.Errorf("Expected ID %s, got %s", customID, msg.ID)
+		if msg.ID() != customID {
+			t.Errorf("Expected ID %s, got %s", customID, msg.ID())
 		}
 	})
 }
@@ -306,22 +306,22 @@ func TestMessage_MultipleOptions(t *testing.T) {
 	)
 
 	// Verify all options were applied
-	if msg.SessionID != sessionID {
+	if msg.SessionID() != sessionID {
 		t.Error("SessionID not set correctly")
 	}
-	if msg.Role != types.RoleAssistant {
+	if msg.Role() != types.RoleAssistant {
 		t.Error("Role not set correctly")
 	}
-	if msg.Content != content {
+	if msg.Content() != content {
 		t.Error("Content not set correctly")
 	}
-	if len(msg.ToolCalls) != 1 {
+	if len(msg.ToolCalls()) != 1 {
 		t.Error("ToolCalls not set correctly")
 	}
-	if len(msg.Attachments) != 1 {
+	if len(msg.Attachments()) != 1 {
 		t.Error("Attachments not set correctly")
 	}
-	if len(msg.Citations) != 1 {
+	if len(msg.Citations()) != 1 {
 		t.Error("Citations not set correctly")
 	}
 }
@@ -332,10 +332,10 @@ func TestMessage_EmptyContent(t *testing.T) {
 	// Message with empty content is valid (e.g., tool response)
 	msg := types.ToolResponse("call_1", "")
 
-	if msg.Content != "" {
+	if msg.Content() != "" {
 		t.Error("Expected empty content")
 	}
-	if msg.Role != types.RoleTool {
+	if msg.Role() != types.RoleTool {
 		t.Error("Expected Tool role")
 	}
 }
@@ -344,14 +344,14 @@ func TestMessage_WithCreatedAt(t *testing.T) {
 	t.Parallel()
 
 	// Custom timestamp
-	customTime := types.UserMessage("").CreatedAt.Add(-1000)
+	customTime := types.UserMessage("").CreatedAt().Add(-1000)
 
 	msg := types.UserMessage(
 		"",
 		types.WithCreatedAt(customTime),
 	)
 
-	if !msg.CreatedAt.Equal(customTime) {
-		t.Errorf("Expected CreatedAt %v, got %v", customTime, msg.CreatedAt)
+	if !msg.CreatedAt().Equal(customTime) {
+		t.Errorf("Expected CreatedAt %v, got %v", customTime, msg.CreatedAt())
 	}
 }

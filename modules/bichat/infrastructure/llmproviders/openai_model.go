@@ -93,22 +93,14 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 
 	choice := resp.Choices[0]
 
-	// Build message with content and tool calls
-	msg := types.Message{
-		Role:    types.RoleAssistant,
-		Content: choice.Message.Content,
-	}
-
 	// Convert tool calls
-	if len(choice.Message.ToolCalls) > 0 {
-		msg.ToolCalls = make([]types.ToolCall, len(choice.Message.ToolCalls))
-		for i, tc := range choice.Message.ToolCalls {
-			msg.ToolCalls[i] = types.ToolCall{
-				ID:        tc.ID,
-				Name:      tc.Function.Name,
-				Arguments: tc.Function.Arguments,
-			}
-		}
+	toolCalls := make([]types.ToolCall, 0, len(choice.Message.ToolCalls))
+	for _, tc := range choice.Message.ToolCalls {
+		toolCalls = append(toolCalls, types.ToolCall{
+			ID:        tc.ID,
+			Name:      tc.Function.Name,
+			Arguments: tc.Function.Arguments,
+		})
 	}
 
 	// Extract citations from response metadata (if present)
@@ -116,9 +108,16 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 	// Once go-openai library supports citation metadata, extract and map citations here
 	// Expected format: response metadata contains web search results with title, URL, snippet
 	citations := extractCitationsFromResponse(&resp)
-	if len(citations) > 0 {
-		msg.Citations = citations
+
+	// Build message with content and tool calls using constructor
+	msgOpts := []types.MessageOption{}
+	if len(toolCalls) > 0 {
+		msgOpts = append(msgOpts, types.WithToolCalls(toolCalls...))
 	}
+	if len(citations) > 0 {
+		msgOpts = append(msgOpts, types.WithCitations(citations...))
+	}
+	msg := types.AssistantMessage(choice.Message.Content, msgOpts...)
 
 	// Build token usage with cache token support
 	usage := types.TokenUsage{
@@ -346,24 +345,24 @@ func (m *OpenAIModel) buildChatCompletionRequest(req agents.Request, config agen
 	messages := make([]openai.ChatCompletionMessage, len(req.Messages))
 	for i, msg := range req.Messages {
 		messages[i] = openai.ChatCompletionMessage{
-			Role: string(msg.Role),
+			Role: string(msg.Role()),
 		}
 
 		// Handle vision: if message has attachments, use multipart content
-		if len(msg.Attachments) > 0 {
+		if len(msg.Attachments()) > 0 {
 			// Build multipart content with text + images
-			contentParts := make([]openai.ChatMessagePart, 0, 1+len(msg.Attachments))
+			contentParts := make([]openai.ChatMessagePart, 0, 1+len(msg.Attachments()))
 
 			// Add text content if present
-			if msg.Content != "" {
+			if msg.Content() != "" {
 				contentParts = append(contentParts, openai.ChatMessagePart{
 					Type: openai.ChatMessagePartTypeText,
-					Text: msg.Content,
+					Text: msg.Content(),
 				})
 			}
 
 			// Add image URLs (low-detail mode = 85 tokens per image)
-			for _, attachment := range msg.Attachments {
+			for _, attachment := range msg.Attachments() {
 				contentParts = append(contentParts, openai.ChatMessagePart{
 					Type: openai.ChatMessagePartTypeImageURL,
 					ImageURL: &openai.ChatMessageImageURL{
@@ -376,18 +375,18 @@ func (m *OpenAIModel) buildChatCompletionRequest(req agents.Request, config agen
 			messages[i].MultiContent = contentParts
 		} else {
 			// Simple text content
-			messages[i].Content = msg.Content
+			messages[i].Content = msg.Content()
 		}
 
 		// Add tool call ID for tool messages
-		if msg.ToolCallID != nil {
-			messages[i].ToolCallID = *msg.ToolCallID
+		if msg.ToolCallID() != nil {
+			messages[i].ToolCallID = *msg.ToolCallID()
 		}
 
 		// Add tool calls for assistant messages
-		if len(msg.ToolCalls) > 0 {
-			messages[i].ToolCalls = make([]openai.ToolCall, len(msg.ToolCalls))
-			for j, tc := range msg.ToolCalls {
+		if len(msg.ToolCalls()) > 0 {
+			messages[i].ToolCalls = make([]openai.ToolCall, len(msg.ToolCalls()))
+			for j, tc := range msg.ToolCalls() {
 				messages[i].ToolCalls[j] = openai.ToolCall{
 					ID:   tc.ID,
 					Type: openai.ToolTypeFunction,

@@ -120,8 +120,8 @@ func (s *LLMHistorySummarizer) SummarizeMessages(
 	// Create request
 	req := agents.Request{
 		Messages: []types.Message{
-			*types.SystemMessage(s.systemPrompt),
-			*types.UserMessage(userPrompt),
+			types.SystemMessage(s.systemPrompt),
+			types.UserMessage(userPrompt),
 		},
 	}
 
@@ -137,7 +137,7 @@ func (s *LLMHistorySummarizer) SummarizeMessages(
 		return "", 0, fmt.Errorf("%s: failed to generate summary: %w", op, err)
 	}
 
-	summary := resp.Message.Content
+	summary := resp.Message.Content()
 
 	// Estimate tokens in summary
 	tokensUsed := 0
@@ -159,8 +159,8 @@ func buildSummarizationPrompt(messages []types.Message, targetTokens int) string
 	prompt += fmt.Sprintf("Conversation to summarize (target summary: ~%d tokens):\n\n", targetTokens)
 
 	for i, msg := range messages {
-		role := string(msg.Role)
-		content := msg.Content
+		role := string(msg.Role())
+		content := msg.Content()
 
 		// Truncate very long messages to avoid excessive prompt size
 		if len(content) > 2000 {
@@ -170,9 +170,10 @@ func buildSummarizationPrompt(messages []types.Message, targetTokens int) string
 		prompt += fmt.Sprintf("[Message %d - %s]\n%s\n\n", i+1, role, content)
 
 		// Include tool call summaries if present
-		if len(msg.ToolCalls) > 0 {
-			prompt += fmt.Sprintf("  [%d tool calls]\n", len(msg.ToolCalls))
-			for _, tc := range msg.ToolCalls {
+		toolCalls := msg.ToolCalls()
+		if len(toolCalls) > 0 {
+			prompt += fmt.Sprintf("  [%d tool calls]\n", len(toolCalls))
+			for _, tc := range toolCalls {
 				prompt += fmt.Sprintf("    - %s\n", tc.Name)
 			}
 			prompt += "\n"

@@ -46,7 +46,7 @@ func (s *attachmentService) ValidateAndSave(
 	size int64,
 	reader io.Reader,
 	tenantID, userID uuid.UUID,
-) (*domain.Attachment, error) {
+) (domain.Attachment, error) {
 	const op serrors.Op = "AttachmentService.ValidateAndSave"
 
 	// Validate MIME type
@@ -86,12 +86,12 @@ func (s *attachmentService) ValidateAndSave(
 	}
 
 	// Create attachment entity
-	attachment := &domain.Attachment{
-		FileName:  filename,
-		MimeType:  mimeType,
-		SizeBytes: size,
-		FilePath:  url, // FilePath stores the URL
-	}
+	attachment := domain.NewAttachment(
+		domain.WithFileName(filename),
+		domain.WithMimeType(mimeType),
+		domain.WithSizeBytes(size),
+		domain.WithFilePath(url), // FilePath stores the URL
+	)
 
 	return attachment, nil
 }

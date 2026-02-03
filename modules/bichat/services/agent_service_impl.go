@@ -92,32 +92,9 @@ func (s *agentServiceImpl) ProcessMessage(
 
 	// Load session messages from repository
 	opts := domain.ListOptions{Limit: 100, Offset: 0}
-	domainMessages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
+	sessionMessages, err := s.chatRepo.GetSessionMessages(ctx, sessionID, opts)
 	if err != nil {
 		return nil, serrors.E(op, err)
-	}
-
-	// Convert domain messages to types.Message for agent framework
-	sessionMessages := make([]types.Message, 0, len(domainMessages))
-	for _, dm := range domainMessages {
-		msg := types.Message{
-			ID:        dm.ID,
-			SessionID: dm.SessionID,
-			Role:      dm.Role,
-			Content:   dm.Content,
-		}
-
-		// Handle tool calls if present
-		if len(dm.ToolCalls) > 0 {
-			msg.ToolCalls = dm.ToolCalls
-		}
-
-		// Handle tool call ID if present
-		if dm.ToolCallID != nil {
-			msg.ToolCallID = dm.ToolCallID
-		}
-
-		sessionMessages = append(sessionMessages, msg)
 	}
 
 	// Build context graph using Context Builder
@@ -424,8 +401,8 @@ func convertToHistoryPayload(messages []types.Message) codecs.ConversationHistor
 	historyMessages := make([]codecs.ConversationMessage, 0, len(messages))
 	for _, msg := range messages {
 		historyMessages = append(historyMessages, codecs.ConversationMessage{
-			Role:    string(msg.Role),
-			Content: msg.Content,
+			Role:    string(msg.Role()),
+			Content: msg.Content(),
 		})
 	}
 	return codecs.ConversationHistoryPayload{
@@ -438,13 +415,13 @@ func convertToTypeAttachments(domainAttachments []domain.Attachment) []types.Att
 	result := make([]types.Attachment, len(domainAttachments))
 	for i, a := range domainAttachments {
 		result[i] = types.Attachment{
-			ID:        a.ID,
-			MessageID: a.MessageID,
-			FileName:  a.FileName,
-			MimeType:  a.MimeType,
-			SizeBytes: a.SizeBytes,
-			FilePath:  a.FilePath,
-			CreatedAt: a.CreatedAt,
+			ID:        a.ID(),
+			MessageID: a.MessageID(),
+			FileName:  a.FileName(),
+			MimeType:  a.MimeType(),
+			SizeBytes: a.SizeBytes(),
+			FilePath:  a.FilePath(),
+			CreatedAt: a.CreatedAt(),
 		}
 	}
 	return result

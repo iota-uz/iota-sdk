@@ -4,10 +4,12 @@ package resolvers
 
 import (
 	"context"
-	"encoding/json"
+
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
+
+	"encoding/json"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"
@@ -124,7 +126,7 @@ func (r *mutationResolver) SendMessage(ctx context.Context, sessionID string, co
 			return nil, serrors.E(op, err, "failed to save attachment")
 		}
 
-		domainAttachments = append(domainAttachments, *attachment)
+		domainAttachments = append(domainAttachments, attachment)
 	}
 
 	// Call service
@@ -179,7 +181,7 @@ func (r *mutationResolver) ResumeWithAnswer(ctx context.Context, sessionID strin
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -296,7 +298,7 @@ func (r *mutationResolver) UpdateSessionTitle(ctx context.Context, id string, ti
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -333,7 +335,7 @@ func (r *mutationResolver) DeleteSession(ctx context.Context, id string) (bool, 
 	if err != nil {
 		return false, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return false, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -370,7 +372,7 @@ func (r *mutationResolver) CancelPendingQuestion(ctx context.Context, sessionID 
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	if session.UserID != int64(user.ID()) {
+	if session.UserID() != int64(user.ID()) {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
@@ -444,7 +446,7 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, err)
 	}
-	if user == nil || int64(user.ID()) != session.UserID {
+	if user == nil || int64(user.ID()) != session.UserID() {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
 	}
 
@@ -469,7 +471,7 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, err)
 	}
-	if user == nil || int64(user.ID()) != session.UserID {
+	if user == nil || int64(user.ID()) != session.UserID() {
 		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
 	}
 
@@ -502,27 +504,23 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 	return result, nil
 }
 
-// Session returns the Session resolver (for Session.artifacts).
-func (r *Resolver) Session() generated.SessionResolver {
-	return &sessionResolver{r}
-}
-
 // MessageStream is the resolver for the messageStream field.
-//
-// IMPORTANT LIMITATION:
-// This is a placeholder implementation. GraphQL subscriptions require WebSocket infrastructure
-// and don't fit well with the chat streaming model where messages are sent as mutations.
-//
-// RECOMMENDED APPROACH:
-// Use SSE (Server-Sent Events) streaming via the HTTP StreamController instead:
-// - POST /bichat/stream - Starts streaming for a message
-// - More efficient for chat (unidirectional)
-// - Simpler infrastructure (no WebSocket)
-// - Better backpressure handling
-// - Direct integration with ChatService.SendMessageStream()
-//
-// This GraphQL subscription remains as a placeholder for future pub/sub implementations
-// (e.g., multi-device synchronization, typing indicators, presence).
+/*
+IMPORTANT LIMITATION:
+This is a placeholder implementation. GraphQL subscriptions require WebSocket infrastructure
+and don't fit well with the chat streaming model where messages are sent as mutations.
+
+RECOMMENDED APPROACH:
+Use SSE (Server-Sent Events) streaming via the HTTP StreamController instead:
+- POST /bichat/stream - Starts streaming for a message
+- More efficient for chat (unidirectional)
+- Simpler infrastructure (no WebSocket)
+- Better backpressure handling
+- Direct integration with ChatService.SendMessageStream()
+
+This GraphQL subscription remains as a placeholder for future pub/sub implementations
+(e.g., multi-device synchronization, typing indicators, presence).
+*/
 func (r *subscriptionResolver) MessageStream(ctx context.Context, sessionID string) (<-chan *model.MessageChunk, error) {
 	const op serrors.Op = "Resolver.MessageStream"
 
@@ -611,3 +609,35 @@ type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
 type sessionResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	type Resolver struct {
+	app               application.Application
+	chatService       services.ChatService
+	agentService      services.AgentService
+	attachmentService services.AttachmentService
+	artifactService   services.ArtifactService
+}
+func NewResolver(
+	app application.Application,
+	chatService services.ChatService,
+	agentService services.AgentService,
+	attachmentService services.AttachmentService,
+	artifactService services.ArtifactService,
+) *Resolver {
+	return &Resolver{
+		app:               app,
+		chatService:       chatService,
+		agentService:      agentService,
+		attachmentService: attachmentService,
+		artifactService:   artifactService,
+	}
+}
+func (r *Resolver) Session() generated.SessionResolver { return &sessionResolver{r} }
+*/

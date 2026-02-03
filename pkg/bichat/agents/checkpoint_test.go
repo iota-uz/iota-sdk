@@ -18,8 +18,8 @@ func TestCheckpoint_JSONSerialization(t *testing.T) {
 	t.Parallel()
 
 	messages := []types.Message{
-		*types.UserMessage("Hello"),
-		*types.AssistantMessage("Hi there!", types.WithToolCalls(types.ToolCall{
+		types.UserMessage("Hello"),
+		types.AssistantMessage("Hi there!", types.WithToolCalls(types.ToolCall{
 			ID: "call_1", Name: "search", Arguments: `{"query": "test"}`,
 		})),
 	}
@@ -68,12 +68,12 @@ func TestCheckpoint_JSONSerialization(t *testing.T) {
 
 	// Verify messages
 	require.Len(t, decoded.Messages, 2)
-	assert.Equal(t, types.RoleUser, decoded.Messages[0].Role)
-	assert.Equal(t, "Hello", decoded.Messages[0].Content)
-	assert.Equal(t, types.RoleAssistant, decoded.Messages[1].Role)
-	assert.Equal(t, "Hi there!", decoded.Messages[1].Content)
-	require.Len(t, decoded.Messages[1].ToolCalls, 1)
-	assert.Equal(t, "call_1", decoded.Messages[1].ToolCalls[0].ID)
+	assert.Equal(t, types.RoleUser, decoded.Messages[0].Role())
+	assert.Equal(t, "Hello", decoded.Messages[0].Content())
+	assert.Equal(t, types.RoleAssistant, decoded.Messages[1].Role())
+	assert.Equal(t, "Hi there!", decoded.Messages[1].Content())
+	require.Len(t, decoded.Messages[1].ToolCalls(), 1)
+	assert.Equal(t, "call_1", decoded.Messages[1].ToolCalls()[0].ID)
 
 	// Verify pending tools
 	require.Len(t, decoded.PendingTools, 1)
@@ -88,7 +88,7 @@ func TestInMemoryCheckpointer_CRUD(t *testing.T) {
 	ctx := context.Background()
 
 	messages := []types.Message{
-		*types.UserMessage("Test message"),
+		types.UserMessage("Test message"),
 	}
 
 	t.Run("Save and Load", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestInMemoryCheckpointer_CRUD(t *testing.T) {
 		assert.Equal(t, checkpoint.ThreadID, loaded.ThreadID)
 		assert.Equal(t, checkpoint.AgentName, loaded.AgentName)
 		assert.Len(t, loaded.Messages, 1)
-		assert.Equal(t, "Test message", loaded.Messages[0].Content)
+		assert.Equal(t, "Test message", loaded.Messages[0].Content())
 	})
 
 	t.Run("LoadByThreadID", func(t *testing.T) {
@@ -194,7 +194,7 @@ func TestInMemoryCheckpointer_Concurrent(t *testing.T) {
 			for j := 0; j < numOpsPerGoroutine; j++ {
 				threadID := uuid.New().String()
 				messages := []types.Message{
-					*types.UserMessage("Concurrent test"),
+					types.UserMessage("Concurrent test"),
 				}
 
 				checkpoint := NewCheckpoint(threadID, "test-agent", messages)

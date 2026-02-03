@@ -25,7 +25,7 @@ type ArtifactModel struct {
 }
 
 // ToDomain converts the model to a domain Artifact.
-func (m *ArtifactModel) ToDomain() (*domain.Artifact, error) {
+func (m *ArtifactModel) ToDomain() (domain.Artifact, error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -55,58 +55,63 @@ func (m *ArtifactModel) ToDomain() (*domain.Artifact, error) {
 			return nil, err
 		}
 	}
-	a := &domain.Artifact{
-		ID:        id,
-		TenantID:  tenantID,
-		SessionID: sessionID,
-		MessageID: messageID,
-		Type:      domain.ArtifactType(m.Type),
-		Name:      m.Name,
-		Metadata:  metadata,
-		SizeBytes: m.SizeBytes,
-		CreatedAt: m.CreatedAt,
+	opts := []domain.ArtifactOption{
+		domain.WithArtifactID(id),
+		domain.WithArtifactTenantID(tenantID),
+		domain.WithArtifactSessionID(sessionID),
+		domain.WithArtifactType(domain.ArtifactType(m.Type)),
+		domain.WithArtifactName(m.Name),
+		domain.WithArtifactMetadata(metadata),
+		domain.WithArtifactSizeBytes(m.SizeBytes),
+		domain.WithArtifactCreatedAt(m.CreatedAt),
+	}
+	if messageID != nil {
+		opts = append(opts, domain.WithArtifactMessageID(messageID))
 	}
 	if m.Description != nil {
-		a.Description = *m.Description
+		opts = append(opts, domain.WithArtifactDescription(*m.Description))
 	}
 	if m.MimeType != nil {
-		a.MimeType = *m.MimeType
+		opts = append(opts, domain.WithArtifactMimeType(*m.MimeType))
 	}
 	if m.URL != nil {
-		a.URL = *m.URL
+		opts = append(opts, domain.WithArtifactURL(*m.URL))
 	}
-	return a, nil
+	return domain.NewArtifact(opts...), nil
 }
 
 // ArtifactModelFromDomain converts a domain Artifact to the DB model.
-func ArtifactModelFromDomain(a *domain.Artifact) (*ArtifactModel, error) {
+func ArtifactModelFromDomain(a domain.Artifact) (*ArtifactModel, error) {
 	if a == nil {
 		return nil, nil
 	}
 	m := &ArtifactModel{
-		ID:        a.ID.String(),
-		TenantID:  a.TenantID.String(),
-		SessionID: a.SessionID.String(),
-		Type:      string(a.Type),
-		Name:      a.Name,
-		SizeBytes: a.SizeBytes,
-		CreatedAt: a.CreatedAt,
+		ID:        a.ID().String(),
+		TenantID:  a.TenantID().String(),
+		SessionID: a.SessionID().String(),
+		Type:      string(a.Type()),
+		Name:      a.Name(),
+		SizeBytes: a.SizeBytes(),
+		CreatedAt: a.CreatedAt(),
 	}
-	if a.MessageID != nil {
-		s := a.MessageID.String()
+	if a.MessageID() != nil {
+		s := a.MessageID().String()
 		m.MessageID = &s
 	}
-	if a.Description != "" {
-		m.Description = &a.Description
+	if a.Description() != "" {
+		desc := a.Description()
+		m.Description = &desc
 	}
-	if a.MimeType != "" {
-		m.MimeType = &a.MimeType
+	if a.MimeType() != "" {
+		mimeType := a.MimeType()
+		m.MimeType = &mimeType
 	}
-	if a.URL != "" {
-		m.URL = &a.URL
+	if a.URL() != "" {
+		url := a.URL()
+		m.URL = &url
 	}
-	if len(a.Metadata) > 0 {
-		metadata, err := json.Marshal(a.Metadata)
+	if len(a.Metadata()) > 0 {
+		metadata, err := json.Marshal(a.Metadata())
 		if err != nil {
 			return nil, err
 		}

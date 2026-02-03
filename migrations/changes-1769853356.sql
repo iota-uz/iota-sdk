@@ -14,13 +14,13 @@ CREATE TABLE IF NOT EXISTS bichat.sessions (
     tenant_id uuid NOT NULL REFERENCES public.tenants (id) ON DELETE CASCADE,
     user_id bigint NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
     title varchar(255) NOT NULL DEFAULT '',
-    status varchar(20) NOT NULL DEFAULT 'active',
+    status varchar(20) NOT NULL DEFAULT 'ACTIVE',
     pinned boolean NOT NULL DEFAULT FALSE,
     parent_session_id uuid REFERENCES bichat.sessions (id) ON DELETE SET NULL,
     pending_question_agent varchar(100),
     created_at timestamp with time zone NOT NULL DEFAULT NOW(),
     updated_at timestamp with time zone NOT NULL DEFAULT NOW(),
-    CONSTRAINT sessions_status_check CHECK (status IN ('active', 'archived'))
+    CONSTRAINT sessions_status_check CHECK (status IN ('ACTIVE', 'ARCHIVED'))
 );
 
 -- Messages table
@@ -68,9 +68,13 @@ CREATE INDEX idx_sessions_tenant_user ON bichat.sessions (tenant_id, user_id);
 
 CREATE INDEX idx_sessions_tenant_id ON bichat.sessions (tenant_id, id);
 
+CREATE INDEX idx_sessions_user_status ON bichat.sessions (user_id, status, created_at DESC);
+
 CREATE INDEX idx_sessions_status ON bichat.sessions (status);
 
 CREATE INDEX idx_sessions_created_at ON bichat.sessions (created_at DESC);
+
+CREATE INDEX idx_sessions_status_pinned ON bichat.sessions (status, pinned, created_at DESC);
 
 CREATE INDEX idx_sessions_pinned ON bichat.sessions (pinned)
 WHERE
@@ -158,295 +162,32 @@ REVOKE ALL ON SCHEMA pg_catalog FROM bichat_agent_role;
 
 REVOKE ALL ON SCHEMA information_schema FROM bichat_agent_role;
 
--- Create denormalized views for all tenant-scoped tables
--- Public schema tables
-CREATE OR REPLACE VIEW analytics.clients AS
-SELECT
-    *
-FROM
-    public.clients
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.counterparty AS
-SELECT
-    *
-FROM
-    public.counterparty
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.employees AS
-SELECT
-    *
-FROM
-    public.employees
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.users AS
-SELECT
-    *
-FROM
-    public.users
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.warehouse_units AS
-SELECT
-    *
-FROM
-    public.warehouse_units
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.warehouse_positions AS
-SELECT
-    *
-FROM
-    public.warehouse_positions
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.warehouse_products AS
-SELECT
-    *
-FROM
-    public.warehouse_products
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.warehouse_orders AS
-SELECT
-    *
-FROM
-    public.warehouse_orders
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.inventory AS
-SELECT
-    *
-FROM
-    public.inventory
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.inventory_checks AS
-SELECT
-    *
-FROM
-    public.inventory_checks
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.inventory_check_results AS
-SELECT
-    *
-FROM
-    public.inventory_check_results
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.transactions AS
-SELECT
-    *
-FROM
-    public.transactions
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.payments AS
-SELECT
-    *
-FROM
-    public.payments
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.expenses AS
-SELECT
-    *
-FROM
-    public.expenses
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.expense_categories AS
-SELECT
-    *
-FROM
-    public.expense_categories
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.payment_categories AS
-SELECT
-    *
-FROM
-    public.payment_categories
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.money_accounts AS
-SELECT
-    *
-FROM
-    public.money_accounts
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.debts AS
-SELECT
-    *
-FROM
-    public.debts
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.projects AS
-SELECT
-    *
-FROM
-    public.projects
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.billing_transactions AS
-SELECT
-    *
-FROM
-    public.billing_transactions
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.uploads AS
-SELECT
-    *
-FROM
-    public.uploads
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.sessions AS
-SELECT
-    *
-FROM
-    public.sessions
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.chats AS
-SELECT
-    *
-FROM
-    public.chats
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.dialogues AS
-SELECT
-    *
-FROM
-    public.dialogues
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.message_templates AS
-SELECT
-    *
-FROM
-    public.message_templates
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.action_logs AS
-SELECT
-    *
-FROM
-    public.action_logs
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.authentication_logs AS
-SELECT
-    *
-FROM
-    public.authentication_logs
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.positions AS
-SELECT
-    *
-FROM
-    public.positions
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.roles AS
-SELECT
-    *
-FROM
-    public.roles
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.prompts AS
-SELECT
-    *
-FROM
-    public.prompts
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.passports AS
-SELECT
-    *
-FROM
-    public.passports
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.user_groups AS
-SELECT
-    *
-FROM
-    public.user_groups
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.companies AS
-SELECT
-    *
-FROM
-    public.companies
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.chat_members AS
-SELECT
-    *
-FROM
-    public.chat_members
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.ai_chat_configs AS
-SELECT
-    *
-FROM
-    public.ai_chat_configs
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
-
-CREATE OR REPLACE VIEW analytics.permissions AS
-SELECT
-    *
-FROM
-    public.permissions
-WHERE
-    tenant_id = current_setting('app.tenant_id', TRUE)::uuid;
+-- Create denormalized views for tenant-scoped tables (only when table has tenant_id)
+DO $$
+DECLARE
+    tbl text;
+    view_tables text[] := ARRAY[
+        'clients', 'counterparty', 'employees', 'users', 'warehouse_units', 'warehouse_positions',
+        'warehouse_products', 'warehouse_orders', 'inventory', 'inventory_checks', 'inventory_check_results',
+        'transactions', 'payments', 'expenses', 'expense_categories', 'payment_categories', 'money_accounts',
+        'debts', 'projects', 'billing_transactions', 'uploads', 'sessions', 'chats', 'message_templates',
+        'action_logs', 'authentication_logs', 'positions', 'roles', 'passports', 'user_groups',
+        'companies', 'chat_members', 'ai_chat_configs', 'permissions'
+    ];
+BEGIN
+    FOREACH tbl IN ARRAY view_tables
+    LOOP
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = tbl AND column_name = 'tenant_id'
+        ) THEN
+            EXECUTE format(
+                'CREATE OR REPLACE VIEW analytics.%I AS SELECT * FROM public.%I WHERE tenant_id = current_setting(''app.tenant_id'', TRUE)::uuid',
+                tbl, tbl
+            );
+        END IF;
+    END LOOP;
+END $$;
 
 COMMENT ON SCHEMA analytics IS 'Denormalized views for BiChat query executor with automatic tenant isolation using current_setting(''app.tenant_id'', true)::UUID pattern.';
 

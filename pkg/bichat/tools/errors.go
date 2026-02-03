@@ -32,6 +32,10 @@ const (
 	// ErrCodeServiceUnavailable indicates external service is down or unreachable.
 	// LLM should retry or use alternative approach.
 	ErrCodeServiceUnavailable ToolErrorCode = "SERVICE_UNAVAILABLE"
+
+	// ErrCodePermissionDenied indicates the user lacks permission to access the requested resource.
+	// LLM should inform the user to contact administrator for access.
+	ErrCodePermissionDenied ToolErrorCode = "PERMISSION_DENIED"
 )
 
 // ToolError represents a structured error with hints for LLM self-correction.
@@ -119,4 +123,8 @@ var (
 	HintCheckRequiredFields = "Ensure all required parameters are provided"
 	HintCheckFieldTypes     = "Verify parameter types match schema (string, integer, boolean)"
 	HintCheckFieldFormat    = "Check parameter format (e.g., hex colors, valid identifiers)"
+
+	// Permission hints
+	HintRequestAccess        = "Contact administrator to request access to this resource"
+	HintCheckAccessibleViews = "Use schema_list tool to see views you have permission to access"
 )
