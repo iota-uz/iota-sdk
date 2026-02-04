@@ -260,8 +260,3 @@ func toGraphQLArtifact(a domain.Artifact) *model.Artifact {
 	}
 	return gql
 }
-
-// strPtr is a helper to convert string to *string
-func strPtr(s string) *string {
-	return &s
-}

@@ -2,7 +2,6 @@ package eskiz
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -27,8 +26,7 @@ func TestTokenRefresher_RefreshToken_CanceledContext(t *testing.T) {
 
 	token, err := refresher.RefreshToken(ctx)
 
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, context.Canceled), "error should wrap context.Canceled")
+	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, token)
 }
 
@@ -43,8 +41,7 @@ func TestTokenRefresher_RefreshToken_TimeoutContext(t *testing.T) {
 
 	token, err := refresher.RefreshToken(ctx)
 
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, context.DeadlineExceeded), "error should wrap context.DeadlineExceeded")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Empty(t, token)
 }
 
@@ -66,8 +63,7 @@ func TestTokenRefresher_RefreshTokenLocked_CanceledContext(t *testing.T) {
 
 	token, err := refresher.refreshTokenLocked(ctx)
 
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, context.Canceled), "error should wrap context.Canceled")
+	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, token)
 }
 
@@ -82,8 +78,7 @@ func TestTokenRefresher_RefreshTokenLocked_TimeoutContext(t *testing.T) {
 
 	token, err := refresher.refreshTokenLocked(ctx)
 
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, context.DeadlineExceeded), "error should wrap context.DeadlineExceeded")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Empty(t, token)
 }
 
