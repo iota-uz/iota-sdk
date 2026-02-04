@@ -24,8 +24,10 @@ const (
 
 	// SQL queries for key management
 	checkActiveKeysQuery  = `SELECT COUNT(*) FROM oidc_signing_keys WHERE is_active = true`
-	insertSigningKeyQuery = `INSERT INTO oidc_signing_keys (key_id, algorithm, private_key, public_key, is_active)
-		VALUES ($1, $2, $3, $4, $5)`
+	insertSigningKeyQuery = `
+		INSERT INTO oidc_signing_keys (key_id, algorithm, private_key, public_key, is_active)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (key_id) DO NOTHING`
 	getActiveSigningKeyQuery = `SELECT key_id, private_key FROM oidc_signing_keys
 		WHERE is_active = true
 		ORDER BY created_at DESC

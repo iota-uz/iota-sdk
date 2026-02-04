@@ -1,7 +1,6 @@
 package oidc_test
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
@@ -304,7 +303,7 @@ func TestConcurrentKeyAccess(t *testing.T) {
 
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
-			_, _, err := oidc.GetActiveSigningKey(context.Background(), env.Pool, testCryptoKey)
+			_, _, err := oidc.GetActiveSigningKey(env.Ctx, env.Pool, testCryptoKey)
 			errors <- err
 		}()
 	}

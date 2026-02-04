@@ -31,6 +31,7 @@ type Storage struct {
 	userRepo        user.Repository
 	db              *pgxpool.Pool
 	cryptoKey       string
+	issuerURL       string
 }
 
 // NewStorage creates a new OIDC storage adapter
@@ -41,6 +42,7 @@ func NewStorage(
 	userRepo user.Repository,
 	db *pgxpool.Pool,
 	cryptoKey string,
+	issuerURL string,
 ) *Storage {
 	return &Storage{
 		clientRepo:      clientRepo,
@@ -49,6 +51,7 @@ func NewStorage(
 		userRepo:        userRepo,
 		db:              db,
 		cryptoKey:       cryptoKey,
+		issuerURL:       issuerURL,
 	}
 }
 
@@ -194,11 +197,22 @@ func (s *Storage) AuthRequestByID(ctx context.Context, id string) (op.AuthReques
 func (s *Storage) AuthRequestByCode(ctx context.Context, code string) (op.AuthRequest, error) {
 	const operation serrors.Op = "Storage.AuthRequestByCode"
 
-	// Phase 2: For production deployment, add a 'code' field to oidc_auth_requests table
-	// This requires migration: ALTER TABLE oidc_auth_requests ADD COLUMN code VARCHAR(255) UNIQUE;
-	// For now, we'll use a workaround by parsing the code as UUID (auth request ID)
-
-	// Temporary implementation: treat code as auth request ID
+	// TODO (Phase 2 - SECURITY ISSUE):
+	// The current implementation treats the authorization code as the auth request ID,
+	// which is insecure because:
+	// 1. Auth request IDs are predictable UUIDs, not cryptographically random
+	// 2. Anyone with the auth request ID can exchange it for tokens
+	// 3. This violates OAuth 2.0 security best practices
+	//
+	// Required fixes for production:
+	// 1. Add 'code' column to oidc_auth_requests table (VARCHAR(255) UNIQUE)
+	// 2. Generate cryptographically-random authorization code (32+ bytes, base64url encoded)
+	// 3. Store code in the 'code' column when creating auth request
+	// 4. Look up auth request by code instead of by ID
+	// 5. Add migration:
+	//    ALTER TABLE oidc_auth_requests ADD COLUMN code VARCHAR(255) UNIQUE;
+	//
+	// Temporary implementation (MVP only): treat code as auth request ID
 	return s.AuthRequestByID(ctx, code)
 }
 
@@ -206,9 +220,13 @@ func (s *Storage) AuthRequestByCode(ctx context.Context, code string) (op.AuthRe
 func (s *Storage) SaveAuthCode(ctx context.Context, id, code string) error {
 	const operation serrors.Op = "Storage.SaveAuthCode"
 
-	// Phase 2: For production deployment, add a 'code' field to oidc_auth_requests table
-	// This requires migration and implementation: UPDATE oidc_auth_requests SET code = $1 WHERE id = $2
-	// For now, this is a no-op since we're using the ID as the code
+	// TODO (Phase 2 - SECURITY ISSUE):
+	// This is a no-op because we're currently using auth request ID as the code.
+	// See AuthRequestByCode for details on the security issue and required fixes.
+	//
+	// Production implementation should:
+	// 1. Store cryptographically-random code in oidc_auth_requests.code column
+	// 2. Update query: UPDATE oidc_auth_requests SET code = $1 WHERE id = $2
 
 	// Validate ID exists
 	authID, err := uuid.Parse(id)
@@ -254,7 +272,7 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 
 	// Create JWT claims
 	claims := jwt.MapClaims{
-		"iss":   "https://iota-sdk.local", // Issuer - should be configured OIDC provider URL
+		"iss":   s.issuerURL,
 		"sub":   req.GetSubject(),
 		"aud":   req.GetAudience(),
 		"exp":   expiresAt.Unix(),

@@ -34,7 +34,7 @@ if [ "$USE_PKCE" = "true" ]; then
     echo "  Code Verifier: $CODE_VERIFIER"
 
     # Generate code challenge (SHA256 hash of verifier, base64url encoded)
-    CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr -d "=+/" | tr -d "\n")
+    CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=' | tr -d "\n")
     echo "  Code Challenge: $CODE_CHALLENGE"
     echo ""
 else

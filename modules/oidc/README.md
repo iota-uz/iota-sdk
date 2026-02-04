@@ -33,7 +33,7 @@ This creates the following tables:
 
 ```bash
 # .env
-OIDC_ISSUER=https://your-domain.com
+OIDC_ISSUER_URL=https://your-domain.com
 OIDC_CRYPTO_KEY=your-secure-random-32-char-minimum-key-here
 ```
 

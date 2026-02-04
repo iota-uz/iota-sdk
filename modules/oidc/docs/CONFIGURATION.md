@@ -20,7 +20,7 @@ Add these variables to your `.env` file:
 
 ```bash
 # OIDC Issuer URL (must match your domain)
-OIDC_ISSUER=https://your-domain.com
+OIDC_ISSUER_URL=https://your-domain.com
 
 # Crypto key for encrypting signing keys (32+ characters recommended)
 OIDC_CRYPTO_KEY=your-very-secure-random-key-here-32-chars-minimum

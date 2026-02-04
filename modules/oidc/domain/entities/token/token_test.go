@@ -104,14 +104,17 @@ func TestRefreshToken_IsExpired(t *testing.T) {
 	})
 
 	t.Run("Expired", func(t *testing.T) {
+		// Create token that should have expired
+		pastTime := time.Now().Add(-25 * time.Hour)
 		rt := token.New(
 			"expired-hash",
 			"test-client",
 			5,
 			uuid.New(),
 			[]string{"openid"},
-			time.Now().Add(-25*time.Hour),
+			pastTime,
 			24*time.Hour,
+			token.WithExpiresAt(pastTime.Add(24*time.Hour)), // Explicitly set expiry in the past
 		)
 
 		assert.True(t, rt.IsExpired())

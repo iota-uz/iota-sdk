@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/http"
 
@@ -43,9 +44,17 @@ func (c *OIDCController) Key() string {
 
 // Register mounts the OIDC provider router and custom routes
 func (c *OIDCController) Register(r *mux.Router) {
-	// Convert crypto key to [32]byte array
+	// Convert base64-encoded crypto key to [32]byte array
 	var cryptoKey [32]byte
-	copy(cryptoKey[:], []byte(c.config.CryptoKey))
+	// Decode base64 crypto key
+	decodedKey, err := base64.StdEncoding.DecodeString(c.config.CryptoKey)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to decode crypto key (must be base64-encoded): %v", err))
+	}
+	if len(decodedKey) != 32 {
+		panic(fmt.Sprintf("Crypto key must be exactly 32 bytes after base64 decoding, got %d bytes", len(decodedKey)))
+	}
+	copy(cryptoKey[:], decodedKey)
 
 	// Initialize zitadel OIDC provider configuration
 	providerConfig := &op.Config{
@@ -67,7 +76,23 @@ func (c *OIDCController) Register(r *mux.Router) {
 
 	c.provider = provider
 
-	// Mount OIDC provider routes
+	// Mount OIDC provider routes (all routes are intentionally public)
+	//
+	// IMPORTANT: No authorization middleware is applied to these routes because:
+	// - /.well-known/openid-configuration is a public discovery endpoint (OAuth 2.0 spec)
+	// - /oidc/authorize is the public authorization endpoint (requires client_id but not auth)
+	// - /oidc/token is the public token endpoint (authenticated via client credentials)
+	// - /oidc/userinfo requires Bearer token in Authorization header (self-protected)
+	// - /oidc/keys is a public JWKS endpoint for verifying JWT signatures
+	// - /oidc/revoke is the public token revocation endpoint (authenticated via client credentials)
+	// - /oidc/end_session is the public logout endpoint
+	//
+	// Security is enforced via:
+	// 1. Client authentication (client_id + client_secret or PKCE)
+	// 2. Bearer token validation (for /userinfo)
+	// 3. Authorization code flow validation
+	// 4. Redirect URI validation
+	//
 	// This provides:
 	// - /.well-known/openid-configuration (discovery endpoint)
 	// - /authorize (authorization endpoint)

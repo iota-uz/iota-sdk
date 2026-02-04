@@ -69,6 +69,7 @@ func (m *Module) Register(app application.Application) error {
 		userRepo,
 		app.DB(),
 		config.OIDC.CryptoKey,
+		config.OIDC.IssuerURL,
 	)
 
 	// Bootstrap signing keys on startup (if not already present)

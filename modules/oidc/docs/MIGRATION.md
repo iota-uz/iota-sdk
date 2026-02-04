@@ -56,7 +56,7 @@ Add OIDC configuration to your `.env` file:
 OIDC_CRYPTO_KEY=your-secure-random-32-char-minimum-key-here
 
 # Required: Issuer URL (must match your public domain)
-OIDC_ISSUER=https://your-domain.com
+OIDC_ISSUER_URL=https://your-domain.com
 
 # Optional: Token lifetimes (defaults shown)
 OIDC_ACCESS_TOKEN_LIFETIME=3600          # 1 hour
@@ -123,7 +123,7 @@ INSERT INTO oidc_clients (
     ARRAY['authorization_code', 'refresh_token'],         -- Grant types
     ARRAY['code'],                                        -- Response types
     ARRAY['openid', 'profile', 'email', 'offline_access'], -- Allowed scopes
-    true,                                                 -- Require PKCE (recommended)
+    false,                                                -- PKCE not required for manual testing (recommended for production)
     true                                                  -- Active
 );
 ```
@@ -213,11 +213,11 @@ curl -X POST http://localhost:8080/oidc/token \
 Expected response:
 ```json
 {
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "<ACCESS_TOKEN>",
   "token_type": "Bearer",
   "expires_in": 3600,
-  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "<REFRESH_TOKEN>",
+  "id_token": "<ID_TOKEN>",
   "scope": "openid profile email"
 }
 ```
@@ -226,7 +226,7 @@ Expected response:
 
 ```bash
 curl -X GET http://localhost:8080/oidc/userinfo \
-  -H "Authorization: Bearer ACCESS_TOKEN_HERE"
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
 ### Automated Testing
@@ -319,7 +319,7 @@ Before deploying to production:
 
 ```bash
 # Production .env
-OIDC_ISSUER=https://your-production-domain.com
+OIDC_ISSUER_URL=https://your-production-domain.com
 OIDC_CRYPTO_KEY=<new-secure-key-from-secret-manager>
 
 # Use HTTPS redirect URIs only
