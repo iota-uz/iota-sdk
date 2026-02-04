@@ -26,13 +26,15 @@ import (
 // Storage implements op.Storage interface from zitadel/oidc
 // This is the bridge between zitadel's OIDC library and IOTA SDK's infrastructure
 type Storage struct {
-	clientRepo      client.Repository
-	authRequestRepo authrequest.Repository
-	tokenRepo       token.Repository
-	userRepo        user.Repository
-	db              *pgxpool.Pool
-	cryptoKey       string
-	issuerURL       string
+	clientRepo           client.Repository
+	authRequestRepo      authrequest.Repository
+	tokenRepo            token.Repository
+	userRepo             user.Repository
+	db                   *pgxpool.Pool
+	cryptoKey            string
+	issuerURL            string
+	accessTokenLifetime  time.Duration
+	refreshTokenLifetime time.Duration
 }
 
 // NewStorage creates a new OIDC storage adapter
@@ -44,15 +46,27 @@ func NewStorage(
 	db *pgxpool.Pool,
 	cryptoKey string,
 	issuerURL string,
+	accessTokenLifetime time.Duration,
+	refreshTokenLifetime time.Duration,
 ) *Storage {
+	// Apply defaults if zero values provided
+	if accessTokenLifetime == 0 {
+		accessTokenLifetime = time.Hour // Default 1 hour
+	}
+	if refreshTokenLifetime == 0 {
+		refreshTokenLifetime = 30 * 24 * time.Hour // Default 30 days
+	}
+
 	return &Storage{
-		clientRepo:      clientRepo,
-		authRequestRepo: authRequestRepo,
-		tokenRepo:       tokenRepo,
-		userRepo:        userRepo,
-		db:              db,
-		cryptoKey:       cryptoKey,
-		issuerURL:       issuerURL,
+		clientRepo:           clientRepo,
+		authRequestRepo:      authRequestRepo,
+		tokenRepo:            tokenRepo,
+		userRepo:             userRepo,
+		db:                   db,
+		cryptoKey:            cryptoKey,
+		issuerURL:            issuerURL,
+		accessTokenLifetime:  accessTokenLifetime,
+		refreshTokenLifetime: refreshTokenLifetime,
 	}
 }
 
@@ -266,9 +280,9 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 		return "", time.Time{}, serrors.E(operation, fmt.Errorf("failed to get signing key: %w", err))
 	}
 
-	// Calculate expiration
+	// Calculate expiration using configured lifetime
 	now := time.Now()
-	expiresAt := now.Add(time.Hour) // Default 1 hour
+	expiresAt := now.Add(s.accessTokenLifetime)
 
 	// Create JWT claims
 	claims := jwt.MapClaims{
@@ -322,8 +336,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		return "", "", time.Time{}, serrors.E(operation, err)
 	}
 
-	// Create domain refresh token
-	refreshTokenLifetime := 30 * 24 * time.Hour // 30 days default
+	// Create domain refresh token using configured lifetime
 
 	// Get auth time and AMR from request
 	// The zitadel library passes extended request objects with these methods
@@ -354,7 +367,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		u.TenantID(),
 		req.GetScopes(),
 		authTime,
-		refreshTokenLifetime,
+		s.refreshTokenLifetime,
 		token.WithAudience(req.GetAudience()),
 		token.WithAMR(amr),
 	)

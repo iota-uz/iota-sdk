@@ -97,7 +97,7 @@ Example code and scripts are available in the `examples/` directory:
 
 ## Architecture
 
-```
+```text
 modules/oidc/
 ├── domain/
 │   └── entities/

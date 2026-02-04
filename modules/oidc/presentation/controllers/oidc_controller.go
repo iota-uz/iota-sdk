@@ -15,6 +15,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
+// CallbackQueryDTO represents the query parameters for the OIDC callback endpoint
+type CallbackQueryDTO struct {
+	ID string `schema:"id"`
+}
+
 type OIDCController struct {
 	app         application.Application
 	storage     *oidc.Storage
@@ -113,16 +118,22 @@ func (c *OIDCController) Register(r *mux.Router) {
 func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
-	// Get auth request ID from query params
-	authRequestID := r.URL.Query().Get("id")
-	if authRequestID == "" {
+	// Parse query parameters using UseQuery pattern
+	query, err := composables.UseQuery(&CallbackQueryDTO{}, r)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse callback query parameters")
+		http.Error(w, "Invalid query parameters", http.StatusBadRequest)
+		return
+	}
+
+	if query.ID == "" {
 		logger.Error("Missing auth request ID in callback")
 		http.Error(w, "Missing auth request ID", http.StatusBadRequest)
 		return
 	}
 
 	// Get auth request to validate it exists and is authenticated
-	authReq, err := c.oidcService.GetAuthRequest(r.Context(), authRequestID)
+	authReq, err := c.oidcService.GetAuthRequest(r.Context(), query.ID)
 	if err != nil {
 		logger.WithError(err).Error("Failed to get auth request")
 		http.Error(w, "Invalid auth request", http.StatusBadRequest)
@@ -138,6 +149,6 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 
 	// Redirect back to the OIDC authorize endpoint to complete the flow
 	// The zitadel library will handle generating the authorization code and redirecting to client
-	redirectURL := fmt.Sprintf("/oidc/authorize?id=%s", authRequestID)
+	redirectURL := fmt.Sprintf("/oidc/authorize?id=%s", query.ID)
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }

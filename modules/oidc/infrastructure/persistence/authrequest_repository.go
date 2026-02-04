@@ -58,6 +58,16 @@ const (
 	deleteExpiredAuthRequestsQuery = `DELETE FROM oidc_auth_requests WHERE expires_at < NOW()`
 )
 
+// AuthRequestRepository implements authrequest.Repository
+//
+// DESIGN NOTE: Auth requests intentionally do NOT have tenant scoping because:
+//  1. Auth requests are created BEFORE user authentication (tenant_id is NULL)
+//  2. The tenant_id is set AFTER the user logs in via CompleteAuthentication
+//  3. The OAuth authorization flow starts without knowing which tenant the user belongs to
+//  4. Once authenticated, the auth request is immediately consumed and deleted
+//
+// This is different from domain entities that belong to a specific tenant.
+// Auth requests are ephemeral OAuth state with a 5-minute TTL, not multi-tenant data.
 type AuthRequestRepository struct{}
 
 func NewAuthRequestRepository() authrequest.Repository {

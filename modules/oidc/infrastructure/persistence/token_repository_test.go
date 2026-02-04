@@ -25,87 +25,116 @@ func TestTokenRepository_Create(t *testing.T) {
 
 	tokenRepo := persistence.NewTokenRepository()
 
-	t.Run("Success", func(t *testing.T) {
-		tokenString := "test-refresh-token-123"
-		tokenHash := hashToken(tokenString)
+	tests := []struct {
+		name           string
+		tokenString    string
+		clientID       string
+		userID         int
+		scopes         []string
+		lifetime       time.Duration
+		options        []token.Option
+		expectedAud    []string
+		expectedAMR    []string
+		expectError    bool
+		setupDuplicate bool // If true, create a token with same hash first
+	}{
+		{
+			name:        "Success",
+			tokenString: "test-refresh-token-123",
+			clientID:    "test-client-id",
+			userID:      1,
+			scopes:      []string{"openid", "profile", "email"},
+			lifetime:    720 * time.Hour, // 30 days
+			options:     nil,
+			expectedAud: nil,
+			expectedAMR: []string{"pwd"}, // Default AMR
+			expectError: false,
+		},
+		{
+			name:        "WithCustomOptions",
+			tokenString: "custom-refresh-token-456",
+			clientID:    "custom-client-id",
+			userID:      2,
+			scopes:      []string{"openid", "offline_access"},
+			lifetime:    168 * time.Hour, // 7 days
+			options: []token.Option{
+				token.WithAudience([]string{"https://api.example.com"}),
+				token.WithAMR([]string{"pwd", "mfa"}),
+			},
+			expectedAud: []string{"https://api.example.com"},
+			expectedAMR: []string{"pwd", "mfa"},
+			expectError: false,
+		},
+		{
+			name:           "DuplicateTokenHash",
+			tokenString:    "duplicate-token-789",
+			clientID:       "client-2",
+			userID:         4,
+			scopes:         []string{"openid"},
+			lifetime:       24 * time.Hour,
+			options:        nil,
+			expectError:    true,
+			setupDuplicate: true,
+		},
+	}
 
-		refreshToken := token.New(
-			tokenHash,
-			"test-client-id",
-			1,
-			uuid.New(),
-			[]string{"openid", "profile", "email"},
-			time.Now(),
-			720*time.Hour, // 30 days
-		)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenHash := hashToken(tc.tokenString)
 
-		err := tokenRepo.Create(f.Ctx, refreshToken)
-		require.NoError(t, err)
+			// Setup: create duplicate token first if needed
+			if tc.setupDuplicate {
+				firstToken := token.New(
+					tokenHash,
+					"client-1",
+					3,
+					uuid.New(),
+					[]string{"openid"},
+					time.Now(),
+					24*time.Hour,
+				)
+				err := tokenRepo.Create(f.Ctx, firstToken)
+				require.NoError(t, err, "failed to create setup token for duplicate test")
+			}
 
-		// Retrieve and verify
-		retrieved, err := tokenRepo.GetByTokenHash(f.Ctx, tokenHash)
-		require.NoError(t, err)
-		assert.Equal(t, tokenHash, retrieved.TokenHash())
-		assert.Equal(t, "test-client-id", retrieved.ClientID())
-		assert.Equal(t, 1, retrieved.UserID())
-		assert.Equal(t, []string{"openid", "profile", "email"}, retrieved.Scopes())
-	})
+			// Create the test token
+			refreshToken := token.New(
+				tokenHash,
+				tc.clientID,
+				tc.userID,
+				uuid.New(),
+				tc.scopes,
+				time.Now(),
+				tc.lifetime,
+				tc.options...,
+			)
 
-	t.Run("WithCustomOptions", func(t *testing.T) {
-		tokenString := "custom-refresh-token-456"
-		tokenHash := hashToken(tokenString)
+			err := tokenRepo.Create(f.Ctx, refreshToken)
 
-		refreshToken := token.New(
-			tokenHash,
-			"custom-client-id",
-			2,
-			uuid.New(),
-			[]string{"openid", "offline_access"},
-			time.Now(),
-			168*time.Hour, // 7 days
-			token.WithAudience([]string{"https://api.example.com"}),
-			token.WithAMR([]string{"pwd", "mfa"}),
-		)
+			if tc.expectError {
+				assert.Error(t, err, "expected error for %s", tc.name)
+				return
+			}
 
-		err := tokenRepo.Create(f.Ctx, refreshToken)
-		require.NoError(t, err)
+			require.NoError(t, err, "unexpected error creating token")
 
-		retrieved, err := tokenRepo.GetByTokenHash(f.Ctx, tokenHash)
-		require.NoError(t, err)
-		assert.Equal(t, []string{"https://api.example.com"}, retrieved.Audience())
-		assert.Equal(t, []string{"pwd", "mfa"}, retrieved.AMR())
-	})
+			// Retrieve and verify
+			retrieved, err := tokenRepo.GetByTokenHash(f.Ctx, tokenHash)
+			require.NoError(t, err, "failed to retrieve token")
 
-	t.Run("DuplicateTokenHash", func(t *testing.T) {
-		tokenString := "duplicate-token-789"
-		tokenHash := hashToken(tokenString)
+			assert.Equal(t, tokenHash, retrieved.TokenHash())
+			assert.Equal(t, tc.clientID, retrieved.ClientID())
+			assert.Equal(t, tc.userID, retrieved.UserID())
+			assert.Equal(t, tc.scopes, retrieved.Scopes())
 
-		// Create first token
-		firstToken := token.New(
-			tokenHash,
-			"client-1",
-			3,
-			uuid.New(),
-			[]string{"openid"},
-			time.Now(),
-			24*time.Hour,
-		)
-		err := tokenRepo.Create(f.Ctx, firstToken)
-		require.NoError(t, err)
-
-		// Attempt to create second token with same hash
-		secondToken := token.New(
-			tokenHash,
-			"client-2",
-			4,
-			uuid.New(),
-			[]string{"openid"},
-			time.Now(),
-			24*time.Hour,
-		)
-		err = tokenRepo.Create(f.Ctx, secondToken)
-		assert.Error(t, err) // Should fail due to unique constraint
-	})
+			if tc.expectedAud != nil {
+				assert.Equal(t, tc.expectedAud, retrieved.Audience())
+			}
+			if tc.expectedAMR != nil {
+				assert.Equal(t, tc.expectedAMR, retrieved.AMR())
+			}
+		})
+	}
 }
 
 func TestTokenRepository_GetByTokenHash(t *testing.T) {

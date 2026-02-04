@@ -70,6 +70,8 @@ func (m *Module) Register(app application.Application) error {
 		app.DB(),
 		config.OIDC.CryptoKey,
 		config.OIDC.IssuerURL,
+		config.OIDC.AccessTokenLifetime,
+		config.OIDC.RefreshTokenLifetime,
 	)
 
 	// Bootstrap signing keys on startup (if not already present)
