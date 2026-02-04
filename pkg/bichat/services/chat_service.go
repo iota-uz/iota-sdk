@@ -113,9 +113,9 @@ const (
 
 // TokenUsage tracks token consumption and costs
 type TokenUsage struct {
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	CachedTokens     int
-	Cost             float64 // Estimated cost in USD
+	PromptTokens     int     `json:"promptTokens"`
+	CompletionTokens int     `json:"completionTokens"`
+	TotalTokens      int     `json:"totalTokens"`
+	CachedTokens     int     `json:"cachedTokens"`
+	Cost             float64 `json:"cost"` // Estimated cost in USD
 }

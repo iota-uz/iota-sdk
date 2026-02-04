@@ -69,7 +69,7 @@ func (j *OpenAIJudge) Evaluate(ctx context.Context, in JudgeTurnInput) (*JudgeVe
 
 	maxTokens := int64(1024)
 	resp, err := j.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: openai.ChatModel(j.model),
+		Model: j.model,
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(judgeSystemPrompt),
 			openai.UserMessage(userPrompt),

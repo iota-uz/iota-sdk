@@ -74,7 +74,7 @@ func (c *GraphQLClient) Do(ctx context.Context, query string, variables map[stri
 	if err != nil {
 		return fmt.Errorf("graphql request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("graphql http status %d", resp.StatusCode)
