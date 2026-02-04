@@ -66,6 +66,18 @@ func WithExpiresAt(expiresAt time.Time) Option {
 	}
 }
 
+func WithCode(code string) Option {
+	return func(a *authRequest) {
+		a.code = &code
+	}
+}
+
+func WithCodeUsedAt(codeUsedAt time.Time) Option {
+	return func(a *authRequest) {
+		a.codeUsedAt = &codeUsedAt
+	}
+}
+
 // ---- Interface ----
 
 // AuthRequest represents an OAuth2/OIDC authorization request
@@ -84,6 +96,8 @@ type AuthRequest interface {
 	AuthTime() *time.Time
 	CreatedAt() time.Time
 	ExpiresAt() time.Time
+	Code() *string
+	CodeUsedAt() *time.Time
 
 	// Business logic methods
 	SetState(state string) AuthRequest
@@ -92,6 +106,7 @@ type AuthRequest interface {
 	CompleteAuthentication(userID int, tenantID uuid.UUID) AuthRequest
 	IsExpired() bool
 	IsAuthenticated() bool
+	IsCodeUsed() bool
 }
 
 // ---- Implementation ----
@@ -135,6 +150,8 @@ type authRequest struct {
 	authTime            *time.Time
 	createdAt           time.Time
 	expiresAt           time.Time
+	code                *string
+	codeUsedAt          *time.Time
 }
 
 // Getters
@@ -152,6 +169,8 @@ func (a *authRequest) TenantID() *uuid.UUID         { return a.tenantID }
 func (a *authRequest) AuthTime() *time.Time         { return a.authTime }
 func (a *authRequest) CreatedAt() time.Time         { return a.createdAt }
 func (a *authRequest) ExpiresAt() time.Time         { return a.expiresAt }
+func (a *authRequest) Code() *string                { return a.code }
+func (a *authRequest) CodeUsedAt() *time.Time       { return a.codeUsedAt }
 
 // SetState returns a new AuthRequest with the state set
 func (a *authRequest) SetState(state string) AuthRequest {
@@ -193,4 +212,9 @@ func (a *authRequest) IsExpired() bool {
 // IsAuthenticated returns true if the auth request has been authenticated
 func (a *authRequest) IsAuthenticated() bool {
 	return a.userID != nil && a.tenantID != nil
+}
+
+// IsCodeUsed returns true if the authorization code has already been used
+func (a *authRequest) IsCodeUsed() bool {
+	return a.codeUsedAt != nil
 }

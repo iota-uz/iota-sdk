@@ -18,7 +18,8 @@ const (
 		SELECT
 			id, client_id, redirect_uri, scopes, state, nonce,
 			response_type, code_challenge, code_challenge_method,
-			user_id, tenant_id, auth_time, created_at, expires_at
+			user_id, tenant_id, auth_time, created_at, expires_at,
+			code, code_used_at
 		FROM oidc_auth_requests
 	`
 
@@ -26,8 +27,9 @@ const (
 		INSERT INTO oidc_auth_requests (
 			id, client_id, redirect_uri, scopes, state, nonce,
 			response_type, code_challenge, code_challenge_method,
-			user_id, tenant_id, auth_time, created_at, expires_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			user_id, tenant_id, auth_time, created_at, expires_at,
+			code, code_used_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 	`
 
 	updateAuthRequestQuery = `
@@ -36,6 +38,19 @@ const (
 			response_type = $6, code_challenge = $7, code_challenge_method = $8,
 			user_id = $9, tenant_id = $10, auth_time = $11, expires_at = $12
 		WHERE id = $13
+	`
+
+	saveAuthCodeQuery = `
+		UPDATE oidc_auth_requests
+		SET code = $1
+		WHERE id = $2
+	`
+
+	markCodeUsedQuery = `
+		UPDATE oidc_auth_requests
+		SET code_used_at = NOW()
+		WHERE code = $1 AND code_used_at IS NULL
+		RETURNING id
 	`
 
 	deleteAuthRequestQuery = `DELETE FROM oidc_auth_requests WHERE id = $1`
@@ -76,6 +91,8 @@ func (r *AuthRequestRepository) Create(ctx context.Context, req authrequest.Auth
 		dbReq.AuthTime,
 		dbReq.CreatedAt,
 		dbReq.ExpiresAt,
+		dbReq.Code,
+		dbReq.CodeUsedAt,
 	)
 
 	if err != nil {
@@ -99,6 +116,62 @@ func (r *AuthRequestRepository) GetByID(ctx context.Context, id uuid.UUID) (auth
 	}
 
 	return requests[0], nil
+}
+
+func (r *AuthRequestRepository) GetByCode(ctx context.Context, code string) (authrequest.AuthRequest, error) {
+	const op serrors.Op = "AuthRequestRepository.GetByCode"
+
+	query := selectAuthRequestQuery + " WHERE code = $1"
+	requests, err := r.queryAuthRequests(ctx, op, query, code)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	if len(requests) == 0 {
+		return nil, serrors.E(op, serrors.NotFound, "auth request not found for code")
+	}
+
+	return requests[0], nil
+}
+
+func (r *AuthRequestRepository) SaveCode(ctx context.Context, id uuid.UUID, code string) error {
+	const op serrors.Op = "AuthRequestRepository.SaveCode"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	result, err := tx.Exec(ctx, saveAuthCodeQuery, code, id)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return serrors.E(op, serrors.NotFound, "auth request not found")
+	}
+
+	return nil
+}
+
+func (r *AuthRequestRepository) MarkCodeUsed(ctx context.Context, code string) error {
+	const op serrors.Op = "AuthRequestRepository.MarkCodeUsed"
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	var id string
+	err = tx.QueryRow(ctx, markCodeUsedQuery, code).Scan(&id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return serrors.E(op, serrors.KindValidation, "authorization code already used or not found")
+		}
+		return serrors.E(op, err)
+	}
+
+	return nil
 }
 
 func (r *AuthRequestRepository) Update(ctx context.Context, req authrequest.AuthRequest) error {
@@ -208,6 +281,8 @@ func (r *AuthRequestRepository) queryAuthRequests(ctx context.Context, op serror
 			&dbReq.AuthTime,
 			&dbReq.CreatedAt,
 			&dbReq.ExpiresAt,
+			&dbReq.Code,
+			&dbReq.CodeUsedAt,
 		); err != nil {
 			return nil, serrors.E(op, err)
 		}

@@ -52,17 +52,22 @@ CREATE TABLE oidc_auth_requests (
     tenant_id UUID,                         -- Set after auth (from user's tenant)
     auth_time TIMESTAMPTZ,                  -- Set after authentication
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL         -- Default: created_at + 5 min
+    expires_at TIMESTAMPTZ NOT NULL,        -- Default: created_at + 5 min
+    code VARCHAR(64) UNIQUE,                -- Cryptographic authorization code (base64url)
+    code_used_at TIMESTAMPTZ                -- NULL until code exchanged (one-time use)
 );
 
 CREATE INDEX idx_oidc_auth_requests_expires ON oidc_auth_requests(expires_at);
 CREATE INDEX idx_oidc_auth_requests_client_id ON oidc_auth_requests(client_id);
 CREATE INDEX idx_oidc_auth_requests_user_id ON oidc_auth_requests(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX idx_oidc_auth_requests_code ON oidc_auth_requests(code) WHERE code IS NOT NULL;
 
 COMMENT ON TABLE oidc_auth_requests IS 'Ephemeral authorization requests with 5-minute TTL';
 COMMENT ON COLUMN oidc_auth_requests.user_id IS 'NULL until user authenticates, then set to authenticated user ID';
 COMMENT ON COLUMN oidc_auth_requests.tenant_id IS 'Set after authentication from user''s tenant for multi-tenant isolation';
 COMMENT ON COLUMN oidc_auth_requests.code_challenge IS 'PKCE code challenge for public clients (RFC 7636)';
+COMMENT ON COLUMN oidc_auth_requests.code IS 'Cryptographically random authorization code (base64url, 32 bytes)';
+COMMENT ON COLUMN oidc_auth_requests.code_used_at IS 'Timestamp when code was exchanged, NULL if unused (one-time use)';
 
 -- Refresh Tokens (for token refresh flow)
 CREATE TABLE oidc_refresh_tokens (

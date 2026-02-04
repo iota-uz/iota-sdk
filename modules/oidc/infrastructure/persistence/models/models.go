@@ -42,6 +42,8 @@ type AuthRequest struct {
 	AuthTime            sql.NullTime
 	CreatedAt           time.Time
 	ExpiresAt           time.Time
+	Code                sql.NullString // Cryptographic authorization code
+	CodeUsedAt          sql.NullTime   // Timestamp when code was exchanged (one-time use)
 }
 
 // RefreshToken represents the database model for oidc_refresh_tokens table

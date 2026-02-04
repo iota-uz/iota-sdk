@@ -400,3 +400,77 @@ func TestAuthRequest_ResponseTypes(t *testing.T) {
 		assert.Equal(t, "code token", ar.ResponseType())
 	})
 }
+
+func TestAuthRequest_Code(t *testing.T) {
+	t.Run("CodeNotSet", func(t *testing.T) {
+		ar := authrequest.New(
+			"test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+		)
+
+		assert.Nil(t, ar.Code())
+		assert.Nil(t, ar.CodeUsedAt())
+		assert.False(t, ar.IsCodeUsed())
+	})
+
+	t.Run("WithCode", func(t *testing.T) {
+		cryptoCode := "abc123_cryptographic_authorization_code"
+		ar := authrequest.New(
+			"test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+			authrequest.WithCode(cryptoCode),
+		)
+
+		assert.NotNil(t, ar.Code())
+		assert.Equal(t, cryptoCode, *ar.Code())
+		assert.Nil(t, ar.CodeUsedAt())
+		assert.False(t, ar.IsCodeUsed())
+	})
+
+	t.Run("WithCodeUsedAt", func(t *testing.T) {
+		usedAt := time.Now()
+		ar := authrequest.New(
+			"test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+			authrequest.WithCode("some-code"),
+			authrequest.WithCodeUsedAt(usedAt),
+		)
+
+		assert.NotNil(t, ar.CodeUsedAt())
+		assert.WithinDuration(t, usedAt, *ar.CodeUsedAt(), time.Second)
+		assert.True(t, ar.IsCodeUsed())
+	})
+}
+
+func TestAuthRequest_IsCodeUsed(t *testing.T) {
+	t.Run("NotUsed", func(t *testing.T) {
+		ar := authrequest.New(
+			"test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+			authrequest.WithCode("unused-code"),
+		)
+
+		assert.False(t, ar.IsCodeUsed())
+	})
+
+	t.Run("Used", func(t *testing.T) {
+		ar := authrequest.New(
+			"test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+			authrequest.WithCode("used-code"),
+			authrequest.WithCodeUsedAt(time.Now()),
+		)
+
+		assert.True(t, ar.IsCodeUsed())
+	})
+}

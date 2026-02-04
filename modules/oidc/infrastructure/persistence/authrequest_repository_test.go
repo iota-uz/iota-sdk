@@ -438,3 +438,181 @@ func TestAuthRequestRepository_PKCEFlow(t *testing.T) {
 		assert.Equal(t, challengeMethod, *retrieved.CodeChallengeMethod())
 	})
 }
+
+func TestAuthRequestRepository_SaveCode(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+
+	clientRepo := persistence.NewClientRepository()
+	authRequestRepo := persistence.NewAuthRequestRepository()
+
+	// Create a client first
+	testClient := client.New(
+		"savecode-test-client",
+		"Test Client",
+		"web",
+		[]string{"http://localhost:3000/callback"},
+	)
+	_, err := clientRepo.Create(f.Ctx, testClient)
+	require.NoError(t, err)
+
+	t.Run("Success", func(t *testing.T) {
+		authReq := authrequest.New(
+			"savecode-test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+		)
+
+		err := authRequestRepo.Create(f.Ctx, authReq)
+		require.NoError(t, err)
+
+		// Initially no code
+		retrieved, err := authRequestRepo.GetByID(f.Ctx, authReq.ID())
+		require.NoError(t, err)
+		assert.Nil(t, retrieved.Code())
+
+		// Save a cryptographic code
+		cryptoCode := "abc123xyz789_cryptographic_code_value"
+		err = authRequestRepo.SaveCode(f.Ctx, authReq.ID(), cryptoCode)
+		require.NoError(t, err)
+
+		// Verify code is saved
+		retrieved, err = authRequestRepo.GetByID(f.Ctx, authReq.ID())
+		require.NoError(t, err)
+		assert.NotNil(t, retrieved.Code())
+		assert.Equal(t, cryptoCode, *retrieved.Code())
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		err := authRequestRepo.SaveCode(f.Ctx, uuid.New(), "some-code")
+		assert.Error(t, err)
+	})
+}
+
+func TestAuthRequestRepository_GetByCode(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+
+	clientRepo := persistence.NewClientRepository()
+	authRequestRepo := persistence.NewAuthRequestRepository()
+
+	// Create a client first
+	testClient := client.New(
+		"getbycode-test-client",
+		"Test Client",
+		"web",
+		[]string{"http://localhost:3000/callback"},
+	)
+	_, err := clientRepo.Create(f.Ctx, testClient)
+	require.NoError(t, err)
+
+	t.Run("Success", func(t *testing.T) {
+		authReq := authrequest.New(
+			"getbycode-test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+		)
+
+		err := authRequestRepo.Create(f.Ctx, authReq)
+		require.NoError(t, err)
+
+		// Save a code
+		cryptoCode := "unique_getbycode_test_value_12345"
+		err = authRequestRepo.SaveCode(f.Ctx, authReq.ID(), cryptoCode)
+		require.NoError(t, err)
+
+		// Retrieve by code
+		retrieved, err := authRequestRepo.GetByCode(f.Ctx, cryptoCode)
+		require.NoError(t, err)
+		assert.Equal(t, authReq.ID(), retrieved.ID())
+		assert.Equal(t, cryptoCode, *retrieved.Code())
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		_, err := authRequestRepo.GetByCode(f.Ctx, "non-existent-code")
+		assert.Error(t, err)
+	})
+}
+
+func TestAuthRequestRepository_MarkCodeUsed(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+
+	clientRepo := persistence.NewClientRepository()
+	authRequestRepo := persistence.NewAuthRequestRepository()
+
+	// Create a client first
+	testClient := client.New(
+		"markcodeused-test-client",
+		"Test Client",
+		"web",
+		[]string{"http://localhost:3000/callback"},
+	)
+	_, err := clientRepo.Create(f.Ctx, testClient)
+	require.NoError(t, err)
+
+	t.Run("Success", func(t *testing.T) {
+		authReq := authrequest.New(
+			"markcodeused-test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+		)
+
+		err := authRequestRepo.Create(f.Ctx, authReq)
+		require.NoError(t, err)
+
+		// Save a code
+		cryptoCode := "unique_markcodeused_test_value_abc"
+		err = authRequestRepo.SaveCode(f.Ctx, authReq.ID(), cryptoCode)
+		require.NoError(t, err)
+
+		// Initially not used
+		retrieved, err := authRequestRepo.GetByCode(f.Ctx, cryptoCode)
+		require.NoError(t, err)
+		assert.False(t, retrieved.IsCodeUsed())
+		assert.Nil(t, retrieved.CodeUsedAt())
+
+		// Mark as used
+		err = authRequestRepo.MarkCodeUsed(f.Ctx, cryptoCode)
+		require.NoError(t, err)
+
+		// Verify used
+		retrieved, err = authRequestRepo.GetByCode(f.Ctx, cryptoCode)
+		require.NoError(t, err)
+		assert.True(t, retrieved.IsCodeUsed())
+		assert.NotNil(t, retrieved.CodeUsedAt())
+	})
+
+	t.Run("DoubleUsePrevented", func(t *testing.T) {
+		authReq := authrequest.New(
+			"markcodeused-test-client",
+			"http://localhost:3000/callback",
+			[]string{"openid"},
+			"code",
+		)
+
+		err := authRequestRepo.Create(f.Ctx, authReq)
+		require.NoError(t, err)
+
+		// Save a code
+		cryptoCode := "unique_doubleuse_test_value_xyz"
+		err = authRequestRepo.SaveCode(f.Ctx, authReq.ID(), cryptoCode)
+		require.NoError(t, err)
+
+		// First use - should succeed
+		err = authRequestRepo.MarkCodeUsed(f.Ctx, cryptoCode)
+		require.NoError(t, err)
+
+		// Second use - should fail (one-time use enforcement)
+		err = authRequestRepo.MarkCodeUsed(f.Ctx, cryptoCode)
+		assert.Error(t, err)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		err := authRequestRepo.MarkCodeUsed(f.Ctx, "non-existent-code-for-mark")
+		assert.Error(t, err)
+	})
+}

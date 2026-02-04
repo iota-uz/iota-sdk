@@ -126,6 +126,14 @@ func ToDBAuthRequest(ar authrequest.AuthRequest) *models.AuthRequest {
 		dbAR.AuthTime = mapping.ValueToSQLNullTime(*ar.AuthTime())
 	}
 
+	if ar.Code() != nil {
+		dbAR.Code = mapping.ValueToSQLNullString(*ar.Code())
+	}
+
+	if ar.CodeUsedAt() != nil {
+		dbAR.CodeUsedAt = mapping.ValueToSQLNullTime(*ar.CodeUsedAt())
+	}
+
 	return dbAR
 }
 
@@ -171,6 +179,14 @@ func ToDomainAuthRequest(dbAR *models.AuthRequest) (authrequest.AuthRequest, err
 
 	if dbAR.AuthTime.Valid {
 		opts = append(opts, authrequest.WithAuthTime(dbAR.AuthTime.Time))
+	}
+
+	if dbAR.Code.Valid {
+		opts = append(opts, authrequest.WithCode(dbAR.Code.String))
+	}
+
+	if dbAR.CodeUsedAt.Valid {
+		opts = append(opts, authrequest.WithCodeUsedAt(dbAR.CodeUsedAt.Time))
 	}
 
 	return authrequest.New(
