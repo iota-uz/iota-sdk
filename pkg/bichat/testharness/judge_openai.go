@@ -74,8 +74,8 @@ func (j *OpenAIJudge) Evaluate(ctx context.Context, in JudgeTurnInput) (*JudgeVe
 			openai.SystemMessage(judgeSystemPrompt),
 			openai.UserMessage(userPrompt),
 		},
-		Temperature: openai.Float(0),
-		MaxTokens:   openai.Int(maxTokens),
+		// GPT-5* models require max_completion_tokens (max_tokens is not supported).
+		MaxCompletionTokens: openai.Int(maxTokens),
 		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
 			OfJSONObject: &openai.ResponseFormatJSONObjectParam{
 				Type: oaiconstant.ValueOf[oaiconstant.JSONObject](),
