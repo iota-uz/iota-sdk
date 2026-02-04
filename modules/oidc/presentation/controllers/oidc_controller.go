@@ -107,11 +107,14 @@ func (c *OIDCController) Register(r *mux.Router) {
 	// - /end_session (logout endpoint)
 	// - /callback (auth callback after login)
 	r.PathPrefix("/.well-known/").Handler(provider)
-	r.PathPrefix("/oidc/").Handler(http.StripPrefix("/oidc", provider))
 
-	// Register custom handler for completing login flow
+	// Register custom handler for completing login flow BEFORE catch-all /oidc/ handler
 	// This is called after user successfully logs in via /login
+	// IMPORTANT: Must be registered before PathPrefix("/oidc/") to avoid being shadowed
 	r.HandleFunc("/oidc/authorize/callback", c.handleCallback).Methods(http.MethodGet)
+
+	// Register catch-all OIDC provider routes last
+	r.PathPrefix("/oidc/").Handler(http.StripPrefix("/oidc", provider))
 }
 
 // handleCallback completes the authorization flow after successful login

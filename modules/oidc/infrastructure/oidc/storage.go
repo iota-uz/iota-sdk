@@ -631,7 +631,9 @@ func (s *Storage) SetUserinfoFromScopes(
 		switch scope {
 		case oidc.ScopeEmail:
 			userinfo.Email = u.Email().Value()
-			userinfo.EmailVerified = oidc.Bool(true) // Phase 2: Implement email verification system
+			// SECURITY: Set to false until proper email verification is implemented
+			// Do not use this claim for authorization decisions in Phase 1
+			userinfo.EmailVerified = oidc.Bool(false)
 
 		case oidc.ScopeProfile:
 			userinfo.GivenName = u.FirstName()
@@ -644,7 +646,9 @@ func (s *Storage) SetUserinfoFromScopes(
 		case oidc.ScopePhone:
 			if u.Phone() != nil {
 				userinfo.PhoneNumber = u.Phone().Value()
-				userinfo.PhoneNumberVerified = oidc.Bool(true) // Phase 2: Implement phone verification system
+				// SECURITY: Set to false until proper phone verification is implemented
+				// Do not use this claim for authorization decisions in Phase 1
+				userinfo.PhoneNumberVerified = oidc.Bool(false)
 			}
 
 		// Custom scopes

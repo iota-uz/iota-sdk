@@ -206,11 +206,17 @@ curl -X GET https://your-domain.com/oidc/userinfo \
   "given_name": "John",
   "family_name": "Doe",
   "email": "john.doe@example.com",
-  "email_verified": true,
+  "email_verified": false,
   "picture": "https://example.com/avatars/john.jpg",
   "updated_at": 1638360000
 }
 ```
+
+**⚠️ Note on Verification Claims:**
+
+The `email_verified` and `phone_number_verified` claims are currently set to `false` for all users. Email and phone verification systems are not yet implemented (planned for Phase 2).
+
+**Do not use these claims for authorization decisions.** Always implement your own verification flow if you need to ensure email/phone ownership.
 
 **Error Responses:**
 ```json
