@@ -309,7 +309,7 @@ func TestClientRepository_GetPaginated(t *testing.T) {
 
 		clients, err := clientRepo.GetPaginated(f.Ctx, params)
 		require.NoError(t, err)
-		assert.Greater(t, len(clients), 0)
+		assert.NotEmpty(t, clients)
 
 		// Verify at least one result matches
 		found := false

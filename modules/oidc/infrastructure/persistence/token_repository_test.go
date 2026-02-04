@@ -270,9 +270,9 @@ func TestTokenRepository_DeleteByUserAndClient(t *testing.T) {
 
 	// Verify tokens for user+client are deleted
 	_, err = tokenRepo.GetByTokenHash(f.Ctx, hashToken("token-1"))
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = tokenRepo.GetByTokenHash(f.Ctx, hashToken("token-2"))
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Verify token for different client still exists
 	retrieved, err := tokenRepo.GetByTokenHash(f.Ctx, hashToken("token-3"))
@@ -319,7 +319,7 @@ func TestTokenRepository_DeleteExpired(t *testing.T) {
 
 	// Verify expired token is gone
 	_, err = tokenRepo.GetByTokenHash(f.Ctx, hashToken("expired-token"))
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Verify valid token still exists
 	retrieved, err := tokenRepo.GetByTokenHash(f.Ctx, hashToken("valid-token"))

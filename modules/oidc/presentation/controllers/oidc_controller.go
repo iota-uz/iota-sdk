@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type OIDCController struct {
@@ -112,7 +111,6 @@ func (c *OIDCController) Register(r *mux.Router) {
 
 // handleCallback completes the authorization flow after successful login
 func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) {
-	const op serrors.Op = "OIDCController.handleCallback"
 	logger := composables.UseLogger(r.Context())
 
 	// Get auth request ID from query params

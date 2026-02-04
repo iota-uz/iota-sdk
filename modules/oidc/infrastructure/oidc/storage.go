@@ -196,8 +196,6 @@ func (s *Storage) AuthRequestByID(ctx context.Context, id string) (op.AuthReques
 
 // AuthRequestByCode retrieves an auth request by its authorization code
 func (s *Storage) AuthRequestByCode(ctx context.Context, code string) (op.AuthRequest, error) {
-	const operation serrors.Op = "Storage.AuthRequestByCode"
-
 	// TODO (Phase 2 - SECURITY ISSUE):
 	// The current implementation treats the authorization code as the auth request ID,
 	// which is insecure because:
@@ -571,8 +569,6 @@ func (s *Storage) GetKeySet(ctx context.Context) (*jose.JSONWebKeySet, error) {
 
 // SaveNewKeyPair generates and stores a new signing key pair
 func (s *Storage) SaveNewKeyPair(ctx context.Context) error {
-	const op serrors.Op = "Storage.SaveNewKeyPair"
-
 	// Phase 2: Implement proper key rotation (generate new key, mark old as inactive)
 	// For now, use BootstrapKeys which only generates if no keys exist
 	return BootstrapKeys(ctx, s.db, s.cryptoKey)
@@ -774,12 +770,10 @@ func (s *Storage) GetKeyByIDAndClientID(
 
 // ValidateJWTProfileScopes validates scopes for JWT profile authorization
 func (s *Storage) ValidateJWTProfileScopes(
-	ctx context.Context,
-	userID string,
+	_ context.Context,
+	_ string,
 	scopes []string,
 ) ([]string, error) {
-	const op serrors.Op = "Storage.ValidateJWTProfileScopes"
-
 	// For now, return all requested scopes as valid
 	// Implement custom validation logic as needed
 	return scopes, nil

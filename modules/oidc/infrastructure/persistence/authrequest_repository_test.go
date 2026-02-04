@@ -284,7 +284,7 @@ func TestAuthRequestRepository_DeleteExpired(t *testing.T) {
 
 	// Verify expired is gone
 	_, err = authRequestRepo.GetByID(f.Ctx, expiredReq.ID())
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Verify valid still exists
 	retrieved, err := authRequestRepo.GetByID(f.Ctx, validReq.ID())

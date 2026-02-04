@@ -7,9 +7,10 @@ import (
 	"io"
 	"path/filepath"
 
+	"context"
+
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"golang.org/x/net/context"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/geopoint"
