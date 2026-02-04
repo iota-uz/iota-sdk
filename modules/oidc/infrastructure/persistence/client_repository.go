@@ -108,12 +108,21 @@ func (r *ClientRepository) GetPaginated(ctx context.Context, params *client.Find
 
 	where, args := r.buildWhereClause(params)
 
-	query := repo.Join(
-		selectClientQuery,
-		repo.JoinWhere(where...),
-		params.SortBy.ToSQL(r.fieldMap),
-		repo.FormatLimitOffset(params.Limit, params.Offset),
-	)
+	var query string
+	if len(where) > 0 {
+		query = repo.Join(
+			selectClientQuery,
+			repo.JoinWhere(where...),
+			params.SortBy.ToSQL(r.fieldMap),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		)
+	} else {
+		query = repo.Join(
+			selectClientQuery,
+			params.SortBy.ToSQL(r.fieldMap),
+			repo.FormatLimitOffset(params.Limit, params.Offset),
+		)
+	}
 
 	return r.queryClients(ctx, op, query, args...)
 }
