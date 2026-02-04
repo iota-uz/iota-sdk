@@ -15,6 +15,12 @@ exclude_dir = [
   "static",
   "py-embed",
   "e2e",
+  "node_modules",
+  "ui/applet-core/node_modules",
+  "ui/bichat/node_modules",
+  "ui/tailwind-preset/node_modules",
+  "modules/bichat/presentation/web/node_modules",
+  "var",
 ]
 exclude_file = [
   ".air.toml",

@@ -329,6 +329,7 @@ func (c *DashboardController) Key() string {
 func (c *DashboardController) Register(r *mux.Router) {
 	router := r.Methods(http.MethodGet).Subrouter()
 	router.Use(
+		middleware.WithTransaction(),
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),

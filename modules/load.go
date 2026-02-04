@@ -24,7 +24,6 @@ var (
 		core.NewModule(&core.ModuleOptions{
 			PermissionSchema: defaults.PermissionSchema(),
 		}),
-		bichat.NewModule(),
 		hrm.NewModule(),
 		finance.NewModule(),
 		projects.NewModule(),
@@ -37,9 +36,11 @@ var (
 		testkit.NewModule(),                   // Test endpoints - only active when ENABLE_TEST_ENDPOINTS=true
 	}
 
+	// NOTE: bichat.NavItems is intentionally excluded from default NavLinks.
+	// The BiChat module registers its own nav items when loaded (requires OPENAI_API_KEY).
+	// Including them here would cause translation errors when the module is not loaded.
 	NavLinks = slices.Concat(
 		core.NavItems,
-		bichat.NavItems,
 		hrm.NavItems,
 		finance.NavItems,
 		projects.NavItems,

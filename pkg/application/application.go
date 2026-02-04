@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
+	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -83,6 +84,9 @@ func (s *seeder) Register(seedFuncs ...SeedFunc) {
 	s.seedFuncs = append(s.seedFuncs, seedFuncs...)
 }
 
+// ---- Applet Registry implementation ----
+// Now uses pkg/applet.Registry directly for unified applet management
+
 // ---- Application implementation ----
 
 type ApplicationOptions struct {
@@ -117,6 +121,7 @@ func New(opts *ApplicationOptions) Application {
 		bundle:             opts.Bundle,
 		migrations:         NewMigrationManager(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
+		appletRegistry:     applet.NewRegistry(),
 	}
 }
 
@@ -137,6 +142,7 @@ type application struct {
 	migrations         MigrationManager
 	navItems           []types.NavigationItem
 	supportedLanguages []string
+	appletRegistry     applet.Registry
 }
 
 func (app *application) Spotlight() spotlight.Spotlight {
@@ -261,4 +267,59 @@ func (app *application) Bundle() *i18n.Bundle {
 
 func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
+}
+
+func (app *application) RegisterApplet(a Applet) error {
+	return app.appletRegistry.Register(a)
+}
+
+func (app *application) AppletRegistry() AppletRegistry {
+	return app.appletRegistry
+}
+
+// CreateAppletControllers creates controllers for all registered applets.
+// This provides a single mounting point for all applets in the application.
+//
+// Parameters:
+//   - sessionConfig: Session configuration for context building
+//   - logger: Logger for applet operations
+//   - metrics: Metrics recorder (can be nil)
+//   - opts: Optional builder options (e.g., WithTenantNameResolver, WithErrorEnricher)
+//
+// Returns a slice of controllers that can be registered via RegisterControllers().
+//
+// Example usage:
+//
+//	controllers, err := app.CreateAppletControllers(
+//		applet.DefaultSessionConfig,
+//		logger,
+//		metrics,
+//	)
+//	if err != nil {
+//		return err
+//	}
+//	app.RegisterControllers(controllers...)
+func (app *application) CreateAppletControllers(
+	sessionConfig applet.SessionConfig,
+	logger *logrus.Logger,
+	metrics applet.MetricsRecorder,
+	opts ...applet.BuilderOption,
+) ([]Controller, error) {
+	registry := app.AppletRegistry()
+	applets := registry.All()
+
+	controllers := make([]Controller, 0, len(applets))
+	for _, a := range applets {
+		controller := applet.NewAppletController(
+			a,
+			app.Bundle(),
+			sessionConfig,
+			logger,
+			metrics,
+			opts...,
+		)
+		controllers = append(controllers, controller)
+	}
+
+	return controllers, nil
 }

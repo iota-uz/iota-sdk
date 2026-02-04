@@ -1,0 +1,309 @@
+# Applet Core (moved)
+
+Applet Core is now part of the unified package: `@iota-uz/sdk`.
+
+- Docs: `README.MD` and `docs/content/getting-started/npm-package.mdx`
+
+This document is kept only for historical context.
+
+#### usePermissions()
+
+Permission checking utilities.
+
+```tsx
+const { hasPermission, hasAnyPermission, permissions } = usePermissions()
+
+if (hasPermission('bichat.access')) {
+  // User has bichat access
+}
+
+if (hasAnyPermission('finance.view', 'finance.edit')) {
+  // User has at least one permission
+}
+```
+
+**Returns:**
+```typescript
+{
+  hasPermission: (permission: string) => boolean
+  hasAnyPermission: (...permissions: string[]) => boolean
+  permissions: string[]
+}
+```
+
+#### useTranslation()
+
+i18n translation with interpolation.
+
+```tsx
+const { t, language } = useTranslation()
+
+// Simple translation
+const title = t('BiChat.Title')
+
+// Translation with params
+const welcome = t('Common.Welcome', { name: 'John' })
+// If translation is "Welcome {name}!" -> Returns "Welcome John!"
+```
+
+**Returns:**
+```typescript
+{
+  t: (key: string, params?: Record<string, unknown>) => string
+  language: string
+}
+```
+
+**Translation Keys:**
+React uses the same translation keys as Go backend:
+- Go: `pageCtx.T("BiChat.Title")`
+- React: `t("BiChat.Title")`
+
+All translations from the locale bundle are automatically available.
+
+#### useSession()
+
+Session and authentication handling.
+
+```tsx
+const { isExpiringSoon, refreshSession, csrfToken, expiresAt } = useSession()
+
+// Check if session expires soon
+if (isExpiringSoon) {
+  await refreshSession()
+}
+
+// Include CSRF token in requests
+fetch('/api/endpoint', {
+  headers: { 'X-CSRF-Token': csrfToken }
+})
+```
+
+**Returns:**
+```typescript
+{
+  isExpiringSoon: boolean        // True if session expires in < 5 minutes
+  refreshSession: () => Promise<void>
+  csrfToken: string
+  expiresAt: number             // Unix timestamp
+}
+```
+
+**CSRF Token Refresh:**
+Listen for token refresh events:
+```tsx
+window.addEventListener('iota:csrf-refresh', (e) => {
+  const newToken = e.detail.token
+  // Update CSRF token
+})
+```
+
+#### useRoute()
+
+Access current route context.
+
+```tsx
+const { path, params, query } = useRoute()
+
+// Example values:
+// path: "/sessions/123"
+// params: { id: "123" }
+// query: { tab: "history" }
+```
+
+**Returns:**
+```typescript
+{
+  path: string
+  params: Record<string, string>
+  query: Record<string, string>
+}
+```
+
+#### useConfig()
+
+Access applet configuration.
+
+```tsx
+const { graphQLEndpoint, streamEndpoint, restEndpoint } = useConfig()
+```
+
+**Returns:**
+```typescript
+{
+  graphQLEndpoint?: string
+  streamEndpoint?: string
+  restEndpoint?: string
+}
+```
+
+#### useStreaming()
+
+SSE streaming with cancellation support.
+
+```tsx
+const { isStreaming, processStream, cancel, reset } = useStreaming()
+
+// Process async generator stream
+await processStream(messageStream, (chunk) => {
+  console.log('Received:', chunk)
+})
+
+// Cancel ongoing stream
+cancel()
+
+// Reset state
+reset()
+```
+
+**Returns:**
+```typescript
+{
+  isStreaming: boolean
+  processStream: <T>(
+    generator: AsyncGenerator<T>,
+    onChunk: (chunk: T) => void,
+    signal?: AbortSignal
+  ) => Promise<void>
+  cancel: () => void
+  reset: () => void
+}
+```
+
+## TypeScript Types
+
+All types are exported from the main entry point:
+
+```tsx
+import type {
+  InitialContext,
+  UserContext,
+  TenantContext,
+  LocaleContext,
+  AppConfig,
+  RouteContext,
+  SessionContext,
+  TranslationHook,
+  PermissionsHook,
+  SessionHook,
+  StreamingHook
+} from '@iota-uz/sdk'
+```
+
+### InitialContext
+
+Complete context object injected by backend:
+
+```typescript
+interface InitialContext {
+  user: UserContext
+  tenant: TenantContext
+  locale: LocaleContext
+  config: AppConfig
+  route: RouteContext
+  session: SessionContext
+  custom?: Record<string, unknown>
+}
+```
+
+## Advanced Usage
+
+### Direct Window Global Access
+
+For cases where provider setup is not possible:
+
+```tsx
+import { useAppletContextDirect } from '@iota-uz/sdk'
+
+const context = useAppletContextDirect('__BICHAT_CONTEXT__')
+```
+
+### Custom Context Fields
+
+Access custom context fields via the `custom` property:
+
+```tsx
+const { custom } = useAppletContext()
+const customData = custom?.myCustomField
+```
+
+### Server-Side Rendering (Next.js)
+
+Use `ConfigProvider` for SSR:
+
+```tsx
+// pages/index.tsx
+export async function getServerSideProps(context) {
+  const initialContext = context.req.__APPLET_CONTEXT__
+
+  return {
+    props: { initialContext }
+  }
+}
+
+export default function Page({ initialContext }) {
+  return (
+    <ConfigProvider config={initialContext}>
+      <App />
+    </ConfigProvider>
+  )
+}
+```
+
+## Pattern Alignment with Go Backend
+
+Applet-core maintains consistency with Go backend patterns:
+
+**Permissions:**
+```go
+// Go backend
+sdkcomposables.CanUser(ctx, permissions.BiChatAccess)
+```
+```tsx
+// React frontend
+hasPermission('bichat.access')
+```
+
+**Translations:**
+```go
+// Go backend
+pageCtx.T("BiChat.Title")
+```
+```tsx
+// React frontend
+t("BiChat.Title")
+```
+
+All user permissions and translations are automatically passed from backend - no manual mapping required.
+
+## Best Practices
+
+1. **Use specialized hooks** instead of `useAppletContext()` for better type safety
+2. **Check permissions early** in component lifecycle
+3. **Handle session expiration** proactively with `useSession().isExpiringSoon`
+4. **Use same translation keys** as Go backend for consistency
+5. **Include CSRF tokens** in all mutating requests
+6. **Cancel streams** on component unmount to prevent memory leaks
+
+## Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Build package
+pnpm run build
+
+# Type check
+pnpm run typecheck
+
+# Lint
+pnpm run lint
+
+# Development mode (watch)
+pnpm run dev
+```
+
+## License
+
+MIT

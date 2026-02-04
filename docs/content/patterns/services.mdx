@@ -1,0 +1,682 @@
+---
+title: 'Service Layer Patterns'
+description: 'Implement business logic with proper orchestration, transactions, and event publishing'
+---
+
+# Service Layer Patterns
+
+This guide covers the service layer implementation in IOTA SDK. Services orchestrate business logic, coordinate between repositories, enforce permissions, and publish domain events. We'll use the Expense service as a real-world example.
+
+## Service Responsibilities
+
+Services in IOTA SDK handle:
+
+- **Permission enforcement** via RBAC checks
+- **Transaction management** for multi-entity operations
+- **Business rule validation** and orchestration
+- **Domain event publishing** for loose coupling
+- **Cross-service coordination** via dependency injection
+
+## Service Structure
+
+### Constructor Pattern with Dependency Injection
+
+```go
+// modules/finance/services/expense_service.go
+
+type ExpenseService struct {
+	repo           expense.Repository
+	publisher      eventbus.EventBus
+	accountService *MoneyAccountService  // Cross-service dependency
+	uploadRepo     upload.Repository     // From core module
+}
+
+func NewExpenseService(
+	repo expense.Repository,
+	publisher eventbus.EventBus,
+	accountService *MoneyAccountService,
+	uploadRepo upload.Repository,
+) *ExpenseService {
+	return &ExpenseService{
+		repo:           repo,
+		publisher:      publisher,
+		accountService: accountService,
+		uploadRepo:     uploadRepo,
+	}
+}
+```
+
+### Service Registration
+
+Services are wired together in the module registration:
+
+```go
+// modules/finance/module.go
+
+func (m *Module) Register(app application.Application) error {
+	// Create repositories first
+	uploadRepo := corepersistence.NewUploadRepository()
+	categoryRepo := persistence.NewExpenseCategoryRepository()
+	transactionRepo := persistence.NewTransactionRepository()
+
+	// Create services with dependencies
+	moneyAccountService := services.NewMoneyAccountService(
+		persistence.NewMoneyAccountRepository(),
+		persistence.NewTransactionRepository(),
+		app.EventPublisher(),
+	)
+
+	// Register all services
+	app.RegisterServices(
+		services.NewExpenseService(
+			persistence.NewExpenseRepository(categoryRepo, transactionRepo),
+			app.EventPublisher(),
+			moneyAccountService,
+			uploadRepo,
+		),
+		moneyAccountService,
+		// ... other services
+	)
+}
+```
+
+## Permission Enforcement
+
+Every service method must check permissions before executing:
+
+### Using composables.CanUser
+
+```go
+func (s *ExpenseService) GetByID(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
+	// Check read permission
+	if err := composables.CanUser(ctx, permissions.ExpenseRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(ctx, id)
+}
+
+func (s *ExpenseService) GetPaginated(
+	ctx context.Context, 
+	params *expense.FindParams,
+) ([]expense.Expense, error) {
+	if err := composables.CanUser(ctx, permissions.ExpenseRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetPaginated(ctx, params)
+}
+
+func (s *ExpenseService) Create(
+	ctx context.Context, 
+	entity expense.Expense,
+) (expense.Expense, error) {
+	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
+		return nil, err
+	}
+	// ... create logic
+}
+
+func (s *ExpenseService) Update(
+	ctx context.Context, 
+	entity expense.Expense,
+) (expense.Expense, error) {
+	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
+		return nil, err
+	}
+	// ... update logic
+}
+
+func (s *ExpenseService) Delete(ctx context.Context, id uuid.UUID) (expense.Expense, error) {
+	if err := composables.CanUser(ctx, permissions.ExpenseDelete); err != nil {
+		return nil, err
+	}
+	// ... delete logic
+}
+```
+
+### Permission Constants
+
+Define permissions in a dedicated file:
+
+```go
+// modules/finance/permissions/constants.go
+
+package permissions
+
+const (
+	// Expense permissions
+	ExpenseCreate = "expense.create"
+	ExpenseRead   = "expense.read"
+	ExpenseUpdate = "expense.update"
+	ExpenseDelete = "expense.delete"
+
+	// Money account permissions
+	MoneyAccountCreate = "money_account.create"
+	MoneyAccountRead   = "money_account.read"
+	MoneyAccountUpdate = "money_account.update"
+	MoneyAccountDelete = "money_account.delete"
+)
+```
+
+## Transaction Management
+
+### Atomic Operations with composables.InTx
+
+When multiple database operations must succeed or fail together:
+
+```go
+func (s *ExpenseService) Create(
+	ctx context.Context, 
+	entity expense.Expense,
+) (expense.Expense, error) {
+	if err := composables.CanUser(ctx, permissions.ExpenseCreate); err != nil {
+		return nil, err
+	}
+
+	// Create domain event before transaction
+	createdEvent, err := expense.NewCreatedEvent(ctx, entity)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute in transaction
+	var created expense.Expense
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		
+		// Step 1: Create expense (also creates transaction via repository)
+		created, err = s.repo.Create(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		
+		// Step 2: Update account balance
+		if err := s.accountService.RecalculateBalance(
+			txCtx, entity.Account().ID()); err != nil {
+			return err
+		}
+		
+		return nil
+	})
+	
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish event after successful transaction
+	s.publisher.Publish(createdEvent)
+	return created, nil
+}
+```
+
+### Transaction Propagation
+
+The transaction context flows through all layers:
+
+```go
+// Service layer starts transaction
+composables.InTx(ctx, func(txCtx context.Context) error {
+	// Repository uses transaction from context
+	created, err := s.repo.Create(txCtx, entity)
+	// ...
+})
+
+// Repository receives tx context
+func (r *Repository) Create(ctx context.Context, entity Entity) error {
+	tx, err := composables.UseTx(ctx) // Gets the active transaction
+	// ... execute queries using tx
+}
+```
+
+### Read-Only Operations
+
+For read operations, use the regular context without transactions:
+
+```go
+func (s *ExpenseService) GetAll(ctx context.Context) ([]expense.Expense, error) {
+	if err := composables.CanUser(ctx, permissions.ExpenseRead); err != nil {
+		return nil, err
+	}
+	// No transaction needed for read
+	return s.repo.GetAll(ctx)
+}
+```
+
+## Domain Event Publishing
+
+### Creating and Publishing Events
+
+```go
+func (s *ExpenseService) Create(
+	ctx context.Context, 
+	entity expense.Expense,
+) (expense.Expense, error) {
+	// Create event before transaction
+	createdEvent, err := expense.NewCreatedEvent(ctx, entity)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute transaction
+	var created expense.Expense
+	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		var err error
+		created, err = s.repo.Create(txCtx, entity)
+		return err
+	})
+	
+	if err != nil {
+		return nil, err
+	}
+
+	// Publish after successful commit
+	s.publisher.Publish(createdEvent)
+	return created, nil
+}
+```
+
+### Event Definition
+
+```go
+// modules/finance/domain/aggregates/expense/expense_events.go
+
+package expense
+
+import (
+	"context"
+	"time"
+	"github.com/google/uuid"
+)
+
+type CreatedEvent struct {
+	ExpenseID    uuid.UUID
+	Amount       int64
+	CategoryID   uuid.UUID
+	AccountID    uuid.UUID
+	OccurredAt   time.Time
+	UserID       uuid.UUID
+	TenantID     uuid.UUID
+}
+
+func NewCreatedEvent(ctx context.Context, exp Expense) (*CreatedEvent, error) {
+	userID, err := composables.UseUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CreatedEvent{
+		ExpenseID:  exp.ID(),
+		Amount:     exp.Amount().Amount(),
+		CategoryID: exp.Category().ID(),
+		AccountID:  exp.Account().ID(),
+		OccurredAt: time.Now(),
+		UserID:     userID,
+		TenantID:   tenantID,
+	}, nil
+}
+```
+
+### Event Handlers
+
+Subscribe to events in other modules:
+
+```go
+// Another module subscribing to expense events
+func (m *Module) Register(app application.Application) error {
+	app.EventPublisher().Subscribe(
+		func(event *expense.CreatedEvent) error {
+			// Handle expense creation
+			// e.g., update analytics, notify users
+			return nil
+		},
+	)
+}
+```
+
+## Cross-Service Coordination
+
+### Calling Other Services
+
+```go
+func (s *ExpenseService) Create(
+	ctx context.Context, 
+	entity expense.Expense,
+) (expense.Expense, error) {
+	// ... permission check
+
+	err := composables.InTx(ctx, func(txCtx context.Context) error {
+		// Create expense
+		created, err := s.repo.Create(txCtx, entity)
+		if err != nil {
+			return err
+		}
+		
+		// Call another service within the same transaction
+		if err := s.accountService.RecalculateBalance(
+			txCtx, entity.Account().ID()); err != nil {
+			return err
+		}
+		
+		return nil
+	})
+	
+	// ...
+}
+```
+
+### Service Dependencies Best Practices
+
+1. **Avoid circular dependencies** between services
+2. **Prefer event publishing** for loose coupling
+3. **Keep transactions short** - don't call external APIs within transactions
+4. **Validate inputs** before starting transactions
+
+## Complex Business Logic
+
+### File Attachment Service Method
+
+```go
+func (s *ExpenseService) AttachFileToExpense(
+	ctx context.Context, 
+	expenseID uuid.UUID, 
+	uploadID uint,
+) error {
+	// Check update permission
+	if err := composables.CanUser(ctx, permissions.ExpenseUpdate); err != nil {
+		return err
+	}
+
+	// Validate expense exists
+	_, err := s.repo.GetByID(ctx, expenseID)
+	if err != nil {
+		return fmt.Errorf("failed to find expense: %w", err)
+	}
+
+	// Validate upload exists
+	upload, err := s.uploadRepo.GetByID(ctx, uploadID)
+	if err != nil {
+		return fmt.Errorf("failed to find upload: %w", err)
+	}
+
+	// Enforce tenant isolation
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tenant: %w", err)
+	}
+	if upload.TenantID() != tenantID {
+		return serrors.NewError(
+			"TENANT_MISMATCH",
+			"upload does not belong to this tenant",
+			"upload.tenant_mismatch",
+		)
+	}
+
+	// Execute attachment in transaction
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		return s.repo.AttachFile(txCtx, expenseID, uploadID)
+	})
+}
+```
+
+### Multi-Step Operations
+
+```go
+func (s *ExpenseService) TransferBetweenAccounts(
+	ctx context.Context,
+	fromAccountID, toAccountID uuid.UUID,
+	amount *money.Money,
+) error {
+	// Validate inputs
+	if amount.Amount() <= 0 {
+		return fmt.Errorf("amount must be positive")
+	}
+	if fromAccountID == toAccountID {
+		return fmt.Errorf("cannot transfer to same account")
+	}
+
+	// Load accounts
+	fromAccount, err := s.accountService.GetByID(ctx, fromAccountID)
+	if err != nil {
+		return err
+	}
+	
+	toAccount, err := s.accountService.GetByID(ctx, toAccountID)
+	if err != nil {
+		return err
+	}
+
+	// Validate sufficient balance
+	if fromAccount.Balance().Amount() < amount.Amount() {
+		return serrors.NewError(
+			"INSUFFICIENT_FUNDS",
+			"account has insufficient funds",
+			"account.insufficient_funds",
+		)
+	}
+
+	// Execute transfer atomically
+	return composables.InTx(ctx, func(txCtx context.Context) error {
+		// Debit from account
+		if err := s.accountService.Debit(txCtx, fromAccountID, amount); err != nil {
+			return err
+		}
+		
+		// Credit to account
+		if err := s.accountService.Credit(txCtx, toAccountID, amount); err != nil {
+			return err
+		}
+		
+		// Create transaction record
+		if err := s.createTransferTransaction(txCtx, fromAccountID, toAccountID, amount); err != nil {
+			return err
+		}
+		
+		return nil
+	})
+}
+```
+
+## Error Handling
+
+### Standardized Errors
+
+Use the serrors package for consistent error handling:
+
+```go
+import "github.com/iota-uz/iota-sdk/pkg/serrors"
+
+// Business logic errors
+return serrors.NewError(
+	"INSUFFICIENT_FUNDS",
+	"account has insufficient funds",
+	"account.insufficient_funds",
+)
+
+// Validation errors
+return serrors.NewError(
+	"VALIDATION_FAILED",
+	"invalid input data",
+	"validation.failed",
+	map[string]string{
+		"field": "amount",
+		"reason": "must be positive",
+	},
+)
+```
+
+### Error Wrapping
+
+Wrap errors with context for debugging:
+
+```go
+// Good: Provides context
+if err := s.repo.Create(txCtx, entity); err != nil {
+	return fmt.Errorf("failed to create expense: %w", err)
+}
+
+// Good: Uses errors.Wrap for stack traces
+if err := s.accountService.RecalculateBalance(txCtx, accountID); err != nil {
+	return fmt.Errorf("failed to recalculate balance: %w", err)
+}
+```
+
+## Testing Services
+
+### Unit Test Pattern
+
+```go
+func TestExpenseService_Create(t *testing.T) {
+	// Setup mocks
+	mockRepo := new(MockExpenseRepository)
+	mockPublisher := new(MockEventBus)
+	mockAccountService := new(MockMoneyAccountService)
+	
+	service := NewExpenseService(
+		mockRepo,
+		mockPublisher,
+		mockAccountService,
+		nil,
+	)
+
+	t.Run("success", func(t *testing.T) {
+		// Arrange
+		testUser := itf.User(permissions.ExpenseCreate)
+		ctx := composables.WithUser(context.Background(), testUser)
+		entity := expense.New(/* parameters */)
+		
+		mockRepo.On("Create", mock.Anything, entity).Return(entity, nil)
+		mockAccountService.On("RecalculateBalance", mock.Anything, entity.Account().ID()).Return(nil)
+		
+		// Act
+		result, err := service.Create(ctx, entity)
+		
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, entity.ID(), result.ID())
+		mockPublisher.AssertCalled(t, "Publish", mock.Anything)
+	})
+
+	t.Run("permission denied", func(t *testing.T) {
+		ctx := context.Background() // No permissions
+		entity := expense.New(/* parameters */)
+		
+		_, err := service.Create(ctx, entity)
+		
+		assert.ErrorIs(t, err, composables.ErrForbidden)
+	})
+
+	t.Run("transaction rollback", func(t *testing.T) {
+		testUser := itf.User(permissions.ExpenseCreate)
+		ctx := composables.WithUser(context.Background(), testUser)
+		entity := expense.New(/* parameters */)
+		
+		mockRepo.On("Create", mock.Anything, entity).Return(entity, nil)
+		mockAccountService.On("RecalculateBalance", mock.Anything, mock.Anything).
+			Return(errors.New("balance error"))
+		
+		_, err := service.Create(ctx, entity)
+		
+		assert.Error(t, err)
+		// Verify event was NOT published
+		mockPublisher.AssertNotCalled(t, "Publish")
+	})
+}
+```
+
+### Integration Test Pattern
+
+```go
+func TestExpenseService_Integration(t *testing.T) {
+	ctx := itf.NewTestContext().Build(t).Ctx
+	
+	// Real dependencies
+	repo := persistence.NewExpenseRepository(...)
+	publisher := eventbus.NewInMemory()
+	accountService := services.NewMoneyAccountService(...)
+	
+	service := NewExpenseService(repo, publisher, accountService, nil)
+
+	t.Run("create with balance update", func(t *testing.T) {
+		// Create account
+		account := moneyaccount.New("Test", money.New(100000, "USD"))
+		createdAccount, _ := accountRepo.Create(ctx, account)
+		
+		// Create expense
+		exp := expense.New(
+			money.New(5000, "USD"),
+			createdAccount,
+			testCategory,
+			time.Now(),
+		)
+		
+		created, err := service.Create(ctx, exp)
+		require.NoError(t, err)
+		
+		// Verify expense created
+		assert.NotEqual(t, uuid.Nil, created.ID())
+		
+		// Verify account balance updated
+		updatedAccount, _ := accountRepo.GetByID(ctx, createdAccount.ID())
+		assert.Equal(t, int64(95000), updatedAccount.Balance().Amount())
+		
+		// Verify event published
+		events := publisher.GetPublishedEvents()
+		assert.Len(t, events, 1)
+	})
+}
+```
+
+## Best Practices Summary
+
+### Service Design
+
+1. **Single Responsibility**: Each service handles one aggregate
+2. **Dependency Injection**: Pass dependencies via constructor
+3. **Interface Segregation**: Return domain entities, not DTOs
+4. **Fail Fast**: Validate permissions and inputs early
+
+### Transaction Management
+
+1. **Use InTx for writes**: Wrap all mutations in transactions
+2. **Keep transactions short**: Don't make external API calls
+3. **Pass tx context**: Use the transaction context for all operations
+4. **Events after commit**: Publish events only after successful transaction
+
+### Error Handling
+
+1. **Use serrors for business errors**: Consistent error codes
+2. **Wrap with context**: Use fmt.Errorf with %w verb
+3. **Return errors, don't panic**: Except for programming errors
+4. **Handle all error cases**: Don't ignore errors
+
+### Testing
+
+1. **Mock external dependencies**: Repository, event bus, other services
+2. **Test permission enforcement**: Verify unauthorized access is blocked
+3. **Test transaction rollback**: Ensure events aren't published on failure
+4. **Integration tests for complex flows**: Test multiple services together
+
+## Common Patterns Checklist
+
+When implementing a service:
+
+- [ ] Define constructor with all dependencies
+- [ ] Check permissions on all methods
+- [ ] Use transactions for multi-entity operations
+- [ ] Create domain events before transaction
+- [ ] Publish events after successful commit
+- [ ] Return domain entities (not DTOs)
+- [ ] Wrap errors with context
+- [ ] Write unit tests with mocks
+- [ ] Write integration tests for complex flows
+- [ ] Document business rules in code comments
+
+## Next Steps
+
+- Build reactive UIs with [Controllers and HTMX](/patterns/controllers)
+- Deep dive into [Repository Patterns](/patterns/repositories)
+- Study [Complex Features](/development/complex-features)

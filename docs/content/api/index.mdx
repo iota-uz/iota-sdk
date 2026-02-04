@@ -1,0 +1,81 @@
+---
+title: 'API Reference'
+description: 'GraphQL and REST API documentation'
+---
+
+# API Reference
+
+IOTA SDK provides both GraphQL and REST APIs for integration and custom development.
+
+## GraphQL API
+
+GraphQL is available for flexible data queries and mutations:
+
+| Module | Endpoint | Description |
+|--------|----------|-------------|
+| **Core** | `/graphql` | Users, uploads, authentication |
+| **Warehouse** | `/warehouse/graphql` | Products, inventory, orders |
+
+### GraphQL Features
+
+- **Strongly typed** - Schema defines all available operations
+- **Flexible queries** - Request exactly what you need
+- **Real-time** - Subscriptions for live updates
+- **Introspection** - Self-documenting API
+
+### Making GraphQL Requests
+
+GraphQL endpoint accepts POST requests with JSON body:
+
+```json
+{
+  "query": "query { users(limit: 10) { id firstName email } }"
+}
+```
+
+## REST API
+
+REST endpoints are available for traditional HTTP operations:
+
+### Authentication
+
+All API requests require authentication via:
+- **Session cookie** - For browser clients
+- **API token** - For programmatic access (if enabled: %v", err)
+
+### Common Patterns
+
+| Operation | Method | Pattern |
+|-----------|--------|---------|
+| List | GET | `/resource` |
+| Get one | GET | `/resource/:id` |
+| Create | POST | `/resource` |
+| Update | PUT | `/resource/:id` |
+| Delete | DELETE | `/resource/:id` |
+
+## Module APIs
+
+Select a module to view its API documentation:
+
+- [Core API](/api/core) - Users, authentication, uploads
+- [Warehouse API](/api/warehouse) - Products, inventory, orders
+
+## API Explorer
+
+Use the GraphQL Playground to explore the API:
+
+1. Start the development server
+2. Navigate to `/graphql` (or module-specific endpoint: %v", err)
+3. Use the interactive explorer to build queries
+
+## SDK Clients
+
+While you can use raw HTTP requests, consider:
+
+- **Generated clients** - Use GraphQL codegen for type-safe clients
+- **Apollo Client** - Feature-rich GraphQL client
+- **Fetch/Axios** - Simple HTTP clients for REST
+
+---
+
+*Note: Not all modules expose GraphQL schemas. Modules without GraphQL use REST endpoints exclusively.*

@@ -250,6 +250,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     }
     this.open = false;
     this.openedWithKeyboard = false;
+    this.searchQuery = '';
+    this.options = this.allOptions;
     if (this.selectedValues.size === 0) {
       this.$refs.select.value = "";
     }
@@ -294,7 +296,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       this.activeValue = option.value;
     }
     if (!searchValue) {
-      this.options = this.$el.querySelectorAll("option");
+      this.options = this.allOptions;
     }
   },
   highlightMatchingOption(pressedKey) {
@@ -628,6 +630,13 @@ let sidebar = () => ({
   toggle() {
     this.isCollapsed = !this.isCollapsed;
     localStorage.setItem('sidebar-collapsed', this.isCollapsed.toString());
+  },
+
+  handleSidebarClick(event) {
+    const interactive = 'a, button, input, summary, [role="button"], .btn';
+    if (event.target.closest(interactive)) return;
+    this.toggle();
+    this.$dispatch('sidebar-toggle');
   },
 
   handleTabChange(event) {

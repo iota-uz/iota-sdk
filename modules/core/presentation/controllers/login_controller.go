@@ -85,7 +85,8 @@ func (c *LoginController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix("/login").Subrouter()
 	setRouter.Use(
 		middleware.ProvideLocalizer(c.app),
-		middleware.WithTransaction(),
+		// NOTE: WithTransaction() removed intentionally to fix race condition.
+		// Transaction is managed explicitly in Post() to ensure commit before redirect.
 		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
@@ -175,9 +176,23 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
+	// Use InTx to ensure the session is committed before the redirect is sent.
+	// This prevents a race condition where the client follows the redirect
+	// before the session transaction commits, causing session lookup to fail.
+	logger.Info("POST /login: starting authentication")
+
+	var cookie *http.Cookie
+	err = composables.InTx(r.Context(), func(ctx context.Context) error {
+		var authErr error
+		cookie, authErr = c.authService.CookieAuthenticate(ctx, dto.Email, dto.Password)
+		if authErr != nil {
+			logger.Error("POST /login: CookieAuthenticate failed", "error", authErr)
+		}
+		return authErr
+	})
+
 	if err != nil {
-		logger.Error("Failed to authenticate user", "error", err)
+		logger.Error("POST /login: InTx failed", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
 			shared.SetFlash(w, "error", []byte(intl.MustT(r.Context(), "Login.Errors.PasswordInvalid")))
 		} else if errors.Is(err, persistence.ErrUserNotFound) {
@@ -188,6 +203,8 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, fmt.Sprintf("/login?email=%s&next=%s", dto.Email, r.URL.Query().Get("next")), http.StatusFound)
 		return
 	}
+
+	logger.Info("POST /login: session committed successfully, sending redirect")
 
 	// Set session cookie
 	http.SetCookie(w, cookie)
@@ -205,5 +222,6 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 	if redirectURL == "" {
 		redirectURL = "/"
 	}
+	logger.Info("POST /login: redirecting to", "url", redirectURL, "cookie", cookie.Name)
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }

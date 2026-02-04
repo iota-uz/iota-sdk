@@ -1,0 +1,675 @@
+---
+title: 'Repository Patterns'
+description: 'Master data access patterns with PostgreSQL and sqlx'
+---
+
+# Repository Patterns
+
+This guide covers the repository pattern implementation in IOTA SDK. We'll examine real code from the Finance module to understand different approaches for simple and complex entities.
+
+## Repository Interface Design
+
+Every repository implements a consistent interface defined in the domain layer:
+
+```go
+// Domain layer interface - technology agnostic
+type Repository interface {
+	GetPaginated(ctx context.Context, params *FindParams) ([]ExpenseCategory, error)
+	GetAll(ctx context.Context) ([]ExpenseCategory, error)
+	GetByID(ctx context.Context, id uuid.UUID) (ExpenseCategory, error)
+	Create(ctx context.Context, entity ExpenseCategory) (ExpenseCategory, error)
+	Update(ctx context.Context, entity ExpenseCategory) (ExpenseCategory, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	Count(ctx context.Context, params *FindParams) (int64, error)
+}
+```
+
+## Pattern 1: Simple Entity Repository
+
+For entities without complex relationships, use the simple repository pattern from `expense_category_repository.go`:
+
+### Structure
+
+```go
+type PgExpenseCategoryRepository struct {
+	fieldMap map[category.Field]string
+}
+
+func NewExpenseCategoryRepository() category.Repository {
+	return &PgExpenseCategoryRepository{
+		fieldMap: map[category.Field]string{
+			category.ID:          "ec.id",
+			category.Name:        "ec.name",
+			category.Description: "ec.description",
+			category.CreatedAt:   "ec.created_at",
+			category.UpdatedAt:   "ec.updated_at",
+		},
+	}
+}
+```
+
+### SQL Query Constants
+
+Define queries as constants for maintainability:
+
+```go
+const (
+	selectExpenseCategoryQuery = `
+		SELECT
+			ec.id, ec.tenant_id, ec.name, ec.description,
+			ec.is_cogs, ec.created_at, ec.updated_at
+		FROM expense_categories ec`
+
+	countExpenseCategoryQuery  = `SELECT COUNT(*) as count FROM expense_categories ec`
+	
+	insertExpenseCategoryQuery = `
+		INSERT INTO expense_categories (tenant_id, name, description, is_cogs)
+		VALUES ($1, $2, $3, $4) RETURNING id`
+	
+	updateExpenseCategoryQuery = `
+		UPDATE expense_categories 
+		SET name = $1, description = $2, is_cogs = $3 
+		WHERE id = $4 AND tenant_id = $5`
+	
+	deleteExpenseCategoryQuery = `DELETE FROM expense_categories WHERE id = $1 AND tenant_id = $2`
+)
+```
+
+### Multi-Tenant Filter Building
+
+Always filter by tenant for data isolation:
+
+```go
+func (g *PgExpenseCategoryRepository) buildCategoryFilters(
+	ctx context.Context, 
+	params *category.FindParams,
+) ([]string, []interface{}, error) {
+	// Get tenant from context
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get tenant: %w", err)
+	}
+
+	// Always include tenant filter first
+	where := []string{"ec.tenant_id = $1"}
+	args := []interface{}{tenantID.String()}
+
+	// Apply field filters using field map
+	for _, filter := range params.Filters {
+		column, ok := g.fieldMap[filter.Column]
+		if !ok {
+			return nil, nil, fmt.Errorf("invalid filter field: %v", filter.Column)
+		}
+		
+		// Build WHERE clause with parameterized index
+		where = append(where, filter.Filter.String(column, len(args)+1))
+		args = append(args, filter.Filter.Value()...)
+	}
+
+	// Add search across multiple columns
+	if params.Search != "" {
+		index := len(args) + 1
+		where = append(where, 
+			fmt.Sprintf("(ec.name ILIKE $%d OR ec.description ILIKE $%d)", index, index))
+		args = append(args, "%"+params.Search+"%")
+	}
+
+	return where, args, nil
+}
+```
+
+### Query Execution Pattern
+
+```go
+func (g *PgExpenseCategoryRepository) queryCategories(
+	ctx context.Context, 
+	query string, 
+	args ...interface{},
+) ([]category.ExpenseCategory, error) {
+	// Get transaction from context
+	pool, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	// Execute query
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	// Scan results
+	var categories []category.ExpenseCategory
+	for rows.Next() {
+		var ec models.ExpenseCategory
+		if err := rows.Scan(
+			&ec.ID, &ec.TenantID, &ec.Name, &ec.Description,
+			&ec.IsCOGS, &ec.CreatedAt, &ec.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		// Convert to domain entity
+		entity, err := ToDomainExpenseCategory(&ec)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert to domain: %w", err)
+		}
+		categories = append(categories, entity)
+	}
+
+	// Check for iteration errors
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return categories, nil
+}
+```
+
+### CRUD Operations
+
+**Get Paginated:**
+
+```go
+func (g *PgExpenseCategoryRepository) GetPaginated(
+	ctx context.Context, 
+	params *category.FindParams,
+) ([]category.ExpenseCategory, error) {
+	// Build filters
+	where, args, err := g.buildCategoryFilters(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build filters: %w", err)
+	}
+
+	// Build complete query
+	query := repo.Join(
+		selectExpenseCategoryQuery,
+		repo.JoinWhere(where...),
+		params.SortBy.ToSQL(g.fieldMap),
+		repo.FormatLimitOffset(params.Limit, params.Offset),
+	)
+
+	return g.queryCategories(ctx, query, args...)
+}
+```
+
+**Count:**
+
+```go
+func (g *PgExpenseCategoryRepository) Count(
+	ctx context.Context, 
+	params *category.FindParams,
+) (int64, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	where, args, err := g.buildCategoryFilters(ctx, params)
+	if err != nil {
+		return 0, err
+	}
+
+	query := repo.Join(countExpenseCategoryQuery, repo.JoinWhere(where...))
+
+	var count int64
+	err = tx.QueryRow(ctx, query, args...).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count: %w", err)
+	}
+	return count, nil
+}
+```
+
+**Create:**
+
+```go
+func (g *PgExpenseCategoryRepository) Create(
+	ctx context.Context, 
+	data category.ExpenseCategory,
+) (category.ExpenseCategory, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	// Get tenant
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tenant: %w", err)
+	}
+
+	// Convert to DB model
+	dbRow := ToDBExpenseCategory(data)
+	dbRow.TenantID = tenantID.String()
+
+	// Insert and get ID
+	var id uuid.UUID
+	if err := tx.QueryRow(
+		ctx,
+		insertExpenseCategoryQuery,
+		dbRow.TenantID, dbRow.Name, dbRow.Description, dbRow.IsCOGS,
+	).Scan(&id); err != nil {
+		return nil, fmt.Errorf("failed to create: %w", err)
+	}
+
+	// Return created entity
+	return g.GetByID(ctx, id)
+}
+```
+
+## Pattern 2: Complex Repository with JOINs
+
+For entities with relationships, use the pattern from `expense_repository.go`:
+
+### Repository with Dependencies
+
+```go
+type GormExpenseRepository struct {
+	categoryRepo    category.Repository
+	transactionRepo transaction.Repository
+	fieldMap        map[expense.Field]string
+}
+
+func NewExpenseRepository(
+	categoryRepo category.Repository,
+	transactionRepo transaction.Repository,
+) expense.Repository {
+	return &GormExpenseRepository{
+		categoryRepo:    categoryRepo,
+		transactionRepo: transactionRepo,
+		fieldMap: map[expense.Field]string{
+			expense.ID:            "ex.id",
+			expense.TransactionID: "ex.transaction_id",
+			expense.CategoryID:    "ex.category_id",
+			expense.CreatedAt:     "ex.created_at",
+			expense.UpdatedAt:     "ex.updated_at",
+		},
+	}
+}
+```
+
+### Multi-Table Queries
+
+```go
+const expenseFindQuery = `
+	SELECT 
+		ex.id, ex.transaction_id, ex.category_id, ex.tenant_id, 
+		ex.created_at, ex.updated_at,
+		tr.amount, tr.transaction_date, tr.accounting_period, 
+		tr.transaction_type, tr.comment,
+		tr.origin_account_id, tr.destination_account_id
+	FROM expenses ex 
+	LEFT JOIN transactions tr ON tr.id = ex.transaction_id`
+
+const expenseCountQuery = `
+	SELECT COUNT(ex.id) 
+	FROM expenses ex 
+	LEFT JOIN transactions tr ON tr.id = ex.transaction_id`
+```
+
+### Two-Pass Loading Pattern
+
+When loading entities with relationships:
+
+```go
+func (g *GormExpenseRepository) queryExpenses(
+	ctx context.Context, 
+	query string, 
+	args ...interface{},
+) ([]expense.Expense, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	rows, err := tx.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer rows.Close()
+
+	// First pass: collect raw data
+	type expenseData struct {
+		expense       models.Expense
+		transaction   models.Transaction
+	}
+	var data []expenseData
+	
+	for rows.Next() {
+		var d expenseData
+		if err := rows.Scan(
+			&d.expense.ID, &d.expense.TransactionID, &d.expense.CategoryID,
+			&d.expense.TenantID, &d.expense.CreatedAt, &d.expense.UpdatedAt,
+			&d.transaction.Amount, &d.transaction.TransactionDate,
+			&d.transaction.AccountingPeriod, &d.transaction.TransactionType,
+			&d.transaction.Comment,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan: %w", err)
+		}
+		data = append(data, d)
+	}
+
+	// Second pass: load relationships
+	var expenses []expense.Expense
+	for _, d := range data {
+		// Load category (may cause N+1, consider optimization)
+		category, err := g.categoryRepo.GetByID(ctx, d.expense.CategoryID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load category: %w", err)
+		}
+
+		// Build domain entity
+		exp := expense.New(
+			money.New(d.transaction.Amount, "USD"),
+			nil, // Account loaded separately
+			category,
+			d.transaction.TransactionDate,
+			// ... options
+		)
+		expenses = append(expenses, exp)
+	}
+
+	return expenses, nil
+}
+```
+
+### Multi-Entity Transaction
+
+When creating entities that span multiple tables:
+
+```go
+func (g *GormExpenseRepository) Create(
+	ctx context.Context, 
+	data expense.Expense,
+) (expense.Expense, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction: %w", err)
+	}
+
+	// Step 1: Create related transaction first
+	expenseRow, transactionRow := ToDBExpense(data)
+	createdTransaction, err := g.transactionRepo.Create(ctx, transactionRow)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	// Step 2: Create expense with foreign key
+	var id uuid.UUID
+	if err := tx.QueryRow(
+		ctx,
+		expenseInsertQuery,
+		expenseRow.ID,
+		createdTransaction.ID(), // Foreign key reference
+		expenseRow.CategoryID,
+		expenseRow.TenantID,
+	).Scan(&id); err != nil {
+		return nil, fmt.Errorf("failed to create expense: %w", err)
+	}
+
+	return g.GetByID(ctx, id)
+}
+```
+
+## Pattern 3: Many-to-Many Relationships
+
+For file attachments and similar patterns:
+
+### Junction Table Queries
+
+```go
+const (
+	expenseAttachmentsQuery = `
+		SELECT upload_id 
+		FROM expense_attachments 
+		WHERE expense_id = $1`
+	
+	expenseAttachFileQuery = `
+		INSERT INTO expense_attachments (expense_id, upload_id, attached_at) 
+		VALUES ($1, $2, NOW()) 
+		ON CONFLICT (expense_id, upload_id) DO NOTHING`
+	
+	expenseDetachFileQuery = `
+		DELETE FROM expense_attachments 
+		WHERE expense_id = $1 AND upload_id = $2`
+)
+```
+
+### Attachment Methods
+
+```go
+func (g *GormExpenseRepository) GetAttachments(
+	ctx context.Context, 
+	expenseID uuid.UUID,
+) ([]uint, error) {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, expenseAttachmentsQuery, expenseID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query attachments: %w", err)
+	}
+	defer rows.Close()
+
+	var attachments []uint
+	for rows.Next() {
+		var uploadID uint
+		if err := rows.Scan(&uploadID); err != nil {
+			return nil, fmt.Errorf("failed to scan: %w", err)
+		}
+		attachments = append(attachments, uploadID)
+	}
+
+	return attachments, nil
+}
+
+func (g *GormExpenseRepository) AttachFile(
+	ctx context.Context, 
+	expenseID uuid.UUID, 
+	uploadID uint,
+) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, expenseAttachFileQuery, expenseID, uploadID)
+	if err != nil {
+		return fmt.Errorf("failed to attach file: %w", err)
+	}
+	return nil
+}
+```
+
+## Building Queries with repo Package
+
+The `pkg/repo` package provides utilities for query building:
+
+### Join Helper
+
+```go
+query := repo.Join(
+	baseQuery,
+	repo.JoinWhere(where...),
+	params.SortBy.ToSQL(g.fieldMap),
+	repo.FormatLimitOffset(params.Limit, params.Offset),
+)
+```
+
+### Filter Types
+
+```go
+// Equals filter
+params.Filters = append(params.Filters, expense.Filter{
+	Column: expense.CategoryID,
+	Filter: repo.Eq(categoryID),
+})
+
+// Greater than filter
+params.Filters = append(params.Filters, expense.Filter{
+	Column: expense.CreatedAt,
+	Filter: repo.Gt(startDate),
+})
+
+// Less than filter
+params.Filters = append(params.Filters, expense.Filter{
+	Column: expense.CreatedAt,
+	Filter: repo.Lt(endDate),
+})
+```
+
+## Error Handling Best Practices
+
+### Wrap Errors with Context
+
+```go
+// Good: Provides context about what failed
+return nil, fmt.Errorf("failed to create expense category: %w", err)
+
+// Good: Uses errors.Wrap for stack traces
+return nil, fmt.Errorf("failed to load category: %w", err)
+
+// Avoid: Losing context
+return nil, err
+```
+
+### Define Repository-Specific Errors
+
+```go
+var (
+	ErrExpenseCategoryNotFound = errors.New("expense category not found")
+	ErrDuplicateSKU           = errors.New("SKU already exists")
+)
+
+// Usage
+if len(categories) == 0 {
+	return nil, fmt.Errorf("%w: id=%s", ErrExpenseCategoryNotFound, id)
+}
+```
+
+## Testing Repository Implementations
+
+### Integration Test Pattern
+
+```go
+func TestExpenseCategoryRepository(t *testing.T) {
+	ctx := itf.NewTestContext().Build(t).Ctx
+	repo := persistence.NewExpenseCategoryRepository()
+
+	t.Run("Create and Get", func(t *testing.T) {
+		// Create
+		entity := category.New("Test Category")
+		created, err := repo.Create(ctx, entity)
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, created.ID())
+
+		// Get
+		found, err := repo.GetByID(ctx, created.ID())
+		require.NoError(t, err)
+		assert.Equal(t, created.Name(), found.Name())
+	})
+
+	t.Run("Update", func(t *testing.T) {
+		entity := category.New("Original")
+		created, _ := repo.Create(ctx, entity)
+		
+		updated := created.SetName("Updated")
+		result, err := repo.Update(ctx, updated)
+		require.NoError(t, err)
+		assert.Equal(t, "Updated", result.Name())
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		entity := category.New("To Delete")
+		created, _ := repo.Create(ctx, entity)
+		
+		err := repo.Delete(ctx, created.ID())
+		require.NoError(t, err)
+		
+		_, err = repo.GetByID(ctx, created.ID())
+		assert.ErrorIs(t, err, persistence.ErrExpenseCategoryNotFound)
+	})
+
+	t.Run("Tenant Isolation", func(t *testing.T) {
+		// Create in tenant A
+		ctxA := composables.WithTenant(ctx, tenantAID)
+		entity := category.New("Tenant A Category")
+		created, _ := repo.Create(ctxA, entity)
+		
+		// Try to access from tenant B
+		ctxB := composables.WithTenant(ctx, tenantBID)
+		_, err := repo.GetByID(ctxB, created.ID())
+		assert.Error(t, err) // Should fail
+	})
+}
+```
+
+## Performance Optimization
+
+### Batch Loading Relationships
+
+To avoid N+1 queries when loading lists:
+
+```go
+func (g *GormExpenseRepository) GetPaginatedOptimized(
+	ctx context.Context, 
+	params *expense.FindParams,
+) ([]expense.Expense, error) {
+	// Step 1: Load expenses
+	expenses, err := g.queryExpenses(...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 2: Collect all category IDs
+	categoryIDs := make([]uuid.UUID, len(expenses))
+	for i, exp := range expenses {
+		categoryIDs[i] = exp.Category().ID()
+	}
+
+	// Step 3: Batch load categories
+	categories, err := g.categoryRepo.GetByIDs(ctx, categoryIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Step 4: Map categories to expenses
+	categoryMap := make(map[uuid.UUID]category.ExpenseCategory)
+	for _, cat := range categories {
+		categoryMap[cat.ID()] = cat
+	}
+
+	// Step 5: Rebuild expenses with loaded categories
+	for i, exp := range expenses {
+		cat := categoryMap[exp.Category().ID()]
+		expenses[i] = exp.SetCategory(cat)
+	}
+
+	return expenses, nil
+}
+```
+
+## Summary Checklist
+
+When implementing a repository:
+
+- [ ] Define interface in domain layer
+- [ ] Create field map for dynamic filtering
+- [ ] Use SQL query constants
+- [ ] Always filter by tenant_id
+- [ ] Handle errors with context wrapping
+- [ ] Use transactions from context
+- [ ] Map between domain and DB models
+- [ ] Define repository-specific errors
+- [ ] Support pagination and sorting
+- [ ] Write integration tests
+
+## Next Steps
+
+- Learn [Service Layer Patterns](/patterns/services)
+- Build reactive UIs with [Controllers and HTMX](/patterns/controllers)
+- Study [Complex Features](/development/complex-features)

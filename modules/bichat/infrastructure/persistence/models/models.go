@@ -1,23 +1,5 @@
 package models
 
-import (
-	"time"
-)
-
-type Prompt struct {
-	ID          string
-	Title       string
-	Description string
-	Prompt      string
-	CreatedAt   time.Time
-}
-
-type Dialogue struct {
-	ID        uint
-	TenantID  string
-	UserID    uint
-	Label     string
-	Messages  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
+// No shared database models are currently required for the BiChat module.
+// Persistent entities are managed directly via SQL in repositories to ensure
+// precise control over multi-tenant queries and JSONB operations.

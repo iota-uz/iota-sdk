@@ -1,0 +1,45 @@
+{
+  "name": "bichat-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm run build:css && vite",
+    "build:css": "tailwindcss -i ./src/index.css -o ./dist/style.css --minify",
+    "build": "pnpm run build:css && tsc && vite build",
+    "build:watch": "chokidar \"src/**\" \"*.config.*\" \"index.html\" \"tailwind.config.js\" \"tsconfig.json\" \"vite.config.ts\" -c \"pnpm run build\"",
+    "preview": "vite preview",
+    "codegen": "graphql-codegen"
+  },
+  "dependencies": {
+    "@iota-uz/sdk": "file:../../../../",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0",
+    "urql": "^4.1.0",
+    "graphql": "^16.9.0",
+    "date-fns": "^3.6.0",
+    "framer-motion": "^11.0.0",
+    "fuse.js": "^7.0.0",
+    "@headlessui/react": "^2.2.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.2",
+    "@tailwindcss/cli": "4.1.18",
+    "tailwindcss": "4.1.18",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.41",
+    "@graphql-codegen/cli": "^5.0.2",
+    "@graphql-codegen/typescript": "^4.0.9",
+    "@graphql-codegen/typescript-operations": "^4.2.3",
+    "@graphql-codegen/typescript-urql": "^4.0.0",
+    "chokidar-cli": "^3.0.0"
+  }
+}
