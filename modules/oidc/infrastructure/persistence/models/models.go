@@ -3,8 +3,6 @@ package models
 import (
 	"database/sql"
 	"time"
-
-	"github.com/lib/pq"
 )
 
 // Client represents the database model for oidc_clients table
@@ -14,10 +12,10 @@ type Client struct {
 	ClientSecretHash     sql.NullString
 	Name                 string
 	ApplicationType      string
-	RedirectURIs         pq.StringArray // TEXT[]
-	GrantTypes           pq.StringArray // VARCHAR(50)[]
-	ResponseTypes        pq.StringArray // VARCHAR(50)[]
-	Scopes               pq.StringArray // TEXT[]
+	RedirectURIs         []string // TEXT[]
+	GrantTypes           []string // VARCHAR(50)[]
+	ResponseTypes        []string // VARCHAR(50)[]
+	Scopes               []string // TEXT[]
 	AuthMethod           string
 	AccessTokenLifetime  time.Duration // INTERVAL
 	IDTokenLifetime      time.Duration // INTERVAL
@@ -33,7 +31,7 @@ type AuthRequest struct {
 	ID                  string
 	ClientID            string
 	RedirectURI         string
-	Scopes              pq.StringArray // TEXT[]
+	Scopes              []string // TEXT[]
 	State               sql.NullString
 	Nonce               sql.NullString
 	ResponseType        string
@@ -53,10 +51,10 @@ type RefreshToken struct {
 	ClientID  string
 	UserID    int
 	TenantID  string
-	Scopes    pq.StringArray // TEXT[]
-	Audience  pq.StringArray // TEXT[]
+	Scopes    []string // TEXT[]
+	Audience  []string // TEXT[]
 	AuthTime  time.Time
-	AMR       pq.StringArray // TEXT[]
+	AMR       []string // TEXT[]
 	ExpiresAt time.Time
 	CreatedAt time.Time
 }

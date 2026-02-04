@@ -4,7 +4,6 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/authrequest"
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
@@ -12,6 +11,16 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 )
+
+// copySlice creates a copy of a string slice to avoid aliasing
+func copySlice(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	result := make([]string, len(s))
+	copy(result, s)
+	return result
+}
 
 // Client mappers
 
@@ -27,10 +36,10 @@ func ToDBClient(c client.Client) *models.Client {
 		ClientSecretHash:     clientSecretHash,
 		Name:                 c.Name(),
 		ApplicationType:      c.ApplicationType(),
-		RedirectURIs:         pq.StringArray(c.RedirectURIs()),
-		GrantTypes:           pq.StringArray(c.GrantTypes()),
-		ResponseTypes:        pq.StringArray(c.ResponseTypes()),
-		Scopes:               pq.StringArray(c.Scopes()),
+		RedirectURIs:         copySlice(c.RedirectURIs()),
+		GrantTypes:           copySlice(c.GrantTypes()),
+		ResponseTypes:        copySlice(c.ResponseTypes()),
+		Scopes:               copySlice(c.Scopes()),
 		AuthMethod:           c.AuthMethod(),
 		AccessTokenLifetime:  c.AccessTokenLifetime(),
 		IDTokenLifetime:      c.IDTokenLifetime(),
@@ -50,9 +59,9 @@ func ToDomainClient(dbClient *models.Client) (client.Client, error) {
 
 	opts := []client.Option{
 		client.WithID(id),
-		client.WithGrantTypes([]string(dbClient.GrantTypes)),
-		client.WithResponseTypes([]string(dbClient.ResponseTypes)),
-		client.WithScopes([]string(dbClient.Scopes)),
+		client.WithGrantTypes(dbClient.GrantTypes),
+		client.WithResponseTypes(dbClient.ResponseTypes),
+		client.WithScopes(dbClient.Scopes),
 		client.WithAuthMethod(dbClient.AuthMethod),
 		client.WithAccessTokenLifetime(dbClient.AccessTokenLifetime),
 		client.WithIDTokenLifetime(dbClient.IDTokenLifetime),
@@ -71,7 +80,7 @@ func ToDomainClient(dbClient *models.Client) (client.Client, error) {
 		dbClient.ClientID,
 		dbClient.Name,
 		dbClient.ApplicationType,
-		[]string(dbClient.RedirectURIs),
+		dbClient.RedirectURIs,
 		opts...,
 	), nil
 }
@@ -83,7 +92,7 @@ func ToDBAuthRequest(ar authrequest.AuthRequest) *models.AuthRequest {
 		ID:           ar.ID().String(),
 		ClientID:     ar.ClientID(),
 		RedirectURI:  ar.RedirectURI(),
-		Scopes:       pq.StringArray(ar.Scopes()),
+		Scopes:       copySlice(ar.Scopes()),
 		ResponseType: ar.ResponseType(),
 		CreatedAt:    ar.CreatedAt(),
 		ExpiresAt:    ar.ExpiresAt(),
@@ -167,7 +176,7 @@ func ToDomainAuthRequest(dbAR *models.AuthRequest) (authrequest.AuthRequest, err
 	return authrequest.New(
 		dbAR.ClientID,
 		dbAR.RedirectURI,
-		[]string(dbAR.Scopes),
+		dbAR.Scopes,
 		dbAR.ResponseType,
 		opts...,
 	), nil
@@ -182,10 +191,10 @@ func ToDBRefreshToken(t token.RefreshToken) *models.RefreshToken {
 		ClientID:  t.ClientID(),
 		UserID:    t.UserID(),
 		TenantID:  t.TenantID().String(),
-		Scopes:    pq.StringArray(t.Scopes()),
-		Audience:  pq.StringArray(t.Audience()),
+		Scopes:    copySlice(t.Scopes()),
+		Audience:  copySlice(t.Audience()),
 		AuthTime:  t.AuthTime(),
-		AMR:       pq.StringArray(t.AMR()),
+		AMR:       copySlice(t.AMR()),
 		ExpiresAt: t.ExpiresAt(),
 		CreatedAt: t.CreatedAt(),
 	}
@@ -207,8 +216,8 @@ func ToDomainRefreshToken(dbToken *models.RefreshToken) (token.RefreshToken, err
 
 	opts := []token.Option{
 		token.WithID(id),
-		token.WithAudience([]string(dbToken.Audience)),
-		token.WithAMR([]string(dbToken.AMR)),
+		token.WithAudience(dbToken.Audience),
+		token.WithAMR(dbToken.AMR),
 		token.WithExpiresAt(dbToken.ExpiresAt),
 		token.WithCreatedAt(dbToken.CreatedAt),
 	}
@@ -218,7 +227,7 @@ func ToDomainRefreshToken(dbToken *models.RefreshToken) (token.RefreshToken, err
 		dbToken.ClientID,
 		dbToken.UserID,
 		tenantID,
-		[]string(dbToken.Scopes),
+		dbToken.Scopes,
 		dbToken.AuthTime,
 		lifetime,
 		opts...,

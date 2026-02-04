@@ -81,7 +81,12 @@ func (r *ClientRepository) Count(ctx context.Context, params *client.FindParams)
 	}
 
 	where, args := r.buildWhereClause(params)
-	query := repo.Join(countClientQuery, repo.JoinWhere(where...))
+	var query string
+	if len(where) > 0 {
+		query = repo.Join(countClientQuery, repo.JoinWhere(where...))
+	} else {
+		query = countClientQuery
+	}
 
 	var count int64
 	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {

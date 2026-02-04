@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
-	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
 const testCryptoKey = "test-crypto-key-32-bytes-long-12"
@@ -18,7 +17,7 @@ func TestBootstrapKeys(t *testing.T) {
 	t.Parallel()
 
 	t.Run("GeneratesKeysWhenEmpty", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Bootstrap keys
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
@@ -39,7 +38,7 @@ func TestBootstrapKeys(t *testing.T) {
 	})
 
 	t.Run("DoesNotGenerateKeysWhenExist", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Bootstrap keys first time
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
@@ -66,7 +65,7 @@ func TestBootstrapKeys(t *testing.T) {
 	})
 
 	t.Run("ValidRSAKeyGeneration", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
 		require.NoError(t, err)
@@ -94,7 +93,7 @@ func TestGetActiveSigningKey(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Success", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Bootstrap keys first
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
@@ -109,7 +108,7 @@ func TestGetActiveSigningKey(t *testing.T) {
 	})
 
 	t.Run("NoKeysExist", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Don't bootstrap keys
 
@@ -119,7 +118,7 @@ func TestGetActiveSigningKey(t *testing.T) {
 	})
 
 	t.Run("DecryptionWithWrongKey", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Bootstrap with one key
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, "original-key")
@@ -135,7 +134,7 @@ func TestGetPublicKeys(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Success", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Bootstrap keys
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
@@ -150,7 +149,7 @@ func TestGetPublicKeys(t *testing.T) {
 	})
 
 	t.Run("NoKeysExist", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Don't bootstrap keys
 
@@ -161,7 +160,7 @@ func TestGetPublicKeys(t *testing.T) {
 	})
 
 	t.Run("MultipleActiveKeys", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Bootstrap first key
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
@@ -179,7 +178,7 @@ func TestKeyEncryptionDecryption(t *testing.T) {
 	t.Parallel()
 
 	t.Run("RoundTripEncryption", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		cryptoKey := "my-secret-key-32-bytes-long-1234"
 
@@ -201,7 +200,7 @@ func TestKeyEncryptionDecryption(t *testing.T) {
 	})
 
 	t.Run("DifferentCryptoKeys", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		// Bootstrap with first crypto key
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, "crypto-key-1")
@@ -217,7 +216,7 @@ func TestKeyStorage(t *testing.T) {
 	t.Parallel()
 
 	t.Run("KeyIDIsUnique", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
 		require.NoError(t, err)
@@ -231,7 +230,7 @@ func TestKeyStorage(t *testing.T) {
 	})
 
 	t.Run("AlgorithmIsRS256", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
 		require.NoError(t, err)
@@ -247,7 +246,7 @@ func TestKeyStorage(t *testing.T) {
 	})
 
 	t.Run("PrivateKeyIsEncrypted", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
 		require.NoError(t, err)
@@ -269,7 +268,7 @@ func TestKeyStorage(t *testing.T) {
 	})
 
 	t.Run("PublicKeyIsPEMFormat", func(t *testing.T) {
-		env := itf.Setup(t)
+		env := setupTest(t)
 
 		err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
 		require.NoError(t, err)
@@ -291,7 +290,7 @@ func TestKeyStorage(t *testing.T) {
 func TestConcurrentKeyAccess(t *testing.T) {
 	t.Parallel()
 
-	env := itf.Setup(t)
+	env := setupTest(t)
 
 	// Bootstrap keys first
 	err := oidc.BootstrapKeys(env.Ctx, env.Pool, testCryptoKey)
