@@ -18,6 +18,7 @@ type ChatService interface {
 	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
 	UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error)
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	PinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnpinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) error

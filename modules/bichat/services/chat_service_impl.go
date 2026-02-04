@@ -93,6 +93,21 @@ func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUI
 	return updated, nil
 }
 
+// UnarchiveSession unarchives a session.
+func (s *chatServiceImpl) UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
+	const op serrors.Op = "chatServiceImpl.UnarchiveSession"
+
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	updated := session.UpdateStatus(domain.SessionStatusActive)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return updated, nil
+}
+
 // PinSession pins a session.
 func (s *chatServiceImpl) PinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.PinSession"

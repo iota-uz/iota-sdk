@@ -5,16 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -23,16 +24,19 @@ import (
 type StreamController struct {
 	app         application.Application
 	chatService services.ChatService
+	opts        ControllerOptions
 }
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
 	app application.Application,
 	chatService services.ChatService,
+	opts ...ControllerOption,
 ) *StreamController {
 	return &StreamController{
 		app:         app,
 		chatService: chatService,
+		opts:        applyControllerOptions(opts...),
 	}
 }
 
@@ -53,7 +57,7 @@ func (c *StreamController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	}
 
-	subRouter := r.PathPrefix("/bi-chat").Subrouter()
+	subRouter := r.PathPrefix(c.opts.BasePath).Subrouter()
 	subRouter.Use(commonMiddleware...)
 
 	// Stream route
@@ -88,7 +92,15 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 3. Parse request
+	// 3. Enforce access permission early (avoid DB work for forbidden users)
+	if c.opts.RequireAccessPermission != nil {
+		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
+	// 4. Parse request
 	type streamRequest struct {
 		SessionID   uuid.UUID           `json:"sessionId"`
 		Content     string              `json:"content"`
@@ -101,7 +113,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 4. Validate session access
+	// 5. Validate session access
 	session, err := c.chatService.GetSession(r.Context(), req.SessionID)
 	if err != nil {
 		if errors.Is(err, persistence.ErrSessionNotFound) {
@@ -113,26 +125,18 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Check permission (user owns session or has read_all permission)
-	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), permissions.BiChatReadAll) != nil {
+	if session.UserID() != int64(user.ID()) && composables.CanUser(r.Context(), c.opts.ReadAllPermission) != nil {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
 
-	// 5. Set SSE headers
+	// 6. Set SSE headers
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	// 6. Stream chunks
-	type streamChunkDTO struct {
-		Type     string               `json:"type"`
-		Content  string               `json:"content,omitempty"`
-		Citation *domain.Citation     `json:"citation,omitempty"`
-		Usage    *services.TokenUsage `json:"usage,omitempty"`
-		Error    string               `json:"error,omitempty"`
-	}
-
+	// 7. Stream chunks
 	err = c.chatService.SendMessageStream(r.Context(), services.SendMessageRequest{
 		SessionID:   req.SessionID,
 		UserID:      int64(user.ID()),
@@ -146,11 +150,12 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		default:
 		}
 
-		payload := streamChunkDTO{
-			Type:     string(chunk.Type),
-			Content:  chunk.Content,
-			Citation: chunk.Citation,
-			Usage:    chunk.Usage,
+		payload := httpdto.StreamChunkPayload{
+			Type:      string(chunk.Type),
+			Content:   chunk.Content,
+			Citation:  chunk.Citation,
+			Usage:     chunk.Usage,
+			Timestamp: chunk.Timestamp.UnixMilli(),
 		}
 		if chunk.Error != nil {
 			// Avoid leaking internal errors to the client.
@@ -172,19 +177,25 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		// Log actual error server-side
 		logger := configuration.Use().Logger()
-		logger.WithError(serrors.E(op, err)).Error("Stream error")
+		entry := logger.WithError(serrors.E(op, err))
+		if c.opts.GraphQLEndpointHint != "" {
+			entry = entry.WithField("graphql_endpoint_hint", c.opts.GraphQLEndpointHint)
+		}
+		entry.Error("Stream error")
 
 		// Send sanitized error to client
-		c.sendSSEEvent(w, flusher, "error", map[string]string{
-			"type":  "error",
-			"error": "An error occurred while processing your request",
+		c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+			Type:      "error",
+			Error:     "An error occurred while processing your request",
+			Timestamp: time.Now().UnixMilli(),
 		})
 		return
 	}
 
 	// Send done event
-	c.sendSSEEvent(w, flusher, "done", map[string]string{
-		"type": "done",
+	c.sendSSEEvent(w, flusher, "done", httpdto.StreamChunkPayload{
+		Type:      "done",
+		Timestamp: time.Now().UnixMilli(),
 	})
 }
 
