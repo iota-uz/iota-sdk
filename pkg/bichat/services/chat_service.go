@@ -18,6 +18,7 @@ type ChatService interface {
 	ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error)
 	UpdateSessionTitle(ctx context.Context, sessionID uuid.UUID, title string) (domain.Session, error)
 	ArchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
+	UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	PinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	UnpinSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error)
 	DeleteSession(ctx context.Context, sessionID uuid.UUID) error
@@ -112,9 +113,9 @@ const (
 
 // TokenUsage tracks token consumption and costs
 type TokenUsage struct {
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	CachedTokens     int
-	Cost             float64 // Estimated cost in USD
+	PromptTokens     int     `json:"promptTokens"`
+	CompletionTokens int     `json:"completionTokens"`
+	TotalTokens      int     `json:"totalTokens"`
+	CachedTokens     int     `json:"cachedTokens"`
+	Cost             float64 `json:"cost"` // Estimated cost in USD
 }
