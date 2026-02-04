@@ -6,9 +6,7 @@ package resolvers
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
-	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/google/uuid"
@@ -19,14 +17,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
-
-// userIDToUUID converts a numeric user ID to a deterministic UUID.
-// The user ID is encoded in the low 64 bits, making it reversible.
-func userIDToUUID(userID uint) uuid.UUID {
-	var id uuid.UUID
-	binary.BigEndian.PutUint64(id[8:], uint64(userID))
-	return id
-}
 
 // CreateSession is the resolver for the createSession field.
 func (r *mutationResolver) CreateSession(ctx context.Context, title *string) (*model.Session, error) {
@@ -774,105 +764,15 @@ func (r *sessionResolver) Artifacts(ctx context.Context, obj *model.Session, lim
 func (r *subscriptionResolver) MessageStream(ctx context.Context, sessionID string) (<-chan *model.MessageChunk, error) {
 	const op serrors.Op = "Resolver.MessageStream"
 
-	// Parse sessionID
-	sid, err := uuid.Parse(sessionID)
+	// Parse sessionID to validate format
+	_, err := uuid.Parse(sessionID)
 	if err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, "invalid session ID", err)
 	}
 
-	// Create channel for GraphQL subscription
-	ch := make(chan *model.MessageChunk, 100)
-
-	// Launch goroutine to stream events
-	go func() {
-		defer close(ch)
-
-		// Get tenant ID for multi-tenant isolation
-		tenantID, err := composables.UseTenantID(ctx)
-		if err != nil {
-			select {
-			case ch <- &model.MessageChunk{
-				Type:      model.ChunkTypeError,
-				Error:     strPtr("tenant context required"),
-				Timestamp: time.Now(),
-			}:
-			case <-ctx.Done():
-			}
-			return
-		}
-
-		// Get authenticated user
-		user, err := composables.UseUser(ctx)
-		if err != nil {
-			select {
-			case ch <- &model.MessageChunk{
-				Type:      model.ChunkTypeError,
-				Error:     strPtr("authentication required"),
-				Timestamp: time.Now(),
-			}:
-			case <-ctx.Done():
-			}
-			return
-		}
-		if user == nil {
-			select {
-			case ch <- &model.MessageChunk{
-				Type:      model.ChunkTypeError,
-				Error:     strPtr("user not authenticated"),
-				Timestamp: time.Now(),
-			}:
-			case <-ctx.Done():
-			}
-			return
-		}
-
-		// Verify session ownership and tenant isolation
-		session, err := r.chatService.GetSession(ctx, sid)
-		if err != nil {
-			select {
-			case ch <- &model.MessageChunk{
-				Type:      model.ChunkTypeError,
-				Error:     strPtr("session not found"),
-				Timestamp: time.Now(),
-			}:
-			case <-ctx.Done():
-			}
-			return
-		}
-		if session.TenantID() != tenantID || session.UserID() != int64(user.ID()) {
-			select {
-			case ch <- &model.MessageChunk{
-				Type:      model.ChunkTypeError,
-				Error:     strPtr("access denied"),
-				Timestamp: time.Now(),
-			}:
-			case <-ctx.Done():
-			}
-			return
-		}
-
-		// For now, send a placeholder message indicating subscription is active
-		select {
-		case ch <- &model.MessageChunk{
-			Type:      model.ChunkTypeContent,
-			Content:   strPtr("Subscription active for session: " + sid.String()),
-			Timestamp: time.Now(),
-		}:
-		case <-ctx.Done():
-			return
-		}
-
-		// Send done event
-		select {
-		case ch <- &model.MessageChunk{
-			Type:      model.ChunkTypeDone,
-			Timestamp: time.Now(),
-		}:
-		case <-ctx.Done():
-		}
-	}()
-
-	return ch, nil
+	// GraphQL subscriptions for message streaming are not implemented.
+	// Real-time streaming is available via SSE at POST /bichat/stream.
+	return nil, serrors.E(op, serrors.Invalid, "use SSE endpoint POST /bichat/stream for streaming")
 }
 
 // Mutation returns generated.MutationResolver implementation.
