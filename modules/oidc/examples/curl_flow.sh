@@ -29,8 +29,8 @@ echo ""
 if [ "$USE_PKCE" = "true" ]; then
     echo "Step 1: Generating PKCE parameters..."
 
-    # Generate code verifier (43-128 character random string)
-    CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-43)
+    # Generate code verifier (43-128 character random string, base64url encoded)
+    CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | cut -c1-43)
     echo "  Code Verifier: $CODE_VERIFIER"
 
     # Generate code challenge (SHA256 hash of verifier, base64url encoded)

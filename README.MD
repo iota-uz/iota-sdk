@@ -188,7 +188,7 @@ OIDC_ID_TOKEN_LIFETIME=1h
 
 OIDC clients are managed by Super Admin users via the admin interface at `/superadmin/oidc/clients`.
 
-For detailed integration guides and examples, see the OIDC documentation (coming soon).
+For detailed integration guides and examples, see the [OIDC documentation](/oidc).
 
 ---
 

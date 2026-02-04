@@ -40,13 +40,25 @@ const (
 		ORDER BY created_at DESC`
 )
 
-// BootstrapKeys generates RS256 keypair if oidc_signing_keys is empty
+// BootstrapKeys generates RS256 keypair if oidc_signing_keys is empty.
+// Uses advisory lock to prevent race conditions when multiple processes start simultaneously.
 func BootstrapKeys(ctx context.Context, db *pgxpool.Pool, cryptoKey string) error {
 	const op serrors.Op = "oidc.BootstrapKeys"
 
-	// Check if keys already exist
+	// Acquire advisory lock to prevent race condition when multiple processes bootstrap concurrently
+	// Lock ID 1 is reserved for OIDC key bootstrap
+	const advisoryLockID = 1
+	_, err := db.Exec(ctx, "SELECT pg_advisory_lock($1)", advisoryLockID)
+	if err != nil {
+		return serrors.E(op, fmt.Errorf("failed to acquire advisory lock: %w", err))
+	}
+	defer func() {
+		_, _ = db.Exec(ctx, "SELECT pg_advisory_unlock($1)", advisoryLockID)
+	}()
+
+	// Check if keys already exist (inside the lock)
 	var count int
-	err := db.QueryRow(ctx, checkActiveKeysQuery).Scan(&count)
+	err = db.QueryRow(ctx, checkActiveKeysQuery).Scan(&count)
 	if err != nil {
 		return serrors.E(op, err)
 	}

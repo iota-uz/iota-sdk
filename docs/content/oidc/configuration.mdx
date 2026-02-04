@@ -1,16 +1,11 @@
+---
+title: 'OIDC Configuration'
+description: 'Environment variables, token lifetimes, and security best practices'
+---
+
 # OIDC Configuration Guide
 
 This guide explains how to configure the OIDC module in IOTA SDK.
-
-## Table of Contents
-
-- [Environment Variables](#environment-variables)
-- [Crypto Key Generation](#crypto-key-generation)
-- [Token Lifetime Configuration](#token-lifetime-configuration)
-- [Multi-Tenant Considerations](#multi-tenant-considerations)
-- [Security Best Practices](#security-best-practices)
-
----
 
 ## Environment Variables
 
@@ -49,8 +44,6 @@ OIDC_RATE_LIMIT_ENABLED=true
 OIDC_RATE_LIMIT_REQUESTS=100
 OIDC_RATE_LIMIT_WINDOW=900               # 15 minutes in seconds
 ```
-
----
 
 ## Crypto Key Generation
 
@@ -91,25 +84,6 @@ When rotating the crypto key:
 4. Update `OIDC_CRYPTO_KEY` in environment
 5. Restart the application
 
-**Migration script example:**
-```bash
-#!/bin/bash
-
-OLD_KEY="old-crypto-key"
-NEW_KEY="new-crypto-key"
-
-# Export signing keys
-psql -d iota_erp -c "COPY (SELECT id, key_id, algorithm, private_key, public_key FROM oidc_signing_keys WHERE is_active = true) TO '/tmp/keys_backup.csv' CSV HEADER;"
-
-# Run migration (implement this in your application)
-./migrate-crypto-key --old-key="$OLD_KEY" --new-key="$NEW_KEY"
-
-# Verify
-./verify-keys --crypto-key="$NEW_KEY"
-```
-
----
-
 ## Token Lifetime Configuration
 
 ### Default Token Lifetimes
@@ -138,23 +112,21 @@ WHERE client_id = 'my-client-id';
 ### Lifetime Tuning Guidelines
 
 **Short-lived Access Tokens (15-30 minutes):**
-- ✅ Better security (reduced window for token theft)
-- ✅ Encourages token refresh
-- ❌ More frequent token refreshes
-- ❌ Higher load on token endpoint
+- Better security (reduced window for token theft)
+- Encourages token refresh
+- More frequent token refreshes
+- Higher load on token endpoint
 
 **Long-lived Access Tokens (2-24 hours):**
-- ✅ Fewer token refreshes
-- ✅ Better performance
-- ❌ Longer vulnerability window
-- ❌ Not recommended for sensitive applications
+- Fewer token refreshes
+- Better performance
+- Longer vulnerability window
+- Not recommended for sensitive applications
 
 **Refresh Token Lifetime:**
 - Mobile apps: 30-90 days
 - Web apps: 7-30 days
 - Backend services: No refresh tokens (use client credentials)
-
----
 
 ## Multi-Tenant Considerations
 
@@ -166,57 +138,6 @@ OIDC module respects multi-tenant architecture:
 2. **Auth requests include tenant_id** after user authentication
 3. **Refresh tokens are scoped to user + tenant + client**
 4. **User info returns data for authenticated tenant only**
-
-### Per-Tenant Configuration
-
-Configure OIDC settings per tenant:
-
-```sql
--- Create tenant-specific settings table
-CREATE TABLE tenant_oidc_settings (
-    tenant_id UUID PRIMARY KEY REFERENCES tenants(id),
-    issuer_override TEXT,
-    logo_url TEXT,
-    terms_url TEXT,
-    privacy_url TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
--- Set custom issuer for tenant
-INSERT INTO tenant_oidc_settings (tenant_id, issuer_override)
-VALUES ('tenant-uuid', 'https://tenant.example.com');
-```
-
-### Multi-Tenant Flow
-
-```
-┌─────────────┐
-│   Client    │
-│ (Global)    │
-└──────┬──────┘
-       │
-       │ 1. Authorization Request
-       ▼
-┌─────────────┐
-│   User      │
-│  Login      │────── 2. User selects tenant
-└──────┬──────┘
-       │
-       │ 3. Authenticate
-       ▼
-┌─────────────┐
-│  Auth Code  │────── 4. Code includes tenant_id
-└──────┬──────┘
-       │
-       │ 5. Token Exchange
-       ▼
-┌─────────────┐
-│   Tokens    │────── 6. Tokens scoped to tenant
-└─────────────┘
-```
-
----
 
 ## Security Best Practices
 
@@ -257,21 +178,21 @@ VALUES (
 ### 2. Redirect URI Validation
 
 **Strict Validation Rules:**
-- ✅ Exact match required (no wildcards)
-- ✅ HTTPS required in production
-- ✅ Localhost allowed only in development
-- ❌ Do not use `http://` in production
-- ❌ Do not use wildcard subdomains
+- Exact match required (no wildcards)
+- HTTPS required in production
+- Localhost allowed only in development
+- Do not use `http://` in production
+- Do not use wildcard subdomains
 
 **Example:**
 ```sql
--- ✅ Good: Exact URLs
+-- Good: Exact URLs
 redirect_uris = ARRAY['https://app.example.com/callback']
 
--- ❌ Bad: Wildcards (not supported)
+-- Bad: Wildcards (not supported)
 redirect_uris = ARRAY['https://*.example.com/callback']
 
--- ✅ Development only
+-- Development only
 redirect_uris = ARRAY['http://localhost:3000/callback']
 ```
 
@@ -317,7 +238,7 @@ Configure CORS for browser-based clients:
 OIDC_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
 
 # DO NOT use wildcard in production
-OIDC_ALLOWED_ORIGINS=*  # ❌ INSECURE
+OIDC_ALLOWED_ORIGINS=*  # INSECURE
 ```
 
 ### 6. Token Storage
@@ -326,46 +247,13 @@ OIDC_ALLOWED_ORIGINS=*  # ❌ INSECURE
 
 | Storage Type | Access Tokens | Refresh Tokens | ID Tokens |
 |-------------|---------------|----------------|-----------|
-| Memory | ✅ Best | ❌ No | ✅ OK |
-| LocalStorage | ❌ XSS risk | ❌ Never | ⚠️ Low risk |
-| SessionStorage | ⚠️ OK | ❌ Never | ⚠️ OK |
-| HttpOnly Cookie | ✅ Best | ✅ Best | ✅ OK |
-| Secure Cookie | ✅ Best | ✅ Best | ✅ OK |
+| Memory | Best | No | OK |
+| LocalStorage | XSS risk | Never | Low risk |
+| SessionStorage | OK | Never | OK |
+| HttpOnly Cookie | Best | Best | OK |
+| Secure Cookie | Best | Best | OK |
 
-**Recommended approach:**
-```javascript
-// Store tokens in httpOnly, secure cookies (backend sets them)
-// OR use BFF pattern with session cookies
-```
-
-### 7. Monitoring and Logging
-
-**Key metrics to monitor:**
-- Failed authentication attempts
-- Token refresh failures
-- Invalid client credentials
-- Unusual geographic locations
-- High-frequency token requests
-
-**Logging example:**
-```go
-log.Info("OIDC authorization success",
-    "client_id", clientID,
-    "user_id", userID,
-    "tenant_id", tenantID,
-    "scopes", scopes,
-    "ip", clientIP,
-)
-
-log.Warn("OIDC authentication failed",
-    "client_id", clientID,
-    "reason", "invalid_credentials",
-    "ip", clientIP,
-    "attempt_count", attemptCount,
-)
-```
-
-### 8. Client Secret Management
+### 7. Client Secret Management
 
 **Generate strong client secrets:**
 ```bash
@@ -379,15 +267,6 @@ import "golang.org/x/crypto/bcrypt"
 
 hashedSecret, _ := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
 ```
-
-**Rotate secrets periodically:**
-1. Generate new secret
-2. Update client with new secret
-3. Update all applications using the client
-4. Verify all applications work with new secret
-5. Revoke old secret after grace period
-
----
 
 ## Production Checklist
 
@@ -404,8 +283,6 @@ Before deploying to production:
 - [ ] Backup and recovery procedures are documented
 - [ ] Key rotation procedure is documented
 - [ ] Security audit has been performed
-
----
 
 ## Troubleshooting
 
@@ -435,8 +312,6 @@ Before deploying to production:
 - Verify refresh token has not expired
 - Check client_id matches original authorization
 - Ensure refresh token hasn't been revoked
-
----
 
 ## Additional Resources
 

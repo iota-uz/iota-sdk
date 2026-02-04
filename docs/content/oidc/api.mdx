@@ -1,18 +1,11 @@
-# OIDC API Documentation
+---
+title: 'OIDC API Reference'
+description: 'Complete API documentation for all OIDC endpoints'
+---
+
+# OIDC API Reference
 
 This document describes all OIDC endpoints provided by the IOTA SDK OIDC module.
-
-## Table of Contents
-
-- [Discovery Endpoint](#discovery-endpoint)
-- [Authorization Endpoint](#authorization-endpoint)
-- [Token Endpoint](#token-endpoint)
-- [UserInfo Endpoint](#userinfo-endpoint)
-- [JWKS Endpoint](#jwks-endpoint)
-- [Token Revocation Endpoint](#token-revocation-endpoint)
-- [Error Responses](#error-responses)
-
----
 
 ## Discovery Endpoint
 
@@ -43,8 +36,6 @@ curl https://your-domain.com/.well-known/openid-configuration
   "code_challenge_methods_supported": ["S256", "plain"]
 }
 ```
-
----
 
 ## Authorization Endpoint
 
@@ -78,10 +69,10 @@ state=random-state-123"
 **Example (with PKCE):**
 ```bash
 # Generate code verifier
-CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-43)
+CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | cut -c1-43)
 
 # Generate code challenge
-CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr -d "=+/" | tr -d "\n")
+CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=' | tr -d "\n")
 
 curl -X GET "https://your-domain.com/oidc/authorize?\
 client_id=my-client-id&\
@@ -104,19 +95,13 @@ Location: http://localhost:3000/callback?code=AUTH_CODE&state=random-state-123
 
 **Error Responses:**
 
-```
-# Invalid redirect URI
-HTTP/1.1 400 Bad Request
+```json
+// Invalid redirect URI
 {
   "error": "invalid_request",
   "error_description": "Invalid redirect_uri"
 }
-
-# Missing required parameter
-Location: http://localhost:3000/callback?error=invalid_request&error_description=Missing+client_id&state=random-state-123
 ```
-
----
 
 ## Token Endpoint
 
@@ -174,11 +159,11 @@ curl -X POST https://your-domain.com/oidc/token \
 **Success Response:**
 ```json
 {
-  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "<ACCESS_TOKEN>",
   "token_type": "Bearer",
   "expires_in": 3600,
-  "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "id_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "<REFRESH_TOKEN>",
+  "id_token": "<ID_TOKEN>",
   "scope": "openid profile email"
 }
 ```
@@ -196,8 +181,6 @@ curl -X POST https://your-domain.com/oidc/token \
 }
 ```
 
----
-
 ## UserInfo Endpoint
 
 ### `GET /oidc/userinfo`
@@ -212,7 +195,7 @@ Authorization: Bearer ACCESS_TOKEN
 **Example:**
 ```bash
 curl -X GET https://your-domain.com/oidc/userinfo \
-  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
 ```
 
 **Success Response:**
@@ -236,8 +219,6 @@ curl -X GET https://your-domain.com/oidc/userinfo \
   "error_description": "Access token is expired"
 }
 ```
-
----
 
 ## JWKS Endpoint
 
@@ -265,8 +246,6 @@ curl https://your-domain.com/oidc/keys
   ]
 }
 ```
-
----
 
 ## Token Revocation Endpoint
 
@@ -301,8 +280,6 @@ curl -X POST https://your-domain.com/oidc/revoke \
 HTTP/1.1 200 OK
 ```
 
----
-
 ## Error Responses
 
 All endpoints return standard OAuth 2.0 error responses:
@@ -330,8 +307,6 @@ All endpoints return standard OAuth 2.0 error responses:
 }
 ```
 
----
-
 ## PKCE Flow Example
 
 Complete PKCE flow from start to finish:
@@ -340,8 +315,8 @@ Complete PKCE flow from start to finish:
 #!/bin/bash
 
 # Step 1: Generate code verifier and challenge
-CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-43)
-CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr -d "=+/" | tr -d "\n")
+CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | cut -c1-43)
+CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | shasum -a 256 | awk '{print $1}' | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=' | tr -d "\n")
 
 echo "Code Verifier: $CODE_VERIFIER"
 echo "Code Challenge: $CODE_CHALLENGE"
@@ -363,8 +338,6 @@ curl -X POST https://your-domain.com/oidc/token \
   -d "code_verifier=$CODE_VERIFIER"
 ```
 
----
-
 ## Rate Limiting
 
 All endpoints are subject to rate limiting:
@@ -380,8 +353,6 @@ X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 99
 X-RateLimit-Reset: 1638360000
 ```
-
----
 
 ## Security Recommendations
 

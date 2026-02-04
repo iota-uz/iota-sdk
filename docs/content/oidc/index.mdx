@@ -1,0 +1,194 @@
+---
+title: 'OIDC Module'
+description: 'OpenID Connect authentication and authorization for IOTA SDK'
+---
+
+# OIDC Module
+
+OpenID Connect (OIDC) authentication and authorization module for IOTA SDK.
+
+## Features
+
+- **OpenID Connect Core 1.0** compliant
+- **OAuth 2.0** authorization framework
+- **PKCE** (Proof Key for Code Exchange) support
+- **Multi-tenant** architecture
+- **RSA signing keys** with encryption at rest
+- **Refresh tokens** with rotation
+- **Token revocation** support
+- **User info endpoint**
+- **JWKS** (JSON Web Key Set) endpoint
+- **Discovery endpoint** (.well-known/openid-configuration)
+
+## Quick Start
+
+### 1. Run Migrations
+
+```bash
+make db migrate up
+```
+
+This creates the following tables:
+- `oidc_clients` - OAuth2/OIDC client applications
+- `oidc_auth_requests` - Authorization requests (temporary storage)
+- `oidc_refresh_tokens` - Refresh tokens
+- `oidc_signing_keys` - RSA signing keys (encrypted)
+
+### 2. Configure Environment
+
+```bash
+# .env
+OIDC_ISSUER_URL=https://your-domain.com
+OIDC_CRYPTO_KEY=your-secure-random-32-char-minimum-key-here
+```
+
+Generate crypto key:
+```bash
+openssl rand -base64 32
+```
+
+### 3. Bootstrap Signing Keys
+
+Start the application (keys will be auto-generated):
+```bash
+make run
+```
+
+### 4. Register a Client
+
+```sql
+INSERT INTO oidc_clients (
+    client_id,
+    name,
+    application_type,
+    redirect_uris,
+    require_pkce
+) VALUES (
+    'my-client-id',
+    'My Application',
+    'web',
+    ARRAY['http://localhost:3000/callback'],
+    true
+);
+```
+
+Or use the example script:
+```bash
+psql -d iota_erp -f modules/oidc/examples/client_setup.sql
+```
+
+### 5. Test OIDC Flow
+
+Use the provided shell script to test the complete flow:
+```bash
+bash modules/oidc/examples/curl_flow.sh
+```
+
+## Architecture
+
+```
+modules/oidc/
+├── domain/
+│   └── entities/
+│       ├── client/          # OAuth2 client entity
+│       ├── authrequest/     # Authorization request entity
+│       └── token/           # Refresh token entity
+├── services/
+│   └── oidc_service.go      # Business logic layer
+├── infrastructure/
+│   ├── persistence/         # Repository implementations
+│   └── oidc/
+│       ├── keys.go          # RSA key management
+│       └── storage.go       # OP storage implementation
+├── presentation/
+│   └── controllers/
+│       └── oidc_controller.go  # HTTP handlers
+└── examples/                # Example code and scripts
+```
+
+## Supported Flows
+
+### Authorization Code Flow
+
+Standard OAuth 2.0 authorization code flow with optional PKCE:
+
+1. Client initiates authorization request
+2. User authenticates and consents
+3. Authorization code is issued
+4. Client exchanges code for tokens
+5. Client uses access token to access resources
+
+### Refresh Token Flow
+
+Obtain new access tokens using refresh tokens:
+
+1. Client sends refresh token to token endpoint
+2. Server validates refresh token
+3. New access token is issued
+4. Optional: New refresh token is issued (rotation)
+
+## Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /.well-known/openid-configuration` | Discovery endpoint |
+| `GET /oidc/authorize` | Authorization endpoint |
+| `POST /oidc/token` | Token endpoint |
+| `GET /oidc/userinfo` | User info endpoint |
+| `GET /oidc/keys` | JWKS endpoint |
+| `POST /oidc/revoke` | Token revocation endpoint |
+
+See [API Reference](/oidc/api) for detailed endpoint documentation.
+
+## Security
+
+### Key Management
+
+- RSA signing keys are generated automatically on first run
+- Private keys are encrypted using AES-256-GCM before storage
+- Crypto key is derived from `OIDC_CRYPTO_KEY` environment variable using SHA-256
+- Keys are stored in the `oidc_signing_keys` table
+
+### Token Security
+
+- Access tokens are short-lived (default: 1 hour)
+- Refresh tokens are long-lived (default: 30 days)
+- Authorization codes expire quickly (default: 5 minutes)
+- All tokens are JWTs signed with RS256
+- Refresh tokens are hashed (SHA-256) before storage
+
+### Client Security
+
+- Client secrets are hashed using bcrypt
+- PKCE is required for public clients
+- Redirect URIs must exactly match (no wildcards)
+- HTTPS required in production
+
+See [Configuration](/oidc/configuration) for security best practices.
+
+## Multi-Tenant Support
+
+The OIDC module fully supports IOTA SDK's multi-tenant architecture:
+
+- Clients are global (shared across tenants)
+- Auth requests are scoped to tenant after user authentication
+- Refresh tokens are scoped to user + tenant + client combination
+- Token claims include `tenant_id`
+- User info returns data for authenticated tenant only
+
+## Testing
+
+Run all OIDC tests:
+
+```bash
+# Run all OIDC tests
+go test ./modules/oidc/... -v
+
+# Run specific test suite
+go test ./modules/oidc/infrastructure/persistence -v
+go test ./modules/oidc/domain/entities/client -v
+go test ./modules/oidc/services -v
+
+# Run with coverage
+go test ./modules/oidc/... -cover
+```

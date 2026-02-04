@@ -2,11 +2,9 @@ package persistence
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/modules/oidc/domain/entities/client"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/persistence/models"
@@ -367,9 +365,6 @@ func (r *ClientRepository) queryClients(ctx context.Context, op serrors.Op, quer
 	}
 
 	if err := rows.Err(); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return []client.Client{}, nil
-		}
 		return nil, serrors.E(op, err)
 	}
 

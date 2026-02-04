@@ -81,11 +81,12 @@ bash modules/oidc/examples/curl_flow.sh
 
 ## Documentation
 
-Comprehensive documentation is available in the `docs/` directory:
+Comprehensive documentation is available in the main SDK docs:
 
-- **[API.md](docs/API.md)** - Complete API reference for all OIDC endpoints
-- **[CONFIGURATION.md](docs/CONFIGURATION.md)** - Environment variables, token lifetimes, security best practices
-- **[MIGRATION.md](docs/MIGRATION.md)** - Step-by-step guide to enable OIDC on existing installation
+- **[OIDC Overview](https://iota-sdk.dev/oidc)** - Module overview and quick start
+- **[API Reference](https://iota-sdk.dev/oidc/api)** - Complete API reference for all OIDC endpoints
+- **[Configuration](https://iota-sdk.dev/oidc/configuration)** - Environment variables, token lifetimes, security best practices
+- **[Migration Guide](https://iota-sdk.dev/oidc/migration)** - Step-by-step guide to enable OIDC on existing installation
 
 ## Examples
 
@@ -214,7 +215,7 @@ For machine-to-machine communication (future implementation).
 - `GET /oidc/keys` - JWKS endpoint
 - `POST /oidc/revoke` - Token revocation endpoint
 
-See [API.md](docs/API.md) for detailed endpoint documentation.
+See [API Reference](https://iota-sdk.dev/oidc/api) for detailed endpoint documentation.
 
 ## Security
 
@@ -240,7 +241,7 @@ See [API.md](docs/API.md) for detailed endpoint documentation.
 - Redirect URIs must exactly match (no wildcards)
 - HTTPS required in production
 
-See [CONFIGURATION.md](docs/CONFIGURATION.md) for security best practices.
+See [Configuration Guide](https://iota-sdk.dev/oidc/configuration) for security best practices.
 
 ## Multi-Tenant Support
 
@@ -287,7 +288,7 @@ SET require_pkce = true
 WHERE client_id = 'my-client-id';
 ```
 
-See [CONFIGURATION.md](docs/CONFIGURATION.md) for complete configuration guide.
+See [Configuration Guide](https://iota-sdk.dev/oidc/configuration) for complete configuration guide.
 
 ## Troubleshooting
 
@@ -314,7 +315,7 @@ Redirect URI must exactly match the registered URI (case-sensitive, including tr
 SELECT client_id, redirect_uris FROM oidc_clients WHERE client_id = 'my-client';
 ```
 
-See [CONFIGURATION.md](docs/CONFIGURATION.md#troubleshooting) for more troubleshooting tips.
+See [Configuration Guide](https://iota-sdk.dev/oidc/configuration#troubleshooting) for more troubleshooting tips.
 
 ## Development
 

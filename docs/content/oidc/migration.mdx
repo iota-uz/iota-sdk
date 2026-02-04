@@ -1,3 +1,8 @@
+---
+title: 'OIDC Migration Guide'
+description: 'Step-by-step guide to enable OIDC on an existing installation'
+---
+
 # OIDC Migration Guide
 
 This guide explains how to enable and configure OIDC on an existing IOTA SDK installation.
@@ -8,8 +13,6 @@ This guide explains how to enable and configure OIDC on an existing IOTA SDK ins
 - PostgreSQL 13+ database
 - Go 1.23.2 or higher
 - Access to database migration tools
-
----
 
 ## Step 1: Run Database Migrations
 
@@ -23,7 +26,7 @@ make db migrate up
 sql-migrate up -limit=1 migrations/XXXXXX_create_oidc_tables.sql
 ```
 
-**Migrationfiles created:**
+**Tables created:**
 - `oidc_clients` - OAuth2/OIDC client applications
 - `oidc_auth_requests` - Authorization requests (temporary)
 - `oidc_refresh_tokens` - Refresh tokens
@@ -44,8 +47,6 @@ Expected output:
  public | oidc_refresh_tokens  | table | postgres
  public | oidc_signing_keys    | table | postgres
 ```
-
----
 
 ## Step 2: Configure Environment Variables
 
@@ -68,8 +69,6 @@ OIDC_REFRESH_TOKEN_LIFETIME=2592000      # 30 days
 ```bash
 openssl rand -base64 32
 ```
-
----
 
 ## Step 3: Bootstrap Signing Keys
 
@@ -96,8 +95,6 @@ Expected output:
  550e8400-e29b-41d4-a716-446655440000 | RS256     | t         | 2026-01-31 12:00:00
 ```
 
----
-
 ## Step 4: Register Your First Client
 
 Create an OAuth2/OIDC client for your application:
@@ -116,15 +113,15 @@ INSERT INTO oidc_clients (
     require_pkce,
     is_active
 ) VALUES (
-    'my-first-client',                                    -- Unique client ID
-    'My Application',                                      -- Display name
-    'web',                                                -- 'web' or 'spa'
-    ARRAY['http://localhost:3000/callback'],              -- Allowed redirect URIs
-    ARRAY['authorization_code', 'refresh_token'],         -- Grant types
-    ARRAY['code'],                                        -- Response types
-    ARRAY['openid', 'profile', 'email', 'offline_access'], -- Allowed scopes
-    false,                                                -- PKCE not required for manual testing (recommended for production)
-    true                                                  -- Active
+    'my-first-client',
+    'My Application',
+    'web',
+    ARRAY['http://localhost:3000/callback'],
+    ARRAY['authorization_code', 'refresh_token'],
+    ARRAY['code'],
+    ARRAY['openid', 'profile', 'email', 'offline_access'],
+    false,  -- Set to true for production
+    true
 );
 ```
 
@@ -169,11 +166,8 @@ func main() {
 ### Option 3: Using Example Script
 
 ```bash
-# See modules/oidc/examples/client_setup.sql
 psql -d iota_erp -f modules/oidc/examples/client_setup.sql
 ```
-
----
 
 ## Step 5: Test OIDC Flow
 
@@ -234,11 +228,8 @@ curl -X GET http://localhost:8080/oidc/userinfo \
 Use the provided shell script:
 
 ```bash
-# See modules/oidc/examples/curl_flow.sh
 bash modules/oidc/examples/curl_flow.sh
 ```
-
----
 
 ## Step 6: Update Your Application
 
@@ -309,8 +300,6 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
----
-
 ## Step 7: Production Deployment
 
 Before deploying to production:
@@ -349,25 +338,12 @@ OIDC_RATE_LIMIT_USERINFO=200
 OIDC_ALLOWED_ORIGINS=https://app.your-domain.com,https://admin.your-domain.com
 ```
 
-### 5. Setup Monitoring
-
-Monitor these metrics:
-- Failed authentication attempts
-- Token refresh failures
-- Invalid client errors
-- High-frequency requests
-
-### 6. Backup Signing Keys
+### 5. Backup Signing Keys
 
 ```bash
 # Backup encrypted keys
 pg_dump -d iota_erp -t oidc_signing_keys > oidc_keys_backup.sql
-
-# Store backup securely
-aws s3 cp oidc_keys_backup.sql s3://your-backup-bucket/oidc/
 ```
-
----
 
 ## Rollback Procedure
 
@@ -393,8 +369,6 @@ Remove OIDC-related variables from `.env`.
 ```bash
 make restart
 ```
-
----
 
 ## Common Migration Issues
 
@@ -448,26 +422,12 @@ WHERE client_id = 'my-first-client';
 - Check environment variable is loaded correctly
 - Re-bootstrap keys with correct crypto key
 
----
-
 ## Next Steps
 
 After successful migration:
 
-1. Review [API Documentation](API.md) for endpoint details
-2. Review [Configuration Guide](CONFIGURATION.md) for advanced settings
+1. Review [API Reference](/oidc/api) for endpoint details
+2. Review [Configuration Guide](/oidc/configuration) for advanced settings
 3. Implement token refresh in your application
 4. Setup monitoring and alerting
 5. Conduct security audit
-6. Train your team on OIDC flows
-
----
-
-## Support
-
-For issues or questions:
-
-1. Check [Troubleshooting](CONFIGURATION.md#troubleshooting) section
-2. Review [test files](../infrastructure/persistence/*_test.go) for examples
-3. Open an issue on GitHub
-4. Contact IOTA SDK support team
