@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -59,7 +60,6 @@ func (c *MessageTemplateController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
@@ -136,7 +136,11 @@ func (c *MessageTemplateController) Create(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if _, err := c.templateService.Create(r.Context(), dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.templateService.Create(txCtx, dto)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -170,7 +174,11 @@ func (c *MessageTemplateController) Update(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if _, err := c.templateService.Update(r.Context(), id, dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.templateService.Update(txCtx, id, dto)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -185,7 +193,11 @@ func (c *MessageTemplateController) Delete(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if _, err := c.templateService.Delete(r.Context(), id); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.templateService.Delete(txCtx, id)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

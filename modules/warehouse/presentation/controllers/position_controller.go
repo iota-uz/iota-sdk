@@ -82,7 +82,6 @@ func (c *PositionsController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 
 	setRouter.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
@@ -455,7 +454,10 @@ func (c *PositionsController) Update(
 		templ.Handler(positions2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-	if err := positionService.Update(r.Context(), id, &dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return positionService.Update(txCtx, id, &dto)
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -516,7 +518,11 @@ func (c *PositionsController) Create(
 		return
 	}
 
-	if _, err := positionService.Create(r.Context(), &dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := positionService.Create(txCtx, &dto)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -534,7 +540,11 @@ func (c *PositionsController) Delete(
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if _, err := positionService.Delete(r.Context(), id); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := positionService.Delete(txCtx, id)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

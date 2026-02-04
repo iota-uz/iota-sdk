@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -63,7 +64,6 @@ func (c *EmployeeController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
@@ -163,7 +163,9 @@ func (c *EmployeeController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = c.employeeService.Create(r.Context(), dto)
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return c.employeeService.Create(txCtx, dto)
+	})
 	if err != nil {
 		l, ok := intl.UseLocalizer(r.Context())
 		if !ok {
@@ -231,7 +233,9 @@ func (c *EmployeeController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	errorsMap, ok := dto.Ok(r.Context())
 	if ok {
-		err := c.employeeService.Update(r.Context(), id, dto)
+		err := composables.InTx(r.Context(), func(txCtx context.Context) error {
+			return c.employeeService.Update(txCtx, id, dto)
+		})
 		if err != nil {
 			l, ok := intl.UseLocalizer(r.Context())
 			if !ok {
@@ -300,7 +304,11 @@ func (c *EmployeeController) Delete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error parsing id", http.StatusInternalServerError)
 		return
 	}
-	if _, err := c.employeeService.Delete(r.Context(), id); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.employeeService.Delete(txCtx, id)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -64,7 +65,6 @@ func (c *UnitsController) Register(r *mux.Router) {
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
 	setRouter.Use(commonMiddleware...)
-	setRouter.Use(middleware.WithTransaction())
 	setRouter.HandleFunc("", c.Create).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Update).Methods(http.MethodPost)
 	setRouter.HandleFunc("/{id:[0-9]+}", c.Delete).Methods(http.MethodDelete)
@@ -138,7 +138,11 @@ func (c *UnitsController) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.unitService.Delete(r.Context(), id); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.unitService.Delete(txCtx, id)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -175,7 +179,10 @@ func (c *UnitsController) Update(w http.ResponseWriter, r *http.Request) {
 		templ.Handler(units2.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
 	}
-	if err := c.unitService.Update(r.Context(), id, &dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		return c.unitService.Update(txCtx, id, &dto)
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -222,7 +229,11 @@ func (c *UnitsController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := c.unitService.Create(r.Context(), &dto); err != nil {
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		_, err := c.unitService.Create(txCtx, &dto)
+		return err
+	})
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

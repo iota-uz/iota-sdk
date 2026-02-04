@@ -85,7 +85,6 @@ func (c *LoginController) Register(r *mux.Router) {
 	setRouter := r.PathPrefix("/login").Subrouter()
 	setRouter.Use(
 		middleware.ProvideLocalizer(c.app),
-		middleware.WithTransaction(),
 		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
 	)
 	setRouter.HandleFunc("", c.Post).Methods(http.MethodPost)
@@ -175,7 +174,12 @@ func (c *LoginController) Post(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, err := c.authService.CookieAuthenticate(r.Context(), dto.Email, dto.Password)
+	var cookie *http.Cookie
+	err = composables.InTx(r.Context(), func(txCtx context.Context) error {
+		var err error
+		cookie, err = c.authService.CookieAuthenticate(txCtx, dto.Email, dto.Password)
+		return err
+	})
 	if err != nil {
 		logger.Error("Failed to authenticate user", "error", err)
 		if errors.Is(err, composables.ErrInvalidPassword) {
