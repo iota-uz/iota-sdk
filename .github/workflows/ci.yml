@@ -49,6 +49,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pgformatter
 
+      - name: Install just
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+          just --version
+
       - name: Download Go dependencies
         run: go mod download
 
@@ -58,7 +63,8 @@ jobs:
           git diff --exit-code
 
       - name: Check translation files
-        run: just check tr
+        run: |
+          just check tr
 
       - name: Check templ files formatting
         run: |
@@ -201,7 +207,7 @@ jobs:
           COVERAGE_THRESHOLD: 10
           COVERAGE_MAX_FILES_DISPLAY: 100
           COVERAGE_IGNORE_PATTERNS: "cmd/,*_templ.go,viewmodels/"
-        run: node ./.github/scripts/coverage-report.js --file coverage.out --output github
+        run: node ./.github/scripts/coverage-report.cjs --file coverage.out --output github
 
       - name: Generate HTML coverage report
         run: go tool cover -html=coverage.out -o coverage.html
@@ -332,15 +338,18 @@ jobs:
           DB_USER: postgres
           DB_PASSWORD: postgres
           SID_COOKIE_KEY: sid
-          GO_APP_ENV: production
+          # Use development mode for E2E tests to ensure cookies work over HTTP
+          # (production mode sets Secure: true on cookies, which requires HTTPS)
+          GO_APP_ENV: development
           ENABLE_TEST_ENDPOINTS: true
         run: |
-          go run -tags dev cmd/server/main.go &
+          go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
           SERVER_PID=$!
           echo "SERVER_PID=$SERVER_PID" >> $GITHUB_ENV
 
           # Wait for server to be ready (timeout: 60 seconds)
           timeout 60 bash -c 'until curl -s http://localhost:3201 > /dev/null; do sleep 1; done'
+          echo "Server started successfully"
 
       - name: Run Playwright Tests
         env:
@@ -351,6 +360,12 @@ jobs:
       - name: Stop Go Server
         if: always()
         run: kill ${{ env.SERVER_PID }} || true
+
+      - name: Show Server Logs
+        if: failure()
+        run: |
+          echo "=== Server Logs ==="
+          cat /tmp/server.log || echo "No server logs found"
 
       - name: Upload Playwright Report
         if: always()
@@ -367,6 +382,14 @@ jobs:
           name: test-results
           path: e2e/test-results/
           retention-days: 30
+
+      - name: Upload Server Logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-logs
+          path: /tmp/server.log
+          retention-days: 7
 
   docs-build:
     name: Documentation Build

@@ -76,7 +76,7 @@ func (e *PostgresQueryExecutor) ExecuteQuery(ctx context.Context, sql string, pa
 	fieldDescriptions := rows.FieldDescriptions()
 	columnNames := make([]string, len(fieldDescriptions))
 	for i, fd := range fieldDescriptions {
-		columnNames[i] = string(fd.Name)
+		columnNames[i] = fd.Name
 	}
 
 	// Collect rows (canonical format: [][]any)

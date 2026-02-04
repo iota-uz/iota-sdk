@@ -195,19 +195,13 @@ func (c *StreamController) sendSSEEvent(w http.ResponseWriter, flusher http.Flus
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		// If we can't marshal, send a plain error
-		fmt.Fprintf(w, "event: error\n")
-		fmt.Fprintf(w, "data: {\"type\":\"error\",\"error\":\"Failed to serialize data\"}\n\n")
+		_, _ = fmt.Fprintf(w, "event: error\n")
+		_, _ = fmt.Fprintf(w, "data: {\"type\":\"error\",\"error\":\"Failed to serialize data\"}\n\n")
 		flusher.Flush()
 		return
 	}
 
-	fmt.Fprintf(w, "event: %s\n", event)
-	fmt.Fprintf(w, "data: %s\n\n", jsonData)
-	flusher.Flush()
-}
-
-// sendSSEComment sends an SSE comment for keep-alive
-func (c *StreamController) sendSSEComment(w http.ResponseWriter, flusher http.Flusher, comment string) {
-	fmt.Fprintf(w, ": %s\n\n", comment)
+	_, _ = fmt.Fprintf(w, "event: %s\n", event)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", jsonData)
 	flusher.Flush()
 }

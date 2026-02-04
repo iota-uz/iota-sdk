@@ -102,7 +102,7 @@ func TestExportQueryToExcelTool_Call_Success(t *testing.T) {
 	assert.Equal(t, "test_export.xlsx", output.Filename)
 	assert.Equal(t, 2, output.RowCount)
 	assert.Equal(t, "Test export file", output.Description)
-	assert.Greater(t, output.FileSizeKB, int64(0))
+	assert.Positive(t, output.FileSizeKB)
 
 	// Verify file exists
 	filePath := filepath.Join(tmpDir, "test_export.xlsx")

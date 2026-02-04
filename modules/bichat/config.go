@@ -406,7 +406,7 @@ func (c *ModuleConfig) Validate() error {
 
 	// Validate Renderer
 	if c.Renderer == nil {
-		return errors.New("Renderer is required")
+		return errors.New("renderer is required")
 	}
 
 	// Validate TokenEstimator

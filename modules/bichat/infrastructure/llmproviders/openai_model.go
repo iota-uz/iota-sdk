@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"os"
 	"regexp"
 	"sort"
@@ -158,7 +159,11 @@ func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...ag
 	}
 
 	return types.NewGenerator(ctx, func(genCtx context.Context, yield func(agents.Chunk) bool) error {
-		defer stream.Close()
+		defer func() {
+			if err := stream.Close(); err != nil {
+				log.Printf("openai stream close: %v", err)
+			}
+		}()
 
 		// Accumulate tool calls across chunks
 		toolCallsMap := make(map[int]*types.ToolCall)

@@ -82,7 +82,7 @@ func TestSQLAgent_CoreTools(t *testing.T) {
 	}
 
 	// Verify count - should only have SQL tools (no KB search, no charts, no HITL)
-	assert.Equal(t, 3, len(agentTools), "SQL agent should have exactly 3 tools")
+	assert.Len(t, agentTools, 3, "SQL agent should have exactly 3 tools")
 }
 
 func TestSQLAgent_WithModel(t *testing.T) {
@@ -193,9 +193,9 @@ func TestSQLAgent_ToolRouting(t *testing.T) {
 			result, err := agent.OnToolCall(ctx, tt.toolName, tt.input)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotEmpty(t, result)
 			}
 		})

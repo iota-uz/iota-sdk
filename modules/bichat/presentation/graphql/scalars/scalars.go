@@ -36,7 +36,7 @@ func MarshalTime(t time.Time) graphql.Marshaler {
 func UnmarshalTime(v interface{}) (time.Time, error) {
 	str, ok := v.(string)
 	if !ok {
-		return time.Time{}, fmt.Errorf("Time must be a string")
+		return time.Time{}, fmt.Errorf("time must be a string")
 	}
 	return time.Parse(time.RFC3339, str)
 }

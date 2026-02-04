@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockAssistantsExecutor is a mock implementation for testing
@@ -63,7 +64,7 @@ func TestCodeInterpreterTool(t *testing.T) {
 
 		result, err := tool.Call(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "executor not configured")
 	})
@@ -88,7 +89,7 @@ func TestCodeInterpreterTool(t *testing.T) {
 
 		result, err := tool.Call(ctx, input)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEmpty(t, result)
 		assert.Contains(t, result, "completed")
 		assert.Contains(t, result, "chart.png")
@@ -104,7 +105,7 @@ func TestCodeInterpreterTool(t *testing.T) {
 
 		result, err := tool.Call(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "code execution failed")
 	})
@@ -117,7 +118,7 @@ func TestCodeInterpreterTool(t *testing.T) {
 
 		result, err := tool.Call(ctx, input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Empty(t, result)
 		assert.Contains(t, err.Error(), "failed to parse")
 	})

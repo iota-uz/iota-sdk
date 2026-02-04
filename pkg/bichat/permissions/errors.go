@@ -85,6 +85,8 @@ func FormatRequiredPermissions(permNames []string, logic PermissionLogic) string
 	switch logic {
 	case LogicAll:
 		operator = " AND "
+	case LogicAny:
+		operator = " OR "
 	default:
 		operator = " OR "
 	}

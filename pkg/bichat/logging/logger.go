@@ -3,6 +3,8 @@ package logging
 import (
 	"context"
 	"fmt"
+	"log"
+	"strings"
 )
 
 // Logger provides structured logging for BiChat components.
@@ -106,10 +108,11 @@ func (l *StdLogger) log(level, msg string, fields map[string]any) {
 		allFields[k] = v
 	}
 
-	// Format: [LEVEL] message key=value key=value
-	fmt.Printf("[%s] %s", level, msg)
+	// Format: [LEVEL] message key=value key=value (single line)
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("[%s] %s", level, msg))
 	for k, v := range allFields {
-		fmt.Printf(" %s=%v", k, v)
+		b.WriteString(fmt.Sprintf(" %s=%v", k, v))
 	}
-	fmt.Println()
+	log.Println(b.String())
 }

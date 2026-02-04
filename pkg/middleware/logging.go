@@ -269,7 +269,7 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 
 				wrappedWriter := wrapResponseWriter(w)
 
-				// Recover from panics, log them with full context, then re-panic
+				// Recover from panics, log them with full context, and return 500 error
 				defer func() {
 					if recovered := recover(); recovered != nil {
 						duration := time.Since(start)
@@ -299,12 +299,10 @@ func WithLogger(logger *logrus.Logger, opts LoggerOptions) mux.MiddlewareFunc {
 						fieldsLogger.WithFields(panicFields).Error("panic recovered in request handler")
 
 						// Set 500 status code so client receives proper HTTP response
+						// Don't re-panic - instead write a proper error response
 						if !wrappedWriter.statusWritten {
-							wrappedWriter.WriteHeader(http.StatusInternalServerError)
+							http.Error(wrappedWriter, "Internal Server Error", http.StatusInternalServerError)
 						}
-
-						// Re-panic to propagate upstream to process-level recovery
-						panic(recovered)
 					}
 				}()
 
