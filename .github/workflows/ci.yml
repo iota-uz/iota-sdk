@@ -358,7 +358,7 @@ jobs:
         run: kill ${{ env.SERVER_PID }} || true
 
       - name: Show Server Logs
-        if: always()
+        if: failure()
         run: |
           echo "=== Server Logs ==="
           cat /tmp/server.log || echo "No server logs found"
@@ -380,7 +380,7 @@ jobs:
           retention-days: 30
 
       - name: Upload Server Logs
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: server-logs

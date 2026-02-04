@@ -6,6 +6,7 @@ package resolvers
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"time"
 
@@ -18,6 +19,14 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
+
+// userIDToUUID converts a numeric user ID to a deterministic UUID.
+// The user ID is encoded in the low 64 bits, making it reversible.
+func userIDToUUID(userID uint) uuid.UUID {
+	var id uuid.UUID
+	binary.BigEndian.PutUint64(id[8:], uint64(userID))
+	return id
+}
 
 // CreateSession is the resolver for the createSession field.
 func (r *mutationResolver) CreateSession(ctx context.Context, title *string) (*model.Session, error) {
@@ -80,14 +89,12 @@ func (r *mutationResolver) SendMessage(ctx context.Context, sessionID string, co
 
 	// Parse and save attachments from GraphQL uploads
 	domainAttachments := make([]domain.Attachment, 0, len(attachments))
+	userUUID := userIDToUUID(user.ID())
 	for _, upload := range attachments {
 		if upload == nil {
 			continue
 		}
 
-		// Validate and save to storage
-		// Note: user.ID() returns uint, create a UUID from it
-		userUUID := uuid.New() // In production, should derive from user ID or use proper mapping
 		attachment, err := r.attachmentService.ValidateAndSave(
 			ctx,
 			upload.Filename,
@@ -207,6 +214,24 @@ func (r *mutationResolver) ArchiveSession(ctx context.Context, id string) (*mode
 		return nil, serrors.E(op, serrors.KindValidation, err)
 	}
 
+	// Get authenticated user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
+
+	// Verify session ownership
+	existingSession, err := r.chatService.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if existingSession.UserID() != int64(user.ID()) {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
+	}
+
 	session, err := r.chatService.ArchiveSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -224,6 +249,24 @@ func (r *mutationResolver) PinSession(ctx context.Context, id string) (*model.Se
 		return nil, serrors.E(op, serrors.KindValidation, err)
 	}
 
+	// Get authenticated user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
+
+	// Verify session ownership
+	existingSession, err := r.chatService.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if existingSession.UserID() != int64(user.ID()) {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
+	}
+
 	session, err := r.chatService.PinSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -239,6 +282,24 @@ func (r *mutationResolver) UnpinSession(ctx context.Context, id string) (*model.
 	sessionID, err := uuid.Parse(id)
 	if err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+
+	// Get authenticated user
+	user, err := composables.UseUser(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, err)
+	}
+	if user == nil {
+		return nil, serrors.E(op, serrors.PermissionDenied, "user not authenticated")
+	}
+
+	// Verify session ownership
+	existingSession, err := r.chatService.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if existingSession.UserID() != int64(user.ID()) {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session does not belong to user")
 	}
 
 	session, err := r.chatService.UnpinSession(ctx, sessionID)
@@ -434,6 +495,13 @@ func (r *mutationResolver) UpdateArtifact(ctx context.Context, id string, name *
 func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) ([]*model.Session, error) {
 	const op serrors.Op = "Resolver.Sessions"
 
+	// Get tenant ID for multi-tenant isolation
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+	_ = tenantID // Tenant ID passed implicitly via context to service layer
+
 	user, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, err)
@@ -443,13 +511,19 @@ func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) (
 	}
 	userID := int64(user.ID())
 
-	// Set defaults
+	// Set defaults and validate pagination parameters
 	l := 20
 	if limit != nil {
+		if *limit < 0 {
+			return nil, serrors.E(op, serrors.KindValidation, "limit cannot be negative")
+		}
 		l = *limit
 	}
 	o := 0
 	if offset != nil {
+		if *offset < 0 {
+			return nil, serrors.E(op, serrors.KindValidation, "offset cannot be negative")
+		}
 		o = *offset
 	}
 
@@ -476,6 +550,12 @@ func (r *queryResolver) Sessions(ctx context.Context, limit *int, offset *int) (
 func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session, error) {
 	const op serrors.Op = "Resolver.Session"
 
+	// Get tenant ID for multi-tenant isolation
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+
 	sessionID, err := uuid.Parse(id)
 	if err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, err)
@@ -484,6 +564,11 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 	session, err := r.chatService.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, serrors.E(op, err)
+	}
+
+	// Verify tenant isolation
+	if session.TenantID() != tenantID {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
 	}
 
 	user, err := composables.UseUser(ctx)
@@ -501,6 +586,12 @@ func (r *queryResolver) Session(ctx context.Context, id string) (*model.Session,
 func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *int, offset *int) ([]*model.Message, error) {
 	const op serrors.Op = "Resolver.Messages"
 
+	// Get tenant ID for multi-tenant isolation
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+
 	sid, err := uuid.Parse(sessionID)
 	if err != nil {
 		return nil, serrors.E(op, serrors.KindValidation, err)
@@ -511,6 +602,11 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 		return nil, serrors.E(op, err)
 	}
 
+	// Verify tenant isolation
+	if session.TenantID() != tenantID {
+		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
+	}
+
 	user, err := composables.UseUser(ctx)
 	if err != nil {
 		return nil, serrors.E(op, serrors.PermissionDenied, err)
@@ -519,13 +615,19 @@ func (r *queryResolver) Messages(ctx context.Context, sessionID string, limit *i
 		return nil, serrors.E(op, serrors.PermissionDenied, "session not found or access denied")
 	}
 
-	// Set defaults
+	// Set defaults and validate pagination parameters
 	l := 50
 	if limit != nil {
+		if *limit < 0 {
+			return nil, serrors.E(op, serrors.KindValidation, "limit cannot be negative")
+		}
 		l = *limit
 	}
 	o := 0
 	if offset != nil {
+		if *offset < 0 {
+			return nil, serrors.E(op, serrors.KindValidation, "offset cannot be negative")
+		}
 		o = *offset
 	}
 
@@ -685,6 +787,20 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, sessionID stri
 	go func() {
 		defer close(ch)
 
+		// Get tenant ID for multi-tenant isolation
+		tenantID, err := composables.UseTenantID(ctx)
+		if err != nil {
+			select {
+			case ch <- &model.MessageChunk{
+				Type:      model.ChunkTypeError,
+				Error:     strPtr("tenant context required"),
+				Timestamp: time.Now(),
+			}:
+			case <-ctx.Done():
+			}
+			return
+		}
+
 		// Get authenticated user
 		user, err := composables.UseUser(ctx)
 		if err != nil {
@@ -703,6 +819,31 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, sessionID stri
 			case ch <- &model.MessageChunk{
 				Type:      model.ChunkTypeError,
 				Error:     strPtr("user not authenticated"),
+				Timestamp: time.Now(),
+			}:
+			case <-ctx.Done():
+			}
+			return
+		}
+
+		// Verify session ownership and tenant isolation
+		session, err := r.chatService.GetSession(ctx, sid)
+		if err != nil {
+			select {
+			case ch <- &model.MessageChunk{
+				Type:      model.ChunkTypeError,
+				Error:     strPtr("session not found"),
+				Timestamp: time.Now(),
+			}:
+			case <-ctx.Done():
+			}
+			return
+		}
+		if session.TenantID() != tenantID || session.UserID() != int64(user.ID()) {
+			select {
+			case ch <- &model.MessageChunk{
+				Type:      model.ChunkTypeError,
+				Error:     strPtr("access denied"),
 				Timestamp: time.Now(),
 			}:
 			case <-ctx.Done():
