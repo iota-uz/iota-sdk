@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -297,7 +298,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 	ctx context.Context,
 	req op.TokenRequest,
 	refreshToken string,
-) (accessTokenID string, newRefreshToken string, expiration time.Time, error error) {
+) (string, string, time.Time, error) {
 	const operation serrors.Op = "Storage.CreateAccessAndRefreshTokens"
 
 	// Generate access token JWT
@@ -392,7 +393,7 @@ func (s *Storage) TokenRequestByRefreshToken(ctx context.Context, refreshToken s
 
 // GetRefreshTokenInfo retrieves user and token IDs from a refresh token
 // This method is used for token revocation and validation
-func (s *Storage) GetRefreshTokenInfo(ctx context.Context, clientID string, tokenValue string) (userID string, tokenID string, err error) {
+func (s *Storage) GetRefreshTokenInfo(ctx context.Context, clientID string, tokenValue string) (string, string, error) {
 	const operation serrors.Op = "Storage.GetRefreshTokenInfo"
 
 	// Hash the refresh token to look up in database
@@ -411,10 +412,7 @@ func (s *Storage) GetRefreshTokenInfo(ctx context.Context, clientID string, toke
 	}
 
 	// Return user ID and token ID
-	userID = fmt.Sprintf("%d", t.UserID())
-	tokenID = t.ID().String()
-
-	return userID, tokenID, nil
+	return fmt.Sprintf("%d", t.UserID()), t.ID().String(), nil
 }
 
 // RevokeToken revokes a token (access or refresh)
@@ -480,8 +478,7 @@ func (s *Storage) GetSigningKey(ctx context.Context, keyCh chan<- jose.SigningKe
 	privateKey, keyID, err := GetActiveSigningKey(ctx, s.db, s.cryptoKey)
 	if err != nil {
 		// Log error and close channel to signal failure
-		// In production, this should be logged to your logging system
-		fmt.Printf("ERROR: Failed to get signing key: %v\n", err)
+		log.Printf("OIDC: Failed to get signing key: %v", err)
 		close(keyCh)
 		return
 	}
@@ -904,7 +901,7 @@ func (c *oidcClient) RestrictAdditionalAccessTokenScopes() func(scopes []string)
 }
 
 func (c *oidcClient) IsScopeAllowed(scope string) bool {
-	return c.Client.ValidateScope(scope)
+	return c.ValidateScope(scope)
 }
 
 func (c *oidcClient) IDTokenUserinfoClaimsAssertion() bool {

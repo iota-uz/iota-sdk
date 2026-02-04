@@ -64,10 +64,10 @@ func (c *OIDCController) Register(r *mux.Router) {
 	}
 
 	// Initialize zitadel OIDC provider
-	provider, err := op.NewOpenIDProvider(
-		c.config.IssuerURL,
+	provider, err := op.NewProvider(
 		providerConfig,
 		c.storage,
+		op.StaticIssuer(c.config.IssuerURL),
 		// op.WithAllowInsecure() can be added for development without HTTPS
 	)
 	if err != nil {
@@ -102,8 +102,8 @@ func (c *OIDCController) Register(r *mux.Router) {
 	// - /revoke (revocation endpoint)
 	// - /end_session (logout endpoint)
 	// - /callback (auth callback after login)
-	r.PathPrefix("/.well-known/").Handler(provider.HttpHandler())
-	r.PathPrefix("/oidc/").Handler(http.StripPrefix("/oidc", provider.HttpHandler()))
+	r.PathPrefix("/.well-known/").Handler(provider)
+	r.PathPrefix("/oidc/").Handler(http.StripPrefix("/oidc", provider))
 
 	// Register custom handler for completing login flow
 	// This is called after user successfully logs in via /login

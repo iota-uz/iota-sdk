@@ -294,7 +294,8 @@ func TestTokenRepository_DeleteExpired(t *testing.T) {
 		uuid.New(),
 		[]string{"openid"},
 		time.Now().Add(-2*time.Hour),
-		1*time.Hour, // Will be expired
+		1*time.Hour,
+		token.WithExpiresAt(time.Now().Add(-1*time.Hour)), // Explicitly set past expiry
 	)
 	err := tokenRepo.Create(f.Ctx, expiredToken)
 	require.NoError(t, err)
@@ -361,7 +362,8 @@ func TestTokenRepository_IsExpired(t *testing.T) {
 			uuid.New(),
 			[]string{"openid"},
 			time.Now().Add(-2*time.Hour),
-			1*time.Hour, // Expired
+			1*time.Hour,
+			token.WithExpiresAt(time.Now().Add(-1*time.Hour)), // Explicitly set past expiry
 		)
 
 		err := tokenRepo.Create(f.Ctx, refreshToken)
