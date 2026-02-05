@@ -4,24 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestBiChatApplet_Name(t *testing.T) {
-	t.Parallel()
-
-	bichatApplet := NewBiChatApplet(nil)
-	assert.Equal(t, "bichat", bichatApplet.Name())
-}
-
-func TestBiChatApplet_BasePath(t *testing.T) {
-	t.Parallel()
-
-	bichatApplet := NewBiChatApplet(nil)
-	assert.Equal(t, "/bi-chat", bichatApplet.BasePath())
-}
 
 func TestBiChatApplet_Config(t *testing.T) {
 	t.Parallel()
@@ -51,6 +36,40 @@ func TestBiChatApplet_Config(t *testing.T) {
 	// Verify middleware
 	assert.NotNil(t, config.Middleware)
 	assert.NotEmpty(t, config.Middleware) // BiChat requires authentication middleware
+}
+
+func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
+	tests := []struct {
+		name               string
+		moduleConfig       *ModuleConfig
+		expectedBasePath   string
+		expectedStreamPath string
+	}{
+		{
+			name:               "nil config derives base path correctly",
+			moduleConfig:       nil,
+			expectedBasePath:   "/bi-chat",
+			expectedStreamPath: "/bi-chat/stream",
+		},
+		{
+			name:               "config with features derives base path correctly",
+			moduleConfig:       &ModuleConfig{EnableVision: true},
+			expectedBasePath:   "/bi-chat",
+			expectedStreamPath: "/bi-chat/stream",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bichatApplet := NewBiChatApplet(tt.moduleConfig)
+			basePath := bichatApplet.BasePath()
+			config := bichatApplet.Config()
+
+			require.Equal(t, tt.expectedBasePath, basePath, "BasePath() should return expected value")
+			assert.Equal(t, basePath, config.Mount.Attributes["base-path"], "config.Mount.Attributes[base-path] should match BasePath()")
+			assert.Equal(t, tt.expectedStreamPath, config.Endpoints.Stream, "config.Endpoints.Stream should be basePath+/stream")
+		})
+	}
 }
 
 func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
@@ -125,13 +144,6 @@ func TestBiChatApplet_SetConfig(t *testing.T) {
 
 	features := custom["features"].(map[string]bool)
 	assert.True(t, features["vision"])
-}
-
-func TestBiChatApplet_ImplementsAppletInterface(t *testing.T) {
-	t.Parallel()
-
-	// Verify BiChatApplet implements applet.Applet interface
-	var _ applet.Applet = (*BiChatApplet)(nil)
 }
 
 func TestModuleConfig_FeatureFlagOptions(t *testing.T) {

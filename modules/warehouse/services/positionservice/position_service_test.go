@@ -1,6 +1,7 @@
 package positionservice_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
@@ -13,7 +14,13 @@ func TestPositionService_LoadFromFilePath(t *testing.T) {
 
 	positionService := f.App.Service(positionservice.PositionService{}).(*positionservice.PositionService)
 
-	if err := positionService.LoadFromFilePath(f.Ctx, TestFilePath); err != nil {
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "positions_import.xlsx")
+	if err := createTestFile(filePath); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := positionService.LoadFromFilePath(f.Ctx, filePath); err != nil {
 		t.Fatal(err)
 	}
 

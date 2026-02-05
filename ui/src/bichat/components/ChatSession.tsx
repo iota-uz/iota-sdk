@@ -2,6 +2,9 @@
  * Main ChatSession component
  * Composes ChatHeader, MessageList, and MessageInput
  *
+ * Uses turn-based architecture where each ConversationTurn groups
+ * a user message with its assistant response.
+ *
  * Supports customization via slots:
  * - headerSlot: Custom content above the message list
  * - welcomeSlot: Replace the default welcome screen for new chats
@@ -11,7 +14,7 @@
 
 import { ReactNode } from 'react'
 import { ChatSessionProvider, useChat } from '../context/ChatContext'
-import { ChatDataSource, Message } from '../types'
+import { ChatDataSource, ConversationTurn } from '../types'
 import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { MessageInput } from './MessageInput'
@@ -22,8 +25,10 @@ interface ChatSessionProps {
   dataSource: ChatDataSource
   sessionId?: string
   isReadOnly?: boolean
-  renderUserMessage?: (message: Message) => ReactNode
-  renderAssistantMessage?: (message: Message) => ReactNode
+  /** Custom render function for user turns */
+  renderUserTurn?: (turn: ConversationTurn) => ReactNode
+  /** Custom render function for assistant turns */
+  renderAssistantTurn?: (turn: ConversationTurn) => ReactNode
   className?: string
   /** Custom content to display as header */
   headerSlot?: ReactNode
@@ -39,8 +44,8 @@ interface ChatSessionProps {
 
 function ChatSessionCore({
   isReadOnly,
-  renderUserMessage,
-  renderAssistantMessage,
+  renderUserTurn,
+  renderAssistantTurn,
   className = '',
   headerSlot,
   welcomeSlot,
@@ -51,7 +56,7 @@ function ChatSessionCore({
   const { t } = useTranslation()
   const {
     session,
-    messages,
+    turns,
     fetching,
     error,
     message,
@@ -78,8 +83,8 @@ function ChatSessionCore({
     )
   }
 
-  // Show welcome screen for new sessions with no messages
-  const showWelcome = !session && messages.length === 0
+  // Show welcome screen for new sessions with no turns
+  const showWelcome = !session && turns.length === 0
 
   const handlePromptSelect = (prompt: string) => {
     setMessage(prompt)
@@ -101,8 +106,8 @@ function ChatSessionCore({
         </div>
       ) : (
         <MessageList
-          renderUserMessage={renderUserMessage}
-          renderAssistantMessage={renderAssistantMessage}
+          renderUserTurn={renderUserTurn}
+          renderAssistantTurn={renderAssistantTurn}
         />
       )}
 

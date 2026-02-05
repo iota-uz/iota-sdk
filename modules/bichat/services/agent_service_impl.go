@@ -365,14 +365,11 @@ func convertInterruptEvent(agentInterrupt *agents.InterruptEvent) *services.Inte
 					})
 				}
 
-				// Determine question type
-				// If no options, it's a text question; otherwise single/multiple choice
-				questionType := services.QuestionTypeText
-				if len(options) > 0 {
-					questionType = services.QuestionTypeSingleChoice
-					if q.MultiSelect {
-						questionType = services.QuestionTypeMultipleChoice
-					}
+				// Determine question type.
+				// Questions are always single_choice or multiple_choice (no standalone free-text type).
+				questionType := services.QuestionTypeSingleChoice
+				if q.MultiSelect {
+					questionType = services.QuestionTypeMultipleChoice
 				}
 
 				questions = append(questions, services.Question{

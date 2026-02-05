@@ -1,12 +1,14 @@
 /**
  * Built-in HTTP data source with SSE streaming and AbortController
  * Implements ChatDataSource interface with real HTTP/GraphQL calls
+ *
+ * Uses turn-based architecture - fetches ConversationTurns instead of flat messages.
  */
 
 import type {
   ChatDataSource,
   Session,
-  Message,
+  ConversationTurn,
   PendingQuestion,
   Attachment,
   StreamChunk,
@@ -24,7 +26,7 @@ export interface HttpDataSourceConfig {
 
 interface SessionState {
   session: Session
-  messages: Message[]
+  turns: ConversationTurn[]
   pendingQuestion?: PendingQuestion | null
 }
 
@@ -125,7 +127,7 @@ export class HttpDataSource implements ChatDataSource {
   }
 
   /**
-   * Fetch an existing session with messages
+   * Fetch an existing session with turns (turn-based architecture)
    */
   async fetchSession(id: string): Promise<SessionState | null> {
     const query = `
@@ -139,46 +141,79 @@ export class HttpDataSource implements ChatDataSource {
             createdAt
             updatedAt
           }
-          messages {
+          turns {
             id
             sessionId
-            role
-            content
             createdAt
-            toolCalls {
+            userTurn {
               id
-              name
-              arguments
+              content
+              attachments {
+                id
+                filename
+                mimeType
+                sizeBytes
+                base64Data
+              }
+              createdAt
             }
-            citations {
+            assistantTurn {
               id
-              source
-              url
-              excerpt
+              content
+              explanation
+              citations {
+                id
+                type
+                title
+                url
+                startIndex
+                endIndex
+                excerpt
+                source
+              }
+              chartData {
+                chartType
+                title
+                series {
+                  name
+                  data
+                }
+                labels
+                colors
+                height
+              }
+              artifacts {
+                type
+                filename
+                url
+                sizeReadable
+                rowCount
+                description
+              }
+              codeOutputs {
+                type
+                content
+                filename
+                mimeType
+                sizeBytes
+              }
+              createdAt
             }
-            chartData {
-              type
-              title
-              data
-              xAxisKey
-              yAxisKey
-            }
-            artifacts {
-              type
-              filename
-              url
-              sizeReadable
-              rowCount
-              description
-            }
-            explanation
           }
           pendingQuestion {
             id
             turnId
-            question
-            type
-            options
+            questions {
+              id
+              text
+              type
+              options {
+                id
+                label
+                value
+              }
+              required
+            }
             status
           }
         }
