@@ -218,11 +218,9 @@ func (c *AppletController) registerDevProxy(router *mux.Router, fullAssetsPath s
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	origDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
-		req.URL.Scheme = targetURL.Scheme
-		req.URL.Host = targetURL.Host
-		req.Host = targetURL.Host
-
+		originalHost := req.Host
 		p := req.URL.Path
 		if dev.StripPrefix == nil || *dev.StripPrefix {
 			p = strings.TrimPrefix(p, fullAssetsPath)
@@ -234,8 +232,14 @@ func (c *AppletController) registerDevProxy(router *mux.Router, fullAssetsPath s
 			}
 		}
 
-		req.URL.Path = singleJoiningSlash(targetURL.Path, p)
-		req.URL.RawPath = req.URL.Path
+		req.URL.Path = p
+		req.URL.RawPath = p
+
+		origDirector(req)
+
+		if req.Header.Get("X-Forwarded-Host") == "" && originalHost != "" {
+			req.Header.Set("X-Forwarded-Host", originalHost)
+		}
 	}
 
 	router.PathPrefix(fullAssetsPath).Handler(proxy)

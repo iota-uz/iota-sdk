@@ -3,6 +3,7 @@ package applet
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"path"
 	"strings"
@@ -261,20 +262,29 @@ func getUserPermissions(ctx context.Context) []string {
 	return perms
 }
 
-// getAllTranslations extracts ALL translations from the i18n bundle for the user's locale.
-// Uses bundle.Messages() to iterate all message IDs and localize each one.
-// NO caching - loads fresh each time from bundle for correctness.
+// getAllTranslations returns applet translation key/value pairs for the provided locale.
+// Results are cached per locale and shaped by the configured I18n mode:
+//   - all: include all translation keys
+//   - prefixes: include only keys matching configured prefixes
+//   - none: include no translations
 //
-// Performance: Pre-allocates map with estimated size for efficiency.
+// The returned map is safe to mutate (it is a copy of the cached data).
 func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]string {
 	localeKey := locale.String()
 
 	b.translationsMu.RLock()
 	if cached, ok := b.translationsCache[localeKey]; ok {
 		b.translationsMu.RUnlock()
-		return cached
+		return maps.Clone(cached)
 	}
 	b.translationsMu.RUnlock()
+
+	b.translationsMu.Lock()
+	if cached, ok := b.translationsCache[localeKey]; ok {
+		b.translationsMu.Unlock()
+		return maps.Clone(cached)
+	}
+	defer b.translationsMu.Unlock()
 
 	mode := b.config.I18n.Mode
 	if mode == "" {
@@ -282,10 +292,8 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 	}
 	if mode == TranslationModeNone {
 		out := make(map[string]string)
-		b.translationsMu.Lock()
 		b.translationsCache[localeKey] = out
-		b.translationsMu.Unlock()
-		return out
+		return maps.Clone(out)
 	}
 
 	prefixes := make([]string, 0, len(b.config.I18n.Prefixes))
@@ -299,19 +307,15 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 		}
 		if len(prefixes) == 0 {
 			out := make(map[string]string)
-			b.translationsMu.Lock()
 			b.translationsCache[localeKey] = out
-			b.translationsMu.Unlock()
-			return out
+			return maps.Clone(out)
 		}
 	}
 
 	if b.bundle == nil {
 		out := make(map[string]string)
-		b.translationsMu.Lock()
 		b.translationsCache[localeKey] = out
-		b.translationsMu.Unlock()
-		return out
+		return maps.Clone(out)
 	}
 
 	// Get all messages for the user's locale
@@ -323,10 +327,8 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 			b.logger.WithField("locale", locale.String()).Warn("No translations found for locale")
 		}
 		out := make(map[string]string)
-		b.translationsMu.Lock()
 		b.translationsCache[localeKey] = out
-		b.translationsMu.Unlock()
-		return out
+		return maps.Clone(out)
 	}
 
 	translations := make(map[string]string, len(localeMessages))
@@ -357,11 +359,8 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 		translations[messageID] = translation
 	}
 
-	b.translationsMu.Lock()
 	b.translationsCache[localeKey] = translations
-	b.translationsMu.Unlock()
-
-	return translations
+	return maps.Clone(translations)
 }
 
 // getTenantName returns the tenant name using multi-layer fallback:
