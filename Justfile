@@ -390,13 +390,12 @@ _dev-applet name:
   ./scripts/applet/dev.sh {{name}}
 
 [group("dev")]
-[doc("Applet commands (new|rpc-gen)")]
-applet cmd="help" name="" base_path="":
+[doc("Applet commands (rpc-gen)")]
+applet cmd="help" name="":
   case "{{cmd}}" in \
-    new) ./scripts/applet/new.sh "{{name}}" "{{base_path}}" ;; \
     rpc-gen) ./scripts/applet/rpc-gen.sh "{{name}}" ;; \
     *) \
-      echo "Usage: just applet [new <name> <base_path>|rpc-gen <name>]" ; \
+      echo "Usage: just applet [rpc-gen <name>]" ; \
       exit 2 ;; \
   esac
 
