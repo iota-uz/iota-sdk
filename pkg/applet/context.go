@@ -157,6 +157,21 @@ func (b *ContextBuilder) Build(ctx context.Context, r *http.Request, basePath st
 	}
 
 	// Build initial context
+	assetsPath := b.config.Assets.BasePath
+	if assetsPath == "" {
+		assetsPath = "/assets"
+	}
+	assetsBasePath := basePath + assetsPath
+
+	rpcPath := ""
+	if b.config.RPC != nil {
+		rpcPath = b.config.RPC.Path
+		if rpcPath == "" {
+			rpcPath = "/rpc"
+		}
+		rpcPath = basePath + rpcPath
+	}
+
 	initialContext := &InitialContext{
 		User: UserContext{
 			ID:          int64(user.ID()),
@@ -177,6 +192,10 @@ func (b *ContextBuilder) Build(ctx context.Context, r *http.Request, basePath st
 			GraphQLEndpoint: b.config.Endpoints.GraphQL,
 			StreamEndpoint:  b.config.Endpoints.Stream,
 			RESTEndpoint:    b.config.Endpoints.REST,
+			BasePath:        basePath,
+			AssetsBasePath:  assetsBasePath,
+			RPCUIEndpoint:   rpcPath,
+			ShellMode:       string(b.config.Shell.Mode),
 		},
 		Route:   route,
 		Session: session,

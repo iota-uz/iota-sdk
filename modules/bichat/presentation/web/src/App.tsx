@@ -1,17 +1,22 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { IotaContextProvider } from './contexts/IotaContext'
 import { GraphQLProvider } from './contexts/GraphQLContext'
 import Layout from './components/Layout'
 import ChatPage from './pages/ChatPage'
 import HomePage from './pages/HomePage'
 
-export default function App() {
-  const basename = import.meta.env.DEV ? '' : '/bi-chat'
+export interface AppProps {
+  basePath: string
+  routerMode: 'url' | 'memory'
+}
+
+export default function App({ basePath, routerMode }: AppProps) {
+  const Router = routerMode === 'memory' ? MemoryRouter : BrowserRouter
 
   return (
     <IotaContextProvider>
       <GraphQLProvider>
-        <BrowserRouter basename={basename}>
+        <Router {...(routerMode === 'url' ? { basename: basePath } : {})}>
           <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<HomePage />} />
@@ -19,7 +24,7 @@ export default function App() {
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
+        </Router>
       </GraphQLProvider>
     </IotaContextProvider>
   )

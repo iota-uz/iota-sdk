@@ -39,8 +39,13 @@ func TestBiChatApplet_Config(t *testing.T) {
 	// Verify assets
 	assert.NotNil(t, config.Assets.FS)
 	assert.Equal(t, "/assets", config.Assets.BasePath)
-	assert.Equal(t, ".vite/manifest.json", config.Assets.ManifestPath)
+	assert.Equal(t, "manifest.json", config.Assets.ManifestPath)
 	assert.Equal(t, "index.html", config.Assets.Entrypoint)
+	require.NotNil(t, config.Assets.Dev)
+	assert.False(t, config.Assets.Dev.Enabled)
+	assert.Equal(t, "http://localhost:5173", config.Assets.Dev.TargetURL)
+	assert.Equal(t, "/src/main.tsx", config.Assets.Dev.EntryModule)
+	assert.Equal(t, "/@vite/client", config.Assets.Dev.ClientModule)
 
 	// Verify router
 	assert.NotNil(t, config.Router)
@@ -51,6 +56,17 @@ func TestBiChatApplet_Config(t *testing.T) {
 	// Verify middleware
 	assert.NotNil(t, config.Middleware)
 	assert.NotEmpty(t, config.Middleware) // BiChat requires authentication middleware
+
+	// Verify shell
+	assert.Equal(t, applet.ShellModeEmbedded, config.Shell.Mode)
+	assert.NotNil(t, config.Shell.Layout)
+	assert.Equal(t, "BiChat", config.Shell.Title)
+
+	// Verify RPC
+	require.NotNil(t, config.RPC)
+	assert.Equal(t, "/rpc", config.RPC.Path)
+	_, ok := config.RPC.Methods["bichat.ping"]
+	assert.True(t, ok)
 }
 
 func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {

@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm run build:css && vite",
+    "dev": "pnpm run dev:standalone",
+    "dev:embedded": "pnpm run build:css && vite",
+    "dev:standalone": "pnpm run build:css && APPLET_ASSETS_BASE=/ vite",
     "build:css": "tailwindcss -i ./src/index.css -o ./dist/style.css --minify",
     "build": "pnpm run build:css && tsc && vite build",
     "build:watch": "chokidar \"src/**\" \"*.config.*\" \"index.html\" \"tailwind.config.js\" \"tsconfig.json\" \"vite.config.ts\" -c \"pnpm run build\"",

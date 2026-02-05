@@ -19,6 +19,10 @@ export function injectMockContext(): void {
       config: {
         graphQLEndpoint: '/query/bichat',
         streamEndpoint: '/bi-chat/stream',
+        basePath: '',
+        assetsBasePath: '/bi-chat/assets',
+        rpcUIEndpoint: '/bi-chat/rpc',
+        shellMode: 'standalone',
       },
     }
   }

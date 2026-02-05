@@ -2,6 +2,7 @@ package applet
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 
 	"github.com/a-h/templ"
@@ -22,6 +23,19 @@ type Applet interface {
 	Config() Config
 }
 
+type ShellMode string
+
+const (
+	ShellModeEmbedded   ShellMode = "embedded"
+	ShellModeStandalone ShellMode = "standalone"
+)
+
+type ShellConfig struct {
+	Mode   ShellMode
+	Layout LayoutFactory // Required when Mode=embedded
+	Title  string
+}
+
 // Config contains all configuration needed to integrate an applet with the SDK runtime.
 type Config struct {
 	// WindowGlobal is the JavaScript global variable name for context injection
@@ -34,9 +48,17 @@ type Config struct {
 	// Assets contains embedded files and serving configuration
 	Assets AssetConfig
 
+	// Shell controls whether the applet is rendered embedded within IOTA layout or as a standalone page.
+	Shell ShellConfig
+
 	// Router is an optional custom router for parsing URL paths into RouteContext.
 	// If nil, uses default implementation (path = full path after BasePath, params = empty)
 	Router AppletRouter
+
+	// RoutePatterns optionally registers explicit mux patterns before the catch-all route.
+	// This enables mux Vars() extraction for applets using MuxRouter.
+	// Patterns are applet-local (e.g., "/session/{id}").
+	RoutePatterns []string
 
 	// CustomContext is an optional function to add custom fields to InitialContext.Custom.
 	// Example: add tenant branding, feature flags, or analytics config.
@@ -48,18 +70,12 @@ type Config struct {
 	// If nil, no custom middleware is applied.
 	Middleware []mux.MiddlewareFunc
 
-	// Layout, when set, renders the applet inside an existing templ layout.
-	// The controller will pass the applet shell as `children` to the returned component.
-	// When nil, the controller renders a standalone HTML document.
-	Layout LayoutFactory
-
-	// Title is used as the page title when Layout is set.
-	// When empty, applet.Name() is used.
-	Title string
-
 	// Mount controls what root element is rendered into the applet HTML shell.
 	// Default is <div id="root"></div>.
 	Mount MountConfig
+
+	// RPC optionally exposes applet-scoped typed capability endpoints.
+	RPC *RPCConfig
 }
 
 // LayoutFactory produces a layout component for an applet request.
@@ -103,7 +119,7 @@ type AssetConfig struct {
 
 	// ManifestPath is the path to the Vite manifest.json file within FS (optional)
 	// If provided, assets will be resolved from the manifest instead of using fixed names.
-	// Example: ".vite/manifest.json" or "dist/.vite/manifest.json"
+	// Example: "manifest.json" (default Vite output) or "dist/manifest.json"
 	// When set, Entrypoint must also be set to specify the entry file name.
 	ManifestPath string
 
@@ -112,6 +128,28 @@ type AssetConfig struct {
 	// This should match the entry point configured in vite.config.ts
 	// Required if ManifestPath is set.
 	Entrypoint string
+
+	Dev *DevAssetConfig
+}
+
+type DevAssetConfig struct {
+	Enabled      bool
+	TargetURL    string // e.g. http://localhost:5173
+	EntryModule  string // e.g. /src/main.tsx
+	ClientModule string // default: /@vite/client
+	StripPrefix  *bool  // default: true
+}
+
+type RPCConfig struct {
+	Path              string // default: /rpc
+	RequireSameOrigin *bool  // default: true
+	MaxBodyBytes      int64  // default: 1<<20
+	Methods           map[string]RPCMethod
+}
+
+type RPCMethod struct {
+	RequirePermissions []string
+	Handler            func(ctx context.Context, params json.RawMessage) (any, error)
 }
 
 // ContextExtender is a function that adds custom fields to InitialContext.Custom.

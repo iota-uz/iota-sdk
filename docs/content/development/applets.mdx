@@ -1,0 +1,133 @@
+---
+title: 'Applets'
+description: 'Build, run, and type RPC for React/Vite applets'
+---
+
+# Applets
+
+Applets are React (Vite) applications embedded into IOTA SDK via the Go applet runtime. They can be served:
+
+- Embedded in the authenticated IOTA shell (recommended)
+- Standalone for local development
+
+This guide covers scaffolding, embedded HMR, and typed RPC type generation.
+
+## Scaffold a new applet
+
+Create a new module + applet + Vite React project:
+
+```bash
+just applet new <name> <base_path>
+```
+
+Example:
+
+```bash
+just applet new analytics /analytics
+```
+
+This generates:
+
+- `modules/<name>/module.go` module registration
+- `modules/<name>/applet.go` applet config (Shell, Assets, Mount, RPC)
+- `modules/<name>/rpc/router.go` typed RPC router (Go)
+- `modules/<name>/presentation/web/*` Vite React app
+- `modules/<name>/presentation/assets/*` embedded asset FS (placeholder dist)
+- `scripts/applets.json` registry entry (used by dev tooling)
+
+Next, register the module in your app bootstrap (where modules are registered).
+
+## Embedded HMR (one command)
+
+Run the Go server and Vite dev server (HMR) with same-origin proxying through Go:
+
+```bash
+just dev applet <name>
+```
+
+Example:
+
+```bash
+just dev applet bichat
+```
+
+The command:
+
+- Reads `scripts/applets.json`
+- Starts Vite in embedded mode with `APPLET_ASSETS_BASE=<basePath>/assets/`
+- Enables the Go-side dev proxy via env (`IOTA_APPLET_DEV_<NAME>=1`)
+- Starts the Go server via `air`
+
+Then open:
+
+```text
+http://localhost:${IOTA_PORT:-3200}<basePath>
+```
+
+### Dev env toggles
+
+Per applet (name uppercased, `-` replaced with `_`):
+
+- `IOTA_APPLET_DEV_<NAME>=1` enables dev proxy
+- `IOTA_APPLET_VITE_URL_<NAME>=http://localhost:<vitePort>` overrides Vite target
+- `IOTA_APPLET_ENTRY_<NAME>=/src/main.tsx` overrides Vite entry module
+- `IOTA_APPLET_CLIENT_<NAME>=/@vite/client` overrides Vite client module
+
+The helper `just dev applet <name>` sets these automatically.
+
+## Standalone dev (Vite only)
+
+Run the Vite app directly:
+
+```bash
+pnpm -C modules/<name>/presentation/web run dev:standalone
+```
+
+Applets can inject a mock IOTA context in dev (see `src/dev/mockIotaContext.ts`).
+
+## Typed RPC (Go → TypeScript)
+
+### Define procedures in Go
+
+Add procedures in `modules/<name>/rpc/router.go` using `applet.TypedRPCRouter`:
+
+- Params and result are Go structs (or primitives)
+- The runtime enforces permissions declared per procedure
+- Procedures are registered via `applet.AddProcedure(...)`
+
+### Generate TypeScript types
+
+Generate `rpc.generated.ts` for an applet:
+
+```bash
+just applet rpc-gen <name>
+```
+
+This writes:
+
+- `modules/<name>/presentation/web/src/rpc.generated.ts`
+
+### Call from the frontend
+
+In the applet web code:
+
+```ts
+import { createAppletRPCClient } from '@iota-uz/sdk'
+import type { MyAppletRPC } from './rpc.generated'
+
+const rpc = createAppletRPCClient({ endpoint: ctx.config.rpcUIEndpoint! })
+await rpc.callTyped<MyAppletRPC>('my.method', { /* params */ })
+```
+
+## Devtools overlay (optional)
+
+Enable devtools via:
+
+- Query param: `?appletDebug=1`, or
+- `localStorage.iotaAppletDevtools = "1"`
+
+The overlay shows:
+
+- Resolved runtime config (basePath/assets/rpc endpoint)
+- Current route context
+- Recent RPC calls (start/success/error)

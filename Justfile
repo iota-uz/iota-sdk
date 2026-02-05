@@ -366,13 +366,14 @@ tunnel:
 clean: css-clean
 
 [group("dev")]
-[doc("Dev commands (watch|bichat)")]
-dev cmd="help":
+[doc("Dev commands (watch|bichat|applet <name>)")]
+dev cmd="help" name="":
   case "{{cmd}}" in \
     watch) just _dev-watch ;; \
-    bichat) just _dev-bichat ;; \
+    bichat) just _dev-applet "bichat" ;; \
+    applet) just _dev-applet "{{name}}" ;; \
     *) \
-      echo "Usage: just dev [watch|bichat]" ; \
+      echo "Usage: just dev [watch|bichat|applet <name>]" ; \
       exit 2 ;; \
   esac
 
@@ -385,8 +386,19 @@ _dev-watch:
   wait
 
 [group("dev")]
-_dev-bichat:
-  ./scripts/dev-bichat.sh
+_dev-applet name:
+  ./scripts/applet/dev.sh {{name}}
+
+[group("dev")]
+[doc("Applet commands (new|rpc-gen)")]
+applet cmd="help" name="" base_path="":
+  case "{{cmd}}" in \
+    new) ./scripts/applet/new.sh "{{name}}" "{{base_path}}" ;; \
+    rpc-gen) ./scripts/applet/rpc-gen.sh "{{name}}" ;; \
+    *) \
+      echo "Usage: just applet [new <name> <base_path>|rpc-gen <name>]" ; \
+      exit 2 ;; \
+  esac
 
 [group("meta")]
 [doc("Full local setup")]

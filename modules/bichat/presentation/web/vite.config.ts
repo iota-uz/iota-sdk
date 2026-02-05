@@ -9,7 +9,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  base: '/bi-chat/assets/',
+  base: process.env.APPLET_ASSETS_BASE || '/bi-chat/assets/',
+  server: {
+    port: Number(process.env.APPLET_VITE_PORT) || 5173,
+    strictPort: true,
+  },
   assetsInclude: ['**/*.css'],
   build: {
     outDir: '../assets/dist',
