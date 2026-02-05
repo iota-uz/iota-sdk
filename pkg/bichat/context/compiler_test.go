@@ -33,7 +33,9 @@ func (r *mockRenderer) Render(block context.ContextBlock) (context.RenderedBlock
 		return context.RenderedBlock{
 			Messages: []types.Message{types.SystemMessage(content)},
 		}, nil
-
+	case context.KindReference, context.KindMemory, context.KindState,
+		context.KindToolOutput, context.KindHistory, context.KindTurn:
+		fallthrough
 	default:
 		// Other blocks produce user messages
 		content, ok := block.Payload.(string)

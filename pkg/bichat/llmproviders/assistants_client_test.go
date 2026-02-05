@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockOpenAIClient is a minimal mock for testing
@@ -121,9 +122,9 @@ func TestAssistantsClient_ExecuteCodeInterpreter(t *testing.T) {
 		outputs, err := client.ExecuteCodeInterpreter(ctx, messageID, userMessage)
 
 		// Verify
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotEmpty(t, outputs)
-		assert.Equal(t, 1, len(outputs))
+		assert.Len(t, outputs, 1)
 		assert.Equal(t, "chart.png", outputs[0].Name)
 		assert.Equal(t, messageID, outputs[0].MessageID)
 		assert.Contains(t, outputs[0].MimeType, "image/png")
@@ -144,7 +145,7 @@ func TestAssistantsClient_ExecuteCodeInterpreter(t *testing.T) {
 		run, err := client.pollRunCompletion(ctx, threadID, runID)
 
 		// Verify
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, openai.RunStatusCompleted, run.Status)
 	})
 
@@ -166,7 +167,7 @@ func TestAssistantsClient_ExecuteCodeInterpreter(t *testing.T) {
 		_, err := client.pollRunCompletion(ctx, threadID, runID)
 
 		// Verify
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "context cancelled")
 	})
 

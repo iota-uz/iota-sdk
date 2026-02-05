@@ -3,10 +3,10 @@ package domain
 // Citation represents a source reference in an AI response.
 // This is a struct (not interface) following idiomatic Go patterns.
 type Citation struct {
-	Source  string
-	Title   string
-	URL     string
-	Excerpt string
+	Source  string `json:"source"`
+	Title   string `json:"title,omitempty"`
+	URL     string `json:"url,omitempty"`
+	Excerpt string `json:"excerpt,omitempty"`
 }
 
 // NewCitation creates a new citation with the given parameters

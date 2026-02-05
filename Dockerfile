@@ -1,7 +1,19 @@
 FROM golang:1.24.10-alpine AS base
 
+ARG JUST_VERSION=1.46.0
+
 RUN apk update && apk upgrade
-RUN apk add --no-cache make git curl bash
+RUN apk add --no-cache git curl bash ca-certificates && update-ca-certificates && \
+    arch="$(apk --print-arch)" && \
+    case "$arch" in \
+      x86_64) target="x86_64-unknown-linux-musl" ;; \
+      aarch64) target="aarch64-unknown-linux-musl" ;; \
+      *) echo "Unsupported arch for just: $arch" ; exit 1 ;; \
+    esac && \
+    curl -sSfL "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-${target}.tar.gz" \
+      | tar -xz -C /usr/local/bin just && \
+    chmod +x /usr/local/bin/just && \
+    just --version
 
 WORKDIR /build
 
@@ -16,8 +28,8 @@ FROM base AS build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN make css
-RUN make build linux && go build -o command cmd/command/main.go && go build -o collect_logs cmd/collect-logs/main.go
+RUN just css
+RUN just build linux && go build -o command cmd/command/main.go && go build -o collect_logs cmd/collect-logs/main.go
 
 # Default final base image to Alpine Linux
 FROM alpine:3.21 AS production
@@ -43,4 +55,3 @@ ENV PATH=/home/iota-user:$PATH
 RUN chmod +x ./start.sh
 USER iota-user
 CMD ["./start.sh"]
-

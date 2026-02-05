@@ -67,12 +67,18 @@ func (a Answer) Strings() []string {
 
 // NewAnswer creates an Answer from a string (single-select).
 func NewAnswer(s string) Answer {
-	value, _ := json.Marshal(s)
+	value, err := json.Marshal(s)
+	if err != nil {
+		return Answer{Value: []byte("null")}
+	}
 	return Answer{Value: value}
 }
 
 // NewMultiAnswer creates an Answer from a string slice (multi-select).
 func NewMultiAnswer(ss []string) Answer {
-	value, _ := json.Marshal(ss)
+	value, err := json.Marshal(ss)
+	if err != nil {
+		return Answer{Value: []byte("null")}
+	}
 	return Answer{Value: value}
 }

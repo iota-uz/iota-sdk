@@ -1,0 +1,39 @@
+# Where are all the schema files located?
+schema:
+  - presentation/graphql/schema.graphql
+
+# Where should the generated server code go?
+exec:
+  filename: presentation/graphql/generated/generated.go
+  package: generated
+
+# Where should any generated models go?
+model:
+  filename: presentation/graphql/model/models_gen.go
+  package: model
+
+# Where should the resolver implementations go?
+resolver:
+  layout: follow-schema
+  dir: presentation/graphql/resolvers
+  package: resolvers
+  filename_template: "{name}.resolvers.go"
+
+# Skip mod tidy during generation
+skip_mod_tidy: true
+
+# Type mappings
+models:
+  Int64:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int64
+  Upload:
+    model:
+      - github.com/99designs/gqlgen/graphql.Upload
+  # Configure Session fields to use custom resolvers
+  Session:
+    fields:
+      messages:
+        resolver: true
+      artifacts:
+        resolver: true

@@ -63,7 +63,7 @@ jobs:
               "Bash(gh project item-list:*)",
               "Bash(gh project list:*)",
               "Bash(gh label list:*)",
-              "Bash(make:*)",
+              "Bash(just:*)",
               "Bash(grep:*)",
               "Bash(tree:*)",
               "Bash(find:*)",

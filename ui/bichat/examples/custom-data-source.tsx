@@ -14,7 +14,7 @@ import {
   StreamChunk,
   QuestionAnswers,
   MessageRole,
-} from '@iotauz/bichat-ui'
+} from '@iota-uz/sdk/bichat'
 
 /**
  * Mock Data Source using local storage and mock API

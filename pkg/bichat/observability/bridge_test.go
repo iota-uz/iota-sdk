@@ -61,7 +61,7 @@ func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 	tenantID := uuid.New()
@@ -118,7 +118,7 @@ func TestEventBridge_MissingRequest(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 	tenantID := uuid.New()
@@ -154,7 +154,7 @@ func TestEventBridge_OrphanCleanup(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 
@@ -185,10 +185,11 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 	bus := hooks.NewEventBus()
 	provider := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	tenantID := uuid.New()
 	var wg sync.WaitGroup
+	errCh := make(chan error, 20)
 
 	// Launch 10 goroutines emitting requests
 	for i := 0; i < 10; i++ {
@@ -201,7 +202,7 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				"claude-3-5-sonnet-20241022", "anthropic",
 				3, 5, 1000,
 			)
-			bus.Publish(context.Background(), requestEvent)
+			errCh <- bus.Publish(context.Background(), requestEvent)
 		}()
 	}
 
@@ -216,11 +217,15 @@ func TestEventBridge_ConcurrentAccess(t *testing.T) {
 				"claude-3-5-sonnet-20241022", "anthropic",
 				950, 120, 1070, 1234, "stop", 2,
 			)
-			bus.Publish(context.Background(), responseEvent)
+			errCh <- bus.Publish(context.Background(), responseEvent)
 		}()
 	}
 
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
 	time.Sleep(200 * time.Millisecond)
 
 	// Verify no panics (test passes if no race conditions)
@@ -237,7 +242,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 	provider2 := &mockProvider{}
 	provider3 := &mockProvider{}
 	bridge := NewEventBridge(bus, []Provider{provider1, provider2, provider3})
-	defer bridge.Shutdown(context.Background())
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
 
 	sessionID := uuid.New()
 	tenantID := uuid.New()
@@ -248,7 +253,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		"claude-3-5-sonnet-20241022", "anthropic",
 		3, 5, 1000,
 	)
-	bus.Publish(context.Background(), requestEvent)
+	require.NoError(t, bus.Publish(context.Background(), requestEvent))
 	time.Sleep(50 * time.Millisecond)
 
 	responseEvent := events.NewLLMResponseEvent(
@@ -256,7 +261,7 @@ func TestEventBridge_MultiProvider(t *testing.T) {
 		"claude-3-5-sonnet-20241022", "anthropic",
 		950, 120, 1070, 1234, "stop", 2,
 	)
-	bus.Publish(context.Background(), responseEvent)
+	require.NoError(t, bus.Publish(context.Background(), responseEvent))
 
 	// Wait longer for all async handlers (3 providers) to process
 	time.Sleep(300 * time.Millisecond)

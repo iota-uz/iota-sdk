@@ -161,9 +161,9 @@ func WithEventBus(eventBus hooks.EventBus) ExecutorOption {
 
 // WithMaxIterations sets the maximum number of ReAct iterations.
 // Default is 10. Use this to prevent infinite loops.
-func WithMaxIterations(max int) ExecutorOption {
+func WithMaxIterations(maxIterations int) ExecutorOption {
 	return func(e *Executor) {
-		e.maxIterations = max
+		e.maxIterations = maxIterations
 	}
 }
 

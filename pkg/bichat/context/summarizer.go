@@ -28,7 +28,7 @@ type HistorySummarizer interface {
 		ctx context.Context,
 		messages []types.Message,
 		targetTokens int,
-	) (summary string, tokensUsed int, error error)
+	) (summary string, tokensUsed int, err error)
 }
 
 // LLMHistorySummarizer uses an LLM to generate intelligent conversation summaries.

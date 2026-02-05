@@ -51,30 +51,6 @@ func (m *mockKBSearcher) IsAvailable() bool {
 	return true
 }
 
-// mockExcelExporter is a mock implementation of ExcelExporter for testing.
-type mockExcelExporter struct {
-	exportFn func(ctx context.Context, data *bichatsql.QueryResult, filename string) (string, error)
-}
-
-func (m *mockExcelExporter) ExportToExcel(ctx context.Context, data *bichatsql.QueryResult, filename string) (string, error) {
-	if m.exportFn != nil {
-		return m.exportFn(ctx, data, filename)
-	}
-	return "/exports/test.xlsx", nil
-}
-
-// mockPDFExporter is a mock implementation of PDFExporter for testing.
-type mockPDFExporter struct {
-	exportFn func(ctx context.Context, html string, filename string, landscape bool) (string, error)
-}
-
-func (m *mockPDFExporter) ExportToPDF(ctx context.Context, html string, filename string, landscape bool) (string, error) {
-	if m.exportFn != nil {
-		return m.exportFn(ctx, html, filename, landscape)
-	}
-	return "/exports/test.pdf", nil
-}
-
 // mockFileStorage is a mock implementation of FileStorage for testing.
 type mockFileStorage struct {
 	saveFn   func(ctx context.Context, filename string, content io.Reader, metadata storage.FileMetadata) (string, error)
@@ -361,9 +337,9 @@ func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 			result, err := agent.OnToolCall(ctx, tt.toolName, tt.input)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotEmpty(t, result)
 			}
 		})
@@ -426,7 +402,7 @@ func TestBuildBISystemPrompt(t *testing.T) {
 
 	// Verify prompt structure
 	assert.NotEmpty(t, prompt)
-	assert.True(t, len(prompt) > 500, "System prompt should be comprehensive")
+	assert.Greater(t, len(prompt), 500, "System prompt should be comprehensive")
 
 	// Verify key sections exist
 	sections := []string{
@@ -442,7 +418,7 @@ func TestBuildBISystemPrompt(t *testing.T) {
 	}
 
 	for _, section := range sections {
-		assert.True(t, strings.Contains(prompt, section), "Prompt should contain section: %s", section)
+		assert.Contains(t, prompt, section, "Prompt should contain section: %s", section)
 	}
 
 	// Verify all tool names are mentioned
@@ -458,7 +434,7 @@ func TestBuildBISystemPrompt(t *testing.T) {
 	}
 
 	for _, toolName := range toolNames {
-		assert.True(t, strings.Contains(prompt, toolName), "Prompt should mention tool: %s", toolName)
+		assert.Contains(t, prompt, toolName, "Prompt should mention tool: %s", toolName)
 	}
 
 	// Verify safety constraints are mentioned
@@ -472,7 +448,7 @@ func TestBuildBISystemPrompt(t *testing.T) {
 	}
 
 	for _, keyword := range safetyKeywords {
-		assert.True(t, strings.Contains(prompt, keyword), "Prompt should mention safety keyword: %s", keyword)
+		assert.Contains(t, prompt, keyword, "Prompt should mention safety keyword: %s", keyword)
 	}
 }
 
@@ -483,11 +459,11 @@ func TestBuildBISystemPrompt_WithCodeInterpreter(t *testing.T) {
 	promptWithoutCodeInterpreter := buildBISystemPrompt(false, nil)
 
 	// Code interpreter should be mentioned when enabled
-	assert.True(t, strings.Contains(promptWithCodeInterpreter, "code_interpreter"))
-	assert.True(t, strings.Contains(promptWithCodeInterpreter, "Python"))
+	assert.Contains(t, promptWithCodeInterpreter, "code_interpreter")
+	assert.Contains(t, promptWithCodeInterpreter, "Python")
 
 	// Code interpreter should not be mentioned when disabled
-	assert.False(t, strings.Contains(promptWithoutCodeInterpreter, "code_interpreter"))
+	assert.NotContains(t, promptWithoutCodeInterpreter, "code_interpreter")
 }
 
 func TestBuildBISystemPrompt_WithRegistry(t *testing.T) {

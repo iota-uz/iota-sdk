@@ -171,7 +171,7 @@ func TestRecordGeneration_MalformedData(t *testing.T) {
 	})
 
 	// Trace should still be created (with defaults)
-	assert.Greater(t, mock.TraceCallCount(), 0)
+	assert.Positive(t, mock.TraceCallCount())
 }
 
 // TestRecordSpan_ClientError_NonBlocking verifies that Span errors don't block execution.
@@ -251,7 +251,7 @@ func TestEnsureTrace_ClientError_Recovers(t *testing.T) {
 	})
 
 	// Trace creation should have been attempted
-	assert.Greater(t, mock.TraceCallCount(), 0)
+	assert.Positive(t, mock.TraceCallCount())
 }
 
 // TestFlush_DoesNotPanic verifies that Flush never panics.
@@ -684,7 +684,7 @@ func TestRecordEvent_WithSampling_Probability(t *testing.T) {
 
 	// With 0% sample rate, no events should be recorded
 	calls := mock.GetEventCalls()
-	assert.Len(t, calls, 0)
+	assert.Empty(t, calls)
 }
 
 // TestRecordEvent_EventError verifies event-level error handling.
@@ -732,7 +732,7 @@ func TestRecordTrace_WithSampling_Probability(t *testing.T) {
 
 	// With 0% sample rate, no traces should be recorded
 	calls := mock.GetTraceCalls()
-	assert.Len(t, calls, 0)
+	assert.Empty(t, calls)
 }
 
 // TestRecordTrace_TraceError verifies trace-level error and cost tracking.
@@ -758,6 +758,6 @@ func TestRecordTrace_TraceError(t *testing.T) {
 	metadata, ok := calls[0].Trace.Metadata.(map[string]interface{})
 	require.True(t, ok, "metadata should be a map")
 	assert.Equal(t, "error", metadata["status"])
-	assert.Equal(t, 0.0256, metadata["total_cost"])
+	assert.InEpsilon(t, 0.0256, metadata["total_cost"], 1e-9)
 	assert.Equal(t, 25000, metadata["total_tokens"])
 }

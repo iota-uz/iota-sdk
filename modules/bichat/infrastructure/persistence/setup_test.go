@@ -5,7 +5,12 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -15,16 +20,40 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// setupTest creates all necessary dependencies for tests
+// setupTest creates all necessary dependencies for tests including a database user
 func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
 
-	return itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
-}
+	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 
-// setupBenchmark creates all necessary dependencies for benchmarks
-func setupBenchmark(b *testing.B) *itf.TestEnvironment {
-	b.Helper()
+	// Create role first (required for user)
+	roleRepo := persistence.NewRoleRepository()
+	testRole := role.New(
+		"test-role",
+		role.WithTenantID(env.Tenant.ID),
+	)
+	createdRole, err := roleRepo.Create(env.Ctx, testRole)
+	require.NoError(t, err, "failed to create test role")
 
-	return itf.Setup(b, itf.WithModules(modules.BuiltInModules...))
+	// Create user with the role using proper repository
+	uploadRepo := persistence.NewUploadRepository()
+	userRepo := persistence.NewUserRepository(uploadRepo)
+
+	testUser := itf.User()
+	newUser := user.New(
+		testUser.FirstName(),
+		testUser.LastName(),
+		testUser.Email(),
+		testUser.UILanguage(),
+		user.WithTenantID(env.Tenant.ID),
+	).AddRole(createdRole)
+
+	createdUser, err := userRepo.Create(env.Ctx, newUser)
+	require.NoError(t, err, "failed to create test user")
+
+	// Update environment with the created user
+	env.User = createdUser
+	env.Ctx = composables.WithUser(env.Ctx, createdUser)
+
+	return env
 }

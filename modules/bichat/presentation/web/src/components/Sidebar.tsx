@@ -7,8 +7,8 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery, useMutation } from 'urql'
-import { Plus } from '@phosphor-icons/react'
-import { SearchInput, EmptyState } from '@iotauz/bichat-ui'
+import { Plus, Sparkle } from '@phosphor-icons/react'
+import { SearchInput, EmptyState } from '@iota-uz/sdk/bichat'
 import TabBar from './TabBar'
 import SessionList from './SessionList/SessionList'
 import SessionSkeleton from './SessionSkeleton'
@@ -200,7 +200,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
   return (
     <aside
-      className="w-64 h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
+      className="w-64 h-full flex flex-col overflow-hidden bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800/80"
       role="navigation"
       aria-label="Chat sessions"
     >
@@ -211,13 +211,14 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
       {activeTab === 'my-chats' && (
         <>
           {/* New Chat Button */}
-          <div className="px-4 pt-4 pb-2">
+          <div className="px-4 pt-3 pb-2">
             <motion.button
               onClick={onNewChat}
               disabled={creating || result.fetching}
-              className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
               title="New chat"
               aria-label="Create new chat"
+              whileHover={{ y: -1 }}
               whileTap={{ scale: 0.98 }}
             >
               {creating ? (
@@ -229,13 +230,14 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
                 <>
                   <Plus size={16} weight="bold" />
                   <span>New Chat</span>
+                  <Sparkle size={12} weight="fill" className="text-white/70" />
                 </>
               )}
             </motion.button>
           </div>
 
           {/* Search Input */}
-          <div className="px-4 pb-3">
+          <div className="px-4 pb-2">
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}

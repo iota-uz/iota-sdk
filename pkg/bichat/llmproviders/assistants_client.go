@@ -176,9 +176,12 @@ func (c *AssistantsClient) pollRunCompletion(ctx context.Context, threadID, runI
 			case openai.RunStatusCompleted, openai.RunStatusFailed,
 				openai.RunStatusCancelled, openai.RunStatusExpired:
 				return run, nil
+			case openai.RunStatusQueued, openai.RunStatusInProgress,
+				openai.RunStatusRequiresAction, openai.RunStatusCancelling, openai.RunStatusIncomplete:
+				// Continue polling
+			default:
+				// Unknown status, continue polling
 			}
-
-			// Continue polling for: queued, in_progress, requires_action
 		}
 	}
 }

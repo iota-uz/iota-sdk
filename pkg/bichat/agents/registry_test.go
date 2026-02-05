@@ -2,10 +2,12 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/stretchr/testify/require"
 )
 
 // mockAgent is a test implementation of the ExtendedAgent interface.
@@ -157,8 +159,8 @@ func TestAgentRegistry_CRUD(t *testing.T) {
 		agent1 := &mockAgent{name: "sql-agent", description: "Executes SQL queries"}
 		agent2 := &mockAgent{name: "chart-agent", description: "Creates charts"}
 
-		registry.Register(agent1)
-		registry.Register(agent2)
+		_ = registry.Register(agent1)
+		_ = registry.Register(agent2)
 
 		desc := registry.Describe()
 		if desc == "" {
@@ -214,7 +216,7 @@ func TestAgentRegistry_Concurrent(t *testing.T) {
 					name:        stringID("agent", id),
 					description: stringID("Description", id),
 				}
-				registry.Register(agent) // May fail for duplicates, that's OK
+				_ = registry.Register(agent) // May fail for duplicates, that's OK
 			}(i)
 		}
 
@@ -375,7 +377,7 @@ func TestToolRegistry_CRUD(t *testing.T) {
 		existing := NewTool("existing", "Existing", map[string]any{}, func(ctx context.Context, input string) (string, error) {
 			return "", nil
 		})
-		registry.Register(existing)
+		_ = registry.Register(existing)
 
 		tools := []Tool{
 			NewTool("new1", "New 1", map[string]any{}, func(ctx context.Context, input string) (string, error) {
@@ -505,8 +507,8 @@ func TestModelRegistry_Default(t *testing.T) {
 		registry := NewModelRegistry()
 		model := &mockModel{name: "test"}
 
-		registry.Register("test", model)
-		registry.SetDefault("test")
+		_ = registry.Register("test", model)
+		_ = registry.SetDefault("test")
 
 		// Simulate removal by creating new registry
 		// (In real scenario, you'd need a Remove method)
@@ -536,7 +538,7 @@ func TestModelRegistry_Capability(t *testing.T) {
 			},
 		}
 
-		registry.Register("test", model)
+		_ = registry.Register("test", model)
 
 		if !registry.HasCapability("test", CapabilityStreaming) {
 			t.Error("HasCapability() should return true for streaming")
@@ -555,7 +557,7 @@ func TestModelRegistry_Capability(t *testing.T) {
 			capabilities: []Capability{CapabilityStreaming},
 		}
 
-		registry.Register("test", model)
+		require.NoError(t, registry.Register("test", model))
 
 		if registry.HasCapability("test", CapabilityVision) {
 			t.Error("HasCapability() should return false for vision")
@@ -642,12 +644,14 @@ type mockModel struct {
 	capabilities []Capability
 }
 
+var errMockModelNotImplemented = errors.New("mock model: not implemented")
+
 func (m *mockModel) Generate(ctx context.Context, req Request, opts ...GenerateOption) (*Response, error) {
-	return nil, nil
+	return nil, errMockModelNotImplemented
 }
 
 func (m *mockModel) Stream(ctx context.Context, req Request, opts ...GenerateOption) (types.Generator[Chunk], error) {
-	return nil, nil
+	return nil, errMockModelNotImplemented
 }
 
 func (m *mockModel) Info() ModelInfo {

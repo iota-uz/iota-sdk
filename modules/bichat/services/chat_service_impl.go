@@ -61,13 +61,21 @@ func (s *chatServiceImpl) CreateSession(ctx context.Context, tenantID uuid.UUID,
 // GetSession retrieves a session by ID.
 func (s *chatServiceImpl) GetSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.GetSession"
-	return s.chatRepo.GetSession(ctx, sessionID)
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return session, nil
 }
 
 // ListUserSessions lists all sessions for a user.
 func (s *chatServiceImpl) ListUserSessions(ctx context.Context, userID int64, opts domain.ListOptions) ([]domain.Session, error) {
 	const op serrors.Op = "chatServiceImpl.ListUserSessions"
-	return s.chatRepo.ListUserSessions(ctx, userID, opts)
+	sessions, err := s.chatRepo.ListUserSessions(ctx, userID, opts)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return sessions, nil
 }
 
 // ArchiveSession archives a session.
@@ -79,6 +87,21 @@ func (s *chatServiceImpl) ArchiveSession(ctx context.Context, sessionID uuid.UUI
 		return nil, serrors.E(op, err)
 	}
 	updated := session.UpdateStatus(domain.SessionStatusArchived)
+	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return updated, nil
+}
+
+// UnarchiveSession unarchives a session.
+func (s *chatServiceImpl) UnarchiveSession(ctx context.Context, sessionID uuid.UUID) (domain.Session, error) {
+	const op serrors.Op = "chatServiceImpl.UnarchiveSession"
+
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	updated := session.UpdateStatus(domain.SessionStatusActive)
 	if err := s.chatRepo.UpdateSession(ctx, updated); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -219,6 +242,10 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 					return nil, serrors.E(op, err)
 				}
 			}
+		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
+			bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd,
+			bichatservices.EventTypeDone, bichatservices.EventTypeError:
+			// no-op in this handler
 		}
 	}
 
@@ -347,6 +374,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				Type:      bichatservices.ChunkTypeDone,
 				Timestamp: time.Now(),
 			})
+		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
+			bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd,
+			bichatservices.EventTypeError:
+			// no-op in stream handler
 		}
 	}
 
@@ -419,6 +450,11 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		switch event.Type {
 		case bichatservices.EventTypeContent:
 			assistantContent.WriteString(event.Content)
+		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
+			bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd,
+			bichatservices.EventTypeInterrupt, bichatservices.EventTypeDone,
+			bichatservices.EventTypeError:
+			// no-op for resume
 		}
 	}
 
@@ -509,11 +545,6 @@ func (s *chatServiceImpl) GenerateSessionTitle(ctx context.Context, sessionID uu
 		return serrors.E(op, err)
 	}
 	return nil
-}
-
-// stringPtr returns a pointer to a string.
-func stringPtr(s string) *string {
-	return &s
 }
 
 // maybeGenerateTitleAsync triggers async title generation if this is the first message in the session.

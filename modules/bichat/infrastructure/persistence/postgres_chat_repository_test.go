@@ -220,14 +220,14 @@ func TestPostgresChatRepository_ListUserSessions(t *testing.T) {
 
 	// First session should be the pinned one
 	assert.True(t, retrieved[0].Pinned(), "First session should be pinned")
-	assert.Equal(t, "Session 2 Pinned", retrieved[0].Title)
+	assert.Equal(t, "Session 2 Pinned", retrieved[0].Title())
 
 	// Remaining non-pinned sessions should be ordered by created_at DESC (Session 3, then Session 1)
 	assert.False(t, retrieved[1].Pinned(), "Second session should not be pinned")
-	assert.Equal(t, "Session 3", retrieved[1].Title, "Second session should be Session 3 (most recent non-pinned)")
+	assert.Equal(t, "Session 3", retrieved[1].Title(), "Second session should be Session 3 (most recent non-pinned)")
 
 	assert.False(t, retrieved[2].Pinned(), "Third session should not be pinned")
-	assert.Equal(t, "Session 1", retrieved[2].Title, "Third session should be Session 1 (oldest non-pinned)")
+	assert.Equal(t, "Session 1", retrieved[2].Title(), "Third session should be Session 1 (oldest non-pinned)")
 
 	// Verify timestamp ordering for non-pinned sessions (DESC)
 	assert.True(t, retrieved[1].CreatedAt().After(retrieved[2].CreatedAt()) || retrieved[1].CreatedAt().Equal(retrieved[2].CreatedAt()),
@@ -257,7 +257,7 @@ func TestPostgresChatRepository_ListUserSessions_Pagination(t *testing.T) {
 	opts := domain.ListOptions{Limit: 2, Offset: 1}
 	retrieved, err := repo.ListUserSessions(env.Ctx, int64(env.User.ID()), opts)
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(retrieved))
+	assert.Len(t, retrieved, 2)
 }
 
 func TestPostgresChatRepository_DeleteSession(t *testing.T) {
@@ -320,11 +320,11 @@ func TestPostgresChatRepository_DeleteSession_CascadeToMessages(t *testing.T) {
 	// Verify messages are also deleted
 	_, err = repo.GetMessage(env.Ctx, msg1.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.ErrorIs(t, err, persistence.ErrMessageNotFound)
 
 	_, err = repo.GetMessage(env.Ctx, msg2.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrMessageNotFound)
+	require.ErrorIs(t, err, persistence.ErrMessageNotFound)
 }
 
 func TestPostgresChatRepository_DeleteSession_NotFound(t *testing.T) {
@@ -362,15 +362,15 @@ func TestPostgresChatRepository_SaveMessage(t *testing.T) {
 	)
 	err = repo.SaveMessage(env.Ctx, msg)
 	require.NoError(t, err)
-	assert.NotEmpty(t, msg.CreatedAt)
+	assert.NotEmpty(t, msg.CreatedAt())
 
 	// Verify message was saved
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Equal(t, msg.ID(), retrieved.ID)
-	assert.Equal(t, msg.Content, retrieved.Content)
-	assert.Equal(t, msg.Role, retrieved.Role)
-	assert.Equal(t, session.ID(), retrieved.SessionID)
+	assert.Equal(t, msg.ID(), retrieved.ID())
+	assert.Equal(t, msg.Content(), retrieved.Content())
+	assert.Equal(t, msg.Role(), retrieved.Role())
+	assert.Equal(t, session.ID(), retrieved.SessionID())
 }
 
 func TestPostgresChatRepository_SaveMessage_WithToolCalls(t *testing.T) {
@@ -464,7 +464,7 @@ func TestPostgresChatRepository_SaveMessage_WithCitations(t *testing.T) {
 	// Verify citations are saved and retrieved
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	require.Len(t, retrieved.Citations, 2)
+	require.Len(t, retrieved.Citations(), 2)
 	assert.Equal(t, "database", retrieved.Citations()[0].Type)
 	assert.Equal(t, "Users Table", retrieved.Citations()[0].Title)
 	assert.Equal(t, "web", retrieved.Citations()[1].Type)
@@ -496,8 +496,8 @@ func TestPostgresChatRepository_SaveMessage_EmptyToolCallsAndCitations(t *testin
 	// Verify empty arrays are handled correctly
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Empty(t, retrieved.ToolCalls)
-	assert.Empty(t, retrieved.Citations)
+	assert.Empty(t, retrieved.ToolCalls())
+	assert.Empty(t, retrieved.Citations())
 }
 
 func TestPostgresChatRepository_GetMessage(t *testing.T) {
@@ -524,8 +524,8 @@ func TestPostgresChatRepository_GetMessage(t *testing.T) {
 	// Retrieve the message
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Equal(t, msg.ID(), retrieved.ID)
-	assert.Equal(t, msg.Content, retrieved.Content)
+	assert.Equal(t, msg.ID(), retrieved.ID())
+	assert.Equal(t, msg.Content(), retrieved.Content())
 }
 
 func TestPostgresChatRepository_GetMessage_NotFound(t *testing.T) {
@@ -587,9 +587,9 @@ func TestPostgresChatRepository_GetSessionMessages(t *testing.T) {
 
 	// Verify ordering (created_at ASC)
 	if len(retrieved) >= 3 {
-		assert.Equal(t, "First message", retrieved[0].Content)
-		assert.Equal(t, "Second message", retrieved[1].Content)
-		assert.Equal(t, "Third message", retrieved[2].Content)
+		assert.Equal(t, "First message", retrieved[0].Content())
+		assert.Equal(t, "Second message", retrieved[1].Content())
+		assert.Equal(t, "Third message", retrieved[2].Content())
 	}
 }
 
@@ -623,7 +623,7 @@ func TestPostgresChatRepository_GetSessionMessages_Pagination(t *testing.T) {
 	opts := domain.ListOptions{Limit: 2, Offset: 1}
 	retrieved, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(retrieved))
+	assert.Len(t, retrieved, 2)
 }
 
 func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
@@ -674,8 +674,8 @@ func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 	opts := domain.ListOptions{Limit: 10, Offset: 0}
 	remaining, err := repo.GetSessionMessages(env.Ctx, session.ID(), opts)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(remaining))
-	assert.Equal(t, "Message 1", remaining[0].Content)
+	assert.Len(t, remaining, 1)
+	assert.Equal(t, "Message 1", remaining[0].Content())
 }
 
 func TestPostgresChatRepository_TruncateMessagesFrom_NoMatch(t *testing.T) {
@@ -739,16 +739,16 @@ func TestPostgresChatRepository_SaveAttachment(t *testing.T) {
 	)
 	err = repo.SaveAttachment(env.Ctx, attachment)
 	require.NoError(t, err)
-	assert.NotEmpty(t, attachment.CreatedAt)
+	assert.NotEmpty(t, attachment.CreatedAt())
 
 	// Verify attachment was saved
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, attachment.ID(), retrieved.ID)
-	assert.Equal(t, attachment.FileName, retrieved.FileName)
-	assert.Equal(t, attachment.MimeType, retrieved.MimeType)
-	assert.Equal(t, attachment.SizeBytes, retrieved.SizeBytes)
-	assert.Equal(t, attachment.FilePath, retrieved.FilePath)
+	assert.Equal(t, attachment.ID(), retrieved.ID())
+	assert.Equal(t, attachment.FileName(), retrieved.FileName())
+	assert.Equal(t, attachment.MimeType(), retrieved.MimeType())
+	assert.Equal(t, attachment.SizeBytes(), retrieved.SizeBytes())
+	assert.Equal(t, attachment.FilePath(), retrieved.FilePath())
 }
 
 func TestPostgresChatRepository_SaveAttachment_SpecialCharacters(t *testing.T) {
@@ -786,7 +786,7 @@ func TestPostgresChatRepository_SaveAttachment_SpecialCharacters(t *testing.T) {
 	// Verify special characters are preserved
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, "файл-тест (копия) #1.pdf", retrieved.FileName)
+	assert.Equal(t, "файл-тест (копия) #1.pdf", retrieved.FileName())
 }
 
 func TestPostgresChatRepository_GetAttachment(t *testing.T) {
@@ -823,8 +823,8 @@ func TestPostgresChatRepository_GetAttachment(t *testing.T) {
 	// Retrieve the attachment
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, attachment.ID(), retrieved.ID)
-	assert.Equal(t, "image.png", retrieved.FileName)
+	assert.Equal(t, attachment.ID(), retrieved.ID())
+	assert.Equal(t, "image.png", retrieved.FileName())
 }
 
 func TestPostgresChatRepository_GetAttachment_NotFound(t *testing.T) {
@@ -899,12 +899,12 @@ func TestPostgresChatRepository_GetMessageAttachments(t *testing.T) {
 	// Retrieve all attachments for the message
 	retrieved, err := repo.GetMessageAttachments(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(retrieved))
+	assert.Len(t, retrieved, 3)
 
 	// Verify ordering (created_at ASC)
-	assert.Equal(t, "doc1.pdf", retrieved[0].FileName)
-	assert.Equal(t, "image.jpg", retrieved[1].FileName)
-	assert.Equal(t, "data.csv", retrieved[2].FileName)
+	assert.Equal(t, "doc1.pdf", retrieved[0].FileName())
+	assert.Equal(t, "image.jpg", retrieved[1].FileName())
+	assert.Equal(t, "data.csv", retrieved[2].FileName())
 }
 
 func TestPostgresChatRepository_GetMessageAttachments_Empty(t *testing.T) {
@@ -1009,12 +1009,12 @@ func TestPostgresChatRepository_TenantIsolation_Sessions(t *testing.T) {
 	// Try to access Tenant A's session from Tenant B's context
 	_, err = repo.GetSession(envB.Ctx, sessionA.ID())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, persistence.ErrSessionNotFound)
+	require.ErrorIs(t, err, persistence.ErrSessionNotFound)
 
 	// Verify Tenant A can still access their session
 	retrieved, err := repo.GetSession(envA.Ctx, sessionA.ID())
 	require.NoError(t, err)
-	assert.Equal(t, sessionA.ID(), retrieved.ID)
+	assert.Equal(t, sessionA.ID(), retrieved.ID())
 }
 
 func TestPostgresChatRepository_TenantIsolation_Messages(t *testing.T) {
@@ -1237,7 +1237,7 @@ func TestPostgresChatRepository_LargeAttachment(t *testing.T) {
 	// Verify large size is preserved
 	retrieved, err := repo.GetAttachment(env.Ctx, attachment.ID())
 	require.NoError(t, err)
-	assert.Equal(t, int64(100*1024*1024), retrieved.SizeBytes)
+	assert.Equal(t, int64(100*1024*1024), retrieved.SizeBytes())
 }
 
 func TestPostgresChatRepository_ToolCallID(t *testing.T) {
@@ -1344,7 +1344,7 @@ func TestPostgresChatRepository_MessageWithNilToolCallID(t *testing.T) {
 	// Verify nil tool_call_id is handled correctly
 	retrieved, err := repo.GetMessage(env.Ctx, msg.ID())
 	require.NoError(t, err)
-	assert.Nil(t, retrieved.ToolCallID)
+	assert.Nil(t, retrieved.ToolCallID())
 }
 
 func TestPostgresChatRepository_UpdateSessionTimestamp(t *testing.T) {

@@ -1,5 +1,7 @@
 package hooks
 
+import "log"
+
 // MetricsRecorder provides metric collection for observability.
 // Implementations can use Prometheus, StatsD, OpenTelemetry, etc.
 type MetricsRecorder interface {
@@ -76,19 +78,19 @@ func NewStdMetricsRecorder() MetricsRecorder {
 	return &StdMetricsRecorder{}
 }
 
-// IncrementCounter prints counter increment.
+// IncrementCounter records counter increment.
 func (m *StdMetricsRecorder) IncrementCounter(name string, value int64, labels map[string]string) {
-	println("[METRIC] counter", name, "+", value, formatLabels(labels))
+	log.Print("[METRIC] counter ", name, " + ", value, formatLabels(labels))
 }
 
-// RecordGauge prints gauge value.
+// RecordGauge records gauge value.
 func (m *StdMetricsRecorder) RecordGauge(name string, value float64, labels map[string]string) {
-	println("[METRIC] gauge", name, "=", value, formatLabels(labels))
+	log.Print("[METRIC] gauge ", name, " = ", value, formatLabels(labels))
 }
 
-// RecordHistogram prints histogram observation.
+// RecordHistogram records histogram observation.
 func (m *StdMetricsRecorder) RecordHistogram(name string, value float64, labels map[string]string) {
-	println("[METRIC] histogram", name, "observed", value, formatLabels(labels))
+	log.Print("[METRIC] histogram ", name, " observed ", value, formatLabels(labels))
 }
 
 // formatLabels formats label map as string.
