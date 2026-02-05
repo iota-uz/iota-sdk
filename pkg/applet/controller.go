@@ -1,6 +1,7 @@
 package applet
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -85,7 +87,7 @@ func (c *AppletController) RegisterRoutes(router *mux.Router) {
 		config.Assets.BasePath = "/assets"
 	}
 
-	fullAssetsPath := c.applet.BasePath() + config.Assets.BasePath
+	fullAssetsPath := path.Join(c.applet.BasePath(), config.Assets.BasePath)
 	if c.devAssets != nil || config.Assets.FS != nil {
 		c.registerAssetRoutes(router, fullAssetsPath)
 	}
@@ -132,7 +134,7 @@ func (c *AppletController) initAssets() {
 	if assetsPath == "" {
 		assetsPath = "/assets"
 	}
-	c.assetsBasePath = c.applet.BasePath() + assetsPath
+	c.assetsBasePath = path.Join("/", strings.TrimPrefix(c.applet.BasePath(), "/"), strings.TrimPrefix(assetsPath, "/"))
 
 	if config.Assets.Dev != nil && config.Assets.Dev.Enabled {
 		dev := *config.Assets.Dev
@@ -353,7 +355,7 @@ func (c *AppletController) render(ctx context.Context, w http.ResponseWriter, r 
 	}
 }
 
-func (c *AppletController) buildAssetTags() (cssLinks string, jsScripts string, err error) {
+func (c *AppletController) buildAssetTags() (string, string, error) {
 	if c.devAssets != nil {
 		clientModule := strings.TrimSpace(c.devAssets.ClientModule)
 		if clientModule == "" {
@@ -519,7 +521,7 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	var req rpcRequest
 	dec := json.NewDecoder(r.Body)
@@ -613,9 +615,16 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeRPC(w http.ResponseWriter, status int, resp rpcResponse) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(resp); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(resp)
+	_, _ = w.Write(buf.Bytes())
 }
 
 func mapSErrorCode(err error) string {
@@ -634,6 +643,8 @@ func mapSErrorCode(err error) string {
 		return "forbidden"
 	case serrors.Internal:
 		return "internal"
+	case serrors.Other:
+		return "error"
 	default:
 		return "error"
 	}

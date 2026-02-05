@@ -92,7 +92,7 @@ func (a *BiChatApplet) Config() applet.Config {
 		Mount: applet.MountConfig{
 			Tag: "bi-chat-root",
 			Attributes: map[string]string{
-				"base-path":   "/bi-chat",
+				"base-path":   a.BasePath(),
 				"router-mode": "url",
 				"shell-mode":  "embedded",
 				"style":       "display: flex; flex: 1; flex-direction: column; min-height: 0; height: 100%; width: 100%;",

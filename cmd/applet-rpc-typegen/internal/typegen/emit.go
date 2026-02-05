@@ -24,7 +24,9 @@ func EmitTypeScript(desc *applet.TypedRouterDescription, typeName string) (strin
 	b.WriteString(typeName)
 	b.WriteString(" = {\n")
 
-	for _, m := range desc.Methods {
+	methods := append([]applet.TypedMethodDescription(nil), desc.Methods...)
+	sort.Slice(methods, func(i, j int) bool { return methods[i].Name < methods[j].Name })
+	for _, m := range methods {
 		b.WriteString("  ")
 		b.WriteString(fmt.Sprintf("%q", m.Name))
 		b.WriteString(": { params: ")

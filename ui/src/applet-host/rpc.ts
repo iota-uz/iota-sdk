@@ -75,6 +75,13 @@ export function createAppletRPCClient(options: CreateAppletRPCClientOptions) {
         })
       }
 
+      if (json.result === undefined) {
+        throw new AppletRPCException({
+          code: 'invalid_response',
+          message: 'Missing result in successful response',
+        })
+      }
+
       maybeDispatchRPCEvent({
         id: req.id,
         method: req.method,

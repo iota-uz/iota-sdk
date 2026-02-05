@@ -229,7 +229,7 @@ func TestAppletController_RPC_SameOriginEnforced(t *testing.T) {
 func TestAppletController_RPC_PayloadTooLarge(t *testing.T) {
 	t.Parallel()
 
-	max := int64(32)
+	maxBytes := int64(32)
 	a := &testApplet{
 		name:     "t",
 		basePath: "/t",
@@ -244,7 +244,7 @@ func TestAppletController_RPC_PayloadTooLarge(t *testing.T) {
 			},
 			RPC: &RPCConfig{
 				Path:         "/rpc",
-				MaxBodyBytes: max,
+				MaxBodyBytes: maxBytes,
 				Methods: map[string]RPCMethod{
 					"ok": {Handler: func(ctx context.Context, params json.RawMessage) (any, error) { return "ok", nil }},
 				},

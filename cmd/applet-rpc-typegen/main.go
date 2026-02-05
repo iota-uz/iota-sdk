@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/cmd/applet-rpc-typegen/internal/typegen"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
@@ -104,7 +106,7 @@ func inspectRouter(repoRoot string, routerImport string) (*applet.TypedRouterDes
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	mainPath := filepath.Join(tmpDir, "main.go")
 	mod, err := readModulePath(filepath.Join(repoRoot, "go.mod"))
@@ -136,13 +138,19 @@ func main() {
 		return nil, err
 	}
 
-	cmd := exec.Command("go", "run", tmpDir)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "go", "run", tmpDir)
 	cmd.Dir = repoRoot
 	cmd.Env = append(os.Environ(), "GOTOOLCHAIN=auto")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("router inspection timed out")
+		}
 		return nil, fmt.Errorf("router inspection failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 

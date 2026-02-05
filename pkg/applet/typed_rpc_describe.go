@@ -87,6 +87,12 @@ func describeType(t reflect.Type, defs map[string]TypedTypeObject, seen map[refl
 	}
 
 	switch t.Kind() {
+	case reflect.Invalid,
+		reflect.Uintptr,
+		reflect.Complex64, reflect.Complex128,
+		reflect.Chan, reflect.Func, reflect.Interface,
+		reflect.Pointer, reflect.UnsafePointer:
+		return TypeRef{Kind: "unknown"}
 	case reflect.String:
 		return TypeRef{Kind: "string"}
 	case reflect.Bool:
@@ -150,7 +156,7 @@ func describeStructFields(t reflect.Type, defs map[string]TypedTypeObject, seen 
 	return fields
 }
 
-func parseJSONTag(tag string, fallback string) (name string, optional bool, skip bool) {
+func parseJSONTag(tag string, fallback string) (string, bool, bool) {
 	if tag == "-" {
 		return "", false, true
 	}
@@ -159,11 +165,13 @@ func parseJSONTag(tag string, fallback string) (name string, optional bool, skip
 	}
 
 	parts := strings.Split(tag, ",")
+	var name string
 	if parts[0] == "" {
 		name = lowerFirst(fallback)
 	} else {
 		name = parts[0]
 	}
+	var optional bool
 	for _, p := range parts[1:] {
 		if p == "omitempty" {
 			optional = true

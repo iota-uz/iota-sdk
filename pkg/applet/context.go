@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -161,7 +163,7 @@ func (b *ContextBuilder) Build(ctx context.Context, r *http.Request, basePath st
 	if assetsPath == "" {
 		assetsPath = "/assets"
 	}
-	assetsBasePath := basePath + assetsPath
+	assetsBasePath := path.Join("/", strings.TrimPrefix(basePath, "/"), strings.TrimPrefix(assetsPath, "/"))
 
 	rpcPath := ""
 	if b.config.RPC != nil {
@@ -169,7 +171,7 @@ func (b *ContextBuilder) Build(ctx context.Context, r *http.Request, basePath st
 		if rpcPath == "" {
 			rpcPath = "/rpc"
 		}
-		rpcPath = basePath + rpcPath
+		rpcPath = path.Join("/", strings.TrimPrefix(basePath, "/"), strings.TrimPrefix(rpcPath, "/"))
 	}
 
 	initialContext := &InitialContext{
