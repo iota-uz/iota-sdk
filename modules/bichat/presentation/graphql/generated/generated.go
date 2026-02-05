@@ -42,6 +42,7 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Session() SessionResolver
 	Subscription() SubscriptionResolver
 }
 
@@ -9983,11 +9984,6 @@ func (ec *executionContext) _Session(ctx context.Context, sel ast.SelectionSet, 
 			out.Values[i] = ec._Session_isSystem(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
-			}
-		case "isSystem":
-			out.Values[i] = ec._Session_isSystem(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
 			}
 		case "parentSessionID":
 			out.Values[i] = ec._Session_parentSessionID(ctx, field, obj)
