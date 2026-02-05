@@ -56,9 +56,12 @@ export interface AssistantTurn {
 }
 
 // ============================================================================
-// Legacy Message Types (for backward compatibility)
+// Message Role Enum
 // ============================================================================
 
+/**
+ * Role of a message in a conversation
+ */
 export enum MessageRole {
   User = 'user',
   Assistant = 'assistant',
@@ -66,23 +69,13 @@ export enum MessageRole {
   Tool = 'tool',
 }
 
-/**
- * @deprecated Use ConversationTurn with UserTurn/AssistantTurn instead.
- * Kept for backward compatibility.
- */
-export interface Message {
-  id: string
-  sessionId: string
-  role: MessageRole
-  content: string
-  createdAt: string
-  toolCalls?: ToolCall[]
-  citations?: Citation[]
-  chartData?: ChartData
-  artifacts?: Artifact[]
-  explanation?: string
-}
+// ============================================================================
+// Tool Call Types
+// ============================================================================
 
+/**
+ * A tool/function call made by the assistant
+ */
 export interface ToolCall {
   id: string
   name: string
@@ -142,17 +135,6 @@ export interface CodeOutput {
   type: 'image' | 'text' | 'error'
   content: string
   /** File metadata for downloadable outputs */
-  filename?: string
-  mimeType?: string
-  sizeBytes?: number
-}
-
-/**
- * @deprecated Use CodeOutput instead
- */
-export interface CodeInterpreterOutput {
-  type: 'image' | 'text' | 'error'
-  content: string
   filename?: string
   mimeType?: string
   sizeBytes?: number

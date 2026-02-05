@@ -52,7 +52,7 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
                   {index + 1}
                 </span>
                 <div className="flex-1">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">{citation.source}</div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{citation.title || citation.source}</div>
                   {citation.url && (
                     <a
                       href={citation.url}

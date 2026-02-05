@@ -189,8 +189,8 @@ export { processCitations, type ProcessedContent } from './utils/citationProcess
 // =============================================================================
 
 export type {
+  // Core types
   Session,
-  Message,
   ToolCall,
   Citation,
   Attachment,
@@ -200,12 +200,15 @@ export type {
   ChartData,
   ChartSeries,
   Artifact,
+  // HITL question types
   PendingQuestion,
   Question,
   QuestionOption,
   QuestionAnswerData,
   QuestionAnswers,
+  // Streaming types
   StreamChunk,
+  // Data source interface
   ChatDataSource,
   ChatSessionContextValue,
   // Turn-based architecture types
