@@ -1,12 +1,13 @@
 package bichat
 
-import (
-	"context"
-	"testing"
+	import (
+		"context"
+		"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-)
+		"github.com/iota-uz/iota-sdk/pkg/applet"
+		"github.com/stretchr/testify/assert"
+		"github.com/stretchr/testify/require"
+	)
 
 func TestBiChatApplet_Config(t *testing.T) {
 	t.Parallel()
