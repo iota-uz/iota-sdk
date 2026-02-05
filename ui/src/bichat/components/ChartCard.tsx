@@ -29,7 +29,7 @@ const DEFAULT_COLORS = ['#008FFB', '#00E396', '#FEB019', '#FF4560', '#775DD0']
  * - pie: Pie chart (single series)
  * - donut: Donut chart (single series)
  *
- * @param chartData - Chart specification from GraphQL API
+ * @param chartData - Chart specification from backend API
  */
 export function ChartCard({ chartData }: ChartCardProps) {
   // Generate unique chart ID using React's useId hook
