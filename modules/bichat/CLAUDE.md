@@ -154,7 +154,7 @@ See: `infrastructure/persistence/schema/bichat-schema.sql`
 
 ## API Endpoints
 
-BiChat UI access is implemented via applet RPC + streaming (GraphQL removed).
+BiChat UI access is implemented via applet RPC + streaming.
 
 HTTP Routes:
 - `GET /bi-chat` - React chat applet
