@@ -82,7 +82,7 @@ export function AppletDevtoolsOverlay() {
                 </div>
                 {ev.status === 'error' ? (
                   <pre style={{ margin: '6px 0 0', opacity: 0.8, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {JSON.stringify(ev.error ?? {}, null, 2)}
+                    {JSON.stringify(serializeError(ev.error) ?? {}, null, 2)}
                   </pre>
                 ) : null}
               </div>
@@ -92,4 +92,20 @@ export function AppletDevtoolsOverlay() {
       </div>
     </div>
   )
+}
+
+function serializeError(err: unknown): unknown {
+  if (err instanceof Error) {
+    const anyErr = err as any
+    const out: Record<string, unknown> = {
+      name: err.name,
+      message: err.message,
+    }
+    if (err.stack) out.stack = err.stack
+    if (typeof anyErr.code === 'string') out.code = anyErr.code
+    if (anyErr.details !== undefined) out.details = anyErr.details
+    if (anyErr.cause !== undefined) out.cause = anyErr.cause
+    return out
+  }
+  return err
 }

@@ -1,7 +1,23 @@
+import { shouldEnableAppletDevtools } from '../applet-devtools/enabled'
+
 export interface AppletRPCError {
   code: string
   message: string
   details?: unknown
+}
+
+export class AppletRPCException extends Error {
+  code: string
+  details?: unknown
+  cause?: unknown
+
+  constructor(args: { code: string; message: string; details?: unknown; cause?: unknown }) {
+    super(args.message)
+    this.name = 'AppletRPCException'
+    this.code = args.code
+    this.details = args.details
+    this.cause = args.cause
+  }
 }
 
 export type AppletRPCSchema = Record<string, { params: unknown; result: unknown }>
@@ -43,12 +59,20 @@ export function createAppletRPCClient(options: CreateAppletRPCClientOptions) {
       })
 
       if (!resp.ok) {
-        throw { code: 'http_error', message: `HTTP ${resp.status}` } satisfies AppletRPCError
+        throw new AppletRPCException({
+          code: 'http_error',
+          message: `HTTP ${resp.status}`,
+          details: { status: resp.status },
+        })
       }
 
       const json = (await resp.json()) as RPCResponse<TResult>
       if (json.error) {
-        throw json.error
+        throw new AppletRPCException({
+          code: json.error.code,
+          message: json.error.message,
+          details: json.error.details,
+        })
       }
 
       maybeDispatchRPCEvent({
@@ -92,16 +116,7 @@ type RPCDevEvent = {
 function maybeDispatchRPCEvent(detail: RPCDevEvent) {
   if (typeof window === 'undefined') return
 
-  const url = new URL(window.location.href)
-  const enabledByQuery = url.searchParams.get('appletDebug') === '1'
-  let enabledByStorage = false
-  try {
-    enabledByStorage = window.localStorage.getItem('iotaAppletDevtools') === '1'
-  } catch {
-    enabledByStorage = false
-  }
-
-  if (!enabledByQuery && !enabledByStorage) return
+  if (!shouldEnableAppletDevtools()) return
 
   window.dispatchEvent(new CustomEvent('iota:applet-rpc', { detail }))
 }

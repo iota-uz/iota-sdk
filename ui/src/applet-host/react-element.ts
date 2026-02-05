@@ -35,27 +35,31 @@ export function defineReactAppletElement(options: DefineReactAppletElementOption
     }
 
     connectedCallback(): void {
-      const shadowRoot = this.attachShadow({ mode: 'open' })
+      const shadowRoot = this.shadowRoot ?? this.attachShadow({ mode: 'open' })
 
-      const styles = typeof options.styles === 'function' ? options.styles() : options.styles
-      if (styles) {
-        const styleEl = document.createElement('style')
-        styleEl.textContent = styles
-        shadowRoot.appendChild(styleEl)
+      if (!this.container) {
+        const styles = typeof options.styles === 'function' ? options.styles() : options.styles
+        if (styles) {
+          const styleEl = document.createElement('style')
+          styleEl.textContent = styles
+          shadowRoot.appendChild(styleEl)
+        }
+
+        this.container = document.createElement('div')
+        this.container.id = 'react-root'
+        this.container.style.display = 'flex'
+        this.container.style.flexDirection = 'column'
+        this.container.style.flex = '1'
+        this.container.style.minHeight = '0'
+        this.container.style.height = '100%'
+        this.container.style.width = '100%'
+        shadowRoot.appendChild(this.container)
+      } else if (!shadowRoot.querySelector('#react-root')) {
+        shadowRoot.appendChild(this.container)
       }
 
-      this.container = document.createElement('div')
-      this.container.id = 'react-root'
-      this.container.style.display = 'flex'
-      this.container.style.flexDirection = 'column'
-      this.container.style.flex = '1'
-      this.container.style.minHeight = '0'
-      this.container.style.height = '100%'
-      this.container.style.width = '100%'
-      shadowRoot.appendChild(this.container)
-
       if (options.observeDarkMode !== false) {
-        this.darkModeObserver = this.syncDarkMode()
+        this.darkModeObserver ??= this.syncDarkMode()
       }
 
       this.renderReact()
@@ -67,7 +71,6 @@ export function defineReactAppletElement(options: DefineReactAppletElementOption
 
       this.reactRoot?.unmount()
       this.reactRoot = null
-      this.container = null
     }
 
     attributeChangedCallback(_name: string, oldValue: string | null, newValue: string | null): void {

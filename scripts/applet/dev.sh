@@ -11,6 +11,12 @@ fi
 
 cd "$ROOT"
 
+if ! command -v air >/dev/null 2>&1; then
+  echo "Missing 'air' in PATH." >&2
+  echo "Install: go install github.com/air-verse/air@latest" >&2
+  exit 1
+fi
+
 APPLET_JSON="$ROOT/scripts/applets.json"
 if [ ! -f "$APPLET_JSON" ]; then
   echo "Missing scripts/applets.json" >&2
@@ -66,14 +72,14 @@ echo "Applet: $NAME"
 echo "URL: http://localhost:${IOTA_PORT}${APPLET_BASE_PATH}"
 
 cleanup() {
-  kill "${VITE_PID:-}" "${AIR_PID:-}" 2>/dev/null || true
+  pids="$(jobs -pr 2>/dev/null || true)"
+  if [ -n "${pids:-}" ]; then
+    kill ${pids} 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT INT TERM
 
 pnpm -C "$VITE_DIR" run dev:embedded &
-VITE_PID=$!
-
 air &
-AIR_PID=$!
 
 wait
