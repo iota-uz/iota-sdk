@@ -58,7 +58,7 @@ func TestLocalFileStorage_SaveSizeMismatch(t *testing.T) {
 
 	// Save should fail due to size mismatch
 	_, err = storage.Save(ctx, "test.txt", bytes.NewReader(content), metadata)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "size mismatch")
 }
 
@@ -83,7 +83,7 @@ func TestLocalFileStorage_Get(t *testing.T) {
 	// Get file
 	reader, err := storage.Get(ctx, url)
 	require.NoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	// Read content
 	retrievedContent, err := io.ReadAll(reader)
@@ -102,7 +102,7 @@ func TestLocalFileStorage_GetNotFound(t *testing.T) {
 
 	// Try to get non-existent file
 	_, err = storage.Get(ctx, "http://localhost/files/nonexistent.txt")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "file not found")
 }
 
@@ -205,11 +205,11 @@ func TestLocalFileStorage_LargeFile(t *testing.T) {
 	// Retrieve and verify
 	reader, err := storage.Get(ctx, url)
 	require.NoError(t, err)
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	retrieved, err := io.ReadAll(reader)
 	require.NoError(t, err)
-	assert.Equal(t, len(content), len(retrieved))
+	assert.Len(t, retrieved, len(content))
 }
 
 func TestLocalFileStorage_PreserveExtension(t *testing.T) {
@@ -265,11 +265,11 @@ func TestNoOpFileStorage(t *testing.T) {
 
 	// Get always fails
 	_, err = storage.Get(ctx, url)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Delete is no-op
 	err = storage.Delete(ctx, url)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Exists always returns false
 	exists, err := storage.Exists(ctx, url)

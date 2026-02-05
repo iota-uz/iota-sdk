@@ -22,7 +22,6 @@ issues:
       text: "SA4023"
       linters:
         - staticcheck
-
 output:
   format: colored-line-number
   sort-results: true

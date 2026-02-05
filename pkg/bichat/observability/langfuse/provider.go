@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/henomis/langfuse-go/model"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/sirupsen/logrus"
@@ -431,9 +430,4 @@ func mapLevelToLangfuseModel(level string) model.ObservationLevel {
 // timePtr returns a pointer to the given time.
 func timePtr(t time.Time) *time.Time {
 	return &t
-}
-
-// uuidPtr returns a pointer to the given UUID (unused but kept for consistency).
-func uuidPtr(id uuid.UUID) *uuid.UUID {
-	return &id
 }

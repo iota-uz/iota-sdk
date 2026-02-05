@@ -34,7 +34,7 @@ func TestState_ConcurrentAccess(t *testing.T) {
 			obs.ID = fmt.Sprintf("gen-%d", id)
 
 			err := provider.RecordGeneration(ctx, obs)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}(i)
 	}
 

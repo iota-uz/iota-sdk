@@ -93,7 +93,7 @@ This will install:
 2. **Start the test database:**
    ```bash
    # From project root
-   make compose up
+   just compose up
    ```
 
 3. **Start the Go server:**
@@ -159,25 +159,25 @@ npx playwright test --project=chromium
 npx playwright show-report
 ```
 
-### Makefile Integration
+### Justfile Integration
 
 From the project root, you can use:
 
 ```bash
 # Run E2E tests
-make e2e test
+just e2e test
 
 # Reset E2E database
-make e2e reset
+just e2e reset
 
 # Seed E2E database
-make e2e seed
+just e2e seed
 
 # Run migrations on E2E database
-make e2e migrate
+just e2e migrate
 
 # Clean E2E test artifacts
-make e2e clean
+just e2e clean
 ```
 
 ## Directory Structure
@@ -254,14 +254,14 @@ E2E tests use a dedicated database `iota_erp_e2e` to avoid conflicts with develo
 
 ```bash
 # Reset database (truncate all tables)
-make e2e reset
+just e2e reset
 
 # Seed database with test data
-make e2e seed
+just e2e seed
 
 # Run migrations
-make e2e migrate up
-make e2e migrate down
+just e2e migrate up
+just e2e migrate down
 ```
 
 ### In Tests

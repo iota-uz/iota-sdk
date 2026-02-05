@@ -1,13 +1,24 @@
 package resolvers
 
 import (
+	"encoding/binary"
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/model"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
+
+// userIDToUUID converts a numeric user ID to a deterministic UUID.
+// The user ID is encoded in the low 64 bits, making it reversible and
+// deterministic across requests for the same user.
+func userIDToUUID(userID uint) uuid.UUID {
+	var id uuid.UUID
+	binary.BigEndian.PutUint64(id[8:], uint64(userID))
+	return id
+}
 
 // toGraphQLSession converts a domain Session to a GraphQL Session
 func toGraphQLSession(s domain.Session) *model.Session {
@@ -248,9 +259,4 @@ func toGraphQLArtifact(a domain.Artifact) *model.Artifact {
 		// If marshal fails, metadata will be nil in GraphQL response
 	}
 	return gql
-}
-
-// strPtr is a helper to convert string to *string
-func strPtr(s string) *string {
-	return &s
 }

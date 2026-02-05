@@ -156,21 +156,21 @@ func TestInMemoryCheckpointer_CRUD(t *testing.T) {
 
 		// Load should fail after deletion
 		_, err = checkpointer.Load(ctx, id)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
 		_, err := checkpointer.Load(ctx, "non-existent")
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		_, err = checkpointer.LoadByThreadID(ctx, "non-existent-thread")
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		err = checkpointer.Delete(ctx, "non-existent")
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		_, err = checkpointer.LoadAndDelete(ctx, "non-existent")
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 

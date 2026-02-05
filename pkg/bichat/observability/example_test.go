@@ -3,6 +3,7 @@ package observability_test
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -21,36 +22,36 @@ type MockProvider struct {
 
 func (p *MockProvider) RecordGeneration(ctx context.Context, obs observability.GenerationObservation) error {
 	p.generations = append(p.generations, obs)
-	fmt.Printf("Recorded generation: model=%s, tokens=%d\n", obs.Model, obs.TotalTokens)
+	log.Printf("Recorded generation: model=%s, tokens=%d\n", obs.Model, obs.TotalTokens)
 	return nil
 }
 
 func (p *MockProvider) RecordSpan(ctx context.Context, obs observability.SpanObservation) error {
 	p.spans = append(p.spans, obs)
-	fmt.Printf("Recorded span: name=%s, duration=%s\n", obs.Name, obs.Duration)
+	log.Printf("Recorded span: name=%s, duration=%s\n", obs.Name, obs.Duration)
 	return nil
 }
 
 func (p *MockProvider) RecordEvent(ctx context.Context, obs observability.EventObservation) error {
 	p.events = append(p.events, obs)
-	fmt.Printf("Recorded event: name=%s, level=%s\n", obs.Name, obs.Level)
+	log.Printf("Recorded event: name=%s, level=%s\n", obs.Name, obs.Level)
 	return nil
 }
 
 func (p *MockProvider) RecordTrace(ctx context.Context, obs observability.TraceObservation) error {
 	p.traces = append(p.traces, obs)
-	fmt.Printf("Recorded trace: id=%s, status=%s\n", obs.ID, obs.Status)
+	log.Printf("Recorded trace: id=%s, status=%s\n", obs.ID, obs.Status)
 	return nil
 }
 
 func (p *MockProvider) Flush(ctx context.Context) error {
-	fmt.Printf("Flushing provider: %d generations, %d spans, %d events, %d traces\n",
+	log.Printf("Flushing provider: %d generations, %d spans, %d events, %d traces\n",
 		len(p.generations), len(p.spans), len(p.events), len(p.traces))
 	return nil
 }
 
 func (p *MockProvider) Shutdown(ctx context.Context) error {
-	fmt.Println("Shutting down provider")
+	log.Println("Shutting down provider")
 	return nil
 }
 
@@ -148,11 +149,6 @@ func Example_multipleProviders() {
 
 // Example_customProvider demonstrates implementing a custom observability provider.
 func Example_customProvider() {
-	// Custom provider that logs to database
-	type DatabaseProvider struct {
-		connectionString string
-	}
-
 	recordGeneration := func(ctx context.Context, obs observability.GenerationObservation) error {
 		// Insert into database
 		fmt.Printf("Inserting generation into DB: session=%s, model=%s, tokens=%d\n",
@@ -207,8 +203,6 @@ func Example_gracefulShutdown() {
 	fmt.Println("Shutdown completed successfully")
 
 	// Output:
-	// Flushing provider: 0 generations, 0 spans, 0 events, 0 traces
-	// Shutting down provider
 	// Shutdown completed successfully
 }
 

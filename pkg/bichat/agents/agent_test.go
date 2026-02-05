@@ -260,7 +260,7 @@ func TestAgent_OnToolCall(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err)
 				if tt.errorType != nil {
-					assert.ErrorIs(t, err, tt.errorType)
+					require.ErrorIs(t, err, tt.errorType)
 				}
 			} else {
 				require.NoError(t, err)
@@ -303,6 +303,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithName("custom_agent"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				assert.Equal(t, "custom_agent", agent.Metadata().Name)
 			},
 		},
@@ -313,6 +314,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithDescription("Custom description"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				assert.Equal(t, "Custom description", agent.Metadata().Description)
 			},
 		},
@@ -323,6 +325,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithWhenToUse("Use when analyzing data"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				assert.Equal(t, "Use when analyzing data", agent.Metadata().WhenToUse)
 			},
 		},
@@ -333,6 +336,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithTools(tool1, tool2),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				tools := agent.Tools()
 				assert.Len(t, tools, 2)
 				assert.Equal(t, "tool1", tools[0].Name())
@@ -346,6 +350,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithSystemPrompt("Custom system prompt"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				ctx := context.Background()
 				assert.Equal(t, "Custom system prompt", agent.SystemPrompt(ctx))
 			},
@@ -357,6 +362,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithModel("claude-3-opus"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				assert.Equal(t, "claude-3-opus", agent.Metadata().Model)
 			},
 		},
@@ -367,6 +373,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithTerminationTools("final_answer"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				assert.Equal(t, []string{"final_answer"}, agent.Metadata().TerminationTools)
 			},
 		},
@@ -377,6 +384,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithTerminationTools("final_answer", "submit", "complete"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				assert.Equal(t, []string{"final_answer", "submit", "complete"}, agent.Metadata().TerminationTools)
 			},
 		},
@@ -392,6 +400,7 @@ func TestBaseAgent_FunctionalOptions(t *testing.T) {
 				WithTerminationTools("done", "finish"),
 			},
 			validate: func(t *testing.T, agent *BaseAgent) {
+				t.Helper()
 				metadata := agent.Metadata()
 				assert.Equal(t, "full_agent", metadata.Name)
 				assert.Equal(t, "Fully configured agent", metadata.Description)
@@ -494,9 +503,9 @@ func TestBaseAgent_EmptyConfiguration(t *testing.T) {
 	agent := NewBaseAgent()
 
 	metadata := agent.Metadata()
-	assert.Equal(t, "", metadata.Name)
+	assert.Empty(t, metadata.Name)
 	assert.Equal(t, "gpt-4", metadata.Model)
 	assert.Equal(t, []string{ToolFinalAnswer}, metadata.TerminationTools)
 	assert.Empty(t, agent.Tools())
-	assert.Equal(t, "", agent.SystemPrompt(context.Background()))
+	assert.Empty(t, agent.SystemPrompt(context.Background()))
 }

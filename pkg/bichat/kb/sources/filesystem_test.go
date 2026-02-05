@@ -9,6 +9,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb/sources"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFileSystemSource_List(t *testing.T) {
@@ -19,7 +20,7 @@ func TestFileSystemSource_List(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test files
 	testFiles := map[string]string{
@@ -73,7 +74,7 @@ func TestFileSystemSource_Recursive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create nested directory structure
 	subDir := filepath.Join(tmpDir, "subdir")
@@ -82,8 +83,8 @@ func TestFileSystemSource_Recursive(t *testing.T) {
 	}
 
 	// Create files at different levels
-	os.WriteFile(filepath.Join(tmpDir, "root.md"), []byte("# Root"), 0644)
-	os.WriteFile(filepath.Join(subDir, "sub.md"), []byte("# Sub"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "root.md"), []byte("# Root"), 0644)
+	_ = os.WriteFile(filepath.Join(subDir, "sub.md"), []byte("# Sub"), 0644)
 
 	ctx := context.Background()
 
@@ -138,7 +139,7 @@ func TestFileSystemSource_Extensions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create files with different extensions
 	files := map[string]string{
@@ -150,7 +151,7 @@ func TestFileSystemSource_Extensions(t *testing.T) {
 	}
 
 	for name, content := range files {
-		os.WriteFile(filepath.Join(tmpDir, name), []byte(content), 0644)
+		_ = os.WriteFile(filepath.Join(tmpDir, name), []byte(content), 0644)
 	}
 
 	ctx := context.Background()
@@ -221,7 +222,7 @@ func TestFileSystemSource_ExtractTitle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create markdown file with heading
 	mdContent := `# Main Title
@@ -232,7 +233,7 @@ This is the content.
 
 More content.
 `
-	os.WriteFile(filepath.Join(tmpDir, "doc.md"), []byte(mdContent), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "doc.md"), []byte(mdContent), 0644)
 
 	ctx := context.Background()
 
@@ -284,9 +285,9 @@ func TestFileSystemSource_IncludeMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	os.WriteFile(filepath.Join(tmpDir, "doc.md"), []byte("Content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "doc.md"), []byte("Content"), 0644)
 
 	ctx := context.Background()
 
@@ -337,7 +338,7 @@ func TestFileSystemSource_IncludeMetadata(t *testing.T) {
 
 		// Metadata should be empty or minimal
 		doc := docs[0]
-		if doc.Metadata != nil && len(doc.Metadata) > 0 {
+		if len(doc.Metadata) > 0 {
 			// Check that standard metadata fields are not present
 			if _, ok := doc.Metadata["size"]; ok {
 				t.Error("Expected 'size' NOT in metadata when disabled")
@@ -353,12 +354,12 @@ func TestFileSystemSource_IgnorePatterns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create test files
-	os.WriteFile(filepath.Join(tmpDir, "include.md"), []byte("Include"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "ignore.md"), []byte("Ignore"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte("Test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "include.md"), []byte("Include"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "ignore.md"), []byte("Ignore"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "test.md"), []byte("Test"), 0644)
 
 	ctx := context.Background()
 
@@ -405,7 +406,7 @@ func TestFileSystemSource_DocumentTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create files of different types
 	files := map[string]kb.DocumentType{
@@ -417,7 +418,7 @@ func TestFileSystemSource_DocumentTypes(t *testing.T) {
 	}
 
 	for name := range files {
-		os.WriteFile(filepath.Join(tmpDir, name), []byte("content"), 0644)
+		require.NoError(t, os.WriteFile(filepath.Join(tmpDir, name), []byte("content"), 0644))
 	}
 
 	ctx := context.Background()
@@ -462,9 +463,9 @@ func TestFileSystemSource_ContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	os.WriteFile(filepath.Join(tmpDir, "doc.md"), []byte("Content"), 0644)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "doc.md"), []byte("Content"), 0644))
 
 	// Create cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -486,7 +487,7 @@ func TestFileSystemSource_EmptyDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	ctx := context.Background()
 
@@ -509,12 +510,12 @@ func TestFileSystemSource_UniqueIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create multiple files
 	for i := 0; i < 5; i++ {
 		name := filepath.Join(tmpDir, "doc"+string(rune('0'+i))+".md")
-		os.WriteFile(name, []byte("Content"), 0644)
+		require.NoError(t, os.WriteFile(name, []byte("Content"), 0644))
 	}
 
 	ctx := context.Background()

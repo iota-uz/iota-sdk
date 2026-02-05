@@ -344,7 +344,7 @@ func (h *providerHandler) handleGenericEvent(ctx context.Context, event hooks.Ev
 		TenantID:   event.TenantID(),
 		SessionID:  event.SessionID(),
 		Timestamp:  event.Timestamp(),
-		Name:       string(event.Type()),
+		Name:       event.Type(),
 		Type:       "custom",
 		Message:    "",
 		Level:      "info",

@@ -1,122 +1,10 @@
-# @iotauz/applet-core
+# Applet Core (moved)
 
-Core React package for building IOTA SDK applets. Provides context injection, hooks, and utilities for seamless integration with the IOTA SDK runtime.
+Applet Core is now part of the unified package: `@iota-uz/sdk`.
 
-## Installation
+- Docs: `README.MD` and `docs/content/getting-started/npm-package.mdx`
 
-```bash
-pnpm install @iotauz/applet-core
-```
-
-## Quick Start
-
-### Basic Setup
-
-```tsx
-import { AppletProvider } from '@iotauz/applet-core'
-import App from './App'
-
-function Root() {
-  return (
-    <AppletProvider windowKey="__BICHAT_CONTEXT__">
-      <App />
-    </AppletProvider>
-  )
-}
-```
-
-### Using Hooks
-
-```tsx
-import {
-  useUser,
-  usePermissions,
-  useTranslation,
-  useSession,
-  useRoute,
-  useConfig
-} from '@iotauz/applet-core'
-
-function App() {
-  const { firstName, email } = useUser()
-  const { hasPermission } = usePermissions()
-  const { t } = useTranslation()
-  const { isExpiringSoon, refreshSession } = useSession()
-  const { path, params } = useRoute()
-  const { graphQLEndpoint } = useConfig()
-
-  // Check permissions
-  if (!hasPermission('bichat.access')) {
-    return <div>{t('Common.NoAccess')}</div>
-  }
-
-  // Auto-refresh expiring session
-  if (isExpiringSoon) {
-    refreshSession()
-  }
-
-  return (
-    <div>
-      <h1>{t('BiChat.Welcome', { name: firstName })}</h1>
-      <p>{t('Common.CurrentPath')}: {path}</p>
-    </div>
-  )
-}
-```
-
-## API Reference
-
-### Context Providers
-
-#### AppletProvider
-
-Main context provider that reads context from window global.
-
-```tsx
-<AppletProvider windowKey="__BICHAT_CONTEXT__">
-  <App />
-</AppletProvider>
-```
-
-**Props:**
-- `windowKey: string` - The window global key to read context from (e.g., `__BICHAT_CONTEXT__`)
-- `context?: InitialContext` - Optional: provide context directly instead of reading from window
-- `children: ReactNode` - React children
-
-#### ConfigProvider
-
-Alternative provider that accepts context via props (useful for testing/SSR).
-
-```tsx
-<ConfigProvider config={initialContext}>
-  <App />
-</ConfigProvider>
-```
-
-**Props:**
-- `config: InitialContext` - The initial context object
-- `children: ReactNode` - React children
-
-### Core Hooks
-
-#### useUser()
-
-Access current user information.
-
-```tsx
-const { id, email, firstName, lastName, permissions } = useUser()
-```
-
-**Returns:**
-```typescript
-{
-  id: number
-  email: string
-  firstName: string
-  lastName: string
-  permissions: string[]
-}
-```
+This document is kept only for historical context.
 
 #### usePermissions()
 
@@ -299,7 +187,7 @@ import type {
   PermissionsHook,
   SessionHook,
   StreamingHook
-} from '@iotauz/applet-core'
+} from '@iota-uz/sdk'
 ```
 
 ### InitialContext
@@ -325,7 +213,7 @@ interface InitialContext {
 For cases where provider setup is not possible:
 
 ```tsx
-import { useAppletContextDirect } from '@iotauz/applet-core'
+import { useAppletContextDirect } from '@iota-uz/sdk'
 
 const context = useAppletContextDirect('__BICHAT_CONTEXT__')
 ```

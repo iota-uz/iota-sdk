@@ -48,13 +48,13 @@ func TestAttributes(t *testing.T) {
 	}
 
 	// Test Copy
-	copy := attrs.Copy()
-	if len(copy) != len(attrs) {
-		t.Errorf("Copy failed: expected %d attributes, got %d", len(attrs), len(copy))
+	attrsCopy := attrs.Copy()
+	if len(attrsCopy) != len(attrs) {
+		t.Errorf("Copy failed: expected %d attributes, got %d", len(attrs), len(attrsCopy))
 	}
 
 	// Modify copy should not affect original
-	copy.SetString(AttrModelName, "claude-3")
+	attrsCopy.SetString(AttrModelName, "claude-3")
 	if val, _ := attrs.GetString(AttrModelName); val != "gpt-4" {
 		t.Errorf("Copy is not independent: original modified")
 	}

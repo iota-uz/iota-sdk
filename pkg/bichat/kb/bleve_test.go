@@ -2,6 +2,7 @@ package kb_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 func TestBleveIndex_CRUD(t *testing.T) {
@@ -19,14 +21,14 @@ func TestBleveIndex_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, "test.bleve")
 	indexer, searcher, err := kb.NewBleveIndex(indexPath)
 	if err != nil {
 		t.Fatalf("Failed to create Bleve index: %v", err)
 	}
-	defer indexer.Close()
+	defer func() { _ = indexer.Close() }()
 
 	ctx := context.Background()
 
@@ -101,14 +103,14 @@ func TestBleveSearch_Basic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, "search.bleve")
 	indexer, searcher, err := kb.NewBleveIndex(indexPath)
 	if err != nil {
 		t.Fatalf("Failed to create Bleve index: %v", err)
 	}
-	defer indexer.Close()
+	defer func() { _ = indexer.Close() }()
 
 	ctx := context.Background()
 
@@ -204,14 +206,14 @@ func TestBleveSearch_Options(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, "options.bleve")
 	indexer, searcher, err := kb.NewBleveIndex(indexPath)
 	if err != nil {
 		t.Fatalf("Failed to create Bleve index: %v", err)
 	}
-	defer indexer.Close()
+	defer func() { _ = indexer.Close() }()
 
 	ctx := context.Background()
 
@@ -289,14 +291,14 @@ func TestBleveIndex_Stats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, "stats.bleve")
 	indexer, _, err := kb.NewBleveIndex(indexPath)
 	if err != nil {
 		t.Fatalf("Failed to create Bleve index: %v", err)
 	}
-	defer indexer.Close()
+	defer func() { _ = indexer.Close() }()
 
 	ctx := context.Background()
 
@@ -343,14 +345,14 @@ func TestBleveIndex_Rebuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, "rebuild.bleve")
 	indexer, searcher, err := kb.NewBleveIndex(indexPath)
 	if err != nil {
 		t.Fatalf("Failed to create Bleve index: %v", err)
 	}
-	defer indexer.Close()
+	defer func() { _ = indexer.Close() }()
 
 	ctx := context.Background()
 
@@ -383,6 +385,9 @@ func TestBleveIndex_Rebuild(t *testing.T) {
 
 	// Old documents should be gone
 	oldDoc, err := searcher.GetDocument(ctx, "old1")
+	if err != nil && !errors.Is(err, kb.ErrDocumentNotFound) {
+		t.Fatalf("GetDocument(old1) unexpected error: %v", err)
+	}
 	if oldDoc != nil {
 		t.Error("Expected old document to be removed after rebuild")
 	}
@@ -413,14 +418,14 @@ func TestBleveIndex_ContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, "ctx.bleve")
 	indexer, _, err := kb.NewBleveIndex(indexPath)
 	if err != nil {
 		t.Fatalf("Failed to create Bleve index: %v", err)
 	}
-	defer indexer.Close()
+	defer func() { _ = indexer.Close() }()
 
 	// Create cancelled context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -446,7 +451,7 @@ func TestBleveIndex_IsAvailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, "available.bleve")
 	_, searcher, err := kb.NewBleveIndex(indexPath)
@@ -469,7 +474,9 @@ func (m *mockDocumentSource) List(ctx context.Context) ([]kb.Document, error) {
 	return m.docs, nil
 }
 
+var errMockWatchNotImplemented = errors.New("mock document source: watch not implemented")
+
 func (m *mockDocumentSource) Watch(ctx context.Context) (<-chan kb.DocumentChange, error) {
 	// Not implemented for this test
-	return nil, nil
+	return nil, serrors.E("watch", errMockWatchNotImplemented)
 }

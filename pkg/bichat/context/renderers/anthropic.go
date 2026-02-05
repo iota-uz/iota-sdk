@@ -167,7 +167,7 @@ func (r *AnthropicRenderer) renderHistory(block context.ContextBlock) (context.R
 			_ = json.Unmarshal(data, &historyPayload)
 		}
 	}
-	var messages []types.Message
+	messages := make([]types.Message, 0, len(historyPayload.Messages))
 	for _, msg := range historyPayload.Messages {
 		role := types.RoleUser
 		switch msg.Role {

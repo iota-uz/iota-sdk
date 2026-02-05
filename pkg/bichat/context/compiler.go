@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 )
 
@@ -322,9 +323,9 @@ func compactBlocks(
 	// Generate summary using configured summarizer
 	summary, summaryTokens, err := policy.Summarizer.SummarizeMessages(ctx, historyMessages, targetSummaryTokens)
 	if err != nil {
-		// Summarization failed, fall back to truncation
+		// Summarization failed, fall back to truncation (success path; intentionally return nil)
 		finalBlocks, totalTokens, tokensByKind := truncateBlocks(blocks, blockTokens, availableTokens, policy.KindPriorities)
-		return finalBlocks, totalTokens, tokensByKind, nil
+		return finalBlocks, totalTokens, tokensByKind, nil //nolint:nilerr // truncation is the intended fallback success
 	}
 
 	// Create a new summarized history block to replace the original history blocks
@@ -459,7 +460,18 @@ func createSummaryBlock(summary string, summaryTokens int) ContextBlock {
 	canonicalized, err := SortedJSONBytes(payload)
 	if err != nil {
 		// Fallback: use regular JSON encoding
-		canonicalized, _ = json.Marshal(payload)
+		canonicalized, err = json.Marshal(payload)
+		if err != nil {
+			// CRITICAL: Include error details and UUID to maintain unique hash per failure
+			// This prevents different marshal failures from producing the same hash
+			// WARNING: This is an error path - investigate why marshaling failed
+			fallbackContent := fmt.Sprintf(`{"error":"marshal_failed","message":%q,"uuid":%q}`,
+				err.Error(),
+				uuid.New().String())
+			canonicalized = []byte(fallbackContent)
+			// Note: Logging omitted here as this is a foundational package with no logger dependency.
+			// Callers should monitor for error patterns in fallback content.
+		}
 	}
 
 	// Compute content-addressed hash

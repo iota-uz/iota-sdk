@@ -339,9 +339,10 @@ func TestWithRateLimit_Error(t *testing.T) {
 		waitError: expectedErr,
 	}
 
+	errRateLimitHit := errors.New("rate limit hit")
 	baseFunc := func(ctx context.Context, req Request) (*Response, error) {
 		t.Error("base function should not be called if rate limit fails")
-		return nil, nil
+		return nil, errRateLimitHit
 	}
 
 	wrapped := WithRateLimit(limiter)(baseFunc)

@@ -1,5 +1,37 @@
 # IOTA SDK
 
+## NPM: @iota-uz/sdk
+
+This repo now ships a unified public NPM package for UI + Tailwind sharing:
+- Applet Core (React utilities): `@iota-uz/sdk`
+- BIChat UI (React): `@iota-uz/sdk/bichat`
+- Tailwind v4 inputs + config helper: `@iota-uz/sdk/tailwind/*`
+- Bundled assets (fonts): serve `node_modules/@iota-uz/sdk/assets` at `/assets`
+
+Tailwind (consumer compiles):
+
+```bash
+pnpm add -D tailwindcss @tailwindcss/cli
+pnpm add @iota-uz/sdk
+```
+
+```js
+// tailwind.config.cjs
+const createIotaTailwindConfig = require('@iota-uz/sdk/tailwind/create-config')
+
+module.exports = createIotaTailwindConfig({
+  content: ['./src/**/*.{ts,tsx,js,jsx,html}'],
+  extend: {},
+})
+```
+
+```bash
+# Create an input CSS file in your project (example: ./src/tailwind.css):
+#   @config "../tailwind.config.cjs";
+#   @import "@iota-uz/sdk/tailwind/main.css";
+tailwindcss --input ./src/tailwind.css --output ./public/assets/main.css --minify
+```
+
 ![Dashboard](images/showcase.jpg)
 
 ## 🔗 Links
@@ -75,7 +107,7 @@ various industries. Here's what's in the pipeline:
 Install all required development tools with a single command:
 
 ```bash
-make install-tools
+just install-tools
 ```
 
 This installs the following tools with correct versions:
@@ -83,7 +115,7 @@ This installs the following tools with correct versions:
 - **air** v1.61.5 - Hot reload for Go applications
 - **goimports** - Go imports organizer
 - **golangci-lint** v1.64.8 - Go linter
-- **TailwindCSS** v3.4.13 - Standalone CSS CLI
+- **TailwindCSS** v4 (via `pnpm` at repo root)
 - **cloudflared** - Cloudflare tunnel client
 
 The script automatically detects your OS (macOS/Linux) and architecture, downloads binaries, creates symlinks, and configures your PATH.
@@ -130,4 +162,3 @@ Updated at Dec 31, 2025
 
 We welcome contributions to improve and expand IOTA SDK! Check out our [contributing guide](docs/CONTRIBUTING.MD) to get
 started.
-
