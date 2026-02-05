@@ -21,6 +21,11 @@ logs/
 dist/
 **/dist/
 
+# Applet embedded assets are build output; keep only a placeholder for go:embed.
+!**/presentation/assets/dist/
+**/presentation/assets/dist/*
+!**/presentation/assets/dist/.keep
+
 go.work*
 
 **/.claude/settings.local.json

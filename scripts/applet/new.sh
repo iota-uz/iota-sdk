@@ -56,7 +56,7 @@ UPPER="$(echo "$NAME" | tr '[:lower:]-' '[:upper:]_')"
 WINDOW_GLOBAL="__${UPPER}_CONTEXT__"
 APPLET_ENTRY_MODULE="/src/main.tsx"
 
-mkdir -p "$MODULE_DIR"/{infrastructure/persistence/schema,presentation/assets/dist/assets,presentation/locales,rpc,presentation/web/src/dev,presentation/web/dist}
+mkdir -p "$MODULE_DIR"/{infrastructure/persistence/schema,presentation/assets/dist,presentation/locales,rpc,presentation/web/src/dev,presentation/web/dist}
 
 cat > "$MODULE_DIR/module.go" <<EOF
 package ${NAME//-/_}
@@ -281,9 +281,10 @@ cat > "$MODULE_DIR/presentation/web/package.json" <<EOF
   "type": "module",
   "scripts": {
     "dev": "pnpm run dev:standalone",
-    "dev:embedded": "pnpm run build:css && vite",
-    "dev:standalone": "pnpm run build:css && APPLET_ASSETS_BASE=/ vite",
     "build:css": "tailwindcss -i ./src/index.css -o ./dist/style.css --minify",
+    "build:css:watch": "tailwindcss -i ./src/index.css -o ./dist/style.css --watch",
+    "dev:embedded": "bash -lc 'trap \"kill 0\" EXIT; pnpm run build:css:watch & vite'",
+    "dev:standalone": "bash -lc 'trap \"kill 0\" EXIT; pnpm run build:css:watch & APPLET_ASSETS_BASE=/ vite'",
     "build": "pnpm run build:css && tsc && vite build",
     "preview": "vite preview"
   },
@@ -488,22 +489,8 @@ cat > "$MODULE_DIR/presentation/web/src/rpc.generated.ts" <<EOF
 export type ${PASCAL}RPC = {}
 EOF
 
-cat > "$MODULE_DIR/presentation/assets/dist/assets/main.js" <<EOF
-console.log("${NAME} placeholder bundle")
-EOF
+cat > "$MODULE_DIR/presentation/assets/dist/.keep" <<'EOF'
 
-cat > "$MODULE_DIR/presentation/assets/dist/assets/main.css" <<EOF
-/* placeholder css */
-EOF
-
-cat > "$MODULE_DIR/presentation/assets/dist/manifest.json" <<EOF
-{
-  "index.html": {
-    "file": "assets/main.js",
-    "isEntry": true,
-    "css": ["assets/main.css"]
-  }
-}
 EOF
 
 node - <<'NODE' "$NAME" "$BASE_PATH" "$VITE_DIR" "$VITE_PORT" "$APPLET_ENTRY_MODULE" "$ROOT/scripts/applets.json"
