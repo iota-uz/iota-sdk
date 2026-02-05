@@ -3,12 +3,14 @@ package services
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatctx "github.com/iota-uz/iota-sdk/pkg/bichat/context"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/context/codecs"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
@@ -152,24 +154,81 @@ func (m *mockModel) Pricing() agents.ModelPricing {
 	}
 }
 
-// mockRenderer is a test implementation of bichatctx.Renderer
-type mockRenderer struct{}
-
-func (m *mockRenderer) Render(block bichatctx.ContextBlock) (bichatctx.RenderedBlock, error) {
-	return bichatctx.RenderedBlock{
-		Messages: []types.Message{
-			types.SystemMessage("test system content"),
-			types.UserMessage("test"),
-		},
-	}, nil
+// spyRenderer records blocks passed through compilation and renders canonical messages.
+// It allows tests to assert on block kinds/payloads without depending on internal compiler behavior.
+type spyRenderer struct {
+	mu              sync.Mutex
+	estimatedBlocks []bichatctx.ContextBlock
+	renderedBlocks  []bichatctx.ContextBlock
 }
 
-func (m *mockRenderer) EstimateTokens(block bichatctx.ContextBlock) (int, error) {
+func (s *spyRenderer) Render(block bichatctx.ContextBlock) (bichatctx.RenderedBlock, error) {
+	s.mu.Lock()
+	s.renderedBlocks = append(s.renderedBlocks, block)
+	s.mu.Unlock()
+
+	switch block.Meta.Kind {
+	case bichatctx.KindPinned:
+		if v, ok := block.Payload.(string); ok && v != "" {
+			return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage(v)}}, nil
+		}
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("system")}}, nil
+
+	case bichatctx.KindHistory:
+		if h, ok := block.Payload.(codecs.ConversationHistoryPayload); ok && len(h.Messages) > 0 {
+			msgs := make([]types.Message, 0, len(h.Messages))
+			for _, m := range h.Messages {
+				role := types.RoleUser
+				switch m.Role {
+				case "system":
+					role = types.RoleSystem
+				case "assistant":
+					role = types.RoleAssistant
+				case "tool":
+					role = types.RoleTool
+				case "user":
+					role = types.RoleUser
+				}
+				msgs = append(msgs, types.NewMessage(
+					types.WithRole(role),
+					types.WithContent(m.Content),
+				))
+			}
+			return bichatctx.RenderedBlock{Messages: msgs}, nil
+		}
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("history")}}, nil
+
+	case bichatctx.KindTurn:
+		if t, ok := block.Payload.(codecs.TurnPayload); ok {
+			return bichatctx.RenderedBlock{Messages: []types.Message{types.UserMessage(t.Content)}}, nil
+		}
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.UserMessage("turn")}}, nil
+
+	case bichatctx.KindReference:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("reference")}}, nil
+
+	case bichatctx.KindMemory:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("memory")}}, nil
+
+	case bichatctx.KindState:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("state")}}, nil
+
+	case bichatctx.KindToolOutput:
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("tool_output")}}, nil
+	}
+
+	return bichatctx.RenderedBlock{}, nil
+}
+
+func (s *spyRenderer) EstimateTokens(block bichatctx.ContextBlock) (int, error) {
+	s.mu.Lock()
+	s.estimatedBlocks = append(s.estimatedBlocks, block)
+	s.mu.Unlock()
 	return 10, nil
 }
 
-func (m *mockRenderer) Provider() string {
-	return "mock"
+func (s *spyRenderer) Provider() string {
+	return "spy"
 }
 
 // mockCheckpointer is a test implementation of agents.Checkpointer
@@ -346,45 +405,13 @@ func (m *mockChatRepository) UpdateArtifact(ctx context.Context, id uuid.UUID, n
 	return nil
 }
 
-func TestNewAgentService(t *testing.T) {
-	t.Parallel()
-
-	agent := newMockAgent()
-	model := newMockModel()
-	renderer := &mockRenderer{}
-	checkpointer := newMockCheckpointer()
-	chatRepo := newMockChatRepository()
-
-	policy := bichatctx.ContextPolicy{
-		ContextWindow:     4096,
-		CompletionReserve: 1024,
-		MaxSensitivity:    bichatctx.SensitivityPublic,
-		OverflowStrategy:  bichatctx.OverflowTruncate,
-	}
-
-	service := NewAgentService(AgentServiceConfig{
-		Agent:        agent,
-		Model:        model,
-		Policy:       policy,
-		Renderer:     renderer,
-		Checkpointer: checkpointer,
-		ChatRepo:     chatRepo,
-	})
-
-	assert.NotNil(t, service)
-	impl, ok := service.(*agentServiceImpl)
-	require.True(t, ok)
-	assert.Equal(t, agent, impl.agent)
-	assert.Equal(t, model, impl.model)
-}
-
 func TestProcessMessage_Success(t *testing.T) {
 	t.Parallel()
 
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -411,13 +438,58 @@ func TestProcessMessage_Success(t *testing.T) {
 
 	sessionID := uuid.New()
 	content := "Hello, test agent!"
-	var attachments []domain.Attachment
+	require.NoError(t, chatRepo.SaveMessage(ctx, types.UserMessage(
+		"previous",
+		types.WithSessionID(sessionID),
+		types.WithCreatedAt(time.Now().Add(-1*time.Minute)),
+	)))
+
+	attachments := []domain.Attachment{
+		domain.NewAttachment(
+			domain.WithAttachmentID(uuid.New()),
+			domain.WithAttachmentMessageID(uuid.New()),
+			domain.WithFileName("report.png"),
+			domain.WithMimeType("image/png"),
+			domain.WithSizeBytes(1234),
+			domain.WithFilePath("/uploads/report.png"),
+			domain.WithAttachmentCreatedAt(time.Now()),
+		),
+	}
 
 	// Execute
 	gen, err := service.ProcessMessage(ctx, sessionID, content, attachments)
 	require.NoError(t, err)
 	require.NotNil(t, gen)
 	defer gen.Close()
+
+	// Verify compilation contract: Pinned -> History -> Turn blocks with expected payloads.
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.Len(t, rendered, 3)
+	assert.Equal(t, bichatctx.KindPinned, rendered[0].Meta.Kind)
+	assert.Equal(t, bichatctx.KindHistory, rendered[1].Meta.Kind)
+	assert.Equal(t, bichatctx.KindTurn, rendered[2].Meta.Kind)
+
+	pinnedPayload, ok := rendered[0].Payload.(string)
+	require.True(t, ok)
+	assert.Equal(t, agent.systemPrompt, pinnedPayload)
+
+	historyPayload, ok := rendered[1].Payload.(codecs.ConversationHistoryPayload)
+	require.True(t, ok)
+	require.Len(t, historyPayload.Messages, 1)
+	assert.Equal(t, "user", historyPayload.Messages[0].Role)
+	assert.Equal(t, "previous", historyPayload.Messages[0].Content)
+
+	turnPayload, ok := rendered[2].Payload.(codecs.TurnPayload)
+	require.True(t, ok)
+	assert.Equal(t, content, turnPayload.Content)
+	require.Len(t, turnPayload.Attachments, 1)
+	assert.Equal(t, "report.png", turnPayload.Attachments[0].FileName)
+	assert.Equal(t, "image/png", turnPayload.Attachments[0].MimeType)
+	assert.Equal(t, int64(1234), turnPayload.Attachments[0].SizeBytes)
+	assert.Equal(t, "/uploads/report.png", turnPayload.Attachments[0].Reference)
 
 	// Collect all events
 	var events []services.Event
@@ -437,18 +509,23 @@ func TestProcessMessage_Success(t *testing.T) {
 
 	// Should have at least content chunks and a done event
 	hasContent := false
-	hasDone := false
+	var done *services.Event
 	for _, event := range events {
 		if event.Type == services.EventTypeContent {
 			hasContent = true
 		}
 		if event.Type == services.EventTypeDone {
-			hasDone = true
+			e := event
+			done = &e
 		}
 	}
 
 	assert.True(t, hasContent, "Expected content events")
-	assert.True(t, hasDone, "Expected done event")
+	require.NotNil(t, done, "Expected done event")
+	require.NotNil(t, done.Usage)
+	assert.Equal(t, 10, done.Usage.PromptTokens)
+	assert.Equal(t, 20, done.Usage.CompletionTokens)
+	assert.Equal(t, 30, done.Usage.TotalTokens)
 }
 
 func TestProcessMessage_MissingTenantID(t *testing.T) {
@@ -457,7 +534,7 @@ func TestProcessMessage_MissingTenantID(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -497,7 +574,7 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -563,6 +640,25 @@ func TestResumeWithAnswer_Success(t *testing.T) {
 
 	// Verify we got events
 	assert.NotEmpty(t, events)
+
+	hasContent := false
+	var done *services.Event
+	for _, event := range events {
+		if event.Type == services.EventTypeContent {
+			hasContent = true
+		}
+		if event.Type == services.EventTypeDone {
+			e := event
+			done = &e
+		}
+	}
+
+	assert.True(t, hasContent, "Expected content events")
+	require.NotNil(t, done, "Expected done event")
+	require.NotNil(t, done.Usage)
+	assert.Equal(t, 10, done.Usage.PromptTokens)
+	assert.Equal(t, 20, done.Usage.CompletionTokens)
+	assert.Equal(t, 30, done.Usage.TotalTokens)
 }
 
 func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
@@ -571,7 +667,7 @@ func TestResumeWithAnswer_EmptyCheckpointID(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -613,7 +709,7 @@ func TestResumeWithAnswer_MissingTenantID(t *testing.T) {
 	// Setup
 	agent := newMockAgent()
 	model := newMockModel()
-	renderer := &mockRenderer{}
+	renderer := &spyRenderer{}
 	checkpointer := newMockCheckpointer()
 	chatRepo := newMockChatRepository()
 
@@ -730,7 +826,7 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	require.Len(t, serviceEvent.Interrupt.Questions, 1)
 	assert.Equal(t, "q1", serviceEvent.Interrupt.Questions[0].ID)
 	assert.Equal(t, "What is your name?", serviceEvent.Interrupt.Questions[0].Text)
-	assert.Equal(t, services.QuestionTypeText, serviceEvent.Interrupt.Questions[0].Type)
+	assert.Equal(t, services.QuestionTypeSingleChoice, serviceEvent.Interrupt.Questions[0].Type)
 }
 
 func TestConvertExecutorEvent_Done(t *testing.T) {
@@ -800,7 +896,22 @@ func TestConvertExecutorGenerator_Close(t *testing.T) {
 	// Close the generator
 	serviceGen.Close()
 
-	// After close, Next should return ErrGeneratorDone
-	_, err := serviceGen.Next(ctx)
-	assert.Error(t, err) // Should get an error (either ErrGeneratorDone or closed error)
+	// Wait for the generator to terminate after cancellation.
+	select {
+	case <-serviceGen.Done():
+	case <-time.After(1 * time.Second):
+		t.Fatal("generator did not terminate after Close()")
+	}
+
+	// After termination, Next should eventually return ErrGeneratorDone.
+	for i := 0; i < 2; i++ {
+		_, err := serviceGen.Next(context.Background())
+		if errors.Is(err, types.ErrGeneratorDone) || errors.Is(err, context.Canceled) {
+			return
+		}
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	t.Fatal("expected generator to be done after Close()")
 }

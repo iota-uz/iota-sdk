@@ -1,14 +1,18 @@
 package persistence_test
 
 import (
+	"context"
+	"net"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
 )
@@ -20,9 +24,25 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func requirePostgres(t *testing.T) {
+	t.Helper()
+
+	conf := configuration.Use()
+	addr := net.JoinHostPort(conf.Database.Host, conf.Database.Port)
+	d := net.Dialer{Timeout: 500 * time.Millisecond}
+	conn, err := d.DialContext(context.Background(), "tcp", addr)
+	if err != nil {
+		t.Skipf("postgres not available at %s: %v", addr, err)
+		return
+	}
+	_ = conn.Close()
+}
+
 // setupTest creates all necessary dependencies for tests including a database user
 func setupTest(t *testing.T) *itf.TestEnvironment {
 	t.Helper()
+
+	requirePostgres(t)
 
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 

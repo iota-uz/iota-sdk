@@ -1,29 +1,34 @@
 /**
  * MessageList component
- * Displays messages with auto-scroll and grouping
+ * Displays conversation turns with auto-scroll and grouping
+ *
+ * Uses turn-based architecture where each ConversationTurn groups
+ * a user message with its assistant response.
  */
 
 import { useEffect, useRef, ReactNode, useState } from 'react'
 import { useChat } from '../context/ChatContext'
-import { Message } from '../types'
+import { ConversationTurn } from '../types'
 import { TurnBubble } from './TurnBubble'
 import ScrollToBottomButton from './ScrollToBottomButton'
 
 interface MessageListProps {
-  renderUserMessage?: (message: Message) => ReactNode
-  renderAssistantMessage?: (message: Message) => ReactNode
+  /** Custom render function for user turns */
+  renderUserTurn?: (turn: ConversationTurn) => ReactNode
+  /** Custom render function for assistant turns */
+  renderAssistantTurn?: (turn: ConversationTurn) => ReactNode
 }
 
-export function MessageList({ renderUserMessage, renderAssistantMessage }: MessageListProps) {
-  const { messages, streamingContent, isStreaming } = useChat()
+export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageListProps) {
+  const { turns, streamingContent, isStreaming } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [showScrollButton, setShowScrollButton] = useState(false)
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new turns or streaming content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, streamingContent])
+  }, [turns.length, streamingContent])
 
   // Scroll detection for ScrollToBottomButton
   useEffect(() => {
@@ -48,12 +53,12 @@ export function MessageList({ renderUserMessage, renderAssistantMessage }: Messa
     <div className="relative flex-1 min-h-0">
       <div ref={containerRef} className="h-full overflow-y-auto px-4 py-6">
         <div className="max-w-4xl mx-auto space-y-6">
-          {messages.map((message) => (
+          {turns.map((turn) => (
             <TurnBubble
-              key={message.id}
-              message={message}
-              renderUserMessage={renderUserMessage}
-              renderAssistantMessage={renderAssistantMessage}
+              key={turn.id}
+              turn={turn}
+              renderUserTurn={renderUserTurn}
+              renderAssistantTurn={renderAssistantTurn}
             />
           ))}
           {isStreaming && streamingContent && (

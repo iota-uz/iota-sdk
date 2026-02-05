@@ -76,13 +76,13 @@ templ Sidebar(props Props) {
 }
 
 templ SidebarNav(props Props) {
-	<nav class="py-4 flex-1 min-h-0">
+	<nav class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
 		for _, tabGroup := range props.TabGroups.Groups {
 			@navtabs.Content(tabGroup.Value) {
 				<ul
 					id="sidebar-navigation"
 					:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
-					class="flex flex-col gap-2 overflow-y-auto h-full hide-scrollbar transition-all duration-300"
+					class="flex flex-col gap-2 transition-all duration-300"
 				>
 					for _, item := range tabGroup.Items {
 						if item.IsLink() {

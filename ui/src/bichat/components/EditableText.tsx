@@ -184,4 +184,7 @@ const EditableText = forwardRef<EditableTextRef, EditableTextProps>(
 
 EditableText.displayName = 'EditableText'
 
-export default memo(EditableText)
+const MemoizedEditableText = memo(EditableText)
+
+export { MemoizedEditableText as EditableText }
+export default MemoizedEditableText

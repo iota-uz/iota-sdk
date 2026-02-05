@@ -22,11 +22,11 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+        className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1"
         aria-expanded={expanded}
       >
         <svg
-          className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`}
+          className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -45,26 +45,26 @@ export function SourcesPanel({ citations }: SourcesPanelProps) {
           {citations.map((citation, index) => (
             <div
               key={citation.id}
-              className="p-3 bg-gray-50 rounded-lg text-sm"
+              className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg text-sm"
             >
               <div className="flex items-start gap-2">
                 <span className="flex-shrink-0 w-5 h-5 bg-[var(--bichat-primary)] text-white rounded-full flex items-center justify-center text-xs">
                   {index + 1}
                 </span>
                 <div className="flex-1">
-                  <div className="font-medium text-gray-900">{citation.source}</div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{citation.title || citation.source}</div>
                   {citation.url && (
                     <a
                       href={citation.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[var(--bichat-primary)] hover:underline"
+                      className="text-[var(--bichat-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded"
                     >
                       {citation.url}
                     </a>
                   )}
                   {citation.excerpt && (
-                    <div className="mt-1 text-gray-600 italic">"{citation.excerpt}"</div>
+                    <div className="mt-1 text-gray-600 dark:text-gray-400 italic">"{citation.excerpt}"</div>
                   )}
                 </div>
               </div>

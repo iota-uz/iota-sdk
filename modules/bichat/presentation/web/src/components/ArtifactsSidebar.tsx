@@ -52,21 +52,21 @@ export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSideb
   const artifacts: Artifact[] = data?.session?.artifacts || []
 
   return (
-    <aside className="w-80 border-l border-gray-200 bg-white flex flex-col h-full">
+    <aside className="w-80 border-l border-gray-200 dark:border-gray-700/80 bg-white dark:bg-gray-900 flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700/80">
         {selectedArtifact ? (
           <>
             <button
               onClick={handleBack}
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1"
             >
               <CaretLeft className="w-4 h-4" weight="bold" />
               Back
             </button>
           </>
         ) : (
-          <h2 className="text-sm font-semibold text-gray-900">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
             Artifacts ({artifacts.length})
           </h2>
         )}
@@ -76,12 +76,12 @@ export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSideb
       <div className="flex-1 overflow-y-auto p-4">
         {fetching && (
           <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
           </div>
         )}
 
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-400">
             Failed to load artifacts: {error.message}
           </div>
         )}

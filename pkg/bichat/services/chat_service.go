@@ -72,7 +72,6 @@ type Question struct {
 type QuestionType string
 
 const (
-	QuestionTypeText           QuestionType = "text"
 	QuestionTypeSingleChoice   QuestionType = "single_choice"
 	QuestionTypeMultipleChoice QuestionType = "multiple_choice"
 )

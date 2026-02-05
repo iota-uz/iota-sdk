@@ -21,7 +21,7 @@ export default function SessionMenu({ isPinned, onPin, onRename, onDelete }: Ses
           e.preventDefault()
           e.stopPropagation()
         }}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-all flex-shrink-0"
+        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600 transition-all duration-150 flex-shrink-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
         aria-label="Chat options"
       >
         <DotsThree size={16} className="w-4 h-4" weight="bold" />
