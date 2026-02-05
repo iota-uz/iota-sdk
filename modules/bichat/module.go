@@ -62,9 +62,6 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
-	// Register database schema
-	app.Migrations().RegisterSchema(&MigrationFiles)
-
 	// Register translation files
 	app.RegisterLocaleFiles(&LocaleFiles)
 

@@ -8,14 +8,10 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
-	"github.com/iota-uz/utils/env"
-	"github.com/sirupsen/logrus"
 )
 
 var (
-	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', 'status', or 'collect' subcommands")
+	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', or 'status' subcommands")
 )
 
 // ensureDirectories creates necessary directories if they don't exist
@@ -34,8 +30,6 @@ func Migrate(mods ...application.Module) error {
 		return ErrNoCommand
 	}
 
-	conf := configuration.Use()
-
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
@@ -43,21 +37,8 @@ func Migrate(mods ...application.Module) error {
 	command := os.Args[1]
 	ctx := context.Background()
 
-	// For DDL migrations (up/down/redo), we only need a database pool and migration manager.
-	// Loading modules is not required and can cause issues if modules query the database
-	// during registration (e.g., before the schema exists).
 	switch command {
-	case "collect":
-		// Schema collection needs the full application to collect schemas from modules
-		app, pool, err := common.NewApplicationWithDefaults(mods...)
-		if err != nil {
-			return fmt.Errorf("failed to initialize application: %w", err)
-		}
-		defer pool.Close()
-		return handleSchemaCommands(ctx, command, app, conf.Logger().Level)
-
 	case "up", "down", "redo", "status":
-		// DDL migrations only need database pool - don't load modules
 		pool, err := common.GetDefaultDatabasePool()
 		if err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
@@ -66,33 +47,7 @@ func Migrate(mods ...application.Module) error {
 		return handleMigrationCommands(ctx, command, application.NewMigrationManager(pool))
 
 	default:
-		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status', 'collect'", command)
-	}
-}
-
-func handleSchemaCommands(
-	ctx context.Context,
-	command string,
-	app application.Application,
-	logLevel logrus.Level,
-) error {
-	migrationsPath := env.GetEnv("MIGRATIONS_DIR", "migrations")
-
-	switch command {
-	case "collect":
-		collector := collector.New(collector.Config{
-			MigrationsPath: migrationsPath,
-			LogLevel:       logLevel,
-			EmbedFSs:       app.Migrations().SchemaFSs(),
-		})
-		upChanges, downChanges, err := collector.CollectMigrations(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to collect migrations: %w", err)
-		}
-		return collector.StoreMigrations(upChanges, downChanges)
-
-	default:
-		return fmt.Errorf("unknown schema command: %s", command)
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", command)
 	}
 }
 
@@ -142,7 +97,7 @@ func handleMigrationCommands(
 		printMigrationStatus(statuses)
 
 	default:
-		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status', 'collect'", command)
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", command)
 	}
 
 	return nil

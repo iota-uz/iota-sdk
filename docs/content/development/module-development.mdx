@@ -932,9 +932,6 @@ import (
 //go:embed presentation/locales/*.json
 var localeFiles embed.FS
 
-//go:embed infrastructure/persistence/schema/productcatalog-schema.sql
-var schemaFiles embed.FS
-
 func NewModule() application.Module {
 	return &Module{}
 }
@@ -962,9 +959,6 @@ func (m *Module) Register(app application.Application) error {
 
 	// Register locale files
 	app.RegisterLocaleFiles(&localeFiles)
-
-	// Register database schema
-	app.Migrations().RegisterSchema(&schemaFiles)
 
 	return nil
 }

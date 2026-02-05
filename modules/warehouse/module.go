@@ -68,7 +68,6 @@ func (m *Module) Register(app application.Application) error {
 		controllers.NewInventoryController(app),
 	)
 	app.RegisterLocaleFiles(&localeFiles)
-	app.Migrations().RegisterSchema(&migrationFiles)
 	app.RegisterAssets(&assets.FS)
 	app.QuickLinks().Add(
 		spotlight.NewQuickLink(nil, ProductsItem.Name, ProductsItem.Href),

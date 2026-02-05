@@ -65,7 +65,6 @@ func (m *Module) Register(app application.Application) error {
 	// Register locales and migrations
 	// Note: Permissions are now registered via defaults.AllPermissions()
 	app.RegisterLocaleFiles(&localeFiles)
-	app.Migrations().RegisterSchema(&migrationFiles)
 	return nil
 }
 

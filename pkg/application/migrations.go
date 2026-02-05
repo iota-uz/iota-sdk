@@ -2,9 +2,7 @@ package application
 
 import (
 	"context"
-	"embed"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -15,7 +13,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 )
 
 // MigrationStatus represents the status of a single migration
@@ -27,66 +24,28 @@ type MigrationStatus struct {
 
 // MigrationManager is an interface for handling database migrations
 type MigrationManager interface {
-	// CollectSchema collects schema changes from embedded modules and generates SQL migration
-	CollectSchema(ctx context.Context) error
 	// Run applies pending migrations to the database
 	Run() error
 	// Rollback rolls back the last applied migration
 	Rollback() error
 	// Status returns the status of all migrations (applied and pending)
 	Status(ctx context.Context) ([]MigrationStatus, error)
-	// RegisterSchema registers an embedded filesystem containing schema definitions
-	RegisterSchema(fs ...*embed.FS)
-	// SchemaFSs returns all registered schema embedded filesystems
-	SchemaFSs() []*embed.FS
 }
 
 func NewMigrationManager(pool *pgxpool.Pool) MigrationManager {
 	conf := configuration.Use()
 	return &migrationManager{
-		migrationsDir:  conf.MigrationsDir,
-		logger:         conf.Logger(),
-		pool:           pool,
-		schemaEmbedFSs: make([]*embed.FS, 0),
+		migrationsDir: conf.MigrationsDir,
+		logger:        conf.Logger(),
+		pool:          pool,
 	}
 }
 
 // migrationManager implements the MigrationManager interface
 type migrationManager struct {
-	migrationsDir  string
-	logger         logrus.FieldLogger
-	pool           *pgxpool.Pool
-	schemaEmbedFSs []*embed.FS // For schema definitions in embed.FS
-}
-
-func (m *migrationManager) SchemaFSs() []*embed.FS {
-	return m.schemaEmbedFSs
-}
-
-func (m *migrationManager) RegisterSchema(fs ...*embed.FS) {
-	m.schemaEmbedFSs = append(m.schemaEmbedFSs, fs...)
-}
-
-// CollectSchema collects schema changes from embedded module.FS and generates SQL migration
-func (m *migrationManager) CollectSchema(ctx context.Context) error {
-	if err := os.MkdirAll(m.migrationsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create migrations directory: %w", err)
-	}
-
-	schemaCollector := collector.New(collector.Config{
-		MigrationsPath: m.migrationsDir,
-		LogLevel:       logrus.InfoLevel,
-		EmbedFSs:       m.schemaEmbedFSs,
-	})
-
-	// Collect migrations
-	upChanges, downChanges, err := schemaCollector.CollectMigrations(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to collect migrations: %w", err)
-	}
-
-	// Store migrations to file
-	return schemaCollector.StoreMigrations(upChanges, downChanges)
+	migrationsDir string
+	logger        logrus.FieldLogger
+	pool          *pgxpool.Pool
 }
 
 func newTxError(migration *migrate.PlannedMigration, err error) *migrate.TxError {
