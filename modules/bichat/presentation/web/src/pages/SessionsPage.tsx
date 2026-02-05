@@ -1,35 +1,51 @@
-import { useQuery, useMutation } from 'urql'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { createAppletRPCClient } from '@iota-uz/sdk'
+import { useIotaContext } from '../contexts/IotaContext'
 
-const SessionsQuery = `
-  query Sessions {
-    sessions {
-      id
-      title
-      createdAt
-      updatedAt
-    }
-  }
-`
-
-const CreateSessionMutation = `
-  mutation CreateSession {
-    createSession {
-      id
-      title
-    }
-  }
-`
+type ChatSession = {
+  id: string
+  title: string
+  createdAt: string
+  updatedAt: string
+}
 
 export default function SessionsPage() {
   const navigate = useNavigate()
-  const [{ data, fetching }] = useQuery({ query: SessionsQuery })
-  const [, createSession] = useMutation(CreateSessionMutation)
+  const { config } = useIotaContext()
+  const rpc = useMemo(
+    () => createAppletRPCClient({ endpoint: config.rpcUIEndpoint }),
+    [config.rpcUIEndpoint]
+  )
+
+  const [fetching, setFetching] = useState(true)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      setFetching(true)
+      try {
+        const data = await rpc.call<{ limit: number; offset: number }, { sessions: ChatSession[] }>(
+          'bichat.session.list',
+          { limit: 200, offset: 0 }
+        )
+        if (alive) setSessions(data.sessions || [])
+      } finally {
+        if (alive) setFetching(false)
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [rpc])
 
   const handleCreateSession = async () => {
-    const result = await createSession({})
-    if (result.data?.createSession) {
-      navigate(`/session/${result.data.createSession.id}`)
+    const result = await rpc.call<{ title: string }, { session: { id: string } }>('bichat.session.create', {
+      title: '',
+    })
+    if (result.session?.id) {
+      navigate(`/session/${result.session.id}`)
     }
   }
 
@@ -47,7 +63,7 @@ export default function SessionsPage() {
         </button>
       </div>
       <div className="space-y-2">
-        {data?.sessions.map((session: any) => (
+        {sessions.map((session) => (
           <div
             key={session.id}
             onClick={() => navigate(`/session/${session.id}`)}

@@ -1,13 +1,13 @@
 package bichat
 
-	import (
-		"context"
-		"testing"
+import (
+	"context"
+	"testing"
 
-		"github.com/iota-uz/iota-sdk/pkg/applet"
-		"github.com/stretchr/testify/assert"
-		"github.com/stretchr/testify/require"
-	)
+	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
 func TestBiChatApplet_Config(t *testing.T) {
 	t.Parallel()
@@ -20,7 +20,6 @@ func TestBiChatApplet_Config(t *testing.T) {
 	})
 
 	t.Run("Endpoints", func(t *testing.T) {
-		assert.Equal(t, "/query/bichat", config.Endpoints.GraphQL)
 		assert.Equal(t, "/bi-chat/stream", config.Endpoints.Stream)
 	})
 

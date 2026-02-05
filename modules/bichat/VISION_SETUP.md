@@ -14,10 +14,10 @@ Vision support has been implemented for BiChat. This guide shows how to enable i
    - Uses low-detail mode (85 tokens per image)
    - Supports multiple images per message
 
-3. **GraphQL Upload Handling** (`presentation/graphql/resolvers/resolver.go`)
-   - Processes `[Upload!]` attachments in `sendMessage` mutation
-   - Calls AttachmentService to validate and save
-   - Returns attachment metadata in response
+3. **Stream Upload Handling** (`presentation/controllers/stream_controller.go`)
+   - Accepts attachments in the stream request payload
+   - Calls AttachmentService (via ChatService) to validate and save
+   - Streams assistant chunks as SSE events
 
 ## Setup Steps
 
@@ -41,22 +41,7 @@ import bichatservices "github.com/iota-uz/iota-sdk/modules/bichat/services"
 attachmentService := bichatservices.NewAttachmentService(fileStorage)
 ```
 
-### 3. Wire to GraphQL Resolver
-
-When creating your GraphQL resolver, pass the AttachmentService:
-
-```go
-import "github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
-
-resolver := resolvers.NewResolver(
-    app,
-    chatService,
-    agentService,
-    attachmentService, // <-- Vision support
-)
-```
-
-### 4. Enable Vision in BiChat Config
+### 3. Enable Vision in BiChat Config
 
 ```go
 import "github.com/iota-uz/iota-sdk/modules/bichat"
@@ -74,37 +59,17 @@ config := bichat.NewModuleConfig(
 
 This passes the feature flag to the React frontend via `window.__BICHAT_CONTEXT__.extensions.features.vision`.
 
-### 5. GraphQL Schema
+### 4. Stream request payload
 
-The schema already supports vision (no changes needed):
+The stream endpoint accepts attachments as part of the JSON payload:
 
-```graphql
-mutation SendMessage(
-  $sessionId: UUID!
-  $content: String!
-  $attachments: [Upload!]  # Image uploads
-) {
-  sendMessage(
-    sessionId: $sessionId
-    content: $content
-    attachments: $attachments
-  ) {
-    userMessage {
-      id
-      content
-      attachments {
-        id
-        fileName
-        mimeType
-        sizeBytes
-        url
-      }
-    }
-    assistantMessage {
-      id
-      content
-    }
-  }
+```json
+{
+  "sessionId": "uuid",
+  "content": "Analyze these charts",
+  "attachments": [
+    { "id": "uuid", "fileName": "a.png", "mimeType": "image/png", "sizeBytes": 123, "data": "base64..." }
+  ]
 }
 ```
 

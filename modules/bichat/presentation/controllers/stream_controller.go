@@ -178,9 +178,6 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		// Log actual error server-side
 		logger := configuration.Use().Logger()
 		entry := logger.WithError(serrors.E(op, err))
-		if c.opts.GraphQLEndpointHint != "" {
-			entry = entry.WithField("graphql_endpoint_hint", c.opts.GraphQLEndpointHint)
-		}
 		entry.Error("Stream error")
 
 		// Send sanitized error to client

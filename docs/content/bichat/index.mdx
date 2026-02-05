@@ -40,7 +40,7 @@ When an agent needs more information (e.g., "Which warehouse should I check?"), 
 ```mermaid
 graph TB
     subgraph "BiChat Module Architecture"
-        A[React SPA] --> B[GraphQL/SSE Controllers]
+        A[React SPA] --> B[Applet RPC + SSE Controllers]
         B --> C[AgentService]
         
         subgraph "Agent Framework (pkg/bichat)"
@@ -69,21 +69,20 @@ graph TB
 |----------|--------|---------|
 | `/bi-chat` | GET | Serves the React SPA |
 | `/bi-chat/stream` | POST | SSE streaming endpoint for agent responses |
-| `/bi-chat/graphql` | POST | GraphQL API for session management |
+| `/bi-chat/rpc` | POST | Applet RPC API for session management |
 
-### GraphQL Operations
+### RPC Procedures
 
-**Queries:**
-- `sessions`: List user's chat sessions
-- `session(id)`: Get detailed session state
-- `messages(sessionId)`: Get conversation history
+**Session:**
+- `bichat.session.list`: List user's chat sessions
+- `bichat.session.get`: Get session state (session + turns)
+- `bichat.session.create`: Create a new session
+- `bichat.session.updateTitle`: Rename a session
+- `bichat.session.pin` / `bichat.session.unpin`: Toggle pinned
+- `bichat.session.delete`: Delete a session
 
-**Mutations:**
-- `createSession(title)`: Start a new conversation
-- `sendMessage(sessionId, content, attachments)`: Send a message to the agent
-- `resumeWithAnswer(sessionId, checkpointId, answers)`: Resume after an interrupt
-- `archiveSession(id)`: Archive a session
-- `deleteSession(id)`: Permanently remove a session
+**Artifacts:**
+- `bichat.session.artifacts`: List artifacts for a session
 
 ## Permissions
 

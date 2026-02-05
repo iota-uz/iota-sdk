@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/generated"
-	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/graphql/resolvers"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -76,7 +74,7 @@ func (m *Module) Register(app application.Application) error {
 
 	controllersToRegister := []application.Controller{}
 
-	// Register GraphQL schema and controllers if config is available
+	// Register controllers if config is available
 	if m.config != nil {
 		// Build services (fail fast - no try/continue)
 		if err := m.config.BuildServices(); err != nil {
@@ -90,34 +88,9 @@ func (m *Module) Register(app application.Application) error {
 		app.RegisterServices(chatService, agentService, attachmentService, artifactService)
 		app.QuickLinks().Add(spotlight.NewQuickLink(BiChatLink.Icon, BiChatLink.Name, BiChatLink.Href))
 
-		// Register GraphQL schema (accessible at /query/bichat via core's GraphQLController)
-		resolver := resolvers.NewResolver(
-			app,
-			chatService,
-			agentService,
-			attachmentService,
-			artifactService,
-		)
-		app.RegisterGraphSchema(application.GraphSchema{
-			Value: generated.NewExecutableSchema(
-				generated.Config{
-					Resolvers: resolver,
-				},
-			),
-			BasePath: "/bichat",
-		})
-
-		// Create and register ChatController with all services
-		chatController := controllers.NewChatController(
-			app,
-			chatService,
-			m.config.ChatRepo,
-			agentService,
-			attachmentService,
-			artifactService,
-		)
-		controllersToRegister = append(controllersToRegister, chatController)
-
+		// Create and register controllers.
+		// Applet request/response APIs should go through applet RPC.
+		// Streaming is exposed via StreamController.
 		streamController := controllers.NewStreamController(
 			app,
 			chatService,
@@ -125,7 +98,7 @@ func (m *Module) Register(app application.Application) error {
 		controllersToRegister = append(controllersToRegister, streamController)
 
 		if m.config.Logger != nil {
-			m.config.Logger.Info("Registered BiChat GraphQL schema at /query/bichat and REST endpoints at /bi-chat/*")
+			m.config.Logger.Info("Registered BiChat stream endpoint at /bi-chat/stream")
 		}
 	}
 

@@ -17,7 +17,6 @@ export function injectMockContext(): void {
         translations: {},
       },
       config: {
-        graphQLEndpoint: '/query/bichat',
         streamEndpoint: '/bi-chat/stream',
         basePath: '',
         assetsBasePath: '/bi-chat/assets',

@@ -1,44 +1,50 @@
-import { useState } from 'react'
-import { useQuery } from 'urql'
+import { useEffect, useMemo, useState } from 'react'
 import type { Artifact } from '../types/artifacts'
 import { ArtifactList, ArtifactPreview } from './artifacts'
 import { CaretLeft } from '@phosphor-icons/react'
+import { createAppletRPCClient } from '@iota-uz/sdk'
+import { useIotaContext } from '../contexts/IotaContext'
 
 interface ArtifactsSidebarProps {
   sessionId: string
   onArtifactSelect?: (artifact: Artifact) => void
 }
 
-const SessionArtifactsQuery = `
-  query SessionArtifacts($id: UUID!) {
-    session(id: $id) {
-      id
-      artifacts {
-        id
-        sessionID
-        messageID
-        type
-        name
-        description
-        mimeType
-        url
-        sizeBytes
-        metadata
-        createdAt
-      }
-    }
-  }
-`
-
 export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSidebarProps) {
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null)
+  const { config } = useIotaContext()
+  const rpc = useMemo(
+    () => createAppletRPCClient({ endpoint: config.rpcUIEndpoint }),
+    [config.rpcUIEndpoint]
+  )
 
-  const [result] = useQuery({
-    query: SessionArtifactsQuery,
-    variables: { id: sessionId },
-  })
+  const [fetching, setFetching] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
 
-  const { data, fetching, error } = result
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      setFetching(true)
+      setError(null)
+      try {
+        const data = await rpc.call<
+          { sessionId: string; limit: number; offset: number },
+          { artifacts: Artifact[] }
+        >('bichat.session.artifacts', { sessionId, limit: 200, offset: 0 })
+        if (alive) setArtifacts(data.artifacts || [])
+      } catch (e) {
+        if (!alive) return
+        const msg = e instanceof Error ? e.message : 'Failed to load artifacts'
+        setError(msg)
+      } finally {
+        if (alive) setFetching(false)
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [rpc, sessionId])
 
   const handleSelect = (artifact: Artifact) => {
     setSelectedArtifact(artifact)
@@ -48,8 +54,6 @@ export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSideb
   const handleBack = () => {
     setSelectedArtifact(null)
   }
-
-  const artifacts: Artifact[] = data?.session?.artifacts || []
 
   return (
     <aside className="w-80 border-l border-gray-200 dark:border-gray-700/80 bg-white dark:bg-gray-900 flex flex-col h-full">
@@ -82,7 +86,7 @@ export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSideb
 
         {error && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-400">
-            Failed to load artifacts: {error.message}
+            Failed to load artifacts: {error}
           </div>
         )}
 

@@ -30,7 +30,7 @@ type ChatController struct {
 }
 
 // NewChatController creates a new chat controller.
-// Services can be nil - they're optional for REST endpoints, required for GraphQL.
+// Services can be nil - they're optional for legacy REST endpoints.
 func NewChatController(
 	app application.Application,
 	chatService services.ChatService,
@@ -109,7 +109,8 @@ func (c *ChatController) Register(r *mux.Router) {
 	subRouter := r.PathPrefix(c.opts.BasePath).Subrouter()
 	subRouter.Use(commonMiddleware...)
 
-	// Session routes (GraphQL is now handled by core's GraphQLController at /query/bichat)
+	// Session routes (legacy REST API).
+	// BiChat applet UI uses applet RPC for request/response and StreamController for streaming.
 	subRouter.HandleFunc("/sessions", c.ListSessions).Methods("GET")
 	subRouter.HandleFunc("/sessions", c.CreateSession).Methods("POST")
 	subRouter.HandleFunc("/sessions/{id}", c.GetSession).Methods("GET")
@@ -120,8 +121,7 @@ func (c *ChatController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/sessions/{id}", c.DeleteSession).Methods("DELETE")
 }
 
-// GraphQL registration has been moved to module.go
-// BiChat GraphQL schema is now accessible at /query/bichat via core's GraphQLController
+// Note: This controller is not registered by default. Prefer applet RPC for applet UI.
 
 // ListSessions returns all sessions for the current user.
 func (c *ChatController) ListSessions(w http.ResponseWriter, r *http.Request) {

@@ -11,7 +11,7 @@ export function useBiChatDataSource(
   return useMemo(() => {
     const ds = createHttpDataSource({
       baseUrl: '',
-      graphQLEndpoint: ctx.config.graphQLEndpoint,
+      rpcEndpoint: ctx.config.rpcUIEndpoint,
       streamEndpoint: ctx.config.streamEndpoint,
     })
 
@@ -20,5 +20,5 @@ export function useBiChatDataSource(
     }
 
     return ds
-  }, [ctx.config.graphQLEndpoint, ctx.config.streamEndpoint, onNavigateToSession])
+  }, [ctx.config.rpcUIEndpoint, ctx.config.streamEndpoint, onNavigateToSession])
 }

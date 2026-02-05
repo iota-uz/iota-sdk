@@ -1,6 +1,6 @@
 /**
  * Artifact types for BiChat frontend
- * Matches GraphQL schema at modules/bichat/presentation/graphql/schema.graphql
+ * Matches BiChat applet RPC artifact shapes.
  */
 
 export interface Artifact {

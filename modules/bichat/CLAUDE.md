@@ -29,13 +29,9 @@ modules/bichat/
 │   │   ├── embed.go             # Embedded React build (dist/)
 │   │   └── dist/                # React build output (created by pnpm build)
 │   ├── controllers/
-│   │   ├── chat_controller.go   # GraphQL/REST endpoints
+│   │   ├── chat_controller.go   # Legacy REST endpoints (not registered by default)
 │   │   ├── stream_controller.go # SSE streaming
 │   │   └── web_controller_test.go
-│   ├── graphql/
-│   │   ├── model/
-│   │   ├── generated/
-│   │   └── schema.graphql       # GraphQL schema
 │   └── locales/                 # i18n files
 └── agents/
     ├── default_agent.go         # Default BI agent
@@ -158,28 +154,12 @@ See: `infrastructure/persistence/schema/bichat-schema.sql`
 
 ## API Endpoints
 
-```graphql
-type Query {
-  sessions(limit: Int, offset: Int): [Session!]!
-  session(id: ID!): Session
-  messages(sessionId: ID!, limit: Int, offset: Int): [Message!]!
-}
-
-type Mutation {
-  createSession(title: String): Session!
-  sendMessage(sessionId: ID!, content: String!, attachments: [Upload!]): SendMessageResponse!
-  resumeWithAnswer(sessionId: ID!, checkpointId: ID!, answers: JSON!): SendMessageResponse!
-}
-
-type Subscription {
-  messageStream(sessionId: ID!): MessageChunk!
-}
-```
+BiChat UI access is implemented via applet RPC + streaming (GraphQL removed).
 
 HTTP Routes:
-- `GET /bichat` - React chat app
-- `POST /bichat/stream` - SSE streaming
-- `POST /bichat/graphql` - GraphQL endpoint
+- `GET /bi-chat` - React chat applet
+- `POST /bi-chat/rpc` - Applet RPC (session CRUD, artifacts, etc.)
+- `POST /bi-chat/stream` - SSE streaming (assistant response chunks)
 
 ## Default BI Agent Tools
 
@@ -425,7 +405,7 @@ app.RegisterModule(module) // No error check - failures logged but hidden
 **Problems**:
 - Attachments silently discarded (NoOp fallback)
 - Title generation fails silently
-- GraphQL becomes unavailable without indication
+- RPC becomes unavailable without indication
 - Token counting disabled (returns 0)
 
 ### New Code (Fail Fast)

@@ -21,8 +21,11 @@ export interface LocaleContext {
 }
 
 export interface AppConfig {
-  graphQLEndpoint: string
   streamEndpoint: string
+  basePath: string
+  assetsBasePath: string
+  rpcUIEndpoint: string
+  shellMode?: string
 }
 
 export interface Extensions {

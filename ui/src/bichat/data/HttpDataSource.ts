@@ -1,10 +1,11 @@
 /**
  * Built-in HTTP data source with SSE streaming and AbortController
- * Implements ChatDataSource interface with real HTTP/GraphQL calls
+ * Implements ChatDataSource interface with real HTTP/RPC calls
  *
  * Uses turn-based architecture - fetches ConversationTurns instead of flat messages.
  */
 
+import { createAppletRPCClient, type AppletRPCSchema } from '../../applet-host'
 import type {
   ChatDataSource,
   Session,
@@ -17,7 +18,7 @@ import type {
 
 export interface HttpDataSourceConfig {
   baseUrl: string
-  graphQLEndpoint?: string
+  rpcEndpoint: string
   streamEndpoint?: string
   csrfToken?: string | (() => string)
   headers?: Record<string, string>
@@ -39,14 +40,17 @@ interface Result<T> {
 export class HttpDataSource implements ChatDataSource {
   private config: HttpDataSourceConfig
   private abortController: AbortController | null = null
+  private rpc: ReturnType<typeof createAppletRPCClient>
 
   constructor(config: HttpDataSourceConfig) {
     this.config = {
-      graphQLEndpoint: '/graphql',
       streamEndpoint: '/stream',
       timeout: 30000,
       ...config,
     }
+    this.rpc = createAppletRPCClient({
+      endpoint: `${this.config.baseUrl}${this.config.rpcEndpoint}`,
+    })
   }
 
   /**
@@ -79,150 +83,32 @@ export class HttpDataSource implements ChatDataSource {
     return headers
   }
 
-  /**
-   * Execute GraphQL query
-   */
-  private async graphql<T>(query: string, variables?: Record<string, any>): Promise<T> {
-    const url = `${this.config.baseUrl}${this.config.graphQLEndpoint}`
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: this.createHeaders(),
-      body: JSON.stringify({ query, variables }),
-      signal: this.abortController?.signal,
-    })
-
-    if (!response.ok) {
-      throw new Error(`GraphQL request failed: ${response.statusText}`)
-    }
-
-    const result = await response.json()
-
-    if (result.errors && result.errors.length > 0) {
-      throw new Error(result.errors[0].message || 'GraphQL error')
-    }
-
-    return result.data
+  private async callRPC<TMethod extends keyof BiChatRPC & string>(
+    method: TMethod,
+    params: BiChatRPC[TMethod]['params']
+  ): Promise<BiChatRPC[TMethod]['result']> {
+    return this.rpc.callTyped<BiChatRPC, TMethod>(method, params)
   }
 
   /**
    * Create a new chat session
    */
   async createSession(): Promise<Session> {
-    const query = `
-      mutation CreateChatSession {
-        createChatSession {
-          id
-          title
-          status
-          pinned
-          createdAt
-          updatedAt
-        }
-      }
-    `
-
-    const data = await this.graphql<{ createChatSession: Session }>(query)
-    return data.createChatSession
+    const data = await this.callRPC('bichat.session.create', { title: '' })
+    return data.session
   }
 
   /**
    * Fetch an existing session with turns (turn-based architecture)
    */
   async fetchSession(id: string): Promise<SessionState | null> {
-    const query = `
-      query GetChatSession($id: ID!) {
-        chatSession(id: $id) {
-          session {
-            id
-            title
-            status
-            pinned
-            createdAt
-            updatedAt
-          }
-          turns {
-            id
-            sessionId
-            createdAt
-            userTurn {
-              id
-              content
-              attachments {
-                id
-                filename
-                mimeType
-                sizeBytes
-                base64Data
-              }
-              createdAt
-            }
-            assistantTurn {
-              id
-              content
-              explanation
-              citations {
-                id
-                type
-                title
-                url
-                startIndex
-                endIndex
-                excerpt
-                source
-              }
-              chartData {
-                chartType
-                title
-                series {
-                  name
-                  data
-                }
-                labels
-                colors
-                height
-              }
-              artifacts {
-                type
-                filename
-                url
-                sizeReadable
-                rowCount
-                description
-              }
-              codeOutputs {
-                type
-                content
-                filename
-                mimeType
-                sizeBytes
-              }
-              createdAt
-            }
-          }
-          pendingQuestion {
-            id
-            turnId
-            questions {
-              id
-              text
-              type
-              options {
-                id
-                label
-                value
-              }
-              required
-            }
-            status
-          }
-        }
-      }
-    `
-
     try {
-      const data = await this.graphql<{ chatSession: SessionState | null }>(query, { id })
-      return data.chatSession
+      const data = await this.callRPC('bichat.session.get', { id })
+      return {
+        session: data.session,
+        turns: data.turns as ConversationTurn[],
+        pendingQuestion: (data.pendingQuestion as PendingQuestion | null) ?? null,
+      }
     } catch (err) {
       console.error('Failed to fetch session:', err)
       return null
@@ -368,54 +254,18 @@ export class HttpDataSource implements ChatDataSource {
     questionId: string,
     answers: QuestionAnswers
   ): Promise<Result<void>> {
-    const query = `
-      mutation SubmitQuestionAnswers($sessionId: ID!, $questionId: ID!, $answers: JSON!) {
-        submitQuestionAnswers(sessionId: $sessionId, questionId: $questionId, answers: $answers) {
-          success
-          error
-        }
-      }
-    `
-
-    try {
-      const data = await this.graphql<{
-        submitQuestionAnswers: Result<void>
-      }>(query, { sessionId, questionId, answers })
-
-      return data.submitQuestionAnswers
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to submit answers',
-      }
-    }
+    void sessionId
+    void questionId
+    void answers
+    return { success: false, error: 'Pending questions are not supported in RPC mode yet' }
   }
 
   /**
    * Cancel a pending question
    */
   async cancelPendingQuestion(questionId: string): Promise<Result<void>> {
-    const query = `
-      mutation CancelPendingQuestion($questionId: ID!) {
-        cancelPendingQuestion(questionId: $questionId) {
-          success
-          error
-        }
-      }
-    `
-
-    try {
-      const data = await this.graphql<{
-        cancelPendingQuestion: Result<void>
-      }>(query, { questionId })
-
-      return data.cancelPendingQuestion
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to cancel question',
-      }
-    }
+    void questionId
+    return { success: false, error: 'Pending questions are not supported in RPC mode yet' }
   }
 
   /**
@@ -434,4 +284,12 @@ export class HttpDataSource implements ChatDataSource {
  */
 export function createHttpDataSource(config: HttpDataSourceConfig): ChatDataSource {
   return new HttpDataSource(config)
+}
+
+type BiChatRPC = AppletRPCSchema & {
+  'bichat.session.create': { params: { title: string }; result: { session: Session } }
+  'bichat.session.get': {
+    params: { id: string }
+    result: { session: Session; turns: ConversationTurn[]; pendingQuestion: PendingQuestion | null }
+  }
 }

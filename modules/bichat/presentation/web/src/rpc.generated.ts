@@ -2,6 +2,77 @@
 
 export type BichatRPC = {
   "bichat.ping": { params: PingParams; result: PingResult }
+  "bichat.session.artifacts": { params: SessionArtifactsParams; result: SessionArtifactsResult }
+  "bichat.session.create": { params: SessionCreateParams; result: SessionCreateResult }
+  "bichat.session.delete": { params: SessionIDParams; result: OkResult }
+  "bichat.session.get": { params: SessionGetParams; result: SessionGetResult }
+  "bichat.session.list": { params: SessionListParams; result: SessionListResult }
+  "bichat.session.pin": { params: SessionIDParams; result: SessionCreateResult }
+  "bichat.session.unpin": { params: SessionIDParams; result: SessionCreateResult }
+  "bichat.session.updateTitle": { params: SessionUpdateTitleParams; result: SessionCreateResult }
+}
+
+export interface Artifact {
+  id: string
+  sessionId: string
+  messageId?: string
+  type: string
+  name: string
+  description?: string
+  mimeType?: string
+  url?: string
+  sizeBytes: number
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
+export interface AssistantTurn {
+  id: string
+  content: string
+  explanation?: string
+  citations: Citation[]
+  artifacts: unknown[]
+  codeOutputs: CodeOutput[]
+  createdAt: string
+}
+
+export interface Attachment {
+  id: string
+  filename: string
+  mimeType: string
+  sizeBytes: number
+  base64Data?: string
+}
+
+export interface Citation {
+  id: string
+  type: string
+  title: string
+  url: string
+  startIndex: number
+  endIndex: number
+  excerpt?: string
+  source?: string
+}
+
+export interface CodeOutput {
+  type: string
+  content: string
+  filename?: string
+  mimeType?: string
+  sizeBytes?: number
+}
+
+export interface ConversationTurn {
+  id: string
+  sessionId: string
+  userTurn: UserTurn
+  assistantTurn?: AssistantTurn | null
+  createdAt: string
+}
+
+export interface OkResult {
+  ok: boolean
 }
 
 export type PingParams = Record<string, never>
@@ -9,5 +80,67 @@ export type PingParams = Record<string, never>
 export interface PingResult {
   ok: boolean
   tenantId: string
+}
+
+export interface Session {
+  id: string
+  title: string
+  status: string
+  pinned: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SessionArtifactsParams {
+  sessionId: string
+  limit: number
+  offset: number
+}
+
+export interface SessionArtifactsResult {
+  artifacts: Artifact[]
+}
+
+export interface SessionCreateParams {
+  title: string
+}
+
+export interface SessionCreateResult {
+  session: Session
+}
+
+export interface SessionGetParams {
+  id: string
+}
+
+export interface SessionGetResult {
+  session: Session
+  turns: ConversationTurn[]
+  pendingQuestion: unknown
+}
+
+export interface SessionIDParams {
+  id: string
+}
+
+export interface SessionListParams {
+  limit: number
+  offset: number
+}
+
+export interface SessionListResult {
+  sessions: Session[]
+}
+
+export interface SessionUpdateTitleParams {
+  id: string
+  title: string
+}
+
+export interface UserTurn {
+  id: string
+  content: string
+  attachments: Attachment[]
+  createdAt: string
 }
 
