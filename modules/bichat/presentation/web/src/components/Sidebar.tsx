@@ -7,7 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery, useMutation } from 'urql'
-import { Plus, Sparkle } from '@phosphor-icons/react'
+import { Plus } from '@phosphor-icons/react'
 import { SearchInput, EmptyState } from '@iota-uz/sdk/bichat'
 import TabBar from './TabBar'
 import SessionList from './SessionList/SessionList'
@@ -215,7 +215,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
             <motion.button
               onClick={onNewChat}
               disabled={creating || result.fetching}
-              className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+              className="w-full cursor-pointer px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
               title="New chat"
               aria-label="Create new chat"
               whileHover={{ y: -1 }}
@@ -230,7 +230,6 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
                 <>
                   <Plus size={16} weight="bold" />
                   <span>New Chat</span>
-                  <Sparkle size={12} weight="fill" className="text-white/70" />
                 </>
               )}
             </motion.button>

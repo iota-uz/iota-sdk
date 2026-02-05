@@ -257,7 +257,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading || disabled || attachments.length >= maxFiles}
-                className="flex-shrink-0 self-center p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-shrink-0 cursor-pointer self-center p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 aria-label={t('input.attachFiles')}
                 title={t('input.attachImages')}
               >

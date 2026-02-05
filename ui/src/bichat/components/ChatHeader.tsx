@@ -44,7 +44,7 @@ export function ChatHeader({ session, onBack, logoSlot, actionsSlot }: ChatHeade
 
   if (!session) {
     return (
-      <header className="bichat-header border-b border-[var(--bichat-border)] px-4 py-3">
+      <header className="bichat-header border-b border-gray-200/70 dark:border-gray-800/80 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {BackButton}
@@ -60,7 +60,7 @@ export function ChatHeader({ session, onBack, logoSlot, actionsSlot }: ChatHeade
   }
 
   return (
-    <header className="bichat-header border-b border-[var(--bichat-border)] px-4 py-3">
+    <header className="bichat-header border-b border-gray-200/70 dark:border-gray-800/80 px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {BackButton}
