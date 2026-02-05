@@ -22,7 +22,7 @@ type LocationState = {
 function LandingChat({ initialPrompt }: { initialPrompt: string }) {
   const {
     session,
-    messages,
+    turns,
     fetching,
     error,
     message,
@@ -58,7 +58,7 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
     )
   }
 
-  const showWelcome = !session && messages.length === 0
+  const showWelcome = !session && turns.length === 0
 
   return (
     <main className="flex-1 flex flex-col overflow-hidden min-h-0 bg-gray-50 dark:bg-gray-900">
@@ -67,7 +67,7 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
       {showWelcome ? (
         <div className="flex-1 flex items-center justify-center overflow-auto">
           <WelcomeContent
-            onPromptSelect={(prompt) => {
+            onPromptSelect={(prompt: string) => {
               void sendMessage(prompt)
             }}
             disabled={loading}
