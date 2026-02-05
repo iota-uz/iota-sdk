@@ -248,14 +248,10 @@ func (r *Runner) runOneTest(parent context.Context, tc TestCase) TestReport {
 			sseRawFile, _ = os.Create(filepath.Join(turnArtifacts, "sse.txt"))
 			sseJSONFile, _ = os.Create(filepath.Join(turnArtifacts, "sse.jsonl"))
 		}
-		if sseRawFile != nil {
-			defer func() { _ = sseRawFile.Close() }()
-		}
-		if sseJSONFile != nil {
-			defer func() { _ = sseJSONFile.Close() }()
-		}
 
 		sseRes, err := r.sse.StreamMessage(ctx, sessionID, turn.Prompt, StreamSinks{Raw: sseRawFile, JSON: sseJSONFile})
+		// Close turn files immediately after streaming completes
+		closeTurnFiles(sseRawFile, sseJSONFile)
 		if err != nil {
 			if tc.Expect.RedirectUnauth && isNotAuthenticatedRedirect(err) {
 				tr.Status = TestStatusPassed
@@ -478,7 +474,9 @@ func exitCode(report RunReport) int {
 
 func sanitizePathComponent(s string) string {
 	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, string(os.PathSeparator), "_")
+	// Replace both path separators for cross-platform safety
+	s = strings.ReplaceAll(s, "/", "_")
+	s = strings.ReplaceAll(s, "\\", "_")
 	s = strings.ReplaceAll(s, "..", "_")
 	s = strings.ReplaceAll(s, " ", "_")
 	if s == "" {
@@ -532,4 +530,14 @@ func firstFailureKind(turns []TurnReport) FailureKind {
 		}
 	}
 	return FailureKindNone
+}
+
+// closeTurnFiles closes the SSE artifact files for a turn, ignoring any errors.
+func closeTurnFiles(sseRawFile, sseJSONFile *os.File) {
+	if sseRawFile != nil {
+		_ = sseRawFile.Close()
+	}
+	if sseJSONFile != nil {
+		_ = sseJSONFile.Close()
+	}
 }

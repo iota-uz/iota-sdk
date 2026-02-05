@@ -3,7 +3,7 @@
  * Syntax highlighted code blocks with copy functionality and dark mode support
  */
 
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, useRef, memo } from 'react'
 import { Copy, Check } from '@phosphor-icons/react'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -67,6 +67,7 @@ function CodeBlock({
   const [copied, setCopied] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode)
   const [isLoaded, setIsLoaded] = useState(false)
+  const copyTimeoutRef = useRef<number | null>(null)
 
   const normalizedLanguage = normalizeLanguage(language)
 
@@ -88,11 +89,27 @@ function CodeBlock({
     return () => observer.disconnect()
   }, [])
 
+  // Cleanup copy timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current !== null) {
+        clearTimeout(copyTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      // Clear any existing timeout before setting a new one
+      if (copyTimeoutRef.current !== null) {
+        clearTimeout(copyTimeoutRef.current)
+      }
+      copyTimeoutRef.current = window.setTimeout(() => {
+        setCopied(false)
+        copyTimeoutRef.current = null
+      }, 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
     }

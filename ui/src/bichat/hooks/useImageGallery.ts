@@ -94,6 +94,12 @@ export function useImageGallery(options: UseImageGalleryOptions = {}): UseImageG
         setImages(newImages)
       }
       const targetImages = newImages || images
+      // Handle empty images array - don't compute negative index
+      if (targetImages.length === 0) {
+        setCurrentIndex(0)
+        setIsOpen(true)
+        return
+      }
       const safeIndex = Math.max(0, Math.min(index, targetImages.length - 1))
       setCurrentIndex(safeIndex)
       setIsOpen(true)
@@ -141,8 +147,12 @@ export function useImageGallery(options: UseImageGalleryOptions = {}): UseImageG
 
   const setImagesHandler = useCallback((newImages: ImageAttachment[]) => {
     setImages(newImages)
-    // Reset index if it's out of bounds
-    setCurrentIndex((current) => Math.min(current, Math.max(0, newImages.length - 1)))
+    // Reset index if it's out of bounds (handle empty array case)
+    if (newImages.length === 0) {
+      setCurrentIndex(0)
+    } else {
+      setCurrentIndex((current) => Math.min(current, newImages.length - 1))
+    }
   }, [])
 
   return {

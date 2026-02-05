@@ -83,7 +83,7 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}): UseAutoScroll
       const shouldSmooth = useSmooth ?? smooth
       container.scrollTo({
         top: container.scrollHeight,
-        behavior: shouldSmooth ? 'smooth' : 'instant',
+        behavior: shouldSmooth ? 'smooth' : 'auto',
       })
       setIsAtBottom(true)
       setShouldAutoScroll(true)
@@ -99,7 +99,7 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}): UseAutoScroll
       if (container) {
         container.scrollTo({
           top: container.scrollHeight,
-          behavior: 'instant',
+          behavior: 'auto',
         })
         setIsAtBottom(true)
       }

@@ -39,14 +39,37 @@ func TestBiChatApplet_Config(t *testing.T) {
 }
 
 func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
-	t.Parallel()
+	tests := []struct {
+		name               string
+		moduleConfig       *ModuleConfig
+		expectedBasePath   string
+		expectedStreamPath string
+	}{
+		{
+			name:               "nil config derives base path correctly",
+			moduleConfig:       nil,
+			expectedBasePath:   "/bi-chat",
+			expectedStreamPath: "/bi-chat/stream",
+		},
+		{
+			name:               "config with features derives base path correctly",
+			moduleConfig:       &ModuleConfig{EnableVision: true},
+			expectedBasePath:   "/bi-chat",
+			expectedStreamPath: "/bi-chat/stream",
+		},
+	}
 
-	bichatApplet := NewBiChatApplet(nil)
-	basePath := bichatApplet.BasePath()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bichatApplet := NewBiChatApplet(tt.moduleConfig)
+			basePath := bichatApplet.BasePath()
+			config := bichatApplet.Config()
 
-	config := bichatApplet.Config()
-	assert.Equal(t, basePath, config.Mount.Attributes["base-path"])
-	assert.Equal(t, basePath+"/stream", config.Endpoints.Stream)
+			require.Equal(t, tt.expectedBasePath, basePath, "BasePath() should return expected value")
+			assert.Equal(t, basePath, config.Mount.Attributes["base-path"], "config.Mount.Attributes[base-path] should match BasePath()")
+			assert.Equal(t, tt.expectedStreamPath, config.Endpoints.Stream, "config.Endpoints.Stream should be basePath+/stream")
+		})
+	}
 }
 
 func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
