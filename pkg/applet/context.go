@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +30,9 @@ type ContextBuilder struct {
 	tenantNameResolver TenantNameResolver
 	errorEnricher      ErrorContextEnricher
 	sessionStore       SessionStore
+
+	translationsMu    sync.RWMutex
+	translationsCache map[string]map[string]string
 }
 
 // NewContextBuilder creates a new ContextBuilder with required dependencies.
@@ -54,11 +58,12 @@ func NewContextBuilder(
 	opts ...BuilderOption,
 ) *ContextBuilder {
 	b := &ContextBuilder{
-		config:        config,
-		bundle:        bundle,
-		sessionConfig: sessionConfig,
-		logger:        logger,
-		metrics:       metrics,
+		config:            config,
+		bundle:            bundle,
+		sessionConfig:     sessionConfig,
+		logger:            logger,
+		metrics:           metrics,
+		translationsCache: make(map[string]map[string]string),
 	}
 
 	for _, opt := range opts {
@@ -262,6 +267,53 @@ func getUserPermissions(ctx context.Context) []string {
 //
 // Performance: Pre-allocates map with estimated size for efficiency.
 func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]string {
+	localeKey := locale.String()
+
+	b.translationsMu.RLock()
+	if cached, ok := b.translationsCache[localeKey]; ok {
+		b.translationsMu.RUnlock()
+		return cached
+	}
+	b.translationsMu.RUnlock()
+
+	mode := b.config.I18n.Mode
+	if mode == "" {
+		mode = TranslationModeAll
+	}
+	if mode == TranslationModeNone {
+		out := make(map[string]string)
+		b.translationsMu.Lock()
+		b.translationsCache[localeKey] = out
+		b.translationsMu.Unlock()
+		return out
+	}
+
+	prefixes := make([]string, 0, len(b.config.I18n.Prefixes))
+	if mode == TranslationModePrefixes {
+		for _, p := range b.config.I18n.Prefixes {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			prefixes = append(prefixes, p)
+		}
+		if len(prefixes) == 0 {
+			out := make(map[string]string)
+			b.translationsMu.Lock()
+			b.translationsCache[localeKey] = out
+			b.translationsMu.Unlock()
+			return out
+		}
+	}
+
+	if b.bundle == nil {
+		out := make(map[string]string)
+		b.translationsMu.Lock()
+		b.translationsCache[localeKey] = out
+		b.translationsMu.Unlock()
+		return out
+	}
+
 	// Get all messages for the user's locale
 	messages := b.bundle.Messages()
 	localeMessages, exists := messages[locale]
@@ -270,22 +322,44 @@ func (b *ContextBuilder) getAllTranslations(locale language.Tag) map[string]stri
 		if b.logger != nil {
 			b.logger.WithField("locale", locale.String()).Warn("No translations found for locale")
 		}
-		return make(map[string]string)
+		out := make(map[string]string)
+		b.translationsMu.Lock()
+		b.translationsCache[localeKey] = out
+		b.translationsMu.Unlock()
+		return out
 	}
 
-	// Pre-allocate with exact size
 	translations := make(map[string]string, len(localeMessages))
+	if mode == TranslationModePrefixes {
+		translations = make(map[string]string)
+	}
 
 	// Create localizer for the user's locale
 	localizer := i18n.NewLocalizer(b.bundle, locale.String())
 
 	// Iterate all message IDs and localize
 	for messageID := range localeMessages {
+		if mode == TranslationModePrefixes {
+			match := false
+			for _, p := range prefixes {
+				if strings.HasPrefix(messageID, p) {
+					match = true
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+		}
 		translation := localizer.MustLocalize(&i18n.LocalizeConfig{
 			MessageID: messageID,
 		})
 		translations[messageID] = translation
 	}
+
+	b.translationsMu.Lock()
+	b.translationsCache[localeKey] = translations
+	b.translationsMu.Unlock()
 
 	return translations
 }

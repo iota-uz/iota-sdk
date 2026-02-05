@@ -158,19 +158,24 @@ func (a *${PASCAL}Applet) Config() applet.Config {
 
 		Middleware: a.middleware(),
 
-		Shell: applet.ShellConfig{
-			Mode: applet.ShellModeEmbedded,
-			Layout: func(title string) templ.Component {
-				return layouts.Authenticated(layouts.AuthenticatedProps{
-					BaseProps: layouts.BaseProps{Title: title},
-				})
+			Shell: applet.ShellConfig{
+				Mode: applet.ShellModeEmbedded,
+				Layout: func(title string) templ.Component {
+					return layouts.Authenticated(layouts.AuthenticatedProps{
+						BaseProps: layouts.BaseProps{Title: title},
+					})
+				},
+				Title: "${PASCAL}",
 			},
-			Title: "${PASCAL}",
-		},
 
-		RPC: ${NAME//-/_}rpc.Router().Config(),
+			I18n: applet.I18nConfig{
+				Mode:     applet.TranslationModePrefixes,
+				Prefixes: []string{"${PASCAL}.", "Common."},
+			},
+
+			RPC: ${NAME//-/_}rpc.Router().Config(),
+		}
 	}
-}
 
 func (a *${PASCAL}Applet) middleware() []mux.MiddlewareFunc {
 	return []mux.MiddlewareFunc{

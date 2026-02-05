@@ -160,6 +160,12 @@ await rpc.callTyped<MyAppletRPC>('my.method', { /* params */ })
 - Authorization: per-method permission enforcement (`RequirePermissions`).
 - Data access: applets do **not** access the database directly; Go handlers do.
 
+#### Reverse proxies (same-origin)
+
+If IOTA is deployed behind a reverse proxy/ingress that sets forwarded headers, you can enable host checks using `X-Forwarded-Host` for RPC:
+
+- `Config.RPC.TrustForwardedHost = true`
+
 ## Devtools overlay (optional)
 
 Enable devtools via:
@@ -172,6 +178,15 @@ The overlay shows:
 - Resolved runtime config (basePath/assets/rpc endpoint)
 - Current route context
 - Recent RPC calls (start/success/error)
+
+## Translations
+
+The backend injects translations into `ctx.locale.translations` (consumed via `useTranslation()`).
+
+By default, the runtime includes **all** translations for the current locale. If payload size becomes a concern, you can scope translations per applet:
+
+- `Config.I18n.Mode = "prefixes"` with `Config.I18n.Prefixes = []string{"MyApplet.", "Common."}`
+- `Config.I18n.Mode = "none"` if the applet does not need backend-provided translations
 
 ## Router mode (embedded vs standalone)
 

@@ -178,6 +178,10 @@ func createTestBundle() *i18n.Bundle {
 		ID:    "farewell",
 		Other: "Goodbye",
 	})
+	_ = bundle.AddMessages(language.English, &i18n.Message{
+		ID:    "Common.Greeting",
+		Other: "Hello (Common)",
+	})
 	_ = bundle.AddMessages(language.Russian, &i18n.Message{
 		ID:    "greeting",
 		Other: "Привет",
@@ -429,6 +433,49 @@ func TestGetAllTranslations_LocaleNotFound(t *testing.T) {
 
 	// Test unsupported locale
 	translations := builder.getAllTranslations(language.Japanese)
+	assert.Empty(t, translations)
+}
+
+func TestGetAllTranslations_PrefixesMode(t *testing.T) {
+	t.Parallel()
+
+	bundle := createTestBundle()
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+	metrics := &mockMetrics{}
+	sessionConfig := DefaultSessionConfig
+
+	config := Config{
+		I18n: I18nConfig{
+			Mode:     TranslationModePrefixes,
+			Prefixes: []string{"Common."},
+		},
+	}
+	builder := NewContextBuilder(config, bundle, sessionConfig, logger, metrics)
+
+	translations := builder.getAllTranslations(language.English)
+	assert.Equal(t, "Hello (Common)", translations["Common.Greeting"])
+	_, ok := translations["greeting"]
+	assert.False(t, ok)
+}
+
+func TestGetAllTranslations_NoneMode(t *testing.T) {
+	t.Parallel()
+
+	bundle := createTestBundle()
+	logger := logrus.New()
+	logger.SetLevel(logrus.FatalLevel)
+	metrics := &mockMetrics{}
+	sessionConfig := DefaultSessionConfig
+
+	config := Config{
+		I18n: I18nConfig{
+			Mode: TranslationModeNone,
+		},
+	}
+	builder := NewContextBuilder(config, bundle, sessionConfig, logger, metrics)
+
+	translations := builder.getAllTranslations(language.English)
 	assert.Empty(t, translations)
 }
 

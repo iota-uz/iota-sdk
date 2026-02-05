@@ -84,6 +84,7 @@ sequenceDiagram
 - **No direct DB access from JS**: applets call Go capabilities (RPC/GraphQL/REST); Go owns tenant isolation and authorization.
 - **Same-origin protection**: applet RPC defaults to blocking cross-origin browser requests (based on `Origin` vs `Host`).
 - **Permission checks**: procedures can declare required permissions; enforcement happens server-side.
+- **Translation payload**: applets can scope injected translations by key prefix to keep `InitialContext` small.
 
 ## Extension points (future)
 

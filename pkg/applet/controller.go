@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -425,15 +427,24 @@ func buildMountElement(config MountConfig) string {
 		b.WriteString(`"`)
 	}
 
+	type attr struct {
+		k string
+		v string
+	}
+	ordered := make([]attr, 0, len(attrs))
 	for k, v := range attrs {
 		k = strings.TrimSpace(k)
 		if k == "" || !htmlNameRe.MatchString(k) {
 			continue
 		}
+		ordered = append(ordered, attr{k: k, v: v})
+	}
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].k < ordered[j].k })
+	for _, a := range ordered {
 		b.WriteString(" ")
-		b.WriteString(template.HTMLEscapeString(k))
+		b.WriteString(template.HTMLEscapeString(a.k))
 		b.WriteString(`="`)
-		b.WriteString(template.HTMLEscapeString(v))
+		b.WriteString(template.HTMLEscapeString(a.v))
 		b.WriteString(`"`)
 	}
 
@@ -519,8 +530,13 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 		requireSameOrigin = *rpcCfg.RequireSameOrigin
 	}
 
+	trustForwardedHost := false
+	if rpcCfg.TrustForwardedHost != nil {
+		trustForwardedHost = *rpcCfg.TrustForwardedHost
+	}
+
 	if requireSameOrigin {
-		if err := enforceSameOrigin(r); err != nil {
+		if err := enforceSameOrigin(r, trustForwardedHost); err != nil {
 			writeRPC(w, http.StatusForbidden, rpcResponse{
 				ID: "",
 				Error: &rpcError{
@@ -694,7 +710,7 @@ func requirePermissionStrings(ctx context.Context, required []string) error {
 	return nil
 }
 
-func enforceSameOrigin(r *http.Request) error {
+func enforceSameOrigin(r *http.Request, trustForwardedHost bool) error {
 	const op serrors.Op = "applet.enforceSameOrigin"
 
 	origin := r.Header.Get("Origin")
@@ -705,15 +721,82 @@ func enforceSameOrigin(r *http.Request) error {
 	if err != nil {
 		return serrors.E(op, serrors.Invalid, "invalid origin", err)
 	}
-	originHost := strings.ToLower(strings.TrimSpace(u.Host))
-	reqHost := strings.ToLower(strings.TrimSpace(r.Host))
+
+	originHost, originPort := normalizeHostPort(strings.TrimSpace(u.Host))
+	reqHost, reqPort := normalizeHostPort(requestHost(r, trustForwardedHost))
+
 	if originHost == "" || reqHost == "" {
 		return serrors.E(op, serrors.Invalid, "invalid host")
 	}
-	if originHost != reqHost {
+
+	originPort = defaultPortIfEmpty(originPort, strings.ToLower(strings.TrimSpace(u.Scheme)))
+	reqPort = defaultPortIfEmpty(reqPort, requestProto(r, trustForwardedHost))
+
+	if originHost != reqHost || originPort != reqPort {
 		return serrors.E(op, serrors.Invalid, "origin mismatch")
 	}
 	return nil
+}
+
+func requestHost(r *http.Request, trustForwarded bool) string {
+	if trustForwarded {
+		xfh := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
+		if xfh != "" {
+			parts := strings.Split(xfh, ",")
+			if len(parts) > 0 {
+				h := strings.TrimSpace(parts[0])
+				if h != "" {
+					return h
+				}
+			}
+		}
+	}
+	return strings.TrimSpace(r.Host)
+}
+
+func requestProto(r *http.Request, trustForwarded bool) string {
+	if trustForwarded {
+		xfp := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto"))
+		if xfp != "" {
+			parts := strings.Split(xfp, ",")
+			if len(parts) > 0 {
+				p := strings.ToLower(strings.TrimSpace(parts[0]))
+				if p != "" {
+					return p
+				}
+			}
+		}
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+func normalizeHostPort(hostport string) (string, string) {
+	hostport = strings.TrimSpace(hostport)
+	if hostport == "" {
+		return "", ""
+	}
+	if h, p, err := net.SplitHostPort(hostport); err == nil {
+		return strings.ToLower(h), p
+	}
+	if strings.HasPrefix(hostport, "[") && strings.HasSuffix(hostport, "]") {
+		return strings.ToLower(strings.Trim(hostport, "[]")), ""
+	}
+	return strings.ToLower(hostport), ""
+}
+
+func defaultPortIfEmpty(port string, proto string) string {
+	if port != "" {
+		return port
+	}
+	switch strings.ToLower(strings.TrimSpace(proto)) {
+	case "https":
+		return "443"
+	default:
+		return "80"
+	}
 }
 
 func joinURLPath(base string, p string) string {

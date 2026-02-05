@@ -4,6 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 export type RouterMode = 'url' | 'memory'
 export type ShellMode = 'embedded' | 'standalone'
 
+type RegistryEntry = {
+  options: DefineReactAppletElementOptions
+  observed: Set<string>
+}
+
 export interface AppletHostConfig {
   basePath: string
   shellMode?: ShellMode
@@ -20,31 +25,47 @@ export interface DefineReactAppletElementOptions {
 }
 
 export function defineReactAppletElement(options: DefineReactAppletElementOptions): void {
-  if (customElements.get(options.tagName)) return
+  const tagName = options.tagName.toLowerCase()
 
-  const observed = new Set<string>(['base-path', 'shell-mode', 'router-mode'])
-  for (const a of options.observedAttributes ?? []) observed.add(a)
+  const registry = getRegistry()
+  const existing = registry.get(tagName)
+  if (existing) {
+    existing.options = options
+    for (const a of options.observedAttributes ?? []) existing.observed.add(a)
+  } else {
+    const observed = new Set<string>(['base-path', 'shell-mode', 'router-mode'])
+    for (const a of options.observedAttributes ?? []) observed.add(a)
+    registry.set(tagName, { options, observed })
+  }
+
+  if (customElements.get(tagName)) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('iota:applet-host-update', { detail: { tagName } }))
+    }
+    return
+  }
+
+  function getEntry(): RegistryEntry {
+    const entry = getRegistry().get(tagName)
+    if (!entry) throw new Error(`[${tagName}] applet host registry entry missing`)
+    return entry
+  }
 
   class ReactAppletElement extends HTMLElement {
     private reactRoot: Root | null = null
     private container: HTMLDivElement | null = null
     private darkModeObserver: MutationObserver | null = null
+    private styleEl: HTMLStyleElement | null = null
+    private updateListener: ((e: Event) => void) | null = null
 
     static get observedAttributes(): string[] {
-      return Array.from(observed)
+      return Array.from(getEntry().observed)
     }
 
     connectedCallback(): void {
       const shadowRoot = this.shadowRoot ?? this.attachShadow({ mode: 'open' })
 
       if (!this.container) {
-        const styles = typeof options.styles === 'function' ? options.styles() : options.styles
-        if (styles) {
-          const styleEl = document.createElement('style')
-          styleEl.textContent = styles
-          shadowRoot.appendChild(styleEl)
-        }
-
         this.container = document.createElement('div')
         this.container.id = 'react-root'
         this.container.style.display = 'flex'
@@ -53,19 +74,35 @@ export function defineReactAppletElement(options: DefineReactAppletElementOption
         this.container.style.minHeight = '0'
         this.container.style.height = '100%'
         this.container.style.width = '100%'
-        shadowRoot.appendChild(this.container)
-      } else if (!shadowRoot.querySelector('#react-root')) {
-        shadowRoot.appendChild(this.container)
       }
 
-      if (options.observeDarkMode !== false) {
-        this.darkModeObserver ??= this.syncDarkMode()
+      const existingContainer = shadowRoot.querySelector('#react-root')
+      if (!existingContainer) {
+        if (this.styleEl) shadowRoot.appendChild(this.styleEl)
+        shadowRoot.appendChild(this.container)
+      } else if (existingContainer !== this.container) {
+        this.container = existingContainer as HTMLDivElement
       }
+
+      this.syncFromRegistry()
+
+      this.updateListener ??= (e: Event) => {
+        if (!(e instanceof CustomEvent)) return
+        const detail = (e as CustomEvent<{ tagName?: string }>).detail
+        if (!detail || detail.tagName !== tagName) return
+        this.syncFromRegistry()
+        this.renderReact()
+      }
+      window.addEventListener('iota:applet-host-update', this.updateListener as EventListener)
 
       this.renderReact()
     }
 
     disconnectedCallback(): void {
+      if (this.updateListener) {
+        window.removeEventListener('iota:applet-host-update', this.updateListener as EventListener)
+      }
+
       this.darkModeObserver?.disconnect()
       this.darkModeObserver = null
 
@@ -99,9 +136,32 @@ export function defineReactAppletElement(options: DefineReactAppletElementOption
       }
 
       try {
-        this.reactRoot.render(options.render(this.getHostConfig()))
+        this.reactRoot.render(getEntry().options.render(this.getHostConfig()))
       } catch (err) {
-        console.error(`[${options.tagName}] failed to mount React app:`, err)
+        console.error(`[${tagName}] failed to mount React app:`, err)
+      }
+    }
+
+    private syncFromRegistry(): void {
+      const entry = getEntry()
+
+      const styles = typeof entry.options.styles === 'function' ? entry.options.styles() : entry.options.styles
+      if (styles) {
+        this.styleEl ??= document.createElement('style')
+        this.styleEl.textContent = styles
+        if (this.shadowRoot && !this.shadowRoot.contains(this.styleEl)) {
+          this.shadowRoot.insertBefore(this.styleEl, this.shadowRoot.firstChild)
+        }
+      } else if (this.styleEl) {
+        this.styleEl.remove()
+        this.styleEl = null
+      }
+
+      if (entry.options.observeDarkMode !== false) {
+        this.darkModeObserver ??= this.syncDarkMode()
+      } else if (this.darkModeObserver) {
+        this.darkModeObserver.disconnect()
+        this.darkModeObserver = null
       }
     }
 
@@ -122,5 +182,11 @@ export function defineReactAppletElement(options: DefineReactAppletElementOption
     }
   }
 
-  customElements.define(options.tagName, ReactAppletElement)
+  customElements.define(tagName, ReactAppletElement)
+}
+
+function getRegistry(): Map<string, RegistryEntry> {
+  const anyGlobal = globalThis as any
+  anyGlobal.__IOTA_REACT_APPLET_HOST_REGISTRY__ ??= new Map<string, RegistryEntry>()
+  return anyGlobal.__IOTA_REACT_APPLET_HOST_REGISTRY__ as Map<string, RegistryEntry>
 }

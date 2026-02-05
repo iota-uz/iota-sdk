@@ -36,6 +36,19 @@ type ShellConfig struct {
 	Title  string
 }
 
+type TranslationMode string
+
+const (
+	TranslationModeAll      TranslationMode = "all"
+	TranslationModePrefixes TranslationMode = "prefixes"
+	TranslationModeNone     TranslationMode = "none"
+)
+
+type I18nConfig struct {
+	Mode     TranslationMode
+	Prefixes []string
+}
+
 // Config contains all configuration needed to integrate an applet with the SDK runtime.
 type Config struct {
 	// WindowGlobal is the JavaScript global variable name for context injection
@@ -54,6 +67,10 @@ type Config struct {
 	// Router is an optional custom router for parsing URL paths into RouteContext.
 	// If nil, uses default implementation (path = full path after BasePath, params = empty)
 	Router AppletRouter
+
+	// I18n controls how translations are included into InitialContext.Locale.Translations.
+	// Default: all translations for the current locale.
+	I18n I18nConfig
 
 	// RoutePatterns optionally registers explicit mux patterns before the catch-all route.
 	// This enables mux Vars() extraction for applets using MuxRouter.
@@ -141,10 +158,11 @@ type DevAssetConfig struct {
 }
 
 type RPCConfig struct {
-	Path              string // default: /rpc
-	RequireSameOrigin *bool  // default: true
-	MaxBodyBytes      int64  // default: 1<<20
-	Methods           map[string]RPCMethod
+	Path               string // default: /rpc
+	RequireSameOrigin  *bool  // default: true
+	TrustForwardedHost *bool  // default: false
+	MaxBodyBytes       int64  // default: 1<<20
+	Methods            map[string]RPCMethod
 }
 
 type RPCMethod struct {
