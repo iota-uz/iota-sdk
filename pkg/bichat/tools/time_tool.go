@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // GetCurrentTimeTool returns the current date and time in a specified timezone.
@@ -68,8 +67,6 @@ type timeToolOutput struct {
 
 // Call executes the get current time operation.
 func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "GetCurrentTimeTool.Call"
-
 	// Parse input
 	params, err := agents.ParseToolInput[timeToolInput](input)
 	if err != nil {
@@ -90,7 +87,7 @@ func (t *GetCurrentTimeTool) Call(ctx context.Context, input string) (string, er
 			fmt.Sprintf("invalid timezone: %v", err),
 			"Use IANA timezone names (e.g., 'UTC', 'Asia/Tashkent', 'America/New_York')",
 			"Common timezones: UTC, Europe/London, Asia/Tokyo",
-		), serrors.E(op, err, "invalid timezone")
+		), nil
 	}
 
 	now := time.Now().In(loc)

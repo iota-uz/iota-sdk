@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // WebSearchTool provides web search capability for LLM agents.
@@ -57,8 +56,6 @@ func (t *WebSearchTool) Parameters() map[string]any {
 // - Bing Search API
 // - Custom search implementation
 func (t *WebSearchTool) Call(ctx context.Context, input string) (string, error) {
-	const op serrors.Op = "WebSearchTool.Call"
-
 	// Return formatted error that LLM can understand
 	// This allows the agent to gracefully handle unavailable web search
 	return FormatToolError(
@@ -66,5 +63,5 @@ func (t *WebSearchTool) Call(ctx context.Context, input string) (string, error) 
 		"Web search is not yet implemented",
 		"The web_search tool is enabled but not connected to a search provider",
 		"Please use alternative information sources or inform the user that web search is unavailable",
-	), serrors.E(op, "web_search implementation pending - needs search provider integration")
+	), nil
 }

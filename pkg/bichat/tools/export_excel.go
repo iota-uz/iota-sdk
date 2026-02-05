@@ -124,7 +124,7 @@ func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, err
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
 			"Provide data parameter with query results",
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	if params.Data == nil {
@@ -133,7 +133,7 @@ func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, err
 			"data parameter is required",
 			HintCheckRequiredFields,
 			"Provide query result data to export",
-		), serrors.E(op, "data parameter is required")
+		), nil
 	}
 
 	// Check if data is too large
@@ -144,7 +144,7 @@ func (t *ExportToExcelTool) Call(ctx context.Context, input string) (string, err
 			HintAddLimitClause,
 			HintFilterWithWhere,
 			"Consider exporting filtered subsets instead",
-		), serrors.E(op, "data too large")
+		), nil
 	}
 
 	// Set defaults

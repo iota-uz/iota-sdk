@@ -36,6 +36,27 @@ const (
 	// ErrCodePermissionDenied indicates the user lacks permission to access the requested resource.
 	// LLM should inform the user to contact administrator for access.
 	ErrCodePermissionDenied ToolErrorCode = "PERMISSION_DENIED"
+
+	// SQL-specific error codes for structured diagnostics
+	// ErrCodeColumnNotFound indicates a referenced column does not exist in the table.
+	// LLM should use schema_describe to verify column names.
+	ErrCodeColumnNotFound ToolErrorCode = "COLUMN_NOT_FOUND"
+
+	// ErrCodeTableNotFound indicates a referenced table does not exist.
+	// LLM should use schema_list to find the correct table name.
+	ErrCodeTableNotFound ToolErrorCode = "TABLE_NOT_FOUND"
+
+	// ErrCodeTypeMismatch indicates column type does not match expected type.
+	// LLM should use schema_describe to check column types and cast appropriately.
+	ErrCodeTypeMismatch ToolErrorCode = "TYPE_MISMATCH"
+
+	// ErrCodeSyntaxError indicates invalid SQL syntax.
+	// LLM should review and fix the SQL syntax.
+	ErrCodeSyntaxError ToolErrorCode = "SYNTAX_ERROR"
+
+	// ErrCodeAmbiguousColumn indicates a column reference is ambiguous (exists in multiple tables).
+	// LLM should qualify the column with table alias.
+	ErrCodeAmbiguousColumn ToolErrorCode = "AMBIGUOUS_COLUMN"
 )
 
 // ToolError represents a structured error with hints for LLM self-correction.
@@ -127,4 +148,10 @@ var (
 	// Permission hints
 	HintRequestAccess        = "Contact administrator to request access to this resource"
 	HintCheckAccessibleViews = "Use schema_list tool to see views you have permission to access"
+
+	// SQL-specific diagnostic hints
+	HintUseSchemaDescribe  = "Use schema_describe tool to verify column names and types for the table"
+	HintCheckColumnTypes   = "Column types may differ from expected - verify with schema_describe"
+	HintCheckColumnExists  = "Column may not exist in this table - use schema_describe to check available columns"
+	HintDisambiguateColumn = "Qualify ambiguous column with table alias (e.g., t.column_name)"
 )

@@ -97,7 +97,7 @@ func (t *KBSearchTool) Call(ctx context.Context, input string) (string, error) {
 			ErrCodeInvalidRequest,
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	if params.Query == "" {
@@ -106,7 +106,7 @@ func (t *KBSearchTool) Call(ctx context.Context, input string) (string, error) {
 			"query parameter is required",
 			HintCheckRequiredFields,
 			"Provide search terms for knowledge base query",
-		), serrors.E(op, "query parameter is required")
+		), nil
 	}
 
 	// Set defaults
@@ -148,7 +148,7 @@ func (t *KBSearchTool) Call(ctx context.Context, input string) (string, error) {
 			HintTryDifferentTerms,
 			"Try broader or more specific search terms",
 			"Check spelling and terminology",
-		), serrors.E(op, "no results found")
+		), nil
 	}
 
 	// Build response

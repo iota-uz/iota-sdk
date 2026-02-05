@@ -256,8 +256,9 @@ func TestSQLExecuteToolParameterValidation(t *testing.T) {
 			result, err := tool.Call(context.Background(), tt.input)
 
 			if tt.wantError {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
+				// Validation errors return nil error but formatted error string
+				if err != nil {
+					t.Fatalf("expected validation error to return nil error, got: %v", err)
 				}
 				if !strings.Contains(result, tt.errCode) {
 					t.Errorf("expected error code %s, got: %s", tt.errCode, result)

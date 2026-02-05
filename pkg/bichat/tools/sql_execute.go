@@ -135,7 +135,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			fmt.Sprintf("failed to parse input: %v", err),
 			HintCheckRequiredFields,
 			HintCheckFieldTypes,
-		), serrors.E(op, err, "failed to parse input")
+		), nil
 	}
 
 	if params.Query == "" {
@@ -143,7 +143,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			ErrCodeInvalidRequest,
 			"query parameter is required",
 			HintCheckRequiredFields,
-		), serrors.E(op, "query parameter is required")
+		), nil
 	}
 
 	// Set defaults
@@ -156,7 +156,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			"limit must be a positive integer",
 			HintCheckFieldTypes,
 			"Use limit between 1 and 1000",
-		), serrors.E(op, "invalid limit")
+		), nil
 	}
 	if params.Limit > maxSQLExecuteLimit {
 		params.Limit = maxSQLExecuteLimit
@@ -172,7 +172,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			HintOnlySelectAllowed,
 			HintNoWriteOperations,
 			HintUseSchemaList,
-		), serrors.E(op, err)
+		), nil
 	}
 
 	// Check view permissions if configured
@@ -213,7 +213,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 			"Use parameter binding for SQL injection protection",
 			"Provide params as a JSON array matching $1..$n placeholders",
 			HintCheckSQLSyntax,
-		), serrors.E(op, err)
+		), nil
 	}
 
 	// Explain plan mode
@@ -229,7 +229,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 				HintCheckSQLSyntax,
 				HintVerifyTableNames,
 				HintCheckJoinConditions,
-			), serrors.E(op, err, "explain failed")
+			), nil
 		}
 
 		planLines := extractExplainLines(explainResult, explainMaxLines)
@@ -250,13 +250,8 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 	result, err := t.executor.ExecuteQuery(ctx, executedSQL, params.Params, 30*time.Second)
 	duration := time.Since(start)
 	if err != nil {
-		return formatSQLError(
-			"Query execution failed",
-			err,
-			HintCheckSQLSyntax,
-			HintVerifyTableNames,
-			HintCheckJoinConditions,
-		), serrors.E(op, err, "query execution failed")
+		diagnosis := ClassifySQLError(err)
+		return FormatSQLDiagnosis(diagnosis), nil
 	}
 
 	// Apply truncation semantics on returned data (limit + 1 pattern).

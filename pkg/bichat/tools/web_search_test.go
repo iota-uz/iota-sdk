@@ -55,10 +55,10 @@ func TestWebSearchTool_Call(t *testing.T) {
 	// This allows LLM to gracefully handle unavailable search
 	result, err := tool.Call(ctx, input)
 
-	// Should return formatted error with helpful message
+	// Should return formatted error with helpful message, but nil Go error
+	// (LLM should see the formatted error and handle gracefully)
 	assert.NotEmpty(t, result)
-	require.Error(t, err)
+	require.NoError(t, err, "Unimplemented tool should return nil error")
 	assert.Contains(t, result, "SERVICE_UNAVAILABLE")
 	assert.Contains(t, result, "not yet implemented")
-	assert.Contains(t, err.Error(), "web_search implementation pending")
 }
