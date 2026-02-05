@@ -6,7 +6,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Plus, Sparkle } from '@phosphor-icons/react'
+import { Plus } from '@phosphor-icons/react'
 import { SearchInput, EmptyState } from '@iota-uz/sdk/bichat'
 import { createAppletRPCClient } from '@iota-uz/sdk'
 import TabBar from './TabBar'
@@ -15,6 +15,7 @@ import SessionSkeleton from './SessionSkeleton'
 import { groupSessionsByDate } from '../utils/sessionGrouping'
 import type { ChatSession } from '../utils/sessionGrouping'
 import { useIotaContext } from '../contexts/IotaContext'
+import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
 
 // Note: RegenerateSessionTitle will be implemented later if needed
 // For now, users can manually rename sessions
@@ -37,6 +38,7 @@ function useSessionSearch(sessions: ChatSession[], query: string): ChatSession[]
 
 export default function Sidebar({ onNewChat, creating }: SidebarProps) {
   const location = useLocation()
+  const { config } = useIotaContext()
 
   // Permission checks (placeholder - TODO: integrate with IotaContext when available)
   const canReadAllChats = false // For now, disable "All Chats" tab
@@ -57,7 +59,9 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
   const [fetching, setFetching] = useState(true)
   const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [loadError, setLoadError] = useState(false)
+  const [loadError, setLoadError] = useState<RPCErrorDisplay | null>(null)
+  const [actionError, setActionError] = useState<RPCErrorDisplay | null>(null)
+  const accessDenied = loadError?.isPermissionDenied === true
 
   const reloadSessions = useMemo(() => {
     return async () => {
@@ -68,11 +72,12 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
           { limit: 200, offset: 0 }
         )
         setSessions(data.sessions || [])
-        setLoadError(false)
+        setLoadError(null)
+        setActionError(null)
       } catch (error) {
         console.error('Failed to load sessions:', error)
         setSessions([])
-        setLoadError(true)
+        setLoadError(toRPCErrorDisplay(error, 'Failed to load sessions'))
       } finally {
         setFetching(false)
       }
@@ -134,9 +139,11 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
 
     try {
       await rpc.call<{ id: string }, { ok: boolean }>('bichat.session.delete', { id: sessionId })
+      setActionError(null)
       await reloadSessions()
     } catch (error) {
       console.error('Failed to delete session:', error)
+      setActionError(toRPCErrorDisplay(error, 'Failed to delete session'))
     }
   }
 
@@ -150,9 +157,11 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
       } else {
         await rpc.call<{ id: string }, { session: ChatSession }>('bichat.session.pin', { id: sessionId })
       }
+      setActionError(null)
       await reloadSessions()
     } catch (error) {
       console.error('Failed to toggle pin:', error)
+      setActionError(toRPCErrorDisplay(error, 'Failed to update pin state'))
     }
   }
 
@@ -162,9 +171,11 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
         id: sessionId,
         title: newTitle,
       })
+      setActionError(null)
       await reloadSessions()
     } catch (error) {
       console.error('Failed to update session title:', error)
+      setActionError(toRPCErrorDisplay(error, 'Failed to rename session'))
     }
   }
 
@@ -187,9 +198,9 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
           <div className="px-4 pt-3 pb-2">
             <motion.button
               onClick={onNewChat}
-              disabled={creating || fetching}
-              className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-              title="New chat"
+              disabled={creating || fetching || accessDenied}
+              className="w-full px-4 py-2.5 rounded-lg font-medium bg-primary-600 hover:bg-primary-700 hover:-translate-y-0.5 active:bg-primary-800 text-white shadow-sm transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-primary-400/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
+              title={accessDenied ? 'Missing permission for BiChat' : 'New chat'}
               aria-label="Create new chat"
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.98 }}
@@ -203,14 +214,13 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
                 <>
                   <Plus size={16} weight="bold" />
                   <span>New Chat</span>
-                  <Sparkle size={12} weight="fill" className="text-white/70" />
                 </>
               )}
             </motion.button>
           </div>
 
           {/* Search Input */}
-          <div className="px-4 pb-2">
+          <div className="px-4 pb-2 cursor-pointer">
             <SearchInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -234,7 +244,7 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
                 />
 
                 {/* Empty State - refined */}
-                {filteredSessions.length === 0 && !fetching && (
+                {filteredSessions.length === 0 && !fetching && !loadError && (
                   <EmptyState
                     title={searchQuery ? `No results for "${searchQuery}"` : 'No chats yet'}
                     description={
@@ -258,8 +268,60 @@ export default function Sidebar({ onNewChat, creating }: SidebarProps) {
             )}
 
             {loadError && (
-              <div className="mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                <p className="text-xs text-red-600 dark:text-red-400 font-medium">Failed to load sessions</p>
+              <div
+                className={
+                  loadError.isPermissionDenied
+                    ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
+                    : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                }
+              >
+                <p
+                  className={
+                    loadError.isPermissionDenied
+                      ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
+                      : 'text-xs text-red-600 dark:text-red-400 font-medium'
+                  }
+                >
+                  {loadError.title}
+                </p>
+                <p
+                  className={
+                    loadError.isPermissionDenied
+                      ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
+                      : 'mt-1 text-xs text-red-500 dark:text-red-300'
+                  }
+                >
+                  {loadError.description}
+                </p>
+              </div>
+            )}
+
+            {actionError && !loadError && (
+              <div
+                className={
+                  actionError.isPermissionDenied
+                    ? 'mx-2 mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
+                    : 'mx-2 mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+                }
+              >
+                <p
+                  className={
+                    actionError.isPermissionDenied
+                      ? 'text-xs text-amber-700 dark:text-amber-300 font-medium'
+                      : 'text-xs text-red-600 dark:text-red-400 font-medium'
+                  }
+                >
+                  {actionError.title}
+                </p>
+                <p
+                  className={
+                    actionError.isPermissionDenied
+                      ? 'mt-1 text-xs text-amber-600 dark:text-amber-400'
+                      : 'mt-1 text-xs text-red-500 dark:text-red-300'
+                  }
+                >
+                  {actionError.description}
+                </p>
               </div>
             )}
           </nav>

@@ -4,6 +4,7 @@ import { ArtifactList, ArtifactPreview } from './artifacts'
 import { CaretLeft } from '@phosphor-icons/react'
 import { createAppletRPCClient } from '@iota-uz/sdk'
 import { useIotaContext } from '../contexts/IotaContext'
+import { toRPCErrorDisplay, type RPCErrorDisplay } from '../utils/rpcErrors'
 
 interface ArtifactsSidebarProps {
   sessionId: string
@@ -19,7 +20,7 @@ export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSideb
   )
 
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<RPCErrorDisplay | null>(null)
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
 
   useEffect(() => {
@@ -35,8 +36,7 @@ export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSideb
         if (alive) setArtifacts(data.artifacts || [])
       } catch (e) {
         if (!alive) return
-        const msg = e instanceof Error ? e.message : 'Failed to load artifacts'
-        setError(msg)
+        setError(toRPCErrorDisplay(e, 'Failed to load artifacts'))
       } finally {
         if (alive) setFetching(false)
       }
@@ -85,8 +85,31 @@ export function ArtifactsSidebar({ sessionId, onArtifactSelect }: ArtifactsSideb
         )}
 
         {error && (
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-400">
-            Failed to load artifacts: {error}
+          <div
+            className={
+              error.isPermissionDenied
+                ? 'p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg'
+                : 'p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'
+            }
+          >
+            <p
+              className={
+                error.isPermissionDenied
+                  ? 'text-sm text-amber-700 dark:text-amber-300 font-medium'
+                  : 'text-sm text-red-700 dark:text-red-300 font-medium'
+              }
+            >
+              {error.title}
+            </p>
+            <p
+              className={
+                error.isPermissionDenied
+                  ? 'mt-1 text-sm text-amber-600 dark:text-amber-400'
+                  : 'mt-1 text-sm text-red-600 dark:text-red-400'
+              }
+            >
+              {error.description}
+            </p>
           </div>
         )}
 

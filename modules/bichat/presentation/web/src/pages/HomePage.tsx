@@ -14,6 +14,7 @@ import {
   MessageInput,
 } from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
+import { toRPCErrorDisplay } from '../utils/rpcErrors'
 
 type LocationState = {
   prompt?: string
@@ -51,9 +52,35 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
   }
 
   if (error) {
+    const display = toRPCErrorDisplay(error, 'Failed to load BiChat')
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-red-500 dark:text-red-400">Error: {error}</div>
+        <div
+          className={
+            display.isPermissionDenied
+              ? 'max-w-md mx-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl'
+              : 'max-w-md mx-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'
+          }
+        >
+          <p
+            className={
+              display.isPermissionDenied
+                ? 'text-sm text-amber-700 dark:text-amber-300 font-medium'
+                : 'text-sm text-red-700 dark:text-red-300 font-medium'
+            }
+          >
+            {display.title}
+          </p>
+          <p
+            className={
+              display.isPermissionDenied
+                ? 'mt-1 text-sm text-amber-600 dark:text-amber-400'
+                : 'mt-1 text-sm text-red-600 dark:text-red-400'
+            }
+          >
+            {display.description}
+          </p>
+        </div>
       </div>
     )
   }
