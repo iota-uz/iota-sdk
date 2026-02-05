@@ -154,6 +154,8 @@ export function UserMessage({
   hideTimestamp = false,
 }: UserMessageProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [draftContent, setDraftContent] = useState('')
   const classes = mergeClassNames(defaultClassNames, classNameOverrides)
 
   // Convert attachments to ImageAttachment format
@@ -181,12 +183,27 @@ export function UserMessage({
 
   const handleEditClick = useCallback(() => {
     if (onEdit && turnId) {
-      const newContent = prompt('Edit message:', turn.content)
-      if (newContent && newContent !== turn.content) {
-        onEdit(turnId, newContent)
-      }
+      setDraftContent(turn.content)
+      setIsEditing(true)
     }
   }, [onEdit, turnId, turn.content])
+
+  const handleEditCancel = useCallback(() => {
+    setIsEditing(false)
+    setDraftContent('')
+  }, [])
+
+  const handleEditSave = useCallback(() => {
+    if (!onEdit || !turnId) return
+    const newContent = draftContent
+    if (!newContent.trim()) return
+    if (newContent === turn.content) {
+      setIsEditing(false)
+      return
+    }
+    onEdit(turnId, newContent)
+    setIsEditing(false)
+  }, [onEdit, turnId, draftContent, turn.content])
 
   const handleNavigate = useCallback(
     (direction: 'prev' | 'next') => {
@@ -253,7 +270,35 @@ export function UserMessage({
         {turn.content && (
           <div className={classes.bubble}>
             <div className={classes.content}>
-              {renderSlot(slots?.content, contentSlotProps, turn.content)}
+              {isEditing ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={draftContent}
+                    onChange={(e) => setDraftContent(e.target.value)}
+                    className="w-full min-h-[80px] resize-y rounded-lg px-3 py-2 bg-white/10 text-white placeholder-white/70 outline-none focus:ring-2 focus:ring-white/30"
+                    aria-label="Edit message"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleEditCancel}
+                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 transition-colors text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEditSave}
+                      className="px-3 py-1.5 rounded-lg bg-white/20 hover:bg-white/25 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!draftContent.trim() || draftContent === turn.content}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                renderSlot(slots?.content, contentSlotProps, turn.content)
+              )}
             </div>
           </div>
         )}
@@ -282,6 +327,7 @@ export function UserMessage({
                     className={classes.actionButton}
                     aria-label="Edit message"
                     title="Edit"
+                    disabled={isEditing}
                   >
                     <PencilSimple size={14} weight="regular" />
                   </button>

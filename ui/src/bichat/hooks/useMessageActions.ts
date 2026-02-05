@@ -3,7 +3,7 @@
  * Provides copy, regenerate, and edit functionality for messages
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 export interface UseMessageActionsOptions {
   /** Callback when copy succeeds */
@@ -63,6 +63,15 @@ export function useMessageActions(options: UseMessageActionsOptions = {}): UseMe
   const [isEditing, setIsEditing] = useState(false)
 
   const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current)
+        copiedTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   const copy = useCallback(
     async (content: string) => {

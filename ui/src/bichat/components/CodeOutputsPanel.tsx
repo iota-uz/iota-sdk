@@ -16,6 +16,16 @@ interface CodeOutputsPanelProps {
   outputs: CodeOutput[]
 }
 
+function toBase64(str: string): string {
+  // btoa() only supports Latin1; this converts UTF-8 bytes to a binary string first.
+  const bytes = new TextEncoder().encode(str)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 function CodeOutputsPanel({ outputs }: CodeOutputsPanelProps) {
   if (!outputs || outputs.length === 0) return null
 
@@ -60,7 +70,7 @@ function CodeOutputsPanel({ outputs }: CodeOutputsPanelProps) {
                 {output.filename && (
                   <div className="flex items-center gap-2 mt-1 text-xs">
                     <a
-                      href={`data:${output.mimeType || 'text/plain'};base64,${btoa(output.content)}`}
+                      href={`data:${output.mimeType || 'text/plain'};base64,${toBase64(output.content)}`}
                       download={output.filename}
                       className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
                     >

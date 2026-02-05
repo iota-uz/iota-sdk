@@ -642,25 +642,26 @@ func TestPostgresChatRepository_TruncateMessagesFrom(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create messages at different times
+	base := time.Now().Add(-1 * time.Hour)
 	msg1 := types.UserMessage("Message 1",
 		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(base),
 	)
 	err = repo.SaveMessage(env.Ctx, msg1)
 	require.NoError(t, err)
-	time.Sleep(100 * time.Millisecond)
 
-	truncatePoint := time.Now()
-	time.Sleep(100 * time.Millisecond)
+	truncatePoint := base.Add(1 * time.Second)
 
 	msg2 := types.UserMessage("Message 2",
 		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(truncatePoint),
 	)
 	err = repo.SaveMessage(env.Ctx, msg2)
 	require.NoError(t, err)
-	time.Sleep(50 * time.Millisecond)
 
 	msg3 := types.UserMessage("Message 3",
 		types.WithSessionID(session.ID()),
+		types.WithCreatedAt(truncatePoint.Add(1*time.Second)),
 	)
 	err = repo.SaveMessage(env.Ctx, msg3)
 	require.NoError(t, err)
@@ -1353,17 +1354,20 @@ func TestPostgresChatRepository_UpdateSessionTimestamp(t *testing.T) {
 
 	repo := persistence.NewPostgresChatRepository()
 
+	base := time.Now().Add(-1 * time.Hour)
+
 	// Create session
 	session := domain.NewSession(
 		domain.WithTenantID(env.Tenant.ID),
 		domain.WithUserID(int64(env.User.ID())),
 		domain.WithTitle("Timestamp Test"),
+		domain.WithCreatedAt(base),
+		domain.WithUpdatedAt(base),
 	)
 	err := repo.CreateSession(env.Ctx, session)
 	require.NoError(t, err)
 
 	originalUpdatedAt := session.UpdatedAt()
-	time.Sleep(100 * time.Millisecond)
 
 	updated := session.UpdateTitle("Updated")
 	err = repo.UpdateSession(env.Ctx, updated)

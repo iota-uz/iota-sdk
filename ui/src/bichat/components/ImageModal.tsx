@@ -59,6 +59,10 @@ function ImageModal({
   const modalRef = useRef<HTMLDivElement>(null)
   const [isImageLoaded, setIsImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const hasMultipleImages = allAttachments && allAttachments.length > 1
+  const canNavigatePrev = hasMultipleImages && currentIndex > 0
+  const canNavigateNext =
+    hasMultipleImages && currentIndex < (allAttachments?.length || 1) - 1
 
   // Lock body scroll when modal is open
   useModalLock(isOpen)
@@ -73,16 +77,16 @@ function ImageModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
-      } else if (e.key === 'ArrowLeft' && onNavigate) {
+      } else if (e.key === 'ArrowLeft' && onNavigate && canNavigatePrev) {
         onNavigate('prev')
-      } else if (e.key === 'ArrowRight' && onNavigate) {
+      } else if (e.key === 'ArrowRight' && onNavigate && canNavigateNext) {
         onNavigate('next')
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose, onNavigate])
+  }, [isOpen, onClose, onNavigate, canNavigatePrev, canNavigateNext])
 
   // Reset image loading state when attachment changes
   useEffect(() => {
@@ -94,11 +98,6 @@ function ImageModal({
 
   const previewUrl =
     attachment.preview || createDataUrl(attachment.base64Data, attachment.mimeType)
-  const hasMultipleImages = allAttachments && allAttachments.length > 1
-  const canNavigatePrev = hasMultipleImages && currentIndex > 0
-  const canNavigateNext =
-    hasMultipleImages && currentIndex < (allAttachments?.length || 1) - 1
-
   return createPortal(
     <>
       {/* Backdrop */}

@@ -21,13 +21,13 @@ type JudgeVerdict struct {
 }
 
 type JudgeTurnInput struct {
-	UserPrompt        string
-	FinalAnswer       string
-	StreamedAnswer    string
-	SSEError          string
-	ExpectedChecklist []string
-	JudgeInstructions string
-	ToolCalls         []ToolCall
+	UserPrompt        string     `json:"user_prompt"`
+	FinalAnswer       string     `json:"final_answer"`
+	StreamedAnswer    string     `json:"streamed_answer"`
+	SSEError          string     `json:"sse_error"`
+	ExpectedChecklist []string   `json:"expected_checklist"`
+	JudgeInstructions string     `json:"judge_instructions"`
+	ToolCalls         []ToolCall `json:"tool_calls"`
 }
 
 type OpenAIJudge struct {

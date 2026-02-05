@@ -65,9 +65,9 @@ function MarkdownRenderer({
       const language = match ? match[1] : ''
       const value = String(children).replace(/\n$/, '')
 
-      // Treat as inline if explicitly inline OR no className (no language = likely inline)
-      // This prevents rendering <div> inside <p> for ambiguous cases
-      const isInline = inline === true || !className
+      // Treat as inline only when explicitly marked inline by the renderer.
+      // Fenced blocks without a language should still render as block code.
+      const isInline = inline === true
 
       if (isInline) {
         return (

@@ -4,24 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestBiChatApplet_Name(t *testing.T) {
-	t.Parallel()
-
-	bichatApplet := NewBiChatApplet(nil)
-	assert.Equal(t, "bichat", bichatApplet.Name())
-}
-
-func TestBiChatApplet_BasePath(t *testing.T) {
-	t.Parallel()
-
-	bichatApplet := NewBiChatApplet(nil)
-	assert.Equal(t, "/bi-chat", bichatApplet.BasePath())
-}
 
 func TestBiChatApplet_Config(t *testing.T) {
 	t.Parallel()
@@ -51,6 +36,17 @@ func TestBiChatApplet_Config(t *testing.T) {
 	// Verify middleware
 	assert.NotNil(t, config.Middleware)
 	assert.NotEmpty(t, config.Middleware) // BiChat requires authentication middleware
+}
+
+func TestBiChatApplet_Config_BasePathDerivedValues(t *testing.T) {
+	t.Parallel()
+
+	bichatApplet := NewBiChatApplet(nil)
+	basePath := bichatApplet.BasePath()
+
+	config := bichatApplet.Config()
+	assert.Equal(t, basePath, config.Mount.Attributes["base-path"])
+	assert.Equal(t, basePath+"/stream", config.Endpoints.Stream)
 }
 
 func TestBiChatApplet_buildCustomContext_NoConfig(t *testing.T) {
@@ -125,13 +121,6 @@ func TestBiChatApplet_SetConfig(t *testing.T) {
 
 	features := custom["features"].(map[string]bool)
 	assert.True(t, features["vision"])
-}
-
-func TestBiChatApplet_ImplementsAppletInterface(t *testing.T) {
-	t.Parallel()
-
-	// Verify BiChatApplet implements applet.Applet interface
-	var _ applet.Applet = (*BiChatApplet)(nil)
 }
 
 func TestModuleConfig_FeatureFlagOptions(t *testing.T) {

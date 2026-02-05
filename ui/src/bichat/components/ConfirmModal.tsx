@@ -36,6 +36,7 @@ function ConfirmModalBase({
   isDanger = false,
 }: ConfirmModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
+  const confirmButtonRef = useRef<HTMLButtonElement>(null)
 
   // Trap focus within modal when open
   useFocusTrap(modalRef, isOpen)
@@ -47,13 +48,18 @@ function ConfirmModalBase({
       if (e.key === 'Escape') {
         onCancel()
       } else if (e.key === 'Enter') {
-        onConfirm()
+        // Only confirm via Enter if the confirm button is focused.
+        // This prevents accidental confirmations from global Enter presses.
+        if (document.activeElement === confirmButtonRef.current) {
+          e.preventDefault()
+          onConfirm()
+        }
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onConfirm, onCancel])
+  }, [isOpen, onConfirm, onCancel, confirmButtonRef])
 
   if (!isOpen) return null
 
@@ -106,6 +112,7 @@ function ConfirmModalBase({
               {cancelText}
             </button>
             <button
+              ref={confirmButtonRef}
               onClick={onConfirm}
               className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${
                 isDanger

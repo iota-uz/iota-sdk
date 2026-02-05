@@ -111,12 +111,18 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}): UseAutoScroll
     const container = containerRef.current
     if (!container) return
 
+    let rafId: number | null = null
     const observer = new MutationObserver(() => {
       if (shouldAutoScroll) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: 'instant',
-        })
+        if (rafId === null) {
+          rafId = requestAnimationFrame(() => {
+            container.scrollTo({
+              top: container.scrollHeight,
+              behavior: 'instant',
+            })
+            rafId = null
+          })
+        }
       }
     })
 
@@ -126,7 +132,12 @@ export function useAutoScroll(options: UseAutoScrollOptions = {}): UseAutoScroll
       characterData: true,
     })
 
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+    }
   }, [shouldAutoScroll])
 
   return {

@@ -3,7 +3,7 @@
  * Manages copy-to-clipboard state for code blocks in markdown
  */
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 export interface UseMarkdownCopyOptions {
   /** Duration to show "copied" state in ms (default: 2000) */
@@ -53,6 +53,13 @@ export function useMarkdownCopy(options: UseMarkdownCopyOptions = {}): UseMarkdo
 
   const [copiedStates, setCopiedStates] = useState<Map<string, boolean>>(new Map())
   const timeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach((timeout) => clearTimeout(timeout))
+      timeoutsRef.current.clear()
+    }
+  }, [])
 
   const isCopied = useCallback(
     (blockId: string): boolean => {

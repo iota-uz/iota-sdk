@@ -66,9 +66,14 @@ function UserAvatar({
   className = '',
 }: UserAvatarProps) {
   // Generate initials if not provided
-  const initials =
-    providedInitials ||
-    `${firstName.charAt(0).toUpperCase()}${lastName.charAt(0).toUpperCase()}`
+  const derivedInitials = (() => {
+    const firstChar = firstName?.trim()?.charAt(0) || ''
+    const lastChar = lastName?.trim()?.charAt(0) || ''
+    const combined = `${firstChar}${lastChar}`.trim()
+    return combined || 'U'
+  })()
+
+  const initials = (providedInitials?.trim() || derivedInitials).toUpperCase()
 
   // Select color based on full name hash (deterministic)
   const fullName = `${firstName}${lastName}`

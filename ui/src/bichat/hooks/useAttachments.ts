@@ -3,7 +3,7 @@
  * Manages file upload state, validation, and preview
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import type { Attachment } from '../types'
 
 export interface FileValidationError {
@@ -127,6 +127,7 @@ export function useAttachments(options: UseAttachmentsOptions = {}): UseAttachme
   const [files, setFiles] = useState<Attachment[]>([])
   const [errors, setErrors] = useState<FileValidationError[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const removedRef = useRef<Attachment | null>(null)
 
   const isMaxReached = useMemo(() => files.length >= maxFiles, [files.length, maxFiles])
   const remainingSlots = useMemo(() => Math.max(0, maxFiles - files.length), [files.length, maxFiles])
@@ -180,7 +181,19 @@ export function useAttachments(options: UseAttachmentsOptions = {}): UseAttachme
 
   const add = useCallback(
     async (newFiles: FileList | File[]) => {
-      if (isProcessing) return
+      if (isProcessing) {
+        const fileArray = Array.from(newFiles)
+        if (fileArray.length > 0) {
+          const processingErrors = fileArray.map((file) => ({
+            file,
+            reason: 'custom' as const,
+            message: 'Please wait for the current files to finish processing.',
+          }))
+          setErrors(processingErrors)
+          onError?.(processingErrors)
+        }
+        return
+      }
 
       setIsProcessing(true)
       const fileArray = Array.from(newFiles)
@@ -236,12 +249,17 @@ export function useAttachments(options: UseAttachmentsOptions = {}): UseAttachme
     (fileOrId: Attachment | string) => {
       const id = typeof fileOrId === 'string' ? fileOrId : fileOrId.id
       setFiles((prev) => {
-        const fileToRemove = prev.find((f) => f.id === id)
-        if (fileToRemove) {
-          onRemove?.(fileToRemove)
-        }
-        return prev.filter((f) => f.id !== id)
+        const removed = prev.find((f) => f.id === id) ?? null
+        const next = prev.filter((f) => f.id !== id)
+        removedRef.current = removed
+        return next
       })
+
+      const removed = removedRef.current
+      if (removed) {
+        onRemove?.(removed)
+        removedRef.current = null
+      }
     },
     [onRemove]
   )

@@ -100,10 +100,10 @@ func (t *SQLExecuteTool) Parameters() map[string]any {
 
 // sqlExecuteInput represents the parsed input parameters.
 type sqlExecuteInput struct {
-	Query       string         `json:"query"`
-	Params      []any          `json:"params,omitempty"`
-	Limit       int            `json:"limit,omitempty"`
-	ExplainPlan bool           `json:"explain_plan,omitempty"`
+	Query       string `json:"query"`
+	Params      []any  `json:"params,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	ExplainPlan bool   `json:"explain_plan,omitempty"`
 }
 
 // placeholderPattern matches PostgreSQL placeholder syntax ($1, $2, etc.)

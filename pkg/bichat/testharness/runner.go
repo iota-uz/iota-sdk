@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -496,7 +497,7 @@ func classifyFailure(err error) FailureKind {
 	}
 	var httpStatus *HTTPStatusError
 	if errors.As(err, &httpStatus) {
-		if httpStatus.StatusCode == 403 {
+		if httpStatus.StatusCode == http.StatusForbidden {
 			return FailureKindForbidden
 		}
 		return FailureKindHTTPError
@@ -515,7 +516,7 @@ func isNotAuthenticatedRedirect(err error) bool {
 func isForbidden(err error) bool {
 	var httpStatus *HTTPStatusError
 	if errors.As(err, &httpStatus) {
-		return httpStatus.StatusCode == 403
+		return httpStatus.StatusCode == http.StatusForbidden
 	}
 	msg := strings.ToLower(err.Error())
 	if strings.Contains(msg, "forbidden") || strings.Contains(msg, "access denied") {

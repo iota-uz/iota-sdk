@@ -39,6 +39,9 @@ const prefersReducedMotion = () => {
 // Random selector without immediate repeat
 const getRandomMessage = (messages: string[], current: string): string => {
   const available = messages.filter((m) => m !== current)
+  if (available.length === 0) {
+    return current || messages[0] || 'Thinking...'
+  }
   return available[Math.floor(Math.random() * available.length)]
 }
 

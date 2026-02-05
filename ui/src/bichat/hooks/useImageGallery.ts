@@ -108,6 +108,7 @@ export function useImageGallery(options: UseImageGalleryOptions = {}): UseImageG
   }, [onClose])
 
   const prev = useCallback(() => {
+    if (images.length < 2) return
     if (!hasPrev && !wrap) return
 
     setCurrentIndex((current) => {
@@ -120,6 +121,7 @@ export function useImageGallery(options: UseImageGalleryOptions = {}): UseImageG
   }, [hasPrev, wrap, images.length, onNavigate])
 
   const next = useCallback(() => {
+    if (images.length < 2) return
     if (!hasNext && !wrap) return
 
     setCurrentIndex((current) => {

@@ -280,8 +280,8 @@ func TestSQLExecuteTool_EnforcesLimitAndWrapsQuery(t *testing.T) {
 	var gotSQL string
 	executor := &mockSQLExecutorForValidation{
 		result: &bichatsql.QueryResult{
-			Columns: []string{"id"},
-			Rows:    [][]any{{1}, {2}, {3}, {4}, {5}, {6}},
+			Columns:  []string{"id"},
+			Rows:     [][]any{{1}, {2}, {3}, {4}, {5}, {6}},
 			RowCount: 6,
 		},
 	}
