@@ -61,7 +61,7 @@ const itemVariants = {
   }
 }
 
-export default function WelcomeContent({
+function WelcomeContent({
   onPromptSelect,
   title = 'Welcome to BiChat',
   description = 'Your intelligent business analytics assistant. Ask questions about your data, generate reports, or explore insights.',
@@ -138,3 +138,6 @@ export default function WelcomeContent({
     </motion.div>
   )
 }
+
+export { WelcomeContent }
+export default WelcomeContent

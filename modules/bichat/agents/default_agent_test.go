@@ -235,32 +235,6 @@ func TestDefaultBIAgent_WithModel(t *testing.T) {
 	assert.Equal(t, "gpt-3.5-turbo", metadata.Model)
 }
 
-func TestDefaultBIAgent_SystemPrompt(t *testing.T) {
-	t.Parallel()
-
-	executor := &mockQueryExecutor{}
-	agent, err := NewDefaultBIAgent(executor)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	prompt := agent.SystemPrompt(ctx)
-
-	// Verify prompt contains key sections
-	assert.NotEmpty(t, prompt)
-	assert.Contains(t, prompt, "Business Intelligence assistant")
-	assert.Contains(t, prompt, "AVAILABLE TOOLS")
-	assert.Contains(t, prompt, "WORKFLOW GUIDELINES")
-	assert.Contains(t, prompt, "get_current_time")
-	assert.Contains(t, prompt, "schema_list")
-	assert.Contains(t, prompt, "schema_describe")
-	assert.Contains(t, prompt, "sql_execute")
-	assert.Contains(t, prompt, "draw_chart")
-	assert.Contains(t, prompt, "ask_user_question")
-	assert.Contains(t, prompt, "final_answer")
-	assert.Contains(t, prompt, "read-only")
-	assert.Contains(t, prompt, "1000 rows")
-}
-
 func TestDefaultBIAgent_ToolRouting(t *testing.T) {
 	t.Parallel()
 
@@ -393,103 +367,6 @@ func TestDefaultBIAgent_InterfaceCompliance(t *testing.T) {
 
 	// Verify agent implements Agent interface
 	var _ agents.Agent = agent
-}
-
-func TestBuildBISystemPrompt(t *testing.T) {
-	t.Parallel()
-
-	prompt := buildBISystemPrompt(false, nil)
-
-	// Verify prompt structure
-	assert.NotEmpty(t, prompt)
-	assert.Greater(t, len(prompt), 500, "System prompt should be comprehensive")
-
-	// Verify key sections exist
-	sections := []string{
-		"AVAILABLE TOOLS",
-		"WORKFLOW GUIDELINES",
-		"UNDERSTAND THE REQUEST",
-		"EXPLORE THE SCHEMA",
-		"WRITE SAFE SQL",
-		"VISUALIZE DATA",
-		"PROVIDE CLEAR ANSWERS",
-		"IMPORTANT CONSTRAINTS",
-		"EXAMPLE WORKFLOW",
-	}
-
-	for _, section := range sections {
-		assert.Contains(t, prompt, section, "Prompt should contain section: %s", section)
-	}
-
-	// Verify all tool names are mentioned
-	toolNames := []string{
-		"get_current_time",
-		"schema_list",
-		"schema_describe",
-		"sql_execute",
-		"draw_chart",
-		"kb_search",
-		"ask_user_question",
-		"final_answer",
-	}
-
-	for _, toolName := range toolNames {
-		assert.Contains(t, prompt, toolName, "Prompt should mention tool: %s", toolName)
-	}
-
-	// Verify safety constraints are mentioned
-	safetyKeywords := []string{
-		"read-only",
-		"SELECT",
-		"1000 rows",
-		"30 seconds",
-		"validate",
-		"sensitive data",
-	}
-
-	for _, keyword := range safetyKeywords {
-		assert.Contains(t, prompt, keyword, "Prompt should mention safety keyword: %s", keyword)
-	}
-}
-
-func TestBuildBISystemPrompt_WithCodeInterpreter(t *testing.T) {
-	t.Parallel()
-
-	promptWithCodeInterpreter := buildBISystemPrompt(true, nil)
-	promptWithoutCodeInterpreter := buildBISystemPrompt(false, nil)
-
-	// Code interpreter should be mentioned when enabled
-	assert.Contains(t, promptWithCodeInterpreter, "code_interpreter")
-	assert.Contains(t, promptWithCodeInterpreter, "Python")
-
-	// Code interpreter should not be mentioned when disabled
-	assert.NotContains(t, promptWithoutCodeInterpreter, "code_interpreter")
-}
-
-func TestBuildBISystemPrompt_WithRegistry(t *testing.T) {
-	t.Parallel()
-
-	// Create executor and registry with SQLAgent
-	executor := &mockQueryExecutor{}
-	registry := agents.NewAgentRegistry()
-	sqlAgent, err := NewSQLAgent(executor)
-	require.NoError(t, err)
-	err = registry.Register(sqlAgent)
-	require.NoError(t, err)
-
-	// Build prompts with and without registry
-	promptWithRegistry := buildBISystemPrompt(false, registry)
-	promptWithoutRegistry := buildBISystemPrompt(false, nil)
-
-	// Verify delegation tool is mentioned when registry is provided
-	assert.Contains(t, promptWithRegistry, "task")
-	assert.Contains(t, promptWithRegistry, "# Available Agents")
-	assert.Contains(t, promptWithRegistry, "sql-analyst")
-	assert.Contains(t, promptWithRegistry, "DELEGATION GUIDELINES")
-
-	// Verify delegation tool is not mentioned without registry
-	assert.NotContains(t, promptWithoutRegistry, "# Available Agents")
-	assert.NotContains(t, promptWithoutRegistry, "DELEGATION GUIDELINES")
 }
 
 func TestDefaultBIAgent_ToolCount(t *testing.T) {

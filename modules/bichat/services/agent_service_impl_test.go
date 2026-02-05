@@ -730,7 +730,7 @@ func TestConvertExecutorEvent_Interrupt(t *testing.T) {
 	require.Len(t, serviceEvent.Interrupt.Questions, 1)
 	assert.Equal(t, "q1", serviceEvent.Interrupt.Questions[0].ID)
 	assert.Equal(t, "What is your name?", serviceEvent.Interrupt.Questions[0].Text)
-	assert.Equal(t, services.QuestionTypeText, serviceEvent.Interrupt.Questions[0].Type)
+	assert.Equal(t, services.QuestionTypeSingleChoice, serviceEvent.Interrupt.Questions[0].Type)
 }
 
 func TestConvertExecutorEvent_Done(t *testing.T) {

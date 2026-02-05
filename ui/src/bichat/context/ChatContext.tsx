@@ -1,13 +1,16 @@
 /**
  * Chat session context provider and hook
- * Manages state for chat sessions including messages, loading, streaming, and HITL
+ * Manages state for chat sessions including turns, loading, streaming, and HITL
+ *
+ * Uses turn-based architecture where each ConversationTurn groups
+ * a user message with its assistant response.
  */
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react'
 import type {
   ChatDataSource,
   Session,
-  Message,
+  ConversationTurn,
   PendingQuestion,
   QuestionAnswers,
   Attachment,
@@ -16,7 +19,6 @@ import type {
   CodeOutput,
   ChatSessionContextValue,
 } from '../types'
-import { MessageRole } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
 
 const ChatSessionContext = createContext<ChatSessionContextValue | null>(null)
@@ -34,6 +36,36 @@ const DEFAULT_RATE_LIMIT_CONFIG = {
   windowMs: 60000, // 1 minute
 }
 
+/**
+ * Generate a temporary ID for optimistic updates
+ */
+function generateTempId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
+/**
+ * Create a new conversation turn with user message (assistant turn pending)
+ */
+function createPendingTurn(
+  sessionId: string,
+  content: string,
+  attachments: Attachment[] = []
+): ConversationTurn {
+  const now = new Date().toISOString()
+  return {
+    id: generateTempId('turn'),
+    sessionId,
+    userTurn: {
+      id: generateTempId('user'),
+      content,
+      attachments,
+      createdAt: now,
+    },
+    // No assistantTurn yet - it will be added when streaming completes
+    createdAt: now,
+  }
+}
+
 export function ChatSessionProvider({
   dataSource,
   sessionId,
@@ -43,8 +75,8 @@ export function ChatSessionProvider({
   // Form state
   const [message, setMessage] = useState('')
 
-  // Message state
-  const [messages, setMessages] = useState<Message[]>([])
+  // Turn-based state (replaces messages)
+  const [turns, setTurns] = useState<ConversationTurn[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,7 +111,7 @@ export function ChatSessionProvider({
   useEffect(() => {
     if (!currentSessionId || currentSessionId === 'new') {
       setSession(null)
-      setMessages([])
+      setTurns([])
       setPendingQuestion(null)
       setFetching(false)
       return
@@ -97,7 +129,7 @@ export function ChatSessionProvider({
 
         if (state) {
           setSession(state.session)
-          setMessages(state.messages)
+          setTurns(state.turns)
           setPendingQuestion(state.pendingQuestion || null)
         } else {
           setError('Session not found')
@@ -140,15 +172,9 @@ export function ChatSessionProvider({
       // Create abort controller for this request
       abortControllerRef.current = new AbortController()
 
-      // Add optimistic user message
-      const tempUserMessage: Message = {
-        id: `temp-user-${Date.now()}`,
-        sessionId: currentSessionId || 'new',
-        role: MessageRole.User,
-        content,
-        createdAt: new Date().toISOString(),
-      }
-      setMessages((prev) => [...prev, tempUserMessage])
+      // Add optimistic turn (user message only, no assistant response yet)
+      const tempTurn = createPendingTurn(currentSessionId || 'new', content, attachments)
+      setTurns((prev) => [...prev, tempTurn])
 
       try {
         // Create session if needed
@@ -189,13 +215,13 @@ export function ChatSessionProvider({
             if (chunk.sessionId) {
               createdSessionId = chunk.sessionId
             }
-            // Refetch session to get final state
+            // Refetch session to get final state with proper turns
             const finalSessionId = createdSessionId || activeSessionId
             if (finalSessionId && finalSessionId !== 'new') {
               const state = await dataSource.fetchSession(finalSessionId)
               if (state) {
                 setSession(state.session)
-                setMessages(state.messages)
+                setTurns(state.turns)
                 setPendingQuestion(state.pendingQuestion || null)
               }
             }
@@ -217,8 +243,8 @@ export function ChatSessionProvider({
           return
         }
 
-        // Remove optimistic message on error
-        setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id))
+        // Remove optimistic turn on error
+        setTurns((prev) => prev.filter((t) => t.id !== tempTurn.id))
 
         const errorMessage = err instanceof Error ? err.message : 'Failed to send message'
         setError(errorMessage)
@@ -276,37 +302,34 @@ export function ChatSessionProvider({
   }, [messageQueue])
 
   const handleRegenerate = useCallback(
-    async (messageId: string) => {
+    async (turnId: string) => {
       if (!currentSessionId || currentSessionId === 'new') return
 
-      const messageIndex = messages.findIndex((m) => m.id === messageId)
-      if (messageIndex <= 0) return
+      const turn = turns.find((t) => t.id === turnId)
+      if (!turn) return
 
       setLoading(true)
       setError(null)
 
       try {
-        // Find the user message before this assistant message
-        const userMessage = messages[messageIndex - 1]
-        if (userMessage && userMessage.role === MessageRole.User) {
-          await sendMessageDirect(userMessage.content, [])
-        }
+        // Resend the user message from this turn
+        await sendMessageDirect(turn.userTurn.content, turn.userTurn.attachments)
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to regenerate message'
+        const errorMessage = err instanceof Error ? err.message : 'Failed to regenerate response'
         setError(errorMessage)
         console.error('Regenerate error:', err)
       } finally {
         setLoading(false)
       }
     },
-    [messages, currentSessionId, sendMessageDirect]
+    [turns, currentSessionId, sendMessageDirect]
   )
 
   const handleEdit = useCallback(
-    async (messageId: string, newContent: string) => {
+    async (turnId: string, newContent: string) => {
       if (!currentSessionId || currentSessionId === 'new') {
         setMessage(newContent)
-        setMessages((prev) => prev.filter((m) => m.id !== messageId))
+        setTurns((prev) => prev.filter((t) => t.id !== turnId))
         return
       }
 
@@ -314,7 +337,7 @@ export function ChatSessionProvider({
       setError(null)
 
       try {
-        // For edit, we resend the edited message
+        // For edit, we resend with the edited content
         await sendMessageDirect(newContent, [])
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to edit message'
@@ -349,7 +372,7 @@ export function ChatSessionProvider({
               try {
                 const state = await dataSource.fetchSession(currentSessionId)
                 if (state) {
-                  setMessages(state.messages)
+                  setTurns(state.turns)
                   setPendingQuestion(state.pendingQuestion || null)
                 } else {
                   setPendingQuestion(previousPendingQuestion)
@@ -402,7 +425,7 @@ export function ChatSessionProvider({
   const value: ChatSessionContextValue = {
     // State
     message,
-    messages,
+    turns,
     loading,
     error,
     currentSessionId,

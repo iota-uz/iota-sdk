@@ -12,7 +12,7 @@ interface ScrollToBottomButtonProps {
   unreadCount?: number
 }
 
-export default function ScrollToBottomButton({
+function ScrollToBottomButton({
   show,
   onClick,
   unreadCount = 0
@@ -44,3 +44,6 @@ export default function ScrollToBottomButton({
     </AnimatePresence>
   )
 }
+
+export { ScrollToBottomButton }
+export default ScrollToBottomButton

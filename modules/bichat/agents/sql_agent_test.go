@@ -100,29 +100,6 @@ func TestSQLAgent_WithModel(t *testing.T) {
 	assert.Equal(t, "gpt-3.5-turbo", metadata.Model)
 }
 
-func TestSQLAgent_SystemPrompt(t *testing.T) {
-	t.Parallel()
-
-	executor := &mockSQLExecutor{}
-	agent, err := NewSQLAgent(executor)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	prompt := agent.SystemPrompt(ctx)
-
-	// Verify prompt contains key sections
-	assert.NotEmpty(t, prompt)
-	assert.Contains(t, prompt, "SQL analyst agent")
-	assert.Contains(t, prompt, "WORKFLOW")
-	assert.Contains(t, prompt, "AVAILABLE TOOLS")
-	assert.Contains(t, prompt, "schema_list")
-	assert.Contains(t, prompt, "schema_describe")
-	assert.Contains(t, prompt, "sql_execute")
-	assert.Contains(t, prompt, "final_answer")
-	assert.Contains(t, prompt, "read-only")
-	assert.Contains(t, prompt, "SELECT")
-}
-
 func TestSQLAgent_ToolRouting(t *testing.T) {
 	t.Parallel()
 

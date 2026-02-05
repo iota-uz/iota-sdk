@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 )
 
@@ -13,21 +16,11 @@ func TestSession_Creation(t *testing.T) {
 	t.Run("basic creation with defaults", func(t *testing.T) {
 		session := domain.NewSession()
 
-		if session.ID() == uuid.Nil {
-			t.Error("Expected non-nil UUID")
-		}
-		if session.Status() != domain.SessionStatusActive {
-			t.Errorf("Expected status Active, got %s", session.Status())
-		}
-		if session.Pinned() {
-			t.Error("Expected Pinned to be false by default")
-		}
-		if session.CreatedAt().IsZero() {
-			t.Error("Expected CreatedAt to be set")
-		}
-		if session.UpdatedAt().IsZero() {
-			t.Error("Expected UpdatedAt to be set")
-		}
+		require.NotEqual(t, uuid.Nil, session.ID(), "Expected non-nil UUID")
+		require.Equal(t, domain.SessionStatusActive, session.Status(), "Expected status Active")
+		require.False(t, session.Pinned(), "Expected Pinned to be false by default")
+		require.False(t, session.CreatedAt().IsZero(), "Expected CreatedAt to be set")
+		require.False(t, session.UpdatedAt().IsZero(), "Expected UpdatedAt to be set")
 	})
 
 	t.Run("creation with options", func(t *testing.T) {
@@ -45,33 +38,20 @@ func TestSession_Creation(t *testing.T) {
 			domain.WithStatus(domain.SessionStatusArchived),
 		)
 
-		if session.TenantID() != tenantID {
-			t.Errorf("Expected TenantID %s, got %s", tenantID, session.TenantID())
-		}
-		if session.UserID() != userID {
-			t.Errorf("Expected UserID %d, got %d", userID, session.UserID())
-		}
-		if session.Title() != title {
-			t.Errorf("Expected Title '%s', got '%s'", title, session.Title())
-		}
-		if !session.Pinned() {
-			t.Error("Expected Pinned to be true")
-		}
-		if session.ParentSessionID() == nil || *session.ParentSessionID() != parentID {
-			t.Error("Expected ParentSessionID to be set")
-		}
-		if session.Status() != domain.SessionStatusArchived {
-			t.Errorf("Expected status Archived, got %s", session.Status())
-		}
+		assert.Equal(t, tenantID, session.TenantID(), "TenantID mismatch")
+		assert.Equal(t, userID, session.UserID(), "UserID mismatch")
+		assert.Equal(t, title, session.Title(), "Title mismatch")
+		assert.True(t, session.Pinned(), "Expected Pinned to be true")
+		require.NotNil(t, session.ParentSessionID(), "Expected ParentSessionID to be set")
+		assert.Equal(t, parentID, *session.ParentSessionID(), "ParentSessionID mismatch")
+		assert.Equal(t, domain.SessionStatusArchived, session.Status(), "Status mismatch")
 	})
 
 	t.Run("creation with custom ID", func(t *testing.T) {
 		customID := uuid.New()
 		session := domain.NewSession(domain.WithID(customID))
 
-		if session.ID() != customID {
-			t.Errorf("Expected ID %s, got %s", customID, session.ID())
-		}
+		assert.Equal(t, customID, session.ID(), "ID mismatch")
 	})
 
 	t.Run("creation with pending question agent", func(t *testing.T) {
@@ -80,12 +60,8 @@ func TestSession_Creation(t *testing.T) {
 			domain.WithPendingQuestionAgent(agentName),
 		)
 
-		if session.PendingQuestionAgent() == nil {
-			t.Fatal("Expected PendingQuestionAgent to be set")
-		}
-		if *session.PendingQuestionAgent() != agentName {
-			t.Errorf("Expected agent '%s', got '%s'", agentName, *session.PendingQuestionAgent())
-		}
+		require.NotNil(t, session.PendingQuestionAgent(), "Expected PendingQuestionAgent to be set")
+		assert.Equal(t, agentName, *session.PendingQuestionAgent(), "Agent name mismatch")
 	})
 }
 
@@ -98,15 +74,9 @@ func TestSession_Validation(t *testing.T) {
 		domain.WithTitle("Test Session"),
 	)
 
-	if session.TenantID() == uuid.Nil {
-		t.Error("Expected non-nil TenantID")
-	}
-	if session.UserID() == 0 {
-		t.Error("Expected non-zero UserID")
-	}
-	if session.Title() == "" {
-		t.Error("Expected non-empty Title")
-	}
+	assert.NotEqual(t, uuid.Nil, session.TenantID(), "Expected non-nil TenantID")
+	assert.NotZero(t, session.UserID(), "Expected non-zero UserID")
+	assert.NotEmpty(t, session.Title(), "Expected non-empty Title")
 }
 
 func TestSessionStatus_Values(t *testing.T) {
@@ -121,9 +91,7 @@ func TestSessionStatus_Values(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if tt.status.String() != tt.expected {
-			t.Errorf("Expected status string '%s', got '%s'", tt.expected, tt.status.String())
-		}
+		assert.Equal(t, tt.expected, tt.status.String(), "Status string mismatch for %s", tt.status)
 	}
 }
 
@@ -139,9 +107,7 @@ func TestSessionStatus_IsActive(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if tt.status.IsActive() != tt.expected {
-			t.Errorf("IsActive() for %s: expected %v, got %v", tt.status, tt.expected, tt.status.IsActive())
-		}
+		assert.Equal(t, tt.expected, tt.status.IsActive(), "IsActive() mismatch for %s", tt.status)
 	}
 }
 
@@ -157,9 +123,7 @@ func TestSessionStatus_IsArchived(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if tt.status.IsArchived() != tt.expected {
-			t.Errorf("IsArchived() for %s: expected %v, got %v", tt.status, tt.expected, tt.status.IsArchived())
-		}
+		assert.Equal(t, tt.expected, tt.status.IsArchived(), "IsArchived() mismatch for %s", tt.status)
 	}
 }
 
@@ -177,9 +141,7 @@ func TestSessionStatus_Valid(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if tt.status.Valid() != tt.expected {
-			t.Errorf("Valid() for '%s': expected %v, got %v", tt.status, tt.expected, tt.status.Valid())
-		}
+		assert.Equal(t, tt.expected, tt.status.Valid(), "Valid() mismatch for '%s'", tt.status)
 	}
 }
 
@@ -189,12 +151,8 @@ func TestSession_IsActive(t *testing.T) {
 	activeSession := domain.NewSession(domain.WithStatus(domain.SessionStatusActive))
 	archivedSession := domain.NewSession(domain.WithStatus(domain.SessionStatusArchived))
 
-	if !activeSession.IsActive() {
-		t.Error("Expected active session to return true for IsActive()")
-	}
-	if archivedSession.IsActive() {
-		t.Error("Expected archived session to return false for IsActive()")
-	}
+	assert.True(t, activeSession.IsActive(), "Expected active session to return true for IsActive()")
+	assert.False(t, archivedSession.IsActive(), "Expected archived session to return false for IsActive()")
 }
 
 func TestSession_IsArchived(t *testing.T) {
@@ -203,12 +161,8 @@ func TestSession_IsArchived(t *testing.T) {
 	activeSession := domain.NewSession(domain.WithStatus(domain.SessionStatusActive))
 	archivedSession := domain.NewSession(domain.WithStatus(domain.SessionStatusArchived))
 
-	if activeSession.IsArchived() {
-		t.Error("Expected active session to return false for IsArchived()")
-	}
-	if !archivedSession.IsArchived() {
-		t.Error("Expected archived session to return true for IsArchived()")
-	}
+	assert.False(t, activeSession.IsArchived(), "Expected active session to return false for IsArchived()")
+	assert.True(t, archivedSession.IsArchived(), "Expected archived session to return true for IsArchived()")
 }
 
 func TestSession_IsPinned(t *testing.T) {
@@ -217,12 +171,8 @@ func TestSession_IsPinned(t *testing.T) {
 	pinnedSession := domain.NewSession(domain.WithPinned(true))
 	unpinnedSession := domain.NewSession(domain.WithPinned(false))
 
-	if !pinnedSession.IsPinned() {
-		t.Error("Expected pinned session to return true for IsPinned()")
-	}
-	if unpinnedSession.IsPinned() {
-		t.Error("Expected unpinned session to return false for IsPinned()")
-	}
+	assert.True(t, pinnedSession.IsPinned(), "Expected pinned session to return true for IsPinned()")
+	assert.False(t, unpinnedSession.IsPinned(), "Expected unpinned session to return false for IsPinned()")
 }
 
 func TestSession_HasParent(t *testing.T) {
@@ -232,12 +182,8 @@ func TestSession_HasParent(t *testing.T) {
 	sessionWithParent := domain.NewSession(domain.WithParentSessionID(parentID))
 	sessionWithoutParent := domain.NewSession()
 
-	if !sessionWithParent.HasParent() {
-		t.Error("Expected session with parent to return true for HasParent()")
-	}
-	if sessionWithoutParent.HasParent() {
-		t.Error("Expected session without parent to return false for HasParent()")
-	}
+	assert.True(t, sessionWithParent.HasParent(), "Expected session with parent to return true for HasParent()")
+	assert.False(t, sessionWithoutParent.HasParent(), "Expected session without parent to return false for HasParent()")
 }
 
 func TestSession_HasPendingQuestion(t *testing.T) {
@@ -246,12 +192,8 @@ func TestSession_HasPendingQuestion(t *testing.T) {
 	sessionWithQuestion := domain.NewSession(domain.WithPendingQuestionAgent("agent"))
 	sessionWithoutQuestion := domain.NewSession()
 
-	if !sessionWithQuestion.HasPendingQuestion() {
-		t.Error("Expected session with pending question to return true")
-	}
-	if sessionWithoutQuestion.HasPendingQuestion() {
-		t.Error("Expected session without pending question to return false")
-	}
+	assert.True(t, sessionWithQuestion.HasPendingQuestion(), "Expected session with pending question to return true")
+	assert.False(t, sessionWithoutQuestion.HasPendingQuestion(), "Expected session without pending question to return false")
 }
 
 func TestSession_MultipleOptions(t *testing.T) {
@@ -273,25 +215,13 @@ func TestSession_MultipleOptions(t *testing.T) {
 		domain.WithStatus(domain.SessionStatusArchived),
 	)
 
-	if session.TenantID() != tenantID {
-		t.Error("TenantID not set correctly")
-	}
-	if session.UserID() != userID {
-		t.Error("UserID not set correctly")
-	}
-	if session.Title() != title {
-		t.Error("Title not set correctly")
-	}
-	if !session.Pinned() {
-		t.Error("Pinned not set correctly")
-	}
-	if !session.HasParent() || *session.ParentSessionID() != parentID {
-		t.Error("ParentSessionID not set correctly")
-	}
-	if !session.HasPendingQuestion() || *session.PendingQuestionAgent() != agent {
-		t.Error("PendingQuestionAgent not set correctly")
-	}
-	if session.Status() != domain.SessionStatusArchived {
-		t.Error("Status not set correctly")
-	}
+	assert.Equal(t, tenantID, session.TenantID(), "TenantID not set correctly")
+	assert.Equal(t, userID, session.UserID(), "UserID not set correctly")
+	assert.Equal(t, title, session.Title(), "Title not set correctly")
+	assert.True(t, session.Pinned(), "Pinned not set correctly")
+	require.True(t, session.HasParent(), "ParentSessionID not set correctly")
+	assert.Equal(t, parentID, *session.ParentSessionID(), "ParentSessionID value mismatch")
+	require.True(t, session.HasPendingQuestion(), "PendingQuestionAgent not set correctly")
+	assert.Equal(t, agent, *session.PendingQuestionAgent(), "PendingQuestionAgent value mismatch")
+	assert.Equal(t, domain.SessionStatusArchived, session.Status(), "Status not set correctly")
 }

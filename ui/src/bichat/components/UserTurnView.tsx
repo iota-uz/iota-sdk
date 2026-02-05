@@ -1,111 +1,59 @@
 /**
- * UserTurnView Component
+ * UserTurnView Component (Layer 4 - Backward Compatible)
  * Displays user messages with attachments, image modal, and actions
- * Clean, professional design
+ *
+ * Uses turn-based architecture - receives a ConversationTurn and displays
+ * the userTurn content.
+ *
+ * For more customization, use the UserMessage component directly with slots.
  */
 
-import { useState } from 'react'
-import { Copy, PencilSimple } from '@phosphor-icons/react'
-import { formatDistanceToNow } from 'date-fns'
-import AttachmentGrid from './AttachmentGrid'
-import ImageModal from './ImageModal'
 import { useChat } from '../context/ChatContext'
-import type { Message, ImageAttachment } from '../types'
+import { UserMessage, type UserMessageSlots, type UserMessageClassNames } from './UserMessage'
+import type { ConversationTurn } from '../types'
 
-interface UserTurnViewProps {
-  message: Message & {
-    attachments?: ImageAttachment[]
-  }
+export interface UserTurnViewProps {
+  /** The conversation turn containing the user message */
+  turn: ConversationTurn
+  /** Slot overrides for customization */
+  slots?: UserMessageSlots
+  /** Class name overrides */
+  classNames?: UserMessageClassNames
+  /** User initials for avatar */
+  initials?: string
+  /** Hide avatar */
+  hideAvatar?: boolean
+  /** Hide actions */
+  hideActions?: boolean
+  /** Hide timestamp */
+  hideTimestamp?: boolean
 }
 
-export function UserTurnView({ message }: UserTurnViewProps) {
+export function UserTurnView({
+  turn,
+  slots,
+  classNames,
+  initials = 'U',
+  hideAvatar,
+  hideActions,
+  hideTimestamp,
+}: UserTurnViewProps) {
   const { handleEdit, handleCopy } = useChat()
-  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
-
-  const handleCopyClick = async () => {
-    if (handleCopy) {
-      await handleCopy(message.content)
-    } else {
-      try {
-        await navigator.clipboard.writeText(message.content)
-      } catch (err) {
-        console.error('Failed to copy:', err)
-      }
-    }
-  }
-
-  const handleEditClick = () => {
-    if (handleEdit) {
-      const newContent = prompt('Edit message:', message.content)
-      if (newContent && newContent !== message.content) {
-        handleEdit(message.id, newContent)
-      }
-    }
-  }
 
   return (
-    <div className="flex gap-3 justify-end group">
-      <div className="flex-1 flex flex-col items-end max-w-[75%]">
-        {/* Attachments */}
-        {message.attachments && message.attachments.length > 0 && (
-          <div className="mb-2 w-full">
-            <AttachmentGrid
-              attachments={message.attachments}
-              onView={(index) => setSelectedImageIndex(index)}
-            />
-          </div>
-        )}
-
-        {/* Message bubble - solid primary color */}
-        {message.content && (
-          <div className="bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-3">
-            <div className="text-[15px] whitespace-pre-wrap break-words leading-relaxed">
-              {message.content}
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-          <span className="text-xs text-gray-400 dark:text-gray-500 mr-1">
-            {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-          </span>
-
-          <button
-            onClick={handleCopyClick}
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
-            aria-label="Copy message"
-            title="Copy"
-          >
-            <Copy size={14} weight="regular" />
-          </button>
-
-          {handleEdit && (
-            <button
-              onClick={handleEditClick}
-              className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
-              aria-label="Edit message"
-              title="Edit"
-            >
-              <PencilSimple size={14} weight="regular" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Avatar - solid primary color */}
-      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-sm">
-        U
-      </div>
-
-      {/* Image modal */}
-      {selectedImageIndex !== null && message.attachments && (
-        <ImageModal
-          images={message.attachments}
-          initialIndex={selectedImageIndex}
-          onClose={() => setSelectedImageIndex(null)}
-        />
-      )}
-    </div>
+    <UserMessage
+      turn={turn.userTurn}
+      turnId={turn.id}
+      initials={initials}
+      slots={slots}
+      classNames={classNames}
+      onCopy={handleCopy}
+      onEdit={handleEdit}
+      hideAvatar={hideAvatar}
+      hideActions={hideActions}
+      hideTimestamp={hideTimestamp}
+    />
   )
 }
+
+export default UserTurnView

@@ -169,4 +169,8 @@ export function ListItemSkeleton({ className = '' }: { className?: string }) {
   )
 }
 
-export default memo(Skeleton)
+const MemoizedSkeleton = memo(Skeleton)
+MemoizedSkeleton.displayName = 'Skeleton'
+
+export { MemoizedSkeleton as Skeleton }
+export default MemoizedSkeleton
