@@ -17,6 +17,11 @@ if ! command -v air >/dev/null 2>&1; then
   exit 1
 fi
 
+if [ ! -f "$ROOT/dist/index.mjs" ]; then
+  echo "Missing SDK build artifacts under dist/. Running pnpm install at repo root..." >&2
+  pnpm -C "$ROOT" install --prefer-frozen-lockfile
+fi
+
 APPLET_JSON="$ROOT/scripts/applets.json"
 if [ ! -f "$APPLET_JSON" ]; then
   echo "Missing scripts/applets.json" >&2
