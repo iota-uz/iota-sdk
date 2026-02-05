@@ -104,65 +104,55 @@ func TestAppletController_DevProxy_SkipsManifestRequirements(t *testing.T) {
 	assert.Contains(t, scripts, "/src/main.tsx")
 }
 
-func TestAppletController_RPC_MethodNotFound(t *testing.T) {
+func TestAppletController_RPC(t *testing.T) {
 	t.Parallel()
 
-	a := &testApplet{
-		name:     "t",
-		basePath: "/t",
-		config: Config{
-			WindowGlobal: "__T__",
-			Shell: ShellConfig{
-				Mode:  ShellModeStandalone,
-				Title: "t",
+	baseApplet := func(rpcCfg *RPCConfig) *testApplet {
+		return &testApplet{
+			name:     "t",
+			basePath: "/t",
+			config: Config{
+				WindowGlobal: "__T__",
+				Shell:        ShellConfig{Mode: ShellModeStandalone},
+				Assets: AssetConfig{
+					FS:           fstest.MapFS{"manifest.json": {Data: []byte(`{"index.html":{"file":"a.js","isEntry":true}}`)}},
+					BasePath:     "/assets",
+					ManifestPath: "manifest.json",
+					Entrypoint:   "index.html",
+				},
+				RPC: rpcCfg,
 			},
-			Assets: AssetConfig{
-				FS:           fstest.MapFS{"manifest.json": {Data: []byte(`{"index.html":{"file":"a.js","isEntry":true}}`)}},
-				BasePath:     "/assets",
-				ManifestPath: "manifest.json",
-				Entrypoint:   "index.html",
-			},
-			RPC: &RPCConfig{
+		}
+	}
+
+	cases := []struct {
+		name         string
+		rpcCfg       *RPCConfig
+		req          func() *http.Request
+		ctx          func(context.Context) context.Context
+		wantHTTP     int
+		wantRPCError string
+	}{
+		{
+			name: "MethodNotFound",
+			rpcCfg: &RPCConfig{
 				Path: "/rpc",
 				Methods: map[string]RPCMethod{
 					"ok": {Handler: func(ctx context.Context, params json.RawMessage) (any, error) { return map[string]any{"ok": true}, nil }},
 				},
 			},
-		},
-	}
-
-	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
-
-	body := bytes.NewBufferString(`{"id":"1","method":"missing","params":{}}`)
-	req := httptest.NewRequest(http.MethodPost, "/t/rpc", body)
-	req.Host = "example.com"
-	w := httptest.NewRecorder()
-
-	c.handleRPC(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	var resp rpcResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	require.NotNil(t, resp.Error)
-	assert.Equal(t, "method_not_found", resp.Error.Code)
-}
-
-func TestAppletController_RPC_PermissionDenied(t *testing.T) {
-	t.Parallel()
-
-	a := &testApplet{
-		name:     "t",
-		basePath: "/t",
-		config: Config{
-			WindowGlobal: "__T__",
-			Shell:        ShellConfig{Mode: ShellModeStandalone},
-			Assets: AssetConfig{
-				FS:           fstest.MapFS{"manifest.json": {Data: []byte(`{"index.html":{"file":"a.js","isEntry":true}}`)}},
-				BasePath:     "/assets",
-				ManifestPath: "manifest.json",
-				Entrypoint:   "index.html",
+			req: func() *http.Request {
+				body := bytes.NewBufferString(`{"id":"1","method":"missing","params":{}}`)
+				r := httptest.NewRequest(http.MethodPost, "/t/rpc", body)
+				r.Host = "example.com"
+				return r
 			},
-			RPC: &RPCConfig{
+			wantHTTP:     http.StatusOK,
+			wantRPCError: "method_not_found",
+		},
+		{
+			name: "PermissionDenied",
+			rpcCfg: &RPCConfig{
 				Path: "/rpc",
 				Methods: map[string]RPCMethod{
 					"secret": {
@@ -171,95 +161,79 @@ func TestAppletController_RPC_PermissionDenied(t *testing.T) {
 					},
 				},
 			},
-		},
-	}
-
-	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
-
-	u := user.New("T", "U", internet.MustParseEmail("t@example.com"), user.UILanguageEN, user.WithID(1))
-	req := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"secret","params":{}}`))
-	req.Host = "example.com"
-	req = req.WithContext(composables.WithUser(req.Context(), u))
-	w := httptest.NewRecorder()
-
-	c.handleRPC(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	var resp rpcResponse
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	require.NotNil(t, resp.Error)
-	assert.Equal(t, "forbidden", resp.Error.Code)
-}
-
-func TestAppletController_RPC_SameOriginEnforced(t *testing.T) {
-	t.Parallel()
-
-	a := &testApplet{
-		name:     "t",
-		basePath: "/t",
-		config: Config{
-			WindowGlobal: "__T__",
-			Shell:        ShellConfig{Mode: ShellModeStandalone},
-			Assets: AssetConfig{
-				FS:           fstest.MapFS{"manifest.json": {Data: []byte(`{"index.html":{"file":"a.js","isEntry":true}}`)}},
-				BasePath:     "/assets",
-				ManifestPath: "manifest.json",
-				Entrypoint:   "index.html",
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"secret","params":{}}`))
+				r.Host = "example.com"
+				return r
 			},
-			RPC: &RPCConfig{
+			ctx: func(ctx context.Context) context.Context {
+				u := user.New("T", "U", internet.MustParseEmail("t@example.com"), user.UILanguageEN, user.WithID(1))
+				return composables.WithUser(ctx, u)
+			},
+			wantHTTP:     http.StatusOK,
+			wantRPCError: "forbidden",
+		},
+		{
+			name: "SameOriginEnforced",
+			rpcCfg: &RPCConfig{
 				Path: "/rpc",
 				Methods: map[string]RPCMethod{
 					"ok": {Handler: func(ctx context.Context, params json.RawMessage) (any, error) { return "ok", nil }},
 				},
 			},
-		},
-	}
-
-	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
-
-	req := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"ok","params":{}}`))
-	req.Host = "example.com"
-	req.Header.Set("Origin", "http://evil.com")
-	w := httptest.NewRecorder()
-
-	c.handleRPC(w, req)
-	assert.Equal(t, http.StatusForbidden, w.Code)
-}
-
-func TestAppletController_RPC_PayloadTooLarge(t *testing.T) {
-	t.Parallel()
-
-	maxBytes := int64(32)
-	a := &testApplet{
-		name:     "t",
-		basePath: "/t",
-		config: Config{
-			WindowGlobal: "__T__",
-			Shell:        ShellConfig{Mode: ShellModeStandalone},
-			Assets: AssetConfig{
-				FS:           fstest.MapFS{"manifest.json": {Data: []byte(`{"index.html":{"file":"a.js","isEntry":true}}`)}},
-				BasePath:     "/assets",
-				ManifestPath: "manifest.json",
-				Entrypoint:   "index.html",
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"ok","params":{}}`))
+				r.Host = "example.com"
+				r.Header.Set("Origin", "http://evil.com")
+				return r
 			},
-			RPC: &RPCConfig{
+			wantHTTP: http.StatusForbidden,
+		},
+		{
+			name: "PayloadTooLarge",
+			rpcCfg: &RPCConfig{
 				Path:         "/rpc",
-				MaxBodyBytes: maxBytes,
+				MaxBodyBytes: 32,
 				Methods: map[string]RPCMethod{
 					"ok": {Handler: func(ctx context.Context, params json.RawMessage) (any, error) { return "ok", nil }},
 				},
 			},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"ok","params":{"x":"this is too long"}}`))
+				r.Host = "example.com"
+				return r
+			},
+			wantHTTP:     http.StatusRequestEntityTooLarge,
+			wantRPCError: "payload_too_large",
 		},
 	}
 
-	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	req := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"ok","params":{"x":"this is too long"}}`))
-	req.Host = "example.com"
-	w := httptest.NewRecorder()
+			a := baseApplet(tc.rpcCfg)
+			c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
 
-	c.handleRPC(w, req)
-	assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+			req := tc.req()
+			if tc.ctx != nil {
+				req = req.WithContext(tc.ctx(req.Context()))
+			}
+			w := httptest.NewRecorder()
+
+			c.handleRPC(w, req)
+			require.Equal(t, tc.wantHTTP, w.Code)
+
+			if tc.wantRPCError == "" {
+				return
+			}
+
+			var resp rpcResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			require.NotNil(t, resp.Error)
+			assert.Equal(t, tc.wantRPCError, resp.Error.Code)
+		})
+	}
 }
 
 func TestRequirePermissionStrings_Allows(t *testing.T) {

@@ -4,8 +4,7 @@ export type BichatRPC = {
   "bichat.ping": { params: PingParams; result: PingResult }
 }
 
-export interface PingParams {
-}
+export type PingParams = Record<string, never>
 
 export interface PingResult {
   ok: boolean

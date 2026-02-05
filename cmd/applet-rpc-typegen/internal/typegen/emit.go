@@ -6,15 +6,18 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/applet"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 func EmitTypeScript(desc *applet.TypedRouterDescription, typeName string) (string, error) {
+	const op serrors.Op = "typegen.EmitTypeScript"
+
 	if desc == nil {
-		return "", fmt.Errorf("description is nil")
+		return "", serrors.E(op, serrors.Invalid, "description is nil")
 	}
 	typeName = strings.TrimSpace(typeName)
 	if typeName == "" {
-		return "", fmt.Errorf("type name is empty")
+		return "", serrors.E(op, serrors.Invalid, "type name is empty")
 	}
 
 	var b strings.Builder
@@ -45,6 +48,13 @@ func EmitTypeScript(desc *applet.TypedRouterDescription, typeName string) (strin
 
 	for _, name := range typeNames {
 		obj := desc.Types[name]
+		if len(obj.Fields) == 0 {
+			b.WriteString("export type ")
+			b.WriteString(name)
+			b.WriteString(" = Record<string, never>\n\n")
+			continue
+		}
+
 		b.WriteString("export interface ")
 		b.WriteString(name)
 		b.WriteString(" {\n")

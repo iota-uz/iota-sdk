@@ -86,6 +86,9 @@ func (c *AppletController) RegisterRoutes(router *mux.Router) {
 	if config.Assets.BasePath == "" {
 		config.Assets.BasePath = "/assets"
 	}
+	if !strings.HasPrefix(config.Assets.BasePath, "/") {
+		config.Assets.BasePath = "/" + config.Assets.BasePath
+	}
 
 	fullAssetsPath := path.Join(c.applet.BasePath(), config.Assets.BasePath)
 	if c.devAssets != nil || config.Assets.FS != nil {
@@ -128,11 +131,16 @@ func (c *AppletController) RegisterRoutes(router *mux.Router) {
 }
 
 func (c *AppletController) initAssets() {
+	const op serrors.Op = "applet.Controller.initAssets"
+
 	config := c.applet.Config()
 
 	assetsPath := strings.TrimSpace(config.Assets.BasePath)
 	if assetsPath == "" {
 		assetsPath = "/assets"
+	}
+	if !strings.HasPrefix(assetsPath, "/") {
+		assetsPath = "/" + assetsPath
 	}
 	c.assetsBasePath = path.Join("/", strings.TrimPrefix(c.applet.BasePath(), "/"), strings.TrimPrefix(assetsPath, "/"))
 
@@ -150,22 +158,22 @@ func (c *AppletController) initAssets() {
 	}
 
 	if config.Assets.FS == nil {
-		c.assetsErr = fmt.Errorf("assets FS is required when dev proxy is disabled")
+		c.assetsErr = serrors.E(op, serrors.Invalid, "assets FS is required when dev proxy is disabled")
 		return
 	}
 	if strings.TrimSpace(config.Assets.ManifestPath) == "" || strings.TrimSpace(config.Assets.Entrypoint) == "" {
-		c.assetsErr = fmt.Errorf("assets ManifestPath and Entrypoint are required when dev proxy is disabled")
+		c.assetsErr = serrors.E(op, serrors.Invalid, "assets ManifestPath and Entrypoint are required when dev proxy is disabled")
 		return
 	}
 
 	manifest, err := loadManifest(config.Assets.FS, config.Assets.ManifestPath)
 	if err != nil {
-		c.assetsErr = err
+		c.assetsErr = serrors.E(op, err)
 		return
 	}
 	resolved, err := resolveAssetsFromManifest(manifest, config.Assets.Entrypoint, c.assetsBasePath)
 	if err != nil {
-		c.assetsErr = err
+		c.assetsErr = serrors.E(op, err)
 		return
 	}
 	c.resolvedAssets = resolved
@@ -193,15 +201,17 @@ func (c *AppletController) registerAssetRoutes(router *mux.Router, fullAssetsPat
 }
 
 func (c *AppletController) registerDevProxy(router *mux.Router, fullAssetsPath string, dev *DevAssetConfig) {
+	const op serrors.Op = "applet.Controller.registerDevProxy"
+
 	targetStr := strings.TrimSpace(dev.TargetURL)
 	if targetStr == "" {
-		c.assetsErr = fmt.Errorf("assets dev proxy TargetURL is required")
+		c.assetsErr = serrors.E(op, serrors.Invalid, "assets dev proxy TargetURL is required")
 		return
 	}
 
 	targetURL, err := url.Parse(targetStr)
 	if err != nil {
-		c.assetsErr = fmt.Errorf("invalid assets dev proxy TargetURL: %w", err)
+		c.assetsErr = serrors.E(op, serrors.Invalid, "invalid assets dev proxy TargetURL", err)
 		return
 	}
 
@@ -287,16 +297,20 @@ func (c *AppletController) render(ctx context.Context, w http.ResponseWriter, r 
 			title = c.applet.Name()
 		}
 
+		existingHead, ok := ctx.Value(constants.HeadKey).(templ.Component)
+		if !ok || existingHead == nil {
+			existingHead = templ.NopComponent
+			ctx = context.WithValue(ctx, constants.HeadKey, existingHead)
+		}
+
 		if cssLinks != "" {
-			if existingHead, ok := ctx.Value(constants.HeadKey).(templ.Component); ok && existingHead != nil {
-				mergedHead := templ.ComponentFunc(func(headCtx context.Context, wr io.Writer) error {
-					if err := existingHead.Render(headCtx, wr); err != nil {
-						return err
-					}
-					return templ.Raw(cssLinks).Render(headCtx, wr)
-				})
-				ctx = context.WithValue(ctx, constants.HeadKey, mergedHead)
-			}
+			mergedHead := templ.ComponentFunc(func(headCtx context.Context, wr io.Writer) error {
+				if err := existingHead.Render(headCtx, wr); err != nil {
+					return err
+				}
+				return templ.Raw(cssLinks).Render(headCtx, wr)
+			})
+			ctx = context.WithValue(ctx, constants.HeadKey, mergedHead)
 		}
 
 		shell := templ.ComponentFunc(func(shellCtx context.Context, wr io.Writer) error {
@@ -356,6 +370,8 @@ func (c *AppletController) render(ctx context.Context, w http.ResponseWriter, r 
 }
 
 func (c *AppletController) buildAssetTags() (string, string, error) {
+	const op serrors.Op = "applet.Controller.buildAssetTags"
+
 	if c.devAssets != nil {
 		clientModule := strings.TrimSpace(c.devAssets.ClientModule)
 		if clientModule == "" {
@@ -363,7 +379,7 @@ func (c *AppletController) buildAssetTags() (string, string, error) {
 		}
 		entryModule := strings.TrimSpace(c.devAssets.EntryModule)
 		if entryModule == "" {
-			return "", "", fmt.Errorf("assets dev proxy EntryModule is required")
+			return "", "", serrors.E(op, serrors.Invalid, "assets dev proxy EntryModule is required")
 		}
 
 		clientSrc := joinURLPath(c.assetsBasePath, clientModule)
@@ -377,7 +393,7 @@ func (c *AppletController) buildAssetTags() (string, string, error) {
 	}
 
 	if c.resolvedAssets == nil {
-		return "", "", fmt.Errorf("assets not resolved")
+		return "", "", serrors.E(op, serrors.Internal, "assets not resolved")
 	}
 	return buildCSSLinks(c.resolvedAssets.CSSFiles), buildJSScripts(c.resolvedAssets.JSFiles), nil
 }

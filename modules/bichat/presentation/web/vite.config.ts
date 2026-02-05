@@ -9,7 +9,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  base: process.env.APPLET_ASSETS_BASE || '/bi-chat/assets/',
+  base: (() => {
+    const base = process.env.APPLET_ASSETS_BASE || '/bi-chat/assets/'
+    return base.endsWith('/') ? base : base + '/'
+  })(),
   server: {
     port: Number(process.env.APPLET_VITE_PORT) || 5173,
     strictPort: true,
