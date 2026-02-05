@@ -75,27 +75,21 @@ func TestSchemaDescribeToolWithSampleData(t *testing.T) {
 		t.Fatalf("Call() error = %v", err)
 	}
 
-	// Verify result contains expected data (schema_describe returns table_name, schema, columns, indexes, constraints, samples)
-	if !strings.Contains(result, "table_name") {
-		t.Errorf("expected 'table_name' in result, got: %s", result)
+	// Verify markdown output
+	if !strings.Contains(result, "## Table: users (public)") {
+		t.Errorf("expected '## Table: users (public)' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "users") {
-		t.Errorf("expected 'users' in result, got: %s", result)
+	if !strings.Contains(result, "| # | Column | Type |") {
+		t.Errorf("expected markdown table header in result, got: %s", result)
 	}
-	if !strings.Contains(result, "columns") {
-		t.Errorf("expected 'columns' in result, got: %s", result)
+	if !strings.Contains(result, "| 1 | id | integer |") {
+		t.Errorf("expected first column row in result, got: %s", result)
 	}
-	if !strings.Contains(result, "schema") {
-		t.Errorf("expected 'schema' in result, got: %s", result)
+	if !strings.Contains(result, "| 2 | name | text |") {
+		t.Errorf("expected second column row in result, got: %s", result)
 	}
-	if !strings.Contains(result, "indexes") {
-		t.Errorf("expected 'indexes' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "constraints") {
-		t.Errorf("expected 'constraints' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "samples") {
-		t.Errorf("expected 'samples' in result, got: %s", result)
+	if !strings.Contains(result, "2 column(s)") {
+		t.Errorf("expected '2 column(s)' footer in result, got: %s", result)
 	}
 }
 
@@ -120,15 +114,12 @@ func TestSchemaDescribeToolLargeDataset(t *testing.T) {
 		t.Fatalf("Call() error = %v", err)
 	}
 
-	// Verify result contains table schema (schema_describe returns table_name, schema, columns, indexes, constraints, samples)
-	if !strings.Contains(result, "table_name") {
-		t.Errorf("expected 'table_name' in result, got: %s", result)
+	// Verify markdown output
+	if !strings.Contains(result, "## Table: large_table (public)") {
+		t.Errorf("expected '## Table: large_table (public)' in result, got: %s", result)
 	}
-	if !strings.Contains(result, "large_table") {
-		t.Errorf("expected 'large_table' in result, got: %s", result)
-	}
-	if !strings.Contains(result, "columns") {
-		t.Errorf("expected 'columns' in result, got: %s", result)
+	if !strings.Contains(result, "1 column(s)") {
+		t.Errorf("expected '1 column(s)' footer in result, got: %s", result)
 	}
 }
 
@@ -201,11 +192,23 @@ func TestSchemaListTool(t *testing.T) {
 		t.Fatalf("Call() error = %v", err)
 	}
 
-	// Verify result contains view information
+	// Verify markdown output
+	if !strings.Contains(result, "## Available Tables") {
+		t.Errorf("expected '## Available Tables' header in result, got: %s", result)
+	}
 	if !strings.Contains(result, "policies") {
 		t.Errorf("expected 'policies' in result, got: %s", result)
 	}
 	if !strings.Contains(result, "payments") {
 		t.Errorf("expected 'payments' in result, got: %s", result)
+	}
+	if !strings.Contains(result, "~100") {
+		t.Errorf("expected '~100' row count in result, got: %s", result)
+	}
+	if !strings.Contains(result, "~200") {
+		t.Errorf("expected '~200' row count in result, got: %s", result)
+	}
+	if !strings.Contains(result, "2 table(s) found") {
+		t.Errorf("expected '2 table(s) found' footer in result, got: %s", result)
 	}
 }

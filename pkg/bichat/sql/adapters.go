@@ -21,12 +21,14 @@ func NewQueryExecutorSchemaLister(executor QueryExecutor) SchemaLister {
 func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo, error) {
 	query := `
 		SELECT
-			schemaname AS schema,
-			viewname AS name,
-			'view' AS type
-		FROM pg_catalog.pg_views
-		WHERE schemaname = 'analytics'
-		ORDER BY name
+			n.nspname AS schema,
+			c.relname AS name,
+			GREATEST(c.reltuples, 0)::bigint AS approximate_row_count
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE n.nspname = 'analytics'
+		  AND c.relkind IN ('v', 'r', 'm')
+		ORDER BY c.relname
 	`
 
 	result, err := l.executor.ExecuteQuery(ctx, query, nil, 10*time.Second)
@@ -42,11 +44,23 @@ func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo
 
 		schema, _ := row[0].(string)
 		name, _ := row[1].(string)
-		// type is row[2] but we don't need it
+
+		var rowCount int64
+		switch v := row[2].(type) {
+		case int64:
+			rowCount = v
+		case int:
+			rowCount = int64(v)
+		case float64:
+			rowCount = int64(v)
+		default:
+			rowCount = 0
+		}
 
 		tables = append(tables, TableInfo{
-			Schema: schema,
-			Name:   name,
+			Schema:   schema,
+			Name:     name,
+			RowCount: rowCount,
 		})
 	}
 
