@@ -31,6 +31,9 @@ go.work*
 **/.claude/settings.local.json
 .claude/backlog
 
+# Storybook (generated Tailwind bundle)
+ui/.storybook/preview.generated.css
+
 # Local scratch (history rewrite tooling)
 .git-rewrite/
 
