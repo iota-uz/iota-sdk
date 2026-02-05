@@ -12,6 +12,19 @@ Applets are React (Vite) applications embedded into IOTA SDK via the Go applet r
 
 This guide covers scaffolding, embedded HMR, and typed RPC type generation.
 
+## Mental model
+
+An applet is:
+
+- A Go registration (`modules/<name>/applet.go`) that declares:
+  - `basePath` (where the applet is mounted, e.g. `/bichat`)
+  - asset serving (prod: embedded `dist/` + Vite manifest, dev: proxy to Vite)
+  - shell mode (embedded vs standalone)
+  - optional RPC methods (typed router)
+- A Vite + React project (`modules/<name>/presentation/web`) that mounts via a custom element using `defineReactAppletElement`.
+
+At runtime, IOTA injects `InitialContext` into `window[<WindowGlobal>]`. The frontend reads it via `@iota-uz/sdk` applet-core utilities.
+
 ## Scaffold a new applet
 
 Create a new module + applet + Vite React project:
@@ -75,6 +88,14 @@ Per applet (name uppercased, `-` replaced with `_`):
 
 The helper `just dev applet <name>` sets these automatically.
 
+### How the dev proxy works (same-origin HMR)
+
+When dev proxy is enabled:
+
+- Browser requests `GET <basePath>/assets/...`
+- The Go server reverse-proxies those requests to Vite (including HMR websocket upgrades)
+- Your app stays same-origin with IOTA (cookies/session work without CORS setup)
+
 ## Standalone dev (Vite only)
 
 Run the Vite app directly:
@@ -84,6 +105,19 @@ pnpm -C modules/<name>/presentation/web run dev:standalone
 ```
 
 Applets can inject a mock IOTA context in dev (see `src/dev/mockIotaContext.ts`).
+
+## Build embedded assets (production)
+
+To produce an embedded build (into `modules/<name>/presentation/assets/dist`):
+
+```bash
+pnpm -C modules/<name>/presentation/web run build
+```
+
+Notes:
+
+- The repo does **not** commit build output by default.
+- A scaffolded applet includes `modules/<name>/presentation/assets/dist/.keep` so `go:embed dist/*` compiles on a fresh checkout.
 
 ## Typed RPC (Go → TypeScript)
 
@@ -119,6 +153,13 @@ const rpc = createAppletRPCClient({ endpoint: ctx.config.rpcUIEndpoint! })
 await rpc.callTyped<MyAppletRPC>('my.method', { /* params */ })
 ```
 
+### Security model (RPC)
+
+- Transport: plain HTTP `POST` to `<basePath>/rpc` (same-origin by default).
+- Auth: uses the normal IOTA session/cookies; handlers receive a request `context.Context` with tenant/user.
+- Authorization: per-method permission enforcement (`RequirePermissions`).
+- Data access: applets do **not** access the database directly; Go handlers do.
+
 ## Devtools overlay (optional)
 
 Enable devtools via:
@@ -131,3 +172,16 @@ The overlay shows:
 - Resolved runtime config (basePath/assets/rpc endpoint)
 - Current route context
 - Recent RPC calls (start/success/error)
+
+## Router mode (embedded vs standalone)
+
+Applets can run with either:
+
+- `router-mode="url"` (default): uses `BrowserRouter` with `basename=<basePath>` so the URL stays in sync.
+- `router-mode="memory"`: uses `MemoryRouter` and does not modify the parent page URL (useful for PiP/embedded experiences).
+
+The host element reads these attributes:
+
+- `base-path`
+- `shell-mode`
+- `router-mode`
