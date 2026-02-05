@@ -475,17 +475,27 @@ EOF
 
 cat > "$MODULE_DIR/presentation/web/src/main.tsx" <<EOF
 import { defineReactAppletElement } from '@iota-uz/sdk'
-import compiledStyles from '../dist/style.css?raw'
 import Root from './Root'
 import { injectMockContext } from './dev/mockIotaContext'
 
 injectMockContext()
 
-defineReactAppletElement({
-  tagName: '${NAME}-root',
-  styles: compiledStyles,
-  render: (host) => <Root windowKey='${WINDOW_GLOBAL}' basePath={host.basePath} routerMode={host.routerMode} />,
-})
+async function main() {
+  let compiledStyles = ''
+  try {
+    compiledStyles = (await import('../dist/style.css?raw')).default
+  } catch {
+    // CSS not built yet (e.g. fresh checkout). Dev scripts will build it.
+  }
+
+  defineReactAppletElement({
+    tagName: '${NAME}-root',
+    styles: compiledStyles,
+    render: (host) => <Root windowKey='${WINDOW_GLOBAL}' basePath={host.basePath} routerMode={host.routerMode} />,
+  })
+}
+
+void main()
 EOF
 
 cat > "$MODULE_DIR/presentation/web/src/rpc.generated.ts" <<EOF

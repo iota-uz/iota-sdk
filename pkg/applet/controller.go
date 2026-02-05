@@ -450,7 +450,7 @@ func buildCSSLinks(cssFiles []string) string {
 
 	var links strings.Builder
 	for _, cssFile := range cssFiles {
-		links.WriteString(fmt.Sprintf(`<link rel="stylesheet" href="%s">`, cssFile))
+		links.WriteString(fmt.Sprintf(`<link rel="stylesheet" href="%s">`, template.HTMLEscapeString(cssFile)))
 	}
 	return links.String()
 }
@@ -462,15 +462,17 @@ func buildJSScripts(jsFiles []string) string {
 
 	var scripts strings.Builder
 	for _, jsFile := range jsFiles {
-		scripts.WriteString(fmt.Sprintf(`<script type="module" src="%s"></script>`, jsFile))
+		scripts.WriteString(fmt.Sprintf(`<script type="module" src="%s"></script>`, template.HTMLEscapeString(jsFile)))
 	}
 	return scripts.String()
 }
 
 func buildSafeContextScript(windowGlobal string, contextJSON []byte) (string, error) {
+	const op serrors.Op = "applet.buildSafeContextScript"
+
 	keyJSON, err := json.Marshal(windowGlobal)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal window global key: %w", err)
+		return "", serrors.E(op, serrors.Internal, "failed to marshal window global key", err)
 	}
 	safeKey := escapeJSONForScriptTag(keyJSON)
 	safeValue := escapeJSONForScriptTag(contextJSON)
@@ -667,9 +669,14 @@ func mapSErrorCode(err error) string {
 }
 
 func requirePermissionStrings(ctx context.Context, required []string) error {
+	const op serrors.Op = "applet.requirePermissionStrings"
+
 	u, err := composables.UseUser(ctx)
-	if err != nil || u == nil {
-		return fmt.Errorf("no user")
+	if err != nil {
+		return serrors.E(op, serrors.PermissionDenied, "no user", err)
+	}
+	if u == nil {
+		return serrors.E(op, serrors.PermissionDenied, "no user")
 	}
 	have := make(map[string]struct{}, len(u.Permissions()))
 	for _, p := range u.Permissions() {
@@ -681,28 +688,30 @@ func requirePermissionStrings(ctx context.Context, required []string) error {
 			continue
 		}
 		if _, ok := have[need]; !ok {
-			return fmt.Errorf("missing permission: %s", need)
+			return serrors.E(op, serrors.PermissionDenied, "missing permission: "+need)
 		}
 	}
 	return nil
 }
 
 func enforceSameOrigin(r *http.Request) error {
+	const op serrors.Op = "applet.enforceSameOrigin"
+
 	origin := r.Header.Get("Origin")
 	if origin == "" {
 		return nil
 	}
 	u, err := url.Parse(origin)
 	if err != nil {
-		return fmt.Errorf("invalid origin")
+		return serrors.E(op, serrors.Invalid, "invalid origin", err)
 	}
 	originHost := strings.ToLower(strings.TrimSpace(u.Host))
 	reqHost := strings.ToLower(strings.TrimSpace(r.Host))
 	if originHost == "" || reqHost == "" {
-		return fmt.Errorf("invalid host")
+		return serrors.E(op, serrors.Invalid, "invalid host")
 	}
 	if originHost != reqHost {
-		return fmt.Errorf("origin mismatch")
+		return serrors.E(op, serrors.Invalid, "origin mismatch")
 	}
 	return nil
 }
