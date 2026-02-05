@@ -386,8 +386,8 @@ func (c *AppletController) buildAssetTags() (string, string, error) {
 		entrySrc := joinURLPath(c.assetsBasePath, entryModule)
 		js := fmt.Sprintf(
 			`<script type="module" src="%s"></script><script type="module" src="%s"></script>`,
-			clientSrc,
-			entrySrc,
+			template.HTMLEscapeString(clientSrc),
+			template.HTMLEscapeString(entrySrc),
 		)
 		return "", js, nil
 	}

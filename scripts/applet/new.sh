@@ -15,8 +15,8 @@ if [[ ! "$NAME" =~ ^[a-z][a-z0-9-]*$ ]]; then
   exit 2
 fi
 
-if [[ ! "$BASE_PATH" =~ ^/ ]]; then
-  echo "Invalid base path: $BASE_PATH (must start with /)" >&2
+if [[ ! "$BASE_PATH" =~ ^/[A-Za-z0-9/_~.-]*$ ]]; then
+  echo "Invalid base path: $BASE_PATH (expected /path with [A-Za-z0-9/_~.-])" >&2
   exit 2
 fi
 
@@ -30,10 +30,14 @@ fi
 
 VITE_DIR="modules/$NAME/presentation/web"
 VITE_PORT="$(
-  node - <<'NODE' "scripts/applets.json"
+  node - <<'NODE' "scripts/applets.json" "$NAME"
 const fs = require('fs')
-const file = process.argv[2]
+const [file, name] = process.argv.slice(2)
 const data = JSON.parse(fs.readFileSync(file, 'utf8'))
+if ((data.applets || []).some((a) => a.name === name)) {
+  console.error(`Applet already exists in registry: ${name}`)
+  process.exit(2)
+}
 const ports = (data.applets || []).map((a) => a.vitePort).filter((p) => typeof p === 'number')
 const max = ports.length ? Math.max(...ports) : 5172
 process.stdout.write(String(max + 1))
