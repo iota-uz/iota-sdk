@@ -110,15 +110,15 @@ export default function WelcomeContent({
               disabled={disabled}
               className="group flex flex-col items-start text-left p-5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
               variants={itemVariants}
-              whileHover={disabled ? {} : { y: -2 }}
+              whileHover={disabled ? {} : { y: -2, scale: 1.01 }}
               whileTap={disabled ? {} : { scale: 0.98 }}
             >
               {/* Icon */}
-              <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-3">
+              <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/30 flex items-center justify-center mb-3 transition-colors duration-200">
                 <prompt.icon
                   size={18}
                   weight="regular"
-                  className="text-gray-600 dark:text-gray-300"
+                  className="text-gray-600 dark:text-gray-300 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors duration-200"
                 />
               </div>
 

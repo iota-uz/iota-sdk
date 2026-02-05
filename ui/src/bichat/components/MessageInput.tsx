@@ -248,8 +248,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             <div
               className={`flex items-center gap-2 rounded-2xl p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
                 isFocused
-                  ? 'border-primary-400 dark:border-primary-500 ring-3 ring-primary-500/10 dark:ring-primary-500/15'
-                  : 'border-gray-200 dark:border-gray-700'
+                  ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/15 dark:ring-primary-500/20'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
               }`}
             >
               {/* Attach button */}

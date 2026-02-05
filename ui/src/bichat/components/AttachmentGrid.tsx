@@ -34,7 +34,7 @@ export default function AttachmentGrid({
             src={attachment.preview}
             alt={attachment.filename}
             className={`w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 ${
-              isViewable ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''
+              isViewable ? 'cursor-pointer hover:opacity-80 transition-opacity duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900' : ''
             }`}
             onClick={() => isViewable && onView(index)}
             role={isViewable ? 'button' : undefined}
@@ -54,7 +54,7 @@ export default function AttachmentGrid({
                 e.stopPropagation()
                 onRemove(index)
               }}
-              className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+              className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-150 shadow-md focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
               aria-label={`Remove ${attachment.filename}`}
             >
               <X size={16} weight="bold" />

@@ -113,7 +113,7 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
                 <button
                   type="button"
                   onClick={() => setExplanationExpanded(!explanationExpanded)}
-                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 rounded-md p-1 -m-1"
                   aria-expanded={explanationExpanded}
                 >
                   <svg
@@ -155,7 +155,7 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
 
             <button
               onClick={handleCopyClick}
-              className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
+              className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
               aria-label="Copy message"
               title="Copy"
             >
@@ -165,7 +165,7 @@ export function AssistantTurnView({ message }: AssistantTurnViewProps) {
             {handleRegenerate && (
               <button
                 onClick={handleRegenerateClick}
-                className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors duration-150"
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 active:bg-gray-200 dark:active:bg-gray-700 rounded-md transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
                 aria-label="Regenerate message"
                 title="Regenerate"
               >

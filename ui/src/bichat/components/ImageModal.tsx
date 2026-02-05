@@ -59,7 +59,7 @@ export default function ImageModal({ images, initialIndex, onClose }: ImageModal
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+        className="absolute top-4 right-4 p-2 text-white hover:bg-white/10 active:bg-white/20 rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
         aria-label="Close image viewer"
       >
         <X size={24} weight="bold" />
@@ -73,7 +73,7 @@ export default function ImageModal({ images, initialIndex, onClose }: ImageModal
               e.stopPropagation()
               handlePrevious()
             }}
-            className="absolute left-4 p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="absolute left-4 p-2 text-white hover:bg-white/10 active:bg-white/20 rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
             aria-label="Previous image"
           >
             <CaretLeft size={32} weight="bold" />
@@ -83,7 +83,7 @@ export default function ImageModal({ images, initialIndex, onClose }: ImageModal
               e.stopPropagation()
               handleNext()
             }}
-            className="absolute right-4 p-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="absolute right-4 p-2 text-white hover:bg-white/10 active:bg-white/20 rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
             aria-label="Next image"
           >
             <CaretRight size={32} weight="bold" />

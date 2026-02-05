@@ -22,19 +22,19 @@ export const sessionListContainerVariants = {
  * Session item animation
  */
 export const sessionItemVariants = {
-  initial: { opacity: 0, x: -20 },
+  initial: { opacity: 0, x: -12 },
   animate: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.3 },
+    transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
   },
   hover: {
-    x: 4,
-    transition: { duration: 0.2 },
+    // Subtle hover - no x-translate to avoid jarring effect in dense lists
+    transition: { duration: 0.15 },
   },
   exit: {
     opacity: 0,
-    x: -20,
-    transition: { duration: 0.2 },
+    x: -12,
+    transition: { duration: 0.15 },
   },
 }

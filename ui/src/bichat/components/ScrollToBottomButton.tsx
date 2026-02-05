@@ -26,7 +26,7 @@ export default function ScrollToBottomButton({
           exit={{ opacity: 0, y: 10 }}
           transition={{ duration: 0.2 }}
           onClick={onClick}
-          className="absolute bottom-24 right-8 p-3 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors z-10"
+          className="absolute bottom-24 right-8 p-3 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 dark:active:bg-gray-600 transition-colors duration-150 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
           aria-label="Scroll to bottom"
         >
           <div className="relative">

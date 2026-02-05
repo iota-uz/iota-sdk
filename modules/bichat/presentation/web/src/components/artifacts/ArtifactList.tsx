@@ -62,7 +62,7 @@ export function ArtifactList({ artifacts, onSelect }: ArtifactListProps) {
 
   if (artifacts.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
         <File className="w-12 h-12 mx-auto mb-2 opacity-50" weight="duotone" />
         <p className="text-sm">No artifacts yet</p>
       </div>
@@ -73,7 +73,7 @@ export function ArtifactList({ artifacts, onSelect }: ArtifactListProps) {
     <div className="space-y-4">
       {types.map((type) => (
         <div key={type}>
-          <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2 px-2">
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2 px-2">
             {type.replace('_', ' ')}
           </h3>
           <div className="space-y-1">
@@ -81,21 +81,21 @@ export function ArtifactList({ artifacts, onSelect }: ArtifactListProps) {
               <button
                 key={artifact.id}
                 onClick={() => onSelect(artifact)}
-                className="w-full flex items-start gap-3 p-2 rounded-lg hover:bg-gray-100 transition-colors text-left"
+                className="w-full flex items-start gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 active:bg-gray-200 dark:active:bg-gray-700/50 transition-colors duration-150 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50"
               >
-                <div className="flex-shrink-0 mt-0.5 text-gray-600">
+                <div className="flex-shrink-0 mt-0.5 text-gray-600 dark:text-gray-400">
                   {getArtifactIcon(artifact)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">
+                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                     {artifact.name}
                   </div>
                   {artifact.description && (
-                    <div className="text-xs text-gray-500 truncate">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {artifact.description}
                     </div>
                   )}
-                  <div className="text-xs text-gray-400 mt-0.5">
+                  <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                     {formatFileSize(artifact.sizeBytes)}
                   </div>
                 </div>
