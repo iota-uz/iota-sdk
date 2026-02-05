@@ -106,7 +106,11 @@ func inspectRouter(repoRoot string, routerImport string) (*applet.TypedRouterDes
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "warning: failed to remove temp dir:", err)
+		}
+	}()
 
 	mainPath := filepath.Join(tmpDir, "main.go")
 	mod, err := readModulePath(filepath.Join(repoRoot, "go.mod"))
@@ -115,24 +119,24 @@ func inspectRouter(repoRoot string, routerImport string) (*applet.TypedRouterDes
 	}
 	code := fmt.Sprintf(`package main
 
-import (
-  "encoding/json"
-  "os"
+	import (
+	  "encoding/json"
+	  "os"
 
   "%s/pkg/applet"
   rpc "%s"
 )
 
-func main() {
-  d, err := applet.DescribeTypedRPCRouter(rpc.Router())
-  if err != nil {
-    panic(err)
-  }
-  enc := json.NewEncoder(os.Stdout)
-  enc.SetEscapeHTML(false)
-  _ = enc.Encode(d)
-}
-`, mod, routerImport)
+	func main() {
+	  d, err := applet.DescribeTypedRPCRouter(rpc.Router())
+	  if err != nil {
+	    panic(err)
+	  }
+	  enc := json.NewEncoder(os.Stdout)
+	  enc.SetEscapeHTML(false)
+	  _ = enc.Encode(d)
+	}
+	`, mod, routerImport)
 
 	if err := os.WriteFile(mainPath, []byte(code), 0o644); err != nil {
 		return nil, err

@@ -9,6 +9,11 @@ if [ -z "$NAME" ]; then
   exit 2
 fi
 
+if [[ ! "$NAME" =~ ^[A-Za-z][A-Za-z0-9_-]*$ ]]; then
+  echo "Invalid applet name: $NAME" >&2
+  exit 2
+fi
+
 cd "$ROOT"
 
 TYPE_NAME="$(

@@ -63,9 +63,9 @@ package ${NAME//-/_}
 
 import (
 	"embed"
-	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 //go:embed presentation/locales/*.json
@@ -84,8 +84,9 @@ func (m *Module) Register(app application.Application) error {
 	app.Migrations().RegisterSchema(&MigrationFiles)
 	app.RegisterLocaleFiles(&LocaleFiles)
 
+	const op serrors.Op = "${PASCAL}Module.Register"
 	if err := app.RegisterApplet(New${PASCAL}Applet()); err != nil {
-		return fmt.Errorf("failed to register ${NAME} applet: %w", err)
+		return serrors.E(op, "failed to register ${NAME} applet", err)
 	}
 	return nil
 }

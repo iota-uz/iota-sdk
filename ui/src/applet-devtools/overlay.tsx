@@ -17,8 +17,10 @@ export function AppletDevtoolsOverlay() {
 
   useEffect(() => {
     const onEvent = (e: Event) => {
-      const ce = e as CustomEvent<RPCEvent>
-      setRPCEvents((prev) => [ce.detail, ...prev].slice(0, 50))
+      if (!(e instanceof CustomEvent)) return
+      const detail = (e as CustomEvent<RPCEvent>).detail
+      if (!detail) return
+      setRPCEvents((prev) => [detail, ...prev].slice(0, 50))
     }
     window.addEventListener('iota:applet-rpc', onEvent as EventListener)
     return () => window.removeEventListener('iota:applet-rpc', onEvent as EventListener)
