@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
@@ -16,7 +17,7 @@ import (
 type DefaultBIAgent struct {
 	*agents.BaseAgent
 	executor              bichatsql.QueryExecutor
-	kbSearcher            tools.KBSearcher
+	kbSearcher            kb.KBSearcher
 	learningStore         learning.LearningStore       // Optional learning store for dynamic learnings
 	validatedQueryStore   learning.ValidatedQueryStore // Optional validated query store for query library
 	exportTools           []agents.Tool                // Optional export tools (Excel, PDF)
@@ -31,7 +32,7 @@ type DefaultBIAgent struct {
 type BIAgentOption func(*DefaultBIAgent)
 
 // WithKBSearcher adds knowledge base search capability to the agent.
-func WithKBSearcher(searcher tools.KBSearcher) BIAgentOption {
+func WithKBSearcher(searcher kb.KBSearcher) BIAgentOption {
 	return func(a *DefaultBIAgent) {
 		a.kbSearcher = searcher
 	}
@@ -149,13 +150,14 @@ func NewDefaultBIAgent(
 		tools.NewSchemaListTool(schemaLister, tools.WithSchemaListViewAccess(agent.viewAccess)),
 		tools.NewSchemaDescribeTool(schemaDescriber, tools.WithSchemaDescribeViewAccess(agent.viewAccess)),
 		tools.NewSQLExecuteTool(executor, tools.WithViewAccessControl(agent.viewAccess)),
+		tools.NewExportQueryToExcelTool(executor),
 		tools.NewDrawChartTool(),
 		tools.NewAskUserQuestionTool(),
 	}
 
 	// Add optional tools based on configuration
 	if agent.kbSearcher != nil {
-		agentTools = append(agentTools, tools.NewKBSearchTool(agent.kbSearcher))
+		agentTools = append(agentTools, tools.NewKBSearchTool(tools.NewKBSearcherAdapter(agent.kbSearcher)))
 	}
 
 	if agent.learningStore != nil {
@@ -329,6 +331,17 @@ Search and save validated SQL query patterns to reuse proven solutions.
    - Include clear question, summary, tables used, and data quality notes
 3. DO NOT save: Simple single-table lookups, one-off exploratory queries, or queries with errors
 4. Saved queries grow the library — future conversations start with proven patterns`
+	}
+
+	if learningEnabled || validatedQueryEnabled {
+		prompt += `
+
+PRE-QUERY RETRIEVAL POLICY:
+Before your first SQL attempt for each user question:
+1. If query library is available: call search_validated_queries to find proven SQL patterns
+2. If learning system is available: call search_learnings for known errors, type gotchas, and fixes
+3. Use the retrieved context to shape your first SQL query
+Do not skip this retrieval phase unless the question clearly needs no SQL.`
 	}
 
 	// Append insight-focused response instructions if enabled

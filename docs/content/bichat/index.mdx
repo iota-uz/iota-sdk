@@ -125,3 +125,29 @@ cfg := bichat.NewModuleConfig(
 | `OPENAI_API_KEY` | Yes | API key for OpenAI |
 | `OPENAI_MODEL` | No | Default model (defaults to `gpt-4o`) |
 | `BICHAT_CONTEXT_WINDOW` | No | Max tokens for context (default: 200k) |
+| `BICHAT_KNOWLEDGE_DIR` | No | Path to static knowledge root (`tables/`, `queries/`, `business/`) |
+| `BICHAT_KB_INDEX_PATH` | No | Bleve index path for `kb_search` |
+| `BICHAT_SCHEMA_METADATA_DIR` | No | Directory containing table metadata JSON files |
+
+## Knowledge Bootstrap
+
+Use the CLI to load curated BI knowledge into validated query storage and optional KB index:
+
+```bash
+command knowledge load \
+  --tenant-id <tenant-uuid> \
+  --dir /path/to/knowledge
+```
+
+Rebuild mode clears tenant-scoped validated query patterns first and recreates KB index contents:
+
+```bash
+command knowledge rebuild \
+  --tenant-id <tenant-uuid> \
+  --dir /path/to/knowledge
+```
+
+Directory contract (Dash-compatible):
+- `tables/*.json`: table metadata and usage notes
+- `queries/*.sql`: validated query patterns (`<query name>`, `<query description>`, `<query>`)
+- `business/*.json`: business rules and definitions

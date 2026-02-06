@@ -251,6 +251,26 @@ func (r *LearningRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// DeleteByTenant removes all learnings for a tenant.
+func (r *LearningRepository) DeleteByTenant(ctx context.Context, tenantID uuid.UUID) error {
+	const op serrors.Op = "LearningRepository.DeleteByTenant"
+
+	if tenantID == uuid.Nil {
+		return serrors.E(op, serrors.KindValidation, "tenant_id is required")
+	}
+
+	const query = `
+		DELETE FROM bichat.learnings
+		WHERE tenant_id = $1
+	`
+
+	if _, err := r.pool.Exec(ctx, query, tenantID); err != nil {
+		return serrors.E(op, err, "failed to delete tenant learnings")
+	}
+
+	return nil
+}
+
 // ListByTable retrieves all learnings related to a specific table.
 func (r *LearningRepository) ListByTable(ctx context.Context, tenantID uuid.UUID, tableName string, limit int) ([]learning.Learning, error) {
 	const op serrors.Op = "LearningRepository.ListByTable"

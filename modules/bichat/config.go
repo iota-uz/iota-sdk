@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
@@ -52,7 +53,7 @@ type ModuleConfig struct {
 	// Required: Context management
 	ContextPolicy bichatcontext.ContextPolicy
 
-	// Required: Agents
+	// Optional: Parent agent (if nil, BuildParentAgent can construct default from QueryExecutor)
 	ParentAgent Agent
 	SubAgents   []Agent
 
@@ -316,7 +317,7 @@ func WithAnalyticsViews(vm *analytics.ViewManager) ConfigOption {
 	}
 }
 
-// NewModuleConfig creates a new module configuration with required dependencies.
+// NewModuleConfig creates a new module configuration.
 // Use ConfigOption functions to set optional dependencies.
 func NewModuleConfig(
 	tenantID func(ctx context.Context) uuid.UUID,
@@ -442,8 +443,8 @@ func (c *ModuleConfig) Validate() error {
 	if c.Model == nil {
 		return errors.New("Model is required")
 	}
-	if c.ParentAgent == nil {
-		return errors.New("ParentAgent is required")
+	if c.ParentAgent == nil && c.QueryExecutor == nil {
+		return errors.New("ParentAgent is required when QueryExecutor is not configured")
 	}
 	if c.ContextPolicy.ContextWindow == 0 {
 		return errors.New("ContextPolicy.ContextWindow must be set")
@@ -564,6 +565,11 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 func (c *ModuleConfig) BuildServices() error {
 	const op serrors.Op = "ModuleConfig.BuildServices"
 
+	// Build default parent agent from config when caller did not provide one.
+	if err := c.BuildParentAgent(); err != nil {
+		return serrors.E(op, err)
+	}
+
 	// Validate configuration first
 	if err := c.Validate(); err != nil {
 		return serrors.E(op, err)
@@ -630,6 +636,51 @@ func (c *ModuleConfig) BuildServices() error {
 	if c.artifactService == nil {
 		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage)
 	}
+
+	return nil
+}
+
+// BuildParentAgent creates the default BI parent agent when ParentAgent is nil.
+// It applies KB, learning, validated query, and code interpreter options from ModuleConfig.
+func (c *ModuleConfig) BuildParentAgent() error {
+	const op serrors.Op = "ModuleConfig.BuildParentAgent"
+
+	if c.ParentAgent != nil {
+		return nil
+	}
+
+	if c.QueryExecutor == nil {
+		return serrors.E(op, serrors.KindValidation, "ParentAgent or QueryExecutor is required")
+	}
+
+	opts := make([]bichatagents.BIAgentOption, 0, 6)
+	if c.KBSearcher != nil {
+		opts = append(opts, bichatagents.WithKBSearcher(c.KBSearcher))
+	}
+	if c.LearningStore != nil {
+		opts = append(opts, bichatagents.WithLearningStore(c.LearningStore))
+	}
+	if c.ValidatedQueryStore != nil {
+		opts = append(opts, bichatagents.WithValidatedQueryStore(c.ValidatedQueryStore))
+	}
+	if c.AgentRegistry != nil {
+		opts = append(opts, bichatagents.WithAgentRegistry(c.AgentRegistry))
+	}
+	if c.EnableCodeInterpreter {
+		opts = append(opts, bichatagents.WithCodeInterpreter(true))
+	}
+	if c.Model != nil {
+		modelName := strings.TrimSpace(c.Model.Info().Name)
+		if modelName != "" {
+			opts = append(opts, bichatagents.WithModel(modelName))
+		}
+	}
+
+	parentAgent, err := bichatagents.NewDefaultBIAgent(c.QueryExecutor, opts...)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	c.ParentAgent = parentAgent
 
 	return nil
 }

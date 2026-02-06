@@ -247,3 +247,24 @@ func (r *ValidatedQueryRepository) Delete(ctx context.Context, id uuid.UUID) err
 
 	return nil
 }
+
+// DeleteByTenant removes all validated query patterns for a tenant.
+// This is used by knowledge rebuild operations.
+func (r *ValidatedQueryRepository) DeleteByTenant(ctx context.Context, tenantID uuid.UUID) error {
+	const op serrors.Op = "ValidatedQueryRepository.DeleteByTenant"
+
+	if tenantID == uuid.Nil {
+		return serrors.E(op, serrors.KindValidation, "tenant_id is required")
+	}
+
+	const query = `
+		DELETE FROM bichat.validated_queries
+		WHERE tenant_id = $1
+	`
+
+	if _, err := r.pool.Exec(ctx, query, tenantID); err != nil {
+		return serrors.E(op, err, "failed to delete tenant validated queries")
+	}
+
+	return nil
+}

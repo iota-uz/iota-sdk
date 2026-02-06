@@ -5,7 +5,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,7 +24,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/applet"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -102,20 +106,64 @@ func main() {
 		} else {
 			// Create PostgreSQL query executor for SQL tools
 			executor := bichatinfra.NewPostgresQueryExecutor(pool)
+			learningStore := bichatpersistence.NewLearningRepository(pool)
+			validatedQueryStore := bichatpersistence.NewValidatedQueryRepository(pool)
+
+			agentOpts := []bichatagents.BIAgentOption{
+				bichatagents.WithLearningStore(learningStore),
+				bichatagents.WithValidatedQueryStore(validatedQueryStore),
+			}
+			if modelName := strings.TrimSpace(model.Info().Name); modelName != "" {
+				agentOpts = append(agentOpts, bichatagents.WithModel(modelName))
+			}
+
+			configOpts := []bichat.ConfigOption{
+				bichat.WithQueryExecutor(executor),
+				bichat.WithLearningStore(learningStore),
+				bichat.WithValidatedQueryStore(validatedQueryStore),
+				bichat.WithAttachmentStorage(
+					conf.UploadsPath+"/bichat",
+					conf.Origin+"/"+conf.UploadsPath+"/bichat",
+				),
+			}
+
+			knowledgeDir := strings.TrimSpace(conf.BiChatKnowledgeDir)
+			kbIndexPath := strings.TrimSpace(conf.BiChatKBIndexPath)
+			if kbIndexPath == "" && knowledgeDir != "" {
+				kbIndexPath = filepath.Join(conf.UploadsPath, "bichat", "knowledge.bleve")
+			}
+			if kbIndexPath != "" {
+				if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0755); err != nil {
+					logger.Warnf("Failed to create KB index directory: %v", err)
+				} else {
+					_, kbSearcher, kbErr := kb.NewBleveIndex(kbIndexPath)
+					if kbErr != nil {
+						logger.Warnf("Failed to initialize BiChat KB index: %v", kbErr)
+					} else {
+						agentOpts = append(agentOpts, bichatagents.WithKBSearcher(kbSearcher))
+						configOpts = append(configOpts, bichat.WithKBSearcher(kbSearcher))
+					}
+				}
+			}
+
+			metadataDir := strings.TrimSpace(conf.BiChatSchemaMetadataDir)
+			if metadataDir == "" && knowledgeDir != "" {
+				metadataDir = filepath.Join(knowledgeDir, "tables")
+			}
+			if metadataDir != "" {
+				metadataProvider, providerErr := schema.NewFileMetadataProvider(metadataDir)
+				if providerErr != nil {
+					logger.Warnf("Failed to initialize schema metadata provider (%s): %v", metadataDir, providerErr)
+				} else {
+					configOpts = append(configOpts, bichat.WithSchemaMetadata(metadataProvider))
+				}
+			}
 
 			// Create BiChat agent with SQL query capabilities
-			parentAgent, err := bichatagents.NewDefaultBIAgent(executor)
+			parentAgent, err := bichatagents.NewDefaultBIAgent(executor, agentOpts...)
 			if err != nil {
 				logger.Warnf("Failed to create BiChat agent: %v", err)
 			} else {
-				// Build config options
-				configOpts := []bichat.ConfigOption{
-					bichat.WithAttachmentStorage(
-						conf.UploadsPath+"/bichat",
-						conf.Origin+"/"+conf.UploadsPath+"/bichat",
-					),
-				}
-
 				// Set up LangFuse observability if credentials are available
 				if lfPublicKey := os.Getenv("LANGFUSE_PUBLIC_KEY"); lfPublicKey != "" {
 					// Bridge LANGFUSE_BASE_URL → LANGFUSE_HOST for the langfuse-go SDK

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/tools"
 )
 
 // ExampleNewDefaultBIAgent demonstrates basic usage of the default BI agent.
@@ -33,7 +33,7 @@ func ExampleNewDefaultBIAgent() {
 	// Output:
 	// Agent name: bi_agent
 	// Agent model: gpt-4
-	// Number of tools: 6
+	// Number of tools: 7
 }
 
 // ExampleNewDefaultBIAgent_withOptions demonstrates using optional tools.
@@ -59,7 +59,7 @@ func ExampleNewDefaultBIAgent_withOptions() {
 
 	// Output:
 	// Model: gpt-3.5-turbo
-	// Tools count: 7
+	// Tools count: 8
 }
 
 // ExampleNewDefaultBIAgent_withInsightPrompting demonstrates insight-focused response prompting.
@@ -107,8 +107,12 @@ func (m *mockQueryExecutor) ExecuteQuery(ctx context.Context, sql string, params
 
 type mockKBSearcher struct{}
 
-func (m *mockKBSearcher) Search(ctx context.Context, query string, limit int) ([]tools.SearchResult, error) {
-	return []tools.SearchResult{}, nil
+func (m *mockKBSearcher) Search(ctx context.Context, query string, opts kb.SearchOptions) ([]kb.SearchResult, error) {
+	return []kb.SearchResult{}, nil
+}
+
+func (m *mockKBSearcher) GetDocument(ctx context.Context, id string) (*kb.Document, error) {
+	return nil, nil
 }
 
 func (m *mockKBSearcher) IsAvailable() bool {

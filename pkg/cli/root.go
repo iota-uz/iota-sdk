@@ -21,6 +21,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(commands.NewUtilityCommands()...)
 	rootCmd.AddCommand(commands.NewE2ECommand())
 	rootCmd.AddCommand(commands.NewMigrateCommand())
+	rootCmd.AddCommand(commands.NewKnowledgeCommand())
 
 	return rootCmd
 }
