@@ -1,10 +1,11 @@
 /**
  * ConfirmModal Component
  * Generic confirmation dialog with customizable title, message, and actions
+ * Uses @headlessui/react Dialog for accessible modal behavior
  */
 
-import { useEffect, useRef, memo } from 'react'
-import { useFocusTrap } from '../hooks/useFocusTrap'
+import { memo } from 'react'
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, Description } from '@headlessui/react'
 
 export interface ConfirmModalProps {
   /** Whether the modal is open */
@@ -35,70 +36,26 @@ function ConfirmModalBase({
   cancelText = 'Cancel',
   isDanger = false,
 }: ConfirmModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null)
-  const confirmButtonRef = useRef<HTMLButtonElement>(null)
-
-  // Trap focus within modal when open
-  useFocusTrap(modalRef, isOpen)
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel()
-      } else if (e.key === 'Enter') {
-        // Only confirm via Enter if the confirm button is focused.
-        // This prevents accidental confirmations from global Enter presses.
-        if (document.activeElement === confirmButtonRef.current) {
-          e.preventDefault()
-          onConfirm()
-        }
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onConfirm, onCancel, confirmButtonRef])
-
-  if (!isOpen) return null
-
   return (
-    <>
+    <Dialog open={isOpen} onClose={onCancel} className="relative z-40">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity z-40"
-        onClick={onCancel}
-        aria-hidden="true"
-      />
+      <DialogBackdrop className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm transition-opacity" />
 
       {/* Modal */}
-      <div
-        className="fixed inset-0 flex items-center justify-center z-50"
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="confirm-modal-title"
-        aria-describedby="confirm-modal-description"
-      >
-        <div
-          ref={modalRef}
-          className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full mx-4"
-        >
+      <div className="fixed inset-0 flex items-center justify-center z-50">
+        <DialogPanel className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-sm w-full mx-4">
           {/* Header */}
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h2
-              id="confirm-modal-title"
-              className="text-lg font-semibold text-gray-900 dark:text-white"
-            >
+            <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white">
               {title}
-            </h2>
+            </DialogTitle>
           </div>
 
           {/* Body */}
           <div className="px-6 py-4">
-            <p id="confirm-modal-description" className="text-gray-600 dark:text-gray-300">
+            <Description className="text-gray-600 dark:text-gray-300">
               {message}
-            </p>
+            </Description>
           </div>
 
           {/* Footer - Actions */}
@@ -112,7 +69,6 @@ function ConfirmModalBase({
               {cancelText}
             </button>
             <button
-              ref={confirmButtonRef}
               onClick={onConfirm}
               className={`px-4 py-2 rounded-lg text-white font-medium transition-colors ${
                 isDanger
@@ -125,9 +81,9 @@ function ConfirmModalBase({
               {confirmText}
             </button>
           </div>
-        </div>
+        </DialogPanel>
       </div>
-    </>
+    </Dialog>
   )
 }
 
