@@ -12,7 +12,7 @@ export default defineConfig({
   },
   dts: false,
   sourcemap: false,
-  clean: true,
+  clean: false,
   treeshake: false,
   splitting: false,
   external: ['react', 'react-dom'],

@@ -28,6 +28,7 @@ const (
 	colorMagenta = "\033[35m"
 	colorGreen   = "\033[32m"
 	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
 	colorDim     = "\033[2m"
 )
 
@@ -110,12 +111,12 @@ func main() {
 	}
 
 	if appletName != "" {
-		viteProc, err := setupApplet(root, appletName)
+		appletProcs, err := setupApplet(root, appletName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 			os.Exit(1)
 		}
-		processes = append(processes, *viteProc)
+		processes = append(processes, appletProcs...)
 	}
 
 	// Air always runs
@@ -133,7 +134,7 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func setupApplet(root, appletName string) (*processSpec, error) {
+func setupApplet(root, appletName string) ([]processSpec, error) {
 	applet, err := loadAppletConfig(filepath.Join(root, "scripts/applets.json"), appletName)
 	if err != nil {
 		return nil, err
@@ -176,13 +177,33 @@ func setupApplet(root, appletName string) (*processSpec, error) {
 	os.Setenv(fmt.Sprintf("IOTA_APPLET_ENTRY_%s", upperName), applet.EntryModule)
 	os.Setenv(fmt.Sprintf("IOTA_APPLET_CLIENT_%s", upperName), "/@vite/client")
 
+	// Build applet CSS before starting Vite (tailwindcss --watch needs TTY, may exit immediately)
+	fmt.Println("Building applet CSS...")
+	if err := runCommand(viteDir, "pnpm", "exec", "tailwindcss",
+		"-i", "src/index.css", "-o", "dist/style.css"); err != nil {
+		return nil, fmt.Errorf("Applet CSS build failed: %w", err)
+	}
+
 	fmt.Printf("Applet: %s\n", applet.Name)
 	fmt.Printf("URL:    http://localhost:%s%s\n", iotaPort, applet.BasePath)
 
-	return &processSpec{
-		Name: "vite", Command: "pnpm",
-		Args: []string{"-C", viteDir, "run", "dev:embedded"},
-		Dir:  root, Color: colorGreen, Critical: true,
+	return []processSpec{
+		{
+			Name: "sdk", Command: "pnpm",
+			Args: []string{"exec", "tsup", "--config", "tsup.dev.config.ts", "--watch"},
+			Dir:  root, Color: colorBlue, Critical: false,
+		},
+		{
+			Name: "acss", Command: "pnpm",
+			Args: []string{"-C", viteDir, "exec", "tailwindcss",
+				"-i", "src/index.css", "-o", "dist/style.css", "--watch"},
+			Dir: root, Color: colorMagenta, Critical: false,
+		},
+		{
+			Name: "vite", Command: "pnpm",
+			Args: []string{"-C", viteDir, "exec", "vite"},
+			Dir:  root, Color: colorGreen, Critical: true,
+		},
 	}, nil
 }
 
