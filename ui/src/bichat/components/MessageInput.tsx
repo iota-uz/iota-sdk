@@ -66,6 +66,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const [commandListDismissed, setCommandListDismissed] = useState(false)
     const [activeCommandIndex, setActiveCommandIndex] = useState(0)
     const [isComposing, setIsComposing] = useState(false)
+    const [dropSuccess, setDropSuccess] = useState(false)
 
     // Use override or translation
     const placeholder = placeholderOverride || t('input.placeholder')
@@ -163,8 +164,8 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       })
     }, [activeCommandIndex, filteredCommands.length, isCommandListVisible])
 
-    const handleFileSelect = async (files: FileList | null) => {
-      if (!files || files.length === 0) return
+    const handleFileSelect = async (files: FileList | null): Promise<boolean> => {
+      if (!files || files.length === 0) return false
 
       try {
         validateFileCount(attachments.length, files.length, maxFiles)
@@ -188,8 +189,10 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
         setAttachments((prev) => [...prev, ...newAttachments])
         setError(null)
+        return true
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to process files')
+        return false
       }
     }
 
@@ -219,7 +222,11 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       e.preventDefault()
       e.stopPropagation()
       setIsDragging(false)
-      await handleFileSelect(e.dataTransfer.files)
+      const ok = await handleFileSelect(e.dataTransfer.files)
+      if (ok) {
+        setDropSuccess(true)
+        setTimeout(() => setDropSuccess(false), 1500)
+      }
     }
 
     const submitCommandSelection = (command: string) => {
@@ -385,9 +392,18 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
               </div>
             )}
 
+            {/* Drop success feedback */}
+            {dropSuccess && (
+              <div className="absolute inset-0 z-10 bg-green-50/95 dark:bg-green-900/90 border-2 border-green-400 rounded-2xl flex items-center justify-center animate-pulse pointer-events-none">
+                <span className="text-sm text-green-700 dark:text-green-300 font-medium">
+                  {t('input.filesAdded')}
+                </span>
+              </div>
+            )}
+
             {/* Input container - using inline Tailwind classes */}
             <div
-              className={`flex items-center gap-2 rounded-2xl p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
+              className={`flex items-center gap-2 rounded-2xl p-1.5 sm:p-2.5 bg-white dark:bg-gray-800 border shadow-sm transition-all duration-150 ${
                 isFocused
                   ? 'border-primary-400 dark:border-primary-500 ring-2 ring-primary-500/25 dark:ring-primary-500/30'
                   : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
@@ -441,6 +457,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                   style={{ maxHeight: `${MAX_HEIGHT}px` }}
                   rows={1}
                   disabled={loading || disabled}
+                  aria-busy={loading}
                   aria-label="Message input"
                 />
               </div>
@@ -450,7 +467,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 type="submit"
                 disabled={!canSubmit}
                 className="cursor-pointer flex-shrink-0 self-center p-2 rounded-lg bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
-                aria-label={t('input.sendMessage')}
+                aria-label={loading ? t('input.processing') : t('input.sendMessage')}
               >
                 {loading ? (
                   <div className="w-[18px] h-[18px] border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
@@ -462,7 +479,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
 
             {isCommandListVisible && (
               <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-20 overflow-hidden rounded-2xl border border-gray-200/90 bg-white/95 shadow-xl backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/95">
-                <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
                   <span>{t('slash.commandsList')}</span>
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Enter</span>
                 </div>
@@ -501,7 +518,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                     {t('slash.noMatches')}
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 border-t border-gray-100 px-3 py-2 text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                <div className="flex items-center gap-1.5 border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">↑↓</span>
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Tab</span>
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Enter</span>

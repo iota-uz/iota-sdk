@@ -4,7 +4,7 @@
  */
 
 import { memo, type ReactNode } from 'react'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { fadeInVariants } from '../animations/variants'
 
 export interface EmptyStateProps {
@@ -49,6 +49,8 @@ function EmptyState({
   size = 'md',
 }: EmptyStateProps) {
   const sizes = sizeClasses[size]
+  const prefersReducedMotion = useReducedMotion()
+  const duration = prefersReducedMotion ? 0 : 0.4
 
   return (
     <motion.div
@@ -65,7 +67,7 @@ function EmptyState({
             className="mb-4 flex justify-center"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
+            transition={{ duration, delay: prefersReducedMotion ? 0 : 0.1 }}
           >
             {icon}
           </motion.div>
@@ -76,7 +78,7 @@ function EmptyState({
           className={`${sizes.title} font-medium text-gray-900 dark:text-white mb-2`}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
+          transition={{ duration, delay: prefersReducedMotion ? 0 : 0.2 }}
         >
           {title}
         </motion.h3>
@@ -87,7 +89,7 @@ function EmptyState({
             className={`${sizes.description} text-gray-500 dark:text-gray-400 mb-4`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3 }}
+            transition={{ duration, delay: prefersReducedMotion ? 0 : 0.3 }}
           >
             {description}
           </motion.p>
@@ -98,7 +100,7 @@ function EmptyState({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
+            transition={{ duration, delay: prefersReducedMotion ? 0 : 0.4 }}
           >
             {action}
           </motion.div>

@@ -467,7 +467,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bichat-thinking-shimmer {
+  .bichat-thinking-shimmer,
+  .animate-pulse,
+  .animate-bounce,
+  .animate-spin,
+  .animate-fade-in,
+  .animate-slide-up {
     animation: none;
   }
 }
@@ -533,7 +538,7 @@
 }
 
 .prose pre {
-  background-color: var(--bichat-color-gray-900);
+  background-color: var(--bichat-color-code-bg);
   color: var(--bichat-color-gray-100);
   padding: var(--bichat-spacing-4);
   border-radius: var(--bichat-radius-lg);

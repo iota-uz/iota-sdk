@@ -65,9 +65,11 @@ function CodeBlock({
   copiedLabel = 'Copied!',
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false)
+  const [copyFailed, setCopyFailed] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode)
   const [isLoaded, setIsLoaded] = useState(false)
   const copyTimeoutRef = useRef<number | null>(null)
+  const copyFailedTimeoutRef = useRef<number | null>(null)
 
   const normalizedLanguage = normalizeLanguage(language)
 
@@ -76,7 +78,7 @@ function CodeBlock({
     setIsDarkMode(document.documentElement.classList.contains('dark'))
     setIsLoaded(true)
 
-    // Watch for dark mode changes
+    // Watch for dark mode changes via class attribute
     const observer = new MutationObserver(() => {
       setIsDarkMode(document.documentElement.classList.contains('dark'))
     })
@@ -86,14 +88,27 @@ function CodeBlock({
       attributeFilter: ['class'],
     })
 
-    return () => observer.disconnect()
+    // Also listen for system prefers-color-scheme changes
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleMediaChange = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'))
+    }
+    mediaQuery.addEventListener('change', handleMediaChange)
+
+    return () => {
+      observer.disconnect()
+      mediaQuery.removeEventListener('change', handleMediaChange)
+    }
   }, [])
 
-  // Cleanup copy timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current !== null) {
         clearTimeout(copyTimeoutRef.current)
+      }
+      if (copyFailedTimeoutRef.current !== null) {
+        clearTimeout(copyFailedTimeoutRef.current)
       }
     }
   }, [])
@@ -102,6 +117,7 @@ function CodeBlock({
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
+      setCopyFailed(false)
       // Clear any existing timeout before setting a new one
       if (copyTimeoutRef.current !== null) {
         clearTimeout(copyTimeoutRef.current)
@@ -112,6 +128,14 @@ function CodeBlock({
       }, 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
+      setCopyFailed(true)
+      if (copyFailedTimeoutRef.current !== null) {
+        clearTimeout(copyFailedTimeoutRef.current)
+      }
+      copyFailedTimeoutRef.current = window.setTimeout(() => {
+        setCopyFailed(false)
+        copyFailedTimeoutRef.current = null
+      }, 2000)
     }
   }
 
@@ -143,7 +167,11 @@ function CodeBlock({
         </span>
         <button
           onClick={handleCopy}
-          className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-1.5"
+          className={`text-xs transition-colors flex items-center gap-1.5 ${
+            copyFailed
+              ? 'text-red-500 dark:text-red-400'
+              : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+          }`}
           title={copyLabel}
           aria-live="polite"
         >
@@ -155,7 +183,7 @@ function CodeBlock({
           ) : (
             <>
               <Copy size={16} className="w-4 h-4" />
-              <span>{copyLabel}</span>
+              <span>{copyFailed ? 'Failed' : copyLabel}</span>
             </>
           )}
         </button>

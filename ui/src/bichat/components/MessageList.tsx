@@ -6,10 +6,12 @@
  * a user message with its assistant response.
  */
 
-import { useEffect, useRef, ReactNode, useState } from 'react'
+import { useCallback, useEffect, useRef, ReactNode, useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useChat } from '../context/ChatContext'
 import { ConversationTurn } from '../types'
 import { TurnBubble } from './TurnBubble'
+import { TypingIndicator } from './TypingIndicator'
 import ScrollToBottomButton from './ScrollToBottomButton'
 import CompactionDoodle from './CompactionDoodle'
 import { useTranslation } from '../hooks/useTranslation'
@@ -19,19 +21,68 @@ interface MessageListProps {
   renderUserTurn?: (turn: ConversationTurn) => ReactNode
   /** Custom render function for assistant turns */
   renderAssistantTurn?: (turn: ConversationTurn) => ReactNode
+  /** Custom verbs for the typing indicator (e.g. ['Thinking', 'Analyzing', ...]) */
+  thinkingVerbs?: string[]
 }
 
-export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageListProps) {
+export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs }: MessageListProps) {
   const { t } = useTranslation()
-  const { turns, streamingContent, isStreaming, isCompacting, compactionSummary } = useChat()
+  const {
+    turns,
+    streamingContent,
+    isStreaming,
+    loading,
+    isCompacting,
+    compactionSummary,
+    currentSessionId,
+    fetching,
+  } = useChat()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const initialScrollSessionRef = useRef<string | undefined>(undefined)
   const [showScrollButton, setShowScrollButton] = useState(false)
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    const container = containerRef.current
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      })
+      return
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior })
+  }, [])
 
   // Auto-scroll to bottom on new turns or streaming content
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [turns.length, streamingContent])
+    scrollToBottom('smooth')
+  }, [turns.length, streamingContent, scrollToBottom])
+
+  // On first open of a session, jump to latest message immediately.
+  useEffect(() => {
+    if (fetching || !currentSessionId || currentSessionId === 'new') return
+    if (initialScrollSessionRef.current === currentSessionId) return
+
+    const runInitialScroll = () => {
+      scrollToBottom('auto')
+      setShowScrollButton(false)
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(runInitialScroll)
+    })
+    const timeoutOne = setTimeout(runInitialScroll, 80)
+    const timeoutTwo = setTimeout(runInitialScroll, 200)
+    const timeoutThree = setTimeout(runInitialScroll, 400)
+
+    initialScrollSessionRef.current = currentSessionId
+    return () => {
+      clearTimeout(timeoutOne)
+      clearTimeout(timeoutTwo)
+      clearTimeout(timeoutThree)
+    }
+  }, [currentSessionId, fetching, turns.length, scrollToBottom])
 
   // Scroll detection for ScrollToBottomButton
   useEffect(() => {
@@ -47,10 +98,6 @@ export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageList
     container.addEventListener('scroll', handleScroll)
     return () => container.removeEventListener('scroll', handleScroll)
   }, [])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -72,6 +119,33 @@ export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageList
               </p>
             </div>
           )}
+          {/* Loading skeleton when no turns yet */}
+          {fetching && turns.length === 0 && (
+            <div className="space-y-6" aria-hidden="true">
+              {/* User message skeleton */}
+              <div className="flex justify-end">
+                <div className="w-3/5 max-w-md rounded-2xl bg-gray-100 dark:bg-gray-800 p-4 space-y-2">
+                  <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                  <div className="h-3 w-4/5 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                </div>
+              </div>
+              {/* Assistant message skeleton */}
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+                <div className="w-4/5 max-w-lg rounded-2xl bg-gray-100 dark:bg-gray-800 p-4 space-y-2">
+                  <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                  <div className="h-3 w-5/6 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                  <div className="h-3 w-3/5 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                </div>
+              </div>
+              {/* Second user message skeleton */}
+              <div className="flex justify-end">
+                <div className="w-2/5 max-w-xs rounded-2xl bg-gray-100 dark:bg-gray-800 p-4 space-y-2">
+                  <div className="h-3 w-full rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                </div>
+              </div>
+            </div>
+          )}
           {turns.map((turn) => (
             <TurnBubble
               key={turn.id}
@@ -80,6 +154,20 @@ export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageList
               renderAssistantTurn={renderAssistantTurn}
             />
           ))}
+          {/* Typing Indicator — shown while waiting for first token */}
+          <AnimatePresence>
+            {loading && !streamingContent && !isCompacting && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <TypingIndicator verbs={thinkingVerbs} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {/* Streaming content — shown once tokens arrive */}
           {isStreaming && streamingContent && (
             <div className="flex gap-3">
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white">
@@ -96,7 +184,7 @@ export function MessageList({ renderUserTurn, renderAssistantTurn }: MessageList
           <div ref={messagesEndRef} />
         </div>
       </div>
-      <ScrollToBottomButton show={showScrollButton} onClick={scrollToBottom} />
+      <ScrollToBottomButton show={showScrollButton} onClick={() => scrollToBottom('smooth')} />
     </div>
   )
 }

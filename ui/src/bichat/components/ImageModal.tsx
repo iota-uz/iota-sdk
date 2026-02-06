@@ -4,9 +4,9 @@
  * Uses @headlessui/react Dialog for accessible modal behavior
  */
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
-import { X, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { X, CaretLeft, CaretRight, ArrowClockwise } from '@phosphor-icons/react'
 import type { ImageAttachment } from '../types'
 import { createDataUrl, formatFileSize } from '../utils/fileUtils'
 import LoadingSpinner from './LoadingSpinner'
@@ -57,6 +57,7 @@ function ImageModal({
 }: ImageModalProps) {
   const [isImageLoaded, setIsImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
   const hasMultipleImages = allAttachments && allAttachments.length > 1
   const canNavigatePrev = hasMultipleImages && currentIndex > 0
   const canNavigateNext =
@@ -84,6 +85,12 @@ function ImageModal({
     setImageError(false)
   }, [attachment])
 
+  const handleRetry = useCallback(() => {
+    setImageError(false)
+    setIsImageLoaded(false)
+    setRetryKey((k) => k + 1)
+  }, [])
+
   const previewUrl =
     attachment.preview || createDataUrl(attachment.base64Data, attachment.mimeType)
 
@@ -106,28 +113,38 @@ function ImageModal({
           </button>
 
           {/* Image Container */}
-          <div className="flex flex-col items-center justify-center w-full h-full max-w-4xl">
+          <div className="flex flex-col items-center justify-center w-full h-full max-w-[95vw]">
             {/* Image Loading State */}
             {!isImageLoaded && !imageError && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center" aria-label="Loading image">
                 <LoadingSpinner />
               </div>
             )}
 
             {/* Error State */}
             {imageError && (
-              <div className="flex flex-col items-center justify-center text-white">
+              <div role="alert" className="flex flex-col items-center justify-center text-white">
                 <p className="text-lg font-medium mb-2">Failed to load image</p>
-                <p className="text-sm text-gray-300">{attachment.filename}</p>
+                <p className="text-sm text-gray-300 mb-4">{attachment.filename}</p>
+                <button
+                  type="button"
+                  onClick={handleRetry}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors duration-200"
+                  aria-label="Retry loading image"
+                >
+                  <ArrowClockwise size={18} />
+                  <span>Retry</span>
+                </button>
               </div>
             )}
 
             {/* Image */}
             <img
+              key={retryKey}
               src={previewUrl}
               alt={attachment.filename}
               className={`
-                max-w-4xl max-h-screen object-contain
+                max-w-[95vw] max-h-[85vh] object-contain
                 transition-opacity duration-200
                 ${isImageLoaded ? 'opacity-100' : 'opacity-0'}
               `}
@@ -155,10 +172,11 @@ function ImageModal({
           {hasMultipleImages && (
             <button
               onClick={() => onNavigate?.('prev')}
-              disabled={!canNavigatePrev}
+              disabled={!canNavigatePrev || !isImageLoaded || imageError}
               className={`
                 absolute left-4 z-40 flex items-center justify-center w-12 h-12
                 rounded-full transition-all duration-200
+                disabled:opacity-40 disabled:cursor-not-allowed
                 ${
                   canNavigatePrev
                     ? 'bg-white/10 hover:bg-white/20 text-white cursor-pointer'
@@ -176,10 +194,11 @@ function ImageModal({
           {hasMultipleImages && (
             <button
               onClick={() => onNavigate?.('next')}
-              disabled={!canNavigateNext}
+              disabled={!canNavigateNext || !isImageLoaded || imageError}
               className={`
                 absolute right-4 z-40 flex items-center justify-center w-12 h-12
                 rounded-full transition-all duration-200
+                disabled:opacity-40 disabled:cursor-not-allowed
                 ${
                   canNavigateNext
                     ? 'bg-white/10 hover:bg-white/20 text-white cursor-pointer'

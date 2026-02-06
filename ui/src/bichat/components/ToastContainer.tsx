@@ -16,7 +16,7 @@ interface ToastContainerProps {
 
 export function ToastContainer({ toasts, onDismiss, dismissLabel }: ToastContainerProps) {
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed top-4 right-4 sm:top-6 sm:right-6 z-50 flex flex-col gap-2 pointer-events-none">
       <AnimatePresence>
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto">

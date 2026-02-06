@@ -4,7 +4,7 @@
  * Clean, professional design for enterprise BI applications
  */
 
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { ChartBar, FileText, Lightbulb, type Icon } from '@phosphor-icons/react'
 
 interface ExamplePrompt {
@@ -49,6 +49,17 @@ const containerVariants = {
   }
 }
 
+const reducedContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0,
+      delayChildren: 0
+    }
+  }
+}
+
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
   visible: {
@@ -61,29 +72,45 @@ const itemVariants = {
   }
 }
 
+const reducedItemVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0
+    }
+  }
+}
+
 function WelcomeContent({
   onPromptSelect,
   title = 'Welcome to BiChat',
   description = 'Your intelligent business analytics assistant. Ask questions about your data, generate reports, or explore insights.',
   disabled = false
 }: WelcomeContentProps) {
+  const shouldReduceMotion = useReducedMotion()
+
   const handlePromptClick = (prompt: string) => {
     if (onPromptSelect && !disabled) {
       onPromptSelect(prompt)
     }
   }
 
+  const activeContainerVariants = shouldReduceMotion ? reducedContainerVariants : containerVariants
+  const activeItemVariants = shouldReduceMotion ? reducedItemVariants : itemVariants
+
   return (
     <motion.div
       className="w-full max-w-3xl mx-auto px-6 py-12 text-center"
-      variants={containerVariants}
+      variants={activeContainerVariants}
       initial="hidden"
       animate="visible"
     >
       {/* Title */}
       <motion.h1
         className="text-3xl sm:text-4xl font-semibold text-gray-900 dark:text-white mb-4"
-        variants={itemVariants}
+        variants={activeItemVariants}
       >
         {title}
       </motion.h1>
@@ -91,13 +118,13 @@ function WelcomeContent({
       {/* Description */}
       <motion.p
         className="text-base text-gray-500 dark:text-gray-400 mb-12 max-w-xl mx-auto leading-relaxed"
-        variants={itemVariants}
+        variants={activeItemVariants}
       >
         {description}
       </motion.p>
 
       {/* Example prompts */}
-      <motion.div variants={itemVariants}>
+      <motion.div variants={activeItemVariants}>
         <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-4">
           Try asking
         </p>
@@ -109,9 +136,10 @@ function WelcomeContent({
               onClick={() => handlePromptClick(prompt.text)}
               disabled={disabled}
               className="cursor-pointer group flex flex-col items-start text-left p-5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
-              variants={itemVariants}
-              whileHover={disabled ? {} : { y: -2 }}
-              whileTap={disabled ? {} : { scale: 0.98 }}
+              variants={activeItemVariants}
+              whileHover={disabled || shouldReduceMotion ? {} : { y: -2 }}
+              whileTap={disabled || shouldReduceMotion ? {} : { scale: 0.98 }}
+              aria-label={`${prompt.category}: ${prompt.text}`}
             >
               {/* Icon */}
               <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/30 flex items-center justify-center mb-3 transition-colors duration-200">
