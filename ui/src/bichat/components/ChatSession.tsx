@@ -105,33 +105,56 @@ function ChatSessionCore({
         <ChatHeader session={session} onBack={onBack} logoSlot={logoSlot} actionsSlot={actionsSlot} />
       )}
 
-      {/* Welcome screen or message list */}
+      {/* Welcome: single centered unit (content + input + disclaimer) */}
       {showWelcome ? (
-        <div className="flex-1 flex items-center justify-center overflow-auto">
-          {welcomeSlot || <WelcomeContent onPromptSelect={handlePromptSelect} disabled={loading} />}
+        <div className="flex-1 overflow-auto flex flex-col">
+          <div className="flex-1 flex items-center justify-center px-4 py-8">
+            <div className="w-full max-w-5xl">
+              {welcomeSlot || <WelcomeContent onPromptSelect={handlePromptSelect} disabled={loading} />}
+              {!isReadOnly && (
+                <MessageInput
+                  message={message}
+                  loading={loading}
+                  fetching={fetching}
+                  commandError={inputError}
+                  onClearCommandError={() => setInputError(null)}
+                  debugMode={debugMode}
+                  onMessageChange={setMessage}
+                  onSubmit={handleSubmit}
+                  messageQueue={messageQueue}
+                  onUnqueue={handleUnqueue}
+                  containerClassName="pt-6 px-6"
+                  formClassName="mx-auto"
+                />
+              )}
+              <p className="text-center text-xs text-gray-500 dark:text-gray-400 pb-1">
+                {t('welcome.disclaimer')}
+              </p>
+            </div>
+          </div>
         </div>
       ) : (
-        <MessageList
-          renderUserTurn={renderUserTurn}
-          renderAssistantTurn={renderAssistantTurn}
-          thinkingVerbs={thinkingVerbs}
-        />
-      )}
-
-      {/* Input area */}
-      {!isReadOnly && (
-        <MessageInput
-          message={message}
-          loading={loading}
-          fetching={fetching}
-          commandError={inputError}
-          onClearCommandError={() => setInputError(null)}
-          debugMode={debugMode}
-          onMessageChange={setMessage}
-          onSubmit={handleSubmit}
-          messageQueue={messageQueue}
-          onUnqueue={handleUnqueue}
-        />
+        <>
+          <MessageList
+            renderUserTurn={renderUserTurn}
+            renderAssistantTurn={renderAssistantTurn}
+            thinkingVerbs={thinkingVerbs}
+          />
+          {!isReadOnly && (
+            <MessageInput
+              message={message}
+              loading={loading}
+              fetching={fetching}
+              commandError={inputError}
+              onClearCommandError={() => setInputError(null)}
+              debugMode={debugMode}
+              onMessageChange={setMessage}
+              onSubmit={handleSubmit}
+              messageQueue={messageQueue}
+              onUnqueue={handleUnqueue}
+            />
+          )}
+        </>
       )}
     </main>
   )

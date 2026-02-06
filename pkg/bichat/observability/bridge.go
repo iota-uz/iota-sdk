@@ -19,6 +19,7 @@ type simplePendingGeneration struct {
 	messages        int
 	tools           int
 	estimatedTokens int
+	userInput       string
 }
 
 // EventBridge connects BiChat's EventBus to observability providers.
@@ -181,6 +182,7 @@ func (h *llmRequestHandler) Handle(ctx context.Context, event hooks.Event) error
 		messages:        llmEvent.Messages,
 		tools:           llmEvent.Tools,
 		estimatedTokens: llmEvent.EstimatedTokens,
+		userInput:       llmEvent.UserInput,
 	}
 
 	return nil
@@ -233,9 +235,11 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 	// Populate observation with correlated data (graceful degradation)
 	promptMessages := 0
 	tools := 0
+	userInput := ""
 	if matchedGen != nil {
 		promptMessages = matchedGen.messages
 		tools = matchedGen.tools
+		userInput = matchedGen.userInput
 	}
 
 	obs := GenerationObservation{
@@ -255,6 +259,8 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		FinishReason:     e.FinishReason,
 		ToolCalls:        e.ToolCalls,
 		Duration:         time.Duration(e.LatencyMs) * time.Millisecond,
+		Input:            userInput,
+		Output:           e.ResponseText,
 		Attributes:       make(map[string]interface{}),
 	}
 

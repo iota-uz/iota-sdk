@@ -270,6 +270,15 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					estimatedTokens, _ = e.tokenEstimator.EstimateMessages(ctx, req.Messages)
 				}
 
+				// Extract last user message content for trace Input
+				userInput := ""
+				for i := len(req.Messages) - 1; i >= 0; i-- {
+					if req.Messages[i].Role() == types.RoleUser {
+						userInput = req.Messages[i].Content()
+						break
+					}
+				}
+
 				_ = e.eventBus.Publish(ctx, events.NewLLMRequestEvent(
 					input.SessionID,
 					input.TenantID,
@@ -278,6 +287,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					len(req.Messages),
 					len(req.Tools),
 					estimatedTokens,
+					userInput,
 				))
 			}
 
@@ -298,6 +308,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			var responseMessage types.Message
 			var chunks []string
 			var toolCalls []types.ToolCall
+			var citations []types.Citation
 			var usage *types.TokenUsage
 			var finishReason string
 			startTime := time.Now()
@@ -333,14 +344,19 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				if chunk.Done {
 					usage = chunk.Usage
 					finishReason = chunk.FinishReason
+					citations = chunk.Citations
 				}
 			}
 
 			// Close generator immediately after exhausting
 			gen.Close()
 
-			// Build response message
-			responseMessage = types.AssistantMessage(joinStrings(chunks), types.WithToolCalls(toolCalls...))
+			// Build response message with all metadata
+			msgOpts := []types.MessageOption{types.WithToolCalls(toolCalls...)}
+			if len(citations) > 0 {
+				msgOpts = append(msgOpts, types.WithCitations(citations...))
+			}
+			responseMessage = types.AssistantMessage(joinStrings(chunks), msgOpts...)
 			messages = append(messages, responseMessage)
 
 			// Emit LLM response event
@@ -350,6 +366,9 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				if usage != nil {
 					usageTokens = *usage
 				}
+
+				// Get accumulated response text for trace Output
+				responseText := joinStrings(chunks)
 
 				// Use appropriate event constructor based on cache token presence
 				var responseEvent *events.LLMResponseEvent
@@ -367,6 +386,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						time.Since(startTime).Milliseconds(),
 						finishReason,
 						len(toolCalls),
+						responseText,
 					)
 				} else {
 					responseEvent = events.NewLLMResponseEvent(
@@ -380,6 +400,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 						time.Since(startTime).Milliseconds(),
 						finishReason,
 						len(toolCalls),
+						responseText,
 					)
 				}
 				_ = e.eventBus.Publish(ctx, responseEvent)

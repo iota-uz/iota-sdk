@@ -15,6 +15,8 @@ export const defaultTranslations: Translations = {
   'welcome.description':
     'Your intelligent business analytics assistant. Ask questions about your data, generate reports, or explore insights.',
   'welcome.tryAsking': 'Try asking',
+  'welcome.quickStart': 'Quick Start',
+  'welcome.disclaimer': 'BiChat is powered by AI. Mistakes are possible.',
 
   // Chat header
   'chat.newChat': 'New Chat',

@@ -12,6 +12,7 @@ import {
   WelcomeContent,
   MessageList,
   MessageInput,
+  useTranslation,
 } from '@iota-uz/sdk/bichat'
 import { useBiChatDataSource } from '../data/bichatDataSource'
 import { toRPCErrorDisplay } from '../utils/rpcErrors'
@@ -21,6 +22,7 @@ type LocationState = {
 }
 
 function LandingChat({ initialPrompt }: { initialPrompt: string }) {
+  const { t } = useTranslation()
   const {
     session,
     turns,
@@ -95,31 +97,54 @@ function LandingChat({ initialPrompt }: { initialPrompt: string }) {
       <ChatHeader session={session} />
 
       {showWelcome ? (
-        <div className="flex-1 flex items-center justify-center overflow-auto">
-          <WelcomeContent
-            onPromptSelect={(prompt: string) => {
-              void sendMessage(prompt)
-            }}
-            disabled={loading}
-          />
+        <div className="flex-1 overflow-auto flex flex-col">
+          <div className="flex-1 flex items-center justify-center px-4 py-8">
+            <div className="w-full max-w-5xl">
+              <WelcomeContent
+                onPromptSelect={(prompt: string) => {
+                  void sendMessage(prompt)
+                }}
+                disabled={loading}
+              />
+              <MessageInput
+                message={message}
+                loading={loading}
+                fetching={fetching}
+                commandError={inputError}
+                onClearCommandError={() => setInputError(null)}
+                debugMode={debugMode}
+                onMessageChange={setMessage}
+                onSubmit={handleSubmit}
+                messageQueue={messageQueue}
+                onUnqueue={handleUnqueue}
+                placeholder="Ask BiChat about your business data..."
+                containerClassName="pt-6 px-6"
+                formClassName="mx-auto"
+              />
+              <p className="text-center text-xs text-gray-500 dark:text-gray-400 pb-1">
+                {t('welcome.disclaimer')}
+              </p>
+            </div>
+          </div>
         </div>
       ) : (
-        <MessageList />
+        <>
+          <MessageList />
+          <MessageInput
+            message={message}
+            loading={loading}
+            fetching={fetching}
+            commandError={inputError}
+            onClearCommandError={() => setInputError(null)}
+            debugMode={debugMode}
+            onMessageChange={setMessage}
+            onSubmit={handleSubmit}
+            messageQueue={messageQueue}
+            onUnqueue={handleUnqueue}
+            placeholder="Ask BiChat about your business data..."
+          />
+        </>
       )}
-
-      <MessageInput
-        message={message}
-        loading={loading}
-        fetching={fetching}
-        commandError={inputError}
-        onClearCommandError={() => setInputError(null)}
-        debugMode={debugMode}
-        onMessageChange={setMessage}
-        onSubmit={handleSubmit}
-        messageQueue={messageQueue}
-        onUnqueue={handleUnqueue}
-        placeholder="Ask BiChat about your business data..."
-      />
     </main>
   )
 }

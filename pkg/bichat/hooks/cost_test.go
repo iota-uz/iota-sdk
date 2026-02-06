@@ -40,6 +40,7 @@ func TestCostTracker_TrackLLMResponse(t *testing.T) {
 		1500,   // latency ms
 		"stop", // finish reason
 		0,      // tool calls
+		"",     // response text
 	)
 
 	err := tracker.Handle(ctx, event)
@@ -98,13 +99,13 @@ func TestCostTracker_MultipleSessions(t *testing.T) {
 	session2 := uuid.New()
 
 	// Session 1: 500 prompt + 1000 completion
-	event1 := events.NewLLMResponseEvent(session1, tenantID, "gpt-4", "openai", 500, 1000, 1500, 1000, "stop", 0)
+	event1 := events.NewLLMResponseEvent(session1, tenantID, "gpt-4", "openai", 500, 1000, 1500, 1000, "stop", 0, "")
 	if err := tracker.Handle(ctx, event1); err != nil {
 		t.Fatalf("Failed to handle event1: %v", err)
 	}
 
 	// Session 2: 300 prompt + 600 completion
-	event2 := events.NewLLMResponseEvent(session2, tenantID, "gpt-4", "openai", 300, 600, 900, 800, "stop", 0)
+	event2 := events.NewLLMResponseEvent(session2, tenantID, "gpt-4", "openai", 300, 600, 900, 800, "stop", 0, "")
 	if err := tracker.Handle(ctx, event2); err != nil {
 		t.Fatalf("Failed to handle event2: %v", err)
 	}
@@ -163,7 +164,7 @@ func TestCostTracker_UnknownModel(t *testing.T) {
 	tenantID := uuid.New()
 
 	// Publish event for unknown model
-	event := events.NewLLMResponseEvent(sessionID, tenantID, "unknown-model", "provider", 1000, 2000, 3000, 1000, "stop", 0)
+	event := events.NewLLMResponseEvent(sessionID, tenantID, "unknown-model", "provider", 1000, 2000, 3000, 1000, "stop", 0, "")
 	err := tracker.Handle(ctx, event)
 	if err != nil {
 		t.Fatalf("Expected no error (should silently skip), got: %v", err)
@@ -189,7 +190,7 @@ func TestCostTracker_Reset(t *testing.T) {
 	sessionID := uuid.New()
 
 	// Track some cost
-	event := events.NewLLMResponseEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 1000, 2000, 3000, 1000, "stop", 0)
+	event := events.NewLLMResponseEvent(sessionID, tenantID, "claude-3-5-sonnet", "anthropic", 1000, 2000, 3000, 1000, "stop", 0, "")
 	if err := tracker.Handle(ctx, event); err != nil {
 		t.Fatalf("Failed to handle event: %v", err)
 	}
@@ -236,7 +237,8 @@ func TestCostTracker_CacheTokens(t *testing.T) {
 		2000, // cache read tokens (50% discount applies)
 		1000, // latency ms
 		"stop",
-		0, // tool calls
+		0,  // tool calls
+		"", // response text
 	)
 
 	err := tracker.Handle(ctx, event)
@@ -309,6 +311,7 @@ func TestCostTracker_CacheTokensWithWrite(t *testing.T) {
 		800,  // latency ms
 		"stop",
 		0,
+		"", // response text
 	)
 
 	err := tracker.Handle(ctx, event)
@@ -366,6 +369,7 @@ func TestCostTracker_ModelWithoutCachePricing(t *testing.T) {
 		600,  // latency ms
 		"stop",
 		0,
+		"", // response text
 	)
 
 	err := tracker.Handle(ctx, event)

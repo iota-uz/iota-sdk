@@ -58,6 +58,10 @@ type GenerationObservation struct {
 	CompletionText   string        // Optional: completion text for debugging (may contain PII)
 	Duration         time.Duration // Total duration
 
+	// Input/Output for trace visualization
+	Input  interface{} // Prompt messages or user input
+	Output interface{} // LLM response text
+
 	// Metadata
 	Attributes map[string]interface{} // Extensible metadata (tags, custom fields)
 }

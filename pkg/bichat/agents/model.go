@@ -310,4 +310,13 @@ type Chunk struct {
 
 	// Done indicates this is the final chunk.
 	Done bool
+
+	// Citations contains web search citations (only present on the final chunk).
+	Citations []types.Citation
+
+	// CodeInterpreterResults contains code execution results (only present on the final chunk).
+	CodeInterpreterResults []types.CodeInterpreterResult
+
+	// FileAnnotations contains file references from code interpreter (only present on the final chunk).
+	FileAnnotations []types.FileAnnotation
 }

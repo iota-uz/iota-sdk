@@ -32,6 +32,7 @@ export interface MessageInputProps {
   maxFiles?: number
   maxFileSize?: number
   containerClassName?: string
+  formClassName?: string
 }
 
 const MAX_FILES_DEFAULT = 10
@@ -56,6 +57,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       maxFiles = MAX_FILES_DEFAULT,
       maxFileSize = MAX_FILE_SIZE_DEFAULT,
       containerClassName,
+      formClassName,
     },
     ref
   ) => {
@@ -334,14 +336,14 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const canSubmit = !loading && !disabled && (message.trim() || attachments.length > 0)
     const visibleError = error || commandError
     const visibleErrorText = visibleError ? t(visibleError) : ''
-    const defaultContainerClassName = "shrink-0 p-4 pb-6"
+    const defaultContainerClassName = "shrink-0 px-2 pt-4 pb-6"
 
     return (
       <div
         ref={containerRef}
         className={containerClassName ?? defaultContainerClassName}
       >
-        <form ref={formRef} onSubmit={handleFormSubmit} className="max-w-4xl mx-auto">
+        <form ref={formRef} onSubmit={handleFormSubmit} className={formClassName ?? "max-w-5xl mx-auto"}>
           {/* Error display */}
           {visibleError && (
             <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400 flex items-center justify-between">

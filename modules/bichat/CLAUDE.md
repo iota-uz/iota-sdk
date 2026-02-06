@@ -208,7 +208,7 @@ OPENAI_API_KEY=sk-...
 DATABASE_URL=postgres://...
 
 # Optional
-OPENAI_MODEL=gpt-4-turbo          # default: gpt-4
+OPENAI_MODEL=gpt-5.2-2025-12-11         # default: gpt-5.2-2025-12-11
 BICHAT_CONTEXT_WINDOW=180000      # default: 200k
 BICHAT_COMPLETION_RESERVE=8000    # default: 8k
 ```
