@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -52,9 +53,13 @@ func Migrate(mods ...application.Module) error {
 }
 
 // printMigrationStatus prints the status of migrations in a formatted table
-func printMigrationStatus(statuses []application.MigrationStatus) {
-	fmt.Println("Migration ID                    Status      Applied At")
-	fmt.Println("-----------------------------------------------------------")
+func printMigrationStatus(w io.Writer, statuses []application.MigrationStatus) error {
+	if _, err := fmt.Fprintln(w, "Migration ID                    Status      Applied At"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "-----------------------------------------------------------"); err != nil {
+		return err
+	}
 	for _, status := range statuses {
 		appliedStatus := "pending"
 		appliedAt := "-"
@@ -64,8 +69,11 @@ func printMigrationStatus(statuses []application.MigrationStatus) {
 				appliedAt = status.AppliedAt.Format("2006-01-02 15:04:05")
 			}
 		}
-		fmt.Printf("%-30s  %-10s  %s\n", status.ID, appliedStatus, appliedAt)
+		if _, err := fmt.Fprintf(w, "%-30s  %-10s  %s\n", status.ID, appliedStatus, appliedAt); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func handleMigrationCommands(
@@ -94,7 +102,9 @@ func handleMigrationCommands(
 		if err != nil {
 			return fmt.Errorf("failed to get migration status: %w", err)
 		}
-		printMigrationStatus(statuses)
+		if err := printMigrationStatus(os.Stdout, statuses); err != nil {
+			return fmt.Errorf("failed to print migration status: %w", err)
+		}
 
 	default:
 		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", command)

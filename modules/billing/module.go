@@ -37,6 +37,8 @@ func NewModule() application.Module {
 //		return nil // return nil for success, error for failure
 //	})
 func (m *Module) Register(app application.Application) error {
+	_ = migrationFiles
+
 	conf := configuration.Use()
 
 	logTransport := middleware.NewLogTransport(

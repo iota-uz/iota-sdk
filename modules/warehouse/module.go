@@ -32,6 +32,8 @@ type Module struct {
 }
 
 func (m *Module) Register(app application.Application) error {
+	_ = migrationFiles
+
 	unitRepo := persistence.NewUnitRepository()
 	positionRepo := persistence.NewPositionRepository()
 	productRepo := persistence.NewProductRepository()
