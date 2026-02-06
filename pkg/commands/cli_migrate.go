@@ -11,22 +11,24 @@ func NewMigrateCommand() *cobra.Command {
 	migrateCmd := &cobra.Command{
 		Use:   "migrate",
 		Short: "Database migration management",
-		Long:  `Manage database schema migrations including applying, rolling back, and collecting schema changes.`,
+		Long:  `Manage database schema migrations: apply, roll back, or redo.`,
 		Example: `  # Apply all pending migrations
   command migrate up
 
   # Rollback last migration
   command migrate down
 
-  # Collect schema changes
-  command migrate collect`,
+  # Rollback and reapply last migration
+  command migrate redo
+
+  # Show migration status
+  command migrate status`,
 	}
 
-	// Add all migrate subcommands
 	migrateCmd.AddCommand(newMigrateUpCmd())
 	migrateCmd.AddCommand(newMigrateDownCmd())
 	migrateCmd.AddCommand(newMigrateRedoCmd())
-	migrateCmd.AddCommand(newMigrateCollectCmd())
+	migrateCmd.AddCommand(newMigrateStatusCmd())
 
 	return migrateCmd
 }
@@ -64,13 +66,13 @@ func newMigrateRedoCmd() *cobra.Command {
 	}
 }
 
-func newMigrateCollectCmd() *cobra.Command {
+func newMigrateStatusCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "collect",
-		Short: "Collect schema migrations from modules",
-		Long:  `Scans all modules for schema changes and collects them into migration files.`,
+		Use:   "status",
+		Short: "Show migration status",
+		Long:  `Displays the status of all migrations, showing which are applied and which are pending.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return MigrateWithSubcommand("collect", modules.BuiltInModules...)
+			return MigrateWithSubcommand("status", modules.BuiltInModules...)
 		},
 	}
 }

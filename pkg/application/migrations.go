@@ -2,9 +2,7 @@ package application
 
 import (
 	"context"
-	"embed"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -15,69 +13,39 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/schema/collector"
 )
+
+// MigrationStatus represents the status of a single migration
+type MigrationStatus struct {
+	ID        string
+	Applied   bool
+	AppliedAt *time.Time
+}
 
 // MigrationManager is an interface for handling database migrations
 type MigrationManager interface {
-	// CollectSchema collects schema changes from embedded modules and generates SQL migration
-	CollectSchema(ctx context.Context) error
 	// Run applies pending migrations to the database
 	Run() error
 	// Rollback rolls back the last applied migration
 	Rollback() error
-	// RegisterSchema registers an embedded filesystem containing schema definitions
-	RegisterSchema(fs ...*embed.FS)
-	// SchemaFSs returns all registered schema embedded filesystems
-	SchemaFSs() []*embed.FS
+	// Status returns the status of all migrations (applied and pending)
+	Status(ctx context.Context) ([]MigrationStatus, error)
 }
 
 func NewMigrationManager(pool *pgxpool.Pool) MigrationManager {
 	conf := configuration.Use()
 	return &migrationManager{
-		migrationsDir:  conf.MigrationsDir,
-		logger:         conf.Logger(),
-		pool:           pool,
-		schemaEmbedFSs: make([]*embed.FS, 0),
+		migrationsDir: conf.MigrationsDir,
+		logger:        conf.Logger(),
+		pool:          pool,
 	}
 }
 
 // migrationManager implements the MigrationManager interface
 type migrationManager struct {
-	migrationsDir  string
-	logger         logrus.FieldLogger
-	pool           *pgxpool.Pool
-	schemaEmbedFSs []*embed.FS // For schema definitions in embed.FS
-}
-
-func (m *migrationManager) SchemaFSs() []*embed.FS {
-	return m.schemaEmbedFSs
-}
-
-func (m *migrationManager) RegisterSchema(fs ...*embed.FS) {
-	m.schemaEmbedFSs = append(m.schemaEmbedFSs, fs...)
-}
-
-// CollectSchema collects schema changes from embedded module.FS and generates SQL migration
-func (m *migrationManager) CollectSchema(ctx context.Context) error {
-	if err := os.MkdirAll(m.migrationsDir, 0755); err != nil {
-		return fmt.Errorf("failed to create migrations directory: %w", err)
-	}
-
-	schemaCollector := collector.New(collector.Config{
-		MigrationsPath: m.migrationsDir,
-		LogLevel:       logrus.InfoLevel,
-		EmbedFSs:       m.schemaEmbedFSs,
-	})
-
-	// Collect migrations
-	upChanges, downChanges, err := schemaCollector.CollectMigrations(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to collect migrations: %w", err)
-	}
-
-	// Store migrations to file
-	return schemaCollector.StoreMigrations(upChanges, downChanges)
+	migrationsDir string
+	logger        logrus.FieldLogger
+	pool          *pgxpool.Pool
 }
 
 func newTxError(migration *migrate.PlannedMigration, err error) *migrate.TxError {
@@ -191,4 +159,49 @@ func (m *migrationManager) Rollback() error {
 	}
 	m.logger.Infof("Rolled back %d migrations", applied)
 	return nil
+}
+
+// Status returns the status of all migrations (applied and pending)
+func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error) {
+	db := stdlib.OpenDB(*m.pool.Config().ConnConfig)
+	migrationSource := &migrate.FileMigrationSource{
+		Dir: m.migrationsDir,
+	}
+
+	// Get all migrations from source
+	migrations, err := migrationSource.FindMigrations()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find migrations: %w", err)
+	}
+
+	// Get applied migrations from database
+	ms := migrate.MigrationSet{}
+	records, err := ms.GetMigrationRecords(db, "postgres")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get migration records: %w", err)
+	}
+
+	// Create a map of applied migrations for quick lookup
+	appliedMap := make(map[string]time.Time)
+	for _, record := range records {
+		appliedMap[record.Id] = record.AppliedAt
+	}
+
+	// Build status list
+	statuses := make([]MigrationStatus, 0, len(migrations))
+	for _, migration := range migrations {
+		status := MigrationStatus{
+			ID: migration.Id,
+		}
+		if appliedAt, found := appliedMap[migration.Id]; found {
+			status.Applied = true
+			status.AppliedAt = &appliedAt
+		} else {
+			status.Applied = false
+			status.AppliedAt = nil
+		}
+		statuses = append(statuses, status)
+	}
+
+	return statuses, nil
 }

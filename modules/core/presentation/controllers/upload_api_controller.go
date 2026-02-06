@@ -136,7 +136,9 @@ func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
 		c.writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	// Build DTO
 	dto := &upload.CreateDTO{
@@ -214,5 +216,7 @@ func (c *UploadAPIController) writeJSON(w http.ResponseWriter, data interface{})
 func (c *UploadAPIController) writeJSONError(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
