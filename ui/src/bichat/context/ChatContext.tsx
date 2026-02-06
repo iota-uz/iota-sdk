@@ -19,6 +19,7 @@ import type {
   CodeOutput,
   ChatSessionContextValue,
   DebugTrace,
+  ToolCall,
 } from '../types'
 import { RateLimiter } from '../utils/RateLimiter'
 import { hasPermission } from './IotaContext'
@@ -93,8 +94,86 @@ function parseSlashCommand(input: string): ParsedSlashCommand | null {
   }
 }
 
+function hasMeaningfulUsage(trace?: DebugTrace['usage']): boolean {
+  if (!trace) return false
+  return (
+    trace.promptTokens > 0 ||
+    trace.completionTokens > 0 ||
+    trace.totalTokens > 0 ||
+    (trace.cachedTokens ?? 0) > 0 ||
+    (trace.cost ?? 0) > 0
+  )
+}
+
 function hasDebugTrace(trace: DebugTrace): boolean {
-  return trace.tools.length > 0 || !!trace.usage || !!trace.generationMs
+  return trace.tools.length > 0 || hasMeaningfulUsage(trace.usage) || !!trace.generationMs
+}
+
+function inferDebugTraceFromToolCalls(toolCalls?: ToolCall[]): DebugTrace | null {
+  if (!toolCalls || toolCalls.length === 0) {
+    return null
+  }
+
+  const tools = toolCalls
+    .filter((call) => !!call.name)
+    .map((call) => ({
+      callId: call.id,
+      name: call.name,
+      arguments: call.arguments,
+      result: call.result,
+      error: call.error,
+      durationMs: call.durationMs,
+    }))
+
+  if (tools.length === 0) {
+    return null
+  }
+
+  return { tools }
+}
+
+function hydrateDebugTraceFromToolCalls(turns: ConversationTurn[]): ConversationTurn[] {
+  let changed = false
+  const hydrated = turns.map((turn) => {
+    const assistantTurn = turn.assistantTurn
+    if (!assistantTurn) {
+      return turn
+    }
+
+    const inferred = inferDebugTraceFromToolCalls(assistantTurn.toolCalls)
+    if (!inferred) {
+      return turn
+    }
+
+    if (!assistantTurn.debug) {
+      changed = true
+      return {
+        ...turn,
+        assistantTurn: {
+          ...assistantTurn,
+          debug: inferred,
+        },
+      }
+    }
+
+    if (assistantTurn.debug.tools.length > 0) {
+      return turn
+    }
+
+    changed = true
+    return {
+      ...turn,
+      assistantTurn: {
+        ...assistantTurn,
+        debug: {
+          ...assistantTurn.debug,
+          tools: inferred.tools,
+        },
+      },
+    }
+  })
+
+  return changed ? hydrated : turns
 }
 
 function attachDebugTraceToLatestTurn(turns: ConversationTurn[], trace: DebugTrace): ConversationTurn[] {
@@ -120,6 +199,52 @@ function attachDebugTraceToLatestTurn(turns: ConversationTurn[], trace: DebugTra
   }
 
   return turns
+}
+
+function mergeDebugTraceFromPreviousTurns(previousTurns: ConversationTurn[], nextTurns: ConversationTurn[]): ConversationTurn[] {
+  if (previousTurns.length === 0 || nextTurns.length === 0) {
+    return nextTurns
+  }
+
+  const debugByAssistantTurnID = new Map<string, DebugTrace>()
+  for (const turn of previousTurns) {
+    const assistantTurn = turn.assistantTurn
+    if (assistantTurn?.debug) {
+      debugByAssistantTurnID.set(assistantTurn.id, assistantTurn.debug)
+    }
+  }
+
+  if (debugByAssistantTurnID.size === 0) {
+    return nextTurns
+  }
+
+  let changed = false
+  const merged = nextTurns.map((turn) => {
+    const assistantTurn = turn.assistantTurn
+    if (!assistantTurn) {
+      return turn
+    }
+
+    if (assistantTurn.debug) {
+      return turn
+    }
+
+    const debug = debugByAssistantTurnID.get(assistantTurn.id)
+    if (!debug) {
+      return turn
+    }
+
+    changed = true
+    return {
+      ...turn,
+      assistantTurn: {
+        ...assistantTurn,
+        debug,
+      },
+    }
+  })
+
+  return changed ? merged : nextTurns
 }
 
 export function ChatSessionProvider({
@@ -194,7 +319,9 @@ export function ChatSessionProvider({
 
         if (state) {
           setSession(state.session)
-          setTurns(state.turns)
+          setTurns((prevTurns) =>
+            hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
+          )
           setPendingQuestion(state.pendingQuestion || null)
         } else {
           setError('Session not found')
@@ -232,10 +359,29 @@ export function ChatSessionProvider({
           return true
         }
 
+        const nextDebugMode = !debugMode
         setDebugModeBySession((prev) => ({
           ...prev,
-          [debugSessionKey]: !(prev[debugSessionKey] ?? false),
+          [debugSessionKey]: nextDebugMode,
         }))
+
+        if (nextDebugMode && currentSessionId && currentSessionId !== 'new') {
+          try {
+            const state = await dataSource.fetchSession(currentSessionId)
+            if (state) {
+              setSession(state.session)
+              setTurns((prevTurns) =>
+                hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
+              )
+              setPendingQuestion(state.pendingQuestion || null)
+            }
+          } catch (err) {
+            console.error('Failed to refresh session for debug mode:', err)
+          }
+        } else {
+          setTurns((prevTurns) => hydrateDebugTraceFromToolCalls(prevTurns))
+        }
+
         setMessage('')
         return true
       }
@@ -254,7 +400,9 @@ export function ChatSessionProvider({
           const state = await dataSource.fetchSession(currentSessionId)
           if (state) {
             setSession(state.session)
-            setTurns(state.turns)
+            setTurns((prevTurns) =>
+              hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
+            )
             setPendingQuestion(state.pendingQuestion || null)
           } else {
             setTurns([])
@@ -284,7 +432,9 @@ export function ChatSessionProvider({
           const state = await dataSource.fetchSession(currentSessionId)
           if (state) {
             setSession(state.session)
-            setTurns(state.turns)
+            setTurns((prevTurns) =>
+              hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
+            )
             setPendingQuestion(state.pendingQuestion || null)
           } else {
             setTurns([])
@@ -305,7 +455,7 @@ export function ChatSessionProvider({
       setInputError('slash.error.unknownCommand')
       return true
     },
-    [currentSessionId, dataSource, debugSessionKey]
+    [currentSessionId, dataSource, debugMode, debugSessionKey]
   )
 
   const sendMessageDirect = useCallback(
@@ -401,7 +551,7 @@ export function ChatSessionProvider({
             } else {
               debugTrace.tools.push({ ...chunk.tool })
             }
-          } else if (chunk.type === 'usage' && chunk.usage) {
+          } else if (chunk.type === 'usage' && chunk.usage && hasMeaningfulUsage(chunk.usage)) {
             debugTrace.usage = chunk.usage
           } else if (chunk.type === 'error') {
             throw new Error(chunk.error || 'Stream error')
@@ -418,7 +568,10 @@ export function ChatSessionProvider({
               const state = await dataSource.fetchSession(finalSessionId)
               if (state) {
                 setSession(state.session)
-                setTurns(debugMode ? attachDebugTraceToLatestTurn(state.turns, debugTrace) : state.turns)
+                setTurns((prevTurns) => {
+                  const mergedTurns = mergeDebugTraceFromPreviousTurns(prevTurns, state.turns)
+                  return hydrateDebugTraceFromToolCalls(attachDebugTraceToLatestTurn(mergedTurns, debugTrace))
+                })
                 setPendingQuestion(state.pendingQuestion || null)
               }
             }
@@ -570,7 +723,9 @@ export function ChatSessionProvider({
               try {
                 const state = await dataSource.fetchSession(currentSessionId)
                 if (state) {
-                  setTurns(state.turns)
+                  setTurns((prevTurns) =>
+                    hydrateDebugTraceFromToolCalls(mergeDebugTraceFromPreviousTurns(prevTurns, state.turns))
+                  )
                   setPendingQuestion(state.pendingQuestion || null)
                 } else {
                   setPendingQuestion(previousPendingQuestion)

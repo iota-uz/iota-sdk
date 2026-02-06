@@ -35,8 +35,9 @@ type Session struct {
 }
 
 type SessionListParams struct {
-	Limit  int `json:"limit"`
-	Offset int `json:"offset"`
+	Limit           int  `json:"limit"`
+	Offset          int  `json:"offset"`
+	IncludeArchived bool `json:"includeArchived"`
 }
 
 type SessionListResult struct {
@@ -94,9 +95,19 @@ type AssistantTurn struct {
 	Content     string       `json:"content"`
 	Explanation string       `json:"explanation,omitempty"`
 	Citations   []Citation   `json:"citations"`
+	ToolCalls   []ToolCall   `json:"toolCalls,omitempty"`
 	Artifacts   []any        `json:"artifacts"` // kept for UI compatibility; populated via separate RPC call
 	CodeOutputs []CodeOutput `json:"codeOutputs"`
 	CreatedAt   string       `json:"createdAt"`
+}
+
+type ToolCall struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Arguments  string `json:"arguments"`
+	Result     string `json:"result,omitempty"`
+	Error      string `json:"error,omitempty"`
+	DurationMs int64  `json:"durationMs,omitempty"`
 }
 
 type ConversationTurn struct {
@@ -163,6 +174,16 @@ type SessionArtifactsResult struct {
 	Artifacts []Artifact `json:"artifacts"`
 }
 
+type QuestionSubmitParams struct {
+	SessionID    string            `json:"sessionId"`
+	CheckpointID string            `json:"checkpointId"`
+	Answers      map[string]string `json:"answers"`
+}
+
+type QuestionCancelParams struct {
+	SessionID string `json:"sessionId"`
+}
+
 func Router() *applet.TypedRPCRouter {
 	r := applet.NewTypedRPCRouter()
 	applet.AddProcedure(r, "bichat.ping", applet.Procedure[PingParams, PingResult]{
@@ -196,7 +217,7 @@ func Router() *applet.TypedRPCRouter {
 				return SessionListResult{}, serrors.E(op, serrors.PermissionDenied, err)
 			}
 
-			opts := domain.ListOptions{Limit: p.Limit, Offset: p.Offset}
+			opts := domain.ListOptions{Limit: p.Limit, Offset: p.Offset, IncludeArchived: p.IncludeArchived}
 			list, err := chatSvc.ListUserSessions(ctx, int64(user.ID()), opts)
 			if err != nil {
 				return SessionListResult{}, serrors.E(op, err)
@@ -465,6 +486,134 @@ func Router() *applet.TypedRPCRouter {
 		},
 	})
 
+	applet.AddProcedure(r, "bichat.session.archive", applet.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
+			const op serrors.Op = "bichat.rpc.session.archive"
+
+			chatSvc, err := resolveChatService(ctx)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			sessionID, err := parseUUID(p.ID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			s, err := chatSvc.ArchiveSession(ctx, sessionID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			return SessionCreateResult{Session: toSessionDTO(s)}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.session.unarchive", applet.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
+			const op serrors.Op = "bichat.rpc.session.unarchive"
+
+			chatSvc, err := resolveChatService(ctx)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			sessionID, err := parseUUID(p.ID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			s, err := chatSvc.UnarchiveSession(ctx, sessionID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			return SessionCreateResult{Session: toSessionDTO(s)}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.session.regenerateTitle", applet.Procedure[SessionIDParams, SessionCreateResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p SessionIDParams) (SessionCreateResult, error) {
+			const op serrors.Op = "bichat.rpc.session.regenerateTitle"
+
+			chatSvc, err := resolveChatService(ctx)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			sessionID, err := parseUUID(p.ID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			if err := chatSvc.GenerateSessionTitle(ctx, sessionID); err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			s, err := chatSvc.GetSession(ctx, sessionID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			return SessionCreateResult{Session: toSessionDTO(s)}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.question.submit", applet.Procedure[QuestionSubmitParams, SessionGetResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p QuestionSubmitParams) (SessionGetResult, error) {
+			const op serrors.Op = "bichat.rpc.question.submit"
+
+			chatSvc, err := resolveChatService(ctx)
+			if err != nil {
+				return SessionGetResult{}, serrors.E(op, err)
+			}
+			sessionID, err := parseUUID(p.SessionID)
+			if err != nil {
+				return SessionGetResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+
+			_, err = chatSvc.ResumeWithAnswer(ctx, services.ResumeRequest{
+				SessionID:    sessionID,
+				CheckpointID: p.CheckpointID,
+				Answers:      p.Answers,
+			})
+			if err != nil {
+				return SessionGetResult{}, serrors.E(op, err)
+			}
+
+			// Re-fetch session and messages to return updated state
+			s, err := chatSvc.GetSession(ctx, sessionID)
+			if err != nil {
+				return SessionGetResult{}, serrors.E(op, err)
+			}
+			msgs, err := chatSvc.GetSessionMessages(ctx, sessionID, domain.ListOptions{Limit: 500})
+			if err != nil {
+				return SessionGetResult{}, serrors.E(op, err)
+			}
+
+			return SessionGetResult{
+				Session:         toSessionDTO(s),
+				Turns:           buildTurns(msgs),
+				PendingQuestion: nil,
+			}, nil
+		},
+	})
+
+	applet.AddProcedure(r, "bichat.question.cancel", applet.Procedure[QuestionCancelParams, SessionCreateResult]{
+		RequirePermissions: []string{"bichat.access"},
+		Handler: func(ctx context.Context, p QuestionCancelParams) (SessionCreateResult, error) {
+			const op serrors.Op = "bichat.rpc.question.cancel"
+
+			chatSvc, err := resolveChatService(ctx)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			sessionID, err := parseUUID(p.SessionID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, serrors.Invalid, err)
+			}
+			s, err := chatSvc.CancelPendingQuestion(ctx, sessionID)
+			if err != nil {
+				return SessionCreateResult{}, serrors.E(op, err)
+			}
+			return SessionCreateResult{Session: toSessionDTO(s)}, nil
+		},
+	})
+
 	return r
 }
 
@@ -559,6 +708,7 @@ func buildTurns(msgs []types.Message) []ConversationTurn {
 				ID:          m.ID().String(),
 				Content:     m.Content(),
 				Citations:   mapCitations(m.Citations()),
+				ToolCalls:   mapToolCalls(m.ToolCalls()),
 				Artifacts:   []any{},
 				CodeOutputs: mapCodeOutputs(m.CodeOutputs()),
 				CreatedAt:   m.CreatedAt().Format(time.RFC3339),
@@ -602,6 +752,26 @@ func mapCitations(in []types.Citation) []Citation {
 			Excerpt:    c.Excerpt,
 		})
 	}
+	return out
+}
+
+func mapToolCalls(in []types.ToolCall) []ToolCall {
+	if len(in) == 0 {
+		return nil
+	}
+
+	out := make([]ToolCall, 0, len(in))
+	for _, tc := range in {
+		out = append(out, ToolCall{
+			ID:         tc.ID,
+			Name:       tc.Name,
+			Arguments:  tc.Arguments,
+			Result:     tc.Result,
+			Error:      tc.Error,
+			DurationMs: tc.DurationMs,
+		})
+	}
+
 	return out
 }
 

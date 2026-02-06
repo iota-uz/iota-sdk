@@ -38,7 +38,7 @@ export function AssistantTurnView({
   hideActions,
   hideTimestamp,
 }: AssistantTurnViewProps) {
-  const { handleCopy, handleRegenerate, pendingQuestion, sendMessage, loading } = useChat()
+  const { handleCopy, handleRegenerate, pendingQuestion, sendMessage, loading, debugMode } = useChat()
 
   const assistantTurn = turn.assistantTurn
   if (!assistantTurn) return null
@@ -58,6 +58,7 @@ export function AssistantTurnView({
       hideAvatar={hideAvatar}
       hideActions={hideActions}
       hideTimestamp={hideTimestamp}
+      showDebug={debugMode}
     />
   )
 }

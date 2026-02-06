@@ -45,6 +45,7 @@ export const defaultTranslations: Translations = {
   'slash.debugGeneration': 'Generation time',
   'slash.debugUsage': 'Usage (prompt/completion/total)',
   'slash.debugTools': 'Tool timeline',
+  'slash.debugUnavailable': 'No persisted debug trace is available for this turn.',
   'slash.error.noArguments': 'This slash command does not accept arguments yet.',
   'slash.error.sessionRequired': 'Create or open a chat session before using this command.',
   'slash.error.debugUnauthorized': 'You do not have permission to enable debug mode.',

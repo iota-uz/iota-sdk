@@ -2,6 +2,9 @@
 
 export type BichatRPC = {
   "bichat.ping": { params: PingParams; result: PingResult }
+  "bichat.question.cancel": { params: QuestionCancelParams; result: SessionCreateResult }
+  "bichat.question.submit": { params: QuestionSubmitParams; result: SessionGetResult }
+  "bichat.session.archive": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.artifacts": { params: SessionArtifactsParams; result: SessionArtifactsResult }
   "bichat.session.clear": { params: SessionIDParams; result: SessionClearResult }
   "bichat.session.compact": { params: SessionIDParams; result: SessionCompactResult }
@@ -10,6 +13,8 @@ export type BichatRPC = {
   "bichat.session.get": { params: SessionGetParams; result: SessionGetResult }
   "bichat.session.list": { params: SessionListParams; result: SessionListResult }
   "bichat.session.pin": { params: SessionIDParams; result: SessionCreateResult }
+  "bichat.session.regenerateTitle": { params: SessionIDParams; result: SessionCreateResult }
+  "bichat.session.unarchive": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.unpin": { params: SessionIDParams; result: SessionCreateResult }
   "bichat.session.updateTitle": { params: SessionUpdateTitleParams; result: SessionCreateResult }
 }
@@ -33,6 +38,7 @@ export interface AssistantTurn {
   content: string
   explanation?: string
   citations: Citation[]
+  toolCalls?: ToolCall[]
   artifacts: unknown[]
   codeOutputs: CodeOutput[]
   createdAt: string
@@ -82,6 +88,16 @@ export type PingParams = Record<string, never>
 export interface PingResult {
   ok: boolean
   tenantId: string
+}
+
+export interface QuestionCancelParams {
+  sessionId: string
+}
+
+export interface QuestionSubmitParams {
+  sessionId: string
+  checkpointId: string
+  answers: Record<string, string>
 }
 
 export interface Session {
@@ -141,6 +157,7 @@ export interface SessionIDParams {
 export interface SessionListParams {
   limit: number
   offset: number
+  includeArchived: boolean
 }
 
 export interface SessionListResult {
@@ -150,6 +167,15 @@ export interface SessionListResult {
 export interface SessionUpdateTitleParams {
   id: string
   title: string
+}
+
+export interface ToolCall {
+  id: string
+  name: string
+  arguments: string
+  result?: string
+  error?: string
+  durationMs?: number
 }
 
 export interface UserTurn {

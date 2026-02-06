@@ -49,6 +49,7 @@ export interface AssistantTurn {
   content: string
   explanation?: string
   citations: Citation[]
+  toolCalls?: ToolCall[]
   chartData?: ChartData
   artifacts: Artifact[]
   codeOutputs: CodeOutput[]
@@ -81,6 +82,9 @@ export interface ToolCall {
   id: string
   name: string
   arguments: string
+  result?: string
+  error?: string
+  durationMs?: number
 }
 
 // ============================================================================

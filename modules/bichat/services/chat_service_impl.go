@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -296,6 +297,8 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 
 	// Collect agent response
 	var assistantContent strings.Builder
+	toolCalls := make(map[string]types.ToolCall)
+	toolOrder := make([]string, 0)
 	var interrupt *bichatservices.Interrupt
 
 	for {
@@ -310,6 +313,8 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 		switch event.Type {
 		case bichatservices.EventTypeContent:
 			assistantContent.WriteString(event.Content)
+		case bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd:
+			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 
 		case bichatservices.EventTypeInterrupt:
 			// Handle HITL interrupt
@@ -329,7 +334,6 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 				}
 			}
 		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
-			bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd,
 			bichatservices.EventTypeDone, bichatservices.EventTypeError:
 			// no-op in this handler
 		}
@@ -346,7 +350,11 @@ func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.Se
 	}
 
 	// Create and save assistant message
-	assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
+	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
+	if savedToolCalls := orderedToolCalls(toolCalls, toolOrder); len(savedToolCalls) > 0 {
+		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
+	}
+	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
 
 	err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 	if err != nil {
@@ -410,6 +418,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Stream agent response
 	var assistantContent strings.Builder
 	var interrupted bool
+	toolCalls := make(map[string]types.ToolCall)
+	toolOrder := make([]string, 0)
 
 	for {
 		event, err := gen.Next(ctx)
@@ -436,6 +446,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			})
 
 		case bichatservices.EventTypeToolStart:
+			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 			if event.Tool != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeToolStart,
@@ -445,6 +456,7 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			}
 
 		case bichatservices.EventTypeToolEnd:
+			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 			if event.Tool != nil {
 				onChunk(bichatservices.StreamChunk{
 					Type:      bichatservices.ChunkTypeToolEnd,
@@ -500,7 +512,11 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 
 	// Save assistant message if not interrupted
 	if !interrupted {
-		assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
+		assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
+		if savedToolCalls := orderedToolCalls(toolCalls, toolOrder); len(savedToolCalls) > 0 {
+			assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
+		}
+		assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
 
 		err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 		if err != nil {
@@ -515,6 +531,65 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	}
 
 	return nil
+}
+
+func recordToolEvent(toolCalls map[string]types.ToolCall, toolOrder *[]string, tool *bichatservices.ToolEvent) {
+	if tool == nil {
+		return
+	}
+
+	key := tool.CallID
+	if key == "" {
+		key = fmt.Sprintf("__unnamed_tool_%d", len(*toolOrder))
+	}
+
+	call, exists := toolCalls[key]
+	if !exists {
+		call = types.ToolCall{
+			ID:        key,
+			Name:      tool.Name,
+			Arguments: tool.Arguments,
+		}
+		*toolOrder = append(*toolOrder, key)
+	}
+
+	if call.ID == "" {
+		call.ID = key
+	}
+	if tool.Name != "" {
+		call.Name = tool.Name
+	}
+	if tool.Arguments != "" {
+		call.Arguments = tool.Arguments
+	}
+	if tool.Result != "" {
+		call.Result = tool.Result
+	}
+	if tool.Error != nil {
+		call.Error = tool.Error.Error()
+	}
+	if tool.DurationMs > 0 {
+		call.DurationMs = tool.DurationMs
+	}
+
+	toolCalls[key] = call
+}
+
+func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) []types.ToolCall {
+	if len(toolOrder) == 0 {
+		return nil
+	}
+
+	result := make([]types.ToolCall, 0, len(toolOrder))
+	for _, key := range toolOrder {
+		call, ok := toolCalls[key]
+		if !ok {
+			continue
+		}
+		result = append(result, call)
+	}
+
+	return result
 }
 
 // GetSessionMessages retrieves all messages for a session.
@@ -554,6 +629,8 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 
 	// Collect agent response
 	var assistantContent strings.Builder
+	toolCalls := make(map[string]types.ToolCall)
+	toolOrder := make([]string, 0)
 
 	for {
 		event, err := gen.Next(ctx)
@@ -567,8 +644,9 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 		switch event.Type {
 		case bichatservices.EventTypeContent:
 			assistantContent.WriteString(event.Content)
+		case bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd:
+			recordToolEvent(toolCalls, &toolOrder, event.Tool)
 		case bichatservices.EventTypeCitation, bichatservices.EventTypeUsage,
-			bichatservices.EventTypeToolStart, bichatservices.EventTypeToolEnd,
 			bichatservices.EventTypeInterrupt, bichatservices.EventTypeDone,
 			bichatservices.EventTypeError:
 			// no-op for resume
@@ -576,7 +654,11 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}
 
 	// Create and save assistant message
-	assistantMsg := types.AssistantMessage(assistantContent.String(), types.WithSessionID(req.SessionID))
+	assistantMsgOpts := []types.MessageOption{types.WithSessionID(req.SessionID)}
+	if savedToolCalls := orderedToolCalls(toolCalls, toolOrder); len(savedToolCalls) > 0 {
+		assistantMsgOpts = append(assistantMsgOpts, types.WithToolCalls(savedToolCalls...))
+	}
+	assistantMsg := types.AssistantMessage(assistantContent.String(), assistantMsgOpts...)
 
 	err = s.chatRepo.SaveMessage(ctx, assistantMsg)
 	if err != nil {
@@ -732,8 +814,9 @@ func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID
 
 	// Launch async title generation (don't block response)
 	go func() {
-		// Create new context for background operation (detached from request context)
-		titleCtx := context.Background()
+		// Create detached context and copy required request-scoped values.
+		// Background title generation needs tenant/pool context, but must not reuse request cancellation.
+		titleCtx := buildTitleGenerationContext(ctx)
 
 		// Set timeout (15s allows for 3 retries)
 		titleCtx, cancel := context.WithTimeout(titleCtx, 15*time.Second)
@@ -747,4 +830,20 @@ func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID
 			_ = err
 		}
 	}()
+}
+
+func buildTitleGenerationContext(ctx context.Context) context.Context {
+	titleCtx := context.Background()
+
+	if tenantID, err := composables.UseTenantID(ctx); err == nil {
+		titleCtx = composables.WithTenantID(titleCtx, tenantID)
+	}
+	if pool, err := composables.UsePool(ctx); err == nil {
+		titleCtx = composables.WithPool(titleCtx, pool)
+	}
+	if user, err := composables.UseUser(ctx); err == nil {
+		titleCtx = composables.WithUser(titleCtx, user)
+	}
+
+	return titleCtx
 }
