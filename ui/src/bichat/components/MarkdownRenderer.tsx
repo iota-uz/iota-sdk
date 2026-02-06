@@ -10,7 +10,7 @@
  * - GFM (GitHub Flavored Markdown) support
  */
 
-import { memo, lazy, Suspense, useMemo } from 'react'
+import { memo, lazy, Suspense, useMemo, Children, isValidElement, type ReactNode } from 'react'
 import ReactMarkdown, { Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { processCitations } from '../utils/citationProcessor'
@@ -41,6 +41,51 @@ interface CodeProps {
   inline?: boolean
   className?: string
   children?: React.ReactNode
+  node?: {
+    position?: {
+      start?: { line?: number }
+      end?: { line?: number }
+    }
+  }
+}
+
+const INLINE_TAGS = new Set([
+  'a',
+  'abbr',
+  'b',
+  'br',
+  'code',
+  'em',
+  'i',
+  'img',
+  'kbd',
+  'mark',
+  's',
+  'small',
+  'span',
+  'strong',
+  'sub',
+  'sup',
+  'u',
+])
+
+function hasBlockChildren(children: ReactNode): boolean {
+  return Children.toArray(children).some((child) => {
+    if (!isValidElement(child)) {
+      return false
+    }
+
+    if (typeof child.type === 'string') {
+      if (!INLINE_TAGS.has(child.type)) {
+        return true
+      }
+
+      return hasBlockChildren((child.props as { children?: ReactNode }).children)
+    }
+
+    // Non-DOM React components can render block nodes (e.g. lazy CodeBlock).
+    return true
+  })
 }
 
 function MarkdownRenderer({
@@ -60,14 +105,19 @@ function MarkdownRenderer({
   const components: Components = {
     // Remove <pre> wrapper for code blocks - CodeBlock provides its own container
     pre: ({ children }) => <>{children}</>,
-    code({ inline, className, children }: CodeProps) {
+    code({ inline, className, children, node }: CodeProps) {
       const match = /language-(\w+)/.exec(className || '')
       const language = match ? match[1] : ''
       const value = String(children).replace(/\n$/, '')
 
-      // Treat as inline only when explicitly marked inline by the renderer.
-      // Fenced blocks without a language should still render as block code.
-      const isInline = inline === true
+      // Some react-markdown versions may omit `inline`.
+      // In that case, infer inline code conservatively from content shape.
+      const hasLineBreak = value.includes('\n')
+      const startLine = node?.position?.start?.line
+      const endLine = node?.position?.end?.line
+      const spansSingleLine = startLine !== undefined && endLine !== undefined && startLine === endLine
+      const inferredInline = !className && !hasLineBreak && (spansSingleLine || startLine === undefined || endLine === undefined)
+      const isInline = inline === true || (inline !== false && inferredInline)
 
       if (isInline) {
         return (
@@ -96,7 +146,13 @@ function MarkdownRenderer({
         </Suspense>
       )
     },
-    p: ({ children }) => <p className="markdown-p my-2">{children}</p>,
+    p: ({ children }) => {
+      if (hasBlockChildren(children)) {
+        return <div className="markdown-p my-2">{children}</div>
+      }
+
+      return <p className="markdown-p my-2">{children}</p>
+    },
     a: ({ href, children }) => (
       <a
         href={href}

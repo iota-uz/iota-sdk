@@ -336,14 +336,14 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const canSubmit = !loading && !disabled && (message.trim() || attachments.length > 0)
     const visibleError = error || commandError
     const visibleErrorText = visibleError ? t(visibleError) : ''
-    const defaultContainerClassName = "shrink-0 px-2 pt-4 pb-6"
+    const defaultContainerClassName = "shrink-0 px-4 pt-4 pb-6"
 
     return (
       <div
         ref={containerRef}
         className={containerClassName ?? defaultContainerClassName}
       >
-        <form ref={formRef} onSubmit={handleFormSubmit} className={formClassName ?? "max-w-5xl mx-auto"}>
+        <form ref={formRef} onSubmit={handleFormSubmit} className={formClassName ?? "mx-auto"}>
           {/* Error display */}
           {visibleError && (
             <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400 flex items-center justify-between">
@@ -493,52 +493,47 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             </div>
 
             {isCommandListVisible && (
-              <div className="absolute left-0 right-0 bottom-[calc(100%+8px)] z-20 overflow-hidden rounded-2xl border border-gray-200/90 bg-white/95 shadow-xl backdrop-blur-sm dark:border-gray-700 dark:bg-gray-900/95">
-                <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                  <span>{t('slash.commandsList')}</span>
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Enter</span>
-                </div>
+              <div className="absolute left-0 right-0 bottom-full mb-1.5 z-20 overflow-hidden rounded-lg border border-gray-200/70 bg-white/98 shadow-md backdrop-blur-xl dark:border-gray-700/70 dark:bg-gray-900/98 dark:shadow-black/20">
                 {filteredCommands.length > 0 ? (
-                  <ul role="listbox" aria-label={t('slash.commandsList')} className="max-h-52 overflow-y-auto p-1.5">
-                    {filteredCommands.map((command, index) => (
-                      <li
-                        key={command.name}
-                        role="option"
-                        aria-selected={index === activeCommandIndex}
-                        ref={(node) => {
-                          commandItemRefs.current[index] = node
-                        }}
-                        onMouseEnter={() => setActiveCommandIndex(index)}
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          submitCommandSelection(command.name)
-                        }}
-                        className={`cursor-pointer rounded-xl border px-3 py-2.5 transition-colors ${
-                          index === activeCommandIndex
-                            ? 'border-primary-200 bg-primary-50/90 dark:border-primary-500/40 dark:bg-primary-500/15'
-                            : 'border-transparent hover:border-gray-200 hover:bg-gray-50 dark:hover:border-gray-700 dark:hover:bg-gray-800/70'
-                        }`}
-                      >
-                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {command.name}
-                        </div>
-                        <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                          {command.description}
-                        </div>
-                      </li>
-                    ))}
+                  <ul role="listbox" aria-label={t('slash.commandsList')} className="py-1 px-1">
+                    {filteredCommands.map((command, index) => {
+                      const isActive = index === activeCommandIndex
+                      return (
+                        <li
+                          key={command.name}
+                          role="option"
+                          aria-selected={isActive}
+                          ref={(node) => {
+                            commandItemRefs.current[index] = node
+                          }}
+                          onMouseEnter={() => setActiveCommandIndex(index)}
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            submitCommandSelection(command.name)
+                          }}
+                          className={`cursor-pointer flex items-baseline gap-2 rounded-md px-2 py-1.5 transition-colors duration-75 ${
+                            isActive
+                              ? 'bg-gray-100 dark:bg-gray-800'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                          }`}
+                        >
+                          <span className="text-xs font-medium font-mono text-gray-800 dark:text-gray-200 shrink-0">
+                            <span className="text-gray-400 dark:text-gray-500">/</span>{command.name.slice(1)}
+                          </span>
+                          <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate">
+                            {command.description}
+                          </span>
+                        </li>
+                      )
+                    })}
                   </ul>
                 ) : (
-                  <div className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
-                    {t('slash.noMatches')}
+                  <div className="px-3 py-2.5 text-center">
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                      {t('slash.noMatches')}
+                    </p>
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">↑↓</span>
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Tab</span>
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Enter</span>
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">Esc</span>
-                </div>
               </div>
             )}
           </div>
