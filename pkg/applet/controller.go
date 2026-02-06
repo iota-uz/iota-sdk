@@ -152,7 +152,7 @@ func (c *AppletController) initAssets() {
 			dev.ClientModule = "/@vite/client"
 		}
 		if dev.StripPrefix == nil {
-			v := true
+			v := false
 			dev.StripPrefix = &v
 		}
 		c.devAssets = &dev
@@ -388,10 +388,20 @@ func (c *AppletController) buildAssetTags() (string, string, error) {
 			return "", "", serrors.E(op, serrors.Invalid, "assets dev proxy EntryModule is required")
 		}
 
+		var preamble string
+		if looksLikeReactEntrypoint(entryModule) {
+			refreshSrc := joinURLPath(c.assetsBasePath, "/@react-refresh")
+			preamble = fmt.Sprintf(
+				`<script type="module">import { injectIntoGlobalHook } from "%s";injectIntoGlobalHook(window);window.$RefreshReg$ = () => {};window.$RefreshSig$ = () => (type) => type;</script>`,
+				template.HTMLEscapeString(refreshSrc),
+			)
+		}
+
 		clientSrc := joinURLPath(c.assetsBasePath, clientModule)
 		entrySrc := joinURLPath(c.assetsBasePath, entryModule)
 		js := fmt.Sprintf(
-			`<script type="module" src="%s"></script><script type="module" src="%s"></script>`,
+			`%s<script type="module" src="%s"></script><script type="module" src="%s"></script>`,
+			preamble,
 			template.HTMLEscapeString(clientSrc),
 			template.HTMLEscapeString(entrySrc),
 		)
@@ -402,6 +412,15 @@ func (c *AppletController) buildAssetTags() (string, string, error) {
 		return "", "", serrors.E(op, serrors.Internal, "assets not resolved")
 	}
 	return buildCSSLinks(c.resolvedAssets.CSSFiles), buildJSScripts(c.resolvedAssets.JSFiles), nil
+}
+
+func looksLikeReactEntrypoint(entryModule string) bool {
+	switch strings.ToLower(path.Ext(entryModule)) {
+	case ".tsx", ".jsx":
+		return true
+	default:
+		return false
+	}
 }
 
 func buildMountElement(config MountConfig) string {
@@ -636,11 +655,12 @@ func (c *AppletController) handleRPC(w http.ResponseWriter, r *http.Request) {
 	result, err := rpcMethod.Handler(r.Context(), req.Params)
 	if err != nil {
 		code := mapSErrorCode(err)
+		message := mapRPCErrorMessage(code, err)
 		writeRPC(w, http.StatusOK, rpcResponse{
 			ID: req.ID,
 			Error: &rpcError{
 				Code:    code,
-				Message: "request failed",
+				Message: message,
 			},
 		})
 		return
@@ -666,11 +686,7 @@ func writeRPC(w http.ResponseWriter, status int, resp rpcResponse) {
 }
 
 func mapSErrorCode(err error) string {
-	var se *serrors.Error
-	if !errors.As(err, &se) {
-		return "error"
-	}
-	switch se.Kind {
+	switch firstNonOtherKind(err) {
 	case serrors.KindValidation:
 		return "validation"
 	case serrors.Invalid:
@@ -688,6 +704,34 @@ func mapSErrorCode(err error) string {
 	}
 }
 
+func firstNonOtherKind(err error) serrors.Kind {
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		se, ok := current.(*serrors.Error)
+		if !ok {
+			continue
+		}
+		if se.Kind != serrors.Other {
+			return se.Kind
+		}
+	}
+	return serrors.Other
+}
+
+func mapRPCErrorMessage(code string, err error) string {
+	switch code {
+	case "forbidden":
+		return "permission denied"
+	default:
+		if err != nil {
+			msg := strings.TrimSpace(err.Error())
+			if msg != "" {
+				return msg
+			}
+		}
+		return "request failed"
+	}
+}
+
 func requirePermissionStrings(ctx context.Context, required []string) error {
 	const op serrors.Op = "applet.requirePermissionStrings"
 
@@ -698,12 +742,13 @@ func requirePermissionStrings(ctx context.Context, required []string) error {
 	if u == nil {
 		return serrors.E(op, serrors.PermissionDenied, "no user")
 	}
-	have := make(map[string]struct{}, len(u.Permissions()))
-	for _, p := range u.Permissions() {
-		have[p.Name()] = struct{}{}
+	effective := collectUserPermissionNames(u)
+	have := make(map[string]struct{}, len(effective))
+	for _, name := range effective {
+		have[name] = struct{}{}
 	}
 	for _, need := range required {
-		need = strings.TrimSpace(need)
+		need = normalizePermissionName(need)
 		if need == "" {
 			continue
 		}

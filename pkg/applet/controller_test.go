@@ -4,19 +4,23 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"testing/fstest"
+
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing/fstest"
 )
 
 type testApplet struct {
@@ -100,6 +104,7 @@ func TestAppletController_DevProxy_SkipsManifestRequirements(t *testing.T) {
 	c := NewAppletController(a, nil, DefaultSessionConfig, nil, nil)
 	_, scripts, err := c.buildAssetTags()
 	require.NoError(t, err)
+	assert.Contains(t, scripts, "@react-refresh")
 	assert.Contains(t, scripts, "/@vite/client")
 	assert.Contains(t, scripts, "/src/main.tsx")
 }
@@ -126,12 +131,13 @@ func TestAppletController_RPC(t *testing.T) {
 	}
 
 	cases := []struct {
-		name         string
-		rpcCfg       *RPCConfig
-		req          func() *http.Request
-		ctx          func(context.Context) context.Context
-		wantHTTP     int
-		wantRPCError string
+		name                   string
+		rpcCfg                 *RPCConfig
+		req                    func() *http.Request
+		ctx                    func(context.Context) context.Context
+		wantHTTP               int
+		wantRPCError           string
+		wantRPCMessageContains string
 	}{
 		{
 			name: "MethodNotFound",
@@ -172,6 +178,48 @@ func TestAppletController_RPC(t *testing.T) {
 			},
 			wantHTTP:     http.StatusOK,
 			wantRPCError: "forbidden",
+		},
+		{
+			name: "WrappedPermissionDeniedPreserved",
+			rpcCfg: &RPCConfig{
+				Path: "/rpc",
+				Methods: map[string]RPCMethod{
+					"wrapped": {
+						Handler: func(ctx context.Context, params json.RawMessage) (any, error) {
+							inner := serrors.E(serrors.Op("wrapped.inner"), serrors.PermissionDenied, "access denied")
+							return nil, serrors.E(serrors.Op("wrapped.outer"), inner)
+						},
+					},
+				},
+			},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"wrapped","params":{}}`))
+				r.Host = "example.com"
+				return r
+			},
+			wantHTTP:     http.StatusOK,
+			wantRPCError: "forbidden",
+		},
+		{
+			name: "GenericErrorMessageExposed",
+			rpcCfg: &RPCConfig{
+				Path: "/rpc",
+				Methods: map[string]RPCMethod{
+					"explode": {
+						Handler: func(ctx context.Context, params json.RawMessage) (any, error) {
+							return nil, errors.New("chat service not registered")
+						},
+					},
+				},
+			},
+			req: func() *http.Request {
+				r := httptest.NewRequest(http.MethodPost, "/t/rpc", bytes.NewBufferString(`{"id":"1","method":"explode","params":{}}`))
+				r.Host = "example.com"
+				return r
+			},
+			wantHTTP:               http.StatusOK,
+			wantRPCError:           "error",
+			wantRPCMessageContains: "chat service not registered",
 		},
 		{
 			name: "SameOriginEnforced",
@@ -232,6 +280,12 @@ func TestAppletController_RPC(t *testing.T) {
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 			require.NotNil(t, resp.Error)
 			assert.Equal(t, tc.wantRPCError, resp.Error.Code)
+			if tc.wantRPCError == "forbidden" {
+				assert.Equal(t, "permission denied", resp.Error.Message)
+			}
+			if tc.wantRPCMessageContains != "" {
+				assert.Contains(t, resp.Error.Message, tc.wantRPCMessageContains)
+			}
 		})
 	}
 }
@@ -251,4 +305,39 @@ func TestRequirePermissionStrings_Allows(t *testing.T) {
 
 	ctx := composables.WithUser(context.Background(), u)
 	require.NoError(t, requirePermissionStrings(ctx, []string{"test.secret"}))
+}
+
+func TestRequirePermissionStrings_AllowsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	p := permission.New(
+		permission.WithID(uuid.New()),
+		permission.WithName("Test.Secret"),
+		permission.WithResource("test"),
+		permission.WithAction(permission.ActionRead),
+		permission.WithModifier(permission.ModifierAll),
+	)
+	u := user.New("T", "U", internet.MustParseEmail("t@example.com"), user.UILanguageEN, user.WithID(1))
+	u = u.AddPermission(p)
+
+	ctx := composables.WithUser(context.Background(), u)
+	require.NoError(t, requirePermissionStrings(ctx, []string{"test.secret"}))
+}
+
+func TestRequirePermissionStrings_AllowsViaRolePermission(t *testing.T) {
+	t.Parallel()
+
+	p := permission.New(
+		permission.WithID(uuid.New()),
+		permission.WithName("BiChat.Access"),
+		permission.WithResource("bichat"),
+		permission.WithAction(permission.ActionRead),
+		permission.WithModifier(permission.ModifierAll),
+	)
+	r := role.New("Admin", role.WithPermissions([]permission.Permission{p}))
+	u := user.New("T", "U", internet.MustParseEmail("t@example.com"), user.UILanguageEN, user.WithID(1))
+	u = u.AddRole(r)
+
+	ctx := composables.WithUser(context.Background(), u)
+	require.NoError(t, requirePermissionStrings(ctx, []string{"bichat.access"}))
 }
