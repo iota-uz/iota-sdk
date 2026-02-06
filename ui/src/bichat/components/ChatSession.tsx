@@ -40,6 +40,8 @@ interface ChatSessionProps {
   actionsSlot?: ReactNode
   /** Callback when user navigates back */
   onBack?: () => void
+  /** Custom verbs for the typing indicator (e.g. ['Thinking', 'Analyzing', ...]) */
+  thinkingVerbs?: string[]
 }
 
 function ChatSessionCore({
@@ -52,6 +54,7 @@ function ChatSessionCore({
   logoSlot,
   actionsSlot,
   onBack,
+  thinkingVerbs,
 }: Omit<ChatSessionProps, 'dataSource' | 'sessionId'>) {
   const { t } = useTranslation()
   const {
@@ -111,6 +114,7 @@ function ChatSessionCore({
         <MessageList
           renderUserTurn={renderUserTurn}
           renderAssistantTurn={renderAssistantTurn}
+          thinkingVerbs={thinkingVerbs}
         />
       )}
 

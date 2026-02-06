@@ -58,7 +58,7 @@ function TabButton({ id, label, isActive, onClick }: TabButtonProps) {
       aria-controls={`${id}-panel`}
       onClick={onClick}
       className={`
-        relative px-4 py-2 rounded-t-lg text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900
+        relative px-4 py-2 rounded-t-lg text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 focus-visible:ring-offset-1 dark:focus-visible:ring-offset-gray-900 cursor-pointer
         ${
           isActive
             ? 'text-primary-700 dark:text-primary-400'

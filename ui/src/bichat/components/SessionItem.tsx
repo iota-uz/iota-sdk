@@ -166,6 +166,7 @@ const SessionItem = memo<SessionItemProps>(
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-4 border-transparent'
             } ${className}`}
             aria-current={isActive ? 'page' : undefined}
+            data-session-item
             data-testid={`${testIdPrefix}-session-${session.id}`}
             {...longPressHandlers}
           >

@@ -15,10 +15,7 @@ export default meta
 type Story = StoryObj<typeof TypingIndicator>
 
 export const Playground: Story = {
-  args: {
-    variant: 'dots',
-    size: 'md',
-  },
+  args: {},
 }
 
 export const Stress: Story = {
@@ -26,43 +23,21 @@ export const Stress: Story = {
     <ScenarioGrid
       scenarios={[
         {
-          name: 'Variants',
-          content: (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-12">Dots:</span>
-                <TypingIndicator variant="dots" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-12">Pulse:</span>
-                <TypingIndicator variant="pulse" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-12">Text:</span>
-                <TypingIndicator variant="text" />
-              </div>
-            </div>
-          ),
+          name: 'Default verbs',
+          content: <TypingIndicator />,
         },
         {
-          name: 'Sizes (Dots)',
-          content: (
-            <div className="flex items-end gap-6">
-              <TypingIndicator variant="dots" size="sm" />
-              <TypingIndicator variant="dots" size="md" />
-              <TypingIndicator variant="dots" size="lg" />
-            </div>
-          ),
-        },
-        {
-          name: 'Custom Text Messages',
+          name: 'Custom verbs',
           content: (
             <TypingIndicator
-              variant="text"
-              messages={['Consulting the oracle...', 'Crunching numbers...', 'Finding the meaning of life...']}
+              verbs={['Consulting the oracle', 'Crunching numbers', 'Finding the meaning of life']}
               rotationInterval={1000}
             />
           ),
+        },
+        {
+          name: 'Single verb',
+          content: <TypingIndicator verbs={['Analyzing data']} />,
         },
       ]}
     />

@@ -1899,6 +1899,7 @@ snapshots:
 
   '@iota-uz/sdk@file:../../../..(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
+      '@headlessui/react': 2.2.9(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@phosphor-icons/react': 2.1.10(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       apexcharts: 3.54.1
       date-fns: 3.6.0

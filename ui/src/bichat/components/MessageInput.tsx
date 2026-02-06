@@ -43,6 +43,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     {
       message,
       loading,
+      fetching = false,
       disabled = false,
       commandError = null,
       debugMode = false,
@@ -76,6 +77,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const containerRef = useRef<HTMLDivElement>(null)
     const formRef = useRef<HTMLFormElement>(null)
     const commandItemRefs = useRef<Array<HTMLLIElement | null>>([])
+    const didAutoFocusRef = useRef(false)
     const isSlashMode = message.trimStart().startsWith('/')
     const commandQuery = message.trimStart().slice(1).split(/\s+/)[0]?.toLowerCase() || ''
 
@@ -113,6 +115,17 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       const newHeight = Math.min(textarea.scrollHeight, MAX_HEIGHT)
       textarea.style.height = `${newHeight}px`
     }, [message])
+
+    useEffect(() => {
+      if (didAutoFocusRef.current || loading || disabled || fetching) return
+
+      const frame = requestAnimationFrame(() => {
+        textareaRef.current?.focus()
+        didAutoFocusRef.current = true
+      })
+
+      return () => cancelAnimationFrame(frame)
+    }, [loading, disabled, fetching])
 
     useEffect(() => {
       if (!error) return

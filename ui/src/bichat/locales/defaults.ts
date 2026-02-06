@@ -31,6 +31,7 @@ export const defaultTranslations: Translations = {
   'input.aiThinking': 'AI is thinking...',
   'input.processing': 'Processing...',
   'input.messagesQueued': '{count} message(s) queued',
+  'input.filesAdded': 'Files added successfully',
   'input.dismissError': 'Dismiss error',
   'slash.commandsList': 'Slash commands',
   'slash.clearDescription': 'Clear current chat history in place',

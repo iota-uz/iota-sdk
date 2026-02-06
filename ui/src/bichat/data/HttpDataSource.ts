@@ -288,18 +288,37 @@ export class HttpDataSource implements ChatDataSource {
     questionId: string,
     answers: QuestionAnswers
   ): Promise<Result<void>> {
-    void sessionId
-    void questionId
-    void answers
-    return { success: false, error: 'Pending questions are not supported in RPC mode yet' }
+    try {
+      // Convert QuestionAnswers to flat map[string]string for RPC
+      const flatAnswers: Record<string, string> = {}
+      for (const [qId, answerData] of Object.entries(answers)) {
+        if (answerData.customText) {
+          flatAnswers[qId] = answerData.customText
+        } else if (answerData.options.length > 0) {
+          flatAnswers[qId] = answerData.options.join(', ')
+        }
+      }
+      await this.callRPC('bichat.question.submit', {
+        sessionId,
+        checkpointId: questionId,
+        answers: flatAnswers,
+      })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    }
   }
 
   /**
    * Cancel a pending question
    */
   async cancelPendingQuestion(questionId: string): Promise<Result<void>> {
-    void questionId
-    return { success: false, error: 'Pending questions are not supported in RPC mode yet' }
+    try {
+      await this.callRPC('bichat.question.cancel', { sessionId: questionId })
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    }
   }
 
   /**
@@ -312,37 +331,49 @@ export class HttpDataSource implements ChatDataSource {
     }
   }
 
-  // Session management stubs — override in subclass or use a custom ChatDataSource
-  async listSessions(): Promise<SessionListResult> {
-    return { sessions: [], total: 0, hasMore: false }
+  // Session management
+  async listSessions(options?: {
+    limit?: number
+    offset?: number
+    includeArchived?: boolean
+  }): Promise<SessionListResult> {
+    const data = await this.callRPC('bichat.session.list', {
+      limit: options?.limit ?? 200,
+      offset: options?.offset ?? 0,
+      includeArchived: options?.includeArchived ?? false,
+    })
+    return {
+      sessions: data.sessions,
+      total: data.sessions.length,
+      hasMore: false,
+    }
   }
   async archiveSession(sessionId: string): Promise<Session> {
-    void sessionId
-    throw new Error('archiveSession not implemented in HttpDataSource')
+    const data = await this.callRPC('bichat.session.archive', { id: sessionId })
+    return data.session
   }
   async unarchiveSession(sessionId: string): Promise<Session> {
-    void sessionId
-    throw new Error('unarchiveSession not implemented in HttpDataSource')
+    const data = await this.callRPC('bichat.session.unarchive', { id: sessionId })
+    return data.session
   }
   async pinSession(sessionId: string): Promise<Session> {
-    void sessionId
-    throw new Error('pinSession not implemented in HttpDataSource')
+    const data = await this.callRPC('bichat.session.pin', { id: sessionId })
+    return data.session
   }
   async unpinSession(sessionId: string): Promise<Session> {
-    void sessionId
-    throw new Error('unpinSession not implemented in HttpDataSource')
+    const data = await this.callRPC('bichat.session.unpin', { id: sessionId })
+    return data.session
   }
   async deleteSession(sessionId: string): Promise<void> {
-    void sessionId
-    throw new Error('deleteSession not implemented in HttpDataSource')
+    await this.callRPC('bichat.session.delete', { id: sessionId })
   }
-  async renameSession(sessionId: string, _title: string): Promise<Session> {
-    void sessionId
-    throw new Error('renameSession not implemented in HttpDataSource')
+  async renameSession(sessionId: string, title: string): Promise<Session> {
+    const data = await this.callRPC('bichat.session.updateTitle', { id: sessionId, title })
+    return data.session
   }
   async regenerateSessionTitle(sessionId: string): Promise<Session> {
-    void sessionId
-    throw new Error('regenerateSessionTitle not implemented in HttpDataSource')
+    const data = await this.callRPC('bichat.session.regenerateTitle', { id: sessionId })
+    return data.session
   }
 }
 
@@ -355,6 +386,18 @@ export function createHttpDataSource(config: HttpDataSourceConfig): ChatDataSour
 
 type BiChatRPC = AppletRPCSchema & {
   'bichat.session.create': { params: { title: string }; result: { session: Session } }
+  'bichat.session.list': {
+    params: { limit: number; offset: number; includeArchived: boolean }
+    result: { sessions: Session[] }
+  }
+  'bichat.session.get': {
+    params: { id: string }
+    result: { session: Session; turns: ConversationTurn[]; pendingQuestion: PendingQuestion | null }
+  }
+  'bichat.session.updateTitle': {
+    params: { id: string; title: string }
+    result: { session: Session }
+  }
   'bichat.session.clear': {
     params: { id: string }
     result: { success: boolean; deletedMessages: number; deletedArtifacts: number }
@@ -363,8 +406,18 @@ type BiChatRPC = AppletRPCSchema & {
     params: { id: string }
     result: { success: boolean; summary: string; deletedMessages: number; deletedArtifacts: number }
   }
-  'bichat.session.get': {
-    params: { id: string }
+  'bichat.session.delete': { params: { id: string }; result: { ok: boolean } }
+  'bichat.session.pin': { params: { id: string }; result: { session: Session } }
+  'bichat.session.unpin': { params: { id: string }; result: { session: Session } }
+  'bichat.session.archive': { params: { id: string }; result: { session: Session } }
+  'bichat.session.unarchive': { params: { id: string }; result: { session: Session } }
+  'bichat.session.regenerateTitle': { params: { id: string }; result: { session: Session } }
+  'bichat.question.submit': {
+    params: { sessionId: string; checkpointId: string; answers: Record<string, string> }
     result: { session: Session; turns: ConversationTurn[]; pendingQuestion: PendingQuestion | null }
+  }
+  'bichat.question.cancel': {
+    params: { sessionId: string }
+    result: { session: Session }
   }
 }
