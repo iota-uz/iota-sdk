@@ -6,11 +6,63 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 )
+
+type NotAuthenticatedRedirectError struct {
+	StatusCode  int
+	Location    string
+	ContentType string
+	BodySnippet string
+}
+
+func (e *NotAuthenticatedRedirectError) Error() string {
+	loc := e.Location
+	if loc == "" {
+		loc = "<missing>"
+	}
+	ct := e.ContentType
+	if ct == "" {
+		ct = "<missing>"
+	}
+	return fmt.Sprintf("not authenticated (redirect): status=%d location=%s content_type=%s", e.StatusCode, loc, ct)
+}
+
+type UnexpectedContentTypeError struct {
+	EndpointURL  string
+	ContentType  string
+	BodySnippet  string
+	StatusCode   int
+	ExpectedHint string
+}
+
+func (e *UnexpectedContentTypeError) Error() string {
+	ct := e.ContentType
+	if ct == "" {
+		ct = "<missing>"
+	}
+	return fmt.Sprintf("unexpected content-type: status=%d content_type=%s expected=%s", e.StatusCode, ct, e.ExpectedHint)
+}
+
+type HTTPStatusError struct {
+	EndpointURL  string
+	StatusCode   int
+	ContentType  string
+	BodySnippet  string
+	ExpectedHint string
+}
+
+func (e *HTTPStatusError) Error() string {
+	ct := e.ContentType
+	if ct == "" {
+		ct = "<missing>"
+	}
+	return fmt.Sprintf("http status %d content_type=%s", e.StatusCode, ct)
+}
 
 type GraphQLClient struct {
 	httpClient   *http.Client
@@ -76,8 +128,35 @@ func (c *GraphQLClient) Do(ctx context.Context, query string, variables map[stri
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Detect redirect-to-login patterns early (common when auth cookie missing/invalid).
+	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+		snippet := readSnippet(resp.Body, 512)
+		return &NotAuthenticatedRedirectError{
+			StatusCode:  resp.StatusCode,
+			Location:    resp.Header.Get("Location"),
+			ContentType: resp.Header.Get("Content-Type"),
+			BodySnippet: snippet,
+		}
+	}
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("graphql http status %d", resp.StatusCode)
+		return &HTTPStatusError{
+			EndpointURL: c.endpointURL,
+			StatusCode:  resp.StatusCode,
+			ContentType: resp.Header.Get("Content-Type"),
+			BodySnippet: readSnippet(resp.Body, 512),
+		}
+	}
+
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "application/json") && !strings.Contains(ct, "application/graphql-response+json") {
+		return &UnexpectedContentTypeError{
+			EndpointURL:  c.endpointURL,
+			StatusCode:   resp.StatusCode,
+			ContentType:  ct,
+			BodySnippet:  readSnippet(resp.Body, 512),
+			ExpectedHint: "application/json",
+		}
 	}
 
 	var gqlResp graphQLResponse
@@ -106,6 +185,18 @@ func (c *GraphQLClient) Do(ctx context.Context, query string, variables map[stri
 		return fmt.Errorf("decode graphql data: %w", err)
 	}
 	return nil
+}
+
+func readSnippet(r io.Reader, limit int64) string {
+	if r == nil {
+		return ""
+	}
+	b, _ := io.ReadAll(io.LimitReader(r, limit))
+	s := strings.TrimSpace(string(b))
+	if s == "" {
+		return ""
+	}
+	return s
 }
 
 const createSessionMutation = `

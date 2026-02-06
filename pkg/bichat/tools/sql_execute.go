@@ -5,6 +5,7 @@ import (
 	stdlibsql "database/sql"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,9 +60,11 @@ func (t *SQLExecuteTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *SQLExecuteTool) Description() string {
-	return "Execute a read-only SQL query against the analytics database. " +
-		"Use this for simple queries. For complex multi-step queries, delegate to the SQL agent. " +
-		"Only SELECT queries are allowed. Results are limited to 1000 rows."
+	return "Execute a read-only SQL query against the analytics database (SELECT or WITH...SELECT only). " +
+		"Use small limits for previews (default 25, max 1000). " +
+		"Supports positional parameters for $1..$n via params array. " +
+		"Set explain_plan=true to return an EXPLAIN plan instead of rows. " +
+		"Returns plain Markdown text including a preview table and the executed SQL."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -75,8 +78,15 @@ func (t *SQLExecuteTool) Parameters() map[string]any {
 			},
 			"limit": map[string]any{
 				"type":        "integer",
-				"description": "Maximum number of rows to return (default: 100, max: 1000)",
-				"default":     100,
+				"description": "Maximum number of rows to return (default: 25, max: 1000). Use small limits for previews; use export_query_to_excel for large exports.",
+				"default":     25,
+				"minimum":     1,
+				"maximum":     1000,
+			},
+			"params": map[string]any{
+				"type":        "array",
+				"description": "Positional parameters for placeholders $1..$n, e.g. [123, \"Alice\"].",
+				"items":       map[string]any{},
 			},
 			"explain_plan": map[string]any{
 				"type":        "boolean",
@@ -90,16 +100,30 @@ func (t *SQLExecuteTool) Parameters() map[string]any {
 
 // sqlExecuteInput represents the parsed input parameters.
 type sqlExecuteInput struct {
-	Query       string         `json:"query"`
-	Params      map[string]any `json:"params,omitempty"`
-	Limit       int            `json:"limit,omitempty"`
-	ExplainPlan bool           `json:"explain_plan,omitempty"`
+	Query       string `json:"query"`
+	Params      []any  `json:"params,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	ExplainPlan bool   `json:"explain_plan,omitempty"`
 }
 
 // placeholderPattern matches PostgreSQL placeholder syntax ($1, $2, etc.)
 var placeholderPattern = regexp.MustCompile(`\$\d+`)
 
-// Call executes the SQL query and returns results as JSON.
+const (
+	defaultSQLExecuteLimit = 25
+	maxSQLExecuteLimit     = 1000
+
+	// previewMaxRows caps the markdown preview for token efficiency.
+	previewMaxRows = 25
+
+	// previewMaxCellLen caps individual cell length in preview.
+	previewMaxCellLen = 80
+
+	// explainMaxLines caps explain output lines.
+	explainMaxLines = 200
+)
+
+// Call executes the SQL query and returns results as plain markdown/text.
 func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error) {
 	const op serrors.Op = "SQLExecuteTool.Call"
 
@@ -124,14 +148,24 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 
 	// Set defaults
 	if params.Limit == 0 {
-		params.Limit = 100
+		params.Limit = defaultSQLExecuteLimit
 	}
-	if params.Limit > 1000 {
-		params.Limit = 1000
+	if params.Limit < 1 {
+		return FormatToolError(
+			ErrCodeInvalidRequest,
+			"limit must be a positive integer",
+			HintCheckFieldTypes,
+			"Use limit between 1 and 1000",
+		), serrors.E(op, "invalid limit")
+	}
+	if params.Limit > maxSQLExecuteLimit {
+		params.Limit = maxSQLExecuteLimit
 	}
 
+	normalizedQuery := normalizeSQL(params.Query)
+
 	// Validate query is read-only
-	if err := validateReadOnlyQuery(params.Query); err != nil {
+	if err := validateReadOnlyQuery(normalizedQuery); err != nil {
 		return FormatToolError(
 			ErrCodePolicyViolation,
 			err.Error(),
@@ -143,7 +177,7 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 
 	// Check view permissions if configured
 	if t.viewAccess != nil {
-		deniedViews, err := t.viewAccess.CheckQueryPermissions(ctx, params.Query)
+		deniedViews, err := t.viewAccess.CheckQueryPermissions(ctx, normalizedQuery)
 		if err != nil {
 			return FormatToolError(
 				ErrCodeQueryError,
@@ -172,39 +206,95 @@ func (t *SQLExecuteTool) Call(ctx context.Context, input string) (string, error)
 	}
 
 	// Check for placeholder/parameter mismatch
-	if err := validateQueryParameters(params.Query, params.Params); err != nil {
+	if err := validateQueryParameters(normalizedQuery, params.Params); err != nil {
 		return FormatToolError(
 			ErrCodeInvalidRequest,
 			err.Error(),
 			"Use parameter binding for SQL injection protection",
-			"Parameter binding is not yet implemented - use literal values in query for now",
+			"Provide params as a JSON array matching $1..$n placeholders",
 			HintCheckSQLSyntax,
 		), serrors.E(op, err)
 	}
 
-	// Execute via executor
-	result, err := t.executor.ExecuteQuery(ctx, params.Query, nil, 30*time.Second)
+	// Explain plan mode
+	if params.ExplainPlan {
+		explainSQL := fmt.Sprintf("EXPLAIN (FORMAT TEXT, VERBOSE) %s", normalizedQuery)
+		start := time.Now()
+		explainResult, err := t.executor.ExecuteQuery(ctx, explainSQL, params.Params, 30*time.Second)
+		duration := time.Since(start)
+		if err != nil {
+			return formatSQLError(
+				"EXPLAIN failed",
+				err,
+				HintCheckSQLSyntax,
+				HintVerifyTableNames,
+				HintCheckJoinConditions,
+			), serrors.E(op, err, "explain failed")
+		}
+
+		planLines := extractExplainLines(explainResult, explainMaxLines)
+		planMarkdown := renderExplainMarkdown(planLines, len(explainResult.Rows) > len(planLines))
+		return renderExplainResponse(normalizedQuery, explainSQL, duration.Milliseconds(), planMarkdown), nil
+	}
+
+	// Execute with tool-level limit enforced at SQL layer.
+	effectiveLimit := params.Limit
+	fetchLimit := effectiveLimit
+	if effectiveLimit < maxSQLExecuteLimit {
+		fetchLimit = effectiveLimit + 1 // detect truncation cheaply
+	}
+
+	executedSQL := wrapQueryWithLimit(normalizedQuery, fetchLimit)
+
+	start := time.Now()
+	result, err := t.executor.ExecuteQuery(ctx, executedSQL, params.Params, 30*time.Second)
+	duration := time.Since(start)
 	if err != nil {
-		return FormatToolError(
-			ErrCodeQueryError,
-			fmt.Sprintf("query execution failed: %v", err),
+		return formatSQLError(
+			"Query execution failed",
+			err,
 			HintCheckSQLSyntax,
 			HintVerifyTableNames,
 			HintCheckJoinConditions,
 		), serrors.E(op, err, "query execution failed")
 	}
 
-	// Convert to map format for tool output (tools expect map format)
-	resultMap := map[string]any{
-		"columns":     result.Columns,
-		"rows":        result.AllMaps(),
-		"row_count":   result.RowCount,
-		"is_limited":  result.Truncated,
-		"duration_ms": result.Duration.Milliseconds(),
+	// Apply truncation semantics on returned data (limit + 1 pattern).
+	truncated := false
+	truncatedReason := ""
+
+	rows := result.Rows
+	if effectiveLimit < maxSQLExecuteLimit && len(rows) > effectiveLimit {
+		truncated = true
+		truncatedReason = "limit"
+		rows = rows[:effectiveLimit]
+	}
+	if result.Truncated {
+		// Executor-level cap (e.g. hard cap) or custom executor behavior.
+		truncated = true
+		if truncatedReason == "" {
+			truncatedReason = "system_cap"
+		}
 	}
 
-	// Format response
-	return agents.FormatToolOutput(resultMap)
+	// Normalize result to the rows we will return.
+	result.Rows = rows
+	result.RowCount = len(rows)
+	result.Truncated = truncated
+
+	previewRows := minInt(len(rows), previewMaxRows)
+	previewMarkdown := renderMarkdownPreview(
+		normalizedQuery,
+		executedSQL,
+		duration.Milliseconds(),
+		result.Columns,
+		rows[:previewRows],
+		result.RowCount,
+		effectiveLimit,
+		truncated,
+		truncatedReason,
+	)
+	return previewMarkdown, nil
 }
 
 // validateReadOnlyQuery ensures the query is a SELECT statement.
@@ -233,7 +323,7 @@ func validateReadOnlyQuery(query string) error {
 
 // validateQueryParameters checks for placeholder/parameter mismatches.
 // Returns an error if the query contains placeholders but no params are provided.
-func validateQueryParameters(query string, params map[string]any) error {
+func validateQueryParameters(query string, params []any) error {
 	placeholders := placeholderPattern.FindAllString(query, -1)
 
 	// If placeholders found but no params provided
@@ -257,7 +347,216 @@ func validateQueryParameters(query string, params map[string]any) error {
 		return fmt.Errorf("params provided but query contains no placeholders")
 	}
 
+	// If both are present, ensure max placeholder index is within params length.
+	if len(placeholders) > 0 && len(params) > 0 {
+		maxIdx := 0
+		for _, ph := range placeholders {
+			// ph is like "$12"
+			n, err := strconv.Atoi(strings.TrimPrefix(ph, "$"))
+			if err != nil {
+				continue
+			}
+			if n > maxIdx {
+				maxIdx = n
+			}
+		}
+		if maxIdx > len(params) {
+			return fmt.Errorf("query references placeholder $%d but params has length %d", maxIdx, len(params))
+		}
+	}
+
 	return nil
+}
+
+func normalizeSQL(q string) string {
+	q = strings.TrimSpace(q)
+	q = strings.TrimSuffix(q, ";")
+	return strings.TrimSpace(q)
+}
+
+func wrapQueryWithLimit(query string, limit int) string {
+	// Wrap to enforce tool-level LIMIT without rewriting the user's SQL.
+	// NOTE: query must already be normalized (no trailing semicolon).
+	return fmt.Sprintf("SELECT * FROM (%s) AS _bichat_q LIMIT %d", query, limit)
+}
+
+func renderMarkdownPreview(
+	query string,
+	executedSQL string,
+	durationMs int64,
+	columns []string,
+	rows [][]any,
+	returnedRows int,
+	limit int,
+	truncated bool,
+	truncatedReason string,
+) string {
+	var b strings.Builder
+	b.WriteString("Query executed successfully.\n\n")
+	b.WriteString(fmt.Sprintf("- Query: `%s`\n", query))
+	b.WriteString(fmt.Sprintf("- Duration: %dms\n", durationMs))
+	b.WriteString(fmt.Sprintf("- Returned: %d row(s)\n", returnedRows))
+	b.WriteString(fmt.Sprintf("- Limit: %d\n", limit))
+	if truncated {
+		reason := truncatedReason
+		if reason == "" {
+			reason = "limit"
+		}
+		b.WriteString(fmt.Sprintf("- Truncated: yes (`%s`)\n", reason))
+	} else {
+		b.WriteString("- Truncated: no\n")
+	}
+	b.WriteString("\n\n")
+
+	if len(columns) == 0 {
+		b.WriteString("No columns returned.\n")
+		b.WriteString("\nExecuted SQL:\n\n```sql\n")
+		b.WriteString(executedSQL)
+		b.WriteString("\n```\n")
+		return b.String()
+	}
+	if len(rows) == 0 {
+		b.WriteString("No rows returned.\n")
+		b.WriteString("\nExecuted SQL:\n\n```sql\n")
+		b.WriteString(executedSQL)
+		b.WriteString("\n```\n")
+		return b.String()
+	}
+
+	// Header
+	b.WriteString("| ")
+	for i, c := range columns {
+		if i > 0 {
+			b.WriteString(" | ")
+		}
+		b.WriteString(escapePreviewCell(c, previewMaxCellLen))
+	}
+	b.WriteString(" |\n")
+
+	// Separator
+	b.WriteString("|")
+	for range columns {
+		b.WriteString(" --- |")
+	}
+	b.WriteString("\n")
+
+	// Rows
+	for _, row := range rows {
+		b.WriteString("| ")
+		for i := range columns {
+			if i > 0 {
+				b.WriteString(" | ")
+			}
+			var v any
+			if i < len(row) {
+				v = row[i]
+			}
+			b.WriteString(escapePreviewCell(formatPreviewValue(v), previewMaxCellLen))
+		}
+		b.WriteString(" |\n")
+	}
+
+	if truncated {
+		b.WriteString("\n")
+		b.WriteString("Use a follow-up query with tighter WHERE filters or a smaller projection. For more rows, increase limit (max 1000) or use export_query_to_excel for large exports.\n")
+	}
+
+	b.WriteString("\nExecuted SQL:\n\n```sql\n")
+	b.WriteString(executedSQL)
+	b.WriteString("\n```\n")
+
+	return b.String()
+}
+
+func formatPreviewValue(v any) string {
+	if v == nil {
+		return "NULL"
+	}
+	return fmt.Sprint(v)
+}
+
+func escapePreviewCell(s string, maxLen int) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.TrimSpace(s)
+	if maxLen > 0 && len(s) > maxLen {
+		return s[:maxLen-3] + "..."
+	}
+	return s
+}
+
+func extractExplainLines(result *bichatsql.QueryResult, maxLines int) []string {
+	if result == nil || len(result.Rows) == 0 {
+		return nil
+	}
+	lines := make([]string, 0, minInt(len(result.Rows), maxLines))
+	for _, row := range result.Rows {
+		if len(lines) >= maxLines {
+			break
+		}
+		if len(row) == 0 {
+			continue
+		}
+		lines = append(lines, fmt.Sprint(row[0]))
+	}
+	return lines
+}
+
+func renderExplainMarkdown(lines []string, truncated bool) string {
+	if len(lines) == 0 {
+		return "No plan output."
+	}
+	var b strings.Builder
+	b.WriteString("```text\n")
+	for _, l := range lines {
+		b.WriteString(l)
+		b.WriteString("\n")
+	}
+	if truncated {
+		b.WriteString("...\n")
+	}
+	b.WriteString("```\n")
+	return b.String()
+}
+
+func renderExplainResponse(query, executedSQL string, durationMs int64, planMarkdown string) string {
+	var b strings.Builder
+	b.WriteString("Explain plan generated successfully.\n\n")
+	b.WriteString(fmt.Sprintf("- Query: `%s`\n", query))
+	b.WriteString(fmt.Sprintf("- Duration: %dms\n\n", durationMs))
+	b.WriteString(planMarkdown)
+	b.WriteString("\nExecuted SQL:\n\n```sql\n")
+	b.WriteString(executedSQL)
+	b.WriteString("\n```\n")
+	return b.String()
+}
+
+func formatSQLError(title string, err error, hints ...string) string {
+	var b strings.Builder
+	b.WriteString(title)
+	if err != nil {
+		b.WriteString(fmt.Sprintf(": %v", err))
+	}
+	if len(hints) > 0 {
+		b.WriteString("\n\nHints:\n")
+		for _, h := range hints {
+			if strings.TrimSpace(h) == "" {
+				continue
+			}
+			b.WriteString("- ")
+			b.WriteString(h)
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // DefaultQueryExecutor is a default implementation of bichatsql.QueryExecutor using pgxpool.

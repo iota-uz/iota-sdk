@@ -2,6 +2,7 @@ package infrastructure
 
 import (
 	"context"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,9 +24,24 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func requirePostgres(t *testing.T) {
+	t.Helper()
+
+	conf := configuration.Use()
+	addr := net.JoinHostPort(conf.Database.Host, conf.Database.Port)
+	d := net.Dialer{Timeout: 500 * time.Millisecond}
+	conn, err := d.DialContext(context.Background(), "tcp", addr)
+	if err != nil {
+		t.Skipf("postgres not available at %s: %v", addr, err)
+		return
+	}
+	_ = conn.Close()
+}
+
 func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 	t.Parallel()
 
+	requirePostgres(t)
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
@@ -39,6 +56,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T) {
 	t.Parallel()
 
+	requirePostgres(t)
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
@@ -100,6 +118,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	t.Parallel()
 
+	requirePostgres(t)
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
@@ -143,6 +162,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 	t.Parallel()
 
+	requirePostgres(t)
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
@@ -187,6 +207,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 	t.Parallel()
 
+	requirePostgres(t)
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
@@ -216,6 +237,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	t.Parallel()
 
+	requirePostgres(t)
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 

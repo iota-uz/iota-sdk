@@ -108,4 +108,8 @@ function EmptyState({
   )
 }
 
-export default memo(EmptyState)
+const MemoizedEmptyState = memo(EmptyState)
+MemoizedEmptyState.displayName = 'EmptyState'
+
+export { MemoizedEmptyState as EmptyState }
+export default MemoizedEmptyState

@@ -1,6 +1,6 @@
 {
   "name": "@iota-uz/sdk",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "IOTA SDK UI utilities, Tailwind configuration, and React components for building IOTA SDK applets.",
   "license": "MIT",
   "private": false,
@@ -52,11 +52,12 @@
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.0",
+    "apexcharts": "^3.45.0",
     "date-fns": "^3.0.0",
     "framer-motion": "^11.0.0",
+    "react-apexcharts": "^1.4.1",
     "react-markdown": "^9.0.1",
     "react-syntax-highlighter": "^15.5.0",
-    "recharts": "^2.12.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.0"
   },

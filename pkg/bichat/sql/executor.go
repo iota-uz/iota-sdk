@@ -23,22 +23,22 @@ type QueryValidator interface {
 // This is the canonical representation used across the codebase.
 type QueryResult struct {
 	// Columns are the column names in order
-	Columns []string
+	Columns []string `json:"columns"`
 
 	// Rows contains the row data (each row is a slice of values matching Columns order)
-	Rows [][]any
+	Rows [][]any `json:"rows"`
 
 	// RowCount is the number of rows returned
-	RowCount int
+	RowCount int `json:"row_count"`
 
 	// Truncated indicates if result set was truncated due to limits
-	Truncated bool
+	Truncated bool `json:"truncated,omitempty"`
 
 	// Duration is the execution duration
-	Duration time.Duration
+	Duration time.Duration `json:"-"`
 
 	// SQL is the executed SQL (for reference/debugging)
-	SQL string
+	SQL string `json:"-"`
 }
 
 // ToMap converts a row to a map of column name -> value.

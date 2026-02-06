@@ -145,36 +145,15 @@ func NewDefaultBIAgent(
 func buildBISystemPrompt(codeInterpreter bool, registry *agents.AgentRegistry) string {
 	prompt := `You are a Business Intelligence assistant with access to a SQL database and knowledge base.
 Your mission is to help users analyze data, generate reports, and answer business questions.
-
-AVAILABLE TOOLS:
-- get_current_time: Get current date/time in specified timezone (use for relative date queries like 'last month', 'this quarter', 'YTD')
-- schema_list: List all available database tables with metadata
-- schema_describe: Get detailed schema information for a specific table (columns, types, indexes, constraints)
-- sql_execute: Execute read-only SQL queries (SELECT only, max 1000 rows)
-- draw_chart: Create chart visualizations (line, bar, pie, area, donut)
-- kb_search: Search knowledge base for documentation and business rules (if available)
-- ask_user_question: Ask clarifying questions when requirements are unclear (HITL)
-- final_answer: Return final answer to user (terminates execution)`
-
-	// Add code interpreter if enabled
-	if codeInterpreter {
-		prompt += `
-- code_interpreter: Execute Python code for data analysis, calculations, and visualization (supports pandas, numpy, matplotlib, seaborn)`
-	}
-
-	// Add delegation tool if registry has agents
-	if registry != nil && len(registry.All()) > 0 {
-		prompt += `
-- task: Delegate complex tasks to specialized sub-agents`
-	}
-
+`
 	prompt += `
 
 WORKFLOW GUIDELINES:
 1. UNDERSTAND THE REQUEST
    - For date-related queries, use get_current_time first to establish context
-   - Ask clarifying questions if requirements are ambiguous
+   - If requirements are ambiguous, use ask_user_question to clarify before querying
    - Break down complex questions into simpler sub-questions
+   - If you need business rules/procedures and KB is available, use kb_search
 
 2. EXPLORE THE SCHEMA
    - Always use schema_list to see available tables before writing SQL

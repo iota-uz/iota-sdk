@@ -129,4 +129,8 @@ function SearchInput({
   )
 }
 
-export default memo(SearchInput)
+const MemoizedSearchInput = memo(SearchInput)
+MemoizedSearchInput.displayName = 'SearchInput'
+
+export { MemoizedSearchInput as SearchInput }
+export default MemoizedSearchInput

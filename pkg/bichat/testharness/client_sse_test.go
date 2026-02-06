@@ -23,12 +23,9 @@ func TestDecodeSSE_EventLinesOptional(t *testing.T) {
 	var got []httpdto.StreamChunkPayload
 	err := decodeSSE(strings.NewReader(input), func(p httpdto.StreamChunkPayload) error {
 		got = append(got, p)
-		if p.Type == "done" {
-			return errSSEDone
-		}
 		return nil
 	})
-	require.ErrorIs(t, err, errSSEDone)
+	require.NoError(t, err)
 	require.Len(t, got, 2)
 	require.Equal(t, "content", got[0].Type)
 	require.Equal(t, "Hi", got[0].Content)
@@ -52,11 +49,8 @@ func TestDecodeSSE_DataOnly(t *testing.T) {
 		if p.Type == "content" {
 			b.WriteString(p.Content)
 		}
-		if p.Type == "done" {
-			return errSSEDone
-		}
 		return nil
 	})
-	require.ErrorIs(t, err, errSSEDone)
+	require.NoError(t, err)
 	require.Equal(t, "AB", b.String())
 }

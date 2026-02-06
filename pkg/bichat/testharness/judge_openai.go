@@ -21,13 +21,13 @@ type JudgeVerdict struct {
 }
 
 type JudgeTurnInput struct {
-	UserPrompt        string
-	FinalAnswer       string
-	StreamedAnswer    string
-	SSEError          string
-	ExpectedChecklist []string
-	JudgeInstructions string
-	ToolCalls         []ToolCall
+	UserPrompt        string     `json:"user_prompt"`
+	FinalAnswer       string     `json:"final_answer"`
+	StreamedAnswer    string     `json:"streamed_answer"`
+	SSEError          string     `json:"sse_error"`
+	ExpectedChecklist []string   `json:"expected_checklist"`
+	JudgeInstructions string     `json:"judge_instructions"`
+	ToolCalls         []ToolCall `json:"tool_calls"`
 }
 
 type OpenAIJudge struct {
@@ -74,8 +74,8 @@ func (j *OpenAIJudge) Evaluate(ctx context.Context, in JudgeTurnInput) (*JudgeVe
 			openai.SystemMessage(judgeSystemPrompt),
 			openai.UserMessage(userPrompt),
 		},
-		Temperature: openai.Float(0),
-		MaxTokens:   openai.Int(maxTokens),
+		// GPT-5* models require max_completion_tokens (max_tokens is not supported).
+		MaxCompletionTokens: openai.Int(maxTokens),
 		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
 			OfJSONObject: &openai.ResponseFormatJSONObjectParam{
 				Type: oaiconstant.ValueOf[oaiconstant.JSONObject](),
