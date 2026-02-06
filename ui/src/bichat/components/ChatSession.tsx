@@ -127,7 +127,7 @@ function ChatSessionCore({
                   formClassName="mx-auto"
                 />
               )}
-              <p className="text-center text-xs text-gray-500 dark:text-gray-400 pb-1">
+              <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400 pb-1">
                 {t('welcome.disclaimer')}
               </p>
             </div>

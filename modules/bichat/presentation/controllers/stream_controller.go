@@ -153,11 +153,11 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 	}
 
 	err = c.chatService.SendMessageStream(ctx, bichatservices.SendMessageRequest{
-		SessionID:   req.SessionID,
-		UserID:      int64(user.ID()),
-		Content:     req.Content,
-		Attachments: req.Attachments,
-		DebugMode:   req.DebugMode,
+		SessionID:            req.SessionID,
+		UserID:               int64(user.ID()),
+		Content:              req.Content,
+		Attachments:          req.Attachments,
+		DebugMode:            req.DebugMode,
 		ReplaceFromMessageID: req.ReplaceFrom,
 	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation

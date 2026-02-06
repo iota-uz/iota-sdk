@@ -10,6 +10,7 @@
 
 import { useChat } from '../context/ChatContext'
 import { AssistantMessage, type AssistantMessageSlots, type AssistantMessageClassNames } from './AssistantMessage'
+import { SystemMessage } from './SystemMessage'
 import type { ConversationTurn } from '../types'
 
 export interface AssistantTurnViewProps {
@@ -42,6 +43,18 @@ export function AssistantTurnView({
 
   const assistantTurn = turn.assistantTurn
   if (!assistantTurn) return null
+
+  if (assistantTurn.role === 'system') {
+    return (
+      <SystemMessage
+        content={assistantTurn.content}
+        createdAt={assistantTurn.createdAt}
+        onCopy={handleCopy}
+        hideActions={hideActions}
+        hideTimestamp={hideTimestamp}
+      />
+    )
+  }
 
   return (
     <AssistantMessage
