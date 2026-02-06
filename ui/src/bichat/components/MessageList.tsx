@@ -6,15 +6,21 @@
  * a user message with its assistant response.
  */
 
-import { useCallback, useEffect, useRef, ReactNode, useState } from 'react'
+import { useCallback, useEffect, useRef, useMemo, ReactNode, useState, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useChat } from '../context/ChatContext'
 import { ConversationTurn } from '../types'
 import { TurnBubble } from './TurnBubble'
 import { TypingIndicator } from './TypingIndicator'
+import StreamingCursor from './StreamingCursor'
 import ScrollToBottomButton from './ScrollToBottomButton'
 import CompactionDoodle from './CompactionDoodle'
 import { useTranslation } from '../hooks/useTranslation'
+import { normalizeStreamingMarkdown } from '../utils/markdownStream'
+
+const MarkdownRenderer = lazy(() =>
+  import('./MarkdownRenderer').then((m) => ({ default: m.MarkdownRenderer }))
+)
 
 interface MessageListProps {
   /** Custom render function for user turns */
@@ -99,6 +105,11 @@ export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs
     return () => container.removeEventListener('scroll', handleScroll)
   }, [])
 
+  const normalizedStreaming = useMemo(
+    () => (streamingContent ? normalizeStreamingMarkdown(streamingContent) : ''),
+    [streamingContent]
+  )
+
   return (
     <div className="relative flex-1 min-h-0">
       <div ref={containerRef} className="h-full overflow-y-auto px-4 py-6">
@@ -170,14 +181,20 @@ export function MessageList({ renderUserTurn, renderAssistantTurn, thinkingVerbs
           {/* Streaming content — shown once tokens arrive */}
           {isStreaming && streamingContent && (
             <div className="flex gap-3">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white font-medium text-xs">
                 AI
               </div>
-              <div className="flex-1 max-w-[80%] rounded-2xl px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm">
-                <div className="prose prose-sm max-w-none dark:prose-invert">
-                  {streamingContent}
-                  <span className="inline-block w-2 h-4 ml-1 bg-primary-600 animate-pulse" />
-                </div>
+              <div className="flex-1 max-w-[85%] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl rounded-bl-sm px-4 py-3 text-gray-900 dark:text-gray-100">
+                <Suspense
+                  fallback={
+                    <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap">
+                      {streamingContent}
+                    </div>
+                  }
+                >
+                  <MarkdownRenderer content={normalizedStreaming} sendDisabled />
+                </Suspense>
+                <StreamingCursor />
               </div>
             </div>
           )}
