@@ -12,6 +12,8 @@ import (
 type ListOptions struct {
 	Limit  int
 	Offset int
+	// IncludeArchived includes archived sessions in list results (default: false = active only)
+	IncludeArchived bool
 	// Types filters GetSessionArtifacts by artifact type (optional)
 	Types []ArtifactType
 }

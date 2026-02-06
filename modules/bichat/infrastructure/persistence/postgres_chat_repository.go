@@ -40,7 +40,7 @@ const (
 		SELECT id, tenant_id, user_id, title, status, pinned,
 			   parent_session_id, pending_question_agent, created_at, updated_at
 		FROM bichat.sessions
-		WHERE tenant_id = $1 AND user_id = $2
+		WHERE tenant_id = $1 AND user_id = $2 AND ($5::boolean OR status != 'ARCHIVED')
 		ORDER BY pinned DESC, created_at DESC
 		LIMIT $3 OFFSET $4
 	`
@@ -288,7 +288,7 @@ func (r *PostgresChatRepository) ListUserSessions(ctx context.Context, userID in
 		return nil, serrors.E(op, err)
 	}
 
-	rows, err := tx.Query(ctx, listUserSessionsQuery, tenantID, userID, opts.Limit, opts.Offset)
+	rows, err := tx.Query(ctx, listUserSessionsQuery, tenantID, userID, opts.Limit, opts.Offset, opts.IncludeArchived)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}

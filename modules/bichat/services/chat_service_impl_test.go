@@ -1,11 +1,14 @@
 package services
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -160,4 +163,40 @@ func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
 	require.Len(t, messages, 2)
 	assert.Equal(t, "/compact", messages[0].Content())
 	assert.Equal(t, result.Summary, messages[1].Content())
+}
+
+type captureTitleContextService struct {
+	called chan context.Context
+}
+
+func (s *captureTitleContextService) GenerateSessionTitle(ctx context.Context, _ uuid.UUID) error {
+	select {
+	case s.called <- ctx:
+	default:
+	}
+	return nil
+}
+
+func TestChatService_MaybeGenerateTitleAsync_PreservesTenantContext(t *testing.T) {
+	t.Parallel()
+
+	tenantID := uuid.New()
+	titleService := &captureTitleContextService{
+		called: make(chan context.Context, 1),
+	}
+	svc := &chatServiceImpl{
+		titleService: titleService,
+	}
+
+	reqCtx := composables.WithTenantID(context.Background(), tenantID)
+	svc.maybeGenerateTitleAsync(reqCtx, uuid.New())
+
+	select {
+	case titleCtx := <-titleService.called:
+		gotTenantID, err := composables.UseTenantID(titleCtx)
+		require.NoError(t, err)
+		assert.Equal(t, tenantID, gotTenantID)
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async title generation to be invoked")
+	}
 }

@@ -62,6 +62,37 @@ func ExampleNewDefaultBIAgent_withOptions() {
 	// Tools count: 7
 }
 
+// ExampleNewDefaultBIAgent_withInsightPrompting demonstrates insight-focused response prompting.
+func ExampleNewDefaultBIAgent_withInsightPrompting() {
+	executor := &mockQueryExecutor{}
+
+	// Create agent with "standard" insight depth
+	// This configures the agent to provide structured analysis with key findings,
+	// trends, anomalies, and comparisons after presenting data
+	agent, err := bichatagents.NewDefaultBIAgent(
+		executor,
+		bichatagents.WithInsightPrompting("standard"),
+		bichatagents.WithModel("gpt-4"),
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	metadata := agent.Metadata()
+	fmt.Println("Model:", metadata.Model)
+	fmt.Println("Agent configured for insight-focused responses")
+
+	// The agent's system prompt now includes instructions to provide:
+	// - KEY FINDINGS: 2-3 most important observations
+	// - TRENDS: Notable patterns over time or across categories
+	// - ANOMALIES: Unexpected values or outliers worth investigating
+	// - COMPARISONS: How results compare to baselines, targets, or prior periods
+
+	// Output:
+	// Model: gpt-4
+	// Agent configured for insight-focused responses
+}
+
 // Mock implementations for examples
 
 type mockQueryExecutor struct{}

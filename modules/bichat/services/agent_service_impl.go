@@ -359,10 +359,18 @@ func convertExecutorEvent(execEvent agents.ExecutorEvent) services.Event {
 		event.Done = true
 		// Extract usage from result if available
 		if execEvent.Result != nil {
-			event.Usage = &services.TokenUsage{
-				PromptTokens:     execEvent.Result.Usage.PromptTokens,
-				CompletionTokens: execEvent.Result.Usage.CompletionTokens,
-				TotalTokens:      execEvent.Result.Usage.TotalTokens,
+			usage := execEvent.Result.Usage
+			if usage.PromptTokens > 0 || usage.CompletionTokens > 0 || usage.TotalTokens > 0 || usage.CachedTokens > 0 || usage.CacheReadTokens > 0 || usage.CacheWriteTokens > 0 {
+				cachedTokens := usage.CachedTokens
+				if cachedTokens == 0 {
+					cachedTokens = usage.CacheReadTokens
+				}
+				event.Usage = &services.TokenUsage{
+					PromptTokens:     usage.PromptTokens,
+					CompletionTokens: usage.CompletionTokens,
+					TotalTokens:      usage.TotalTokens,
+					CachedTokens:     cachedTokens,
+				}
 			}
 		}
 

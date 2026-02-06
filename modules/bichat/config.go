@@ -9,14 +9,16 @@ import (
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	"github.com/iota-uz/iota-sdk/modules/bichat/services"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/analytics"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	bichatcontext "github.com/iota-uz/iota-sdk/pkg/bichat/context"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/context/renderers"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/learning"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/storage"
@@ -58,9 +60,12 @@ type ModuleConfig struct {
 	AgentRegistry *agents.AgentRegistry
 
 	// Optional services (can be nil)
-	QueryExecutor bichatsql.QueryExecutor
-	KBSearcher    kb.KBSearcher
-	TenantService *coreservices.TenantService
+	QueryExecutor          bichatsql.QueryExecutor
+	KBSearcher             kb.KBSearcher
+	TenantService          *coreservices.TenantService
+	SchemaMetadataProvider schema.MetadataProvider
+	LearningStore          learning.LearningStore       // Optional: Dynamic learnings system
+	ValidatedQueryStore    learning.ValidatedQueryStore // Optional: Validated query library
 
 	// BiChat query executor pool (restricted permissions)
 	// This pool should be configured with bichat_agent_role for SQL security
@@ -96,10 +101,9 @@ type ModuleConfig struct {
 	// Feature toggles
 	DisableTitleGeneration bool // Disable auto-title generation
 
-	// Optional: View access control for SQL execution
-	// When configured, SQL queries are validated against user permissions
-	// before execution to the analytics schema views
-	ViewAccessConfig *permissions.Config
+	// Optional: ViewManager manages analytics view definitions and syncs them to DB.
+	// When configured, views are synced on startup and used for permission-based access control.
+	ViewManager *analytics.ViewManager
 
 	// Internal: Created services (initialized during BuildServices)
 	chatService       bichatservices.ChatService
@@ -136,6 +140,48 @@ func WithKBSearcher(searcher kb.KBSearcher) ConfigOption {
 func WithTenantService(svc *coreservices.TenantService) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.TenantService = svc
+	}
+}
+
+// WithSchemaMetadata sets the schema metadata provider for table documentation.
+// When configured, table metadata (descriptions, use cases, metrics) will be
+// injected into agent context as KindReference blocks.
+//
+// Example:
+//
+//	provider, _ := schema.NewFileMetadataProvider("/var/lib/bichat/metadata")
+//	cfg := bichat.NewModuleConfig(..., bichat.WithSchemaMetadata(provider))
+func WithSchemaMetadata(provider schema.MetadataProvider) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.SchemaMetadataProvider = provider
+	}
+}
+
+// WithLearningStore sets the learning store for dynamic agent learnings.
+// When configured, the agent can save and retrieve learnings from SQL errors,
+// type mismatches, and user corrections to avoid repeating mistakes.
+//
+// Example:
+//
+//	learningStore := persistence.NewLearningRepository(dbPool)
+//	cfg := bichat.NewModuleConfig(..., bichat.WithLearningStore(learningStore))
+func WithLearningStore(store learning.LearningStore) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.LearningStore = store
+	}
+}
+
+// WithValidatedQueryStore sets the validated query store for query pattern library.
+// When configured, the agent can search and save validated SQL query patterns
+// to reuse proven solutions for similar questions.
+//
+// Example:
+//
+//	validatedQueryStore := persistence.NewValidatedQueryRepository(dbPool)
+//	cfg := bichat.NewModuleConfig(..., bichat.WithValidatedQueryStore(validatedQueryStore))
+func WithValidatedQueryStore(store learning.ValidatedQueryStore) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ValidatedQueryStore = store
 	}
 }
 
@@ -254,20 +300,19 @@ func WithTitleGenerationDisabled() ConfigOption {
 	}
 }
 
-// WithViewAccessConfig configures permission-based view access control for SQL execution.
-// When configured, the SQL execute and schema tools will validate user permissions
-// against the analytics schema views before execution.
+// WithAnalyticsViews sets the ViewManager for analytics view sync and access control.
+// The ViewManager defines view SQL + permissions in Go and syncs them to the database
+// on every app start via CREATE OR REPLACE VIEW.
 //
 // Example:
 //
-//	viewConfig := permissions.NewConfig("analytics", []permissions.ViewPermission{
-//	    {ViewName: "expenses", Required: []permission.Permission{financeperm.ExpenseRead}},
-//	    {ViewName: "payments", Required: []permission.Permission{financeperm.PaymentRead}},
-//	})
-//	cfg := bichat.NewModuleConfig(..., bichat.WithViewAccessConfig(viewConfig))
-func WithViewAccessConfig(cfg *permissions.Config) ConfigOption {
+//	vm := analytics.NewViewManager()
+//	vm.Register(analytics.DefaultTenantViews()...)
+//	vm.Register(analytics.CustomView("custom_report", sql, analytics.RequireAny(perm)))
+//	cfg := bichat.NewModuleConfig(..., bichat.WithAnalyticsViews(vm))
+func WithAnalyticsViews(vm *analytics.ViewManager) ConfigOption {
 	return func(c *ModuleConfig) {
-		c.ViewAccessConfig = cfg
+		c.ViewManager = vm
 	}
 }
 
@@ -531,14 +576,15 @@ func (c *ModuleConfig) BuildServices() error {
 	// Build AgentService first (ChatService depends on it)
 	if c.agentService == nil {
 		c.agentService = services.NewAgentService(services.AgentServiceConfig{
-			Agent:         c.ParentAgent,
-			Model:         c.Model,
-			Policy:        c.ContextPolicy,
-			Renderer:      c.Renderer, // Use configured renderer
-			Checkpointer:  c.Checkpointer,
-			EventBus:      c.EventBus,
-			ChatRepo:      c.ChatRepo,
-			AgentRegistry: c.AgentRegistry,
+			Agent:          c.ParentAgent,
+			Model:          c.Model,
+			Policy:         c.ContextPolicy,
+			Renderer:       c.Renderer, // Use configured renderer
+			Checkpointer:   c.Checkpointer,
+			EventBus:       c.EventBus,
+			ChatRepo:       c.ChatRepo,
+			AgentRegistry:  c.AgentRegistry,
+			SchemaMetadata: c.SchemaMetadataProvider,
 		})
 	}
 

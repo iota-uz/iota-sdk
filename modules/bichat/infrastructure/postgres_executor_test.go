@@ -48,7 +48,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_MissingTenantID(t *testing.T) {
 	// Context without tenant ID
 	ctx := context.Background()
 
-	_, err := executor.ExecuteQuery(ctx, "SELECT 1 WHERE tenant_id = $1", nil, 5*time.Second)
+	_, err := executor.ExecuteQuery(ctx, "SELECT 1", nil, 5*time.Second)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant ID required")
 }
@@ -60,8 +60,18 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	env := itf.Setup(t, itf.WithModules(modules.BuiltInModules...))
 	executor := NewPostgresQueryExecutor(env.Pool)
 
-	// Create test table with tenant_id
-	_, err := env.Pool.Exec(env.Ctx, `
+	// Get tenant ID from context
+	tenantID, err := composables.UseTenantID(env.Ctx)
+	require.NoError(t, err)
+
+	// Create analytics view that uses session variable for tenant filtering
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE SCHEMA IF NOT EXISTS analytics
+	`)
+	require.NoError(t, err)
+
+	// Create base table in public schema
+	_, err = env.Pool.Exec(env.Ctx, `
 		CREATE TEMP TABLE test_tenant_data (
 			id SERIAL PRIMARY KEY,
 			tenant_id UUID NOT NULL,
@@ -71,8 +81,12 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	`)
 	require.NoError(t, err)
 
-	// Get tenant ID from context
-	tenantID, err := composables.UseTenantID(env.Ctx)
+	// Create temp view with automatic tenant filtering (simulates analytics schema)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TEMP VIEW analytics_test_tenant_data AS
+		SELECT * FROM test_tenant_data
+		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
+	`)
 	require.NoError(t, err)
 
 	// Insert data for current tenant
@@ -83,7 +97,7 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	`, tenantID)
 	require.NoError(t, err)
 
-	// Insert data for different tenant (should NOT be accessible)
+	// Insert data for different tenant (should NOT be accessible through view)
 	otherTenantID := uuid.New()
 	_, err = env.Pool.Exec(env.Ctx, `
 		INSERT INTO test_tenant_data (tenant_id, name, value) VALUES
@@ -92,11 +106,12 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 	`, otherTenantID)
 	require.NoError(t, err)
 
-	// Test 1: Execute query WITH explicit tenant filter (correct usage)
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_tenant_data WHERE tenant_id = $1 ORDER BY value", nil, 5*time.Second)
+	// Execute query on temp view (NO explicit WHERE tenant_id = $1 needed)
+	// Session variable is set automatically by executor
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM analytics_test_tenant_data ORDER BY value", nil, 5*time.Second)
 	require.NoError(t, err)
 
-	// Verify ONLY current tenant's data is returned
+	// Verify ONLY current tenant's data is returned (automatic filtering by view)
 	assert.Equal(t, 2, result.RowCount, "should only see current tenant's 2 rows")
 	assert.Len(t, result.Rows, 2)
 	assert.Equal(t, "Alice", result.ToMap(0)["name"])
@@ -108,11 +123,6 @@ func TestPostgresQueryExecutor_ExecuteQuery_TenantIsolationEnforced(t *testing.T
 		assert.NotEqual(t, "Charlie", rowMap["name"])
 		assert.NotEqual(t, "David", rowMap["name"])
 	}
-
-	// Test 2: Execute query WITHOUT tenant filter (should be rejected)
-	_, err = executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_tenant_data ORDER BY value", nil, 5*time.Second)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must include WHERE tenant_id")
 }
 
 func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
@@ -137,6 +147,14 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
+	// Create temp view with automatic tenant filtering (simulates analytics schema)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TEMP VIEW analytics_test_data AS
+		SELECT * FROM test_data
+		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
+	`)
+	require.NoError(t, err)
+
 	// Insert test data with tenant_id
 	_, err = env.Pool.Exec(env.Ctx, `
 		INSERT INTO test_data (tenant_id, name, value) VALUES
@@ -146,8 +164,8 @@ func TestPostgresQueryExecutor_ExecuteQuery_Success(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	// Execute query with tenant_id filter
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM test_data WHERE tenant_id = $1 ORDER BY value", nil, 5*time.Second)
+	// Execute query on temp view (session variable handles tenant filtering)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT name, value FROM analytics_test_data ORDER BY value", nil, 5*time.Second)
 	require.NoError(t, err)
 
 	assert.Len(t, result.Columns, 2)
@@ -181,6 +199,14 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
+	// Create temp view with automatic tenant filtering (simulates analytics schema)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TEMP VIEW analytics_test_products AS
+		SELECT * FROM test_products
+		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
+	`)
+	require.NoError(t, err)
+
 	// Insert test data with tenant_id
 	_, err = env.Pool.Exec(env.Ctx, `
 		INSERT INTO test_products (tenant_id, name, price) VALUES
@@ -190,10 +216,10 @@ func TestPostgresQueryExecutor_ExecuteQuery_WithParameters(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	// Execute query with parameters (tenant_id is $1, price is $2)
+	// Execute query with user parameter (price is $1, tenant_id is automatic via session variable)
 	result, err := executor.ExecuteQuery(
 		env.Ctx,
-		"SELECT name, price FROM test_products WHERE tenant_id = $1 AND price > $2 ORDER BY price",
+		"SELECT name, price FROM analytics_test_products WHERE price > $1 ORDER BY price",
 		[]any{10.0},
 		5*time.Second,
 	)
@@ -224,12 +250,20 @@ func TestPostgresQueryExecutor_ExecuteQuery_Timeout(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
+	// Create temp view with automatic tenant filtering (simulates analytics schema)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TEMP VIEW analytics_test_timeout AS
+		SELECT * FROM test_timeout
+		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
+	`)
+	require.NoError(t, err)
+
 	// Insert one row
 	_, err = env.Pool.Exec(env.Ctx, `INSERT INTO test_timeout (tenant_id) VALUES ($1)`, tenantID)
 	require.NoError(t, err)
 
 	// Execute query with very short timeout (1ms) on a slow query
-	_, err = executor.ExecuteQuery(env.Ctx, "SELECT pg_sleep(1) FROM test_timeout WHERE tenant_id = $1", nil, 1*time.Millisecond)
+	_, err = executor.ExecuteQuery(env.Ctx, "SELECT pg_sleep(1) FROM analytics_test_timeout", nil, 1*time.Millisecond)
 	assert.Error(t, err)
 	// Timeout errors vary by driver, just check that it failed
 }
@@ -255,6 +289,14 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
+	// Create temp view with automatic tenant filtering (simulates analytics schema)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TEMP VIEW analytics_test_large AS
+		SELECT * FROM test_large
+		WHERE tenant_id = current_setting('app.tenant_id', true)::UUID
+	`)
+	require.NoError(t, err)
+
 	// Insert 1500 rows (exceeds 1000 row limit) with tenant_id
 	_, err = env.Pool.Exec(env.Ctx, `
 		INSERT INTO test_large (tenant_id, value)
@@ -262,8 +304,8 @@ func TestPostgresQueryExecutor_ExecuteQuery_RowLimit(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	// Execute query with tenant_id filter
-	result, err := executor.ExecuteQuery(env.Ctx, "SELECT * FROM test_large WHERE tenant_id = $1", nil, 10*time.Second)
+	// Execute query on temp view (session variable handles tenant filtering)
+	result, err := executor.ExecuteQuery(env.Ctx, "SELECT * FROM analytics_test_large", nil, 10*time.Second)
 	require.NoError(t, err)
 
 	// Should be limited to 1000 rows
@@ -311,7 +353,7 @@ func TestPostgresQueryExecutor_FormatValue(t *testing.T) {
 	}
 }
 
-func TestPostgresQueryExecutor_ContainsTenantFilter(t *testing.T) {
+func TestPostgresQueryExecutor_IsSystemCatalogQuery(t *testing.T) {
 	t.Parallel()
 
 	executor := &PostgresQueryExecutor{}
@@ -322,30 +364,40 @@ func TestPostgresQueryExecutor_ContainsTenantFilter(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "contains tenant_id",
-			sql:      "SELECT * FROM users WHERE tenant_id = $1",
+			name:     "pg_catalog qualified",
+			sql:      "SELECT * FROM pg_catalog.pg_class",
 			expected: true,
 		},
 		{
-			name:     "contains TENANT_ID uppercase",
-			sql:      "SELECT * FROM users WHERE TENANT_ID = $1",
+			name:     "information_schema qualified",
+			sql:      "SELECT * FROM information_schema.columns",
 			expected: true,
 		},
 		{
-			name:     "no tenant filter",
-			sql:      "SELECT * FROM users",
+			name:     "pg_class without schema",
+			sql:      "SELECT * FROM pg_class WHERE relname = 'test'",
+			expected: true,
+		},
+		{
+			name:     "pg_namespace in JOIN",
+			sql:      "SELECT * FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid",
+			expected: true,
+		},
+		{
+			name:     "regular analytics query",
+			sql:      "SELECT * FROM analytics.users",
 			expected: false,
 		},
 		{
-			name:     "tenant_id in JOIN",
-			sql:      "SELECT * FROM users u JOIN orders o ON u.id = o.user_id WHERE u.tenant_id = $1",
-			expected: true,
+			name:     "regular table name containing pg",
+			sql:      "SELECT * FROM my_pg_table",
+			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := executor.containsTenantFilter(tt.sql)
+			result := executor.isSystemCatalogQuery(tt.sql)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

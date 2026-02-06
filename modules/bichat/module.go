@@ -76,6 +76,13 @@ func (m *Module) Register(app application.Application) error {
 
 	// Register controllers if config is available
 	if m.config != nil {
+		// Sync analytics views to database (fail-fast on startup)
+		if m.config.ViewManager != nil {
+			if err := m.config.ViewManager.Sync(context.Background(), app.DB()); err != nil {
+				return fmt.Errorf("failed to sync analytics views: %w", err)
+			}
+		}
+
 		// Build services (fail fast - no try/continue)
 		if err := m.config.BuildServices(); err != nil {
 			return fmt.Errorf("failed to build BiChat services: %w", err)
