@@ -1,0 +1,69 @@
+[
+  {
+    "id": "sales_total_2024",
+    "question": "What were the total sales in 2024?",
+    "expected_content": ["sales", "2024", "total"],
+    "expected_sql": "SELECT SUM(amount) FROM sales WHERE EXTRACT(YEAR FROM date) = 2024",
+    "golden_answer": "The total sales in 2024 were $5.2 million, representing a 25% increase compared to 2023.",
+    "tags": ["sales", "basic", "aggregation"],
+    "category": "financial"
+  },
+  {
+    "id": "top_products_revenue",
+    "question": "Show me the top 5 products by revenue",
+    "expected_content": ["products", "revenue", "top"],
+    "expected_sql": "SELECT product_name, SUM(revenue) as total_revenue FROM sales GROUP BY product_name ORDER BY total_revenue DESC LIMIT 5",
+    "tags": ["products", "ranking", "revenue"],
+    "category": "analytics"
+  },
+  {
+    "id": "customer_growth_rate",
+    "question": "What is the customer growth rate compared to last year?",
+    "expected_content": ["customer", "growth", "rate"],
+    "golden_answer": "Customer growth rate is 18% year-over-year, with 2,340 new customers acquired in 2024 compared to 1,980 in 2023.",
+    "tags": ["customers", "growth", "metrics"],
+    "category": "customer_intelligence"
+  },
+  {
+    "id": "monthly_revenue_trend",
+    "question": "Show monthly revenue trend for Q4 2024",
+    "expected_content": ["monthly", "revenue", "trend", "Q4", "2024"],
+    "expected_sql": "SELECT DATE_TRUNC('month', date) as month, SUM(revenue) as total_revenue FROM sales WHERE EXTRACT(QUARTER FROM date) = 4 AND EXTRACT(YEAR FROM date) = 2024 GROUP BY month ORDER BY month",
+    "tags": ["revenue", "trend", "quarterly"],
+    "category": "financial"
+  },
+  {
+    "id": "inventory_low_stock",
+    "question": "Which products have low inventory levels?",
+    "expected_content": ["products", "inventory", "low"],
+    "expected_sql": "SELECT product_name, stock_quantity FROM inventory WHERE stock_quantity < reorder_point",
+    "golden_answer": "There are 12 products with low inventory: Widget A (5 units), Gadget B (8 units), and 10 other items below their reorder points.",
+    "tags": ["inventory", "stock", "alert"],
+    "category": "operations"
+  },
+  {
+    "id": "average_order_value",
+    "question": "What is the average order value?",
+    "expected_content": ["average", "order", "value"],
+    "expected_sql": "SELECT AVG(total_amount) FROM orders",
+    "golden_answer": "The average order value is $142.50, which is up 8% from last quarter's average of $132.",
+    "tags": ["orders", "metrics", "aggregation"],
+    "category": "financial"
+  },
+  {
+    "id": "customer_retention_rate",
+    "question": "What is our customer retention rate?",
+    "expected_content": ["customer", "retention", "rate"],
+    "golden_answer": "Our customer retention rate is 87%, calculated as the percentage of customers who made repeat purchases within the last 12 months.",
+    "tags": ["customers", "retention", "metrics"],
+    "category": "customer_intelligence"
+  },
+  {
+    "id": "sales_by_region",
+    "question": "Break down sales by region",
+    "expected_content": ["sales", "region"],
+    "expected_sql": "SELECT region, SUM(amount) as total_sales FROM sales GROUP BY region ORDER BY total_sales DESC",
+    "tags": ["sales", "geographic", "breakdown"],
+    "category": "analytics"
+  }
+]

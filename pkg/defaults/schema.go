@@ -1,6 +1,7 @@
 package defaults
 
 import (
+	bichatPerms "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 
@@ -55,6 +56,7 @@ func (b *permissionSetBuilder) manageSet(resource string, create, read, update, 
 func AllPermissions() []permission.Permission {
 	// Pre-calculate total capacity to avoid slice re-allocations
 	totalCapacity := len(corePerms.Permissions) +
+		len(bichatPerms.Permissions) +
 		len(billingPerms.Permissions) +
 		len(crmPerms.Permissions) +
 		len(financePerms.Permissions) +
@@ -65,6 +67,7 @@ func AllPermissions() []permission.Permission {
 
 	permissions := make([]permission.Permission, 0, totalCapacity)
 	permissions = append(permissions, corePerms.Permissions...)
+	permissions = append(permissions, bichatPerms.Permissions...)
 	permissions = append(permissions, billingPerms.Permissions...)
 	permissions = append(permissions, crmPerms.Permissions...)
 	permissions = append(permissions, financePerms.Permissions...)
@@ -163,6 +166,20 @@ func buildModulePermissionSets() []rbac.PermissionSet {
 	sets = append(sets,
 		hrm.viewSet("Employee", hrmPerms.EmployeeRead),
 		hrm.manageSet("Employee", hrmPerms.EmployeeCreate, hrmPerms.EmployeeRead, hrmPerms.EmployeeUpdate, hrmPerms.EmployeeDelete),
+	)
+
+	// BiChat module
+	bichat := newPermissionSetBuilder("BiChat")
+	sets = append(sets,
+		bichat.viewSet("Access", bichatPerms.BiChatAccess),
+		bichat.viewSet("ReadAll", bichatPerms.BiChatReadAll),
+		rbac.PermissionSet{
+			Key:         "bichat_export",
+			Label:       "PermissionSets.BiChat.Export.Label",
+			Description: "PermissionSets.BiChat.Export._Description",
+			Module:      "BiChat",
+			Permissions: []permission.Permission{bichatPerms.BiChatExport},
+		},
 	)
 
 	return sets
