@@ -567,6 +567,25 @@ func TestGetUserPermissions_Success(t *testing.T) {
 	assert.Contains(t, permissions, "core.admin")
 }
 
+func TestGetUserPermissions_IncludesRolePermissions(t *testing.T) {
+	t.Parallel()
+
+	p := permission.New(
+		permission.WithID(uuid.New()),
+		permission.WithName("BiChat.Access"),
+		permission.WithResource("bichat"),
+		permission.WithAction(permission.ActionRead),
+		permission.WithModifier(permission.ModifierAll),
+	)
+	r := role.New("Admin", role.WithPermissions([]permission.Permission{p}))
+	u := user.New("T", "U", internet.MustParseEmail("role@example.com"), user.UILanguageEN, user.WithID(1))
+	u = u.AddRole(r)
+
+	ctx := composables.WithUser(context.Background(), u)
+	permissions := getUserPermissions(ctx)
+	assert.Contains(t, permissions, "bichat.access")
+}
+
 func TestGetUserPermissions_ErrorCase(t *testing.T) {
 	t.Parallel()
 

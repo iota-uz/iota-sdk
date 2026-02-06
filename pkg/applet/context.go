@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/csrf"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -253,11 +254,36 @@ func getUserPermissions(ctx context.Context) []string {
 	if err != nil {
 		return []string{}
 	}
+	return collectUserPermissionNames(user)
+}
 
-	perms := make([]string, 0, len(user.Permissions()))
-	for _, perm := range user.Permissions() {
-		// Use Name() which returns the string identifier (e.g., "bichat.access")
-		perms = append(perms, perm.Name())
+func collectUserPermissionNames(u user.User) []string {
+	if u == nil {
+		return []string{}
+	}
+
+	perms := make([]string, 0, len(u.Permissions()))
+	seen := make(map[string]struct{}, len(u.Permissions()))
+
+	add := func(name string) {
+		normalized := normalizePermissionName(name)
+		if normalized == "" {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		perms = append(perms, normalized)
+	}
+
+	for _, perm := range u.Permissions() {
+		add(perm.Name())
+	}
+	for _, role := range u.Roles() {
+		for _, perm := range role.Permissions() {
+			add(perm.Name())
+		}
 	}
 	return perms
 }

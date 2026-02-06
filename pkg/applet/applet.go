@@ -154,7 +154,7 @@ type DevAssetConfig struct {
 	TargetURL    string // e.g. http://localhost:5173
 	EntryModule  string // e.g. /src/main.tsx
 	ClientModule string // default: /@vite/client
-	StripPrefix  *bool  // default: true
+	StripPrefix  *bool  // default: false
 }
 
 type RPCConfig struct {

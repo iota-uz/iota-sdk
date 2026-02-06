@@ -3,6 +3,7 @@ package applet
 import (
 	"html"
 	"regexp"
+	"strings"
 )
 
 // sanitizeForJSON removes or escapes dangerous characters before JSON serialization.
@@ -70,7 +71,10 @@ func validatePermissions(permissions []string) []string {
 	}
 
 	validated := make([]string, 0, len(permissions))
-	for _, perm := range permissions {
+	seen := make(map[string]struct{}, len(permissions))
+	for _, rawPerm := range permissions {
+		perm := normalizePermissionName(rawPerm)
+
 		// Skip empty or overly long permissions
 		if len(perm) == 0 || len(perm) > maxPermissionLength {
 			continue
@@ -81,6 +85,12 @@ func validatePermissions(permissions []string) []string {
 			continue
 		}
 
+		// Skip duplicates after normalization
+		if _, ok := seen[perm]; ok {
+			continue
+		}
+		seen[perm] = struct{}{}
+
 		validated = append(validated, perm)
 
 		// Prevent DoS by limiting total permissions
@@ -89,6 +99,10 @@ func validatePermissions(permissions []string) []string {
 		}
 	}
 	return validated
+}
+
+func normalizePermissionName(perm string) string {
+	return strings.ToLower(strings.TrimSpace(perm))
 }
 
 // permissionRegex validates permission format: module.action (lowercase, dots, underscores)
