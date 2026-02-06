@@ -69,6 +69,13 @@ export const defaultTranslations: Translations = {
   'assistant.thinking': 'Thinking...',
   'assistant.toolCall': 'Using tool: {name}',
   'assistant.generating': 'Generating response...',
+  'assistant.explanation': 'How I arrived at this',
+
+  // System message
+  'system.conversationSummary': 'Conversation summary',
+  'system.loadingSummary': 'Loading summary...',
+  'system.showMore': 'Show more',
+  'system.showLess': 'Show less',
 
   // Question form
   'question.submit': 'Submit',

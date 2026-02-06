@@ -68,6 +68,10 @@ export { UserFilter } from './components/UserFilter'
 export { default as DateGroupHeader } from './components/DateGroupHeader'
 export { default as SessionSkeleton } from './components/SessionSkeleton'
 
+// Specialized message components
+export { SystemMessage } from './components/SystemMessage'
+export { DebugPanel, type DebugPanelProps } from './components/DebugPanel'
+
 // Generic UI components
 export { default as Alert } from './components/Alert'
 export { default as ArchiveBanner } from './components/ArchiveBanner'

@@ -494,6 +494,18 @@ func (c *ModuleConfig) Validate() error {
 	return nil
 }
 
+func defaultKindPriorities() []bichatcontext.KindPriority {
+	return []bichatcontext.KindPriority{
+		{Kind: bichatcontext.KindPinned, MinTokens: 1000, MaxTokens: 5000, Truncatable: false},
+		{Kind: bichatcontext.KindReference, MinTokens: 2000, MaxTokens: 10000, Truncatable: true},
+		{Kind: bichatcontext.KindMemory, MinTokens: 1000, MaxTokens: 5000, Truncatable: true},
+		{Kind: bichatcontext.KindState, MinTokens: 500, MaxTokens: 2000, Truncatable: false},
+		{Kind: bichatcontext.KindToolOutput, MinTokens: 2000, MaxTokens: 20000, Truncatable: true},
+		{Kind: bichatcontext.KindHistory, MinTokens: 5000, MaxTokens: 100000, Truncatable: true},
+		{Kind: bichatcontext.KindTurn, MinTokens: 1000, MaxTokens: 10000, Truncatable: false},
+	}
+}
+
 // DefaultContextPolicy returns a sensible default context policy for Claude 3.5 Sonnet.
 // Uses OverflowTruncate strategy - history is truncated when token budget is exceeded.
 // For intelligent summarization, use DefaultContextPolicyWithCompaction.
@@ -502,15 +514,7 @@ func DefaultContextPolicy() bichatcontext.ContextPolicy {
 		ContextWindow:     180000, // Claude 3.5 context window
 		CompletionReserve: 8000,   // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowTruncate,
-		KindPriorities: []bichatcontext.KindPriority{
-			{Kind: bichatcontext.KindPinned, MinTokens: 1000, MaxTokens: 5000, Truncatable: false},
-			{Kind: bichatcontext.KindReference, MinTokens: 2000, MaxTokens: 10000, Truncatable: true},
-			{Kind: bichatcontext.KindMemory, MinTokens: 1000, MaxTokens: 5000, Truncatable: true},
-			{Kind: bichatcontext.KindState, MinTokens: 500, MaxTokens: 2000, Truncatable: false},
-			{Kind: bichatcontext.KindToolOutput, MinTokens: 2000, MaxTokens: 20000, Truncatable: true},
-			{Kind: bichatcontext.KindHistory, MinTokens: 5000, MaxTokens: 100000, Truncatable: true},
-			{Kind: bichatcontext.KindTurn, MinTokens: 1000, MaxTokens: 10000, Truncatable: false},
-		},
+		KindPriorities:    defaultKindPriorities(),
 		Compaction: &bichatcontext.CompactionConfig{
 			PruneToolOutputs:   true,
 			MaxToolOutputAge:   0, // Keep all by default
@@ -538,15 +542,7 @@ func DefaultContextPolicyWithCompaction() bichatcontext.ContextPolicy {
 		ContextWindow:     180000,                        // Claude 3.5 context window
 		CompletionReserve: 8000,                          // Reserve for completion
 		OverflowStrategy:  bichatcontext.OverflowCompact, // Intelligent compaction
-		KindPriorities: []bichatcontext.KindPriority{
-			{Kind: bichatcontext.KindPinned, MinTokens: 1000, MaxTokens: 5000, Truncatable: false},
-			{Kind: bichatcontext.KindReference, MinTokens: 2000, MaxTokens: 10000, Truncatable: true},
-			{Kind: bichatcontext.KindMemory, MinTokens: 1000, MaxTokens: 5000, Truncatable: true},
-			{Kind: bichatcontext.KindState, MinTokens: 500, MaxTokens: 2000, Truncatable: false},
-			{Kind: bichatcontext.KindToolOutput, MinTokens: 2000, MaxTokens: 20000, Truncatable: true},
-			{Kind: bichatcontext.KindHistory, MinTokens: 5000, MaxTokens: 100000, Truncatable: true},
-			{Kind: bichatcontext.KindTurn, MinTokens: 1000, MaxTokens: 10000, Truncatable: false},
-		},
+		KindPriorities:    defaultKindPriorities(),
 		Compaction: &bichatcontext.CompactionConfig{
 			PruneToolOutputs:      true,
 			MaxToolOutputAge:      3600, // 1 hour (remove old tool outputs)
@@ -608,45 +604,30 @@ func (c *ModuleConfig) BuildServices() error {
 		)
 	}
 
-	// Build AttachmentService (required unless disabled)
-	if c.attachmentService == nil {
-		var fileStorage storage.FileStorage
-
+	// Create file storage once for both AttachmentService and ArtifactService
+	var fileStorage storage.FileStorage
+	if c.attachmentService == nil || c.artifactService == nil {
 		if c.DisableAttachmentStorage {
 			fileStorage = storage.NewNoOpFileStorage()
 		} else {
-			// Create LocalFileStorage with configured paths
 			fs, err := storage.NewLocalFileStorage(
 				c.AttachmentStorageBasePath,
 				c.AttachmentStorageBaseURL,
 			)
 			if err != nil {
-				return serrors.E(op, err, "failed to create attachment storage")
+				return serrors.E(op, err, "failed to create file storage")
 			}
 			fileStorage = fs
 		}
+	}
 
+	// Build AttachmentService
+	if c.attachmentService == nil {
 		c.attachmentService = services.NewAttachmentService(fileStorage)
 	}
 
-	// Build ArtifactService (uses same file storage as attachments)
+	// Build ArtifactService
 	if c.artifactService == nil {
-		var fileStorage storage.FileStorage
-
-		if c.DisableAttachmentStorage {
-			fileStorage = storage.NewNoOpFileStorage()
-		} else {
-			// Create LocalFileStorage with configured paths
-			fs, err := storage.NewLocalFileStorage(
-				c.AttachmentStorageBasePath,
-				c.AttachmentStorageBaseURL,
-			)
-			if err != nil {
-				return serrors.E(op, err, "failed to create artifact storage")
-			}
-			fileStorage = fs
-		}
-
 		c.artifactService = bichatservices.NewArtifactService(c.ChatRepo, fileStorage)
 	}
 

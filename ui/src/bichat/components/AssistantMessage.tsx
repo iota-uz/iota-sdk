@@ -12,7 +12,8 @@ import { ChartCard } from './ChartCard'
 import { SourcesPanel } from './SourcesPanel'
 import { DownloadCard } from './DownloadCard'
 import { InlineQuestionForm } from './InlineQuestionForm'
-import type { AssistantTurn, Citation, ChartData, Artifact, CodeOutput, PendingQuestion, TokenUsage } from '../types'
+import type { AssistantTurn, Citation, ChartData, Artifact, CodeOutput, PendingQuestion } from '../types'
+import { DebugPanel } from './DebugPanel'
 import { useTranslation } from '../hooks/useTranslation'
 
 const MarkdownRenderer = lazy(() =>
@@ -244,24 +245,8 @@ export function AssistantMessage({
     }
   }, [])
 
-  const hasMeaningfulUsage = (usage?: TokenUsage): boolean => {
-    if (!usage) return false
-    return (
-      usage.promptTokens > 0 ||
-      usage.completionTokens > 0 ||
-      usage.totalTokens > 0 ||
-      (usage.cachedTokens ?? 0) > 0 ||
-      (usage.cost ?? 0) > 0
-    )
-  }
-
   const hasContent = turn.content?.trim().length > 0
   const hasExplanation = !!turn.explanation?.trim()
-  const hasDebugTrace = !!turn.debug && (
-    !!turn.debug.generationMs ||
-    hasMeaningfulUsage(turn.debug.usage) ||
-    turn.debug.tools.length > 0
-  )
   const hasPendingQuestion =
     !!pendingQuestion &&
     pendingQuestion.status === 'PENDING' &&
@@ -444,7 +429,7 @@ export function AssistantMessage({
                           d="M9 5l7 7-7 7"
                         />
                       </svg>
-                      <span className="font-medium">How I arrived at this</span>
+                      <span className="font-medium">{t('assistant.explanation')}</span>
                     </button>
                     {explanationExpanded && (
                       <div className="pt-3 text-sm text-gray-600 dark:text-gray-400">
@@ -458,62 +443,7 @@ export function AssistantMessage({
               </div>
             )}
 
-            {showDebug && (
-              <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4">
-                <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                  {t('slash.debugPanelTitle')}
-                </p>
-                <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                  {hasDebugTrace && turn.debug && turn.debug.generationMs !== undefined && (
-                    <p>
-                      {t('slash.debugGeneration')}: <span className="font-mono">{turn.debug.generationMs}ms</span>
-                    </p>
-                  )}
-                  {hasDebugTrace && turn.debug && hasMeaningfulUsage(turn.debug.usage) && turn.debug.usage && (
-                    <p>
-                      {t('slash.debugUsage')}: <span className="font-mono">{turn.debug.usage.promptTokens}/{turn.debug.usage.completionTokens}/{turn.debug.usage.totalTokens}</span>
-                    </p>
-                  )}
-                  {hasDebugTrace && turn.debug && turn.debug.tools.length > 0 && (
-                    <div className="space-y-1">
-                      <p>{t('slash.debugTools')}</p>
-                      {turn.debug.tools.map((tool, idx) => (
-                        <div key={`${tool.callId || tool.name}-${idx}`} className="rounded-md bg-gray-50 dark:bg-gray-900/40 p-2 border border-gray-200 dark:border-gray-700">
-                          <p className="font-mono text-[11px] text-gray-700 dark:text-gray-200">
-                            {tool.name} {tool.callId ? `(${tool.callId})` : ''}
-                          </p>
-                          {tool.durationMs !== undefined && (
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                              {tool.durationMs}ms
-                            </p>
-                          )}
-                          {tool.arguments && (
-                            <pre className="mt-1 whitespace-pre-wrap break-all text-[11px] text-gray-600 dark:text-gray-300">
-                              {tool.arguments.slice(0, 500)}
-                            </pre>
-                          )}
-                          {tool.result && (
-                            <pre className="mt-1 whitespace-pre-wrap break-all text-[11px] text-gray-600 dark:text-gray-300">
-                              {tool.result.slice(0, 500)}
-                            </pre>
-                          )}
-                          {tool.error && (
-                            <p className="mt-1 text-[11px] text-red-600 dark:text-red-400">
-                              {tool.error}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {!hasDebugTrace && (
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                      {t('slash.debugUnavailable')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+            {showDebug && <DebugPanel trace={turn.debug} />}
           </div>
         )}
 
